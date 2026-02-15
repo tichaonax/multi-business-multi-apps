@@ -44,7 +44,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       weightInput: true,
       wifiTokens: true,
       customerLookup: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'grocery',
     quickActionsEnabled: true
@@ -58,7 +59,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       categoryFilter: true,
       comboItems: true,
       wifiTokens: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'restaurant',
     quickActionsEnabled: true
@@ -73,7 +75,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       customerLookup: true,
       wifiTokens: true,
       projectTracking: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'hardware',
     quickActionsEnabled: true
@@ -107,7 +110,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       projectTracking: true,
       customerLookup: true,
       barcodeScan: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'construction',
     quickActionsEnabled: true
@@ -121,7 +125,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       vinTracking: true,
       customerLookup: true,
       projectTracking: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'vehicles',
     quickActionsEnabled: true
@@ -135,7 +140,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       timeTracking: true,
       projectTracking: true,
       customerLookup: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'consulting',
     quickActionsEnabled: true
@@ -150,7 +156,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       customerLookup: true,
       wifiTokens: true,
       categoryFilter: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'retail',
     quickActionsEnabled: true
@@ -165,7 +172,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       customerLookup: true,
       projectTracking: true,
       wifiTokens: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'services',
     quickActionsEnabled: true
@@ -178,7 +186,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
     features: {
       barcodeScan: true,
       customerLookup: true,
-      businessServices: true
+      businessServices: true,
+      coupons: true
     },
     receiptType: 'default',
     quickActionsEnabled: true

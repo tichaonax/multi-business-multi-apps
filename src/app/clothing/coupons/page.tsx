@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
+import { getSupportedBusinessTypes } from '@/app/universal/pos/config/business-type-config'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
@@ -272,7 +273,7 @@ export default function ClothingCouponsPage() {
 
   return (
     <BusinessProvider businessId={businessId}>
-      <BusinessTypeRoute requiredBusinessType="clothing">
+      <BusinessTypeRoute requiredBusinessType={getSupportedBusinessTypes()}>
         <ContentLayout
           title="Coupon Management"
           breadcrumb={[

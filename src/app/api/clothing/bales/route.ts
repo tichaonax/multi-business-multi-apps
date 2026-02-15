@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     // Check business exists and is clothing type
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },
-      select: { id: true, businessType: true, shortName: true }
+      select: { id: true, type: true, shortName: true }
     })
 
     if (!business) {
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
-    if (business.businessType !== 'clothing') {
+    if (business.type !== 'clothing') {
       return NextResponse.json({
         success: false,
         error: 'Bales can only be registered for clothing businesses'

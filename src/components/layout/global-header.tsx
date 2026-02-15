@@ -80,14 +80,16 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       grocery: [
         { href: `/${businessType}/pos`, icon: '🛒', label: 'POS System' },
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
-        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: '/clothing/inventory?tab=bales', icon: '📦', label: 'Bales Inventory' },
         { href: `/${businessType}/products`, icon: '📦', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
       ],
       clothing: [
         { href: `/${businessType}/pos`, icon: '👕', label: 'POS System' },
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
-        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
+        { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: '/clothing/inventory?tab=bales', icon: '📦', label: 'Bales Inventory' },
         { href: `/${businessType}/products`, icon: '👗', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
       ],
@@ -114,9 +116,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       permissions: ['canAccessExpenseAccount']
     }))
 
+    // Coupon management link - only if business has coupons enabled
+    const couponLinks: MenuLink[] = currentBusiness?.couponsEnabled
+      ? [{ href: '/clothing/coupons', icon: '🏷️', label: 'Coupons', permissions: ['canManageCoupons'] }]
+      : []
+
     const allLinks = [
       ...baseLinks,
       ...(businessSpecificLinks[businessType] || []),
+      ...couponLinks,
       ...expenseLinks
     ]
 

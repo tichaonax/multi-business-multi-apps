@@ -82,7 +82,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
         </div>
         {data.discount && data.discount > 0 && (
           <div className="flex justify-between mb-1">
-            <span>Discount:</span>
+            <span>{data.discountLabel || 'Discount'}:</span>
             <span>-${Number(data.discount).toFixed(2)}</span>
           </div>
         )}

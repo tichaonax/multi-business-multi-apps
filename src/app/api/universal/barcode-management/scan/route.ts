@@ -6,8 +6,9 @@ import { lookupBarcode } from '@/lib/barcode-lookup';
 /**
  * POST /api/universal/barcode-management/scan
  *
- * Three-tier barcode lookup:
+ * Four-tier barcode lookup:
  * 1. Check existing products
+ * 1.5. Check clothing bales (by barcode or SKU)
  * 2. Check barcode templates
  * 3. Return not found
  *

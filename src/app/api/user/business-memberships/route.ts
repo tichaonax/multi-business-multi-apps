@@ -31,6 +31,7 @@ export async function GET() {
           address: true,
           phone: true,
           defaultPage: true,
+          couponsEnabled: true,
           expense_accounts: {
             select: { id: true, accountName: true },
             where: { isActive: true, isSibling: false },
@@ -47,6 +48,7 @@ export async function GET() {
         businessId: business.id,
         businessName: business.name,
         businessType: business.type,
+        couponsEnabled: business.couponsEnabled ?? false,
         role: 'admin' as any,
         permissions: {
           // Grant all permissions for system admins
@@ -98,6 +100,7 @@ export async function GET() {
             address: true,
             phone: true,
             defaultPage: true,
+            couponsEnabled: true,
             expense_accounts: {
               select: { id: true, accountName: true },
               where: { isActive: true, isSibling: false },
@@ -116,6 +119,7 @@ export async function GET() {
       businessId: membership.businessId,
       businessName: membership.businesses.name,
       businessType: membership.businesses.type,
+      couponsEnabled: membership.businesses.couponsEnabled ?? false,
       role: membership.role as any,
       permissions: mergeWithBusinessPermissions(membership.permissions as any),
       isActive: membership.isActive && membership.businesses.isActive,

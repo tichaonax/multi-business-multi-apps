@@ -1,9 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useRouter } from 'next/navigation'
+import { Tag, X, Loader2, ChevronDown, Search } from 'lucide-react'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+
+interface CouponOption {
+  id: string
+  code: string
+  barcode: string | null
+  description: string | null
+  discountAmount: number
+  isActive: boolean
+}
 
 export function MiniCart() {
   const { cart, removeFromCart, updateQuantity, clearCart, getCartItemCount, getCartSubtotal, isCartEmpty } = useGlobalCart()
@@ -11,16 +22,145 @@ export function MiniCart() {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
 
+  // Coupon state
+  const [couponPhone, setCouponPhone] = useState('')
+  const [couponLoading, setCouponLoading] = useState(false)
+  const [couponError, setCouponError] = useState<string | null>(null)
+  const [appliedCoupon, setAppliedCoupon] = useState<{ id: string; code: string; discountAmount: number; customerPhone: string } | null>(null)
+  const [showCouponForm, setShowCouponForm] = useState(false)
+
+  // Searchable coupon dropdown state
+  const [couponSearch, setCouponSearch] = useState('')
+  const [couponOptions, setCouponOptions] = useState<CouponOption[]>([])
+  const [couponDropdownOpen, setCouponDropdownOpen] = useState(false)
+  const [selectedCoupon, setSelectedCoupon] = useState<CouponOption | null>(null)
+  const [couponsLoaded, setCouponsLoaded] = useState(false)
+  const couponDropdownRef = useRef<HTMLDivElement>(null)
+
+  const couponsEnabled = currentBusiness?.couponsEnabled
+
+  // Fetch available coupons when form is shown
+  useEffect(() => {
+    if (showCouponForm && currentBusinessId && !couponsLoaded) {
+      fetch(`/api/coupons?businessId=${encodeURIComponent(currentBusinessId)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.data)) {
+            setCouponOptions(
+              data.data
+                .filter((c: any) => c.isActive)
+                .map((c: any) => ({
+                  id: c.id,
+                  code: c.code,
+                  barcode: c.barcode || null,
+                  description: c.description || null,
+                  discountAmount: Number(c.discountAmount),
+                  isActive: c.isActive
+                }))
+            )
+          }
+          setCouponsLoaded(true)
+        })
+        .catch(() => setCouponsLoaded(true))
+    }
+  }, [showCouponForm, currentBusinessId, couponsLoaded])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (couponDropdownRef.current && !couponDropdownRef.current.contains(e.target as Node)) {
+        setCouponDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Filter coupons based on search (match code, barcode, or description)
+  const filteredCoupons = couponOptions.filter(c => {
+    const q = couponSearch.toLowerCase()
+    if (!q) return true
+    return (
+      c.code.toLowerCase().includes(q) ||
+      (c.barcode && c.barcode.toLowerCase().includes(q)) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    )
+  })
+
+  const handleSelectCoupon = (coupon: CouponOption) => {
+    setSelectedCoupon(coupon)
+    setCouponSearch(coupon.code)
+    setCouponDropdownOpen(false)
+    setCouponError(null)
+  }
+
+  const handleApplyCoupon = useCallback(async () => {
+    const codeToValidate = selectedCoupon?.code || couponSearch.trim()
+    if (!codeToValidate || !couponPhone.trim() || !currentBusinessId) return
+    setCouponLoading(true)
+    setCouponError(null)
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          code: codeToValidate,
+          barcode: codeToValidate,
+          customerPhone: couponPhone.trim()
+        })
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setCouponError(data.error || 'Invalid coupon')
+      } else {
+        const couponData = {
+          id: data.data.id,
+          code: data.data.code,
+          description: data.data.description || null,
+          discountAmount: Number(data.data.discountAmount),
+          requiresApproval: data.data.requiresApproval || false,
+          customerPhone: couponPhone.trim()
+        }
+        setAppliedCoupon(couponData)
+        // Persist and notify POS page in real-time
+        try { localStorage.setItem(`applied-coupon-${currentBusinessId}`, JSON.stringify(couponData)) } catch {}
+        window.dispatchEvent(new CustomEvent('coupon-applied', { detail: couponData }))
+        setCouponSearch('')
+        setCouponPhone('')
+        setSelectedCoupon(null)
+        setShowCouponForm(false)
+      }
+    } catch {
+      setCouponError('Failed to validate coupon')
+    } finally {
+      setCouponLoading(false)
+    }
+  }, [selectedCoupon, couponSearch, couponPhone, currentBusinessId])
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null)
+    setCouponError(null)
+    if (currentBusinessId) {
+      try { localStorage.removeItem(`applied-coupon-${currentBusinessId}`) } catch {}
+    }
+    window.dispatchEvent(new Event('coupon-removed'))
+  }
+
   // Clear cart from both global context and POS-specific localStorage
   const handleClearCart = () => {
     clearCart()
+    // Also clear any applied coupon
+    setAppliedCoupon(null)
     if (currentBusinessId) {
       // Also clear POS-specific localStorage keys so POS pages pick up the empty state
       try {
         localStorage.removeItem(`cart-${currentBusinessId}`)
         localStorage.removeItem(`global-cart-${currentBusinessId}`)
+        localStorage.removeItem(`applied-coupon-${currentBusinessId}`)
       } catch {}
     }
+    window.dispatchEvent(new Event('coupon-removed'))
   }
 
   const handleRemoveItem = (itemId: string) => {
@@ -38,15 +178,10 @@ export function MiniCart() {
   }
 
   const handleGoToPOS = () => {
-    console.log('[MiniCart] Go to Checkout clicked', {
-      currentPath: window.location.pathname,
-      businessType: currentBusiness?.businessType,
-      targetPath: `/${currentBusiness?.businessType}/pos`
-    })
     setIsOpen(false)
-    // Navigate to the appropriate POS based on business type
-    const businessType = currentBusiness?.businessType || 'retail'
-    router.push(`/${businessType}/pos`)
+    // Always navigate to universal POS — it adapts to all business types
+    // and supports coupons, unlike the business-specific POS pages
+    router.push('/universal/pos')
   }
 
   if (!currentBusiness) {
@@ -232,8 +367,135 @@ export function MiniCart() {
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                  <div className="flex items-center justify-between mb-3">
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 space-y-3">
+                  {/* Coupon Section */}
+                  {couponsEnabled && (
+                    <div>
+                      {appliedCoupon ? (
+                        <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <Tag className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                              {appliedCoupon.code}
+                            </span>
+                            <span className="text-sm text-green-600 dark:text-green-400 ml-2">
+                              -{formatCurrency(appliedCoupon.discountAmount)}
+                            </span>
+                          </div>
+                          <button onClick={handleRemoveCoupon} className="text-green-600 hover:text-red-500 p-1">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : showCouponForm ? (
+                        <div className="space-y-2">
+                          {/* Customer Phone - using PhoneNumberInput */}
+                          <PhoneNumberInput
+                            value={couponPhone}
+                            onChange={(full) => { setCouponPhone(full); setCouponError(null) }}
+                            label=""
+                            placeholder="Customer phone"
+                            className="w-full [&_button]:!h-8 [&_input]:!py-1 [&_input]:!text-sm [&_button]:!px-2 [&_button]:!text-xs [&_.text-lg]:!text-sm [&_p]:!hidden"
+                          />
+
+                          {/* Searchable Coupon Dropdown */}
+                          <div className="flex gap-2">
+                            <div className="relative flex-1" ref={couponDropdownRef}>
+                              <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                                <input
+                                  type="text"
+                                  value={couponSearch}
+                                  onChange={(e) => {
+                                    setCouponSearch(e.target.value)
+                                    setSelectedCoupon(null)
+                                    setCouponDropdownOpen(true)
+                                    setCouponError(null)
+                                  }}
+                                  onFocus={() => setCouponDropdownOpen(true)}
+                                  placeholder="Search or scan coupon"
+                                  className="w-full pl-8 pr-7 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setCouponDropdownOpen(!couponDropdownOpen)}
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              {/* Dropdown list */}
+                              {couponDropdownOpen && (
+                                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                                  {!couponsLoaded ? (
+                                    <div className="px-3 py-2 text-sm text-gray-500 flex items-center gap-2">
+                                      <Loader2 className="w-3 h-3 animate-spin" /> Loading...
+                                    </div>
+                                  ) : filteredCoupons.length === 0 ? (
+                                    <div className="px-3 py-2 text-sm text-gray-500">
+                                      {couponSearch ? 'No matching coupons' : 'No active coupons'}
+                                    </div>
+                                  ) : (
+                                    filteredCoupons.map(coupon => (
+                                      <button
+                                        key={coupon.id}
+                                        type="button"
+                                        onClick={() => handleSelectCoupon(coupon)}
+                                        className={`w-full text-left px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-sm border-b border-gray-100 dark:border-gray-600 last:border-0 ${
+                                          selectedCoupon?.id === coupon.id ? 'bg-purple-50 dark:bg-purple-900/20' : ''
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-medium text-gray-900 dark:text-white">{coupon.code}</span>
+                                          <span className="text-purple-600 dark:text-purple-400 font-medium">
+                                            -{formatCurrency(coupon.discountAmount)}
+                                          </span>
+                                        </div>
+                                        {coupon.description && (
+                                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{coupon.description}</p>
+                                        )}
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={handleApplyCoupon}
+                              disabled={couponLoading || (!selectedCoupon && !couponSearch.trim()) || !couponPhone.trim()}
+                              className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                            >
+                              {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+                            </button>
+                          </div>
+                          {couponError && <p className="text-xs text-red-500">{couponError}</p>}
+                          <button
+                            onClick={() => {
+                              setShowCouponForm(false)
+                              setCouponError(null)
+                              setCouponSearch('')
+                              setSelectedCoupon(null)
+                              setCouponsLoaded(false)
+                            }}
+                            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setShowCouponForm(true)}
+                          className="flex items-center gap-1.5 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+                        >
+                          <Tag className="w-3.5 h-3.5" />
+                          Apply Coupon
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Totals */}
+                  <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Subtotal
                     </span>
@@ -241,6 +503,20 @@ export function MiniCart() {
                       {formatCurrency(subtotal)}
                     </span>
                   </div>
+                  {appliedCoupon && (
+                    <>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-green-600 dark:text-green-400">Coupon ({appliedCoupon.code})</span>
+                        <span className="text-green-600 dark:text-green-400">-{formatCurrency(appliedCoupon.discountAmount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {formatCurrency(Math.max(0, subtotal - appliedCoupon.discountAmount))}
+                        </span>
+                      </div>
+                    </>
+                  )}
                   <button
                     onClick={handleGoToPOS}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"

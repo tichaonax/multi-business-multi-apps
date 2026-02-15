@@ -46,7 +46,9 @@ function BusinessManagePageContent() {
     address?: string
     phone?: string
     ecocashEnabled?: boolean
+    couponsEnabled?: boolean
     receiptReturnPolicy?: string
+    taxEnabled?: boolean
     taxIncludedInPrice?: boolean
     taxRate?: string
     taxLabel?: string
@@ -382,7 +384,9 @@ function BusinessManagePageContent() {
                               address: biz?.address || '',
                               phone: biz?.phone || '',
                               ecocashEnabled: biz?.ecocashEnabled !== undefined ? biz.ecocashEnabled : false,
+                              couponsEnabled: biz?.couponsEnabled !== undefined ? biz.couponsEnabled : false,
                               receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',
+                              taxEnabled: biz?.taxEnabled !== undefined ? biz.taxEnabled : false,
                               taxIncludedInPrice: biz?.taxIncludedInPrice !== undefined ? biz.taxIncludedInPrice : true,
                               taxRate: biz?.taxRate ? String(biz.taxRate) : '',
                               taxLabel: biz?.taxLabel || '',

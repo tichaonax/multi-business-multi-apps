@@ -76,6 +76,13 @@ export default function UniversalPOS() {
     clearError: clearCouponError
   } = useCoupon(currentBusinessId || undefined)
 
+  // Sync discount when a coupon is loaded from localStorage (e.g. applied in mini-cart)
+  useEffect(() => {
+    if (appliedCoupon) {
+      setDiscount(appliedCoupon.discountAmount)
+    }
+  }, [appliedCoupon, setDiscount])
+
   // Payment processor with business info - no auto-print, show preview instead
   const { processCheckout, isProcessing, lastReceipt } = usePaymentProcessor(
     currentBusiness && currentBusinessId
@@ -92,6 +99,7 @@ export default function UniversalPOS() {
       onSuccess: (orderId, receiptData) => {
         console.log('✅ Order completed:', orderId)
         clearCart()
+        globalCart.clearCart()
         removeCoupon()
         reloadProducts()
         // Show receipt preview modal
@@ -200,6 +208,7 @@ export default function UniversalPOS() {
 
     // Import each item from global cart to local cart
     globalCart.cart.forEach(item => {
+      const attrs = item.attributes || {}
       addToCart({
         id: item.id,
         name: item.name,
@@ -207,11 +216,16 @@ export default function UniversalPOS() {
         quantity: item.quantity,
         unitPrice: item.price,
         productId: item.productId,
-        variantId: item.variantId,
+        variantId: attrs.baleId ? undefined : item.variantId,
         imageUrl: item.imageUrl || undefined,
         isCombo: item.isCombo,
         comboItems: item.comboItems,
-        isService: item.attributes?.isService || item.attributes?.businessService || false
+        isService: attrs.isService || attrs.businessService || false,
+        // Bale-specific fields
+        baleId: attrs.baleId,
+        condition: attrs.condition,
+        bogoActive: attrs.bogoActive,
+        bogoRatio: attrs.bogoRatio
       })
     })
 
@@ -225,8 +239,8 @@ export default function UniversalPOS() {
   }, [globalCart.cart, addToCart, globalCart.clearCart])
 
   // Handle coupon apply with manager approval for >$5
-  const handleApplyCoupon = async (input: string) => {
-    const coupon = await applyCoupon(input)
+  const handleApplyCoupon = async (input: string, customerPhone: string) => {
+    const coupon = await applyCoupon(input, customerPhone)
     if (coupon) {
       // Manager approval for coupons requiring approval (>$5)
       if (coupon.requiresApproval) {
@@ -267,7 +281,8 @@ export default function UniversalPOS() {
         ...(appliedCoupon ? {
           couponId: appliedCoupon.id,
           couponCode: appliedCoupon.code,
-          couponDiscount: appliedCoupon.discountAmount
+          couponDiscount: appliedCoupon.discountAmount,
+          couponCustomerPhone: appliedCoupon.customerPhone
         } : {})
       }
     })
@@ -293,7 +308,7 @@ export default function UniversalPOS() {
           onCheckout={handleCheckout}
           businessId={currentBusinessId || undefined}
           onProductsReload={reloadProducts}
-          {...(config.features.coupons ? {
+          {...(config.features.coupons && currentBusiness?.couponsEnabled ? {
             appliedCoupon,
             isValidatingCoupon,
             couponError,

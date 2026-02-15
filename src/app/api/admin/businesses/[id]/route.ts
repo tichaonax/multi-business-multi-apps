@@ -46,10 +46,16 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('ecocashEnabled')) {
       updateData.ecocashEnabled = !!payload.ecocashEnabled
     }
+    if (payload.hasOwnProperty('couponsEnabled')) {
+      updateData.couponsEnabled = !!payload.couponsEnabled
+    }
 
     // Receipt configuration fields
     if (payload.hasOwnProperty('receiptReturnPolicy')) {
       updateData.receiptReturnPolicy = payload.receiptReturnPolicy?.trim() || null
+    }
+    if (payload.hasOwnProperty('taxEnabled')) {
+      updateData.taxEnabled = !!payload.taxEnabled
     }
     if (payload.hasOwnProperty('taxIncludedInPrice')) {
       updateData.taxIncludedInPrice = !!payload.taxIncludedInPrice

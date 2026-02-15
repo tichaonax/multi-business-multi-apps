@@ -34,7 +34,7 @@ interface UniversalPOSLayoutProps {
   appliedCoupon?: AppliedCoupon | null
   isValidatingCoupon?: boolean
   couponError?: string | null
-  onApplyCoupon?: (input: string) => Promise<AppliedCoupon | null>
+  onApplyCoupon?: (input: string, customerPhone: string) => Promise<AppliedCoupon | null>
   onRemoveCoupon?: () => void
   onClearCouponError?: () => void
 }

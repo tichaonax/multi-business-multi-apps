@@ -226,6 +226,9 @@ export interface CoreBusinessPermissions {
   canManageMenu: boolean;                  // Manage restaurant menu items
   canManageMenuCategories: boolean;        // Manage restaurant menu categories
 
+  // Coupon Management
+  canManageCoupons: boolean;               // Create, edit, delete coupons for the business
+
   // Manual Transaction Entry & Book Closing
   canEnterManualOrders: boolean;           // Enter backdated manual transactions from book records
   canCloseBooks: boolean;                  // Close books for a day (manager+ only, blocks further manual entries)
@@ -1306,6 +1309,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canManageMenu: true,
   canManageMenuCategories: true,
 
+  canManageCoupons: true,
   canEnterManualOrders: true,
   canCloseBooks: true,
 };
@@ -1440,6 +1444,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canManageMenu: true,
   canManageMenuCategories: true,
 
+  canManageCoupons: true,
   canEnterManualOrders: true,
   canCloseBooks: true,
 };
@@ -1574,6 +1579,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canManageMenu: false,
   canManageMenuCategories: false,
 
+  canManageCoupons: false,
   canEnterManualOrders: true,
   canCloseBooks: false,
 };
@@ -1706,6 +1712,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageMenu: false,
   canManageMenuCategories: false,
 
+  canManageCoupons: false,
   canEnterManualOrders: false,
   canCloseBooks: false,
 };
@@ -1841,6 +1848,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canManageMenu: false,
   canManageMenuCategories: false,
 
+  canManageCoupons: false,
   canEnterManualOrders: true,  // ✅ Can enter backdated manual orders
   canCloseBooks: false,
 };
@@ -1976,6 +1984,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canManageMenu: false,
   canManageMenuCategories: false,
 
+  canManageCoupons: false,
   canEnterManualOrders: true,
   canCloseBooks: false,
 };
@@ -2108,6 +2117,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canManageMenu: true,
   canManageMenuCategories: true,
 
+  canManageCoupons: true,
   canEnterManualOrders: true,
   canCloseBooks: true,
 };
@@ -2465,6 +2475,7 @@ export interface BusinessMembership {
   isDemo?: boolean; // Flag to indicate demo business
   address?: string; // Business address for receipts
   phone?: string; // Business phone for receipts
+  couponsEnabled?: boolean; // Whether coupons are enabled for this business
   defaultPage?: string | null; // Default landing page for business
   expenseAccounts?: { id: string; accountName: string }[]; // Linked expense accounts for quick navigation
   joinedAt: Date;

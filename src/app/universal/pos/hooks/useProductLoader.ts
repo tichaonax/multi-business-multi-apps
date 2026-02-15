@@ -244,7 +244,7 @@ export function useProductLoader(
                 description: bale.notes || `${bale.remainingCount} of ${bale.itemCount} items remaining`,
                 basePrice: parseFloat(bale.unitPrice || 0),
                 category: bale.category?.name || 'Bales',
-                barcode: bale.barcode,
+                barcode: bale.barcode || bale.sku,
                 stockQuantity: bale.remainingCount,
                 condition: 'USED',
                 isBale: true,
@@ -260,8 +260,11 @@ export function useProductLoader(
         }
       }
 
+      // Filter out $0 products (except WiFi tokens and R710 tokens which may be free)
+      const filteredProducts = transformedProducts.filter(p => p.basePrice > 0)
+
       // Merge soldToday into all products
-      const allProducts = [...transformedProducts, ...baleProducts, ...wifiTokenProducts, ...r710TokenProducts]
+      const allProducts = [...filteredProducts, ...baleProducts, ...wifiTokenProducts, ...r710TokenProducts]
       allProducts.forEach(p => {
         p.soldToday = soldTodayCounts[p.id] || 0
       })

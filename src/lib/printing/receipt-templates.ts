@@ -274,7 +274,7 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
     receipt += formatTotal(taxLabel, data.tax);
   }
   if (data.discount && data.discount > 0) {
-    receipt += formatTotal('Savings', -data.discount);
+    receipt += formatTotal(data.discountLabel || 'Savings', -data.discount);
   }
   // Dotted line before TOTAL (customer copy only)
   if (isCustomerCopy) {
@@ -663,7 +663,7 @@ function generateHardwareReceipt(data: ReceiptData): string {
     receipt += formatTotal('Tax', data.tax);
   }
   if (data.discount) {
-    receipt += formatTotal('Discount', -data.discount);
+    receipt += formatTotal(data.discountLabel || 'Discount', -data.discount);
   }
   receipt += formatTotal('TOTAL', data.total, true);
 
@@ -1066,7 +1066,7 @@ function generateRetailReceipt(data: ReceiptData): string {
     receipt += formatTotal('Tax', data.tax);
   }
   if (data.discount) {
-    receipt += formatTotal('Discount', -data.discount);
+    receipt += formatTotal(data.discountLabel || 'Discount', -data.discount);
   }
   receipt += formatTotal('TOTAL', data.total, true);
 
@@ -1211,7 +1211,7 @@ function generateGenericReceipt(data: ReceiptData): string {
     receipt += formatTotal('Tax', data.tax);
   }
   if (data.discount) {
-    receipt += formatTotal('Discount', -data.discount);
+    receipt += formatTotal(data.discountLabel || 'Discount', -data.discount);
   }
   receipt += formatTotal('TOTAL', data.total, true);
 

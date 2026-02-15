@@ -20,8 +20,14 @@ function NewPrintJobPageContent() {
   const searchParams = useSearchParams();
   const toast = useToastContext();
   const templateId = searchParams.get('templateId');
+  const baleId = searchParams.get('baleId');
+  const baleBarcodeData = searchParams.get('barcodeData');
+  const baleProductName = searchParams.get('productName');
+  const balePrice = searchParams.get('price');
+  const baleDescription = searchParams.get('description');
 
   const [template, setTemplate] = useState<any>(null);
+  const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
   const [printers, setPrinters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +38,8 @@ function NewPrintJobPageContent() {
   const [selectedProductVariant, setSelectedProductVariant] = useState<any>(null);
   const [showPriceOverride, setShowPriceOverride] = useState(false);
   const [originalPrice, setOriginalPrice] = useState<number | null>(null);
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
 
   const [formData, setFormData] = useState({
     templateId: templateId || '',
@@ -52,6 +60,8 @@ function NewPrintJobPageContent() {
   useEffect(() => {
     if (templateId) {
       fetchTemplate();
+    } else {
+      fetchAvailableTemplates();
     }
     fetchPrinters();
 
@@ -61,6 +71,21 @@ function NewPrintJobPageContent() {
       setPrintToPdf(true);
     }
   }, [templateId]);
+
+  // Pre-fill form from bale query params (when navigating from bale inventory)
+  useEffect(() => {
+    if (baleBarcodeData) {
+      setFormData(prev => ({
+        ...prev,
+        barcodeData: baleBarcodeData || prev.barcodeData,
+        itemName: baleProductName || prev.itemName,
+        productName: baleProductName || prev.productName,
+        price: balePrice ? parseFloat(balePrice).toFixed(2) : prev.price,
+        description: baleDescription || prev.description,
+      }));
+      setLoading(false);
+    }
+  }, [baleBarcodeData, baleProductName, balePrice, baleDescription]);
 
   const fetchTemplate = async () => {
     setLoading(true);
@@ -88,6 +113,20 @@ function NewPrintJobPageContent() {
     } catch (error) {
       console.error('Error fetching template:', error);
       toast.push('Failed to load template', { type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAvailableTemplates = async () => {
+    try {
+      const response = await fetch('/api/universal/barcode-management/templates?limit=100');
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableTemplates(data.templates || []);
+      }
+    } catch (error) {
+      console.error('Error fetching templates:', error);
     } finally {
       setLoading(false);
     }
@@ -240,8 +279,20 @@ function NewPrintJobPageContent() {
 
       if (response.ok) {
         const data = await response.json();
+        // If this was a bale print job, update the bale's barcode field
+        if (baleId && formData.barcodeData) {
+          try {
+            await fetch(`/api/clothing/bales/${baleId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ barcode: formData.barcodeData }),
+            });
+          } catch (err) {
+            console.error('Failed to update bale barcode:', err);
+          }
+        }
         toast.push('Print job created successfully', { type: 'success' });
-        router.push('/universal/barcode-management/print-jobs');
+        router.push(baleId ? '/clothing/inventory?tab=bales' : '/universal/barcode-management/print-jobs');
       } else {
         const data = await response.json();
         if (data.details) {
@@ -365,6 +416,14 @@ function NewPrintJobPageContent() {
           <p className="mt-2 text-gray-600 dark:text-gray-400">
             Configure and submit a new barcode printing job
           </p>
+          {baleId && (
+            <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/30 rounded-lg">
+              <p className="text-sm text-green-800 dark:text-green-200">
+                <strong>Bale Barcode:</strong> Printing barcode for bale batch.
+                Select a template below, then print. The barcode will be automatically linked to the bale.
+              </p>
+            </div>
+          )}
           {template && (
             <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
               <p className="text-sm text-blue-800 dark:text-blue-200">
@@ -400,16 +459,81 @@ function NewPrintJobPageContent() {
                 <label htmlFor="templateId" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Template *
                 </label>
-                <select
-                  id="templateId"
-                  name="templateId"
-                  required
-                  value={formData.templateId}
-                  onChange={handleChange}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
-                >
-                  <option value="">Select a template...</option>
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="templateId"
+                    placeholder="Search templates by name..."
+                    value={templateSearch}
+                    onChange={(e) => {
+                      setTemplateSearch(e.target.value);
+                      setShowTemplateDropdown(true);
+                    }}
+                    onFocus={() => setShowTemplateDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowTemplateDropdown(false), 200)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
+                  />
+                  {showTemplateDropdown && (
+                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {availableTemplates
+                        .filter((t: any) =>
+                          !templateSearch ||
+                          t.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                          t.symbology?.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                          t.business?.name?.toLowerCase().includes(templateSearch.toLowerCase())
+                        )
+                        .map((t: any) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              setTemplate(t);
+                              setTemplateSearch(t.name);
+                              setShowTemplateDropdown(false);
+                              setFormData(prev => ({
+                                ...prev,
+                                templateId: t.id,
+                                itemName: prev.itemName || t.name,
+                                barcodeData: prev.barcodeData || t.barcodeValue,
+                                batchId: prev.batchId || t.batchId || '',
+                                productName: prev.productName || t.productName || '',
+                                description: prev.description || t.description || '',
+                                price: prev.price || (t.defaultPrice ? parseFloat(t.defaultPrice).toFixed(2) : ''),
+                                size: prev.size || t.defaultSize || '',
+                                color: prev.color || t.defaultColor || '',
+                              }));
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 text-sm"
+                          >
+                            <span className="font-medium text-gray-900 dark:text-white">{t.name}</span>
+                            <span className="ml-2 text-gray-500 dark:text-gray-400">
+                              {t.symbology} {t.business?.name ? `— ${t.business.name}` : ''}
+                            </span>
+                          </button>
+                        ))}
+                      {availableTemplates.filter((t: any) =>
+                        !templateSearch ||
+                        t.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                        t.symbology?.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                        t.business?.name?.toLowerCase().includes(templateSearch.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                          No templates found
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {formData.templateId && template && (
+                  <p className="mt-1 text-sm text-green-600 dark:text-green-400">
+                    Selected: {template.name} ({template.symbology})
+                  </p>
+                )}
+                {!formData.templateId && (
+                  <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">
+                    Please select a template to continue
+                  </p>
+                )}
                 {errors.templateId && <p className="mt-1 text-sm text-red-600">{errors.templateId}</p>}
                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                   Or <Link href="/universal/barcode-management/templates" className="text-blue-600 hover:underline">create a new template</Link>

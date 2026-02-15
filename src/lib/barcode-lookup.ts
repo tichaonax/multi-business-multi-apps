@@ -13,6 +13,7 @@ import { prisma } from '@/lib/prisma';
 
 export type BarcodeLookupResult =
   | { type: 'product'; data: ProductLookupData }
+  | { type: 'bale'; data: BaleLookupData }
   | { type: 'template'; data: TemplateLookupData }
   | { type: 'not_found'; barcode: string };
 
@@ -27,6 +28,22 @@ export interface ProductLookupData {
     isUniversal: boolean;
     label?: string | null;
     source: string;
+  };
+}
+
+export interface BaleLookupData {
+  bale: {
+    id: string;
+    batchNumber: string;
+    sku: string;
+    barcode: string | null;
+    unitPrice: number;
+    remainingCount: number;
+    itemCount: number;
+    bogoActive: boolean;
+    bogoRatio: number;
+    categoryName: string;
+    businessId: string;
   };
 }
 
@@ -79,6 +96,12 @@ export async function lookupBarcode(
   const productResult = await lookupProductByBarcode(barcode, businessId);
   if (productResult) {
     return { type: 'product', data: productResult };
+  }
+
+  // TIER 1.5: Check clothing bales (by barcode or SKU)
+  const baleResult = await lookupBaleByBarcode(barcode, businessId);
+  if (baleResult) {
+    return { type: 'bale', data: baleResult };
   }
 
   // TIER 2: Check barcode templates
@@ -353,6 +376,53 @@ async function lookupTemplateByBarcode(
     };
   } catch (error) {
     console.error('Error in lookupTemplateByBarcode:', error);
+    return null;
+  }
+}
+
+/**
+ * TIER 1.5: Look up clothing bale by barcode or SKU
+ */
+async function lookupBaleByBarcode(
+  barcode: string,
+  businessId: string
+): Promise<BaleLookupData | null> {
+  try {
+    // Search by barcode field first, then by SKU
+    const bale = await prisma.clothingBales.findFirst({
+      where: {
+        businessId,
+        isActive: true,
+        remainingCount: { gt: 0 },
+        OR: [
+          { barcode: { equals: barcode, mode: 'insensitive' } },
+          { sku: { equals: barcode, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        category: { select: { name: true } },
+      },
+    });
+
+    if (!bale) return null;
+
+    return {
+      bale: {
+        id: bale.id,
+        batchNumber: bale.batchNumber,
+        sku: bale.sku,
+        barcode: bale.barcode,
+        unitPrice: Number(bale.unitPrice),
+        remainingCount: bale.remainingCount,
+        itemCount: bale.itemCount,
+        bogoActive: bale.bogoActive,
+        bogoRatio: bale.bogoRatio,
+        categoryName: bale.category?.name || 'Unknown',
+        businessId: bale.businessId,
+      },
+    };
+  } catch (error) {
+    console.error('Error looking up bale by barcode:', error);
     return null;
   }
 }

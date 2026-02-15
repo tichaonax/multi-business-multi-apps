@@ -181,6 +181,7 @@ export interface ReceiptData {
   subtotal: number;
   tax: number;
   discount?: number;
+  discountLabel?: string; // e.g. "Coupon (SAVE1)" instead of generic "Savings"
   total: number;
 
   // Payment

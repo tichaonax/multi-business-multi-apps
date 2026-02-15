@@ -178,6 +178,9 @@ export function buildReceiptData(
     subtotal: order.subtotal,
     tax: order.taxAmount,
     discount: order.discountAmount,
+    discountLabel: order.attributes?.couponCode
+      ? `Coupon (${order.attributes.couponCode})`
+      : undefined,
     total: order.totalAmount,
     paymentMethod: order.paymentMethod || 'cash',
     amountPaid: order.paymentStatus === 'PAID' ? order.totalAmount : undefined,

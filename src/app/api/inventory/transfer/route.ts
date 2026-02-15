@@ -50,24 +50,26 @@ async function findOrCreateTargetProduct(
       targetCategory = await tx.businessCategories.create({
         data: {
           id: randomUUID(),
-          businessId: targetBusinessId,
+          businesses: { connect: { id: targetBusinessId } },
+          businessType: targetBusiness.type,
           name: 'Transferred Items',
+          description: 'Category for items received via inventory transfer',
           emoji: '📦',
-          sortOrder: 999,
+          displayOrder: 999,
           isActive: true,
           updatedAt: new Date()
         }
       })
     }
 
-    const prefix = targetBusiness.businessType.substring(0, 3).toUpperCase()
+    const prefix = targetBusiness.type.substring(0, 3).toUpperCase()
     const shortName = item.productName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 6).toUpperCase()
     const newSku = `${prefix}-${shortName}-${randomUUID().substring(0, 6).toUpperCase()}`
     targetProduct = await tx.businessProducts.create({
       data: {
         id: randomUUID(),
         businessId: targetBusinessId,
-        businessType: targetBusiness.businessType,
+        businessType: targetBusiness.type,
         name: item.productName,
         sku: newSku,
         barcode: item.barcode || null,
@@ -154,9 +156,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify source is clothing business (inventory transfer is clothing-only feature)
-    if (sourceBusiness.businessType !== 'clothing') {
+    if (sourceBusiness.type !== 'clothing') {
       return NextResponse.json({ success: false, error: 'Inventory transfer is only available for clothing businesses' }, { status: 400 })
     }
+
+    // Look up employee record for the current user (employeeId FK references employees table, not users)
+    const employee = await prisma.employees.findFirst({
+      where: { userId: (session.user as any).id },
+      select: { id: true }
+    })
+    const employeeId = employee?.id || null
 
     // Run the entire transfer in a single transaction
     const result = await prisma.$transaction(async (tx: any) => {
@@ -168,7 +177,7 @@ export async function POST(request: NextRequest) {
           targetBusinessId,
           status: 'COMPLETED',
           transferDate: new Date(),
-          employeeId: (session.user as any).id || null,
+          employeeId,
           notes: notes || null,
         }
       })
@@ -210,6 +219,44 @@ export async function POST(request: NextRequest) {
 
           transferredBaleIds.push(item.baleId)
 
+          // Create a new bale record in the target business
+          // Find or create matching category by name
+          let targetCategory = await tx.clothingBaleCategories.findFirst({
+            where: { name: bale.category.name }
+          })
+          if (!targetCategory) {
+            targetCategory = await tx.clothingBaleCategories.create({
+              data: {
+                id: randomUUID(),
+                name: bale.category.name,
+                description: `Transferred from ${sourceBusiness.name}`,
+              }
+            })
+          }
+
+          // Generate batch number and SKU for target bale
+          const targetBatchNumber = `T-${bale.batchNumber}-${randomUUID().substring(0, 4).toUpperCase()}`
+          const targetShortName = (targetBusiness.shortName || targetBusiness.type.substring(0, 3)).toUpperCase().slice(0, 4)
+          const targetBaleSku = `BALE-${targetShortName}-${targetBatchNumber}-${randomUUID().substring(0, 4).toUpperCase()}`
+
+          await tx.clothingBales.create({
+            data: {
+              id: randomUUID(),
+              businessId: targetBusinessId,
+              categoryId: targetCategory.id,
+              batchNumber: targetBatchNumber,
+              itemCount: item.quantity,
+              remainingCount: item.quantity,
+              unitPrice: item.targetPrice,
+              sku: targetBaleSku,
+              barcode: bale.barcode || null,
+              bogoActive: false,
+              bogoRatio: 1,
+              isActive: true,
+              notes: `Transferred from ${sourceBusiness.name} (${bale.batchNumber})`,
+            }
+          })
+
           // Find or create product in target business
           const { targetProduct, targetVariant } = await findOrCreateTargetProduct(
             tx, targetBusinessId, targetBusiness, item
@@ -225,9 +272,9 @@ export async function POST(request: NextRequest) {
               quantity: item.quantity,
               unitCost: item.targetPrice,
               reference: `Transfer ${transfer.id}`,
-              reason: `Bale transfer from ${sourceBusiness.businessName} (${bale.batchNumber})`,
-              employeeId: (session.user as any).id || null,
-              businessType: targetBusiness.businessType,
+              reason: `Bale transfer from ${sourceBusiness.name} (${bale.batchNumber})`,
+              employeeId,
+              businessType: targetBusiness.type,
               businessProductId: targetProduct.id,
               createdAt: new Date()
             }
@@ -290,9 +337,9 @@ export async function POST(request: NextRequest) {
             quantity: -item.quantity,
             unitCost: item.sourcePrice,
             reference: `Transfer ${transfer.id}`,
-            reason: `Transfer to ${targetBusiness.businessName}`,
-            employeeId: (session.user as any).id || null,
-            businessType: sourceBusiness.businessType,
+            reason: `Transfer to ${targetBusiness.name}`,
+            employeeId,
+            businessType: sourceBusiness.type,
             businessProductId: sourceVariant.productId,
             createdAt: new Date()
           }
@@ -322,9 +369,9 @@ export async function POST(request: NextRequest) {
             quantity: item.quantity,
             unitCost: item.targetPrice,
             reference: `Transfer ${transfer.id}`,
-            reason: `Transfer from ${sourceBusiness.businessName}`,
-            employeeId: (session.user as any).id || null,
-            businessType: targetBusiness.businessType,
+            reason: `Transfer from ${sourceBusiness.name}`,
+            employeeId,
+            businessType: targetBusiness.type,
             businessProductId: targetProduct.id,
             createdAt: new Date()
           }
@@ -397,9 +444,20 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Inventory transfer error:', error)
+
+    // Return user-friendly error messages, not raw Prisma/DB errors
+    let userMessage = 'Failed to process inventory transfer'
+    if (error.message?.includes('Insufficient stock')) {
+      userMessage = error.message
+    } else if (error.message?.includes('not found')) {
+      userMessage = error.message
+    } else if (error.message?.includes('does not belong')) {
+      userMessage = error.message
+    }
+
     return NextResponse.json({
       success: false,
-      error: error.message || 'Failed to process inventory transfer'
+      error: userMessage
     }, { status: 500 })
   }
 }

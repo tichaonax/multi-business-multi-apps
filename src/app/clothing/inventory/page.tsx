@@ -92,6 +92,15 @@ function ClothingInventoryContent() {
     }
   }, [searchParams, currentBusinessId, router])
 
+  // Handle tab param from URL (e.g. returning from barcode printing)
+  useEffect(() => {
+    const tabParam = searchParams?.get('tab')
+    if (tabParam && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports'].includes(tabParam)) {
+      setActiveTab(tabParam as typeof activeTab)
+      router.replace('/clothing/inventory', { scroll: false })
+    }
+  }, [searchParams, router])
+
   // Fetch BOGO promotion status
   const fetchBogo = async () => {
     if (!currentBusinessId) return
@@ -178,9 +187,12 @@ function ClothingInventoryContent() {
 
   // Register a new bale
   const handleBaleSubmit = async () => {
-    if (!currentBusinessId) return
+    if (!currentBusinessId) {
+      showToast('No business selected', { type: 'error' })
+      return
+    }
     if (!baleForm.categoryId || !baleForm.itemCount || !baleForm.unitPrice) {
-      await customAlert({ title: 'Validation Error', description: 'Category, item count, and unit price are required.' })
+      showToast('Category, item count, and unit price are required', { type: 'error' })
       return
     }
     setBaleFormLoading(true)
@@ -205,10 +217,11 @@ function ClothingInventoryContent() {
         setShowBaleForm(false)
         fetchBales()
       } else {
-        await customAlert({ title: 'Error', description: data.error || 'Failed to register bale' })
+        showToast(data.error || 'Failed to register bale', { type: 'error' })
       }
-    } catch (error) {
-      await customAlert({ title: 'Error', description: 'Failed to register bale' })
+    } catch (error: any) {
+      console.error('Bale registration error:', error)
+      showToast(error.message || 'Failed to register bale', { type: 'error' })
     } finally {
       setBaleFormLoading(false)
     }
@@ -316,8 +329,10 @@ function ClothingInventoryContent() {
     }
   }
 
-  // Restore active tab from sessionStorage on mount
+  // Restore active tab from sessionStorage on mount (only if no URL tab param)
   useEffect(() => {
+    const urlTab = searchParams?.get('tab')
+    if (urlTab) return // URL tab param takes priority
     const savedTab = sessionStorage.getItem('clothing-inventory-active-tab')
     if (savedTab && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports'].includes(savedTab)) {
       setActiveTab(savedTab as any)
@@ -380,12 +395,12 @@ function ClothingInventoryContent() {
     )
   }
 
-  if (currentBusiness && currentBusiness.businessType !== 'clothing') {
+  if (currentBusiness && !['clothing', 'grocery'].includes(currentBusiness.businessType)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600">The Clothing Inventory page is only for clothing businesses. Please select a clothing business.</p>
+          <p className="text-gray-600">This inventory page is only available for clothing and grocery businesses.</p>
         </div>
       </div>
     )
@@ -647,7 +662,7 @@ function ClothingInventoryContent() {
       )}
 
   <BusinessProvider businessId={businessId}>
-      <BusinessTypeRoute requiredBusinessType="clothing">
+      <BusinessTypeRoute requiredBusinessType={["clothing", "grocery"]}>
         <ContentLayout
           title="👕 Inventory Management"
           breadcrumb={[
@@ -810,14 +825,14 @@ function ClothingInventoryContent() {
                         {selectedCondition === 'USED' && (
                           <button
                             onClick={() => router.push('/clothing/inventory/transfer')}
-                            className="btn-secondary border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
                           >
                             📦 Transfer Used
                           </button>
                         )}
                         <button
                           onClick={() => router.push('/clothing/inventory/transfer?endOfSale=true')}
-                          className="btn-secondary border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-medium transition-colors"
                           title="Transfer all remaining used inventory and deactivate BOGO"
                         >
                           🏁 End of Sale
@@ -933,13 +948,13 @@ function ClothingInventoryContent() {
                         </button>
                         <button
                           onClick={() => router.push('/clothing/inventory/transfer')}
-                          className="btn-secondary border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm"
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
                         >
                           Transfer Bales
                         </button>
                         <button
                           onClick={() => router.push('/clothing/inventory/transfer?endOfSale=true')}
-                          className="btn-secondary border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-sm"
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-medium transition-colors"
                         >
                           End of Sale
                         </button>
@@ -1090,6 +1105,7 @@ function ClothingInventoryContent() {
                               <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">Barcode</th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-secondary uppercase">BOGO</th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-secondary uppercase">Ratio</th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-secondary uppercase">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -1136,6 +1152,52 @@ function ClothingInventoryContent() {
                                       </button>
                                     </div>
                                   )}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex flex-col gap-1 items-center">
+                                    <button
+                                      onClick={() => {
+                                        if (bale.remainingCount <= 0) {
+                                          showToast('Bale is out of stock', { type: 'error' })
+                                          return
+                                        }
+                                        addToCart({
+                                          productId: `bale_${bale.id}`,
+                                          variantId: `bale_${bale.id}`,
+                                          name: `${bale.category?.name || 'Bale'} - ${bale.batchNumber}`,
+                                          sku: bale.sku,
+                                          price: parseFloat(bale.unitPrice),
+                                          stock: bale.remainingCount,
+                                          attributes: {
+                                            baleId: bale.id,
+                                            isBale: true,
+                                            bogoActive: bale.bogoActive,
+                                            bogoRatio: bale.bogoRatio,
+                                          },
+                                        })
+                                        showToast(`Added ${bale.category?.name || 'Bale'} to cart`, { type: 'success' })
+                                      }}
+                                      disabled={bale.remainingCount === 0}
+                                      className="text-xs text-green-600 dark:text-green-400 hover:underline whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      Add to Cart
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const params = new URLSearchParams({
+                                          barcodeData: bale.sku || bale.batchNumber,
+                                          productName: bale.category?.name || 'Bale',
+                                          price: String(bale.unitPrice),
+                                          description: `Batch ${bale.batchNumber}`,
+                                          baleId: bale.id,
+                                        })
+                                        router.push(`/universal/barcode-management/print-jobs/new?${params.toString()}`)
+                                      }}
+                                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                                    >
+                                      Print Barcode
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}

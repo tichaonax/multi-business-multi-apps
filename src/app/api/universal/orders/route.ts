@@ -571,12 +571,14 @@ export async function POST(request: NextRequest) {
         })
 
         if (coupon && coupon.isActive) {
+          const couponCustomerPhone = orderData.attributes.couponCustomerPhone as string | undefined
           await tx.couponUsages.create({
             data: {
               couponId: coupon.id,
               orderId: order.id,
               appliedAmount: couponDiscount,
-              approvedBy: orderData.employeeId || null
+              approvedBy: orderData.employeeId || null,
+              customerPhone: couponCustomerPhone || null
             }
           })
         }

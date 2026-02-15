@@ -399,7 +399,9 @@ model Businesses {
   address                                                                  String?
   phone                                                                    String?
   ecocashEnabled                                                           Boolean                       @default(false)
+  couponsEnabled                                                           Boolean                       @default(false)
   receiptReturnPolicy                                                      String?
+  taxEnabled                                                               Boolean                       @default(false)
   taxIncludedInPrice                                                       Boolean                       @default(true)
   taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
   taxLabel                                                                 String?
@@ -3857,12 +3859,14 @@ model CouponUsages {
   orderId       String
   appliedAmount Decimal  @db.Decimal(10, 2)
   approvedBy    String?
+  customerPhone String?
   createdAt     DateTime @default(now())
 
   coupons   Coupons        @relation(fields: [couponId], references: [id])
   orders    BusinessOrders @relation(fields: [orderId], references: [id])
   employees Employees?     @relation("CouponApprovedBy", fields: [approvedBy], references: [id])
 
+  @@unique([couponId, customerPhone])
   @@map("coupon_usages")
 }
 

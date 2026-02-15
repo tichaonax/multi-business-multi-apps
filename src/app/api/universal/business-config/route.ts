@@ -181,6 +181,8 @@ export async function GET(request: NextRequest) {
         defaultPage: true,
         slogan: true,
         showSlogan: true,
+        couponsEnabled: true,
+        taxEnabled: true,
         settings: true,
         isActive: true
       }
@@ -350,7 +352,9 @@ export async function GET(request: NextRequest) {
       address: business.address,
       phone: business.phone,
       ecocashEnabled: business.ecocashEnabled ?? false,
+      couponsEnabled: business.couponsEnabled ?? false,
       receiptReturnPolicy: business.receiptReturnPolicy,
+      taxEnabled: business.taxEnabled ?? false,
       taxIncludedInPrice: business.taxIncludedInPrice ?? true,
       taxRate: business.taxRate != null ? Number(business.taxRate) : null,
       taxLabel: business.taxLabel,

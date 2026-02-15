@@ -184,8 +184,8 @@ function TransferContent() {
       }
     } catch (error: any) {
       await customAlert({
-        title: 'Error',
-        description: error.message || 'Failed to process transfer.'
+        title: 'Transfer Failed',
+        description: 'Something went wrong while processing the transfer. Please try again.'
       })
     } finally {
       setTransferring(false)

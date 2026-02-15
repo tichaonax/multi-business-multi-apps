@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 export interface AppliedCoupon {
   id: string
@@ -8,23 +8,61 @@ export interface AppliedCoupon {
   description: string | null
   discountAmount: number
   requiresApproval: boolean
+  customerPhone?: string
 }
+
+const COUPON_STORAGE_KEY = (bizId: string) => `applied-coupon-${bizId}`
 
 /**
  * Coupon Hook for POS
- * Handles coupon validation, application, and removal
+ * Handles coupon validation, application, and removal.
+ * Persists to localStorage so mini-cart ↔ POS share state.
  */
 export function useCoupon(businessId: string | undefined) {
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null)
   const [isValidating, setIsValidating] = useState(false)
   const [couponError, setCouponError] = useState<string | null>(null)
 
+  // Load persisted coupon on mount / business change
+  useEffect(() => {
+    if (!businessId) return
+    try {
+      const stored = localStorage.getItem(COUPON_STORAGE_KEY(businessId))
+      if (stored) {
+        const parsed = JSON.parse(stored) as AppliedCoupon
+        setAppliedCoupon(parsed)
+      }
+    } catch {}
+  }, [businessId])
+
+  // Listen for coupon events from mini-cart (same tab, real-time sync)
+  useEffect(() => {
+    const onApplied = (e: Event) => {
+      const detail = (e as CustomEvent<AppliedCoupon>).detail
+      if (detail) setAppliedCoupon(detail)
+    }
+    const onRemoved = () => {
+      setAppliedCoupon(null)
+    }
+    window.addEventListener('coupon-applied', onApplied)
+    window.addEventListener('coupon-removed', onRemoved)
+    return () => {
+      window.removeEventListener('coupon-applied', onApplied)
+      window.removeEventListener('coupon-removed', onRemoved)
+    }
+  }, [])
+
   /**
    * Validate and apply a coupon by code or barcode
    */
-  const applyCoupon = useCallback(async (input: string): Promise<AppliedCoupon | null> => {
+  const applyCoupon = useCallback(async (input: string, customerPhone?: string): Promise<AppliedCoupon | null> => {
     if (!businessId || !input.trim()) {
       setCouponError('Please enter a coupon code')
+      return null
+    }
+
+    if (!customerPhone?.trim()) {
+      setCouponError('Customer phone number is required to apply a coupon')
       return null
     }
 
@@ -43,7 +81,8 @@ export function useCoupon(businessId: string | undefined) {
         body: JSON.stringify({
           businessId,
           code: input.trim(),
-          barcode: input.trim()
+          barcode: input.trim(),
+          customerPhone: customerPhone?.trim()
         })
       })
 
@@ -59,10 +98,14 @@ export function useCoupon(businessId: string | undefined) {
         code: data.data.code,
         description: data.data.description,
         discountAmount: Number(data.data.discountAmount),
-        requiresApproval: data.data.requiresApproval
+        requiresApproval: data.data.requiresApproval,
+        customerPhone: customerPhone?.trim()
       }
 
       setAppliedCoupon(coupon)
+      if (businessId) {
+        try { localStorage.setItem(COUPON_STORAGE_KEY(businessId), JSON.stringify(coupon)) } catch {}
+      }
       return coupon
     } catch (error) {
       setCouponError('Failed to validate coupon')
@@ -78,7 +121,10 @@ export function useCoupon(businessId: string | undefined) {
   const removeCoupon = useCallback(() => {
     setAppliedCoupon(null)
     setCouponError(null)
-  }, [])
+    if (businessId) {
+      try { localStorage.removeItem(COUPON_STORAGE_KEY(businessId)) } catch {}
+    }
+  }, [businessId])
 
   /**
    * Clear error

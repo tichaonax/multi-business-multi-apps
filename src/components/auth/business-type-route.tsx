@@ -8,7 +8,7 @@ import { isSystemAdmin } from '@/lib/permission-utils'
 
 interface BusinessTypeRouteProps {
   children: React.ReactNode
-  requiredBusinessType: 'construction' | 'restaurant' | 'grocery' | 'clothing' | 'hardware' | 'vehicles'
+  requiredBusinessType: string | string[]
   requireAuth?: boolean
 }
 
@@ -64,9 +64,10 @@ export function BusinessTypeRoute({
       return
     }
 
-    // Check if current business type matches required type
+    // Check if current business type matches required type(s)
     const currentBusinessType = currentBusiness.businessType?.toLowerCase()
-    if (currentBusinessType !== requiredBusinessType) {
+    const allowedTypes = Array.isArray(requiredBusinessType) ? requiredBusinessType : [requiredBusinessType]
+    if (!allowedTypes.includes(currentBusinessType)) {
       // console.log('❌ Business type mismatch:', {
       //   current: currentBusinessType,
       //   required: requiredBusinessType

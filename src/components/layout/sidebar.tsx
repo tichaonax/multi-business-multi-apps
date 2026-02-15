@@ -652,6 +652,10 @@ export function Sidebar() {
                   <span className="text-lg">📦</span>
                   <span>Products</span>
                 </Link>
+                <Link href="/clothing/inventory?tab=bales" className={getLinkClasses('/clothing/inventory')}>
+                  <span className="text-lg">📦</span>
+                  <span>Bales Inventory</span>
+                </Link>
                 {/* Business Services */}
                 <Link href="/services/list" className={getLinkClasses('/services/list')}>
                   <span className="text-lg">🔧</span>
@@ -705,6 +709,10 @@ export function Sidebar() {
                 <Link href="/clothing/products" className={getLinkClasses('/clothing/products')}>
                   <span className="text-lg">👗</span>
                   <span>Products</span>
+                </Link>
+                <Link href="/clothing/inventory?tab=bales" className={getLinkClasses('/clothing/inventory')}>
+                  <span className="text-lg">📦</span>
+                  <span>Bales Inventory</span>
                 </Link>
                 {/* Business Services */}
                 <Link href="/services/list" className={getLinkClasses('/services/list')}>
@@ -1113,6 +1121,14 @@ export function Sidebar() {
           <span className="text-lg">🧾</span>
           <span>Receipt History</span>
         </Link>
+
+        {/* Coupon Management - Available for any business with coupons enabled */}
+        {currentBusiness && currentBusiness.couponsEnabled && (isSystemAdmin(currentUser) || checkPermission(currentUser, 'canManageCoupons')) && (
+          <Link href="/clothing/coupons" className={getLinkClasses('/clothing/coupons')}>
+            <span className="text-lg">🏷️</span>
+            <span>Coupon Management</span>
+          </Link>
+        )}
 
         {/* Business Categories - Cross-business functionality */}
         {(checkPermission(currentUser, 'canCreateBusinessCategories') ||

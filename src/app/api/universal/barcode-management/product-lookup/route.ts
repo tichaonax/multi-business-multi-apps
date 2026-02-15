@@ -156,6 +156,56 @@ export async function GET(request: NextRequest) {
       ],
     });
 
+    // Also search clothing bales (by SKU, batch number, or barcode)
+    const bales = await prisma.clothingBales.findMany({
+      where: {
+        ...businessFilter,
+        isActive: true,
+        OR: [
+          { sku: { contains: searchTerm, mode: 'insensitive' } },
+          { batchNumber: { contains: searchTerm, mode: 'insensitive' } },
+          { barcode: { contains: searchTerm, mode: 'insensitive' } },
+        ],
+      },
+      take: limit,
+      include: {
+        category: { select: { id: true, name: true } },
+        business: { select: { id: true, name: true, type: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Transform bales into ProductSearchResult-compatible format
+    const baleResults = bales.map((bale) => ({
+      id: `bale_${bale.id}`,
+      sku: bale.sku,
+      name: `${bale.category?.name || 'Bale'} - ${bale.batchNumber}`,
+      description: `Bale batch ${bale.batchNumber} (${bale.remainingCount}/${bale.itemCount} remaining)`,
+      sellPrice: bale.unitPrice,
+      costPrice: bale.unitPrice,
+      stockQuantity: bale.remainingCount,
+      unit: 'item',
+      imageUrl: null,
+      business: bale.business,
+      category: bale.category ? { id: bale.category.id, name: bale.category.name, emoji: null } : null,
+      department: null,
+      domain: null,
+      subcategory: null,
+      brand: null,
+      variants: [],
+      hasVariants: false,
+      barcodes: bale.barcode ? [{ id: 'bale-barcode', code: bale.barcode, type: 'CODE128', isPrimary: true, label: 'Bale Barcode' }] : [],
+      primaryBarcode: bale.barcode ? { id: 'bale-barcode', code: bale.barcode, type: 'CODE128' } : null,
+      suggestedTemplateName: `${bale.category?.name || 'Bale'} ${bale.batchNumber}`,
+      templateNameParts: {
+        department: null,
+        domain: null,
+        brand: null,
+        category: bale.category?.name || null,
+        productName: bale.batchNumber,
+      },
+    }));
+
     // Transform results to include computed fields
     const results = products.map((product) => {
       // Determine description source (prefer domain > product description)
@@ -251,10 +301,13 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Combine product results and bale results
+    const allResults = [...baleResults, ...results].slice(0, limit);
+
     return NextResponse.json({
       success: true,
-      results: results,
-      count: results.length,
+      results: allResults,
+      count: allResults.length,
       query: searchTerm,
       scope: scope,
       businessId: businessId,

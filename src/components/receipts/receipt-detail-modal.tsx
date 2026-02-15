@@ -213,7 +213,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                     </div>
                     {receipt.discount && receipt.discount > 0 && (
                       <div className="flex justify-between text-sm">
-                        <dt className="text-gray-600 dark:text-gray-400">Discount</dt>
+                        <dt className="text-gray-600 dark:text-gray-400">{receipt.discountLabel || 'Discount'}</dt>
                         <dd className="text-red-600 dark:text-red-400 font-medium">
                           -{formatCurrency(receipt.discount)}
                         </dd>
