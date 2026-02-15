@@ -34,6 +34,13 @@ export interface UniversalCartItem {
   // Service item
   isService?: boolean
 
+  // BOGO
+  isBOGOFree?: boolean
+  condition?: string
+  baleId?: string
+  bogoActive?: boolean
+  bogoRatio?: number
+
   // WiFi Token specific
   isWiFiToken?: boolean
   tokenConfigId?: string
