@@ -45,6 +45,7 @@ export function PaymentPanel({
   const [showCashInput, setShowCashInput] = useState(false)
 
   const handleCheckout = () => {
+    if (isProcessing || disabled) return
     if (selectedMethod === 'cash' && cashAmount) {
       const amount = parseFloat(cashAmount)
       onCheckout(selectedMethod, amount)

@@ -457,7 +457,64 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             console.warn('Failed to load R710 WiFi tokens for clothing POS:', wifiError)
           }
 
-          setQuickAddProducts([...wifiTokenProducts, ...products]) // Store all products; display is filtered below
+          // Fetch any pinned products that aren't in the initial load (e.g., services)
+          let pinnedProducts: any[] = []
+          try {
+            const stored = localStorage.getItem(`pos-quickadd-${currentBusiness.businessId}`)
+            if (stored) {
+              const pinnedIds: string[] = JSON.parse(stored)
+              const loadedIds = new Set([...wifiTokenProducts, ...products].map((p: any) => p.id))
+              const missingIds = pinnedIds.filter(id => !loadedIds.has(id))
+
+              for (const pid of missingIds) {
+                try {
+                  const pRes = await fetch(`/api/universal/products?productId=${pid}&includeVariants=true&includeImages=true`)
+                  if (!pRes.ok) continue
+                  const pResult = await pRes.json()
+                  if (!pResult.success || !pResult.data?.length) continue
+
+                  const match = pResult.data[0]
+                  const validVariants = (match.variants || []).filter((v: any) => {
+                    const price = parseFloat(v.price)
+                    return !isNaN(price) && price > 0
+                  })
+
+                  if (validVariants.length === 0 && match.productType === 'SERVICE' && parseFloat(match.basePrice) > 0) {
+                    validVariants.push({
+                      id: `svc_${match.id}`,
+                      sku: match.sku || match.id,
+                      price: parseFloat(match.basePrice),
+                      attributes: { isService: true },
+                      stock: 999
+                    })
+                  }
+
+                  if (validVariants.length === 0) continue
+
+                  const primaryImage = match.images?.find((img: any) => img.isPrimary) || match.images?.[0]
+                  pinnedProducts.push({
+                    id: match.id,
+                    name: match.name,
+                    imageUrl: primaryImage?.imageUrl || primaryImage?.url || null,
+                    category: match.category?.name || '',
+                    categoryEmoji: match.category?.emoji || '📦',
+                    productType: match.productType,
+                    variants: validVariants.map((v: any) => ({
+                      id: v.id,
+                      sku: v.sku,
+                      price: parseFloat(v.price),
+                      attributes: v.attributes || {},
+                      stock: v.stockQuantity ?? v.stock ?? 999
+                    }))
+                  })
+                } catch (err) {
+                  console.warn(`Failed to fetch pinned product ${pid}:`, err)
+                }
+              }
+            }
+          } catch { /* ignore localStorage errors */ }
+
+          setQuickAddProducts([...pinnedProducts, ...wifiTokenProducts, ...products])
         }
       }
     } catch (error) {
@@ -471,74 +528,6 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   useEffect(() => {
     loadProducts()
   }, [loadProducts])
-
-  // Fetch any pinned products that weren't included in the initial product load
-  useEffect(() => {
-    if (!currentBusiness?.businessId || pinnedProductIds.size === 0 || productsLoading) return
-
-    const loadedIds = new Set(quickAddProducts.map(p => p.id))
-    const missingIds = [...pinnedProductIds].filter(id => !loadedIds.has(id))
-    if (missingIds.length === 0) return
-
-    const fetchMissingPinned = async () => {
-      const fetched: any[] = []
-      for (const pid of missingIds) {
-        try {
-          const response = await fetch(
-            `/api/universal/products?productId=${pid}&includeVariants=true&includeImages=true`
-          )
-          if (!response.ok) continue
-          const result = await response.json()
-          if (!result.success || !result.data?.length) continue
-
-          const match = result.data[0]
-          const validVariants = (match.variants || []).filter((v: any) => {
-            const price = parseFloat(v.price)
-            return !isNaN(price) && price > 0
-          })
-
-          // For SERVICE products without variants, create a virtual variant
-          if (validVariants.length === 0 && match.productType === 'SERVICE' && parseFloat(match.basePrice) > 0) {
-            validVariants.push({
-              id: `svc_${match.id}`,
-              sku: match.sku || match.id,
-              price: parseFloat(match.basePrice),
-              attributes: { isService: true },
-              stock: 999
-            })
-          }
-
-          if (validVariants.length === 0) continue
-
-          const primaryImage = match.images?.find((img: any) => img.isPrimary) || match.images?.[0]
-          fetched.push({
-            id: match.id,
-            name: match.name,
-            imageUrl: primaryImage?.imageUrl || primaryImage?.url || null,
-            category: match.category?.name || '',
-            categoryEmoji: match.category?.emoji || '📦',
-            productType: match.productType,
-            variants: validVariants.map((v: any) => ({
-              id: v.id,
-              sku: v.sku,
-              price: parseFloat(v.price),
-              attributes: v.attributes || {},
-              stock: v.stockQuantity ?? v.stock ?? 999
-            }))
-          })
-        } catch (err) {
-          console.warn(`Failed to fetch pinned product ${pid}:`, err)
-        }
-      }
-
-      if (fetched.length > 0) {
-        setQuickAddProducts(prev => [...fetched, ...prev])
-      }
-    }
-
-    fetchMissingPinned()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentBusiness?.businessId, pinnedProductIds, productsLoading])
 
   // Auto-reload products when window regains focus (e.g., after seeding)
   // DISABLED: This was causing issues when switching between businesses
@@ -957,7 +946,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           supervisorOverride: supervisorOverride?.supervisorId ? 'Yes' : 'No'
         },
         // Include WiFi tokens from order result for receipt printing
-        wifiTokens: result.data.wifiTokens || []
+        wifiTokens: result.data.wifiTokens || [],
+        r710Tokens: result.data.r710Tokens || []
       }
 
       // Clear cart and reset state
