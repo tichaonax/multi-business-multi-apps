@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { getServerUser } from '@/lib/get-server-user'
 
 const execAsync = promisify(exec);
 
 // Helper function to check admin access
-function isAdmin(session: any): boolean {
-  return session?.user?.role === 'admin';
-}
+
 
 /**
  * POST /api/admin/seed-complete-demo
@@ -25,9 +24,9 @@ function isAdmin(session: any): boolean {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!isAdmin(session)) {
+    if ((!user || user.role !== 'admin')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
     }
 
@@ -187,9 +186,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!isAdmin(session)) {
+    if ((!user || user.role !== 'admin')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
     }
 

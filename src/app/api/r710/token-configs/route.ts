@@ -5,10 +5,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/r710/token-configs
@@ -18,9 +19,9 @@ import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -34,7 +35,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = session.user as SessionUser;
 
     // System admins can access any business token configs
     if (!isSystemAdmin(user)) {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
           businessId,
-          userId: session.user.id
+          userId: user.id
         }
       });
 
@@ -109,9 +109,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -162,7 +162,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission: admin OR has canConfigureWifiTokens permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canConfigureWifiTokens', businessId)) {

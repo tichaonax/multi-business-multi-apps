@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { buildReceiptFromOrder } from '@/lib/printing/receipt-builder'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -54,10 +53,10 @@ export async function GET(
     }
 
     // Check if user has access to this business (system admins have access to all)
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: order.businessId,
         },
       })
@@ -102,8 +101,8 @@ export async function GET(
 
     // Build receipt data (pass current user as fallback salesperson)
     const receiptData = await buildReceiptFromOrder(orderData, order.businessId, {
-      currentUserName: session.user.name || session.user.email,
-      currentUserId: session.user.id,
+      currentUserName: user.name || user.email,
+      currentUserId: user.id,
     })
 
     if (!receiptData) {

@@ -5,10 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-utils'
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * PATCH /api/business/[businessId]/r710-tokens/[id]
@@ -20,15 +19,13 @@ export async function PATCH(
   { params }: { params: Promise<{ businessId: string; id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { businessId, id } = await params
-    const user = session.user as SessionUser
-
     // Check permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canSellWifiTokens', businessId)) {
       return NextResponse.json(
@@ -92,15 +89,13 @@ export async function DELETE(
   { params }: { params: Promise<{ businessId: string; id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { businessId, id } = await params
-    const user = session.user as SessionUser
-
     // Check permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canSellWifiTokens', businessId)) {
       return NextResponse.json(

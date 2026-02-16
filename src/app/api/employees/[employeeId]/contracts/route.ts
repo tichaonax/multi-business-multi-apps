@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ employeeId: string }>
@@ -12,8 +11,8 @@ interface RouteParams {
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -64,14 +63,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const seedHeader = req.headers.get('x-seed-api-key')
     const isSeedRequest = process.env.NODE_ENV !== 'production' && seedHeader && process.env.SEED_API_KEY && seedHeader === process.env.SEED_API_KEY
 
-    let session: any = null
+    let user: any = null
     if (!isSeedRequest) {
-      session = await getServerSession(authOptions)
-      if (!session?.user?.id) {
+      user = await getServerUser()
+      if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      if (!hasPermission(session.user, 'canCreateEmployeeContracts')) {
+      if (!hasPermission(user, 'canCreateEmployeeContracts')) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
     }
@@ -147,7 +146,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // we avoid terminating existing contracts and mark the created contract as
     // active so the seeded contract behaves like a normal created-and-signed
     // contract for testing purposes.
-    const creatingUserId = isSeedRequest ? 'seed-script' : session.user.id
+    const creatingUserId = isSeedRequest ? 'seed-script' : user.id
 
     const contract = await prisma.$transaction(async (tx) => {
       if (!isSeedRequest) {

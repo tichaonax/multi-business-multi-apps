@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET - Lookup product by barcode/SKU scoped to a specific business
 export async function GET(
@@ -10,8 +9,8 @@ export async function GET(
   context: { params: Promise<{ businessId: string; barcode: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -130,14 +129,11 @@ export async function GET(
     if (!barcode) {
       return NextResponse.json({ error: 'Barcode is required' }, { status: 400 })
     }
-
-    const user = session.user as SessionUser
-
     // Verify user has access to this business unless they're a system admin
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId,
           isActive: true
         }

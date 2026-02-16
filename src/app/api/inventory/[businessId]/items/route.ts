@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
 import { randomBytes } from 'crypto'
 import { randomUUID } from 'crypto'
 import { generateSKU } from '@/lib/sku-generator'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface UniversalInventoryItem {
   id: string
@@ -72,9 +71,9 @@ export async function GET(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -250,8 +249,8 @@ export async function POST(
   let requestBody: any = null
 
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -290,9 +289,6 @@ export async function POST(
         { status: 400 }
       )
     }
-
-    const user = session.user as SessionUser
-
     // Verify business exists and user has access
     let business: any = null
     if (isSystemAdmin(user)) {
@@ -307,7 +303,7 @@ export async function POST(
           id: businessId,
           business_memberships: {
             some: {
-              userId: session.user.id,
+              userId: user.id,
               isActive: true
             }
           }
@@ -600,8 +596,8 @@ export async function PUT(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

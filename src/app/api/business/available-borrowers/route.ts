@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get the user's businesses (to exclude them from borrower options since you can't loan to yourself)
     const userBusinesses = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         isActive: true
       },
       select: { businessId: true }

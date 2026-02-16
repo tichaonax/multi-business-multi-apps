@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/payroll/account/payments/[paymentId]/sign
@@ -18,8 +17,8 @@ export async function POST(
   { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -78,7 +77,7 @@ export async function POST(
       where: { id: paymentId },
       data: {
         isLocked: true,
-        signedBy: session.user.id,
+        signedBy: user.id,
         signedAt: new Date(),
         status: 'SIGNED',
         updatedAt: new Date(),

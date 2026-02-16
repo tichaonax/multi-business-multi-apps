@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { ServiceType } from '@prisma/client'
 import { randomBytes, randomUUID } from 'crypto'
 import { z } from 'zod'
+import { getServerUser } from '@/lib/get-server-user'
 
 const CreateMaintenanceSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -43,30 +42,8 @@ const UpdateMaintenanceSchema = z.object({
 // GET - Fetch vehicle maintenance records
 export async function GET(request: NextRequest) {
   try {
-  let session = await getServerSession(authOptions)
-
-  // normalize session.user for consistent downstream usage
-  const currentUser = session?.user as any
-
-    // Development-only override: allow testing endpoints locally by passing
-    // ?_devUserId=<id> when NODE_ENV !== 'production'. This avoids needing to
-    // copy auth cookies for quick smoke tests. It will not run in production.
-    if (!currentUser?.id) {
-      try {
-        const { searchParams } = new URL(request.url)
-        const devUserId = searchParams.get('_devUserId')
-        if (devUserId && process.env.NODE_ENV !== 'production') {
-          // minimal shape expected by the rest of the handler
-          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-          session = { user: { id: devUserId } } as any
-        }
-      } catch (e) {
-        // ignore URL parsing issues; will fall through to unauthorized
-      }
-    }
-
-    const currentUserAfter = session?.user as any
-    if (!currentUserAfter?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -195,8 +172,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new vehicle maintenance record
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const currentUser = session?.user as any
+    const user = await getServerUser()
+    const currentUser = user as any
     if (!currentUser?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -337,8 +314,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update vehicle maintenance record
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -476,8 +453,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete vehicle maintenance record
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

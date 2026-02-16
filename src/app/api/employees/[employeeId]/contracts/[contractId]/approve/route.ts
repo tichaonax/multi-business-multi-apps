@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { randomUUID } from 'crypto'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ employeeId: string; contractId: string }>
@@ -19,16 +18,16 @@ interface RouteParams {
  */
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId, contractId } = await params
 
     // Check if user has permission to approve contracts
-    if (!hasPermission(session.user, 'canApproveEmployeeContracts') &&
-        !hasPermission(session.user, 'canEditEmployeeContracts')) {
+    if (!hasPermission(user, 'canApproveEmployeeContracts') &&
+        !hasPermission(user, 'canEditEmployeeContracts')) {
       return NextResponse.json(
         { error: 'Insufficient permissions to approve contracts' },
         { status: 403 }
@@ -88,7 +87,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           employeeSignedAt: existingContract.employeeSignedAt || now, // Set if null (legacy contracts)
           managerSignedAt: now,
           status: 'active',
-          approvedBy: session.user.id,
+          approvedBy: user.id,
           approvedAt: now
         }
       })
@@ -106,7 +105,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       await tx.auditLogs.create({
         data: {
           id: randomUUID(),
-          userId: session.user.id,
+          userId: user.id,
           action: 'CONTRACT_APPROVED',
           entityType: 'EmployeeContract',
           entityId: contractId,
@@ -119,7 +118,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             employeeNumber: existingContract.employees_employee_contracts_employeeIdToemployees?.employeeNumber,
             employeeSignedAt: existingContract.employeeSignedAt,
             managerSignedAt: approvedContract.managerSignedAt,
-            approvedBy: session.user.id,
+            approvedBy: user.id,
             previousStatus: existingContract.status,
             newStatus: 'active',
             employeePreviousStatus: existingContract.employees_employee_contracts_employeeIdToemployees?.employmentStatus,

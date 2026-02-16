@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import {
   validatePaymentAmount,
@@ -10,6 +8,7 @@ import {
 } from '@/lib/expense-account-utils'
 import { validatePayee } from '@/lib/payee-utils'
 import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/expense-account/[accountId]/payments/[paymentId]
@@ -20,13 +19,13 @@ export async function GET(
   { params }: { params: Promise<{ accountId: string; paymentId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
@@ -155,14 +154,14 @@ export async function PATCH(
   { params }: { params: Promise<{ accountId: string; paymentId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
-    const isAdmin = isSystemAdmin(session.user)
+    const permissions = getEffectivePermissions(user)
+    const isAdmin = isSystemAdmin(user)
 
     if (!permissions.canEditExpenseTransactions) {
       return NextResponse.json(
@@ -388,13 +387,13 @@ export async function DELETE(
   { params }: { params: Promise<{ accountId: string; paymentId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canAdjustExpensePayments) {
       return NextResponse.json(
         { error: 'You do not have permission to delete expense payments' },

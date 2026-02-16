@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
 
     // Get all businesses the user has access to with financial data permission

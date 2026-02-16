@@ -5,10 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/r710/devices
@@ -17,13 +16,13 @@ import { isSystemAdmin } from '@/lib/permission-utils'
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Only admins can list devices
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json(
         { error: 'Only system administrators can list R710 devices' },
         { status: 403 }

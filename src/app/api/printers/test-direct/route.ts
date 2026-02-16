@@ -5,21 +5,22 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { writeFileSync, unlinkSync } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { getServerUser } from '@/lib/get-server-user'
 
 const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
@@ -8,15 +6,16 @@ import { Decimal } from '@prisma/client/runtime/library'
 import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // GET /api/payroll/entries - List payroll entries
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasPermission(session.user, 'canAccessPayroll')) {
+    if (!hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -85,12 +84,12 @@ export async function GET(req: NextRequest) {
 // POST /api/payroll/entries - Create payroll entry
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasPermission(session.user, 'canEditPayrollEntry')) {
+    if (!hasPermission(user, 'canEditPayrollEntry')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -288,7 +287,7 @@ export async function POST(req: NextRequest) {
         contractStartDate: effectiveStartDate,
         contractEndDate: effectiveEndDate,
         isProrated,
-        processedBy: session.user.id,
+        processedBy: user.id,
         notes: notes || null,
         createdAt: new Date(),
         updatedAt: new Date()

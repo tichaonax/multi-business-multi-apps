@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 function isAdmin(session: unknown): boolean {
-  if (!session || typeof session !== 'object') return false
-  const maybeUser = (session as any).user
+  if (!user || typeof session !== 'object') return false
+  const maybeUser = user
   return !!maybeUser && typeof maybeUser.role === 'string' && maybeUser.role === 'admin'
 }
 
@@ -13,8 +12,8 @@ const SEEDED = ['EMP001','EMP002','EMP003','EMP004','EMP1009']
 
 export async function POST(_req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!isAdmin(session)) return NextResponse.json({ message: 'Admin access required' }, { status: 401 })
+    const user = await getServerUser()
+    if ((!user || user.role !== 'admin')) return NextResponse.json({ message: 'Admin access required' }, { status: 401 })
 
     // Delete contracts only for the seeded employeeNumbers
     const employees = await prisma.employees.findMany({ where: { employeeNumber: { in: SEEDED } }, select: { id: true } })

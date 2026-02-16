@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
-import type { 
-  ImportTemplateOptions, 
-  ImportTemplateResult, 
+import type {
+  ImportTemplateOptions,
+  ImportTemplateResult,
   SeedDataTemplate
 } from '@/types/seed-templates'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/admin/seed-templates/import
@@ -19,10 +18,10 @@ import type {
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const currentUser = session?.user as any
+    const user = await getServerUser()
+    const currentUser = user as any
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     // Check permission (admins have full access)
     const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
-    if (!isAdmin && !hasUserPermission(session.user, 'canApplySeedTemplates')) {
+    if (!isAdmin && !hasUserPermission(user, 'canApplySeedTemplates')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions' },
         { status: 403 }
@@ -294,7 +293,7 @@ export async function POST(req: NextRequest) {
                 balance: accountData.initialBalance || 0,
                 lowBalanceThreshold: accountData.lowBalanceThreshold || 500,
                 isActive: accountData.isActive !== false,
-                createdBy: session.user.id
+                createdBy: user.id
               }
             })
             stats.expenseAccountsCreated++
@@ -332,7 +331,7 @@ export async function POST(req: NextRequest) {
                 isActive: wifiData.isActive !== false,
                 showTokensInPOS: wifiData.showTokensInPOS || false,
                 expenseAccountId,
-                createdBy: session.user.id
+                createdBy: user.id
               }
             })
             stats.wifiIntegrationsCreated++
@@ -402,7 +401,7 @@ export async function POST(req: NextRequest) {
                 description: deviceData.description,
                 isActive: deviceData.isActive !== false,
                 connectionStatus: 'DISCONNECTED',
-                createdBy: session.user.id
+                createdBy: user.id
               }
             })
 
@@ -542,7 +541,7 @@ export async function POST(req: NextRequest) {
                 accountNumber: accountData.accountNumber,
                 balance: accountData.initialBalance || 0,
                 isActive: accountData.isActive !== false,
-                createdBy: session.user.id
+                createdBy: user.id
               }
             })
             stats.payrollAccountsCreated++
@@ -568,7 +567,7 @@ export async function POST(req: NextRequest) {
             productCount: template.products.length,
             categoryCount: template.categories.length,
             templateData: template as any,
-            createdBy: session.user.id,
+            createdBy: user.id,
             exportNotes: `Imported to ${business.name}`
           }
         })

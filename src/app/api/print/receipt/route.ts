@@ -4,13 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { canPrintReceipts } from '@/lib/permission-utils';
 import { generateReceiptNumber } from '@/lib/printing/receipt-numbering';
 import { generateReceipt } from '@/lib/printing/receipt-templates';
 import { queuePrintJob } from '@/lib/printing/print-job-queue';
 import type { ReceiptData, PrintJobFormData } from '@/types/printing';
+import { getServerUser } from '@/lib/get-server-user'
 
 // Track recent print requests to prevent duplicates
 // Key: receiptNumber-receiptType, Value: timestamp
@@ -33,13 +34,13 @@ function cleanupRecentPrints() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!canPrintReceipts(session.user)) {
+    if (!canPrintReceipts(user)) {
       return NextResponse.json(
         { error: 'Forbidden - insufficient permissions to print receipts' },
         { status: 403 }
@@ -140,8 +141,8 @@ export async function POST(request: NextRequest) {
       businessEmail: data.businessEmail,
       transactionId: data.transactionId || data.orderNumber || data.id || `txn_${Date.now()}`,
       transactionDate: data.transactionDate ? new Date(data.transactionDate) : new Date(data.orderDate || data.date || Date.now()),
-      salespersonName: data.salespersonName || data.employeeName || data.metadata?.employeeName || session.user.name || 'Unknown',
-      salespersonId: data.salespersonId || data.employeeId || session.user.id,
+      salespersonName: data.salespersonName || data.employeeName || data.metadata?.employeeName || user.name || 'Unknown',
+      salespersonId: data.salespersonId || data.employeeId || user.id,
       items: (data.items || []).map((item: any) => ({
         name: item.name,
         sku: item.sku,
@@ -201,7 +202,7 @@ export async function POST(request: NextRequest) {
       printJobData,
       data.businessId,
       data.businessType,
-      session.user.id
+      user.id
     );
 
     // IMMEDIATELY print the receipt (don't wait for queue worker)

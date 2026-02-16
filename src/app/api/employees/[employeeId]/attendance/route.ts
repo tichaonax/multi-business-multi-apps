@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(
   request: NextRequest,
@@ -14,8 +13,8 @@ export async function GET(
 
     const { employeeId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -25,7 +24,7 @@ export async function GET(
     const year = parseInt(url.searchParams.get('year') || new Date().getFullYear().toString())
 
     // Check if user has permission to view employee attendance
-    if (!await hasPermission(session.user, 'canViewEmployeeAttendance', employeeId)) {
+    if (!await hasPermission(user, 'canViewEmployeeAttendance', employeeId)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -65,15 +64,15 @@ export async function POST(
 
     const { employeeId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId } = await params
 
     // Check if user has permission to manage employee attendance
-    if (!await hasPermission(session.user, 'canManageEmployeeAttendance', employeeId)) {
+    if (!await hasPermission(user, 'canManageEmployeeAttendance', employeeId)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -169,15 +168,15 @@ export async function PUT(
 
     const { employeeId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId } = await params
 
     // Check if user has permission to manage employee attendance
-    if (!await hasPermission(session.user, 'canManageEmployeeAttendance', employeeId)) {
+    if (!await hasPermission(user, 'canManageEmployeeAttendance', employeeId)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

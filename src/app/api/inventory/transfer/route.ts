@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { randomUUID } from 'crypto'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface TransferItem {
   productVariantId?: string
@@ -112,8 +111,8 @@ async function findOrCreateTargetProduct(
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -162,7 +161,7 @@ export async function POST(request: NextRequest) {
 
     // Look up employee record for the current user (employeeId FK references employees table, not users)
     const employee = await prisma.employees.findFirst({
-      where: { userId: (session.user as any).id },
+      where: { userId: user.id },
       select: { id: true }
     })
     const employeeId = employee?.id || null
@@ -468,8 +467,8 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

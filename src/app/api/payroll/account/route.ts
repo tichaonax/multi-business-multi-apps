@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getGlobalPayrollAccount } from '@/lib/payroll-account-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/payroll/account
@@ -10,8 +9,8 @@ import { getGlobalPayrollAccount } from '@/lib/payroll-account-utils'
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -61,14 +60,14 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user is admin
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
       select: { role: true },
     })
 
@@ -146,7 +145,7 @@ export async function POST(request: NextRequest) {
         accountNumber: generatedAccountNumber,
         balance: 0,
         isActive: true,
-        createdBy: session.user.id,
+        createdBy: user.id,
       },
       include: {
         users: {

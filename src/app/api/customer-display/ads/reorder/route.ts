@@ -6,8 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerUser } from '@/lib/get-server-user'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,8 +17,8 @@ export const dynamic = 'force-dynamic'
 export async function PUT(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -57,7 +56,7 @@ export async function PUT(request: NextRequest) {
     // Check if user has admin access to this business
     const userBusinesses = await prisma.employeeBusinesses.findFirst({
       where: {
-        employeeId: session.user.id,
+        employeeId: user.id,
         businessId,
         role: {
           in: ['admin', 'owner']

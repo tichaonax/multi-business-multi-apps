@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { randomBytes, randomUUID } from 'crypto'
 import { z } from 'zod'
+import { getServerUser } from '@/lib/get-server-user'
 
 const CreateExpenseSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -42,8 +41,8 @@ const UpdateExpenseSchema = z.object({
 // GET - Fetch vehicle expenses
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -162,8 +161,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new vehicle expense
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -234,7 +233,7 @@ export async function POST(request: NextRequest) {
         id: randomUUID(),
         ...validatedData,
         expenseDate: new Date(validatedData.expenseDate),
-        createdBy: session.user.id,
+        createdBy: user.id,
         updatedAt: new Date()
       },
       include: {
@@ -300,8 +299,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update vehicle expense
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -404,8 +403,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete vehicle expense
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

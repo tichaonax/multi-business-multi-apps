@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { hasPermission } from '@/lib/rbac'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET - Fetch restaurant employees
 export async function GET(request: NextRequest) {
@@ -220,13 +219,13 @@ export async function GET(request: NextRequest) {
 
 // POST - Create new employee
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions)
+  const user = await getServerUser()
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userPermissions = session.user.permissions || {}
+  const userPermissions = user.permissions || {}
   if (!hasPermission(userPermissions, 'restaurant', 'write')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }

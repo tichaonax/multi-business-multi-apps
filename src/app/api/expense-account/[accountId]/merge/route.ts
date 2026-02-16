@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { mergeSiblingAccount, validateSiblingAccountForMerge } from '@/lib/expense-account-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/expense-account/[accountId]/merge
@@ -17,15 +16,15 @@ export async function POST(
   { params }: { params: Promise<{ accountId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { accountId } = await params
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canMergeSiblingAccounts) {
       return NextResponse.json(
         { error: 'You do not have permission to merge sibling accounts' },
@@ -61,7 +60,7 @@ export async function POST(
     }
 
     // Perform the merge
-    const mergeResult = await mergeSiblingAccount(accountId, session.user.id)
+    const mergeResult = await mergeSiblingAccount(accountId, user.id)
 
     return NextResponse.json({
       success: true,

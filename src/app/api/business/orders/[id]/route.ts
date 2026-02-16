@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET - Get specific business order
 export async function GET(
@@ -9,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -47,15 +46,12 @@ export async function GET(
         { status: 404 }
       )
     }
-
-    const user = session.user as SessionUser
-
     // System admins can access any business order
     if (!isSystemAdmin(user)) {
       // Verify user has access to the business that owns this order
       const userHasAccess = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: order.businessId,
           isActive: true
         }
@@ -110,8 +106,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
 import { z } from 'zod'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for barcode creation
 const BarcodeCreateSchema = z.object({
@@ -22,8 +21,8 @@ const BarcodeCreateSchema = z.object({
 // GET - List all barcodes for a business or product
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -39,14 +38,11 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    const user = session.user as SessionUser
-
     // Verify user has access to this business
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId,
           isActive: true
         }
@@ -127,21 +123,18 @@ export async function GET(request: NextRequest) {
 // POST - Create a new barcode
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
     const data = BarcodeCreateSchema.parse(body)
-
-    const user = session.user as SessionUser
-
     // Verify user has access to this business
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: data.businessId,
           isActive: true
         }

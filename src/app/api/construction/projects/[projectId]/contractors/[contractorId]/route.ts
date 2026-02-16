@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(
   request: NextRequest,
@@ -12,13 +11,13 @@ export async function GET(
 
     const { projectId, contractorId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Allow access if user has either construction or personal finance permissions
-    if (!hasPermission(session.user, 'canViewConstructionProjects') && !hasPermission(session.user, 'canAccessPersonalFinance')) {
+    if (!hasPermission(user, 'canViewConstructionProjects') && !hasPermission(user, 'canAccessPersonalFinance')) {
       return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
     }
 

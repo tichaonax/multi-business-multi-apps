@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BusinessPermissions } from '@/types/permissions'
 import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface BusinessPermissionUpdateRequest {
   businessId: string
@@ -21,12 +20,12 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const currentUser = session.user as SessionUser
+    const currentUser = user as SessionUser
     const { userId } = await params
 
     if (!userId) {
@@ -37,7 +36,7 @@ export async function GET(
     if (!isSystemAdmin(currentUser)) {
       const userMembership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           isActive: true,
         },
       })
@@ -122,12 +121,10 @@ export async function PATCH(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { userId } = await params
 
     if (!userId) {

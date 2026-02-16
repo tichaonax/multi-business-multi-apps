@@ -4,24 +4,23 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET - Get sync statistics and metrics
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has admin permissions
-    const user = await prisma.users.findUnique({
-      where: { email: session.user.email! },
+    const dbUser = await prisma.users.findUnique({
+      where: { email: user.email! },
       select: { role: true }
     })
 

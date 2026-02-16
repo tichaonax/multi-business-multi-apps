@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateSKU, analyzeSKUPatterns } from '@/lib/sku-generator'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/inventory/[businessId]/generate-sku
@@ -18,8 +17,8 @@ export async function POST(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -39,7 +38,7 @@ export async function POST(
       where: {
         id: businessId,
         OR: [
-          { business_memberships: { some: { userId: session.user.id, isActive: true } } },
+          { business_memberships: { some: { userId: user.id, isActive: true } } },
           { id: businessId } // Allow if user is admin
         ]
       }
@@ -90,8 +89,8 @@ export async function GET(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -111,7 +110,7 @@ export async function GET(
       where: {
         id: businessId,
         OR: [
-          { business_memberships: { some: { userId: session.user.id, isActive: true } } },
+          { business_memberships: { some: { userId: user.id, isActive: true } } },
           { id: businessId }
         ]
       }

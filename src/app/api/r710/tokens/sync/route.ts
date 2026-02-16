@@ -8,12 +8,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
 import { getR710SessionManager } from '@/lib/r710-session-manager';
-import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-utils';
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/r710/tokens/sync
@@ -25,9 +26,9 @@ import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-util
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -41,7 +42,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission: admin OR has canSellWifiTokens permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canSellWifiTokens', businessId)) {

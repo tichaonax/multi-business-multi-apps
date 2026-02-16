@@ -64,35 +64,19 @@ export const authOptions: NextAuthOptions = {
 
         console.log('🔍 Searching for user in database...')
         // Try to find user by email first, then by username
-        let dbUser = await prisma.users.findUnique({ where: { email: credentials.identifier } }) as any
+        let user = await prisma.users.findUnique({ where: { email: credentials.identifier } }) as any
 
-        if (!dbUser) {
+        if (!user) {
           // If not found by email, try finding by username
-          dbUser = await prisma.users.findUnique({ where: { username: credentials.identifier } }) as any
+          user = await prisma.users.findUnique({ where: { username: credentials.identifier } }) as any
         }
 
-        if (!dbUser) {
+        if (!user) {
           console.log('❌ User not found:', credentials.identifier)
           return null
         }
 
-        // Fetch active business memberships separately (typed as any to avoid strict client shape differences)
-        const businessMemberships = await prisma.businessMemberships.findMany({
-          where: { userId: dbUser.id, isActive: true },
-          include: { businesses: true }
-        }) as any[]
-
-        const user = {
-          ...dbUser,
-          businessMemberships
-        } as any
-
-        if (!user) {
-          console.log('❌ User not found:', credentials.email)
-          return null
-        }
-
-  console.log('👤 User found:', { id: user.id, email: user.email, isActive: user.isActive, memberships: user.businessMemberships?.length || 0 })
+        console.log('👤 User found:', { id: user.id, email: user.email, isActive: user.isActive })
 
         if (!user.isActive) {
           console.log('❌ User account is inactive')
@@ -111,34 +95,15 @@ export const authOptions: NextAuthOptions = {
         }
 
         console.log('✅ Authentication successful for:', user.email)
-
-        // Transform business memberships for session
-        // Map membership shapes coming from prisma (which include a nested business) into the
-        // lightweight session-friendly shape. Use `any` for the incoming items to avoid mismatches
-        // against the SessionUser type definitions.
-        const transformedMemberships = (user.businessMemberships || [] as any[]).map((membership: any) => ({
-          businessId: membership.businesses?.id || membership.businessId,
-          businessName: membership.businesses?.name || membership.businessName,
-          role: membership.role,
-          permissions: (membership.permissions || {}) as Record<string, any>,
-          isActive: membership.isActive,
-          joinedAt: membership.joinedAt,
-          lastAccessedAt: membership.lastAccessedAt,
-        }))
-
-        console.log('🔑 User business memberships:', transformedMemberships.length)
         console.log('🎭 User system role:', user.role)
 
-        // Return a shape compatible with SessionUser for downstream helpers
-        // Return `any` to satisfy the provider's expected User shape while keeping our
-        // richer SessionUser information available at runtime.
+        // Return minimal data for JWT — business memberships are fetched
+        // from DB on each request via getServerUser() to keep the cookie small.
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
-          permissions: (user.permissions || {}) as Record<string, any>,
-          businessMemberships: transformedMemberships,
         } as any
       }
     })
@@ -148,11 +113,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         const t: any = token
         t.role = (user as any).role
-        t.permissions = (user as any).permissions
-        t.businessMemberships = (user as any).businessMemberships
-
-        // Add unique session identifier and login timestamp
-        // Ensure the token subject is the user id so downstream code can rely on token.sub
+        // Only store role in JWT — permissions and businessMemberships are
+        // fetched from DB per-request via getServerUser() to keep cookies small.
         t.sub = (user as any).id
         t.sessionId = `${t.sub}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         t.loginTime = Date.now()
@@ -165,12 +127,9 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         const s: any = session
         const t: any = token
-        // Ensure session.user is populated (not `session.users`) and contains id/role/permissions
         s.user = s.user || {}
         s.user.id = t.sub || s.user.id
         s.user.role = t.role
-        s.user.permissions = t.permissions
-        s.user.businessMemberships = t.businessMemberships
         s.sessionId = t.sessionId
         s.loginTime = t.loginTime
       }

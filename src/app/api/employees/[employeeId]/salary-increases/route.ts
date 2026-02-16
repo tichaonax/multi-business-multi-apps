@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
-import { SessionUser, hasPermission } from '@/lib/permission-utils'
+import { hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET - Get salary increases for an employee
 export async function GET(req: NextRequest, { params }: { params: Promise<{ employeeId: string }> })
@@ -12,12 +11,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
 
     const { employeeId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { employeeId } = await params
 
     // Check if user can view employee salary information
@@ -104,12 +101,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
 
     const { employeeId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { employeeId } = await params
     const data = await req.json()
 

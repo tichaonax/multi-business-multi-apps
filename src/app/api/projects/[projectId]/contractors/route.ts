@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ projectId: string }>
@@ -9,8 +8,8 @@ interface RouteParams {
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -21,7 +20,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       where: {
         id: projectId,
         OR: [
-          { createdBy: session.user.id },
+          { createdBy: user.id },
           { businessType: 'personal' } // Allow access to personal projects
         ]
       }
@@ -106,8 +105,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -137,7 +136,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       where: {
         id: projectId,
         OR: [
-          { createdBy: session.user.id },
+          { createdBy: user.id },
           { businessType: 'personal' }
         ]
       }

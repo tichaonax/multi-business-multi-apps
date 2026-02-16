@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { buildReceiptFromOrder } from '@/lib/printing/receipt-builder'
 import { generateReceipt } from '@/lib/printing/receipt-templates'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Function to recursively remove null characters from strings in an object
 function sanitizeForDatabase(obj: any): any {
@@ -31,8 +30,8 @@ export async function POST(
   { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -65,10 +64,10 @@ export async function POST(
 
     // Check if user has access to this business and permission to reprint
     // System admins always have access
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: order.businessId,
         },
       })
@@ -93,7 +92,7 @@ export async function POST(
       data: {
         orderId: order.id,
         businessId: order.businessId,
-        userId: session.user.id,
+        userId: user.id,
         receiptNumber: order.orderNumber,
         notes: notes ? notes.replace(/\u0000/g, '') : null, // Sanitize notes
       },
@@ -136,9 +135,9 @@ export async function POST(
     const receiptData = await buildReceiptFromOrder(orderData, order.businessId, {
       isReprint: true,
       originalPrintDate: order.createdAt,
-      reprintedBy: session.user.name || session.user.email,
-      currentUserName: session.user.name || session.user.email,
-      currentUserId: session.user.id,
+      reprintedBy: user.name || user.email,
+      currentUserName: user.name || user.email,
+      currentUserId: user.id,
     })
 
     if (!receiptData) {
@@ -165,7 +164,7 @@ export async function POST(
         printerId: null, // TODO: Get from business settings or create default printer
         businessId: order.businessId,
         businessType: order.businessType,
-        userId: session.user.id,
+        userId: user.id,
         jobType: 'receipt',
         jobData: sanitizedJobData,
         status: 'PENDING',

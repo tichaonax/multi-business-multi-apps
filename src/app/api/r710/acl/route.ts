@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getR710SessionManager } from '@/lib/r710-session-manager'
 import { decrypt } from '@/lib/encryption'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/r710/acl
@@ -15,13 +14,13 @@ import { decrypt } from '@/lib/encryption'
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.isAdmin && !permissions.canManageWifiPortal) {
       return NextResponse.json(
         { error: 'You do not have permission to manage WiFi portal' },
@@ -145,13 +144,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.isAdmin && !permissions.canManageWifiPortal) {
       return NextResponse.json(
         { error: 'You do not have permission to manage WiFi portal' },
@@ -232,8 +231,8 @@ export async function POST(request: NextRequest) {
             listType: mode === 'deny' ? 'WHITELIST' : 'BLACKLIST',
             reason: macEntry.macComment || `Added to ${name}`,
             businessId,
-            createdBy: session.user.id,
-            approvedBy: session.user.id,
+            createdBy: user.id,
+            approvedBy: user.id,
             isActive: true
           }
         })

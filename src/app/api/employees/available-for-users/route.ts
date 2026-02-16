@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!hasPermission(session.user as any, 'canViewEmployees')) {
+    if (!hasPermission(user as any, 'canViewEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 

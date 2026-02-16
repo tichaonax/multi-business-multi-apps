@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface InventoryAlert {
   id: string
@@ -33,8 +32,8 @@ export async function GET(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -238,8 +237,8 @@ export async function POST(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -267,7 +266,7 @@ export async function POST(
           alerts[alertIndex] = {
             ...alerts[alertIndex],
             isAcknowledged: true,
-            acknowledgedBy: session.user.name || 'Unknown',
+            acknowledgedBy: user.name || 'Unknown',
             acknowledgedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           }

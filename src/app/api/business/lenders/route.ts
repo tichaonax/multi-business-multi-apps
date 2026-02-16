@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Helper function to check if user has admin/manager/owner role
 async function hasRequiredRole(userId: string, businessId?: string): Promise<boolean> {
   // System admins can perform all operations
-  const session = await getServerSession(authOptions)
-  if (session?.user && isSystemAdmin(session.user as SessionUser)) {
+  const user = await getServerUser()
+  if (user && isSystemAdmin(user as SessionUser)) {
     return true
   }
 
@@ -28,8 +27,8 @@ async function hasRequiredRole(userId: string, businessId?: string): Promise<boo
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -93,13 +92,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has required role (admin/manager/owner)
-    const hasPermission = await hasRequiredRole(session.user.id)
+    const hasPermission = await hasRequiredRole(user.id)
     if (!hasPermission) {
       return NextResponse.json(
         { error: 'Insufficient permissions. Only admins, managers, and owners can create lenders.' },
@@ -196,7 +195,7 @@ export async function POST(request: NextRequest) {
         nationalId: lenderType === 'bank' ? null : nationalId,
         address: address || null,
         notes: finalNotes,
-        createdBy: session.user.id,
+        createdBy: user.id,
         isActive: true,
         // Bank-specific fields
         bankRegistrationNo: lenderType === 'bank' ? bankRegistrationNo : null,

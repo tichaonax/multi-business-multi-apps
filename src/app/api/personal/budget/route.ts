@@ -1,26 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
 import { randomUUID } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to access personal finance
     if (!hasUserPermission(user, 'canAccessPersonalFinance')) {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
     const budgetEntries = await prisma.personalBudgets.findMany({
-      where: { userId: session.user.id },
+      where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
     })
 
@@ -48,13 +43,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to add money
     if (!hasUserPermission(user, 'canAddMoney')) {
       return NextResponse.json({ error: 'Insufficient permissions to add money' }, { status: 403 })
@@ -69,7 +61,7 @@ export async function POST(request: NextRequest) {
     const budgetEntry = await prisma.personalBudgets.create({
       data: {
         id: randomUUID(),
-        userId: session.user.id,
+        userId: user.id,
         amount: Number(amount),
         description: description || '',
         type

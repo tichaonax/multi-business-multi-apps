@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
 import { prisma } from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { getServerUser } from '@/lib/get-server-user'
 
 const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!user || user.role !== 'admin') {
       return NextResponse.json(
         { message: 'Admin access required' },
         { status: 401 }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🚨 Data reset initiated by ${session.user.name} (${session.user.email})`);
+    console.log(`🚨 Data reset initiated by ${user.name} (${user.email})`);
 
     // Start transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 
       // Create audit log entry for this critical action
       await createAuditLog({
-        userId: session.user.id!,
+        userId: user.id!,
         action: 'BACKUP_RESTORED' as any, // Using existing audit action
         entityType: 'Backup',
         entityId: 'data-reset-' + Date.now(),
@@ -143,9 +143,9 @@ export async function POST(request: NextRequest) {
           afterCounts,
           resetTimestamp: new Date().toISOString(),
           resetBy: {
-            userId: session.user.id,
-            userName: session.user.name,
-            userEmail: session.user.email,
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
           },
           confirmationMessage: confirmMessage,
           dataPreserved: {
@@ -244,10 +244,10 @@ export async function POST(request: NextRequest) {
 
     // Log the failed attempt
     try {
-      const session = await getServerSession(authOptions);
-      if (session?.user) {
+      const user = await getServerUser();
+      if (user) {
         await createAuditLog({
-          userId: session.user.id!,
+          userId: user.id!,
           action: 'BACKUP_RESTORED' as any,
           entityType: 'Backup',
           entityId: 'data-reset-failed-' + Date.now(),
@@ -256,9 +256,9 @@ export async function POST(request: NextRequest) {
             error: error instanceof Error ? error.message : 'Unknown error',
             failedAt: new Date().toISOString(),
             attemptedBy: {
-              userId: session.user.id,
-              userName: session.user.name,
-              userEmail: session.user.email,
+              userId: user.id,
+              userName: user.name,
+              userEmail: user.email,
             }
           },
         });

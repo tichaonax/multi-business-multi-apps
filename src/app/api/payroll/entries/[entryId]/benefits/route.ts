@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 import { Decimal } from '@prisma/client/runtime/library'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 interface RouteParams {
   params: Promise<{ entryId: string }>
 }
@@ -14,14 +13,14 @@ interface RouteParams {
 // GET /api/payroll/entries/[entryId]/benefits - Get all benefits for an entry
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { entryId } = await params
 
-    if (!hasPermission(session.user, 'canAccessPayroll')) {
+    if (!hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -142,14 +141,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 // POST /api/payroll/entries/[entryId]/benefits - Add manual benefit
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { entryId } = await params
 
-    if (!hasPermission(session.user, 'canEditPayrollEntry')) {
+    if (!hasPermission(user, 'canEditPayrollEntry')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -293,13 +292,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 // PUT /api/payroll/entries/[entryId]/benefits/[benefitId] - Update a manual benefit (amount, isActive, deactivatedReason)
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { entryId } = await params
-    if (!hasPermission(session.user, 'canEditPayrollEntry')) {
+    if (!hasPermission(user, 'canEditPayrollEntry')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -343,10 +342,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 // DELETE /api/payroll/entries/[entryId]/benefits/[benefitId] - Delete a manual benefit
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { entryId } = await params
-    if (!hasPermission(session.user, 'canEditPayrollEntry')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    if (!hasPermission(user, 'canEditPayrollEntry')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
     const { searchParams } = new URL(req.url)
     const benefitId = searchParams.get('benefitId')

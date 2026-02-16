@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
 import { prisma } from '@/lib/prisma';
 import { randomBytes, randomUUID } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 
 // Helper: produce a random DOB ensuring age >= 18
 function randomDob(minAge = 18, maxAge = 65) {
@@ -15,18 +15,11 @@ function randomDob(minAge = 18, maxAge = 65) {
   return rand
 }
 
-// Small runtime type-guard to avoid casting session.user to `any` inline
-function isAdmin(session: unknown): boolean {
-  if (!session || typeof session !== 'object') return false;
-  const maybeUser = (session as any).user;
-  return !!maybeUser && typeof maybeUser.role === 'string' && maybeUser.role === 'admin';
-}
-
 export async function POST(_request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!isAdmin(session)) {
+    if ((!user || user.role !== 'admin')) {
       return NextResponse.json({ message: 'Admin access required' }, { status: 401 });
     }
 
@@ -93,7 +86,7 @@ export async function POST(_request: NextRequest) {
       if (!existingUser) {
         // Add a simple passwordHash for seeded users so the DB required field is satisfied
         const passwordHash = `seeded-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const user = await prisma.users.create({
+        const createdUser = await prisma.users.create({
           data: {
             id: randomUUID(),
             name: userData.name,

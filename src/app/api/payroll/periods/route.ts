@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { computeTotalsForEntry } from '@/lib/payroll/helpers'
@@ -9,16 +7,17 @@ import { captureContractSnapshot } from '@/lib/payroll/contract-snapshot'
 import { nanoid } from 'nanoid'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // GET /api/payroll/periods - List payroll periods for a business
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permission
-    if (!hasPermission(session.user, 'canAccessPayroll')) {
+    if (!hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -26,7 +25,6 @@ export async function GET(req: NextRequest) {
     const businessId = searchParams.get('businessId')
     const year = searchParams.get('year')
     const status = searchParams.get('status')
-
 
     // Build filter - businessId is optional; when omitted return periods across all businesses
     const where: any = {}
@@ -141,7 +139,7 @@ export async function GET(req: NextRequest) {
       
       if (constraint.includes('createdBy')) {
         return NextResponse.json(
-          { error: `User not found or invalid user ID: ${session.user.id}` },
+          { error: `User not found or invalid user ID: ${user.id}` },
           { status: 400 }
         )
       }
@@ -162,13 +160,13 @@ export async function GET(req: NextRequest) {
 // POST /api/payroll/periods - Create new payroll period
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permission
-    if (!hasPermission(session.user, 'canCreatePayrollPeriod')) {
+    if (!hasPermission(user, 'canCreatePayrollPeriod')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -292,8 +290,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify the user exists before creating the payroll period
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id }
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id }
     })
 
     if (!user) {
@@ -305,11 +303,11 @@ export async function POST(req: NextRequest) {
 
     // Verify the user exists in the database
     const currentUser = await prisma.users.findUnique({
-      where: { id: session.user.id }
+      where: { id: user.id }
     })
 
     if (!currentUser) {
-      console.error(`User not found in database: ${session.user.id}`)
+      console.error(`User not found in database: ${user.id}`)
       
       // Debug: List all users in the database
       const allUsers = await prisma.users.findMany({
@@ -318,7 +316,7 @@ export async function POST(req: NextRequest) {
       console.error('All users in database:', allUsers)
       
       return NextResponse.json(
-        { error: `User not found: ${session.user.id}. Available users: ${allUsers.map(u => `${u.name} (${u.id})`).join(', ')}` },
+        { error: `User not found: ${user.id}. Available users: ${allUsers.map(u => `${u.name} (${u.id})`).join(', ')}` },
         { status: 404 }
       )
     }
@@ -339,7 +337,7 @@ export async function POST(req: NextRequest) {
       totalGrossPay: 0,
       totalDeductions: 0,
       totalNetPay: 0,
-      createdBy: session.user.id,
+      createdBy: user.id,
       notes: notes || null,
       createdAt: new Date(),
       updatedAt: new Date()

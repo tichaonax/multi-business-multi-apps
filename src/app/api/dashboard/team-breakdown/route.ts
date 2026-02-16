@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasPermissionInAnyBusiness } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
 
     let breakdown = {
       users: { count: 0, list: [] as any[] },
@@ -238,7 +234,7 @@ export async function GET(req: NextRequest) {
 
           // Count roles
           uniqueUsers.forEach(membership => {
-            breakdown.roles[membership.users.role] = (breakdown.roles[membership.users.role] || 0) + 1
+            breakdown.roles[membership.user.role] = (breakdown.roles[membership.user.role] || 0) + 1
           })
         }
       } catch (error) {

@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import {
   validatePaymentAmount,
@@ -9,6 +7,7 @@ import {
 import { validatePayee } from '@/lib/payee-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { v4 as uuidv4 } from 'uuid'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/expense-account/[accountId]/payments
@@ -30,13 +29,13 @@ export async function GET(
   { params }: { params: Promise<{ accountId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
@@ -233,13 +232,13 @@ export async function POST(
   { params }: { params: Promise<{ accountId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canMakeExpensePayments) {
       return NextResponse.json(
         { error: 'You do not have permission to make expense payments' },
@@ -557,8 +556,8 @@ export async function POST(
             isFullPayment: payment.isFullPayment !== undefined ? payment.isFullPayment : true,
             batchId,
             status: paymentStatus,
-            createdBy: session.user.id,
-            submittedBy: paymentStatus === 'SUBMITTED' ? session.user.id : null,
+            createdBy: user.id,
+            submittedBy: paymentStatus === 'SUBMITTED' ? user.id : null,
             submittedAt: paymentStatus === 'SUBMITTED' ? new Date() : null,
           },
           include: {

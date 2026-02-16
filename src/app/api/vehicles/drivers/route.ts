@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { normalizePhoneInput } from '@/lib/country-codes'
@@ -8,6 +6,7 @@ import * as bcrypt from 'bcrypt'
 
 import { randomBytes } from 'crypto';
 import * as crypto from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // Validation schemas
 const CreateDriverSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -46,8 +45,8 @@ const UpdateDriverSchema = z.object({
 // GET - Fetch drivers
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -155,8 +154,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new driver
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -250,7 +249,7 @@ export async function POST(request: NextRequest) {
 
     // Verify user exists if userId is provided
     if (finalUserId) {
-      const user = await prisma.users.findUnique({
+      const dbUser = await prisma.users.findUnique({
         where: { id: finalUserId }
       })
 
@@ -317,8 +316,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update driver
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -359,7 +358,7 @@ export async function PUT(request: NextRequest) {
 
     // Verify user exists if userId is being updated
     if (updateData.userId) {
-      const user = await prisma.users.findUnique({
+      const dbUser = await prisma.users.findUnique({
         where: { id: updateData.userId }
       })
 
@@ -417,8 +416,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete driver
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

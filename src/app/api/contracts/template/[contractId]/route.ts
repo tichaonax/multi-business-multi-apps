@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET - Fetch contract data suitable for copying as a template
 export async function GET(
@@ -10,13 +9,13 @@ export async function GET(
   { params }: { params: Promise<{ contractId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has permission to view contracts
-    if (!hasPermission(session.user, 'canViewEmployeeContracts')) {
+    if (!hasPermission(user, 'canViewEmployeeContracts')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

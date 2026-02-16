@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/admin/connected-clients
@@ -18,14 +17,14 @@ import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    const permissions = getEffectivePermissions(session.user)
-    if (!isSystemAdmin(session.user) && !permissions.canManageWifiPortal) {
+    const permissions = getEffectivePermissions(user)
+    if (!isSystemAdmin(user) && !permissions.canManageWifiPortal) {
       return NextResponse.json(
         { error: 'You do not have permission to access connected clients' },
         { status: 403 }
@@ -45,9 +44,9 @@ export async function GET(request: NextRequest) {
 
     if (businessId) {
       businessWhere.businessId = businessId
-    } else if (!isSystemAdmin(session.user)) {
+    } else if (!isSystemAdmin(user)) {
       // Non-admin users see only their businesses
-      const userBusinessIds = session.user.businessMemberships?.map((m) => m.businessId) || []
+      const userBusinessIds = user.businessMemberships?.map((m) => m.businessId) || []
       businessWhere.businessId = { in: userBusinessIds }
     }
 

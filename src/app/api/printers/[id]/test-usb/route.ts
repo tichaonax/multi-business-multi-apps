@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { printRawData } from '@/lib/printing/windows-raw-printer';
 import { checkPrinterConnectivity } from '@/lib/printing/printer-service';
@@ -9,6 +9,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { getServerUser } from '@/lib/get-server-user'
 
 const execAsync = promisify(exec);
 
@@ -18,8 +19,8 @@ const execAsync = promisify(exec);
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

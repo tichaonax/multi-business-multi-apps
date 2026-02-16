@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
@@ -8,6 +6,7 @@ import { pathToFileURL } from 'url'
 import { prisma } from '@/lib/prisma'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 async function runScript(scriptPath: string, args: string[] = []) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const proc = spawn('node', [scriptPath, ...args], { cwd: process.cwd(), env: process.env })
@@ -21,9 +20,9 @@ async function runScript(scriptPath: string, args: string[] = []) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions)
-  const currentUser = session?.user as any
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = await getServerUser()
+  const currentUser = user as any
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 

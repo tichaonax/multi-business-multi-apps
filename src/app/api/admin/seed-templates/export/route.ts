@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
 import type {
@@ -18,6 +16,7 @@ import type {
   R710TokenConfigSeedItem,
   PayrollAccountSeedItem
 } from '@/types/seed-templates'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/admin/seed-templates/export
@@ -29,10 +28,10 @@ import type {
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const currentUser = session?.user as any
+    const user = await getServerUser()
+    const currentUser = user as any
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -41,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     // Check permission (admins have full access)
     const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
-    if (!isAdmin && !hasUserPermission(session.user, 'canExportSeedTemplates')) {
+    if (!isAdmin && !hasUserPermission(user, 'canExportSeedTemplates')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions' },
         { status: 403 }
@@ -324,7 +323,7 @@ export async function POST(req: NextRequest) {
         name: options.name,
         description: options.description,
         exportedAt: new Date().toISOString(),
-        exportedBy: session.user.name || session.user.email,
+        exportedBy: user.name || user.email,
         exportedFrom: business.name,
         totalProducts: productSeedItems.length,
         totalCategories: categorySeedItems.length,
@@ -361,7 +360,7 @@ export async function POST(req: NextRequest) {
         productCount: productSeedItems.length,
         categoryCount: categorySeedItems.length,
         templateData: templateData as any,
-        createdBy: session.user.id,
+        createdBy: user.id,
         sourceBusinessId: options.sourceBusinessId,
         exportNotes: options.exportNotes
       }

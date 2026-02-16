@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 
 // GitHub emoji API endpoint
 const GITHUB_EMOJI_API = 'https://api.github.com/emojis';
@@ -101,9 +102,9 @@ function extractUnicodeFromUrl(url: string): string | null {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

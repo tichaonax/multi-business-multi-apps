@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/admin/seed-templates/download?id=xxx
@@ -16,10 +15,10 @@ import { hasUserPermission } from '@/lib/permission-utils'
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const currentUser = session?.user as any
+    const user = await getServerUser()
+    const currentUser = user as any
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -28,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     // Check permission (admins have full access)
     const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
-    if (!isAdmin && !hasUserPermission(session.user, 'canExportSeedTemplates')) {
+    if (!isAdmin && !hasUserPermission(user, 'canExportSeedTemplates')) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }

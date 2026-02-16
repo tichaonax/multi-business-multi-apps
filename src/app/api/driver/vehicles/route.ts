@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET - Fetch vehicles authorized for the current driver
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check driver trip logging or maintenance permission
-    if (!hasUserPermission(session.user, 'canLogDriverTrips') && !hasUserPermission(session.user, 'canLogDriverMaintenance')) {
+    if (!hasUserPermission(user, 'canLogDriverTrips') && !hasUserPermission(user, 'canLogDriverMaintenance')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -21,9 +20,9 @@ export async function GET(request: NextRequest) {
     const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: user.id },
+          { emailAddress: user.email || '' },
+          { fullName: user.name || '' }
         ]
       }
     })

@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import {
   updatePrinter,
   deletePrinter,
@@ -14,6 +14,7 @@ import {
 } from '@/lib/printing/printer-service';
 import { canManageNetworkPrinters } from '@/lib/permission-utils';
 import type { PrinterType } from '@/types/printing';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * PUT /api/printers/[id]
@@ -24,13 +25,13 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions - must be admin to update printers
-    if (!canManageNetworkPrinters(session.user)) {
+    if (!canManageNetworkPrinters(user)) {
       return NextResponse.json(
         { error: 'Forbidden - only admins can update printers' },
         { status: 403 }
@@ -115,13 +116,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions - must be admin to delete printers
-    if (!canManageNetworkPrinters(session.user)) {
+    if (!canManageNetworkPrinters(user)) {
       return NextResponse.json(
         { error: 'Forbidden - only admins can delete printers' },
         { status: 403 }

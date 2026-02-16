@@ -7,11 +7,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { canManageNetworkPrinters } from '@/lib/permission-utils';
 import { listWindowsPrinters } from '@/lib/printing/windows-raw-printer';
 import type { PrinterCapability } from '@/types/printing';
+import { getServerUser } from '@/lib/get-server-user'
 
 interface DiscoveredPrinter {
   printerId: string;
@@ -32,13 +33,13 @@ interface DiscoveredPrinter {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions - must be admin to discover printers
-    if (!canManageNetworkPrinters(session.user)) {
+    if (!canManageNetworkPrinters(user)) {
       return NextResponse.json(
         { error: 'Forbidden - only admins can discover printers' },
         { status: 403 }
@@ -337,13 +338,13 @@ async function discoverPrinters(
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!canManageNetworkPrinters(session.user)) {
+    if (!canManageNetworkPrinters(user)) {
       return NextResponse.json(
         { error: 'Forbidden - only admins can discover printers' },
         { status: 403 }

@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { businessId } = await params
-    const user = session.user as SessionUser
-
     // Verify business access
     let business: any = null
     if (isSystemAdmin(user)) {
@@ -30,7 +27,7 @@ export async function GET(
           id: businessId,
           business_memberships: {
             some: {
-              userId: session.user.id,
+              userId: user.id,
               isActive: true
             }
           }

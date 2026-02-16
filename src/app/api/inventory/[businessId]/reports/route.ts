@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface InventoryReport {
   id: string
@@ -358,8 +357,8 @@ export async function GET(
 )
  {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -456,7 +455,7 @@ export async function GET(
       businessId,
       reportType,
       generatedAt: new Date().toISOString(),
-      generatedBy: session.user.name || 'Unknown',
+      generatedBy: user.name || 'Unknown',
       dateRange: { startDate, endDate },
       data: reportData,
       summary: reportSummary
@@ -501,7 +500,7 @@ export async function GET(
   } catch (error) {
     console.error('Error generating inventory report:', error)
     // For businesses with no inventory, return empty report gracefully
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
     const reportType = new URL(request.url).searchParams.get('reportType') as string
     const startDate = new URL(request.url).searchParams.get('startDate') || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const endDate = new URL(request.url).searchParams.get('endDate') || new Date().toISOString().split('T')[0]
@@ -512,7 +511,7 @@ export async function GET(
         businessId: 'unknown',
         reportType: reportType || 'inventory_value',
         generatedAt: new Date().toISOString(),
-        generatedBy: session?.user?.name || 'Unknown',
+        generatedBy: user?.name || 'Unknown',
         dateRange: { startDate, endDate },
         data: {
           totalInventoryValue: 0,

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { isSystemAdmin, type SessionUser } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
 import * as crypto from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // Validation schemas
 const CreateVehicleSchema = z.object({
   licensePlate: z.string().min(1, 'License plate is required'),
@@ -51,8 +50,8 @@ const UpdateVehicleSchema = z.object({
 // GET - Fetch vehicles
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -163,8 +162,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new vehicle
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -251,8 +250,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update vehicle
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -311,7 +310,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check if user is trying to change mileage unit
-    const userIsAdmin = isSystemAdmin(session.user as SessionUser)
+    const userIsAdmin = isSystemAdmin(user as SessionUser)
     if (updateData.mileageUnit && updateData.mileageUnit !== existingVehicle.mileageUnit) {
       // If vehicle has initial mileage and user is not admin, prevent change
       if (existingVehicle.hasInitialMileage && !userIsAdmin) {
@@ -368,8 +367,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete vehicle
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

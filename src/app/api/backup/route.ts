@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { createCleanBackup } from '@/lib/backup-clean';
 import { restoreCleanBackup, validateBackupData } from '@/lib/restore-clean';
 import { createProgressId, updateProgress } from '@/lib/backup-progress';
 import { compressBackup, decompressBackup, isGzipped } from '@/lib/backup-compression';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/backup - Create and download backup
@@ -21,9 +22,9 @@ import { compressBackup, decompressBackup, isGzipped } from '@/lib/backup-compre
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session || session.user?.role !== 'admin') {
+    if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     const businessId = searchParams.get('businessId') || undefined;
     const includeAuditLogs = searchParams.get('includeAuditLogs') === 'true';
     const auditLogLimit = parseInt(searchParams.get('auditLogLimit') || '1000', 10);
-    const createdBy = session.user?.name || session.user?.email || 'Unknown';
+    const createdBy = user.name || user.email || 'Unknown';
 
     console.log('[backup] Creating backup with options:', {
       backupType,
@@ -130,9 +131,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session || session.user?.role !== 'admin') {
+    if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

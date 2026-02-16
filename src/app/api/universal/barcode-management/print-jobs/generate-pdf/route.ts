@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { readFileSync, unlinkSync } from 'fs';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/universal/barcode-management/print-jobs/generate-pdf
@@ -10,8 +11,8 @@ import { readFileSync, unlinkSync } from 'fs';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

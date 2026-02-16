@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog, auditCreate } from '@/lib/audit'
 import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
@@ -11,6 +9,7 @@ import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 import { decrypt } from '@/lib/encryption'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 
 // R710 session manager for on-the-fly token generation
 const r710SessionManager = new R710SessionManager()
@@ -21,11 +20,10 @@ const r710SessionManager = new R710SessionManager()
 const idempotencyStore = new Map<string, any>()
 
 // Get restaurant business IDs that user can access
-async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
+async function getRestaurantBusinessIds(currentUser: any) {
 
   // Check if user is system admin - they can see all restaurant orders
-  // If session already indicates admin (useful for dev bypass), return all restaurant businesses
-  if (session?.user?.role === 'admin') {
+  if (currentUser?.role === 'admin') {
     const allRestaurantBusinesses = await prisma.businesses.findMany({
       where: { type: 'restaurant', isActive: true },
       select: { id: true, name: true }
@@ -35,8 +33,8 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
   }
 
   // Otherwise fetch the user record to determine memberships
-  const user = await prisma.users.findUnique({
-    where: { id: session.user.id },
+  const dbUser = await prisma.users.findUnique({
+    where: { id: currentUser.id },
     select: {
       role: true,
       business_memberships: {
@@ -52,7 +50,7 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
   })
 
   // If user is admin in DB, return all active restaurants
-  if (user?.role === 'admin') {
+  if (dbUser?.role === 'admin') {
     const allRestaurantBusinesses = await prisma.businesses.findMany({
       where: { type: 'restaurant', isActive: true },
       select: { id: true }
@@ -61,32 +59,14 @@ async function getRestaurantBusinessIds(session: any, request?: NextRequest) {
   }
 
   // For non-admin users, only return businesses they have membership to
-  return user?.business_memberships?.map(m => m.businesses.id) || []
+  return dbUser?.business_memberships?.map(m => m.businesses.id) || []
 }
 
 // GET - Fetch restaurant orders using universal orders API
 export async function GET(request: NextRequest) {
   try {
-    let session = await getServerSession(authOptions)
-
-    // Dev-only bypass: allow passing _devUserId for local testing when not in production
-    if ((!session || !session?.user?.id) && process.env.NODE_ENV !== 'production') {
-      const { searchParams } = new URL(request.url)
-      const devUserId = searchParams.get('_devUserId')
-      if (devUserId) {
-        const devUser = await prisma.users.findUnique({ where: { id: devUserId } })
-        if (devUser) {
-          // Check if caller asked to be treated as admin for local testing
-          const devAdminFlag = searchParams.get('_devAdmin')
-          const role = devAdminFlag === '1' ? 'admin' : ((devUser.role as any) || 'user')
-
-          // Build a minimal session-like object expected by the rest of the handler
-          session = { user: { id: devUser.id, name: (devUser.name as any) || devUser.email || 'dev', role, permissions: (devUser.permissions as any) || {} } } as any
-        }
-      }
-    }
-
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -98,7 +78,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') || '20'
 
     // Get restaurant business IDs that user can access
-    const restaurantBusinessIds = await getRestaurantBusinessIds(session, request)
+    const restaurantBusinessIds = await getRestaurantBusinessIds(user)
 
     if (!restaurantBusinessIds.length) {
       return NextResponse.json({
@@ -277,20 +257,20 @@ function mapPaymentStatus(universalPaymentStatus: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
+  const user = await getServerUser()
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   // Admin users have all permissions by default
-  const isAdmin = session.user.role === 'admin'
+  const isAdmin = user.role === 'admin'
 
   if (!isAdmin) {
     // Non-admin users need specific permissions via RBAC or active business membership
-    const userPermissions = session.user.permissions || {}
+    const userPermissions = user.permissions || {}
     const hasRbacPos = hasPermission(userPermissions, 'restaurant', 'pos')
-    const hasActiveMembership = (session.user as any).businessMemberships?.some(
+    const hasActiveMembership = user.businessMemberships?.some(
       (m: any) => m.isActive
     )
     if (!hasRbacPos && !hasActiveMembership) {
@@ -354,21 +334,21 @@ export async function POST(req: NextRequest) {
 
     // Find employee record for the current user (if exists)
     let employeeId = null
-    let employeeName = session.user.name || 'Unknown'
+    let employeeName = user.name || 'Unknown'
     try {
       const employee = await prisma.employees.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true
         }
       })
       if (employee) {
         employeeId = employee.id
-        employeeName = employee.fullName || session.user.name || 'Unknown'
+        employeeName = employee.fullName || user.name || 'Unknown'
       }
     } catch (err) {
-      console.warn('Could not find employee record for user:', session.user.id)
+      console.warn('Could not find employee record for user:', user.id)
     }
 
     // Determine payment status based on payment received
@@ -623,7 +603,7 @@ export async function POST(req: NextRequest) {
                 wifiTokenId: token.id,
                 businessId: businessId,
                 expenseAccountId: wifiExpenseAccountId,
-                soldBy: session.user.id,
+                soldBy: user.id,
                 saleAmount: itemPrice,
                 paymentMethod: paymentMethod,
                 saleChannel: 'POS', // POS sales go through business POS
@@ -780,7 +760,7 @@ export async function POST(req: NextRequest) {
                 saleAmount: itemPrice,
                 paymentMethod: paymentMethod,
                 saleChannel: 'POS',
-                soldBy: session.user.id,
+                soldBy: user.id,
                 soldAt: new Date()
               }
             });
@@ -867,7 +847,7 @@ export async function POST(req: NextRequest) {
             }
 
             // Get or create R710 expense account
-            const r710ExpenseAccount = await getOrCreateR710ExpenseAccount(businessId, session.user.id);
+            const r710ExpenseAccount = await getOrCreateR710ExpenseAccount(businessId, user.id);
 
             // Decrypt device password for on-the-fly token generation
             const decryptedPassword = decrypt(r710IntegrationForCombo.device_registry.encryptedAdminPassword);
@@ -957,7 +937,7 @@ export async function POST(req: NextRequest) {
                     saleAmount: 0, // Complimentary in combo
                     paymentMethod: paymentMethod,
                     saleChannel: 'POS',
-                    soldBy: session.user.id,
+                    soldBy: user.id,
                     soldAt: new Date()
                   }
                 });
@@ -1094,7 +1074,7 @@ export async function POST(req: NextRequest) {
                 unit: ingredient.unit || 'units',
                 reason: `Used in order ${orderNumber} - ${menuItem.name}`,
                 notes: `Order item: ${item.quantity}x ${menuItem.name}`,
-                employeeName: session.user.name,
+                employeeName: user.name,
                 referenceNumber: orderNumber
               }
 
@@ -1138,7 +1118,7 @@ export async function POST(req: NextRequest) {
 
     // Record audit entry for order creation
     try {
-      await auditCreate({ userId: session.user.id }, 'Business', newOrder.id, {
+      await auditCreate({ userId: user.id }, 'Business', newOrder.id, {
         orderNumber,
         total,
         itemCount: items.length,
@@ -1151,7 +1131,7 @@ export async function POST(req: NextRequest) {
     // Credit business account when order is COMPLETED with PAID status
     if (paymentStatus === 'PAID' && total > 0) {
       try {
-        await initializeBusinessAccount(businessId, 0, session.user.id)
+        await initializeBusinessAccount(businessId, 0, user.id)
         await processBusinessTransaction({
           businessId,
           amount: total,
@@ -1160,7 +1140,7 @@ export async function POST(req: NextRequest) {
           referenceId: newOrder.id,
           referenceType: 'order',
           notes: 'Completed order payment received',
-          createdBy: session.user.id
+          createdBy: user.id
         })
       } catch (balanceError) {
         console.error('Failed to credit business balance for order:', balanceError)

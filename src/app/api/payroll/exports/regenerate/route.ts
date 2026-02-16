@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
@@ -8,12 +6,13 @@ import { generatePayrollExcel } from '@/lib/payroll/excel-generator'
 import { getWorkingDaysInMonth } from '@/lib/payroll/helpers'
 import { writeFile, mkdir, unlink } from 'fs/promises'
 import path from 'path'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!hasPermission(session.user, 'canExportPayroll')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!hasPermission(user, 'canExportPayroll')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
   const data = await req.json()
   const { payrollPeriodId, includeDiagnostics } = data
@@ -334,7 +333,7 @@ export async function POST(req: NextRequest) {
     const fileSize = excelBuffer.length
 
     // Update export record and its timestamps
-  const updated = await prisma.payrollExports.update({ where: { id: existing.id }, data: { fileName, fileUrl, fileSize, exportedAt: new Date(), exportedBy: session.user.id } })
+  const updated = await prisma.payrollExports.update({ where: { id: existing.id }, data: { fileName, fileUrl, fileSize, exportedAt: new Date(), exportedBy: user.id } })
 
   return NextResponse.json({ message: 'Export regenerated', export: updated, fileUrl }, { status: 200 })
   } catch (error) {

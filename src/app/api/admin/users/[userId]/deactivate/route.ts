@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -13,9 +12,9 @@ export async function POST(
 
     const { userId } = await params
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
     
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
@@ -27,7 +26,7 @@ export async function POST(
     }
 
     // Check if current user has permission to deactivate users
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/expense-categories/subcategories
@@ -20,16 +21,16 @@ import { randomUUID } from 'crypto';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = session.user.id;
+    const userId = user.id;
 
     // Check permission (admins always have access)
-    const user = await prisma.users.findUnique({
+    const dbUser = await prisma.users.findUnique({
       where: { id: userId },
       select: { permissions: true, role: true },
     });

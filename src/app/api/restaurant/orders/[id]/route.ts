@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Get restaurant business IDs that user can access
 async function getRestaurantBusinessIds(session: any) {
   const { prisma } = await import('@/lib/prisma')
 
   // Check if user is system admin - they can access all restaurant orders
-  const user = await prisma.users.findUnique({
-    where: { id: session.user.id },
+  const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
     select: {
       role: true,
       business_memberships: {
@@ -43,8 +42,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -108,8 +107,8 @@ export async function PUT(
     const { prisma } = await import('@/lib/prisma')
 
     // Check if user is admin first
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
       select: { role: true }
     })
 
@@ -200,8 +199,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -258,7 +257,7 @@ export async function GET(
 
     // Verify user has access to restaurant businesses (skip for admin)
     const userRole = await prisma.users.findUnique({
-      where: { id: session.user.id },
+      where: { id: user.id },
       select: { role: true }
     })
 

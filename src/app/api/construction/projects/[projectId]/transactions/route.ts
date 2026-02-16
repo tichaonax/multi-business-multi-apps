@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 interface RouteParams {
   params: Promise<{ projectId: string }>
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -25,7 +24,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: user.id
       }
     })
 
@@ -145,8 +144,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -194,7 +193,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: user.id
       }
     })
 
@@ -209,7 +208,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const personalExpense = await prisma.personalExpenses.findFirst({
       where: {
         id: personalExpenseId,
-        userId: session.user.id
+        userId: user.id
       }
     })
 
@@ -303,7 +302,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         paymentMethod: paymentMethod || null,
         referenceNumber: referenceNumber || null,
         notes: notes || null,
-        createdBy: session.user.id
+        createdBy: user.id
       },
       include: {
         personal_expenses: {
@@ -388,8 +387,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -417,7 +416,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: user.id
       }
     })
 
@@ -433,7 +432,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       where: {
         id: transactionId,
         projectId: projectId,
-        createdBy: session.user.id // Only creator can update status
+        createdBy: user.id // Only creator can update status
       }
     })
 
@@ -452,13 +451,13 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     // Set timestamp fields based on status
     if (status === 'approved') {
-      updatedData.approvedBy = session.user.id
+      updatedData.approvedBy = user.id
       updatedData.approvedAt = new Date()
     } else if (status === 'paid') {
       updatedData.paidAt = new Date()
       // If not already approved, also set approval
       if (transaction.status === 'pending') {
-        updatedData.approvedBy = session.user.id
+        updatedData.approvedBy = user.id
         updatedData.approvedAt = new Date()
       }
     }

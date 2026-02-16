@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
+import { isSystemAdmin } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/admin/real-businesses
@@ -11,12 +10,10 @@ import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
  */
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }

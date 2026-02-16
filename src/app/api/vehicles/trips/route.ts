@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { randomBytes, randomUUID } from 'crypto'
 import { z } from 'zod'
+import { getServerUser } from '@/lib/get-server-user'
 
 const CreateTripSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -48,8 +47,8 @@ const UpdateTripSchema = z.object({
 // GET - Fetch vehicle trips
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -182,8 +181,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new vehicle trip
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -326,8 +325,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update vehicle trip (mainly for completing trips)
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -427,7 +426,7 @@ export async function PUT(request: NextRequest) {
               fuelQuantity: expense.fuelQuantity || null,
               fuelType: expense.fuelType || null,
               receiptUrl: expense.receiptUrl || '',
-              createdBy: session.user.id,
+              createdBy: user.id,
               updatedAt: now
             }))
           })
@@ -474,8 +473,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete vehicle trip
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
 import { z } from 'zod'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for barcode update
 const BarcodeUpdateSchema = z.object({
@@ -22,8 +21,8 @@ export async function GET(
   { params }: { params: Promise<{ barcodeId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -82,14 +81,11 @@ export async function GET(
         { status: 400 }
       )
     }
-
-    const user = session.user as SessionUser
-
     // Verify user has access to this business
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId,
           isActive: true
         }
@@ -121,8 +117,8 @@ export async function PATCH(
   { params }: { params: Promise<{ barcodeId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -164,14 +160,11 @@ export async function PATCH(
         { status: 400 }
       )
     }
-
-    const user = session.user as SessionUser
-
     // Verify user has access to this business
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId,
           isActive: true
         }
@@ -266,8 +259,8 @@ export async function DELETE(
   { params }: { params: Promise<{ barcodeId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -307,14 +300,11 @@ export async function DELETE(
         { status: 400 }
       )
     }
-
-    const user = session.user as SessionUser
-
     // Verify user has access to this business
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId,
           isActive: true
         }

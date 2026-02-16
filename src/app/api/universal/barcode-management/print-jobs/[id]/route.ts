@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for updating print jobs
 const updatePrintJobSchema = z.object({
@@ -21,8 +22,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -31,7 +32,7 @@ export async function GET(
     // Check permissions
     const hasPermission = await prisma.userPermissions.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         granted: true,
         permission: {
           name: {
@@ -111,7 +112,7 @@ export async function GET(
     // Verify user has access to this print job's business
     const userBusinessRole = await prisma.userBusinessRole.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         businessId: printJob.businessId,
       },
     });
@@ -142,8 +143,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -154,7 +155,7 @@ export async function PUT(
     // Check permissions
     const hasPermission = await prisma.userPermissions.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         granted: true,
         permission: {
           name: 'BARCODE_PRINT',
@@ -184,7 +185,7 @@ export async function PUT(
     // Verify user has access to this print job's business
     const userBusinessRole = await prisma.userBusinessRole.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         businessId: existingJob.businessId,
       },
     });

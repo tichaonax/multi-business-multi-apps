@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { isSystemAdmin } from '@/lib/permission-utils';
 import type { SessionUser } from '@/types/auth';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/universal/barcode-management/print-jobs/[id]/cancel
@@ -14,20 +15,19 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
-    const user = session.user as SessionUser;
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
       const hasPermission = await prisma.userPermissions.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           granted: true,
           permission: {
             name: 'BARCODE_PRINT',
@@ -65,7 +65,7 @@ export async function POST(
       // Verify user has access to this print job's business
       const userBusinessRole = await prisma.userBusinessRole.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: printJob.businessId,
         },
       });

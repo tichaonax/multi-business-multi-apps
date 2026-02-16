@@ -4,10 +4,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { canViewPrintQueue } from '@/lib/permission-utils';
 import { retryJob, getPrintJob } from '@/lib/printing/print-job-queue';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/print/jobs/[id]/retry
@@ -18,8 +19,8 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -42,8 +43,8 @@ export async function POST(
     }
 
     // Check permissions - admin can retry any job, users can retry their own
-    const canViewAll = canViewPrintQueue(session.user);
-    if (!canViewAll && job.userId !== session.user.id) {
+    const canViewAll = canViewPrintQueue(user);
+    if (!canViewAll && job.userId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden - you can only retry your own print jobs' },
         { status: 403 }

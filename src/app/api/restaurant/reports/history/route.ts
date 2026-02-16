@@ -4,9 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Get business day boundaries (5AM to 5AM)
 function getBusinessDayBoundaries(dateStr: string, timezone: string = 'America/New_York'): { start: Date; end: Date } {
@@ -18,9 +17,9 @@ function getBusinessDayBoundaries(dateStr: string, timezone: string = 'America/N
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

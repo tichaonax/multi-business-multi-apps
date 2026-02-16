@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import {
   isSystemAdmin,
@@ -9,17 +7,14 @@ import {
   canCreatePersonalProjects,
   canCreateBusinessProjects
 } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
-
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { searchParams } = new URL(req.url)
     const businessType = searchParams.get('businessType')
     const status = searchParams.get('status')
@@ -73,7 +68,7 @@ export async function GET(req: NextRequest) {
     // only show projects they have direct access to
     if (!businessType && !canAccessCrossBusinessProjects && !isSystemAdmin(user)) {
       // Get user's business memberships
-      const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
+      const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
 
       // Filter to projects from user's businesses or personal projects (businessId is null)
       whereClause.OR = [
@@ -184,12 +179,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const data = await req.json()
     const {
       name,
@@ -288,7 +281,7 @@ export async function POST(req: NextRequest) {
         budget: budget ? Number(budget) : null,
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
-        createdBy: session.user.id,
+        createdBy: user.id,
         status: 'active'
       },
       include: {

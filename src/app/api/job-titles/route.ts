@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function GET(req: NextRequest) {
   try {
     console.log('🔍 Job titles API - Starting request')
@@ -16,8 +15,8 @@ export async function GET(req: NextRequest) {
     console.log('🔍 Prisma.user available:', !!prisma?.user)
     console.log('🔍 Prisma.users available:', !!prisma?.users)
     
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -46,13 +45,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has permission to manage job titles
-    if (!hasPermission(session.user, 'canManageJobTitles')) {
+    if (!hasPermission(user, 'canManageJobTitles')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

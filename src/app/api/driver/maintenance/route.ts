@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { hasUserPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Service expense schema
 const ServiceExpenseSchema = z.object({
@@ -45,13 +44,13 @@ const DriverMaintenanceSchema = z.object({
 // GET - Fetch driver's own maintenance records only
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check driver maintenance logging permission
-    if (!hasUserPermission(session.user, 'canLogDriverMaintenance')) {
+    if (!hasUserPermission(user, 'canLogDriverMaintenance')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -65,8 +64,8 @@ export async function GET(request: NextRequest) {
     const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { emailAddress: user.email || '' },
+          { fullName: user.name || '' }
         ]
       }
     })
@@ -107,7 +106,7 @@ export async function GET(request: NextRequest) {
     // Build where clause for maintenance records
     const where: any = {
       vehicleId: { in: authorizedVehicleIds },
-      createdBy: session.user.id // Only records created by this driver
+      createdBy: user.id // Only records created by this driver
     }
 
     if (vehicleId && authorizedVehicleIds.includes(vehicleId)) {
@@ -224,13 +223,13 @@ export async function GET(request: NextRequest) {
 // POST - Create new maintenance record with services (drivers can only create for their authorized vehicles)
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check driver maintenance logging permission
-    if (!hasUserPermission(session.user, 'canLogDriverMaintenance')) {
+    if (!hasUserPermission(user, 'canLogDriverMaintenance')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -253,8 +252,8 @@ export async function POST(request: NextRequest) {
     const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { emailAddress: user.email || '' },
+          { fullName: user.name || '' }
         ]
       }
     })
@@ -340,7 +339,7 @@ export async function POST(request: NextRequest) {
           receiptUrl: null,
           notes: validatedData.notes || null,
           isScheduledService: validatedData.services.some(s => s.isScheduledService),
-          createdBy: session.user.id,
+          createdBy: user.id,
           updatedAt: new Date()
         }
       })
@@ -447,12 +446,12 @@ export async function POST(request: NextRequest) {
 // PUT - Update maintenance record (drivers can only update their own records)
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasUserPermission(session.user, 'canLogDriverMaintenance')) {
+    if (!hasUserPermission(user, 'canLogDriverMaintenance')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -467,7 +466,7 @@ export async function PUT(request: NextRequest) {
     const existingRecord = await prisma.vehicleMaintenanceRecords.findFirst({
       where: {
         id,
-        createdBy: session.user.id // Only allow updating own records
+        createdBy: user.id // Only allow updating own records
       }
     })
 
@@ -518,12 +517,12 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete maintenance record (drivers can only delete their own records within 24 hours, admins can delete any)
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasUserPermission(session.user, 'canLogDriverMaintenance')) {
+    if (!hasUserPermission(user, 'canLogDriverMaintenance')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -538,7 +537,7 @@ export async function DELETE(request: NextRequest) {
     const existingRecord = await prisma.vehicleMaintenanceRecords.findFirst({
       where: {
         id: recordId,
-        createdBy: session.user.id // Only allow deleting own records for drivers
+        createdBy: user.id // Only allow deleting own records for drivers
       }
     })
 
@@ -547,7 +546,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if record can be deleted (within 24 hours for drivers, admins can delete anytime)
-    const isAdmin = hasUserPermission(session.user, 'canManageUsers') // Check for admin permission
+    const isAdmin = hasUserPermission(user, 'canManageUsers') // Check for admin permission
     const createdAt = new Date(existingRecord.createdAt)
     const now = new Date()
     const hoursDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60)

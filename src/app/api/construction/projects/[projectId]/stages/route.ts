@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 interface RouteParams {
   params: Promise<{ projectId: string }>
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -21,7 +20,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: user.id
       }
     })
 
@@ -83,8 +82,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -104,7 +103,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: user.id
       }
     })
 

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Admin PUT/DELETE for /api/admin/businesses/[id]
 interface RouteParams {
@@ -11,12 +10,10 @@ interface RouteParams {
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Only system administrators can update businesses' }, { status: 403 })
     }
@@ -97,7 +94,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           action: isReactivation ? 'BUSINESS_REACTIVATED' : 'BUSINESS_UPDATED',
           entityType: 'Business',
           entityId: updated.id,
-          userId: session.user.id,
+          userId: user.id,
           details: {
             before: { 
               name: existing.name, 
@@ -127,10 +124,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const user = session.user as SessionUser
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!isSystemAdmin(user)) return NextResponse.json({ error: 'Only system administrators can delete businesses' }, { status: 403 })
 
     const { id } = await params
@@ -146,8 +141,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const isDemoBusiness = existing.name.includes('[Demo]')
 
     // Verify the user exists in database (handle stale sessions after DB reset)
-    const userExists = await prisma.users.findUnique({ where: { id: session.user.id } })
-    const validUserId = userExists ? session.user.id : null
+    const userExists = await prisma.users.findUnique({ where: { id: user.id } })
+    const validUserId = userExists ? user.id : null
 
     // Hard delete (permanent) - only for demo businesses
     if (hardDelete) {

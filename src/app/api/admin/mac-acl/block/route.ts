@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getR710SessionManager } from '@/lib/r710-session-manager'
 import { decrypt } from '@/lib/encryption'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/admin/mac-acl/block
@@ -18,13 +17,13 @@ import { decrypt } from '@/lib/encryption'
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions (admin only for cross-system blocking)
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.isAdmin) {
       return NextResponse.json(
         { error: 'Only administrators can block MACs across all systems' },
@@ -72,8 +71,8 @@ export async function POST(request: NextRequest) {
               listType: 'BLACKLIST',
               reason,
               businessId: businessId || integration.businessId,
-              createdBy: session.user.id,
-              approvedBy: session.user.id,
+              createdBy: user.id,
+              approvedBy: user.id,
               isActive: true
             }
           })
@@ -141,8 +140,8 @@ export async function POST(request: NextRequest) {
                       listType: 'BLACKLIST',
                       reason,
                       businessId: businessId || device.businesses[0]?.id,
-                      createdBy: session.user.id,
-                      approvedBy: session.user.id,
+                      createdBy: user.id,
+                      approvedBy: user.id,
                       isActive: true
                     }
                   })
@@ -170,8 +169,8 @@ export async function POST(request: NextRequest) {
                     listType: 'BLACKLIST',
                     reason,
                     businessId: businessId || device.businesses[0]?.id,
-                    createdBy: session.user.id,
-                    approvedBy: session.user.id,
+                    createdBy: user.id,
+                    approvedBy: user.id,
                     isActive: true
                   }
                 })

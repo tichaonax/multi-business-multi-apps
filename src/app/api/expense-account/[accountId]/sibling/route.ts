@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createSiblingAccount, getSiblingAccounts } from '@/lib/expense-account-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/expense-account/[accountId]/sibling
@@ -14,8 +13,8 @@ export async function GET(
   { params }: { params: { accountId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -26,7 +25,7 @@ export async function GET(
     }
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
@@ -83,8 +82,8 @@ export async function POST(
   { params }: { params: { accountId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -95,7 +94,7 @@ export async function POST(
     }
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canCreateSiblingAccounts) {
       return NextResponse.json(
         { error: 'You do not have permission to create sibling accounts' },
@@ -138,7 +137,7 @@ export async function POST(
         description: description?.trim() || null,
         lowBalanceThreshold: lowBalanceThreshold || 0,
       },
-      session.user.id
+      user.id
     )
 
     return NextResponse.json(

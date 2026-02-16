@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
 
     let stats = {
@@ -155,7 +151,7 @@ export async function GET(req: NextRequest) {
         try {
           const personalIncome = await prisma.personalExpenses.aggregate({
             where: {
-              userId: session.user.id,
+              userId: user.id,
               amount: { gt: 0 }, // Only positive amounts
               OR: [
                 { category: { contains: 'income', mode: 'insensitive' } },

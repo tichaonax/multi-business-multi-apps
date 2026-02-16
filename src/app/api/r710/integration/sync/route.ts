@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils';
 import { getR710SessionManager } from '@/lib/r710-session-manager';
 import { decrypt } from '@/lib/encryption';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/r710/integration/sync
@@ -14,9 +15,9 @@ import { decrypt } from '@/lib/encryption';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -30,7 +31,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = session.user as any;
 
     // Check permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canSetupPortalIntegration', businessId)) {
@@ -208,9 +208,9 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -224,7 +224,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const user = session.user as any;
 
     // Check permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canSetupPortalIntegration', businessId)) {

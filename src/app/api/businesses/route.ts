@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { generateUniqueShortName } from '@/lib/business-shortname';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
 import { generateAccountNumber } from '@/lib/expense-account-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as SessionUser;
 
     // System admins get ALL businesses (except umbrella), regular users get only their memberships
     let businesses;
@@ -56,7 +56,7 @@ export async function GET() {
         where: {
           business_memberships: {
             some: {
-              userId: session.user.id,
+              userId: user.id,
               isActive: true,
             },
           },
@@ -67,7 +67,7 @@ export async function GET() {
         include: {
           business_memberships: {
             where: {
-              userId: session.user.id,
+              userId: user.id,
             },
             select: {
               role: true,
@@ -100,8 +100,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -118,9 +118,9 @@ export async function POST(req: NextRequest) {
     const shortName = await generateUniqueShortName(prisma as any, name)
 
     // Ensure session user exists in DB before creating FK references
-    const dbUser = await prisma.users.findUnique({ where: { id: session.user.id } })
+    const dbUser = await prisma.users.findUnique({ where: { id: user.id } })
     if (!dbUser) {
-      console.warn('⚠️  Session user not found in users table - aborting business create:', session.user.id)
+      console.warn('⚠️  Session user not found in users table - aborting business create:', user.id)
       return NextResponse.json({ error: 'Unauthorized - user not found' }, { status: 401 })
     }
 
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
         include: {
           business_memberships: {
             where: {
-              userId: session.user.id,
+              userId: user.id,
             },
           },
         },

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { hasPermission } from '@/lib/permission-utils';
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ employeeId: string }> }
@@ -14,13 +14,13 @@ export async function PUT(
 
     const { employeeId } = await params
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!hasPermission(session.user as any, 'canEditEmployees')) {
+    if (!hasPermission(user as any, 'canEditEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
@@ -138,7 +138,7 @@ export async function PUT(
             data: {
               isActive: false,
               deactivatedAt: new Date(),
-              deactivatedBy: session.user.id,
+              deactivatedBy: user.id,
               deactivationReason: `Employee ${employmentStatus || 'deactivated'}`,
               deactivationNotes: notes || `Automatically deactivated due to employee status change`
             }
@@ -161,7 +161,7 @@ export async function PUT(
         // Create audit log for synchronization
         await tx.auditLogs.create({
           data: {
-            userId: session.user.id,
+            userId: user.id,
             action: 'EMPLOYEE_STATUS_SYNC',
             resourceType: 'Employee',
             resourceId: employeeId,
@@ -235,13 +235,13 @@ export async function GET(
 
     const { employeeId } = await params
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!hasPermission(session.user as any, 'canViewEmployees')) {
+    if (!hasPermission(user as any, 'canViewEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 

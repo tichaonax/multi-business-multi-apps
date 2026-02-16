@@ -6,17 +6,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
+import { isSystemAdmin } from '@/lib/permission-utils'
 import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -29,9 +28,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has access to this business (admins have access to all businesses)
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({

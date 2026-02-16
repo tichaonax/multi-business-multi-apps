@@ -9,8 +9,7 @@ import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerUser } from '@/lib/get-server-user'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +25,8 @@ export async function PUT(
     const { id } = await params
 
     // Check authentication
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -49,7 +48,7 @@ export async function PUT(
     // Check if user has admin access to this business
     const userBusinesses = await prisma.employeeBusinesses.findFirst({
       where: {
-        employeeId: session.user.id,
+        employeeId: user.id,
         businessId: existingAd.businessId,
         role: {
           in: ['admin', 'owner']
@@ -187,8 +186,8 @@ export async function DELETE(
     const { id } = await params
 
     // Check authentication
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -210,7 +209,7 @@ export async function DELETE(
     // Check if user has admin access to this business
     const userBusinesses = await prisma.employeeBusinesses.findFirst({
       where: {
-        employeeId: session.user.id,
+        employeeId: user.id,
         businessId: existingAd.businessId,
         role: {
           in: ['admin', 'owner']

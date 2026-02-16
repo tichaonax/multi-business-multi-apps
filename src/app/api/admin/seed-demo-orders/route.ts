@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
+import { getServerUser } from '@/lib/get-server-user'
 
 // Helper function to check admin access
-function isAdmin(session: any): boolean {
-  return session?.user?.role === 'admin';
-}
+
 
 // Helper functions
 function randomItem<T>(arr: T[]): T {
@@ -19,9 +18,9 @@ function randomInt(min: number, max: number): number {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!isAdmin(session)) {
+    if ((!user || user.role !== 'admin')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
     }
 

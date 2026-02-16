@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { hash } from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { randomBytes, randomUUID } from 'crypto'
 import { z } from 'zod'
-import { hasPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { hasPermission, isSystemAdmin} from '@/lib/permission-utils'
 import { DRIVER_PERMISSIONS } from '@/types/permissions'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ driverId: string }>
@@ -23,13 +22,10 @@ const PromoteDriverSchema = z.object({
 // POST - Promote driver to user with trip logging access
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to manage business users
     if (!isSystemAdmin(user) && !hasPermission(user, 'canManageBusinessUsers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
@@ -196,13 +192,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 // GET - Check if driver can be promoted (status check)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     if (!isSystemAdmin(user) && !hasPermission(user, 'canManageBusinessUsers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }

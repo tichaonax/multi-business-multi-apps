@@ -4,11 +4,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { canViewPrintQueue } from '@/lib/permission-utils';
 import { listPrintJobs } from '@/lib/printing/print-job-queue';
 import type { PrintJobStatus } from '@/types/printing';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/print/jobs
@@ -16,13 +17,13 @@ import type { PrintJobStatus } from '@/types/printing';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions - admin can view all, users can view their own
-    const canViewAll = canViewPrintQueue(session.user);
+    const canViewAll = canViewPrintQueue(user);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
       businessId: searchParams.get('businessId') || undefined,
       userId: canViewAll
         ? searchParams.get('userId') || undefined
-        : session.user.id, // Non-admins can only see their own jobs
+        : user.id, // Non-admins can only see their own jobs
       status: searchParams.get('status') as PrintJobStatus | undefined,
       jobType: searchParams.get('jobType') as 'receipt' | 'label' | undefined,
       limit,

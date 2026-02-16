@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { getAuditStatistics } from '@/lib/audit'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
+  const user = await getServerUser()
 
-  if (!session || session.user.role !== 'admin') {
+  if (!user || user.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

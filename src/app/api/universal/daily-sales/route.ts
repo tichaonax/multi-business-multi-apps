@@ -4,11 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * Get the UTC offset in ms for an IANA timezone at a given moment.
@@ -45,9 +43,9 @@ function getTodayInTimezone(timezone: string): { start: Date; end: Date; dateStr
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -63,9 +61,6 @@ export async function GET(request: NextRequest) {
     if (!businessId) {
       return NextResponse.json({ error: 'businessId required' }, { status: 400 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to access financial data for this business
     if (!isSystemAdmin(user) && !hasPermission(user, 'canAccessFinancialData', businessId)) {
       return NextResponse.json({ error: 'Insufficient permissions to access financial data' }, { status: 403 })

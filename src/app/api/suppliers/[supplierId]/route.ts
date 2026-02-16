@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { UniversalSupplier } from '@/types/supplier'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(
   request: NextRequest,
@@ -12,8 +11,8 @@ export async function GET(
 
     const { supplierId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -56,8 +55,8 @@ export async function PUT(
 
     const { supplierId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -91,7 +90,7 @@ export async function PUT(
       ...supplierData,
       id: supplierId, // Ensure ID doesn't change
       updatedAt: new Date().toISOString(),
-      lastUpdatedBy: session.user.id
+      lastUpdatedBy: user.id
     }
 
     suppliers[supplierIndex] = updatedSupplier
@@ -122,8 +121,8 @@ export async function DELETE(
 
     const { supplierId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

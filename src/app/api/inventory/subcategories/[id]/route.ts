@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { hasUserPermission } from '@/lib/permission-utils';
-import { SessionUser } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * PUT /api/inventory/subcategories/[id]
@@ -24,13 +24,12 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission
     if (!hasUserPermission(user, 'canEditInventorySubcategories')) {
@@ -158,13 +157,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission
     if (!hasUserPermission(user, 'canDeleteInventorySubcategories')) {

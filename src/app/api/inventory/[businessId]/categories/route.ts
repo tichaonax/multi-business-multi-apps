@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 interface InventorySubcategory {
   id: string
   name: string
@@ -36,8 +35,8 @@ export async function GET(
 )
  {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -148,8 +147,8 @@ export async function POST(
 )
  {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -166,9 +165,6 @@ export async function POST(
         )
       }
     }
-
-    const user = session.user as SessionUser
-
     // System admins can access any business inventory
     let business: any = null
     if (isSystemAdmin(user)) {
@@ -183,7 +179,7 @@ export async function POST(
           id: businessId,
           businessMemberships: {
             some: {
-              userId: session.user.id,
+              userId: user.id,
               isActive: true
             }
           }
@@ -225,7 +221,7 @@ export async function POST(
         businessType: business.type,
         isUserCreated: true,  // Mark as user-created (not system template)
         isActive: body.isActive !== false,
-        createdBy: session.user.id,
+        createdBy: user.id,
         updatedAt: new Date()
       }
     })

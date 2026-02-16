@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/products/[productId]/barcodes
@@ -30,9 +31,9 @@ export async function GET(
   { params }: { params: { productId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -51,7 +52,7 @@ export async function GET(
             name: true,
             business_memberships: {
               where: {
-                userId: session.user.id,
+                userId: user.id,
                 isActive: true,
               },
               select: {
@@ -89,7 +90,7 @@ export async function GET(
 
     // Check if user has access to this business
     const hasAccess =
-      session.user.role?.toLowerCase() === 'admin' ||
+      user.role?.toLowerCase() === 'admin' ||
       product.businesses.business_memberships.length > 0;
 
     if (!hasAccess) {
@@ -181,9 +182,9 @@ export async function POST(
   { params }: { params: { productId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -213,7 +214,7 @@ export async function POST(
             type: true,
             business_memberships: {
               where: {
-                userId: session.user.id,
+                userId: user.id,
                 isActive: true,
               },
               select: {
@@ -235,7 +236,7 @@ export async function POST(
 
     // Check if user has access to this business
     const hasAccess =
-      session.user.role?.toLowerCase() === 'admin' ||
+      user.role?.toLowerCase() === 'admin' ||
       product.businesses.business_memberships.length > 0;
 
     if (!hasAccess) {
@@ -327,7 +328,7 @@ export async function POST(
           isPrimary: isPrimary,
           source: source,
           label: label || null,
-          createdBy: session.user.id,
+          createdBy: user.id,
         },
       });
 
@@ -347,7 +348,7 @@ export async function POST(
         source: source,
         label: label || null,
         productId: productId,
-        createdBy: session.user.id,
+        createdBy: user.id,
       },
     });
 

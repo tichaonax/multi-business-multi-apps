@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { z } from 'zod'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // Division account creation schema
 const CreateDivisionAccountSchema = z.object({
   businessId: z.string().min(1, 'Business ID is required'),
@@ -23,13 +22,13 @@ export async function GET(
   { params }: { params: { customerId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    if (!hasPermission(session.user, 'canAccessCustomers')) {
+    if (!hasPermission(user, 'canAccessCustomers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -77,13 +76,13 @@ export async function POST(
   { params }: { params: { customerId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    if (!hasPermission(session.user, 'canManageCustomers')) {
+    if (!hasPermission(user, 'canManageCustomers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -146,7 +145,7 @@ export async function POST(
         creditLimit: validatedData.creditLimit,
         allowLayby: validatedData.allowLayby,
         allowCredit: validatedData.allowCredit,
-        createdBy: session.user.id
+        createdBy: user.id
       },
       include: {
         businesses: {

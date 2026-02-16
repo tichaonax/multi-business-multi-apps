@@ -5,21 +5,22 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { isSystemAdmin } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as any;
-    const userBusinessIds = user.business_memberships?.map((m: any) => m.businessId) || [];
+
+    const userBusinessIds = user.businessMemberships?.map((m: any) => m.businessId) || [];
 
     // Build filter based on user permissions
     const businessFilter = isSystemAdmin(user)

@@ -6,21 +6,22 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { isSystemAdmin } from '@/lib/permission-utils';
 import { getR710SessionManager } from '@/lib/r710-session-manager';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Only system admins can clear sessions
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json(
         { error: 'Only system administrators can clear R710 sessions' },
         { status: 403 }
@@ -62,14 +63,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Only system admins can view session stats
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json(
         { error: 'Only system administrators can view R710 session stats' },
         { status: 403 }

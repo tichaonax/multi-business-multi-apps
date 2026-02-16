@@ -6,23 +6,23 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
-import { SessionUser, isSystemAdmin } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { businessId } = await params;
-    const user = session.user as SessionUser;
 
     // Check if user has access to this business (admins have access to all businesses)
     const isAdmin = isSystemAdmin(user);
@@ -31,7 +31,7 @@ export async function GET(
     if (!isAdmin) {
       membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },
@@ -175,13 +175,13 @@ export async function POST(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { businessId } = await params;
-    const user = session.user as SessionUser;
+
     const body = await request.json();
     const { tokenConfigId, businessPrice, isActive, displayOrder } = body;
 
@@ -198,7 +198,7 @@ export async function POST(
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },
@@ -283,13 +283,13 @@ export async function PATCH(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { businessId } = await params;
-    const user = session.user as SessionUser;
+
     const body = await request.json();
     const { menuItemId, businessPrice, isActive, displayOrder } = body;
 
@@ -305,7 +305,7 @@ export async function PATCH(
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },
@@ -363,13 +363,13 @@ export async function DELETE(
   { params }: { params: Promise<{ businessId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { businessId } = await params;
-    const user = session.user as SessionUser;
+
     const { searchParams } = new URL(request.url);
     const menuItemId = searchParams.get('menuItemId');
 
@@ -385,7 +385,7 @@ export async function DELETE(
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },

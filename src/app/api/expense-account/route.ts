@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateAccountNumber } from '@/lib/expense-account-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/expense-account
@@ -11,13 +10,13 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions (pass full user object, not just ID)
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
@@ -27,8 +26,8 @@ export async function GET(request: NextRequest) {
 
     // Build where clause based on user role
     // Admins see all accounts; non-admins see only their businesses' accounts
-    const isAdmin = session.user.role === 'admin'
-    const userBusinessIds = (session.user as any).businessMemberships
+    const isAdmin = user.role === 'admin'
+    const userBusinessIds = user.businessMemberships
       ?.map((m: any) => m.businessId) || []
 
     const whereClause = isAdmin
@@ -191,13 +190,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions (pass full user object, not just ID)
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canCreateExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to create expense accounts' },
@@ -253,7 +252,7 @@ export async function POST(request: NextRequest) {
         balance: 0,
         isActive: true,
         lowBalanceThreshold: threshold,
-        createdBy: session.user.id,
+        createdBy: user.id,
       },
       include: {
         creator: {

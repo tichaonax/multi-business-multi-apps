@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
 import type { SeedDataTemplate } from '@/types/seed-templates'
+import { getServerUser } from '@/lib/get-server-user'
 
 export interface DiffItem {
   type: 'category' | 'subcategory' | 'product'
@@ -48,10 +47,10 @@ export interface DiffResult {
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const currentUser = session?.user as any
+    const user = await getServerUser()
+    const currentUser = user as any
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -60,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     // Check permission (admins have full access)
     const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
-    if (!isAdmin && !hasUserPermission(session.user, 'canApplySeedTemplates')) {
+    if (!isAdmin && !hasUserPermission(user, 'canApplySeedTemplates')) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions' },
         { status: 403 }

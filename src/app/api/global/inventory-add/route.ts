@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { canAddInventoryFromModal } from '@/lib/permission-utils'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(request: NextRequest) {
   try {
     // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions)
-    // if (!session?.user?.id) {
+    // const user = await getServerUser()
+    // if (!user) {
     //   return NextResponse.json(
     //     { success: false, error: 'Unauthorized' },
     //     { status: 401 }
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     // Check permissions
     // TEMPORARY: Skip permission check for testing
-    // if (!canAddInventoryFromModal(session.user as any, businessId)) {
+    // if (!canAddInventoryFromModal(user as any, businessId)) {
     //   return NextResponse.json(
     //     { success: false, error: 'You do not have permission to add inventory to this business' },
     //     { status: 403 }
@@ -58,10 +57,10 @@ export async function POST(request: NextRequest) {
         id: businessId,
         type: inventoryType,
         // For system admins, skip membership check since they have access to all businesses
-        ...(session.user.role !== 'SYSTEM_ADMIN' && {
+        ...(user.role !== 'SYSTEM_ADMIN' && {
           business_memberships: {
             some: {
-              userId: session.user.id,
+              userId: user.id,
               isActive: true
             }
           }
@@ -169,7 +168,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Log the inventory addition
-    console.log(`User ${session.user.id} added inventory: barcode ${barcode} to business ${businessId} (${inventoryType})`)
+    console.log(`User ${user.id} added inventory: barcode ${barcode} to business ${businessId} (${inventoryType})`)
 
     return NextResponse.json({
       success: true,

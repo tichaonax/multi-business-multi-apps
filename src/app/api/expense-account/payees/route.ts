@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getAllAvailablePayees, searchPayees } from '@/lib/payee-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/expense-account/payees
@@ -22,13 +21,13 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canAccessExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
@@ -44,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Get payees (with search if provided)
     const payees = searchTerm
       ? await searchPayees(searchTerm, businessId || undefined)
-      : await getAllAvailablePayees(session.user.id, businessId || undefined)
+      : await getAllAvailablePayees(user.id, businessId || undefined)
 
     return NextResponse.json({
       success: true,

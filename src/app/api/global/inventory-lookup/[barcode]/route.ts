@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getGlobalBarcodeScanningAccess } from '@/lib/permission-utils'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ barcode: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -25,16 +24,6 @@ export async function GET(
       )
     }
 
-    // Check user permissions
-    const user = {
-      id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      role: session.user.role,
-      permissions: session.user.permissions,
-      businessMemberships: [] // We'll populate this if needed
-    }
-
     const access = getGlobalBarcodeScanningAccess(user)
     if (!access.canScan) {
       return NextResponse.json(
@@ -46,7 +35,7 @@ export async function GET(
     // Get user's business memberships for filtering
     const businessMemberships = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         isActive: true
       },
       include: {

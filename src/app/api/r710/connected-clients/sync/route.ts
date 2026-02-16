@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
 import { getR710SessionManager } from '@/lib/r710-session-manager'
 import { decrypt } from '@/lib/encryption'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/r710/connected-clients/sync
@@ -18,14 +17,14 @@ import { decrypt } from '@/lib/encryption'
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    const permissions = getEffectivePermissions(session.user)
-    if (!isSystemAdmin(session.user) && !permissions.canManageWifiPortal) {
+    const permissions = getEffectivePermissions(user)
+    if (!isSystemAdmin(user) && !permissions.canManageWifiPortal) {
       return NextResponse.json(
         { error: 'You do not have permission to sync connected clients' },
         { status: 403 }

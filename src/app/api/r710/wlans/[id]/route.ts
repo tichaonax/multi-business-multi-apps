@@ -5,12 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { isSystemAdmin } from '@/lib/permission-utils';
 import { decrypt } from '@/lib/encryption';
 import { getR710SessionManager } from '@/lib/r710-session-manager';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/r710/wlans/[id]
@@ -21,8 +22,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -59,8 +60,8 @@ export async function GET(
     }
 
     // Check permissions
-    if (!isSystemAdmin(session.user)) {
-      const userBusinessIds = session.user.businessMemberships?.map((m: any) => m.businessId) || [];
+    if (!isSystemAdmin(user)) {
+      const userBusinessIds = user.businessMemberships?.map((m: any) => m.businessId) || [];
       if (!userBusinessIds.includes(wlan.businessId)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
       }
@@ -106,8 +107,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -150,8 +151,8 @@ export async function PUT(
     }
 
     // Check permissions
-    if (!isSystemAdmin(session.user)) {
-      const userBusinessIds = session.user.businessMemberships?.map((m: any) => m.businessId) || [];
+    if (!isSystemAdmin(user)) {
+      const userBusinessIds = user.businessMemberships?.map((m: any) => m.businessId) || [];
       if (!userBusinessIds.includes(existingWlan.businessId)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
       }
@@ -375,13 +376,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Only system admins can delete WLANs
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Only system administrators can delete WLANs' }, { status: 403 });
     }
 

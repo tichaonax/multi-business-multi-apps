@@ -1,25 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 interface RouteParams {
   params: Promise<{ employeeId: string; contractId: string }>
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId, contractId } = await params
 
     // Check if user has permission to view employee contracts
-    if (!hasPermission(session.user, 'canViewEmployeeContracts')) {
+    if (!hasPermission(user, 'canViewEmployeeContracts')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -99,15 +98,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId, contractId } = await params
 
     // Check if user is system admin - only system admins can delete contracts
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Only system administrators can delete contracts' }, { status: 403 })
     }
 
@@ -177,8 +176,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -189,7 +188,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // Handle contract signing
     if (action === 'sign') {
       // Check if user has permission to sign contracts (could be employee themselves or manager)
-      if (!hasPermission(session.user, 'canSignEmployeeContracts') && !hasPermission(session.user, 'canEditEmployeeContracts')) {
+      if (!hasPermission(user, 'canSignEmployeeContracts') && !hasPermission(user, 'canEditEmployeeContracts')) {
         return NextResponse.json({ error: 'Insufficient permissions to sign contracts' }, { status: 403 })
       }
 
@@ -249,15 +248,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId, contractId } = await params
 
     // Check if user has permission to edit employee contracts
-    if (!hasPermission(session.user, 'canEditEmployeeContracts')) {
+    if (!hasPermission(user, 'canEditEmployeeContracts')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -354,7 +353,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             data: {
               isActive: false,
               deactivatedAt: new Date(),
-              deactivatedBy: session.user.id,
+              deactivatedBy: user.id,
               deactivationReason: 'Contract terminated',
               deactivationNotes: `Automatically deactivated due to contract termination. Contract: ${contractId}`
             }
@@ -370,7 +369,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         // Create audit log for contract termination
         await tx.auditLogs.create({
           data: {
-            userId: session.user.id,
+            userId: user.id,
             action: 'CONTRACT_TERMINATED',
             resourceType: 'EmployeeContract',
             resourceId: contractId,

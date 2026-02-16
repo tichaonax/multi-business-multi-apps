@@ -5,20 +5,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { isSystemAdmin } from '@/lib/permission-utils';
 import { RuckusR710ApiService } from '@/services/ruckus-r710-api';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as any;
 
     // Only system admins can test new devices
     if (!isSystemAdmin(user)) {

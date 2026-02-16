@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/universal/barcode-management/reports/print-history
@@ -9,8 +10,8 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     // Check permissions
     const hasPermission = await prisma.userPermissions.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         granted: true,
         permission: {
           name: {
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     // Get user's accessible businesses
     const userBusinesses = await prisma.userBusinessRole.findMany({
-      where: { userId: session.user.id },
+      where: { userId: user.id },
       select: { businessId: true },
     });
 

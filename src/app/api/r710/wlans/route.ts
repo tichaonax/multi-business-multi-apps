@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -17,8 +16,8 @@ export async function GET(request: NextRequest) {
     const where: any = {}
     if (businessId) {
       where.businessId = businessId
-    } else if (!isSystemAdmin(session.user)) {
-      const userBusinessIds = session.user.businessMemberships?.map((m: any) => m.businessId) || []
+    } else if (!isSystemAdmin(user)) {
+      const userBusinessIds = user.businessMemberships?.map((m: any) => m.businessId) || []
       where.businessId = { in: userBusinessIds }
     }
 

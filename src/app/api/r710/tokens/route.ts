@@ -5,12 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
 import { getR710SessionManager } from '@/lib/r710-session-manager';
-import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-utils';
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/r710/tokens
@@ -19,9 +20,9 @@ import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-util
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -38,7 +39,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission: admin OR has canSellWifiTokens permission (via preset or active membership)
     const hasWifiSellPermission = isSystemAdmin(user) || hasPermission(user, 'canSellWifiTokens', businessId);
@@ -205,9 +205,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -234,7 +234,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission: admin OR has canSellWifiTokens permission (via preset or active membership)
     const hasWifiSellPermission = isSystemAdmin(user) || hasPermission(user, 'canSellWifiTokens', businessId);

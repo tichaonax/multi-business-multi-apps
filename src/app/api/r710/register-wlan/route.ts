@@ -6,11 +6,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { decrypt } from '@/lib/encryption'
+import { getServerUser } from '@/lib/get-server-user'
 
 const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED
 
@@ -29,13 +28,13 @@ const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Only admins can register WLANs
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json(
         { error: 'Only system administrators can register WLANs' },
         { status: 403 }

@@ -8,8 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { canManageNetworkPrinters } from '@/lib/permission-utils';
 import {
   getShareablePrinters,
@@ -18,6 +18,7 @@ import {
   markStalePrintersOffline,
 } from '@/lib/printing/printer-service';
 import type { NetworkPrinter } from '@/types/printing';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/sync/printers
@@ -28,8 +29,8 @@ export async function GET(request: NextRequest) {
   try {
     // TODO: Phase 4 - Add sync service authentication token validation
     // For now, use regular session auth
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -77,13 +78,13 @@ export async function POST(request: NextRequest) {
   try {
     // TODO: Phase 4 - Add sync service authentication token validation
     // For now, use regular session auth
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Only admins can update printer status via sync
-    if (!canManageNetworkPrinters(session.user)) {
+    if (!canManageNetworkPrinters(user)) {
       return NextResponse.json(
         { error: 'Forbidden - only admins can sync printer status' },
         { status: 403 }

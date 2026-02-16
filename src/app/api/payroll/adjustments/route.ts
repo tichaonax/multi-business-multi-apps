@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // GET /api/payroll/adjustments
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasPermission(session.user, 'canAccessPayroll')) {
+    if (!hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -59,12 +58,12 @@ export async function GET(req: NextRequest) {
 // POST /api/payroll/adjustments
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasPermission(session.user, 'canEditPayrollEntry')) {
+    if (!hasPermission(user, 'canEditPayrollEntry')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -134,7 +133,7 @@ export async function POST(req: NextRequest) {
         amount: signedAmount,
         // Prisma model does not have `description` — map client `description` into `reason` if provided
         reason: reason ?? description ?? null,
-        createdBy: session.user.id,
+        createdBy: user.id,
         createdAt: new Date()
       }
 
@@ -171,9 +170,9 @@ export async function POST(req: NextRequest) {
 // PUT /api/payroll/adjustments - update an existing adjustment (only allowed when payroll not exported)
 export async function PUT(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!hasPermission(session.user, 'canEditPayrollEntry')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!hasPermission(user, 'canEditPayrollEntry')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
     const data = await req.json()
     const { id, amount, description, isAddition, type, reason } = data
@@ -230,9 +229,9 @@ export async function PUT(req: NextRequest) {
 // DELETE /api/payroll/adjustments?adjustmentId= - delete an adjustment
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!hasPermission(session.user, 'canEditPayrollEntry')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!hasPermission(user, 'canEditPayrollEntry')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
     const { searchParams } = new URL(req.url)
     const adjustmentId = searchParams.get('adjustmentId')

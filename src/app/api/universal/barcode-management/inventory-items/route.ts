@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for creating barcode inventory items
 const createInventoryItemSchema = z.object({
@@ -23,8 +24,8 @@ const createInventoryItemSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -35,14 +36,13 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 100);
 
-    const user = session.user as SessionUser;
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
       const hasPermission = await prisma.userPermissions.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           granted: true,
           permission: {
             name: {
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       accessibleBusinessIds = allBusinesses.map(b => b.id);
     } else {
       const userBusinesses = await prisma.userBusinessRole.findMany({
-        where: { userId: session.user.id },
+        where: { userId: user.id },
         select: { businessId: true },
       });
       accessibleBusinessIds = userBusinesses.map((ubr) => ubr.businessId);
@@ -171,22 +171,21 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
     const validatedData = createInventoryItemSchema.parse(body);
 
-    const user = session.user as SessionUser;
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
       const hasPermission = await prisma.userPermissions.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           granted: true,
           permission: {
             name: 'BARCODE_MANAGE_TEMPLATES',
@@ -219,7 +218,7 @@ export async function POST(request: NextRequest) {
       // Verify user has access to the template's business
       const userBusinessRole = await prisma.userBusinessRole.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: template.businessId,
         },
       });
@@ -264,7 +263,7 @@ export async function POST(request: NextRequest) {
         expiryDate: validatedData.expiryDate ? new Date(validatedData.expiryDate) : undefined,
         quantity: validatedData.quantity,
         isActive: validatedData.isActive,
-        createdById: session.user.id,
+        createdById: user.id,
       },
       include: {
         template: {

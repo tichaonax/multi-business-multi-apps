@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import {
   registerPrinter,
@@ -16,6 +16,7 @@ import {
 } from '@/lib/printing/printer-service';
 import { canManageNetworkPrinters, canPrint } from '@/lib/permission-utils';
 import type { PrinterType } from '@/types/printing';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/printers
@@ -23,13 +24,13 @@ import type { PrinterType } from '@/types/printing';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions - either manage or use printers
-    if (!canManageNetworkPrinters(session.user) && !canPrint(session.user)) {
+    if (!canManageNetworkPrinters(user) && !canPrint(user)) {
       return NextResponse.json(
         { error: 'Forbidden - insufficient permissions' },
         { status: 403 }
@@ -77,13 +78,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions - must be admin to register printers
-    if (!canManageNetworkPrinters(session.user)) {
+    if (!canManageNetworkPrinters(user)) {
       return NextResponse.json(
         { error: 'Forbidden - only admins can register printers' },
         { status: 403 }

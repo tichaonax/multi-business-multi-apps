@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
 import { deleteExpenseWithRollback } from '@/lib/transaction-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ expenseId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { expenseId } = await params
 
     // Check if user has permission to access personal finance
@@ -32,7 +28,7 @@ export async function GET(
 
     // Non-admin users can only access their own expenses
     if (!isSystemAdmin(user)) {
-      whereClause.userId = session.user.id
+      whereClause.userId = user.id
     }
 
     const expense = await prisma.personalExpenses.findFirst({
@@ -82,12 +78,10 @@ export async function PUT(
   { params }: { params: Promise<{ expenseId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { expenseId } = await params
 
     // Check if user has permission to edit personal expenses
@@ -105,7 +99,7 @@ export async function PUT(
     const existingExpense = await prisma.personalExpenses.findFirst({
       where: {
         id: expenseId,
-        userId: session.user.id
+        userId: user.id
       }
     })
 
@@ -113,12 +107,12 @@ export async function PUT(
       return NextResponse.json({ error: 'Expense not found' }, { status: 404 })
     }
 
-    const isAdmin = isSystemAdmin(session.user)
+    const isAdmin = isSystemAdmin(user)
 
     // Check ownership and time-based permissions for editing
     if (!isAdmin) {
       // Non-admin users can only edit their own expenses
-      if (existingExpense.userId !== session.user.id) {
+      if (existingExpense.userId !== user.id) {
         return NextResponse.json({ error: 'Insufficient permissions to edit this expense' }, { status: 403 })
       }
 
@@ -141,7 +135,7 @@ export async function PUT(
     // If amount is increasing, check available balance
     if (amountDifference > 0) {
       const budgetEntries = await prisma.personalBudgets.findMany({
-        where: { userId: session.user.id },
+        where: { userId: user.id },
         orderBy: { createdAt: 'desc' }
       })
 
@@ -178,7 +172,7 @@ export async function PUT(
     if (amountDifference !== 0) {
       await prisma.personalBudgets.create({
         data: {
-          userId: session.user.id,
+          userId: user.id,
           amount: Math.abs(amountDifference), // Always positive amount
           description: `Expense adjustment: ${description}`,
           type: amountDifference > 0 ? 'expense' : 'deposit' // If increase = expense, if decrease = deposit
@@ -243,7 +237,7 @@ export async function PUT(
               amount: Number(amount),
               description,
               status: 'pending',
-              createdBy: session.user.id
+              createdBy: user.id
             }
           })
         }
@@ -302,12 +296,10 @@ export async function DELETE(
   { params }: { params: Promise<{ expenseId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { expenseId } = await params
 
     // Check if user has permission to delete personal expenses
@@ -330,12 +322,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Expense not found' }, { status: 404 })
     }
 
-    const isAdmin = isSystemAdmin(session.user)
+    const isAdmin = isSystemAdmin(user)
 
     // Check ownership and time-based permissions
     if (!isAdmin) {
       // Non-admin users can only delete their own expenses
-      if (expense.userId !== session.user.id) {
+      if (expense.userId !== user.id) {
         return NextResponse.json({ error: 'Insufficient permissions to delete this expense' }, { status: 403 })
       }
 
@@ -356,9 +348,9 @@ export async function DELETE(
     // Use atomic transaction for deletion with complete rollback
     const result = await deleteExpenseWithRollback({
       expenseId: expenseId,
-      userId: session.user.id,
+      userId: user.id,
       rollbackReason: isAdmin ? 'Admin deletion' : 'User deletion within 24-hour window',
-      auditNotes: `Expense deleted by ${session.user.name} (${session.user.email})`
+      auditNotes: `Expense deleted by ${user.name} (${user.email})`
     })
 
     if (!result.success) {

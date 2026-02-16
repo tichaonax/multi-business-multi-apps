@@ -4,14 +4,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { canPrintInventoryLabels } from '@/lib/permission-utils';
 import { generateLabel } from '@/lib/printing/label-generator';
 import { queuePrintJob } from '@/lib/printing/print-job-queue';
 import { convertToZPL } from '@/lib/printing/formats/zpl';
 import { convertToESCPOS } from '@/lib/printing/formats/esc-pos';
 import type { LabelData, LabelFormat, BarcodeFormat } from '@/types/printing';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/print/label
@@ -19,13 +20,13 @@ import type { LabelData, LabelFormat, BarcodeFormat } from '@/types/printing';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!canPrintInventoryLabels(session.user)) {
+    if (!canPrintInventoryLabels(user)) {
       return NextResponse.json(
         { error: 'Forbidden - insufficient permissions to print labels' },
         { status: 403 }
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
       printJobData,
       data.businessId,
       data.businessType || 'other',
-      session.user.id
+      user.id
     );
 
     return NextResponse.json(

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -20,7 +19,7 @@ export async function GET(request: NextRequest) {
     // Get all businesses user has access to
     const memberships = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.user.id,
+        userId: user.id,
       },
       select: {
         businessId: true,

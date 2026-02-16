@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateUniqueShortName } from '@/lib/business-shortname'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
 import { generateAccountNumber } from '@/lib/expense-account-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // System admins can see all active businesses
     if (isSystemAdmin(user)) {
       const businesses = await prisma.businesses.findMany({
@@ -27,7 +23,7 @@ export async function GET() {
     // Regular users see only their businesses
     const userMemberships = await prisma.businessMemberships.findMany({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         isActive: true
       },
       include: {
@@ -45,13 +41,10 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Only system admins can create businesses
     if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Only system administrators can create businesses' }, { status: 403 })
@@ -83,9 +76,9 @@ export async function POST(req: NextRequest) {
     const shortName = await generateUniqueShortName(prisma as any, name.trim())
 
     // Ensure session user exists in DB before creating FK references
-    const dbUser = await prisma.users.findUnique({ where: { id: session.user.id } })
+    const dbUser = await prisma.users.findUnique({ where: { id: user.id } })
     if (!dbUser) {
-      console.warn('⚠️  Session user not found in users table - aborting business create:', session.user.id)
+      console.warn('⚠️  Session user not found in users table - aborting business create:', user.id)
       return NextResponse.json({ error: 'Unauthorized - user not found' }, { status: 401 })
     }
 

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permission-utils';
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -13,13 +14,13 @@ export async function DELETE(
 
     const { userId } = await params
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!hasPermission(session.user as any, 'canManageBusinessUsers')) {
+    if (!hasPermission(user as any, 'canManageBusinessUsers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
@@ -27,7 +28,7 @@ export async function DELETE(
     const { reason, notes } = await req.json();
 
     // Get user details including employee relationship
-    const user = await prisma.users.findUnique({
+    const dbUser = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         employees: {
@@ -55,7 +56,7 @@ export async function DELETE(
         data: {
           isActive: false,
           deactivatedAt: new Date(),
-          deactivatedBy: session.user.id,
+          deactivatedBy: user.id,
           deactivationReason: reason || 'Account revoked',
           deactivationNotes: notes,
         }
@@ -78,7 +79,7 @@ export async function DELETE(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: user.id,
           action: 'USER_ACCOUNT_REVOKED',
           resourceType: 'User',
           resourceId: userId,
@@ -90,7 +91,7 @@ export async function DELETE(
             linkedEmployeeName: (user as any).employees?.fullName,
             reason,
             notes,
-            businessMemberships: user.business_memberships.map(m => ({
+            businessMemberships: user.businessMemberships.map(m => ({
               businessId: m.businessId,
               businessName: (m as any).businesses?.name || null
             }))
@@ -135,13 +136,13 @@ export async function POST(
 
     const { userId } = await params
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!hasPermission(session.user as any, 'canManageBusinessUsers')) {
+    if (!hasPermission(user as any, 'canManageBusinessUsers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
@@ -149,7 +150,7 @@ export async function POST(
     const { notes } = await req.json();
 
     // Get user details
-    const user = await prisma.users.findUnique({
+    const dbUser = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         employees: {
@@ -178,7 +179,7 @@ export async function POST(
         data: {
           isActive: true,
           reactivatedAt: new Date(),
-          reactivatedBy: session.user.id,
+          reactivatedBy: user.id,
           reactivationNotes: notes,
           deactivatedAt: null,
           deactivatedBy: null,
@@ -207,7 +208,7 @@ export async function POST(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: user.id,
           action: 'USER_ACCOUNT_REACTIVATED',
           resourceType: 'User',
           resourceId: userId,

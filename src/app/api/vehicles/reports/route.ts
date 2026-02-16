@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { hasPermission, hasPermissionInAnyBusiness, isSystemAdmin } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 const ReportQuerySchema = z.object({
   reportType: z.enum([
@@ -28,29 +26,8 @@ const ReportQuerySchema = z.object({
 // GET - Generate vehicle reports
 export async function GET(request: NextRequest) {
   try {
-  let session = await getServerSession(authOptions)
-
-    // Development-only override: allow testing endpoints locally by passing
-    // ?_devUserId=<id> when NODE_ENV !== 'production'. This avoids needing to
-    // copy auth cookies for quick smoke tests. It will not run in production.
-  // normalize session user shape for downstream usage and permission helpers
-  const currentUser = session?.user as any
-
-  if (!currentUser?.id) {
-      try {
-        const { searchParams } = new URL(request.url)
-        const devUserId = searchParams.get('_devUserId')
-        if (devUserId && process.env.NODE_ENV !== 'production') {
-          session = { user: { id: devUserId } } as any
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    // re-evaluate currentUser after potential dev override
-    const currentUserAfter = session?.user as any
-    if (!currentUserAfter?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -61,7 +38,6 @@ export async function GET(request: NextRequest) {
     const { reportType, dateFrom, dateTo, vehicleId, driverId, businessId, ownershipType } = validatedQuery
 
     // Check permissions for financial data access
-    const user = currentUserAfter as SessionUser
     const requiresFinancialAccess = ['EXPENSE_SUMMARY', 'REIMBURSEMENT_SUMMARY', 'BUSINESS_ATTRIBUTION'].includes(reportType)
 
     if (requiresFinancialAccess && !isSystemAdmin(user)) {
@@ -114,7 +90,7 @@ export async function GET(request: NextRequest) {
         break
 
       case 'REIMBURSEMENT_SUMMARY':
-        reportData = await generateReimbursementSummaryReport(dateFilter, businessId, currentUserAfter.id)
+        reportData = await generateReimbursementSummaryReport(dateFilter, businessId, user.id)
         break
 
       default:

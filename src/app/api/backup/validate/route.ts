@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { validateBackupRestore, formatValidationSummary } from '@/lib/backup-validation';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/backup/validate - Validate backup against current database
@@ -14,9 +15,9 @@ import { validateBackupRestore, formatValidationSummary } from '@/lib/backup-val
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session || session.user?.role !== 'admin') {
+    if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

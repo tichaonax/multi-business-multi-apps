@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 import { isSystemAdmin } from '@/lib/permission-utils';
-import { SessionUser } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 interface Context {
   params: Promise<{
@@ -14,20 +14,19 @@ interface Context {
 
 export async function GET(req: NextRequest, { params }: Context) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { businessId } = await params;
-    const user = session.user as SessionUser;
 
     // System admins have access to all business members
     if (!isSystemAdmin(user)) {
       // Check if user has permission to view members through business membership
       const userMembership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },
@@ -82,14 +81,13 @@ export async function GET(req: NextRequest, { params }: Context) {
 
 export async function POST(req: NextRequest, { params }: Context) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { businessId } = await params;
     const { email, role = 'employee' } = await req.json();
-    const user = session.user as SessionUser;
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -100,7 +98,7 @@ export async function POST(req: NextRequest, { params }: Context) {
       // Check if user has permission to invite members through business membership
       const userMembership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },
@@ -148,7 +146,7 @@ export async function POST(req: NextRequest, { params }: Context) {
             role: role,
             // Ensure manager-only permissions are not accidentally granted to non-manager roles
             permissions: BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS] as any,
-            invitedBy: session.user.id,
+            invitedBy: user.id,
           },
           include: {
             users: {
@@ -174,7 +172,7 @@ export async function POST(req: NextRequest, { params }: Context) {
         businessId: businessId,
         role: role,
             permissions: presetPermissions as any,
-        invitedBy: session.user.id,
+        invitedBy: user.id,
         isActive: true,
       },
       include: {

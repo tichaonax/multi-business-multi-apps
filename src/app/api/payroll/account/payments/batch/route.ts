@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import {
   getGlobalPayrollAccount,
   checkPayrollAccountBalance,
 } from '@/lib/payroll-account-utils'
 import { createPaymentVoucher } from '@/lib/payroll-voucher-generator'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/payroll/account/payments/batch
@@ -23,8 +22,8 @@ import { createPaymentVoucher } from '@/lib/payroll-voucher-generator'
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -146,7 +145,7 @@ export async function POST(request: NextRequest) {
             paymentType: 'SALARY',
             status: 'PENDING',
             isAdvance: false,
-            createdBy: session.user.id,
+            createdBy: user.id,
           },
         })
 

@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { hasPermission, isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
 import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
 import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // Validation schemas
 const CreateOrderItemSchema = z.object({
   productVariantId: z.string().min(1).nullable(), // Nullable for WiFi tokens
@@ -105,13 +103,10 @@ function generateOrderNumber(businessType: string, orderCount: number): string {
 // GET - Fetch orders for a business
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const customerId = searchParams.get('customerId')
@@ -296,13 +291,10 @@ export async function GET(request: NextRequest) {
 // POST - Create new order
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     const body = await request.json()
     const validatedData = CreateOrderSchema.parse(body)
 
@@ -817,7 +809,7 @@ export async function POST(request: NextRequest) {
     // Credit business account when order is created as COMPLETED with PAID status
     if (result.status === 'COMPLETED' && result.paymentStatus === 'PAID' && Number(result.totalAmount) > 0) {
       try {
-        await initializeBusinessAccount(orderData.businessId, 0, session.user.id)
+        await initializeBusinessAccount(orderData.businessId, 0, user.id)
         await processBusinessTransaction({
           businessId: orderData.businessId,
           amount: Number(result.totalAmount),
@@ -826,7 +818,7 @@ export async function POST(request: NextRequest) {
           referenceId: result.id,
           referenceType: 'order',
           notes: 'Completed order payment received',
-          createdBy: session.user.id
+          createdBy: user.id
         })
       } catch (balanceError) {
         console.error('Failed to credit business balance for order:', balanceError)
@@ -858,12 +850,10 @@ export async function POST(request: NextRequest) {
 // PUT - Update order
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const body = await request.json()
     const validatedData = UpdateOrderSchema.parse(body)
 
@@ -974,7 +964,7 @@ export async function PUT(request: NextRequest) {
     if (wasNotCompleted && isNowCompleted && isPaid) {
       try {
         // Ensure business account exists
-        await initializeBusinessAccount(existingOrder.businessId, 0, session.user.id)
+        await initializeBusinessAccount(existingOrder.businessId, 0, user.id)
 
         // Credit the order amount to business account
         const orderTotal = Number(order.totalAmount)
@@ -986,7 +976,7 @@ export async function PUT(request: NextRequest) {
           referenceId: order.id,
           referenceType: 'order',
           notes: `Completed order payment received`,
-          createdBy: session.user.id
+          createdBy: user.id
         })
         console.log(`Credited $${orderTotal} to business ${existingOrder.businessId} for order ${order.orderNumber}`)
       } catch (balanceError) {
@@ -1024,7 +1014,7 @@ export async function PUT(request: NextRequest) {
             referenceId: existingOrder.id,
             referenceType: 'order',
             notes: refundReason || 'Refund for completed order',
-            createdBy: session.user.id
+            createdBy: user.id
           })
           console.log(`Debited $${refundAmount} from business ${existingOrder.businessId} for refund`)
         }
@@ -1072,7 +1062,7 @@ export async function PUT(request: NextRequest) {
             reason: refundReason,
             amount: refundAmount,
             date: new Date().toISOString(),
-            refundedBy: session.user.id
+            refundedBy: user.id
           })
           await prisma.businessOrders.update({
             where: { id },

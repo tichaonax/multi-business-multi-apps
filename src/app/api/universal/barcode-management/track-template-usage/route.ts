@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { trackTemplateUsage } from '@/lib/barcode-lookup';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/universal/barcode-management/track-template-usage
@@ -18,9 +19,9 @@ import { trackTemplateUsage } from '@/lib/barcode-lookup';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

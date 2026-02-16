@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/universal/barcode-management/cleanup
@@ -11,18 +12,12 @@ import { prisma } from '@/lib/prisma';
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
-      select: { isAdmin: true },
-    });
-
-    if (!user?.isAdmin) {
+    if (user.role !== 'admin') {
       return NextResponse.json(
         { error: 'Admin access required' },
         { status: 403 }

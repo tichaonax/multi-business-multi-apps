@@ -1,26 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { hasPermission } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 interface RouteParams {
   params: Promise<{ employeeId: string }>
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId } = await params
 
     // Check if user has permission to view employees
-    if (!hasPermission(session.user, 'canViewEmployees')) {
+    if (!hasPermission(user, 'canViewEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -276,15 +275,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId } = await params
 
     // Check if user has permission to edit employees
-    if (!hasPermission(session.user, 'canEditEmployees')) {
+    if (!hasPermission(user, 'canEditEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -364,7 +363,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Validate foreign key references
-    const [jobTitle, compensationType, business, supervisor, user, idTemplate] = await Promise.all([
+    const [jobTitle, compensationType, business, supervisor, linkedUser, idTemplate] = await Promise.all([
       prisma.jobTitles.findUnique({ where: { id: jobTitleId } }),
       prisma.compensationTypes.findUnique({ where: { id: compensationTypeId } }),
       prisma.businesses.findUnique({ where: { id: primaryBusinessId } }),
@@ -395,7 +394,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    if (userId && !user) {
+    if (userId && !linkedUser) {
       return NextResponse.json(
         { error: 'Invalid user account' },
         { status: 400 }
@@ -485,7 +484,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           data: {
             isActive: false,
             deactivatedAt: new Date(),
-            deactivatedBy: session.user.id,
+            deactivatedBy: user.id,
             deactivationReason: `Employee ${newEmploymentStatus}`,
             deactivationNotes: `Automatically deactivated due to employee status change to ${newEmploymentStatus}`
           }
@@ -504,7 +503,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       if (statusChanged && updatedEmployee.users) {
         await tx.auditLogs.create({
           data: {
-            userId: session.user.id,
+            userId: user.id,
             action: 'EMPLOYEE_STATUS_SYNC',
             resourceType: 'Employee',
             resourceId: employeeId,
@@ -587,15 +586,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId } = await params
 
     // Check if user has permission to delete employees
-    if (!hasPermission(session.user, 'canDeleteEmployees')) {
+    if (!hasPermission(user, 'canDeleteEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -648,8 +647,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
           employmentStatus: 'terminated',
           terminationDate: new Date(),
           notes: existingEmployee.notes ? 
-            `${existingEmployee.notes}\n\n[${new Date().toISOString()}] Account deactivated by ${session.user.name}` :
-            `[${new Date().toISOString()}] Account deactivated by ${session.user.name}`
+            `${existingEmployee.notes}\n\n[${new Date().toISOString()}] Account deactivated by ${user.name}` :
+            `[${new Date().toISOString()}] Account deactivated by ${user.name}`
         },
         include: {
           users: {
@@ -672,9 +671,9 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
           data: {
             isActive: false,
             deactivatedAt: new Date(),
-            deactivatedBy: session.user.id,
+            deactivatedBy: user.id,
             deactivationReason: 'Employee terminated',
-            deactivationNotes: `Automatically deactivated due to employee termination by ${session.user.name}`
+            deactivationNotes: `Automatically deactivated due to employee termination by ${user.name}`
           }
         })
 
@@ -690,7 +689,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       // Create audit log for termination and synchronization
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: user.id,
           action: 'EMPLOYEE_TERMINATED',
           resourceType: 'Employee',
           resourceId: employeeId,

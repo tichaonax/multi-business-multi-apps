@@ -10,8 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerUser } from '@/lib/get-server-user'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,8 +77,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -143,7 +142,7 @@ export async function POST(request: NextRequest) {
     // Check if user has admin access to this business
     const userBusinesses = await prisma.employeeBusinesses.findFirst({
       where: {
-        employeeId: session.user.id,
+        employeeId: user.id,
         businessId,
         role: {
           in: ['admin', 'owner']

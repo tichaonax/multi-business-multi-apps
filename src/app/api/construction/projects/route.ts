@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const projects = await prisma.constructionProjects.findMany({
       where: { 
-        createdBy: session.user.id 
+        createdBy: user.id 
       },
       orderBy: { 
         createdAt: 'desc' 
@@ -31,8 +30,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -42,7 +41,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Project name is required' }, { status: 400 })
     }
 
-    console.log('Creating project:', { name, description, userId: session.user.id })
+    console.log('Creating project:', { name, description, userId: user.id })
     
     const newProject = await prisma.constructionProjects.create({
       data: {
@@ -51,7 +50,7 @@ export async function POST(req: NextRequest) {
         budget: budget ? parseFloat(budget) : null,
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
-        createdBy: session.user.id,
+        createdBy: user.id,
       }
     })
 

@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Fetch full user data with permissions and business memberships
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
       select: {
         id: true,
         email: true,
@@ -53,7 +52,7 @@ export async function GET(req: NextRequest) {
       name: user.name,
       role: user.role,
       permissions: user.permissions as Record<string, any>,
-      businessMemberships: user.business_memberships.map(m => ({
+      businessMemberships: user.businessMemberships.map(m => ({
         businessId: m.businessId,
         businessName: m.businesses.name,
         role: m.role,
@@ -88,12 +87,12 @@ export async function GET(req: NextRequest) {
 
       if (filterType === 'own') {
         // Only projects created by this user
-        whereClause.createdBy = session.user.id
+        whereClause.createdBy = user.id
       } else if (filterType === 'personal') {
         // Only personal projects (no business) that user created or has access to
         whereClause.AND = [
           { businessId: null },
-          { createdBy: session.user.id }
+          { createdBy: user.id }
         ]
       } else if (filterType === 'business') {
         // Only business projects user has access to
@@ -108,7 +107,7 @@ export async function GET(req: NextRequest) {
             {
               AND: [
                 { businessId: null }, // Personal projects
-                { createdBy: session.user.id } // Only personal projects user created
+                { createdBy: user.id } // Only personal projects user created
               ]
             },
             { businessId: { in: userBusinessIds } } // Projects from user's businesses
@@ -194,7 +193,7 @@ export async function GET(req: NextRequest) {
           email: project.users.email
         } : null,
         isPersonal: !project.businessId,
-        isOwnProject: project.users?.id === session.user.id,
+        isOwnProject: project.users?.id === user.id,
         netProfit: totalReceived - totalSpent
       }
     })

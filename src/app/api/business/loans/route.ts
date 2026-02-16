@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
 import { validateBusinessBalance, processBusinessTransaction } from '@/lib/business-balance-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     let businessIds: string[] = []
 
     // System admins can see all loans
@@ -28,7 +24,7 @@ export async function GET() {
       // Get user's business memberships to determine which loans they can see
       const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           isActive: true
         },
         select: { businessId: true }
@@ -96,12 +92,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const {
       lenderType,
       lenderBusinessId,
@@ -161,7 +155,7 @@ export async function POST(request: NextRequest) {
       if (businessIdToCheck) {
         const membership = await prisma.businessMemberships.findFirst({
           where: {
-            userId: session.user.id,
+            userId: user.id,
             businessId: businessIdToCheck,
             isActive: true,
             role: { in: ['admin', 'manager', 'owner'] }
@@ -275,7 +269,7 @@ export async function POST(request: NextRequest) {
         dueDate: dueDate ? new Date(dueDate) : null,
         terms: finalTerms || null,
         notes: notes || null,
-        createdBy: session.user.id,
+        createdBy: user.id,
         createdAt: new Date(),
         updatedAt: new Date()
       },
@@ -306,7 +300,7 @@ export async function POST(request: NextRequest) {
         referenceId: loan.id,
         referenceType: 'loan',
         notes: `${transferType === 'profit_transfer' ? 'Profit transfer' : 'Business loan'} disbursement`,
-        createdBy: session.user.id
+        createdBy: user.id
       })
 
       if (!transactionResult.success) {
@@ -336,7 +330,7 @@ export async function POST(request: NextRequest) {
         referenceId: loan.id,
         referenceType: 'loan',
         notes: `Loan proceeds received - Principal: $${principal}`,
-        createdBy: session.user.id
+        createdBy: user.id
       })
 
       if (!creditResult.success) {

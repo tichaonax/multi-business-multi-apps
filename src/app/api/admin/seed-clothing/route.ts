@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Import seed function to run in-process
 const { seed: seedClothing } = require('../../../../../scripts/seed-clothing-demo.js')
@@ -10,9 +9,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const devBypass = process.env.FORCE_ADMIN_SESSION === 'true' && body._forceAdmin
     if (!devBypass) {
-        const session = await getServerSession(authOptions)
-        const currentUser = session?.user as any
-        if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const user = await getServerUser()
+        const currentUser = user as any
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
         if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/reports/saved
@@ -33,8 +32,8 @@ import { prisma } from '@/lib/prisma'
 export async function GET(req: NextRequest) {
   try {
     // 1. Authenticate user
-    const session = await getServerSession(authOptions)
-    if (!session || !session.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -59,13 +58,13 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Check business access
-    const isAdmin = session.user.role?.toLowerCase() === 'admin'
+    const isAdmin = user.role?.toLowerCase() === 'admin'
 
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
           businessId: businessId,
-          userId: session.user.id,
+          userId: user.id,
           isActive: true
         }
       })

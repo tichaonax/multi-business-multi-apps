@@ -11,14 +11,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
 import { RuckusR710ApiService } from '@/services/ruckus-r710-api';
 import { getR710SessionManager } from '@/lib/r710-session-manager';
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils';
-import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-utils';
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/r710/integration
@@ -27,9 +28,9 @@ import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-util
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -43,7 +44,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission: admin OR canSetupPortalIntegration OR canSellWifiTokens (read-only for salespersons)
     const canSetup = hasPermission(user, 'canSetupPortalIntegration', businessId);
@@ -138,9 +138,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -166,7 +166,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission: admin OR has canSetupPortalIntegration permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canSetupPortalIntegration', businessId)) {
@@ -375,7 +374,7 @@ export async function POST(request: NextRequest) {
 
       // Create R710 expense account for this business
       console.log(`[R710 Integration] Creating expense account for ${business.name}...`);
-      await getOrCreateR710ExpenseAccount(businessId, session.user.id);
+      await getOrCreateR710ExpenseAccount(businessId, user.id);
       console.log(`[R710 Integration] Expense account created/verified`);
 
       console.log(`[R710 Integration] Association complete for ${business.name} with existing WLAN`);
@@ -571,7 +570,7 @@ export async function POST(request: NextRequest) {
 
     // Create R710 expense account for this business - REQUIRED
     console.log(`[R710 Integration] Creating expense account for ${business.name}...`);
-    await getOrCreateR710ExpenseAccount(businessId, session.user.id);
+    await getOrCreateR710ExpenseAccount(businessId, user.id);
     console.log(`[R710 Integration] Expense account created/verified`);
 
     console.log(`[R710 Integration] Integration complete for ${business.name}`);
@@ -611,9 +610,9 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -627,7 +626,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const user = session.user as SessionUser;
 
     // Check permission: admin OR has canSetupPortalIntegration permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canSetupPortalIntegration', businessId)) {
@@ -718,9 +716,9 @@ export async function DELETE(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -737,7 +735,6 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { logoType, title, validDays, enableFriendlyKey, enableZeroIt } = body;
 
-    const user = session.user as SessionUser;
 
     // Check permission: admin OR has canSetupPortalIntegration permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canSetupPortalIntegration', businessId)) {
@@ -764,7 +761,7 @@ export async function PATCH(request: NextRequest) {
 
     // Ensure R710 expense account exists (retro-fix for integrations created without accounts)
     console.log(`[R710 Integration] Checking expense account for business ${businessId}...`);
-    const expenseAccount = await getOrCreateR710ExpenseAccount(businessId, session.user.id);
+    const expenseAccount = await getOrCreateR710ExpenseAccount(businessId, user.id);
     console.log(`[R710 Integration] Expense account verified: ${expenseAccount.accountName}`);
 
     // Update WLAN in database

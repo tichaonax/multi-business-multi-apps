@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, getUserRoleInBusiness, hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ periodId: string }>
@@ -12,8 +11,8 @@ interface RouteParams {
 // Body: { apply?: boolean }  (apply=true will perform deletion; default is dry-run)
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -23,8 +22,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (!existingPeriod) {
       return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
     }
-
-    const user = session.user as any
     const isAdmin = isSystemAdmin(user)
     const role = getUserRoleInBusiness(user, existingPeriod.businesses?.id)
     if (!(isAdmin || role === 'business-manager' || role === 'business-owner' || hasPermission(user, 'canManagePayroll'))) {

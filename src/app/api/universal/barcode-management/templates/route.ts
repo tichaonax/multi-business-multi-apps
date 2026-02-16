@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
 import { generateBatchId } from '@/lib/batch-id-generator';
 import { Decimal } from '@prisma/client/runtime/library';
+import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for creating templates
 const createTemplateSchema = z.object({
@@ -42,8 +43,8 @@ const createTemplateSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -54,14 +55,13 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 100);
 
-    const user = session.user as SessionUser;
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions - user needs VIEW or MANAGE templates
       const userPermissions = await prisma.userPermissions.findMany({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           granted: true,
           permission: {
             name: {
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       accessibleBusinessIds = allBusinesses.map(b => b.id);
     } else {
       const userBusinesses = await prisma.userBusinessRole.findMany({
-        where: { userId: session.user.id },
+        where: { userId: user.id },
         select: { businessId: true },
       });
       accessibleBusinessIds = userBusinesses.map((ubr) => ubr.businessId);
@@ -187,8 +187,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -215,14 +215,13 @@ export async function POST(request: NextRequest) {
 
     const validatedData = createTemplateSchema.parse(body);
 
-    const user = session.user as SessionUser;
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions - user needs MANAGE templates
       const hasPermission = await prisma.userPermissions.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           granted: true,
           permission: {
             name: 'BARCODE_MANAGE_TEMPLATES',
@@ -240,7 +239,7 @@ export async function POST(request: NextRequest) {
       // Verify user has access to the specified business
       const userBusinessRole = await prisma.userBusinessRole.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: validatedData.businessId,
         },
       });
@@ -293,7 +292,7 @@ export async function POST(request: NextRequest) {
         ...validatedData,
         batchId,
         defaultPrice,
-        createdById: session.user.id,
+        createdById: user.id,
       },
       include: {
         business: {

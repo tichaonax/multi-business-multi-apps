@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { createPortalClient } from '@/lib/wifi-portal/api-client';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/wifi-portal/integration
@@ -10,8 +11,8 @@ import { createPortalClient } from '@/lib/wifi-portal/api-client';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -33,8 +34,8 @@ export async function POST(request: NextRequest) {
     }
 
     // System admins have access to all businesses
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
       select: { role: true },
     });
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
         accountName: 'WiFi Token Revenue',
         balance: 0,
         description: 'Automated revenue account for WiFi token sales',
-        createdBy: session.user.id,
+        createdBy: user.id,
         lowBalanceThreshold: 0,
         isActive: true,
       },
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
         showTokensInPOS: showTokensInPOS,
         expenseAccountId: expenseAccount.id,
-        createdBy: session.user.id,
+        createdBy: user.id,
       },
       include: {
         businesses: {
@@ -195,8 +196,8 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -208,8 +209,8 @@ export async function GET(request: NextRequest) {
     }
 
     // System admins have access to all businesses
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
       select: { role: true },
     });
 
@@ -219,7 +220,7 @@ export async function GET(request: NextRequest) {
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },

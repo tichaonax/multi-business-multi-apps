@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createPortalClient } from '@/lib/wifi-portal/api-client'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -19,8 +18,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Check permission
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
       select: { role: true },
     })
 
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },

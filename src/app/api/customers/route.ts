@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { z } from 'zod'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // Helper to convert empty strings to undefined for optional fields
 const emptyStringToUndefined = (val: unknown) => (val === '' ? undefined : val)
 
@@ -54,13 +53,13 @@ const CreateCustomerSchema = z.object({
 // GET - List/search customers
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    if (!hasPermission(session.user, 'canAccessCustomers')) {
+    if (!hasPermission(user, 'canAccessCustomers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -151,13 +150,13 @@ export async function GET(request: NextRequest) {
 // POST - Create new customer
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    if (!hasPermission(session.user, 'canManageCustomers')) {
+    if (!hasPermission(user, 'canManageCustomers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

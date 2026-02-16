@@ -11,12 +11,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { RuckusR710ApiService } from '@/services/ruckus-r710-api';
 import { encrypt } from '@/lib/encryption';
 import { isSystemAdmin } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/admin/r710/devices
@@ -26,9 +27,9 @@ import { isSystemAdmin } from '@/lib/permission-utils';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -36,7 +37,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user is admin
-    const user = session.user as any;
 
     if (!isSystemAdmin(user)) {
       return NextResponse.json(
@@ -134,9 +134,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -144,7 +144,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is admin
-    const user = session.user as any;
 
     if (!isSystemAdmin(user)) {
       return NextResponse.json(
@@ -272,7 +271,7 @@ export async function POST(request: NextRequest) {
         connectionStatus: 'CONNECTED',
         lastHealthCheck: new Date(),
         lastConnectedAt: new Date(),
-        createdBy: session.user.id
+        createdBy: user.id
       },
       include: {
         creator: {

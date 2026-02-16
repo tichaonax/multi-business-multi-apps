@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { randomBytes, randomUUID } from 'crypto'
 import { z } from 'zod'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Renewal request schema
 const RenewalSchema = z.object({
@@ -21,13 +20,13 @@ export async function POST(
   { params }: { params: Promise<{ contractId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has permission to manage contracts
-    if (!hasPermission(session.user, 'canManageEmployees')) {
+    if (!hasPermission(user, 'canManageEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -138,7 +137,7 @@ export async function POST(
         status: 'active', // Auto-activate renewed contracts
         employeeSignedAt: new Date(), // Auto-sign renewed contracts (employee)
         managerSignedAt: new Date(), // Auto-sign renewed contracts (manager)
-        createdBy: session.user.id,
+        createdBy: user.id,
 
         // Renewal tracking fields
         isRenewal: true,

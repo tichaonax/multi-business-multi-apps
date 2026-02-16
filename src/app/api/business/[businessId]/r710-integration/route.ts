@@ -5,9 +5,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/business/[businessId]/r710-integration
@@ -25,9 +26,9 @@ export async function GET(
   { params }: { params: { businessId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -35,7 +36,7 @@ export async function GET(
     const membership = await prisma.businessMemberships.findFirst({
       where: {
         businessId: params.businessId,
-        userId: session.user.id
+        userId: user.id
       }
     });
 

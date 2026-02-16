@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
     
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has permission to view employee data
-    if (!hasPermission(session.user, 'canViewEmployees')) {
+    if (!hasPermission(user, 'canViewEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -38,14 +37,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
     
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has permission to manage employee data
-    if (!hasPermission(session.user, 'canManageEmployees')) {
+    if (!hasPermission(user, 'canManageEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

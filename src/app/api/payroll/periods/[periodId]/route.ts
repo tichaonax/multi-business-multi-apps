@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getWorkingDaysInMonth, computeTotalsForEntry } from '@/lib/payroll/helpers'
 import { hasPermission, canDeletePayroll } from '@/lib/permission-utils'
 import { isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 interface RouteParams {
   params: Promise<{ periodId: string }>
 }
@@ -15,14 +14,14 @@ interface RouteParams {
 // GET /api/payroll/periods/[periodId] - Get period details
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { periodId } = await params
 
-    if (!hasPermission(session.user, 'canAccessPayroll')) {
+    if (!hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -614,14 +613,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 // PUT /api/payroll/periods/[periodId] - Update period
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { periodId } = await params
 
-    if (!hasPermission(session.user, 'canManagePayroll')) {
+    if (!hasPermission(user, 'canManagePayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -660,7 +659,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       // Update timestamps based on status
       if (status === 'approved' && !existingPeriod.approvedAt) {
         updateData.approvedAt = new Date()
-        updateData.approvedBy = session.user.id
+        updateData.approvedBy = user.id
       }
 
       if (status === 'exported' && !existingPeriod.exportedAt) {
@@ -705,8 +704,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 // DELETE /api/payroll/periods/[periodId] - Delete period (only if draft)
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -729,7 +728,6 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Use the new canDeletePayroll helper which checks both business-level and business-agnostic permissions
-    const user = session.user as any
     if (!canDeletePayroll(user, existingPeriod.businesses?.id)) {
       return NextResponse.json({
         error: 'Insufficient permissions to delete this payroll period. Delete permission must be explicitly granted to managers.'
@@ -762,7 +760,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       await tx.auditLogs.create({
         data: {
           id: `AL-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-          userId: session.user.id,
+          userId: user.id,
           action: 'DELETE',
           entityType: 'PayrollPeriod',
           entityId: periodId,

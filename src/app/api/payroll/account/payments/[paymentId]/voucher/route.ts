@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import {
   createPaymentVoucher,
@@ -8,6 +6,7 @@ import {
   getVoucherByPaymentId,
   generateVoucherHTML,
 } from '@/lib/payroll-voucher-generator'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/payroll/account/payments/[paymentId]/voucher
@@ -21,8 +20,8 @@ export async function GET(
   { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -101,8 +100,8 @@ export async function POST(
   { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

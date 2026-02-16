@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
+
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { randomBytes, randomUUID } from 'crypto';
 import { hasPermission } from '@/lib/permission-utils';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(
   req: NextRequest,
@@ -16,13 +17,13 @@ export async function POST(
 
     const { employeeId } = await params
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!hasPermission(session.user as any, 'canManageBusinessUsers')) {
+    if (!hasPermission(user as any, 'canManageBusinessUsers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
@@ -152,7 +153,7 @@ export async function POST(
         role: role, // Use the passed role instead of hardcoded 'employee'
         permissions: rolePermissions,
         isActive: true,
-        invitedBy: session.user.id,
+        invitedBy: user.id,
         joinedAt: new Date(),
         lastAccessedAt: new Date(),
       });
@@ -171,7 +172,7 @@ export async function POST(
             role: assignmentRole,
             permissions: assignmentPermissions,
             isActive: true,
-            invitedBy: session.user.id,
+            invitedBy: user.id,
             joinedAt: new Date(),
             lastAccessedAt: new Date(),
           });

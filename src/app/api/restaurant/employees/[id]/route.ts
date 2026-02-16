@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { hasPermission } from '@/lib/rbac'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET - Get specific employee
 export async function GET(
@@ -69,15 +68,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 )
  {
-  const session = await getServerSession(authOptions)
+  const user = await getServerUser()
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
   }
 
-  const userPermissions = session.user.permissions || {}
+  const userPermissions = user.permissions || {}
   if (!hasPermission(userPermissions, 'restaurant', 'write')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
@@ -116,15 +115,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 )
  {
-  const session = await getServerSession(authOptions)
+  const user = await getServerUser()
 
-  if (!session) {
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
   }
 
-  const userPermissions = session.user.permissions || {}
+  const userPermissions = user.permissions || {}
   if (!hasPermission(userPermissions, 'restaurant', 'write')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }

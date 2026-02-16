@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
 import type { TemplateListItem } from '@/types/seed-templates'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/admin/seed-templates
@@ -18,18 +17,18 @@ import type { TemplateListItem } from '@/types/seed-templates'
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const currentUser = session?.user as any
+    const user = await getServerUser()
+    const currentUser = user as any
     
     console.log('🔍 Seed Templates GET - Session check:', {
-      hasSession: !!session,
-      hasUser: !!session?.user,
+      hasSession: !!user,
+      hasUser: !!user,
       userId: currentUser?.id,
       userRole: currentUser?.role,
       isAdmin: currentUser?.isAdmin
     })
     
-    if (!session?.user?.id) {
+    if (!user) {
       console.log('❌ Unauthorized - no user ID in session')
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -39,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     // Check permission (admins have full access)
     const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
-    if (!isAdmin && !hasUserPermission(session.user, 'canManageSeedTemplates')) {
+    if (!isAdmin && !hasUserPermission(user, 'canManageSeedTemplates')) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
@@ -116,10 +115,10 @@ export async function GET(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const currentUser = session?.user as any
+    const user = await getServerUser()
+    const currentUser = user as any
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -128,7 +127,7 @@ export async function DELETE(req: NextRequest) {
 
     // Check permission (admins have full access)
     const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
-    if (!isAdmin && !hasUserPermission(session.user, 'canManageSeedTemplates')) {
+    if (!isAdmin && !hasUserPermission(user, 'canManageSeedTemplates')) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
@@ -169,10 +168,10 @@ export async function DELETE(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const currentUser = session?.user as any
+    const user = await getServerUser()
+    const currentUser = user as any
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -181,7 +180,7 @@ export async function PATCH(req: NextRequest) {
 
     // Check permission (admins have full access)
     const isAdmin = currentUser?.role === 'admin' || currentUser?.isAdmin
-    if (!isAdmin && !hasUserPermission(session.user, 'canManageSeedTemplates')) {
+    if (!isAdmin && !hasUserPermission(user, 'canManageSeedTemplates')) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }

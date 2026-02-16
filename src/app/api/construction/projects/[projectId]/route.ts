@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ projectId: string }>
@@ -10,22 +9,22 @@ interface RouteParams {
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
     console.log('🔍 Project API Session:', {
-      hasSession: !!session,
-      userId: session?.user?.id,
-      userEmail: session?.user?.email,
-      userName: session?.user?.name
+      hasSession: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      userName: user?.name
     })
     
-    if (!session?.user?.id) {
+    if (!user) {
       console.log('❌ No session or user ID found')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { projectId } = await params
 
-    console.log('🔍 Looking for project:', projectId, 'requested by:', session.user.id)
+    console.log('🔍 Looking for project:', projectId, 'requested by:', user.id)
 
     // Fetch the project basic record first to diagnose not-found vs access-denied
     const basicProject = await prisma.constructionProjects.findUnique({
@@ -42,11 +41,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Users with construction view or personal finance access may view any project
-    const canViewAll = hasPermission(session.user, 'canViewConstructionProjects') || hasPermission(session.user, 'canAccessPersonalFinance')
+    const canViewAll = hasPermission(user, 'canViewConstructionProjects') || hasPermission(user, 'canAccessPersonalFinance')
 
     // Enforce ownership for users without broader viewing permissions
-    if (!canViewAll && basicProject.createdBy !== session.user.id) {
-      console.log('❌ Access denied for user:', session.user.id, 'project.createdBy:', basicProject.createdBy)
+    if (!canViewAll && basicProject.createdBy !== user.id) {
+      console.log('❌ Access denied for user:', user.id, 'project.createdBy:', basicProject.createdBy)
       return NextResponse.json(
         { error: 'Project not found or access denied' },
         { status: 403 }
@@ -117,7 +116,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     })
 
     if (!project) {
-      console.log('❌ Project not found with ID:', projectId, 'for user:', session.user.id)
+      console.log('❌ Project not found with ID:', projectId, 'for user:', user.id)
       return NextResponse.json(
         { error: 'Project not found or access denied' },
         { status: 404 }
@@ -229,13 +228,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check edit project permission
-    if (!hasPermission(session.user, 'canEditProjects')) {
+    if (!hasPermission(user, 'canEditProjects')) {
       return NextResponse.json(
         { error: 'Permission denied. You need canEditProjects permission to edit projects.' },
         { status: 403 }
@@ -251,7 +250,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       where: {
         id: projectId,
         OR: [
-          { createdBy: session.user.id }, // Project creator can always edit
+          { createdBy: user.id }, // Project creator can always edit
           // Users with edit permission can edit any project in their accessible construction module
         ]
       }
@@ -298,8 +297,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -309,7 +308,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const project = await prisma.constructionProjects.findFirst({
       where: {
         id: projectId,
-        createdBy: session.user.id
+        createdBy: user.id
       }
     })
 

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
 import { Decimal } from '@prisma/client/runtime/library';
+import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for updating templates
 const updateTemplateSchema = z.object({
@@ -43,20 +44,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
-    const user = session.user as SessionUser;
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
       const hasPermission = await prisma.userPermissions.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           granted: true,
           permission: {
             name: {
@@ -114,7 +114,7 @@ export async function GET(
       // Verify user has access to this template's business
       const userBusinessRole = await prisma.userBusinessRole.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: template.businessId,
         },
       });
@@ -146,8 +146,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -250,14 +250,13 @@ export async function PUT(
       throw error;
     }
 
-    const user = session.user as SessionUser;
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
       const hasPermission = await prisma.userPermissions.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           granted: true,
           permission: {
             name: 'BARCODE_MANAGE_TEMPLATES',
@@ -290,7 +289,7 @@ export async function PUT(
       // Verify user has access to this template's business
       const userBusinessRole = await prisma.userBusinessRole.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: existingTemplate.businessId,
         },
       });
@@ -339,7 +338,7 @@ export async function PUT(
     // Prepare update data
     const updateData: any = {
       ...validatedData,
-      updatedBy: session.user.id,
+      updatedBy: user.id,
     };
 
     // Only update defaultPrice if it was provided
@@ -408,20 +407,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
-    const user = session.user as SessionUser;
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
       const hasPermission = await prisma.userPermissions.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           granted: true,
           permission: {
             name: 'BARCODE_MANAGE_TEMPLATES',
@@ -462,7 +460,7 @@ export async function DELETE(
       // Verify user has access to this template's business
       const userBusinessRole = await prisma.userBusinessRole.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: template.businessId,
         },
       });

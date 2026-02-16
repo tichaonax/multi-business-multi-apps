@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin, getUserRoleInBusiness, SessionUser, hasPermission } from '@/lib/permission-utils'
+import { isSystemAdmin, getUserRoleInBusiness, hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ periodId: string }>
@@ -11,14 +10,12 @@ interface RouteParams {
 // PUT /api/payroll/periods/[periodId]/reset-to-preview
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { periodId } = await params
-    const user = session.user as SessionUser
-
     // Load period and business
     const period = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, include: { businesses: { select: { id: true, name: true } } } })
     if (!period) return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })

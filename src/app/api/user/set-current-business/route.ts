@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
 import { prisma } from '@/lib/prisma';
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Business ID is required' }, { status: 400 });
     }
 
-    const user = session.user as SessionUser;
     let membership: any = null;
 
     // System admins can switch to any business
@@ -42,7 +41,7 @@ export async function POST(req: NextRequest) {
       // Verify user has access to this business
       membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true,
         },

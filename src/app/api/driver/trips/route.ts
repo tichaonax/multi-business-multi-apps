@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { randomBytes, randomUUID } from 'crypto'
 import { z } from 'zod'
 import { hasUserPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Expense schema for driver trip logging
 const TripExpenseSchema = z.object({
@@ -37,13 +36,13 @@ const DriverTripSchema = z.object({
 // GET - Fetch driver's own trips only
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check driver trip logging permission
-    if (!hasUserPermission(session.user, 'canLogDriverTrips')) {
+    if (!hasUserPermission(user, 'canLogDriverTrips')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -56,9 +55,9 @@ export async function GET(request: NextRequest) {
     const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: user.id },
+          { emailAddress: user.email || '' },
+          { fullName: user.name || '' }
         ]
       }
     })
@@ -185,13 +184,13 @@ export async function GET(request: NextRequest) {
 // POST - Create new trip (drivers can only create trips for themselves)
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check driver trip logging permission
-    if (!hasUserPermission(session.user, 'canLogDriverTrips')) {
+    if (!hasUserPermission(user, 'canLogDriverTrips')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -202,9 +201,9 @@ export async function POST(request: NextRequest) {
     const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: user.id },
+          { emailAddress: user.email || '' },
+          { fullName: user.name || '' }
         ]
       }
     })
@@ -314,7 +313,7 @@ export async function POST(request: NextRequest) {
               receiptUrl: expense.receiptUrl || null,
               expenseDate: new Date(validatedData.startTime), // Use trip start time
               mileageAtExpense: validatedData.startMileage,
-              createdBy: session.user.id,
+              createdBy: user.id,
               createdAt: new Date(),
               updatedAt: new Date()
             }
@@ -400,12 +399,12 @@ export async function POST(request: NextRequest) {
 // PUT - Update trip (drivers can only update their own trips)
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasUserPermission(session.user, 'canLogDriverTrips')) {
+    if (!hasUserPermission(user, 'canLogDriverTrips')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -420,9 +419,9 @@ export async function PUT(request: NextRequest) {
     const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: user.id },
+          { emailAddress: user.email || '' },
+          { fullName: user.name || '' }
         ]
       }
     })
@@ -444,8 +443,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check if trip is within 24-hour edit window (unless user is admin/manager)
-    const canEdit = hasUserPermission(session.user, 'isSystemAdmin') ||
-                   hasUserPermission(session.user, 'isBusinessManager')
+    const canEdit = hasUserPermission(user, 'isSystemAdmin') ||
+                   hasUserPermission(user, 'isBusinessManager')
 
     if (!canEdit) {
       const now = new Date()
@@ -507,12 +506,12 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete trip (drivers can only delete their own trips within 24 hours)
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasUserPermission(session.user, 'canLogDriverTrips')) {
+    if (!hasUserPermission(user, 'canLogDriverTrips')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -527,9 +526,9 @@ export async function DELETE(request: NextRequest) {
     const driver = await prisma.vehicleDrivers.findFirst({
       where: {
         OR: [
-          { userId: session.user.id },
-          { emailAddress: session.user.email || '' },
-          { fullName: session.user.name || '' }
+          { userId: user.id },
+          { emailAddress: user.email || '' },
+          { fullName: user.name || '' }
         ]
       }
     })
@@ -551,8 +550,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check permissions for deletion
-    const isAdmin = hasUserPermission(session.user, 'isSystemAdmin')
-    const isManager = hasUserPermission(session.user, 'isBusinessManager')
+    const isAdmin = hasUserPermission(user, 'isSystemAdmin')
+    const isManager = hasUserPermission(user, 'isBusinessManager')
 
     if (!isAdmin && !isManager) {
       // Regular drivers can only delete within 24 hours

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getBusinessBalance } from '@/lib/business-balance-utils'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ businessId: string }>
@@ -10,20 +9,20 @@ interface RouteParams {
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { businessId } = await params
 
     // Verify user has access to this business (admins have access to all businesses)
-    const isAdmin = session.user.role === 'admin'
+    const isAdmin = user.role === 'admin'
 
     if (!isAdmin) {
       const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: businessId,
           isActive: true
         }

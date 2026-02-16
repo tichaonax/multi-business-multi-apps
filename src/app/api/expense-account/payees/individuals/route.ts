@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { createIndividualPayee } from '@/lib/payee-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/expense-account/payees/individuals
@@ -20,14 +19,14 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user permissions
     // Accept either the legacy canCreateIndividualPayees or the new canCreatePayees
-    const permissions = getEffectivePermissions(session.user)
+    const permissions = getEffectivePermissions(user)
     if (!permissions.canCreateIndividualPayees && !permissions.canCreatePayees) {
       return NextResponse.json(
         { error: 'You do not have permission to create individual payees' },
@@ -113,7 +112,7 @@ export async function POST(request: NextRequest) {
         email: email?.trim() || undefined,
         address: address?.trim() || undefined,
       },
-      session.user.id
+      user.id
     )
 
     if (!result.success) {

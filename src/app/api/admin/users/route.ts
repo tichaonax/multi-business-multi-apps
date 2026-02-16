@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
+
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as SessionUser;
 
     // System admins can access all users
     if (isSystemAdmin(user)) {
@@ -56,7 +56,7 @@ export async function GET() {
       const transformedUsers = users.map(user => ({
         ...user,
         employee: user.employees || null, // One-to-one relation (not an array)
-        businessMemberships: user.business_memberships?.map(membership => ({
+        businessMemberships: user.businessMemberships?.map(membership => ({
           ...membership,
           business: membership.businesses,
           template: membership.permission_templates,
@@ -71,7 +71,7 @@ export async function GET() {
     // Check if user has admin permissions in current business
     const userMembership = await prisma.businessMemberships.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         isActive: true,
       },
       include: {
@@ -129,7 +129,7 @@ export async function GET() {
     const transformedUsers = users.map(user => ({
       ...user,
       employee: user.employees || null, // One-to-one relation (not an array)
-      businessMemberships: user.business_memberships?.map(membership => ({
+      businessMemberships: user.businessMemberships?.map(membership => ({
         ...membership,
         business: membership.businesses,
         template: membership.permission_templates,
@@ -150,19 +150,18 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as SessionUser;
 
     // System admins can create users without business context
     if (!isSystemAdmin(user)) {
       // Check if user has admin permissions
       const userMembership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           isActive: true,
         },
       });
@@ -297,7 +296,7 @@ export async function POST(req: NextRequest) {
               permissions: assignmentPermissions,
               templateId: assignment.selectedTemplate || null,
               isActive: true,
-              invitedBy: session.user.id,
+              invitedBy: user.id,
               joinedAt: new Date(),
               lastAccessedAt: new Date(),
             }
@@ -315,7 +314,7 @@ export async function POST(req: NextRequest) {
               role: 'employee',
               permissions: BUSINESS_PERMISSION_PRESETS['employee'],
               isActive: true,
-              invitedBy: session.user.id,
+              invitedBy: user.id,
               joinedAt: new Date(),
               lastAccessedAt: new Date(),
             }
@@ -326,7 +325,7 @@ export async function POST(req: NextRequest) {
         // Fallback to old logic for backwards compatibility
         const userMembership = await tx.businessMemberships.findFirst({
           where: {
-            userId: session.user.id,
+            userId: user.id,
             isActive: true,
           },
         });
@@ -349,7 +348,7 @@ export async function POST(req: NextRequest) {
               role: role,
               permissions: userPermissions,
               isActive: true,
-              invitedBy: session.user.id,
+              invitedBy: user.id,
               joinedAt: new Date(),
               lastAccessedAt: new Date(),
             }

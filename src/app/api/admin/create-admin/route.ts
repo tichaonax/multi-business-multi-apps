@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { spawn } from 'child_process'
+import { getServerUser } from '@/lib/get-server-user'
 
 async function runScript(scriptPath: string) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
@@ -16,10 +15,10 @@ async function runScript(scriptPath: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions)
-  const currentUser = session?.user as any
+  const user = await getServerUser()
+  const currentUser = user as any
 
-  if (!session?.user?.id) {
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

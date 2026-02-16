@@ -1,24 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { SessionUser, hasPermission, isSystemAdmin } from '@/lib/permission-utils'
-import { 
-  exportPayrollToBuffer, 
-  getPayrollFilename, 
+import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import {
+  exportPayrollToBuffer,
+  getPayrollFilename,
   calculatePayrollSummary,
-  PayrollEmployeeData 
+  PayrollEmployeeData
 } from '@/lib/payroll-export'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET - Generate payroll export spreadsheet
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { searchParams } = new URL(req.url)
     const month = searchParams.get('month') || new Date().getMonth() + 1
     const year = searchParams.get('year') || new Date().getFullYear()
@@ -44,7 +41,7 @@ export async function GET(req: NextRequest) {
       whereClause.primaryBusinessId = businessId
     } else if (!isSystemAdmin(user)) {
       // Non-admin users can only see employees from businesses they have access to
-      const userBusinesses = user.business_memberships?.map(m => m.businessId) || []
+      const userBusinesses = user.businessMemberships?.map(m => m.businessId) || []
       if (userBusinesses.length > 0) {
         whereClause.primaryBusinessId = { in: userBusinesses }
       }

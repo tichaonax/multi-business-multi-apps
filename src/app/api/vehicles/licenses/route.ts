@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { randomBytes } from 'crypto'
+import { getServerUser } from '@/lib/get-server-user'
 
 const CreateLicenseSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -35,8 +34,8 @@ const UpdateLicenseSchema = z.object({
 // GET - Fetch vehicle licenses
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -105,8 +104,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new vehicle license
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -161,7 +160,7 @@ export async function POST(request: NextRequest) {
           await prisma.auditLogs.create({
             data: {
               id: crypto.randomUUID(),
-              userId: session.user.id,
+              userId: user.id,
               action: 'DEACTIVATE',
               entityType: 'VehicleLicense',
               entityId: deactivated.id,
@@ -183,7 +182,7 @@ export async function POST(request: NextRequest) {
           await prisma.auditLogs.create({
             data: {
               id: crypto.randomUUID(),
-              userId: session.user.id,
+              userId: user.id,
               action: 'CREATE',
               entityType: 'VehicleLicense',
               entityId: created.id,
@@ -229,7 +228,7 @@ export async function POST(request: NextRequest) {
       await prisma.auditLogs.create({
         data: {
           id: crypto.randomUUID(),
-          userId: session.user.id,
+          userId: user.id,
           action: 'CREATE',
           entityType: 'VehicleLicense',
           entityId: license.id,
@@ -264,8 +263,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update vehicle license
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -320,7 +319,7 @@ export async function PUT(request: NextRequest) {
       await prisma.auditLogs.create({
         data: {
           id: crypto.randomUUID(),
-          userId: session.user.id,
+          userId: user.id,
           action: 'UPDATE',
           entityType: 'VehicleLicense',
           entityId: license.id,
@@ -354,8 +353,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete vehicle license
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -409,7 +408,7 @@ export async function DELETE(request: NextRequest) {
         await prisma.auditLogs.create({
           data: {
             id: crypto.randomUUID(),
-            userId: session.user.id,
+            userId: user.id,
             action: 'DEACTIVATE',
             entityType: 'VehicleLicense',
             entityId: rec.id,

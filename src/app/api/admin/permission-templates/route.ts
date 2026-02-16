@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BusinessPermissions, BusinessType } from '@/types/permissions'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin} from '@/lib/permission-utils'
 import { randomBytes, randomUUID } from 'crypto'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface TemplateCreateRequest {
   name: string
@@ -14,12 +13,10 @@ interface TemplateCreateRequest {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
     const { searchParams } = new URL(req.url)
     const businessType = searchParams.get('businessType') as BusinessType
 
@@ -58,13 +55,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Only system admins can create permission templates
     if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
@@ -102,7 +96,7 @@ export async function POST(req: NextRequest) {
         name,
         businessType,
         permissions: permissions as any,
-        createdBy: session.user.id,
+        createdBy: user.id,
         isActive: true
       },
       include: {

@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import {
   getGlobalPayrollAccount,
   getPayrollAccountBalanceSummary,
   getPayrollAccountStats,
 } from '@/lib/payroll-account-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/payroll/account/balance
@@ -17,8 +16,8 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

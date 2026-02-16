@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
 import { createAuditLog } from '@/lib/audit';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { getServerUser } from '@/lib/get-server-user'
 
 const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!user || user.role !== 'admin') {
       return NextResponse.json(
         { message: 'Admin access required' },
         { status: 401 }
       );
     }
 
-    console.log(`🌱 Reference data seeding initiated by ${session.user.name} (${session.user.email})`);
+    console.log(`🌱 Reference data seeding initiated by ${user.name} (${user.email})`);
 
     // Run the reference data seeding script
     const { stdout, stderr } = await execAsync('node scripts/seed-all-employee-data.js', {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     // Create audit log entry
     await createAuditLog({
-      userId: session.user.id!,
+      userId: user.id!,
       action: 'DATA_IMPORT' as any,
       entityType: 'ReferenceData',
       entityId: 'reference-data-seed-' + Date.now(),
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       newValues: {
         seededAt: new Date().toISOString(),
         seededBy: {
-          userId: session.user.id,
-          userName: session.user.name,
-          userEmail: session.user.email,
+          userId: user.id,
+          userName: user.name,
+          userEmail: user.email,
         },
         seededData: {
           idTemplates: 5,
@@ -80,10 +80,10 @@ export async function POST(request: NextRequest) {
 
     // Log the failed attempt
     try {
-      const session = await getServerSession(authOptions);
-      if (session?.user) {
+      const user = await getServerUser();
+      if (user) {
         await createAuditLog({
-          userId: session.user.id!,
+          userId: user.id!,
           action: 'DATA_IMPORT' as any,
           entityType: 'ReferenceData',
           entityId: 'reference-data-seed-failed-' + Date.now(),
@@ -92,9 +92,9 @@ export async function POST(request: NextRequest) {
             error: error instanceof Error ? error.message : 'Unknown error',
             failedAt: new Date().toISOString(),
             attemptedBy: {
-              userId: session.user.id,
-              userName: session.user.name,
-              userEmail: session.user.email,
+              userId: user.id,
+              userName: user.name,
+              userEmail: user.email,
             }
           },
         });

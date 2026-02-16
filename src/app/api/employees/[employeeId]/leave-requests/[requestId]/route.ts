@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { Prisma } from '@prisma/client'
 import { randomBytes } from 'crypto'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function PUT(
   request: NextRequest,
@@ -14,15 +13,15 @@ export async function PUT(
 
     const { employeeId, requestId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId, requestId } = await params
 
     // Check if user has permission to manage employee leave
-    if (!await hasPermission(session.user, 'canManageEmployeeLeave', employeeId)) {
+    if (!await hasPermission(user, 'canManageEmployeeLeave', employeeId)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -64,7 +63,7 @@ export async function PUT(
       data: {
         status,
         rejectionReason: status === 'rejected' ? rejectionReason : null,
-        approvedBy: status === 'approved' ? session.user.id : null,
+        approvedBy: status === 'approved' ? user.id : null,
         approvedAt: status === 'approved' ? new Date() : null
       },
       include: {
@@ -171,15 +170,15 @@ export async function DELETE(
 
     const { employeeId, requestId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { employeeId, requestId } = await params
 
     // Check if user has permission to manage employee leave
-    if (!await hasPermission(session.user, 'canManageEmployeeLeave', employeeId)) {
+    if (!await hasPermission(user, 'canManageEmployeeLeave', employeeId)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

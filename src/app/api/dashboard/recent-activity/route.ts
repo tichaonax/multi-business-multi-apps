@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Defensive wrapper: when Prisma client or certain model methods are unavailable
 // (for example in a fresh DB or during partial startup), return safe defaults
@@ -45,13 +43,11 @@ const safePrisma = (() => {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-    const userBusinessIds = user.business_memberships?.map(m => m.businessId) || []
+    const userBusinessIds = user.businessMemberships?.map(m => m.businessId) || []
 
     // Parse query parameters for filtering
     const { searchParams } = new URL(req.url)
@@ -64,11 +60,11 @@ export async function GET(req: NextRequest) {
     console.log('  - filterScope:', filterScope)
     console.log('  - filterUserId:', filterUserId)
     console.log('  - filterBusinessId:', filterBusinessId)
-    console.log('  - session.user.id:', session.user.id)
+    console.log('  - user.id:', user.id)
     console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
     // Determine filtering based on scope and permissions
-  let targetUserId: string | null = session.user.id // Default to current user
+  let targetUserId: string | null = user.id // Default to current user
   let targetBusinessIds: string[] | null = userBusinessIds // Default to user's businesses
     let shouldReturnEmptyResults = false // Flag to return empty results when required selection is missing
 
@@ -133,7 +129,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get businesses the user owns/manages (for financial calculations)
-    const ownedBusinessIds = user.business_memberships
+    const ownedBusinessIds = user.businessMemberships
       ?.filter(m => m.role === 'owner' || m.role === 'manager')
       ?.map(m => m.businessId) || []
 

@@ -4,15 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getServerSession(authOptions)
-    if (!session || session.user.role !== 'admin') {
+    const user = await getServerUser()
+    if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Log the action for audit purposes
-    console.log(`Admin ${session.user.email} cleared ${deleteResult.count} backup history entries (type: ${clearType})`)
+    console.log(`Admin ${user.email} cleared ${deleteResult.count} backup history entries (type: ${clearType})`)
 
     return NextResponse.json({
       success: true,
@@ -101,8 +100,8 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getServerSession(authOptions)
-    if (!session || session.user.role !== 'admin') {
+    const user = await getServerUser()
+    if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

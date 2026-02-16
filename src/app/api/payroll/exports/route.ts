@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getWorkingDaysInMonth, computeTotalsForEntry } from '@/lib/payroll/helpers'
 import { hasPermission } from '@/lib/permission-utils'
@@ -11,17 +9,18 @@ import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 // working days helper is imported from shared helpers
 
 // GET /api/payroll/exports
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasPermission(session.user, 'canAccessPayroll')) {
+    if (!hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -73,12 +72,12 @@ export async function GET(req: NextRequest) {
 // POST /api/payroll/exports - Generate Excel export
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!hasPermission(session.user, 'canExportPayroll')) {
+    if (!hasPermission(user, 'canExportPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -245,7 +244,7 @@ export async function POST(req: NextRequest) {
             employeeCount,
             totalGrossPay,
             totalNetPay,
-            exportedBy: session.user.id,
+            exportedBy: user.id,
             generationType: 'year_to_date',
             notes: notes || `Year-to-date export with ${ytdPeriods.length} tabs`,
             exportedAt: new Date()
@@ -586,7 +585,7 @@ export async function POST(req: NextRequest) {
           employeeCount,
           totalGrossPay,
           totalNetPay,
-          exportedBy: session.user.id,
+          exportedBy: user.id,
           generationType: generationType || 'single_month',
           notes: notes || null,
           exportedAt: new Date()

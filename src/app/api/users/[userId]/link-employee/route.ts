@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permission-utils';
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -13,9 +14,9 @@ export async function PUT(
 
     const { userId } = await params
   try {
-    const session = await getServerSession(authOptions);
-    const currentUser = session?.user as any
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    const currentUser = user as any
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -32,7 +33,7 @@ export async function PUT(
     }
 
     // Get user details
-    const user = await prisma.users.findUnique({
+    const dbUser = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         employees: true,
@@ -99,7 +100,7 @@ export async function PUT(
               canViewReports: false,
             },
             isActive: true,
-          invitedBy: session.user.id,
+          invitedBy: user.id,
             joinedAt: new Date(),
             lastAccessedAt: new Date(),
           }
@@ -122,7 +123,7 @@ export async function PUT(
                 canViewReports: false,
               },
               isActive: true,
-              invitedBy: session.user.id,
+              invitedBy: user.id,
               joinedAt: new Date(),
               lastAccessedAt: new Date(),
             }
@@ -133,7 +134,7 @@ export async function PUT(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: user.id,
           action: 'USER_EMPLOYEE_LINKED',
           resourceType: 'User',
           resourceId: userId,
@@ -191,20 +192,20 @@ export async function DELETE(
 
     const { userId } = await params
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check permissions
-    if (!hasPermission(session.user as any, 'canManageBusinessUsers')) {
+    if (!hasPermission(user as any, 'canManageBusinessUsers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { userId } = await params;
 
     // Get user details
-    const user = await prisma.users.findUnique({
+    const dbUser = await prisma.users.findUnique({
       where: { id: userId },
         include: {
           employees: {
@@ -237,7 +238,7 @@ export async function DELETE(
       // Create audit log
       await tx.auditLogs.create({
         data: {
-          userId: session.user.id,
+          userId: user.id,
           action: 'USER_EMPLOYEE_UNLINKED',
           resourceType: 'User',
           resourceId: userId,

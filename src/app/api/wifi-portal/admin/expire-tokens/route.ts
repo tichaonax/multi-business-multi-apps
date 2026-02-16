@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { checkAndExpireTokens } from '@/lib/wifi-portal/token-expiration-job'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/wifi-portal/admin/expire-tokens
@@ -11,18 +10,18 @@ import { checkAndExpireTokens } from '@/lib/wifi-portal/token-expiration-job'
  */
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Only system admins can trigger this
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    console.log(`[ExpireTokens] Manual trigger by ${session.user.email}`)
+    console.log(`[ExpireTokens] Manual trigger by ${user.email}`)
 
     const result = await checkAndExpireTokens()
 
@@ -49,13 +48,13 @@ export async function POST() {
  */
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 

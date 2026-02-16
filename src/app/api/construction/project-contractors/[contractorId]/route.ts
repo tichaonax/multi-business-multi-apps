@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function DELETE(
   request: NextRequest,
@@ -11,8 +10,8 @@ export async function DELETE(
 
     const { contractorId } = await params
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -43,7 +42,7 @@ export async function DELETE(
     }
 
     // Check if user owns the project (basic access control)
-    if (projectContractor.construction_projects?.createdBy !== session.user.id) {
+    if (projectContractor.construction_projects?.createdBy !== user.id) {
       return NextResponse.json({ error: 'You do not have permission to modify this project' }, { status: 403 })
     }
 

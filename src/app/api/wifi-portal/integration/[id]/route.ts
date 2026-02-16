@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import { createPortalClient } from '@/lib/wifi-portal/api-client';
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * PUT /api/wifi-portal/integration/[id]
@@ -13,8 +14,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -44,8 +45,8 @@ export async function PUT(
     }
 
     // System admins have access to all businesses
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
       select: { role: true },
     });
 
@@ -55,7 +56,7 @@ export async function PUT(
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: existingIntegration.businessId,
           isActive: true,
         },
@@ -81,7 +82,7 @@ export async function PUT(
           accountName: 'WiFi Token Revenue',
           balance: 0,
           description: 'Automated revenue account for WiFi token sales',
-          createdBy: session.user.id,
+          createdBy: user.id,
           lowBalanceThreshold: 0,
           isActive: true,
         },
@@ -181,8 +182,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -209,8 +210,8 @@ export async function DELETE(
     }
 
     // System admins have access to all businesses
-    const user = await prisma.users.findUnique({
-      where: { id: session.user.id },
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id },
       select: { role: true },
     });
 
@@ -220,7 +221,7 @@ export async function DELETE(
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           businessId: existingIntegration.businessId,
           isActive: true,
         },
@@ -281,8 +282,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await getServerUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -318,7 +319,7 @@ export async function GET(
     // Check if user has access to this business
     const membership = await prisma.businessMemberships.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         businessId: integration.businessId,
         isActive: true,
       },

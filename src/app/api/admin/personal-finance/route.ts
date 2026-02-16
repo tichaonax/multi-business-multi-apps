@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Only system admins can access this endpoint
-    if (!isSystemAdmin(session.user)) {
+    if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -23,8 +22,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
 
-    // Verify user exists
-    const user = await prisma.users.findUnique({
+    // Verify target user exists
+    const targetUser = await prisma.users.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -34,7 +33,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    if (!user) {
+    if (!targetUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
@@ -182,8 +181,8 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -209,12 +208,12 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Expense not found' }, { status: 404 })
     }
 
-    const isAdmin = isSystemAdmin(session.user)
+    const isAdmin = isSystemAdmin(user)
 
     // Check edit permissions: Admin can always edit, users can edit their own within 24 hours
     if (!isAdmin) {
       // Check if user owns the expense
-      if (expense.userId !== session.user.id) {
+      if (expense.userId !== user.id) {
         return NextResponse.json({ error: 'Insufficient permissions to edit this expense' }, { status: 403 })
       }
 

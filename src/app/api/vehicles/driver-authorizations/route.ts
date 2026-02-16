@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 const CreateAuthorizationSchema = z.object({
   driverId: z.string().min(1, 'Driver ID is required'),
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -28,8 +27,8 @@ const UpdateAuthorizationSchema = z.object({
 // GET - Fetch driver authorizations
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -128,8 +127,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new driver authorization
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -139,7 +138,7 @@ export async function POST(request: NextRequest) {
     // Default authorizedBy to current user if not provided or empty
     const authorizedBy = validatedData.authorizedBy && validatedData.authorizedBy.trim() 
       ? validatedData.authorizedBy 
-      : session.user.id
+      : user.id
 
     // Verify driver exists
     const driver = await prisma.vehicleDrivers.findUnique({
@@ -268,8 +267,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update driver authorization
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -366,8 +365,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Revoke driver authorization
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

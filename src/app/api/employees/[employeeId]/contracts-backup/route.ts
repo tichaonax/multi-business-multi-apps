@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -12,15 +11,15 @@ interface RouteParams {
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id } = await params
 
     // Check if user has permission to view employee contracts
-    if (!hasPermission(session.user, 'canViewEmployeeContracts')) {
+    if (!hasPermission(user, 'canViewEmployeeContracts')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -84,15 +83,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id } = await params
 
     // Check if user has permission to create employee contracts
-    if (!hasPermission(session.user, 'canCreateEmployeeContracts')) {
+    if (!hasPermission(user, 'canCreateEmployeeContracts')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -184,7 +183,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         isCommissionBased: !!isCommissionBased,
         isSalaryBased: isSalaryBased !== false, // Default to true unless explicitly false
         notes: notes || null,
-        createdBy: session.user.id
+        createdBy: user.id
       }
       const newContract = await tx.employeeContracts.create({ data: contractCreateData })
 

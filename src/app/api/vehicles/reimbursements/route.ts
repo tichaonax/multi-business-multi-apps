@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 const CreateReimbursementSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -27,8 +26,8 @@ const UpdateReimbursementSchema = z.object({
 // GET - Fetch vehicle reimbursements
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -138,8 +137,8 @@ export async function GET(request: NextRequest) {
 // POST - Create new vehicle reimbursement
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -147,7 +146,7 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateReimbursementSchema.parse(body)
 
     // Verify user exists
-    const user = await prisma.users.findUnique({
+    const dbUser = await prisma.users.findUnique({
       where: { id: validatedData.userId }
     })
 
@@ -265,8 +264,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update vehicle reimbursement (mainly for approval/rejection)
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -305,11 +304,11 @@ export async function PUT(request: NextRequest) {
 
     if (updateData.status === 'APPROVED') {
       statusUpdateData.approvalDate = new Date()
-      statusUpdateData.approvedBy = updateData.approvedBy || session.user.id
+      statusUpdateData.approvedBy = updateData.approvedBy || user.id
     } else if (updateData.status === 'PAID') {
       statusUpdateData.paymentDate = new Date()
       if (!existingReimbursement.approvedBy) {
-        statusUpdateData.approvedBy = session.user.id
+        statusUpdateData.approvedBy = user.id
         statusUpdateData.approvalDate = new Date()
       }
     }
@@ -352,8 +351,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete vehicle reimbursement (only if pending)
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

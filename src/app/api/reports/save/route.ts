@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * POST /api/reports/save
@@ -30,8 +29,8 @@ import { prisma } from '@/lib/prisma'
 export async function POST(req: NextRequest) {
   try {
     // 1. Authenticate user
-    const session = await getServerSession(authOptions)
-    if (!session || !session.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -76,13 +75,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Check business access
-    const isAdmin = session.user.role?.toLowerCase() === 'admin'
+    const isAdmin = user.role?.toLowerCase() === 'admin'
 
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
           businessId: businessId,
-          userId: session.user.id,
+          userId: user.id,
           isActive: true
         }
       })
@@ -162,7 +161,7 @@ export async function POST(req: NextRequest) {
         periodEnd: new Date(periodEnd),
         reportData: reportData, // Store complete snapshot as JSON
         managerName: managerName,
-        managerUserId: session.user.id, // Link to authenticated user
+        managerUserId: user.id, // Link to authenticated user
         signedAt: new Date(),
         expectedCash: expectedCash,
         cashCounted: cashCounted !== undefined && cashCounted !== null ? parseFloat(cashCounted.toString()) : null,
@@ -170,7 +169,7 @@ export async function POST(req: NextRequest) {
         totalSales: totalSales,
         totalOrders: totalOrders,
         receiptsIssued: receiptsIssued,
-        createdBy: session.user.id,
+        createdBy: user.id,
         isLocked: true // Always locked on creation
       }
     })
@@ -224,8 +223,8 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     // 1. Authenticate user
-    const session = await getServerSession(authOptions)
-    if (!session || !session.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

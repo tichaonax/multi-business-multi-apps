@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { hasUserPermission } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to access personal finance
     if (!hasUserPermission(user, 'canAccessPersonalFinance')) {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
@@ -27,7 +22,7 @@ export async function GET(req: NextRequest) {
       // Return available businesses to create loans to (exclude user's own businesses)
       const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           isActive: true
         },
         select: { businessId: true }
@@ -89,7 +84,7 @@ export async function GET(req: NextRequest) {
       // Return existing loans where user is involved for making payments
       const personalLoansGiven = await prisma.interBusinessLoans.findMany({
         where: {
-          lenderUserId: session.user.id,
+          lenderUserId: user.id,
           status: 'active'
         },
         include: {
@@ -105,7 +100,7 @@ export async function GET(req: NextRequest) {
       // Get business loans where user has access through business membership
       const userBusinesses = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           isActive: true
         },
         select: { businessId: true }

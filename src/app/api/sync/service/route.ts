@@ -4,12 +4,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
+import { getServerUser } from '@/lib/get-server-user'
 
 const execAsync = promisify(exec)
 
@@ -18,19 +16,13 @@ const execAsync = promisify(exec)
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has admin permissions
-    const user = await prisma.users.findUnique({
-      where: { email: session.user.email! },
-      select: { role: true }
-    })
-
-    if (user?.role !== 'admin') {
+    if (user.role !== 'admin') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -69,19 +61,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has admin permissions
-    const user = await prisma.users.findUnique({
-      where: { email: session.user.email! },
-      select: { role: true }
-    })
-
-    if (user?.role !== 'admin') {
+    if (user.role !== 'admin') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { canAddInventoryFromModal } from '@/lib/permission-utils'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -37,7 +36,7 @@ export async function GET(request: NextRequest) {
     // Get user's business memberships or all businesses for system admins
     let businesses
 
-    if (session.user.role === 'admin') {
+    if (user.role === 'admin') {
       // System admins can access all active businesses of the requested type
       businesses = await prisma.businesses.findMany({
         where: {
@@ -62,7 +61,7 @@ export async function GET(request: NextRequest) {
       // Regular users: get their business memberships and filter by permissions
       const memberships = await prisma.businessMemberships.findMany({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           isActive: true,
           businesses: {
             type: inventoryType,
@@ -83,7 +82,7 @@ export async function GET(request: NextRequest) {
       // Filter businesses where user can add inventory
       businesses = memberships
         .filter((membership: any) => {
-          return canAddInventoryFromModal(session.user as any, membership.businesses.id)
+          return canAddInventoryFromModal(user as any, membership.businesses.id)
         })
         .map((membership: any) => ({
           id: membership.businesses.id,

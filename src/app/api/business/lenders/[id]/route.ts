@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Helper function to check if user has admin/manager/owner role
 async function hasRequiredRole(userId: string): Promise<boolean> {
-  const session = await getServerSession(authOptions)
-  if (session?.user && isSystemAdmin(session.user as SessionUser)) {
+  const user = await getServerUser()
+  if (user && isSystemAdmin(user as SessionUser)) {
     return true
   }
 
@@ -28,13 +27,13 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    const hasPermission = await hasRequiredRole(session.user.id)
+    const hasPermission = await hasRequiredRole(user.id)
     if (!hasPermission) {
       return NextResponse.json(
         { error: 'Insufficient permissions. Only admins, managers, and owners can update lenders.' },
@@ -177,13 +176,13 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check permissions
-    const hasPermission = await hasRequiredRole(session.user.id)
+    const hasPermission = await hasRequiredRole(user.id)
     if (!hasPermission) {
       return NextResponse.json(
         { error: 'Insufficient permissions. Only admins, managers, and owners can delete lenders.' },

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/reports/saved/[reportId]
@@ -28,8 +27,8 @@ export async function GET(
     const { reportId } = await params
 
     // 1. Authenticate user
-    const session = await getServerSession(authOptions)
-    if (!session || !session.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -67,13 +66,13 @@ export async function GET(
     }
 
     // 3. Check business access
-    const isAdmin = session.user.role?.toLowerCase() === 'admin'
+    const isAdmin = user.role?.toLowerCase() === 'admin'
 
     if (!isAdmin) {
       const membership = await prisma.businessMemberships.findFirst({
         where: {
           businessId: report.businessId,
-          userId: session.user.id,
+          userId: user.id,
           isActive: true
         }
       })
@@ -124,8 +123,8 @@ export async function DELETE(
     const { reportId } = await params
 
     // 1. Authenticate user
-    const session = await getServerSession(authOptions)
-    if (!session || !session.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -145,7 +144,7 @@ export async function DELETE(
     }
 
     // 3. Check permissions
-    const isAdmin = session.user.role?.toLowerCase() === 'admin'
+    const isAdmin = user.role?.toLowerCase() === 'admin'
 
     // Only admin can delete locked reports
     if (report.isLocked && !isAdmin) {
@@ -160,7 +159,7 @@ export async function DELETE(
       const membership = await prisma.businessMemberships.findFirst({
         where: {
           businessId: report.businessId,
-          userId: session.user.id,
+          userId: user.id,
           isActive: true
         }
       })
@@ -222,15 +221,15 @@ export async function PATCH(
     const { reportId } = await params
 
     // 1. Authenticate user (admin only)
-    const session = await getServerSession(authOptions)
-    if (!session || !session.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    const isAdmin = session.user.role?.toLowerCase() === 'admin'
+    const isAdmin = user.role?.toLowerCase() === 'admin'
     if (!isAdmin) {
       return NextResponse.json(
         { error: 'Forbidden: Only administrators can lock/unlock reports' },

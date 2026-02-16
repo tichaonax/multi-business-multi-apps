@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET() {
   try {
     // Get current user session
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma.users.findUnique({
-      where: {
-        id: session.user.id
+    const dbUser = await prisma.users.findUnique({
+      where: { id: user.id
       },
       select: {
         id: true,
@@ -54,7 +52,7 @@ export async function GET() {
     // Transform snake_case to camelCase for frontend
     const responseData = {
       ...user,
-      businessMemberships: user.business_memberships
+      businessMemberships: user.businessMemberships
     }
     
     // Remove the snake_case version
@@ -69,9 +67,9 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -85,7 +83,7 @@ export async function PATCH(req: NextRequest) {
     // For now, only allow name updates. Email changes require admin approval
     const updatedUser = await prisma.users.update({
       where: {
-        id: session.user.id
+        id: user.id
       },
       data: {
         name: name.trim()

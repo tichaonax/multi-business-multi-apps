@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import { isSystemAdmin, hasPermission, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin, hasPermission} from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/universal/close-books?businessId=X&date=YYYY-MM-DD
@@ -13,8 +12,8 @@ import { isSystemAdmin, hasPermission, SessionUser } from '@/lib/permission-util
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -115,13 +114,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check permission: must be manager+ or system admin
     if (!isSystemAdmin(user) && !hasPermission(user, 'canCloseBooks')) {
       return NextResponse.json(
@@ -206,7 +202,7 @@ export async function POST(request: NextRequest) {
         periodStart: dayStart,
         periodEnd: dayEnd,
         managerName,
-        managerUserId: session.user.id,
+        managerUserId: user.id,
         signedAt: new Date(),
         isLocked: true,
         totalSales,

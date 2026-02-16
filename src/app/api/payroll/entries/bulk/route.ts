@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
 import { nanoid } from 'nanoid'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -190,7 +189,7 @@ export async function POST(request: NextRequest) {
           contractStartDate: effectiveStartDate,
           contractEndDate: effectiveEndDate,
           isProrated,
-          processedBy: session.user.id,
+          processedBy: user.id,
           createdAt: new Date(),
           updatedAt: new Date()
         })

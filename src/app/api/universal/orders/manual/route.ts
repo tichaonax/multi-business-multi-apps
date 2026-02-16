@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import { isSystemAdmin, hasPermission, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin, hasPermission} from '@/lib/permission-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 // Business type to order number prefix mapping
 const ORDER_PREFIX: Record<string, string> = {
@@ -30,14 +29,11 @@ function generateManualOrderNumber(businessType: string, transactionDate: string
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getServerUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check permission
     if (!isSystemAdmin(user) && !hasPermission(user, 'canEnterManualOrders')) {
       // Fallback: check active business membership
@@ -129,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     // Look up employee record for this user (employeeId FK references Employees table, not Users)
     const employee = await prisma.employees.findUnique({
-      where: { userId: session.user.id },
+      where: { userId: user.id },
       select: { id: true },
     })
 

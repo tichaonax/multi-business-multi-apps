@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { getServerUser } from '@/lib/get-server-user'
 
 // Helper function to check admin access
-function isAdmin(session: any): boolean {
-  return session?.user?.role === 'admin';
-}
+
 
 // Helper function to hash password
 async function hashPassword(password: string) {
@@ -105,9 +104,9 @@ const employeesByBusiness: Record<string, Array<{
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getServerUser();
 
-    if (!isAdmin(session)) {
+    if ((!user || user.role !== 'admin')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
     }
 
@@ -195,7 +194,7 @@ export async function POST(request: NextRequest) {
 
         try {
           // Create user account
-          const user = await prisma.users.create({
+          const createdUser = await prisma.users.create({
             data: {
               email: email,
               passwordHash: await hashPassword('Demo@123'),

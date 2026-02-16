@@ -1,29 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
 import { createExpenseWithTransaction } from '@/lib/transaction-utils'
+import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to access personal finance
     if (!hasUserPermission(user, 'canAccessPersonalFinance')) {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
     }
 
-    console.log('Fetching expenses for user:', session.user.id)
+    console.log('Fetching expenses for user:', user.id)
 
     const expenses = await prisma.personalExpenses.findMany({
-      where: { userId: session.user.id },
+      where: { userId: user.id },
       include: {
         expense_category: {
           include: {
@@ -115,13 +110,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to add personal expenses
     if (!hasUserPermission(user, 'canAddPersonalExpenses')) {
       return NextResponse.json({ error: 'Insufficient permissions to add expenses' }, { status: 403 })
@@ -156,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     // Check available balance before creating expense
     const budgetEntries = await prisma.personalBudgets.findMany({
-      where: { userId: session.user.id },
+      where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
     })
 
@@ -195,8 +187,8 @@ export async function POST(request: NextRequest) {
       terms,
       notes,
       date: new Date(date),
-      userId: session.user.id,
-      createdBy: session.user.id
+      userId: user.id,
+      createdBy: user.id
     })
 
     if (!result.success) {

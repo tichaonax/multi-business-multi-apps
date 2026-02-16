@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasUserPermission } from '@/lib/permission-utils'
-import { SessionUser } from '@/lib/permission-utils'
-
 import { randomBytes } from 'crypto';
+import { getServerUser } from '@/lib/get-server-user'
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to access personal finance
     if (!hasUserPermission(user, 'canAccessPersonalFinance')) {
       return NextResponse.json({ error: 'Insufficient permissions to access personal finance' }, { status: 403 })
@@ -57,13 +51,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getServerUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const user = session.user as SessionUser
-
     // Check if user has permission to manage personal contractors
     if (!hasUserPermission(user, 'canManagePersonalContractors')) {
       return NextResponse.json({ error: 'Insufficient permissions to manage contractors' }, { status: 403 })
@@ -111,7 +102,7 @@ export async function POST(request: NextRequest) {
           nationalId: nationalId,
           idFormatTemplateId: idTemplateId || null,
           notes: description || null,
-          createdBy: session.user.id,
+          createdBy: user.id,
           isActive: true
         }
       })
