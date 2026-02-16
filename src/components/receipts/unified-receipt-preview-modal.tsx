@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { Printer, X, Check, AlertCircle, Usb } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -59,6 +60,11 @@ export function UnifiedReceiptPreviewModal({
   const [localPrinterName, setLocalPrinterName] = useState('')
   const [showLocalSetup, setShowLocalSetup] = useState(false)
   const toast = useToastContext()
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id
+
+  // User-scoped localStorage key so printer choice persists per user on shared machines
+  const printerKey = userId ? `lastSelectedPrinterId-${userId}` : 'lastSelectedPrinterId'
 
   // Ref-based guard to prevent double-clicks (more reliable than state)
   const isPrintingRef = useRef(false)
@@ -102,9 +108,17 @@ export function UnifiedReceiptPreviewModal({
         }
       }
 
-      // Auto-select last used printer if available
+      // Auto-select last used printer if available (user-scoped key, with migration from global key)
       try {
-        const lastPrinterId = localStorage.getItem('lastSelectedPrinterId')
+        let lastPrinterId = localStorage.getItem(printerKey)
+        // Migration: if no user-scoped value, check old global key and migrate
+        if (!lastPrinterId) {
+          const globalValue = localStorage.getItem('lastSelectedPrinterId')
+          if (globalValue) {
+            lastPrinterId = globalValue
+            localStorage.setItem(printerKey, globalValue)
+          }
+        }
         if (lastPrinterId) {
           // Check if it was the local printer
           if (lastPrinterId === LOCAL_PRINTER_ID && localAvailable) {
@@ -276,10 +290,10 @@ export function UnifiedReceiptPreviewModal({
                   const printerId = e.target.value
                   setSelectedPrinterId(printerId)
 
-                  // Save selected printer to localStorage for future use
+                  // Save selected printer to localStorage (user-scoped)
                   if (printerId) {
                     try {
-                      localStorage.setItem('lastSelectedPrinterId', printerId)
+                      localStorage.setItem(printerKey, printerId)
                       console.log('✓ Saved printer preference:', printerId)
                     } catch (storageError) {
                       console.warn('Failed to save printer preference:', storageError)
@@ -352,7 +366,7 @@ export function UnifiedReceiptPreviewModal({
                       setLocalPrinterName(config.name)
                       setSelectedPrinterId(LOCAL_PRINTER_ID)
                       setShowLocalSetup(false)
-                      localStorage.setItem('lastSelectedPrinterId', LOCAL_PRINTER_ID)
+                      localStorage.setItem(printerKey, LOCAL_PRINTER_ID)
                     }}
                   />
                 )}

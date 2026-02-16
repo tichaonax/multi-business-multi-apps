@@ -281,16 +281,26 @@ export class ReceiptPrintManager {
   }
 
   /**
-   * Get print preferences from localStorage
+   * Get print preferences from localStorage (user-scoped when userId provided)
    * Returns default preferences if not found
    */
-  static getPrintPreferences() {
+  static getPrintPreferences(userId?: string) {
     if (typeof window === 'undefined') {
       return this.getDefaultPreferences()
     }
 
+    const key = userId ? `print-preferences-${userId}` : 'print-preferences'
+
     try {
-      const stored = localStorage.getItem('print-preferences')
+      let stored = localStorage.getItem(key)
+      // Migration: if no user-scoped value, check old global key
+      if (!stored && userId) {
+        const globalValue = localStorage.getItem('print-preferences')
+        if (globalValue) {
+          stored = globalValue
+          localStorage.setItem(key, globalValue)
+        }
+      }
       if (stored) {
         return JSON.parse(stored)
       }
@@ -302,15 +312,17 @@ export class ReceiptPrintManager {
   }
 
   /**
-   * Save print preferences to localStorage
+   * Save print preferences to localStorage (user-scoped when userId provided)
    */
-  static savePrintPreferences(preferences: any) {
+  static savePrintPreferences(preferences: any, userId?: string) {
     if (typeof window === 'undefined') {
       return
     }
 
+    const key = userId ? `print-preferences-${userId}` : 'print-preferences'
+
     try {
-      localStorage.setItem('print-preferences', JSON.stringify(preferences))
+      localStorage.setItem(key, JSON.stringify(preferences))
       console.log('✅ Print preferences saved')
     } catch (error) {
       console.error('Failed to save print preferences:', error)
