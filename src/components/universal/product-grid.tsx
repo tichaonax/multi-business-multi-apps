@@ -181,10 +181,10 @@ export function UniversalProductGrid({
   const businessSpecificFilters = getBusinessSpecificFilters()
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       {/* Categories */}
       {showCategories && (
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold text-primary mb-4">Categories</h2>
           <UniversalCategoryNavigation
             businessId={businessId}
@@ -355,9 +355,9 @@ export function UniversalProductGrid({
               </div>
 
               {/* Product Grid */}
-              <div className={`grid gap-6 ${
+              <div className={`grid gap-3 sm:gap-6 ${
                 layout === 'grid'
-                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                  ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
                   : 'grid-cols-1'
               }`}>
                 {products.map((product) => (

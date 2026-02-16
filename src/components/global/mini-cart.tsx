@@ -228,7 +228,7 @@ export function MiniCart() {
 
           {/* Dropdown Panel */}
           <div
-            className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[80vh] overflow-hidden flex flex-col"
+            className="fixed left-1 right-1 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[60] max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -413,8 +413,15 @@ export function MiniCart() {
                                   }}
                                   onFocus={() => setCouponDropdownOpen(true)}
                                   placeholder="Search or scan coupon"
-                                  className="w-full pl-8 pr-7 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                  className={`w-full pl-8 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                    selectedCoupon ? 'pr-24 border-purple-400 dark:border-purple-600' : 'pr-7 border-gray-300 dark:border-gray-600'
+                                  }`}
                                 />
+                                {selectedCoupon ? (
+                                  <span className="absolute right-8 top-1/2 -translate-y-1/2 text-xs font-bold text-green-500 dark:text-green-400">
+                                    -{formatCurrency(selectedCoupon.discountAmount)}
+                                  </span>
+                                ) : null}
                                 <button
                                   type="button"
                                   onClick={() => setCouponDropdownOpen(!couponDropdownOpen)}

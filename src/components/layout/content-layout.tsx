@@ -71,7 +71,7 @@ export function ContentLayout({
   }, [showBackButton])
 
   return (
-    <div className={`${maxWidthClasses[maxWidth]} mx-auto py-2 px-4 sm:px-6`}>
+    <div className={`${maxWidthClasses[maxWidth]} mx-auto py-2 min-w-0 w-full`}>
       {/* Breadcrumb Navigation */}
       {breadcrumb && breadcrumb.length > 0 && (
         <div className="mb-4 overflow-x-auto">
@@ -108,12 +108,12 @@ export function ContentLayout({
             {/* Title Section */}
             <div className="min-w-0">
               {title && (
-                <h1 className="text-2xl sm:text-3xl font-bold text-primary break-words">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary break-words">
                   {title}
                 </h1>
               )}
               {subtitle && (
-                <p className="mt-2 text-secondary break-words">
+                <p className="mt-1 sm:mt-2 text-sm sm:text-base text-secondary break-words">
                   {subtitle}
                 </p>
               )}

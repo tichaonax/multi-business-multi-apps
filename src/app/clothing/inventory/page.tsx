@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from 'react'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -92,14 +93,13 @@ function ClothingInventoryContent() {
     }
   }, [searchParams, currentBusinessId, router])
 
-  // Handle tab param from URL (e.g. returning from barcode printing)
+  // Handle tab param from URL (e.g. returning from barcode printing or nav menu)
   useEffect(() => {
     const tabParam = searchParams?.get('tab')
     if (tabParam && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports'].includes(tabParam)) {
       setActiveTab(tabParam as typeof activeTab)
-      router.replace('/clothing/inventory', { scroll: false })
     }
-  }, [searchParams, router])
+  }, [searchParams])
 
   // Fetch BOGO promotion status
   const fetchBogo = async () => {
@@ -396,14 +396,7 @@ function ClothingInventoryContent() {
   }
 
   if (currentBusiness && !['clothing', 'grocery'].includes(currentBusiness.businessType)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600">This inventory page is only available for clothing and grocery businesses.</p>
-        </div>
-      </div>
-    )
+    return <BusinessTypeRedirect />
   }
 
   const businessId = currentBusinessId!
@@ -931,30 +924,30 @@ function ClothingInventoryContent() {
                 {/* Bales Tab */}
                 {activeTab === 'bales' && (
                   <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="space-y-3">
                       <h3 className="text-lg font-semibold">Used Clothing Bales</h3>
                       <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => setShowCategoryForm(true)}
-                          className="btn-secondary text-sm"
+                          className="btn-secondary text-xs sm:text-sm"
                         >
                           + Category
                         </button>
                         <button
                           onClick={() => { setShowBaleForm(true); fetchBaleCategories() }}
-                          className="btn-primary bg-purple-600 hover:bg-purple-700 text-sm"
+                          className="btn-primary bg-purple-600 hover:bg-purple-700 text-xs sm:text-sm"
                         >
                           + Register Bale
                         </button>
                         <button
                           onClick={() => router.push('/clothing/inventory/transfer')}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
                         >
                           Transfer Bales
                         </button>
                         <button
                           onClick={() => router.push('/clothing/inventory/transfer?endOfSale=true')}
-                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-medium transition-colors"
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
                         >
                           End of Sale
                         </button>
@@ -1093,36 +1086,36 @@ function ClothingInventoryContent() {
                         <p className="text-sm">Click "Register Bale" to stock used clothing bales.</p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <div className="overflow-x-auto w-full max-w-full">
+                        <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                           <thead className="bg-gray-50 dark:bg-gray-800">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">Batch #</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">Category</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-secondary uppercase">Price</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-secondary uppercase">Stock</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">SKU</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">Barcode</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-secondary uppercase">BOGO</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-secondary uppercase">Ratio</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-secondary uppercase">Actions</th>
+                              <th className="px-1 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-secondary uppercase">Batch</th>
+                              <th className="px-1 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-secondary uppercase">Category</th>
+                              <th className="px-1 sm:px-4 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-secondary uppercase">Price</th>
+                              <th className="px-1 sm:px-4 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-secondary uppercase">Stock</th>
+                              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-secondary uppercase">SKU</th>
+                              <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-secondary uppercase">Barcode</th>
+                              <th className="hidden sm:table-cell px-2 sm:px-4 py-3 text-center text-xs font-medium text-secondary uppercase">BOGO</th>
+                              <th className="hidden sm:table-cell px-2 sm:px-4 py-3 text-center text-xs font-medium text-secondary uppercase">Ratio</th>
+                              <th className="px-1 sm:px-4 py-2 sm:py-3 text-center text-[10px] sm:text-xs font-medium text-secondary uppercase"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {bales.map((bale: any) => (
                               <tr key={bale.id} className={`${bale.remainingCount === 0 ? 'opacity-50' : ''}`}>
-                                <td className="px-4 py-3 text-sm font-medium">{bale.batchNumber}</td>
-                                <td className="px-4 py-3 text-sm">{bale.category?.name}</td>
-                                <td className="px-4 py-3 text-sm text-right">${Number(bale.unitPrice).toFixed(2)}</td>
-                                <td className="px-4 py-3 text-sm text-right">
+                                <td className="px-1 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium">{bale.batchNumber}</td>
+                                <td className="px-1 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">{bale.category?.name}</td>
+                                <td className="px-1 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-right">${Number(bale.unitPrice).toFixed(2)}</td>
+                                <td className="px-1 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-right">
                                   <span className={bale.remainingCount === 0 ? 'text-red-500' : bale.remainingCount < 10 ? 'text-amber-500' : ''}>
                                     {bale.remainingCount}
                                   </span>
                                   <span className="text-secondary">/{bale.itemCount}</span>
                                 </td>
-                                <td className="px-4 py-3 text-sm font-mono text-xs">{bale.sku}</td>
-                                <td className="px-4 py-3 text-sm font-mono text-xs">{bale.barcode || '—'}</td>
-                                <td className="px-4 py-3 text-center">
+                                <td className="hidden md:table-cell px-4 py-3 text-sm font-mono text-xs">{bale.sku}</td>
+                                <td className="hidden lg:table-cell px-4 py-3 text-sm font-mono text-xs">{bale.barcode || '—'}</td>
+                                <td className="hidden sm:table-cell px-2 sm:px-4 py-3 text-center">
                                   <button
                                     onClick={() => handleBaleBogoToggle(bale.id, bale.bogoActive)}
                                     disabled={bale.remainingCount === 0}
@@ -1135,7 +1128,7 @@ function ClothingInventoryContent() {
                                     }`} />
                                   </button>
                                 </td>
-                                <td className="px-4 py-3 text-center">
+                                <td className="hidden sm:table-cell px-2 sm:px-4 py-3 text-center">
                                   {bale.bogoActive && (
                                     <div className="inline-flex rounded border border-gray-200 dark:border-gray-700 text-xs">
                                       <button
@@ -1153,7 +1146,7 @@ function ClothingInventoryContent() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-4 py-3 text-center">
+                                <td className="px-1 sm:px-4 py-3 text-center">
                                   <div className="flex flex-col gap-1 items-center">
                                     <button
                                       onClick={() => {
@@ -1178,9 +1171,11 @@ function ClothingInventoryContent() {
                                         showToast(`Added ${bale.category?.name || 'Bale'} to cart`, { type: 'success' })
                                       }}
                                       disabled={bale.remainingCount === 0}
-                                      className="text-xs text-green-600 dark:text-green-400 hover:underline whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="text-xs text-green-600 dark:text-green-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="Add to Cart"
                                     >
-                                      Add to Cart
+                                      <span className="sm:hidden">🛒</span>
+                                      <span className="hidden sm:inline whitespace-nowrap">Add to Cart</span>
                                     </button>
                                     <button
                                       onClick={() => {
@@ -1193,9 +1188,11 @@ function ClothingInventoryContent() {
                                         })
                                         router.push(`/universal/barcode-management/print-jobs/new?${params.toString()}`)
                                       }}
-                                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                      title="Print Barcode"
                                     >
-                                      Print Barcode
+                                      <span className="sm:hidden">🏷️</span>
+                                      <span className="hidden sm:inline whitespace-nowrap">Print Barcode</span>
                                     </button>
                                   </div>
                                 </td>

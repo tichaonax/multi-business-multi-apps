@@ -298,7 +298,7 @@ export default function R710SalesPage() {
   const handleCompleteSale = async () => {
     if (!selectedConfig || !currentBusinessId) return
 
-    const salePrice = parseFloat(customPrice)
+    const salePrice = parseFloat(customPrice || '0')
     if (isNaN(salePrice) || salePrice < 0) {
       setErrorMessage('Please enter a valid sale price')
       return

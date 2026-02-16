@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import React, { useState, useEffect, Suspense } from 'react'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -127,19 +128,7 @@ function HardwareInventoryContent() {
 
   // If current business is not hardware, show error
   if (currentBusiness && !isHardwareBusiness) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 mb-4">
-            The Hardware Inventory Management is only available for hardware businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
-          </p>
-          <p className="text-sm text-gray-500">
-            Please select a hardware business from the sidebar to use this system.
-          </p>
-        </div>
-      </div>
-    )
+    return <BusinessTypeRedirect />
   }
 
   // If no hardware businesses at all, show message

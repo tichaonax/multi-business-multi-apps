@@ -564,10 +564,10 @@ export function UniversalInventoryStats({
   return (
     <div className="space-y-6">
       {/* Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        <div className="card p-4">
-          <div className="text-sm text-secondary">Total Items</div>
-          <div className="text-2xl font-bold text-primary">{stats.overview.totalItems}</div>
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-4">
+        <div className="card p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-secondary">Total Items</div>
+          <div className="text-xl sm:text-2xl font-bold text-primary">{stats.overview.totalItems}</div>
           {showTrends && (
             <div className={`text-xs ${getTrendColor(stats.trends.monthOverMonth)}`}>
               {getTrendIcon(stats.trends.monthOverMonth)} {formatPercentage(stats.trends.monthOverMonth)}
@@ -575,9 +575,9 @@ export function UniversalInventoryStats({
           )}
         </div>
 
-        <div className="card p-4">
-          <div className="text-sm text-secondary">Total Value</div>
-          <div className="text-2xl font-bold text-primary">{formatCurrency(stats.overview.totalValue)}</div>
+        <div className="card p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-secondary">Total Value</div>
+          <div className="text-xl sm:text-2xl font-bold text-primary">{formatCurrency(stats.overview.totalValue)}</div>
           {showTrends && (
             <div className={`text-xs ${getTrendColor(stats.trends.weekOverWeek)}`}>
               {getTrendIcon(stats.trends.weekOverWeek)} {formatPercentage(stats.trends.weekOverWeek)}
@@ -585,24 +585,24 @@ export function UniversalInventoryStats({
           )}
         </div>
 
-        <div className="card p-4">
-          <div className="text-sm text-secondary">Categories</div>
-          <div className="text-2xl font-bold text-primary">{stats.overview.totalCategories}</div>
+        <div className="card p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-secondary">Categories</div>
+          <div className="text-xl sm:text-2xl font-bold text-primary">{stats.overview.totalCategories}</div>
         </div>
 
-        <div className="card p-4">
-          <div className="text-sm text-secondary">Low Stock</div>
-          <div className="text-2xl font-bold text-orange-600">{stats.overview.lowStockItems}</div>
+        <div className="card p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-secondary">Low Stock</div>
+          <div className="text-xl sm:text-2xl font-bold text-orange-600">{stats.overview.lowStockItems}</div>
         </div>
 
-        <div className="card p-4">
-          <div className="text-sm text-secondary">Out of Stock</div>
-          <div className="text-2xl font-bold text-red-600">{stats.overview.outOfStockItems}</div>
+        <div className="card p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-secondary">Out of Stock</div>
+          <div className="text-xl sm:text-2xl font-bold text-red-600">{stats.overview.outOfStockItems}</div>
         </div>
 
-        <div className="card p-4">
-          <div className="text-sm text-secondary">Expiring</div>
-          <div className="text-2xl font-bold text-yellow-600">{stats.overview.expiringItems}</div>
+        <div className="card p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-secondary">Expiring</div>
+          <div className="text-xl sm:text-2xl font-bold text-yellow-600">{stats.overview.expiringItems}</div>
         </div>
       </div>
 

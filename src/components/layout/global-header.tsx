@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from '@/contexts/theme-context'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
@@ -17,10 +17,18 @@ interface GlobalHeaderProps {
 export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
+  const router = useRouter()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
   const businessMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Close all menus on navigation
+  useEffect(() => {
+    setShowBusinessMenu(false)
+    setShowUserMenu(false)
+    setShowThemeMenu(false)
+  }, [pathname])
 
   // Business permissions context
   const {
@@ -32,7 +40,16 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const user = session?.user as SessionUser
   const isAdmin = isSystemAdmin(user)
 
-  // Business menu hover handlers
+  // Explicitly close business menu and cancel any pending hover timeouts
+  const closeBusinessMenu = () => {
+    if (businessMenuTimeoutRef.current) {
+      clearTimeout(businessMenuTimeoutRef.current)
+      businessMenuTimeoutRef.current = null
+    }
+    setShowBusinessMenu(false)
+  }
+
+  // Business menu hover handlers (desktop only)
   const handleBusinessMenuEnter = () => {
     if (businessMenuTimeoutRef.current) {
       clearTimeout(businessMenuTimeoutRef.current)
@@ -202,52 +219,63 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
         <div className="flex justify-between items-center h-14 sm:h-16">
           {/* Left side - Logo and Navigation */}
-          <div className="flex items-center space-x-4 sm:space-x-8">
-            <Link href="/dashboard" className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 sm:space-x-8 min-w-0 shrink">
+            <Link href="/dashboard" className="flex items-center space-x-1 sm:space-x-2 shrink-0">
               <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-xs sm:text-sm">BH</span>
               </div>
-              <span className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Business Hub</span>
+              <span className="hidden sm:inline text-xl font-bold text-gray-900 dark:text-white">Business Hub</span>
             </Link>
 
             {showBreadcrumb && <div className="hidden sm:block"><Breadcrumb pathname={pathname} title={title} /></div>}
           </div>
 
           {/* Right side - Business context, Theme toggle and User menu */}
-          <div className="flex items-center space-x-2 sm:space-x-4">
+          <div className="flex items-center space-x-1 sm:space-x-4 shrink-0">
             {/* Business context indicator for all users */}
             {session?.user && isAuthenticated && currentBusiness && (
               <div className="relative">
-                <Link
-                  href={`/${currentBusiness.businessType}`}
-                  className="hidden sm:flex items-center space-x-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer ml-4"
-                  title={`Go to ${currentBusiness.businessName} ${currentBusiness.businessType} business`}
+                <button
+                  onClick={() => {
+                    if (showBusinessMenu) {
+                      closeBusinessMenu()
+                    } else {
+                      setShowBusinessMenu(true)
+                    }
+                  }}
+                  className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer ml-2 sm:ml-4"
+                  title={`${currentBusiness.businessName} - ${currentBusiness.businessType}`}
                   onMouseEnter={handleBusinessMenuEnter}
                   onMouseLeave={handleBusinessMenuLeave}
                 >
-                  <span className="text-blue-600 dark:text-blue-400">🏢</span>
-                  <div className="text-sm">
-                    <div className="font-medium text-blue-900 dark:text-blue-100 max-w-32 lg:max-w-48 truncate">
+                  <span className="text-blue-600 dark:text-blue-400 text-sm sm:text-base">🏢</span>
+                  <div className="text-xs sm:text-sm text-left">
+                    <div className="font-medium text-blue-900 dark:text-blue-100 max-w-20 sm:max-w-32 lg:max-w-48 truncate">
                       {currentBusiness.businessName}
                     </div>
-                    <div className="text-xs text-blue-600 dark:text-blue-400 capitalize">
+                    <div className="hidden sm:block text-xs text-blue-600 dark:text-blue-400 capitalize">
                       {currentBusiness.businessType}
                     </div>
                   </div>
+                  <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                   {isSystemAdmin(session.user as SessionUser) && (
                     <div className="hidden lg:block text-xs text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded">
                       Admin
                     </div>
                   )}
-                </Link>
+                </button>
 
-                {/* Business hover menu */}
+                {/* Business dropdown menu */}
                 {showBusinessMenu && (
-                  <div
-                    className="absolute top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
-                    onMouseEnter={handleBusinessMenuEnter}
-                    onMouseLeave={handleBusinessMenuLeave}
-                  >
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={closeBusinessMenu} />
+                    <div
+                      className="fixed left-12 right-2 sm:absolute sm:left-auto sm:right-auto top-14 sm:top-full mt-0 sm:mt-2 sm:w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+                      onMouseEnter={handleBusinessMenuEnter}
+                      onMouseLeave={handleBusinessMenuLeave}
+                    >
                     <div className="py-2">
                       <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -261,29 +289,33 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       <div className="py-1">
                         {/* Business-specific links */}
                         {getBusinessMenuLinks(currentBusiness.businessType, pathname).map((link, index) => (
-                          <Link
+                          <button
                             key={index}
-                            href={link.href}
-                            className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                            onClick={() => setShowBusinessMenu(false)}
+                            className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full text-left"
+                            onClick={() => {
+                              closeBusinessMenu()
+                              router.push(link.href)
+                            }}
                           >
                             <span>{link.icon}</span>
                             <span>{link.label}</span>
-                          </Link>
+                          </button>
                         ))}
 
                         {/* General Expense Account - always available */}
                         {hasPermission('canAccessExpenseAccount') && (
                           <>
                             <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-                            <Link
-                              href="/expense-accounts/acc-general-expenses"
-                              className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                              onClick={() => setShowBusinessMenu(false)}
+                            <button
+                              className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full text-left"
+                              onClick={() => {
+                                closeBusinessMenu()
+                                router.push('/expense-accounts/acc-general-expenses')
+                              }}
                             >
                               <span>💳</span>
                               <span>General Expenses</span>
-                            </Link>
+                            </button>
                           </>
                         )}
 
@@ -308,6 +340,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       </div>
                     </div>
                   </div>
+                  </>
                 )}
               </div>
             )}
@@ -535,19 +568,19 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
     <div className="relative">
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="flex items-center space-x-3 text-sm rounded-md p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        className="flex items-center space-x-1 sm:space-x-3 text-sm rounded-md p-1 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       >
-        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm shrink-0">
           {getInitials(user.name || user.email || 'User')}
         </div>
         <div className="hidden md:block text-left">
           <p className="text-gray-900 dark:text-white font-medium">{user.name}</p>
           <p className="text-gray-500 dark:text-gray-400 text-xs">{user.email}</p>
         </div>
-        <svg 
-          className="w-4 h-4 text-gray-400 dark:text-gray-500" 
-          fill="none" 
-          stroke="currentColor" 
+        <svg
+          className="hidden sm:block w-4 h-4 text-gray-400 dark:text-gray-500"
+          fill="none"
+          stroke="currentColor"
           viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -560,7 +593,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
             className="fixed inset-0 z-10" 
             onClick={() => setShowMenu(false)}
           />
-          <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
+          <div className="fixed right-2 sm:absolute sm:right-0 mt-2 w-[calc(100vw-1rem)] sm:w-56 max-w-xs bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>

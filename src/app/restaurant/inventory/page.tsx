@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from 'react'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -160,19 +161,7 @@ function RestaurantInventoryContent() {
 
   // If current business is not restaurant, show error
   if (currentBusiness && !isRestaurantBusiness) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            The Restaurant Inventory is only available for restaurant businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Please select a restaurant business from the sidebar to use this inventory system.
-          </p>
-        </div>
-      </div>
-    )
+    return <BusinessTypeRedirect />
   }
 
   // If no restaurant businesses at all, show message
@@ -287,23 +276,23 @@ function RestaurantInventoryContent() {
           {/* Tab Navigation */}
           <div className="card">
             <div className="border-b border-gray-200 dark:border-gray-700">
-              <nav className="flex space-x-2 sm:space-x-8 px-3 sm:px-6 overflow-x-auto" aria-label="Tabs">
+              <nav className="flex space-x-1 sm:space-x-6 px-2 sm:px-6 overflow-x-auto scrollbar-hide" aria-label="Tabs">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
                     className={`
-                      py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
+                      py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center gap-1 sm:gap-2 transition-colors whitespace-nowrap flex-shrink-0
                       ${activeTab === tab.id
                         ? 'border-orange-500 text-orange-600'
                         : 'border-transparent text-secondary hover:text-primary hover:border-gray-300'
                       }
                     `}
                   >
-                    <span className="text-lg">{tab.icon}</span>
+                    <span className="text-base sm:text-lg">{tab.icon}</span>
                     <div className="text-left">
                       <div>{tab.label}</div>
-                      <div className="text-xs text-gray-400 font-normal">{tab.description}</div>
+                      <div className="hidden sm:block text-xs text-gray-400 font-normal">{tab.description}</div>
                     </div>
                   </button>
                 ))}

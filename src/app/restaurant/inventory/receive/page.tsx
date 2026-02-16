@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
@@ -89,16 +90,7 @@ export default function ReceiveStockPage() {
   }
 
   if (!isRestaurantBusiness) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            This page is only available for restaurant businesses.
-          </p>
-        </div>
-      </div>
-    )
+    return <BusinessTypeRedirect />
   }
 
   const businessId = currentBusinessId!

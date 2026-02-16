@@ -2,10 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Modal portal support */
-body {
-  position: relative;
+/* Prevent horizontal scroll on mobile */
+html {
+  overflow-x: hidden;
 }
+
+body {
+  overflow-x: hidden;
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Force modal visibility - only use inset positioning, not explicit width */
+
 
 /* Ensure modal portals render above everything */
 [data-radix-portal] {
@@ -25,8 +35,6 @@ body {
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
 }
 
 .dark body {

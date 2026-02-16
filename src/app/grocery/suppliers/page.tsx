@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
@@ -84,17 +85,7 @@ export default function GrocerySuppliersPage() {
   }
 
   if (currentBusiness && currentBusiness.businessType !== 'grocery') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 mb-4">
-            The Grocery Suppliers page is only available for grocery businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
-          </p>
-          <p className="text-sm text-gray-500">Please select a grocery business from the sidebar to continue.</p>
-        </div>
-      </div>
-    )
+    return <BusinessTypeRedirect />
   }
 
   // At this point we have a valid business selected

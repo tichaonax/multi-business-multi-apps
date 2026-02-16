@@ -68,10 +68,10 @@ export default function RootLayout({
                     <CartProvider>
                       <NavigationProvider>
                         <GlobalBarcodeProvider>
-                          <div className="min-h-screen">
+                          <div className="min-h-screen w-full overflow-x-hidden">
                             <ConditionalGlobalHeader />
                             <ConfirmProvider>
-                              <main>
+                              <main className="min-w-0 w-full">
                                 {children}
                               </main>
                             </ConfirmProvider>

@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 console.log('🔥🔥🔥 [Restaurant POS] MODULE LOADED 🔥🔥🔥')
 
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { BarcodeScanner } from '@/components/universal/barcode-scanner'
 import { UniversalProduct } from '@/components/universal/product-card'
 import { useState, useEffect, useRef } from 'react'
@@ -1183,19 +1184,7 @@ export default function RestaurantPOS() {
   if (!isAdmin) {
     // If current business is not restaurant (and one is selected), show error
     if (currentBusiness && !isRestaurantBusiness) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center max-w-md">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              The Restaurant POS is only available for restaurant businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Please select a restaurant business from the sidebar to use this POS system.
-            </p>
-          </div>
-        </div>
-      )
+      return <BusinessTypeRedirect />
     }
 
     // If no restaurant business selected, show prompt
@@ -1591,9 +1580,9 @@ export default function RestaurantPOS() {
       <div className="min-h-screen page-background bg-white dark:bg-gray-900">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 p-2 lg:p-4">
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-primary">Point of Sale</h1>
-              <div className="flex gap-2">
+            <div className="space-y-2">
+              <h1 className="text-lg sm:text-2xl font-bold text-primary">Point of Sale</h1>
+              <div className="flex gap-1.5 sm:gap-2 flex-wrap">
                 <button
                   onClick={async () => {
                     try {
@@ -1602,40 +1591,40 @@ export default function RestaurantPOS() {
                       toast.push('Failed to open customer display. Please allow popups for this site.', { type: 'error', duration: 5000 })
                     }
                   }}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                  className="px-2 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs sm:text-sm font-medium"
                   title="Open Customer Display"
                 >
-                  🖥️ Display
+                  🖥️ <span className="hidden sm:inline">Display</span>
                 </button>
                 <button
                   onClick={() => setShowSettings(true)}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                  className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-xs sm:text-sm font-medium"
                   title="POS Settings"
                 >
-                  ⚙️ Settings
+                  ⚙️ <span className="hidden sm:inline">Settings</span>
                 </button>
                 {/* Menu Management - Only for users with canManageMenu permission */}
                 {(isAdmin || hasPermission('canManageMenu')) && (
                   <Link
                     href="/restaurant/menu"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm font-medium"
                   >
-                    📋 Menu
+                    📋 <span className="hidden sm:inline">Menu</span>
                   </Link>
                 )}
                 <Link
                   href="/restaurant/orders"
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                  className="px-2 sm:px-4 py-1.5 sm:py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-xs sm:text-sm font-medium"
                 >
-                  📦 Orders
+                  📦 <span className="hidden sm:inline">Orders</span>
                 </Link>
                 {/* Reports - Only for users with report access */}
                 {(isAdmin || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link
                     href="/restaurant/reports/end-of-day"
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm font-medium"
                   >
-                    📊 Reports
+                    📊 <span className="hidden sm:inline">Reports</span>
                   </Link>
                 )}
               </div>

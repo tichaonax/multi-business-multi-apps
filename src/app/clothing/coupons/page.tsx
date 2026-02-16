@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { getSupportedBusinessTypes } from '@/app/universal/pos/config/business-type-config'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -115,14 +116,7 @@ export default function ClothingCouponsPage() {
   }
 
   if (currentBusiness && currentBusiness.businessType !== 'clothing') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600">Coupon management is only for clothing businesses.</p>
-        </div>
-      </div>
-    )
+    return <BusinessTypeRedirect />
   }
 
   // Filter coupons

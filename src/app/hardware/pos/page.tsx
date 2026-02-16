@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { ContentLayout } from '@/components/layout/content-layout'
 import {
   BusinessProvider,
@@ -239,19 +240,7 @@ export default function HardwarePOSPage() {
 
   // If current business is not hardware, show error
   if (currentBusiness && !isHardwareBusiness) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            The Hardware POS is only available for hardware businesses. Your current business "{currentBusiness.businessName}" is a {currentBusiness.businessType} business.
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Please select a hardware business from the sidebar to use this POS system.
-          </p>
-        </div>
-      </div>
-    )
+    return <BusinessTypeRedirect />
   }
 
   // If no hardware businesses at all, show message

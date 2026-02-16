@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from 'react'
+import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -108,14 +109,7 @@ function GroceryInventoryContent() {
   }
 
   if (currentBusiness && currentBusiness.businessType !== 'grocery') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Wrong Business Type</h2>
-          <p className="text-gray-600">The Grocery Inventory page is only for grocery businesses. Please select a grocery business.</p>
-        </div>
-      </div>
-    )
+    return <BusinessTypeRedirect />
   }
 
   const businessId = currentBusinessId!

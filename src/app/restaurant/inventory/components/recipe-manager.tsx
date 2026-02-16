@@ -260,12 +260,12 @@ export function RestaurantRecipeManager() {
       </div>
 
       {/* Recipe Categories Filter */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1 sm:gap-2">
         {categories.map((category) => (
           <button
             key={category}
             onClick={() => setSelectedCategoryFilter(category)}
-            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+            className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
               selectedCategoryFilter === category
                 ? 'bg-orange-500 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
@@ -277,53 +277,53 @@ export function RestaurantRecipeManager() {
       </div>
 
       {/* Recipe Cost Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div className="card p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-          <h4 className="font-semibold text-green-800 dark:text-green-300 mb-2">💰 Total Recipe Value</h4>
-          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+  <div className="card p-2 sm:p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+          <h4 className="font-semibold text-green-800 dark:text-green-300 mb-1 sm:mb-2 text-xs sm:text-base">💰 Recipe Value</h4>
+          <div className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400">
             ${totalRecipeValue.toFixed(2)}
           </div>
-          <div className="text-sm text-green-700 dark:text-green-400">
-            Across {activeRecipes.length} active recipes
+          <div className="text-xs sm:text-sm text-green-700 dark:text-green-400">
+            {activeRecipes.length} active
           </div>
         </div>
 
-  <div className="card p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-          <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">📈 Average Margin</h4>
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+  <div className="card p-2 sm:p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+          <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-1 sm:mb-2 text-xs sm:text-base">📈 Avg Margin</h4>
+          <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
             {averageMargin.toFixed(1)}%
           </div>
-          <div className="text-sm text-blue-700 dark:text-blue-400">
+          <div className="text-xs sm:text-sm text-blue-700 dark:text-blue-400">
             Target: 65-75%
           </div>
         </div>
 
-  <div className="card p-4 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
-          <h4 className="font-semibold text-orange-800 dark:text-orange-300 mb-2">⚠️ Needs Review</h4>
-          <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+  <div className="card p-2 sm:p-4 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
+          <h4 className="font-semibold text-orange-800 dark:text-orange-300 mb-1 sm:mb-2 text-xs sm:text-base">⚠️ Review</h4>
+          <div className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">
             {lowMarginCount}
           </div>
-          <div className="text-sm text-orange-700 dark:text-orange-400">
-            Low margin recipes
+          <div className="text-xs sm:text-sm text-orange-700 dark:text-orange-400">
+            Low margin
           </div>
         </div>
       </div>
 
       {/* Recipe List */}
       <div className="card">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between items-center">
-            <h4 className="font-semibold text-primary">Recipe Portfolio</h4>
-            <div className="flex gap-2">
+        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+            <h4 className="font-semibold text-primary text-sm sm:text-base">Recipe Portfolio</h4>
+            <div className="flex gap-2 min-w-0">
               <input
                 type="text"
-                placeholder="Search recipes..."
-                className="input-field text-sm w-64"
+                placeholder="Search..."
+                className="input-field text-sm w-full sm:w-48 md:w-64 min-w-0"
               />
-              <select className="input-field text-sm">
-                <option>Sort by Cost</option>
-                <option>Sort by Margin</option>
-                <option>Sort by Popularity</option>
+              <select className="input-field text-sm w-28 sm:w-auto flex-shrink-0">
+                <option>Cost</option>
+                <option>Margin</option>
+                <option>Popularity</option>
               </select>
             </div>
           </div>
@@ -333,14 +333,14 @@ export function RestaurantRecipeManager() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                <th className="text-left p-3 font-medium text-secondary">Recipe</th>
-                <th className="text-left p-3 font-medium text-secondary">Category</th>
-                <th className="text-left p-3 font-medium text-secondary">Cost</th>
-                <th className="text-left p-3 font-medium text-secondary">Sell Price</th>
-                <th className="text-left p-3 font-medium text-secondary">Margin</th>
-                <th className="text-left p-3 font-medium text-secondary">Prep Time</th>
-                <th className="text-left p-3 font-medium text-secondary">Status</th>
-                <th className="text-left p-3 font-medium text-secondary">Actions</th>
+                <th className="text-left px-2 sm:p-3 py-2 font-medium text-secondary text-xs sm:text-sm">Recipe</th>
+                <th className="text-left px-2 sm:p-3 py-2 font-medium text-secondary text-xs sm:text-sm hidden sm:table-cell">Category</th>
+                <th className="text-left px-2 sm:p-3 py-2 font-medium text-secondary text-xs sm:text-sm">Cost</th>
+                <th className="text-left px-2 sm:p-3 py-2 font-medium text-secondary text-xs sm:text-sm">Price</th>
+                <th className="text-left px-2 sm:p-3 py-2 font-medium text-secondary text-xs sm:text-sm hidden md:table-cell">Margin</th>
+                <th className="text-left px-2 sm:p-3 py-2 font-medium text-secondary text-xs sm:text-sm hidden lg:table-cell">Prep Time</th>
+                <th className="text-left px-2 sm:p-3 py-2 font-medium text-secondary text-xs sm:text-sm hidden sm:table-cell">Status</th>
+                <th className="text-left px-2 sm:p-3 py-2 font-medium text-secondary text-xs sm:text-sm">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -358,11 +358,11 @@ export function RestaurantRecipeManager() {
                   className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                   onClick={() => handleRecipeClick(recipe)}
                 >
-                  <td className="p-3">
+                  <td className="px-2 sm:p-3 py-2">
                     <div>
-                      <div className="font-medium text-primary">{recipe.name}</div>
-                      <div className="text-xs text-secondary">{recipe.description}</div>
-                      <div className="flex gap-1 mt-1">
+                      <div className="font-medium text-primary text-xs sm:text-sm">{recipe.name}</div>
+                      <div className="text-xs text-secondary hidden sm:block">{recipe.description}</div>
+                      <div className="flex gap-1 mt-1 flex-wrap">
                         {recipe.allergens.map((allergen) => (
                           <span key={allergen} className="px-1 py-0.5 bg-red-100 text-red-700 text-xs rounded">
                             {allergen}
@@ -371,10 +371,10 @@ export function RestaurantRecipeManager() {
                       </div>
                     </div>
                   </td>
-                  <td className="p-3 text-secondary">{recipe.category}</td>
-                  <td className="p-3 font-medium">${recipe.costPerServing.toFixed(2)}</td>
-                  <td className="p-3 font-medium">${recipe.sellPrice.toFixed(2)}</td>
-                  <td className="p-3">
+                  <td className="px-2 sm:p-3 py-2 text-secondary text-xs sm:text-sm hidden sm:table-cell">{recipe.category}</td>
+                  <td className="px-2 sm:p-3 py-2 font-medium text-xs sm:text-sm">${recipe.costPerServing.toFixed(2)}</td>
+                  <td className="px-2 sm:p-3 py-2 font-medium text-xs sm:text-sm">${recipe.sellPrice.toFixed(2)}</td>
+                  <td className="px-2 sm:p-3 py-2 hidden md:table-cell">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       recipe.profitMargin >= 70 ? 'bg-green-100 text-green-800' :
                       recipe.profitMargin >= 60 ? 'bg-yellow-100 text-yellow-800' :
@@ -383,26 +383,29 @@ export function RestaurantRecipeManager() {
                       {recipe.profitMargin.toFixed(1)}%
                     </span>
                   </td>
-                  <td className="p-3 text-secondary">
+                  <td className="px-2 sm:p-3 py-2 text-secondary text-xs sm:text-sm hidden lg:table-cell">
                     {recipe.prepTime + recipe.cookTime} min
                   </td>
-                  <td className="p-3">
+                  <td className="px-2 sm:p-3 py-2 hidden sm:table-cell">
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       recipe.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                     }`}>
                       {recipe.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="p-3">
+                  <td className="px-2 sm:p-3 py-2">
                     <div className="flex gap-1">
                       <button className="text-blue-600 hover:text-blue-800 text-xs p-1">
-                        ✏️ Edit
+                        <span className="sm:hidden">✏️</span>
+                        <span className="hidden sm:inline">✏️ Edit</span>
                       </button>
                       <button className="text-green-600 hover:text-green-800 text-xs p-1">
-                        🧮 Cost
+                        <span className="sm:hidden">🧮</span>
+                        <span className="hidden sm:inline">🧮 Cost</span>
                       </button>
                       <button className="text-purple-600 hover:text-purple-800 text-xs p-1">
-                        📋 Print
+                        <span className="sm:hidden">📋</span>
+                        <span className="hidden sm:inline">📋 Print</span>
                       </button>
                     </div>
                   </td>
