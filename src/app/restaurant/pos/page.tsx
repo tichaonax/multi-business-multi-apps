@@ -1422,9 +1422,17 @@ export default function RestaurantPOS() {
     ? menuItems.filter(item => item.isCombo === true)
     : menuItems.filter(item => item.category === getCategoryFilter(selectedCategory))
 
-  const filteredItems = searchTerm.trim()
+  const filteredItems = (searchTerm.trim()
     ? categoryFiltered.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
     : categoryFiltered
+  ).sort((a, b) => {
+    const aSold = a.soldToday || 0
+    const bSold = b.soldToday || 0
+    if (aSold > 0 && bSold > 0) return bSold - aSold
+    if (aSold > 0) return -1
+    if (bSold > 0) return 1
+    return a.name.localeCompare(b.name)
+  })
 
   const handleProcessOrderClick = () => {
     console.log('🔄 Process Order clicked')
