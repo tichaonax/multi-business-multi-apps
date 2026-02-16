@@ -438,7 +438,9 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    const totalAmount = subtotal + orderData.taxAmount - orderData.discountAmount
+    // Cap discount so it never exceeds order value (prevents negative totals from oversized coupons)
+    const effectiveDiscount = Math.min(orderData.discountAmount, subtotal + orderData.taxAmount)
+    const totalAmount = subtotal + orderData.taxAmount - effectiveDiscount
 
     // Get current order count for order number generation
     const orderCount = await prisma.businessOrders.count({
@@ -458,7 +460,7 @@ export async function POST(request: NextRequest) {
           employeeId: orderData.employeeId,
           orderType: orderData.orderType,
           paymentMethod: orderData.paymentMethod,
-          discountAmount: orderData.discountAmount,
+          discountAmount: effectiveDiscount,
           taxAmount: orderData.taxAmount,
           businessType: orderData.businessType || business.type,
           attributes: orderData.attributes,
@@ -563,7 +565,10 @@ export async function POST(request: NextRequest) {
       // Record coupon usage if a coupon was applied
       if (orderData.attributes?.couponId) {
         const couponId = orderData.attributes.couponId as string
-        const couponDiscount = Number(orderData.attributes.couponDiscount) || orderData.discountAmount
+        const couponDiscount = Math.min(
+          Number(orderData.attributes.couponDiscount) || orderData.discountAmount,
+          effectiveDiscount
+        )
 
         // Verify coupon exists and is active
         const coupon = await tx.coupons.findUnique({

@@ -170,14 +170,16 @@ export function useUniversalCart() {
   const totals: CartTotals = useMemo(() => {
     const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0)
     const tax = subtotal * TAX_RATE
-    const total = subtotal + tax - discount
+    // Cap discount so it never exceeds the order value (prevents negative totals)
+    const effectiveDiscount = Math.min(discount, subtotal + tax)
+    const total = subtotal + tax - effectiveDiscount
     const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
 
     return {
       subtotal,
       tax,
-      discount,
-      total: Math.max(0, total), // Ensure total is never negative
+      discount: effectiveDiscount,
+      total,
       itemCount
     }
   }, [cart, discount])
