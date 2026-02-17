@@ -311,8 +311,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </button>
                         ))}
 
-                        {/* General Expense Account - always available */}
-                        {hasPermission('canAccessExpenseAccount') && (
+                        {/* General Expense Account - only for admins and business owners/managers */}
+                        {(isSystemAdmin(user) || currentBusiness.role === 'business-owner' || currentBusiness.role === 'business-manager') && hasPermission('canAccessExpenseAccount') && (
                           <>
                             <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                             <button

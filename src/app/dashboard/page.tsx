@@ -39,7 +39,7 @@ function DashboardContent() {
   const customAlert = useAlert()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentBusiness, switchBusiness, activeBusinesses, loading: businessesLoading } = useBusinessPermissionsContext()
+  const { currentBusiness, switchBusiness, activeBusinesses, loading: businessesLoading, hasPermission } = useBusinessPermissionsContext()
   const currentUser = session?.user as any
   const businessId = currentBusiness?.businessId
   const [stats, setStats] = useState({
@@ -562,8 +562,8 @@ function DashboardContent() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
-          {/* Business Type Revenue Cards */}
-          {revenueBreakdown ? Object.entries(revenueBreakdown.byType).map(([businessType, typeData]: [string, any]) => (
+          {/* Business Type Revenue Cards - only for roles with financial data access */}
+          {hasPermission('canAccessFinancialData') && revenueBreakdown ? Object.entries(revenueBreakdown.byType).map(([businessType, typeData]: [string, any]) => (
             <div
               key={businessType}
               className="card p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-shadow"
@@ -612,7 +612,7 @@ function DashboardContent() {
                 </div>
               )}
             </div>
-          )) : (
+          )) : hasPermission('canAccessFinancialData') ? (
             // Loading state for revenue cards
             <>
               {['clothing', 'grocery', 'restaurant', 'hardware'].map((businessType) => (
@@ -635,7 +635,7 @@ function DashboardContent() {
                 </div>
               ))}
             </>
-          )}
+          ) : null}
 
           <div
             onClick={() => {
@@ -713,10 +713,12 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Expense Account Low Balance Alerts */}
-        <div className="mt-6">
-          <LowBalanceAlert />
-        </div>
+        {/* Expense Account Low Balance Alerts - only for roles with financial data access */}
+        {hasPermission('canAccessFinancialData') && (
+          <div className="mt-6">
+            <LowBalanceAlert />
+          </div>
+        )}
 
         {/* Layby Alerts Widget */}
         <div className="mt-6">
@@ -728,8 +730,8 @@ function DashboardContent() {
           <R710AlertsWidget />
         </div>
 
-        {/* Business Balance & Loans Section */}
-        {businessId && (
+        {/* Business Balance & Loans Section - only for roles with financial data access */}
+        {businessId && hasPermission('canAccessFinancialData') && (
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <BusinessBalanceDisplay
               businessId={businessId}
@@ -747,7 +749,7 @@ function DashboardContent() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-primary">Recent Activity</h3>
-                {activityFinancialSummary && (
+                {activityFinancialSummary && hasPermission('canAccessFinancialData') && (
                   <div className="text-sm text-gray-600 mt-1 flex flex-wrap items-center gap-2 sm:gap-4">
                     <span>
                       Revenue: <span className="text-green-600 font-medium">${activityFinancialSummary.totalRevenue.toFixed(2)}</span>
