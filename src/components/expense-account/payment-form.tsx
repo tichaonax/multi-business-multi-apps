@@ -266,6 +266,7 @@ interface PaymentFormProps {
   currentBalance: number
   onSuccess?: () => void
   onAddFunds?: () => void
+  canCreatePayees?: boolean
   accountInfo?: {
     accountName: string
     isSibling: boolean
@@ -279,6 +280,7 @@ export function PaymentForm({
   currentBalance,
   onSuccess,
   onAddFunds,
+  canCreatePayees = false,
   accountInfo
 }: PaymentFormProps) {
   const customAlert = useAlert()
@@ -942,7 +944,7 @@ export function PaymentForm({
                 setFormData({ ...formData, payee })
                 setErrors({ ...errors, payee: '' })
               }}
-              onCreateIndividual={() => setShowIndividualModal(true)}
+              onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
               error={errors.payee}
               refreshTrigger={payeeRefreshTrigger}
             />

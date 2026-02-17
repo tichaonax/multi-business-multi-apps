@@ -21,8 +21,8 @@ export default function ExpenseAccountsPage() {
   const canCreateSiblingAccounts = hasPermission('canCreateSiblingAccounts')
   const canMergeSiblingAccounts = hasPermission('canMergeSiblingAccounts')
   const canViewExpenseReports = hasPermission('canViewExpenseReports')
-  const canCreatePayees = hasPermission('canCreateIndividualPayees')
   const canChangeCategory = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
+  const canCreatePayees = canChangeCategory // Only owners, managers, and admins can create payees
 
   useEffect(() => {
     if (status === 'unauthenticated') {
