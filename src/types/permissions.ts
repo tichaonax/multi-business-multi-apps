@@ -2483,6 +2483,7 @@ export interface BusinessMembership {
 }
 
 // Helper function to merge permissions with role-based defaults
+// Role preset provides the base, DB custom permissions can override in either direction
 export function mergeWithBusinessPermissions(
   userPermissions?: Partial<CoreBusinessPermissions>,
   role?: string
