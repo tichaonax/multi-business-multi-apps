@@ -72,9 +72,9 @@ export async function POST(request: NextRequest) {
     const txDate = new Date(transactionDate + 'T12:00:00Z')
     const now = new Date()
     const todayStr = now.toISOString().split('T')[0] // YYYY-MM-DD
-    const sevenDaysAgo = new Date(now)
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
+    const lookbackDays = new Date(now)
+    lookbackDays.setDate(lookbackDays.getDate() - 20)
+    const lookbackDateStr = lookbackDays.toISOString().split('T')[0]
 
     if (isNaN(txDate.getTime())) {
       return NextResponse.json({ error: 'Invalid transaction date' }, { status: 400 })
@@ -84,8 +84,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Transaction date cannot be in the future' }, { status: 400 })
     }
 
-    if (transactionDate < sevenDaysAgoStr) {
-      return NextResponse.json({ error: 'Transaction date cannot be more than 7 days ago' }, { status: 400 })
+    if (transactionDate < lookbackDateStr) {
+      return NextResponse.json({ error: 'Transaction date cannot be more than 20 days ago' }, { status: 400 })
     }
 
     // Check if books are closed for this date (explicit close OR locked end-of-day)

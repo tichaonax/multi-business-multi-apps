@@ -95,7 +95,8 @@ export async function GET(
       permissions: targetUser.permissions,
       createdAt: targetUser.createdAt,
       updatedAt: targetUser.updatedAt,
-      businessMemberships: targetUser.businessMemberships.map((membership: any) => ({
+      // NOTE: Prisma returns snake_case field names matching schema (business_memberships)
+      businessMemberships: ((targetUser as any).business_memberships || []).map((membership: any) => ({
         businessId: membership.businessId,
         businessName: membership.businesses.name,
         businessType: membership.businesses.type,
@@ -273,17 +274,14 @@ export async function PATCH(
         let finalTemplateId: string | null = null
         
         if (membershipData.useCustomPermissions) {
-          // Start with preset permissions and merge custom ones
-          const presetPermissions = BUSINESS_PERMISSION_PRESETS[membershipData.role] || BUSINESS_PERMISSION_PRESETS.employee
-          finalPermissions = {
-            ...presetPermissions,
-            ...membershipData.customPermissions
-          }
+          // Only store the custom overrides (differences from preset)
+          // mergeWithBusinessPermissions() will apply preset as base at runtime
+          finalPermissions = membershipData.customPermissions || {}
           // Keep template ID if provided
           finalTemplateId = membershipData.selectedTemplate || null
         } else {
-          // Use preset permissions and clear template
-          finalPermissions = BUSINESS_PERMISSION_PRESETS[membershipData.role] || BUSINESS_PERMISSION_PRESETS.employee
+          // Store empty — mergeWithBusinessPermissions() uses role preset at runtime
+          finalPermissions = {}
           finalTemplateId = null
         }
 

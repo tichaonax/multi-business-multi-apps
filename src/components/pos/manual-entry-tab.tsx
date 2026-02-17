@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Plus, Calendar, Trash2, Lock, CheckCircle, AlertCircle } from 'lucide-react'
 import { BarcodeScanner } from '@/components/universal'
+import { useDateFormat } from '@/contexts/settings-context'
+import { formatDateByFormat } from '@/lib/country-codes'
 
 export interface ManualCartItem {
   id: string
@@ -330,10 +332,12 @@ function generateTempId() {
   return `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-function getPast7Days(): string[] {
+const MANUAL_ENTRY_LOOKBACK_DAYS = 20
+
+function getPastDays(): string[] {
   const days: string[] = []
   const now = new Date()
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < MANUAL_ENTRY_LOOKBACK_DAYS; i++) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
     const yyyy = d.getFullYear()
@@ -345,6 +349,8 @@ function getPast7Days(): string[] {
 }
 
 function LegacyManualEntryForm({ businessId, businessType }: { businessId: string; businessType: string }) {
+  const { format: globalDateFormat } = useDateFormat()
+  const displayDate = (isoDate: string) => formatDateByFormat(isoDate + 'T12:00:00Z', globalDateFormat)
   const [transactionDate, setTransactionDate] = useState('')
   const [closedDatesSet, setClosedDatesSet] = useState<Set<string>>(new Set())
   const [loadingDates, setLoadingDates] = useState(true)
@@ -357,13 +363,13 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
   const [successOrder, setSuccessOrder] = useState<{ orderNumber: string; totalAmount: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const allDates = getPast7Days()
+  const allDates = getPastDays()
 
   useEffect(() => {
     if (!businessId) { setLoadingDates(false); return }
     let cancelled = false
     setLoadingDates(true)
-    fetch(`/api/universal/close-books?businessId=${businessId}&days=7`)
+    fetch(`/api/universal/close-books?businessId=${businessId}&days=${MANUAL_ENTRY_LOOKBACK_DAYS}`)
       .then(res => res.json())
       .then(data => {
         if (!cancelled) {
@@ -418,7 +424,8 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
 
   const resetForm = () => {
     setSuccessOrder(null); setError(null)
-    setItems([{ id: generateTempId(), name: '', quantity: 1, unitPrice: 0, discountAmount: 0 }]); setNotes('')
+    setTransactionDate(''); setPaymentMethod('CASH'); setNotes('')
+    setItems([{ id: generateTempId(), name: '', quantity: 1, unitPrice: 0, discountAmount: 0 }])
   }
 
   if (successOrder) {
@@ -428,7 +435,7 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">Order Created</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            Order <span className="font-mono font-bold">{successOrder.orderNumber}</span> recorded for <span className="font-semibold">{transactionDate}</span>.
+            Order <span className="font-mono font-bold">{successOrder.orderNumber}</span> recorded for <span className="font-semibold">{displayDate(transactionDate)}</span>.
           </p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">Total: ${successOrder.totalAmount.toFixed(2)}</p>
           <button onClick={resetForm} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enter Another Order</button>
@@ -446,15 +453,35 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Transaction Date</label>
-        <select value={transactionDate} onChange={(e) => setTransactionDate(e.target.value)} disabled={loadingDates}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-          <option value="">{loadingDates ? 'Loading dates...' : 'Select a date...'}</option>
-          {availableDates.map(date => (<option key={date} value={date}>{date} {date === allDates[0] ? '(Today)' : ''}</option>))}
-        </select>
+        <div className="flex gap-2">
+          <input
+            type="date"
+            value={transactionDate}
+            onChange={(e) => {
+              const val = e.target.value
+              if (val && availableDates.includes(val)) {
+                setTransactionDate(val)
+              } else if (val && allDates.includes(val) && closedDatesSet.has(val)) {
+                setError('That date is closed. Choose another date.')
+              } else if (val) {
+                setError(`Date must be within the past ${MANUAL_ENTRY_LOOKBACK_DAYS} days.`)
+              }
+            }}
+            min={allDates[allDates.length - 1]}
+            max={allDates[0]}
+            disabled={loadingDates}
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+          />
+          <select value={transactionDate} onChange={(e) => setTransactionDate(e.target.value)} disabled={loadingDates}
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            <option value="">{loadingDates ? 'Loading...' : 'Or pick from list...'}</option>
+            {availableDates.map(date => (<option key={date} value={date}>{displayDate(date)} {date === allDates[0] ? '(Today)' : ''}</option>))}
+          </select>
+        </div>
         {!loadingDates && availableDates.length === 0 && (
           <div className="flex items-center gap-2 mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
             <Lock className="w-4 h-4 text-yellow-600" />
-            <span className="text-sm text-yellow-700 dark:text-yellow-400">All dates in the past 7 days are closed. Release a day first.</span>
+            <span className="text-sm text-yellow-700 dark:text-yellow-400">All dates in the past {MANUAL_ENTRY_LOOKBACK_DAYS} days are closed. Release a day first.</span>
           </div>
         )}
       </div>
@@ -519,10 +546,16 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
         </div>
       )}
 
-      <button onClick={handleSubmit} disabled={!canSubmit}
-        className={`w-full py-3 rounded-lg font-medium text-white ${canSubmit ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'}`}>
-        {submitting ? 'Creating Order...' : 'Submit Manual Order'}
-      </button>
+      <div className="flex gap-2">
+        <button onClick={resetForm} type="button" disabled={submitting}
+          className={`flex-1 py-3 rounded-lg font-medium border ${submitting ? 'text-gray-400 bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed' : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600'}`}>
+          Cancel
+        </button>
+        <button onClick={handleSubmit} disabled={!canSubmit}
+          className={`flex-1 py-3 rounded-lg font-medium text-white ${canSubmit ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'}`}>
+          {submitting ? 'Creating Order...' : 'Submit Manual Order'}
+        </button>
+      </div>
     </div>
   )
 }

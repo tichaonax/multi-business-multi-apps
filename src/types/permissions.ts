@@ -1406,10 +1406,10 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canViewPayrollHistory: true,
   canExportPayrollPayments: false,  // ❌ FALSE by default - must be explicitly granted
 
-  // Expense Account Management - Manager access (view, payments, reports only)
+  // Expense Account Management - Manager access (view, payments, deposits, reports)
   canAccessExpenseAccount: true,
   canCreateExpenseAccount: false,  // ❌ Admin only
-  canMakeExpenseDeposits: false,  // ❌ Admin + special permission only
+  canMakeExpenseDeposits: true,   // ✅ Managers can deposit
   canMakeExpensePayments: true,
   canViewExpenseReports: true,
   canCreateIndividualPayees: true,
@@ -2483,16 +2483,27 @@ export interface BusinessMembership {
 }
 
 // Helper function to merge permissions with role-based defaults
-// Role preset provides the base, DB custom permissions can override in either direction
+// Role preset provides the base, DB custom permissions can only ELEVATE (grant additional access)
+// This ensures preset changes (e.g. granting managers deposit access) propagate automatically
 export function mergeWithBusinessPermissions(
   userPermissions?: Partial<CoreBusinessPermissions>,
   role?: string
 ): CoreBusinessPermissions {
   const roleKey = role as BusinessPermissionPreset
   const basePermissions = (roleKey && BUSINESS_PERMISSION_PRESETS[roleKey]) || BUSINESS_EMPLOYEE_PERMISSIONS
+  if (!userPermissions || Object.keys(userPermissions).length === 0) {
+    return { ...basePermissions }
+  }
+  // Only apply true values from DB — custom permissions elevate, never restrict
+  const elevated: Partial<CoreBusinessPermissions> = {}
+  for (const [key, value] of Object.entries(userPermissions)) {
+    if (value === true) {
+      (elevated as any)[key] = true
+    }
+  }
   return {
     ...basePermissions,
-    ...userPermissions,
+    ...elevated,
   };
 }
 

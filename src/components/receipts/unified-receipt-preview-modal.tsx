@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
-import { Printer, X, Check, AlertCircle, Usb } from 'lucide-react'
+import { Printer, X, Check, AlertCircle, Usb, Wifi } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { useToastContext } from '@/components/ui/toast'
@@ -59,6 +59,7 @@ export function UnifiedReceiptPreviewModal({
   const [hasLocalPrinter, setHasLocalPrinter] = useState(false)
   const [localPrinterName, setLocalPrinterName] = useState('')
   const [showLocalSetup, setShowLocalSetup] = useState(false)
+  const [checkingOnline, setCheckingOnline] = useState(false)
   const toast = useToastContext()
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id
@@ -85,8 +86,8 @@ export function UnifiedReceiptPreviewModal({
     try {
       setPrintersLoading(true)
 
-      // Fetch available receipt printers
-      const response = await fetch('/api/printers?printerType=receipt&isOnline=true')
+      // Fetch all receipt printers (including offline ones so users can bring them online)
+      const response = await fetch('/api/printers?printerType=receipt')
 
       if (!response.ok) {
         throw new Error('Failed to load printers')
@@ -148,6 +149,27 @@ export function UnifiedReceiptPreviewModal({
       toast.push('Error: Failed to load available printers')
     } finally {
       setPrintersLoading(false)
+    }
+  }
+
+  async function handleBringOnline(printerId: string) {
+    setCheckingOnline(true)
+    try {
+      const response = await fetch(`/api/printers/${printerId}/check-connectivity`, {
+        method: 'POST',
+      })
+      if (!response.ok) throw new Error('Failed to check printer connectivity')
+      const { isOnline } = await response.json()
+      if (isOnline) {
+        toast.push('Printer is now online and ready!')
+        await loadPrinters()
+      } else {
+        toast.push('Printer is still offline. Check power and network connection.')
+      }
+    } catch (error) {
+      toast.push('Error checking printer status')
+    } finally {
+      setCheckingOnline(false)
     }
   }
 
@@ -338,10 +360,20 @@ export function UnifiedReceiptPreviewModal({
                     Printer is online and ready
                   </>
                 ) : (
-                  <>
-                    <AlertCircle className="w-4 h-4 text-red-500" />
-                    Printer is offline
-                  </>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-red-600 dark:text-red-400">Printer is offline</span>
+                    </div>
+                    <button
+                      onClick={() => handleBringOnline(selectedPrinter.id)}
+                      disabled={checkingOnline}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                    >
+                      <Wifi className="w-3 h-3" />
+                      {checkingOnline ? 'Checking...' : 'Bring Online'}
+                    </button>
+                  </div>
                 )}
               </div>
             )}

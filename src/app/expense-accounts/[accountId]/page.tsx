@@ -12,6 +12,7 @@ import { DepositForm } from '@/components/expense-account/deposit-form'
 import { PaymentForm } from '@/components/expense-account/payment-form'
 import { TransactionHistory } from '@/components/expense-account/transaction-history'
 import { QuickPaymentModal } from '@/components/expense-account/quick-payment-modal'
+import { QuickDepositModal } from '@/components/expense-account/quick-deposit-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -199,6 +200,14 @@ export default function ExpenseAccountDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {canMakeExpenseDeposits && (
+              <button
+                onClick={() => setShowDepositModal(true)}
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-xs sm:text-sm font-medium"
+              >
+                Quick Deposit
+              </button>
+            )}
             {canMakeExpensePayments && (
               <button
                 onClick={() => setShowQuickPaymentModal(true)}
@@ -403,6 +412,21 @@ export default function ExpenseAccountDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Quick Deposit Modal */}
+      {account && (
+        <QuickDepositModal
+          isOpen={showDepositModal}
+          onClose={() => setShowDepositModal(false)}
+          accountId={accountId}
+          accountName={account.accountName}
+          onSuccess={() => {
+            loadAccount()
+            setShowDepositModal(false)
+          }}
+          onError={(error) => console.error('Quick deposit error:', error)}
+        />
+      )}
 
       {/* Quick Payment Modal */}
       {account && (

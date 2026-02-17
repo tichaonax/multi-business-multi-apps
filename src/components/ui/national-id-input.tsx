@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSettings } from '@/contexts/settings-context'
 
 interface IdFormatTemplate {
   id: string
@@ -40,6 +41,7 @@ export function NationalIdInput({
   showTemplateSelector = true,
   autoValidate = true
 }: NationalIdInputProps) {
+  const { settings } = useSettings()
   const [idTemplates, setIdTemplates] = useState<IdFormatTemplate[]>([])
   const [validationError, setValidationError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,17 +51,27 @@ export function NationalIdInput({
     fetchIdTemplates()
   }, [])
 
+  // Auto-select default template from global settings when no templateId is provided
+  useEffect(() => {
+    if (!templateId && idTemplates.length > 0 && settings.defaultIdFormatTemplateId) {
+      const defaultTemplate = idTemplates.find(t => t.id === settings.defaultIdFormatTemplateId)
+      if (defaultTemplate) {
+        onChange(value, defaultTemplate.id)
+      }
+    }
+  }, [idTemplates, settings.defaultIdFormatTemplateId])
+
   const fetchIdTemplates = async () => {
     setLoading(true)
     try {
       const response = await fetch('/api/id-format-templates?isActive=true', {
         method: 'GET',
-        credentials: 'include', // Include cookies for NextAuth session
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
       })
-      
+
       if (response.ok) {
         const templates = await response.json()
         setIdTemplates(templates)

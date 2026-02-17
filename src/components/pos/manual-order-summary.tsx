@@ -3,12 +3,16 @@
 import { useState, useEffect } from 'react'
 import { Lock, CheckCircle, AlertCircle, Trash2 } from 'lucide-react'
 import type { ManualCartItem } from './manual-entry-tab'
+import { useDateFormat } from '@/contexts/settings-context'
+import { formatDateByFormat } from '@/lib/country-codes'
 
-// Get past 7 days as YYYY-MM-DD strings (local timezone)
-function getPast7Days(): string[] {
+const MANUAL_ENTRY_LOOKBACK_DAYS = 20
+
+// Get past days as YYYY-MM-DD strings (local timezone)
+function getPastDays(): string[] {
   const days: string[] = []
   const now = new Date()
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < MANUAL_ENTRY_LOOKBACK_DAYS; i++) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
     const yyyy = d.getFullYear()
@@ -36,6 +40,7 @@ export function ManualOrderSummary({
   onRemoveItem,
   onClearAll,
 }: ManualOrderSummaryProps) {
+  const { format: globalDateFormat } = useDateFormat()
   const [transactionDate, setTransactionDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [notes, setNotes] = useState('')
@@ -45,7 +50,7 @@ export function ManualOrderSummary({
   const [successOrder, setSuccessOrder] = useState<{ orderNumber: string; totalAmount: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const allDates = getPast7Days()
+  const allDates = getPastDays()
 
   // Fetch all closed dates on mount
   useEffect(() => {
@@ -53,7 +58,7 @@ export function ManualOrderSummary({
     let cancelled = false
     setLoadingDates(true)
 
-    fetch(`/api/universal/close-books?businessId=${businessId}&days=7`)
+    fetch(`/api/universal/close-books?businessId=${businessId}&days=${MANUAL_ENTRY_LOOKBACK_DAYS}`)
       .then(res => res.json())
       .then(data => {
         if (cancelled) return
@@ -75,6 +80,9 @@ export function ManualOrderSummary({
   }, [businessId])
 
   const availableDates = allDates.filter(d => !closedDatesSet.has(d))
+
+  // Format an ISO date string (yyyy-mm-dd) to the global display format
+  const displayDate = (isoDate: string) => formatDateByFormat(isoDate + 'T12:00:00Z', globalDateFormat)
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
@@ -129,6 +137,8 @@ export function ManualOrderSummary({
   const handleReset = () => {
     setSuccessOrder(null)
     setError(null)
+    setTransactionDate('')
+    setPaymentMethod('CASH')
     setNotes('')
     onClearAll()
   }
@@ -142,7 +152,7 @@ export function ManualOrderSummary({
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">Order Created</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             <span className="font-mono font-bold">{successOrder.orderNumber}</span>
-            <br />recorded for {transactionDate}
+            <br />recorded for {displayDate(transactionDate)}
           </p>
           <p className="text-xl font-bold text-gray-900 dark:text-white">
             ${successOrder.totalAmount.toFixed(2)}
@@ -169,16 +179,35 @@ export function ManualOrderSummary({
         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
           Transaction Date
         </label>
+        <input
+          type="date"
+          value={transactionDate}
+          onChange={(e) => {
+            const val = e.target.value
+            if (val && availableDates.includes(val)) {
+              setTransactionDate(val)
+              setError(null)
+            } else if (val && allDates.includes(val) && closedDatesSet.has(val)) {
+              setError('That date is closed.')
+            } else if (val) {
+              setError(`Date must be within the past ${MANUAL_ENTRY_LOOKBACK_DAYS} days.`)
+            }
+          }}
+          min={allDates[allDates.length - 1]}
+          max={allDates[0]}
+          disabled={loadingDates}
+          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-1"
+        />
         <select
           value={transactionDate}
           onChange={(e) => setTransactionDate(e.target.value)}
           className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={loadingDates}
         >
-          <option value="">{loadingDates ? 'Loading dates...' : 'Select date...'}</option>
+          <option value="">{loadingDates ? 'Loading...' : 'Or pick from list...'}</option>
           {availableDates.map(date => (
             <option key={date} value={date}>
-              {date} {date === allDates[0] ? '(Today)' : ''}
+              {displayDate(date)} {date === allDates[0] ? '(Today)' : ''}
             </option>
           ))}
         </select>
@@ -186,7 +215,7 @@ export function ManualOrderSummary({
           <div className="flex items-center gap-1 mt-1 p-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
             <Lock className="w-3 h-3 text-yellow-600 flex-shrink-0" />
             <span className="text-yellow-700 dark:text-yellow-400">
-              All dates in the past 7 days are closed. Release a day first.
+              All dates in the past {MANUAL_ENTRY_LOOKBACK_DAYS} days are closed. Release a day first.
             </span>
           </div>
         )}
@@ -305,18 +334,32 @@ export function ManualOrderSummary({
         </div>
       )}
 
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className={`w-full py-2.5 rounded-lg font-medium text-white text-sm ${
-          canSubmit
-            ? 'bg-orange-600 hover:bg-orange-700'
-            : 'bg-gray-400 cursor-not-allowed'
-        }`}
-      >
-        {submitting ? 'Creating...' : !transactionDate ? 'Select a Date' : items.length === 0 ? 'Add Items First' : 'Submit Manual Order'}
-      </button>
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleReset}
+          type="button"
+          disabled={submitting}
+          className={`flex-1 py-2.5 rounded-lg font-medium text-sm border ${
+            submitting
+              ? 'text-gray-400 bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed'
+              : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600'
+          }`}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className={`flex-1 py-2.5 rounded-lg font-medium text-white text-sm ${
+            canSubmit
+              ? 'bg-orange-600 hover:bg-orange-700'
+              : 'bg-gray-400 cursor-not-allowed'
+          }`}
+        >
+          {submitting ? 'Creating...' : !transactionDate ? 'Select Date' : items.length === 0 ? 'Add Items' : 'Submit Order'}
+        </button>
+      </div>
     </div>
   )
 }

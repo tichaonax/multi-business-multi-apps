@@ -80,7 +80,8 @@ export function Sidebar() {
     isAuthenticated,
     loading: businessLoading,
     businesses: businessMemberships,
-    switchBusiness
+    switchBusiness,
+    hasPermission
   } = useBusinessPermissionsContext()
 
   // Get global cart for real-time sidebar badge updates
@@ -127,10 +128,10 @@ export function Sidebar() {
   // Check if user has WiFi setup permissions (for main WiFi Portal links)
   useEffect(() => {
     const hasWiFiPermissions = isSystemAdmin(currentUser) ||
-      checkPermission(currentUser, 'canManageWifiPortal') ||
-      checkPermission(currentUser, 'canSetupPortalIntegration') ||
-      checkPermission(currentUser, 'canConfigureWifiTokens') ||
-      checkPermission(currentUser, 'canSellWifiTokens')
+      hasPermission('canManageWifiPortal') ||
+      hasPermission('canSetupPortalIntegration') ||
+      hasPermission('canConfigureWifiTokens') ||
+      hasPermission('canSellWifiTokens')
 
     setShowWiFiPortalLinks(hasWiFiPermissions)
   }, [currentUser])
@@ -479,7 +480,7 @@ export function Sidebar() {
         </Link>
 
         {/* Business Revenue Breakdown - Only for users with financial data access */}
-        {checkPermission(currentUser, 'canAccessFinancialData') && (
+        {hasPermission('canAccessFinancialData') && (
           <button
             onClick={() => setShowRevenueModal(true)}
             className="sidebar-link flex items-center space-x-3 w-full text-left"
@@ -585,14 +586,14 @@ export function Sidebar() {
                   <span>POS System</span>
                 </Link>
                 {/* Sales Reports - Only for managers/admins, not salespersons */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
                   </Link>
                 )}
                 {/* Menu Management - Only for managers/admins who can manage menu */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canManageMenu')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canManageMenu')) && (
                   <Link href="/restaurant/menu" className={getLinkClasses('/restaurant/menu')}>
                     <span className="text-lg">📋</span>
                     <span>Menu Management</span>
@@ -604,28 +605,28 @@ export function Sidebar() {
                   <span>Services</span>
                 </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/restaurant/wifi-tokens" className={getLinkClasses('/restaurant/wifi-tokens')}>
                     <span className="text-lg">📡</span>
                     <span>ESP32 Menu Config</span>
                   </Link>
                 )}
                 {/* R710 Menu Config - Requires canConfigureWifiTokens (NOT canSellWifiTokens) */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/restaurant/r710-tokens" className={getLinkClasses('/restaurant/r710-tokens')}>
                     <span className="text-lg">📶</span>
                     <span>R710 Menu Config</span>
                   </Link>
                 )}
                 {/* ESP32 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">🎫</span>
                     <span>ESP32 WiFi Sales</span>
                   </Link>
                 )}
                 {/* R710 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
@@ -642,7 +643,7 @@ export function Sidebar() {
                   <span>POS System</span>
                 </Link>
                 {/* Sales Reports - Only for managers/admins */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/grocery/reports" className={getLinkClasses('/grocery/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
@@ -662,28 +663,28 @@ export function Sidebar() {
                   <span>Services</span>
                 </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/grocery/wifi-tokens" className={getLinkClasses('/grocery/wifi-tokens')}>
                     <span className="text-lg">📡</span>
                     <span>ESP32 Menu Config</span>
                   </Link>
                 )}
                 {/* R710 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/grocery/r710-tokens" className={getLinkClasses('/grocery/r710-tokens')}>
                     <span className="text-lg">📶</span>
                     <span>R710 Menu Config</span>
                   </Link>
                 )}
                 {/* ESP32 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">🎫</span>
                     <span>ESP32 WiFi Sales</span>
                   </Link>
                 )}
                 {/* R710 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
@@ -700,7 +701,7 @@ export function Sidebar() {
                   <span>POS System</span>
                 </Link>
                 {/* Sales Reports - Only for managers/admins */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/clothing/reports" className={getLinkClasses('/clothing/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
@@ -720,28 +721,28 @@ export function Sidebar() {
                   <span>Services</span>
                 </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/clothing/wifi-tokens" className={getLinkClasses('/clothing/wifi-tokens')}>
                     <span className="text-lg">📡</span>
                     <span>ESP32 Menu Config</span>
                   </Link>
                 )}
                 {/* R710 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/clothing/r710-tokens" className={getLinkClasses('/clothing/r710-tokens')}>
                     <span className="text-lg">📶</span>
                     <span>R710 Menu Config</span>
                   </Link>
                 )}
                 {/* ESP32 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">🎫</span>
                     <span>ESP32 WiFi Sales</span>
                   </Link>
                 )}
                 {/* R710 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
@@ -758,7 +759,7 @@ export function Sidebar() {
                   <span>POS System</span>
                 </Link>
                 {/* Sales Reports - Only for managers/admins */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/hardware/reports" className={getLinkClasses('/hardware/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
@@ -774,28 +775,28 @@ export function Sidebar() {
                   <span>Services</span>
                 </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/hardware/wifi-tokens" className={getLinkClasses('/hardware/wifi-tokens')}>
                     <span className="text-lg">📡</span>
                     <span>ESP32 Menu Config</span>
                   </Link>
                 )}
                 {/* R710 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/hardware/r710-tokens" className={getLinkClasses('/hardware/r710-tokens')}>
                     <span className="text-lg">📶</span>
                     <span>R710 Menu Config</span>
                   </Link>
                 )}
                 {/* ESP32 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">🎫</span>
                     <span>ESP32 WiFi Sales</span>
                   </Link>
                 )}
                 {/* R710 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
@@ -812,7 +813,7 @@ export function Sidebar() {
                   <span>POS System</span>
                 </Link>
                 {/* Sales Reports - Only for managers/admins */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canViewWifiReports') || checkPermission(currentUser, 'canAccessFinancialData')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
@@ -831,28 +832,28 @@ export function Sidebar() {
                   <span>Suppliers</span>
                 </Link>
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/services/wifi-tokens" className={getLinkClasses('/services/wifi-tokens')}>
                     <span className="text-lg">📡</span>
                     <span>ESP32 Menu Config</span>
                   </Link>
                 )}
                 {/* R710 Menu Config - Requires canConfigureWifiTokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canConfigureWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/services/r710-tokens" className={getLinkClasses('/services/r710-tokens')}>
                     <span className="text-lg">📶</span>
                     <span>R710 Menu Config</span>
                   </Link>
                 )}
                 {/* ESP32 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && esp32IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/wifi-portal/sales" className={getLinkClasses('/wifi-portal/sales')}>
                     <span className="text-lg">🎫</span>
                     <span>ESP32 WiFi Sales</span>
                   </Link>
                 )}
                 {/* R710 WiFi Sales - For users who can sell tokens */}
-                {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSellWifiTokens')) && r710IntegrationEnabled && (
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && r710IntegrationEnabled && (
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
@@ -887,7 +888,7 @@ export function Sidebar() {
         )}
 
         {/* Business and Personal Finances - User-level permissions (business-agnostic) */}
-  {checkPermission(currentUser, 'canAccessPersonalFinance') && (
+  {hasPermission('canAccessPersonalFinance') && (
           <div className="pt-2">
             <button
               onClick={() => navigateTo('/personal')}
@@ -900,7 +901,7 @@ export function Sidebar() {
         )}
 
         {/* Fleet Management - User-level permissions (business-agnostic) */}
-  {(checkPermission(currentUser, 'canAccessVehicles') || checkPermission(currentUser, 'canLogDriverTrips') || checkPermission(currentUser, 'canLogDriverMaintenance')) && (
+  {(hasPermission('canAccessVehicles') || hasPermission('canLogDriverTrips') || hasPermission('canLogDriverMaintenance')) && (
           <div className="pt-1">
             <button
               onClick={() => {
@@ -922,7 +923,7 @@ export function Sidebar() {
         )}
 
         {/* Contractor Management - User-level permissions (business-agnostic) */}
-  {checkPermission(currentUser, 'canManagePersonalContractors') && (
+  {hasPermission('canManagePersonalContractors') && (
           <div className="pt-1">
             <button
               onClick={() => navigateTo('/contractors')}
@@ -937,7 +938,7 @@ export function Sidebar() {
         {/* Individual Access Items - Only for actual managers and system admins, NOT promoted drivers */}
 
         {/* Employees - Only for users with management permissions, not just viewing */}
-        {(checkPermission(currentUser, 'canManageEmployees') || checkPermission(currentUser, 'canEditEmployees') || checkPermission(currentUser, 'canManageBusinessUsers')) && (
+        {(hasPermission('canManageEmployees') || hasPermission('canEditEmployees') || hasPermission('canManageBusinessUsers')) && (
           <Link
             href="/employees"
             className="sidebar-link flex items-center space-x-3"
@@ -948,7 +949,7 @@ export function Sidebar() {
         )}
 
         {/* Payroll - Only for users with payroll permissions */}
-        {checkPermission(currentUser, 'canAccessPayroll') && (
+        {(isSystemAdmin(currentUser) || hasPermission('canAccessPayroll')) && (
           <Link
             href="/payroll"
             className={getLinkClasses('/payroll')}
@@ -959,7 +960,7 @@ export function Sidebar() {
         )}
 
         {/* Payroll Account - Only for users with payroll account permissions */}
-        {checkPermission(currentUser, 'canAccessPayrollAccount') && (
+        {(isSystemAdmin(currentUser) || hasPermission('canAccessPayrollAccount')) && (
           <>
             <Link
               href="/payroll/account"
@@ -972,7 +973,7 @@ export function Sidebar() {
             {/* Payroll Account Sub-menu - Show when on payroll account pages */}
             {pathname.startsWith('/payroll/account') && (
               <div className="ml-8 space-y-1 mt-1">
-                {checkPermission(currentUser, 'canMakePayrollDeposits') && (
+                {(isSystemAdmin(currentUser) || hasPermission('canMakePayrollDeposits')) && (
                   <Link
                     href="/payroll/account/deposits"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -982,7 +983,7 @@ export function Sidebar() {
                   </Link>
                 )}
 
-                {checkPermission(currentUser, 'canMakePayrollPayments') && (
+                {(isSystemAdmin(currentUser) || hasPermission('canMakePayrollPayments')) && (
                   <>
                     <Link
                       href="/payroll/account/payments"
@@ -1002,7 +1003,7 @@ export function Sidebar() {
                   </>
                 )}
 
-                {checkPermission(currentUser, 'canViewPayrollHistory') && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewPayrollHistory')) && (
                   <Link
                     href="/payroll/account/payments/history"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -1017,7 +1018,7 @@ export function Sidebar() {
         )}
 
         {/* Expense Accounts - Only for users with expense account permissions */}
-        {checkPermission(currentUser, 'canAccessExpenseAccount') && (
+        {hasPermission('canAccessExpenseAccount') && (
           <>
             <Link
               href="/expense-accounts"
@@ -1030,7 +1031,7 @@ export function Sidebar() {
             {/* Expense Accounts Sub-menu - Show when on expense account pages */}
             {pathname.startsWith('/expense-accounts') && (
               <div className="ml-8 space-y-1 mt-1">
-                {checkPermission(currentUser, 'canCreateExpenseAccount') && (
+                {hasPermission('canCreateExpenseAccount') && (
                   <Link
                     href="/expense-accounts/new"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -1040,7 +1041,7 @@ export function Sidebar() {
                   </Link>
                 )}
 
-                {checkPermission(currentUser, 'canViewExpenseReports') && (
+                {hasPermission('canViewExpenseReports') && (
                   <Link
                     href="/expense-accounts/reports"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -1055,7 +1056,7 @@ export function Sidebar() {
         )}
 
         {/* Payee Management - Only for users with payee permissions */}
-        {checkPermission(currentUser, 'canViewPayees') && (
+        {hasPermission('canViewPayees') && (
           <Link
             href="/payees"
             className={getLinkClasses('/payees')}
@@ -1066,7 +1067,7 @@ export function Sidebar() {
         )}
 
         {/* ESP32 WiFi Portal - Only for admins/managers who can setup integration */}
-        {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSetupPortalIntegration')) && (
+        {(isSystemAdmin(currentUser) || hasPermission('canSetupPortalIntegration')) && (
           <Link
             href="/wifi-portal"
             className={getLinkClasses('/wifi-portal')}
@@ -1077,7 +1078,7 @@ export function Sidebar() {
         )}
 
         {/* R710 WiFi Portal - Only for admins/managers who can setup integration */}
-        {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canSetupPortalIntegration')) && (
+        {(isSystemAdmin(currentUser) || hasPermission('canSetupPortalIntegration')) && (
           <Link
             href="/r710-portal"
             className={getLinkClasses('/r710-portal')}
@@ -1088,7 +1089,7 @@ export function Sidebar() {
         )}
 
         {/* Reports - Only for managers and admins, not drivers */}
-        {(checkPermission(currentUser, 'canManageBusinessUsers') || checkPermission(currentUser, 'canAccessFinancialData')) && (
+        {(hasPermission('canManageBusinessUsers') || hasPermission('canAccessFinancialData')) && (
           <Link
             href="/reports"
             className="sidebar-link flex items-center space-x-3"
@@ -1099,7 +1100,7 @@ export function Sidebar() {
         )}
 
         {/* HR Reports - Only for users with actual employee management permissions */}
-        {(checkPermission(currentUser, 'canManageEmployees') || checkPermission(currentUser, 'canEditEmployees')) && (
+        {(hasPermission('canManageEmployees') || hasPermission('canEditEmployees')) && (
           <Link
             href="/admin/reports"
             className="sidebar-link flex items-center space-x-3"
@@ -1123,7 +1124,7 @@ export function Sidebar() {
         </Link>
 
         {/* Coupon Management - Available for any business with coupons enabled */}
-        {currentBusiness && currentBusiness.couponsEnabled && (isSystemAdmin(currentUser) || checkPermission(currentUser, 'canManageCoupons')) && (
+        {currentBusiness && currentBusiness.couponsEnabled && (isSystemAdmin(currentUser) || hasPermission('canManageCoupons')) && (
           <Link href="/clothing/coupons" className={getLinkClasses('/clothing/coupons')}>
             <span className="text-lg">🏷️</span>
             <span>Coupon Management</span>
@@ -1131,9 +1132,9 @@ export function Sidebar() {
         )}
 
         {/* Business Categories - Cross-business functionality */}
-        {(checkPermission(currentUser, 'canCreateBusinessCategories') ||
-          checkPermission(currentUser, 'canEditBusinessCategories') ||
-          checkPermission(currentUser, 'canDeleteBusinessCategories')) && (
+        {(hasPermission('canCreateBusinessCategories') ||
+          hasPermission('canEditBusinessCategories') ||
+          hasPermission('canDeleteBusinessCategories')) && (
           <Link
             href="/business/categories"
             className={getLinkClasses('/business/categories')}
@@ -1144,9 +1145,9 @@ export function Sidebar() {
         )}
 
         {/* Inventory Categories - Business-specific inventory category management */}
-        {(checkPermission(currentUser, 'canCreateInventoryCategories') ||
-          checkPermission(currentUser, 'canEditInventoryCategories') ||
-          checkPermission(currentUser, 'canDeleteInventoryCategories')) && (
+        {(hasPermission('canCreateInventoryCategories') ||
+          hasPermission('canEditInventoryCategories') ||
+          hasPermission('canDeleteInventoryCategories')) && (
           <Link
             href="/business/inventory-categories"
             className={getLinkClasses('/business/inventory-categories')}
@@ -1157,8 +1158,8 @@ export function Sidebar() {
         )}
 
         {/* Barcode Management - Universal barcode template and print job management */}
-        {(checkPermission(currentUser, 'canViewBarcodeTemplates') ||
-          checkPermission(currentUser, 'canManageBarcodeTemplates')) && (
+        {(hasPermission('canViewBarcodeTemplates') ||
+          hasPermission('canManageBarcodeTemplates')) && (
           <Link
             href={`/universal/barcode-management${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
             className={getLinkClasses('/universal/barcode-management')}
@@ -1169,9 +1170,9 @@ export function Sidebar() {
         )}
 
         {/* Supplier Management - Business-specific supplier management */}
-        {(checkPermission(currentUser, 'canViewSuppliers') ||
-          checkPermission(currentUser, 'canCreateSuppliers') ||
-          checkPermission(currentUser, 'canEditSuppliers')) && (
+        {(hasPermission('canViewSuppliers') ||
+          hasPermission('canCreateSuppliers') ||
+          hasPermission('canEditSuppliers')) && (
           <Link
             href="/business/suppliers"
             className={getLinkClasses('/business/suppliers')}
@@ -1182,9 +1183,9 @@ export function Sidebar() {
         )}
 
         {/* Location Management - Business-specific location management */}
-        {(checkPermission(currentUser, 'canViewLocations') ||
-          checkPermission(currentUser, 'canCreateLocations') ||
-          checkPermission(currentUser, 'canEditLocations')) && (
+        {(hasPermission('canViewLocations') ||
+          hasPermission('canCreateLocations') ||
+          hasPermission('canEditLocations')) && (
           <Link
             href="/business/locations"
             className={getLinkClasses('/business/locations')}
@@ -1195,7 +1196,7 @@ export function Sidebar() {
         )}
 
         {/* Customer Management - Cross-business functionality */}
-        {(checkPermission(currentUser, 'canAccessCustomers') || checkPermission(currentUser, 'canManageCustomers')) && (
+        {(hasPermission('canAccessCustomers') || hasPermission('canManageCustomers')) && (
           <Link
             href="/customers"
             className={getLinkClasses('/customers')}
@@ -1206,7 +1207,7 @@ export function Sidebar() {
         )}
 
         {/* Layby Management - Cross-business functionality */}
-        {checkPermission(currentUser, 'canManageLaybys') && (
+        {hasPermission('canManageLaybys') && (
           <Link
             href="/business/laybys"
             className={getLinkClasses('/business/laybys')}
@@ -1217,7 +1218,7 @@ export function Sidebar() {
         )}
 
         {/* Project Management - Cross-business functionality */}
-  {(checkPermission(currentUser, 'canViewProjects') || checkPermission(currentUser, 'canAccessPersonalFinance')) && (
+  {(isSystemAdmin(currentUser) || hasPermission('canViewProjects') || hasPermission('canAccessPersonalFinance')) && (
           <Link
             href="/projects"
             className={getLinkClasses('/projects')}
@@ -1236,18 +1237,18 @@ export function Sidebar() {
         </Link>
 
         {/* Employee Management Section - Only for users with actual management permissions */}
-        {(checkPermission(currentUser, 'canManageEmployees') ||
-          checkPermission(currentUser, 'canManageJobTitles') ||
-          checkPermission(currentUser, 'canEditEmployees') ||
-          checkPermission(currentUser, 'canManageBenefitTypes') ||
-          checkPermission(currentUser, 'canManageCompensationTypes') ||
-          checkPermission(currentUser, 'canManageDisciplinaryActions')) && (
+        {(hasPermission('canManageEmployees') ||
+          hasPermission('canManageJobTitles') ||
+          hasPermission('canEditEmployees') ||
+          hasPermission('canManageBenefitTypes') ||
+          hasPermission('canManageCompensationTypes') ||
+          hasPermission('canManageDisciplinaryActions')) && (
           <>
             <div className="pt-4 pb-2">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Employee Management</h3>
             </div>
 
-            {checkPermission(currentUser, 'canManageJobTitles') && (
+            {hasPermission('canManageJobTitles') && (
               <Link
                 href="/admin/job-titles"
                 className="sidebar-link flex items-center space-x-3"
@@ -1257,7 +1258,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {checkPermission(currentUser, 'canEditEmployees') && (
+            {hasPermission('canEditEmployees') && (
               <Link
                 href="/admin/hierarchy"
                 className="sidebar-link flex items-center space-x-3"
@@ -1267,7 +1268,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {(checkPermission(currentUser, 'canManageBenefitTypes') || checkPermission(currentUser, 'canManageCompensationTypes')) && (
+            {(hasPermission('canManageBenefitTypes') || hasPermission('canManageCompensationTypes')) && (
               <Link
                 href="/admin/benefits"
                 className="sidebar-link flex items-center space-x-3"
@@ -1277,7 +1278,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {checkPermission(currentUser, 'canManageDisciplinaryActions') && (
+            {hasPermission('canManageDisciplinaryActions') && (
               <Link
                 href="/admin/disciplinary"
                 className="sidebar-link flex items-center space-x-3"
@@ -1289,7 +1290,7 @@ export function Sidebar() {
           </>
         )}
         
-  {(checkPermission(currentUser, 'canManageBusinessUsers') || checkPermission(currentUser, 'canManageBusinessSettings')) && (
+  {(hasPermission('canManageBusinessUsers') || hasPermission('canManageBusinessSettings')) && (
           <>
             <div className="pt-4 pb-2">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</h3>
@@ -1305,7 +1306,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {(isSystemAdmin(currentUser) || checkPermission(currentUser, 'canManageWifiPortal')) && (
+            {(isSystemAdmin(currentUser) || hasPermission('canManageWifiPortal')) && (
               <Link
                 href={
                   pathname.startsWith('/r710-portal')
@@ -1341,7 +1342,7 @@ export function Sidebar() {
               </Link>
             )}
             
-            {checkPermission(currentUser, 'canManageBusinessUsers') && (
+            {hasPermission('canManageBusinessUsers') && (
               <Link 
                 href="/admin/users" 
                 className="sidebar-link flex items-center space-x-3"
@@ -1351,7 +1352,7 @@ export function Sidebar() {
               </Link>
             )}
             
-            {checkPermission(currentUser, 'canManageBusinessSettings') && (
+            {hasPermission('canManageBusinessSettings') && (
               <Link 
                 href="/admin/settings" 
                 className="sidebar-link flex items-center space-x-3"
@@ -1361,7 +1362,7 @@ export function Sidebar() {
               </Link>
             )}
             
-            {checkPermission(currentUser, 'canManageBusinessUsers') && (
+            {hasPermission('canManageBusinessUsers') && (
               <Link 
                 href="/business/manage" 
                 className="sidebar-link flex items-center space-x-3"
@@ -1371,7 +1372,7 @@ export function Sidebar() {
               </Link>
             )}
             
-            {checkPermission(currentUser, 'canAccessFinancialData') && (
+            {hasPermission('canAccessFinancialData') && (
               <Link
                 href="/business/manage/loans"
                 className="sidebar-link flex items-center space-x-3"
@@ -1381,7 +1382,7 @@ export function Sidebar() {
               </Link>
             )}
 
-            {checkPermission(currentUser, 'canManageBusinessSettings') && (
+            {hasPermission('canManageBusinessSettings') && (
               <Link
                 href="/admin/umbrella-business"
                 className="sidebar-link flex items-center space-x-3"

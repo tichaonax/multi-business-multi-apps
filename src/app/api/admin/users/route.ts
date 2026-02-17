@@ -53,18 +53,19 @@ export async function GET() {
       });
       
       // Transform the response to match frontend expectations
-      const transformedUsers = users.map(user => ({
+      // NOTE: Prisma returns snake_case field names matching schema (business_memberships)
+      const transformedUsers = users.map((user: any) => ({
         ...user,
         employee: user.employees || null, // One-to-one relation (not an array)
-        businessMemberships: user.businessMemberships?.map(membership => ({
+        businessMemberships: (user.business_memberships || []).map((membership: any) => ({
           ...membership,
           business: membership.businesses,
           template: membership.permission_templates,
           businesses: membership.businesses, // Keep for frontend compatibility
           permissionTemplates: membership.permission_templates // Keep for frontend compatibility
-        })) || []
+        }))
       }));
-      
+
       return NextResponse.json(transformedUsers);
     }
 
@@ -126,16 +127,17 @@ export async function GET() {
     });
     
     // Transform the response to match frontend expectations
-    const transformedUsers = users.map(user => ({
+    // NOTE: Prisma returns snake_case field names matching schema (business_memberships)
+    const transformedUsers = users.map((user: any) => ({
       ...user,
       employee: user.employees || null, // One-to-one relation (not an array)
-      businessMemberships: user.businessMemberships?.map(membership => ({
+      businessMemberships: (user.business_memberships || []).map((membership: any) => ({
         ...membership,
         business: membership.businesses,
         template: membership.permission_templates,
         businesses: membership.businesses, // Keep for frontend compatibility
         permissionTemplates: membership.permission_templates // Keep for frontend compatibility
-      })) || []
+      }))
     }));
 
     return NextResponse.json(transformedUsers);
@@ -277,15 +279,14 @@ export async function POST(req: NextRequest) {
           // Determine permissions to use
           let assignmentPermissions = {};
           if (assignment.useCustomPermissions && assignment.customPermissions) {
+            // Only store the custom overrides — mergeWithBusinessPermissions() applies preset at runtime
             assignmentPermissions = { ...assignment.customPermissions };
             // ensure manager-only flag is not set for non-manager roles
             if (!(assignment.role === 'business-manager' || assignment.role === 'business-owner')) {
               delete (assignmentPermissions as any).canResetExportedPayrollToPreview
             }
-          } else {
-            assignmentPermissions = BUSINESS_PERMISSION_PRESETS[assignment.role as keyof typeof BUSINESS_PERMISSION_PRESETS] ||
-                                   BUSINESS_PERMISSION_PRESETS['employee'];
           }
+          // When useCustomPermissions is false, store {} — role preset applied at runtime
 
           const membership = await tx.businessMemberships.create({
             data: {
@@ -331,11 +332,9 @@ export async function POST(req: NextRequest) {
         });
 
         if (userMembership) {
-          let userPermissions = customPermissions || 
-                                 BUSINESS_PERMISSION_PRESETS[role as keyof typeof BUSINESS_PERMISSION_PRESETS] ||
-                                 BUSINESS_PERMISSION_PRESETS['employee'];
+          // Only store custom overrides — role preset applied at runtime via mergeWithBusinessPermissions
+          let userPermissions = customPermissions || {};
           if (userPermissions && !(role === 'business-manager' || role === 'business-owner')) {
-            // strip manager-only permission if present
             userPermissions = { ...userPermissions } as any
             delete (userPermissions as any).canResetExportedPayrollToPreview
           }

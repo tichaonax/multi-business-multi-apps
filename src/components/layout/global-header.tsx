@@ -23,6 +23,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
   const businessMenuOpenedByClick = useRef(false)
   const businessMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const businessMenuOpenedAt = useRef(0)
 
   // Close all menus on navigation
   useEffect(() => {
@@ -51,22 +52,27 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     setShowBusinessMenu(false)
   }
 
-  // Business menu hover handlers (desktop only — disabled when opened by click)
+  // Business menu hover handlers (desktop only)
   const handleBusinessMenuEnter = () => {
-    if (businessMenuOpenedByClick.current) return
     if (businessMenuTimeoutRef.current) {
       clearTimeout(businessMenuTimeoutRef.current)
+      businessMenuTimeoutRef.current = null
     }
-    businessMenuTimeoutRef.current = setTimeout(() => {
-      setShowBusinessMenu(true)
-    }, 300) // 300ms delay
+    // Only open on hover if not already opened by click
+    if (!businessMenuOpenedByClick.current && !showBusinessMenu) {
+      businessMenuTimeoutRef.current = setTimeout(() => {
+        setShowBusinessMenu(true)
+      }, 300) // 300ms delay
+    }
   }
 
   const handleBusinessMenuLeave = () => {
-    if (businessMenuOpenedByClick.current) return
     if (businessMenuTimeoutRef.current) {
       clearTimeout(businessMenuTimeoutRef.current)
+      businessMenuTimeoutRef.current = null
     }
+    // Don't auto-close if opened by click — user must click away or select
+    if (businessMenuOpenedByClick.current) return
     businessMenuTimeoutRef.current = setTimeout(() => {
       setShowBusinessMenu(false)
     }, 150) // 150ms delay to hide
@@ -130,12 +136,16 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     }
 
     // Expense account links - one per account linked to this business
-    const expenseLinks: MenuLink[] = (currentBusiness?.expenseAccounts || []).map(ea => ({
-      href: `/expense-accounts/${ea.id}`,
-      icon: '💳',
-      label: ea.accountName,
-      permissions: ['canAccessExpenseAccount']
-    }))
+    // General Expenses account requires canAccessFinancialData permission
+    const canSeeGeneralExpenses = isAdmin || hasPermission('canAccessFinancialData')
+    const expenseLinks: MenuLink[] = (currentBusiness?.expenseAccounts || [])
+      .filter(ea => ea.id !== 'acc-general-expenses' || canSeeGeneralExpenses)
+      .map(ea => ({
+        href: `/expense-accounts/${ea.id}`,
+        icon: '💳',
+        label: ea.accountName,
+        permissions: ['canAccessExpenseAccount']
+      }))
 
     // Coupon management link - only if business has coupons enabled
     const couponLinks: MenuLink[] = currentBusiness?.couponsEnabled
@@ -240,7 +250,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
             {session?.user && isAuthenticated && currentBusiness && (
               <div className="relative">
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation()
                     if (showBusinessMenu) {
                       closeBusinessMenu()
                     } else {
@@ -248,7 +259,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                         clearTimeout(businessMenuTimeoutRef.current)
                         businessMenuTimeoutRef.current = null
                       }
+                      // Close other menus
+                      setShowUserMenu(false)
+                      setShowThemeMenu(false)
                       businessMenuOpenedByClick.current = true
+                      businessMenuOpenedAt.current = Date.now()
                       setShowBusinessMenu(true)
                     }
                   }}
@@ -279,7 +294,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                 {/* Business dropdown menu */}
                 {showBusinessMenu && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={closeBusinessMenu} />
+                    {/* Overlay only when opened by click — hover uses mouseLeave instead */}
+                    {businessMenuOpenedByClick.current && (
+                      <div className="fixed inset-0 z-40" onClick={() => {
+                        // Ignore clicks within 200ms of opening to prevent flash-close
+                        if (Date.now() - businessMenuOpenedAt.current < 200) return
+                        closeBusinessMenu()
+                      }} />
+                    )}
                     <div
                       className="fixed left-12 right-2 sm:absolute sm:left-auto sm:right-auto top-14 sm:top-full mt-0 sm:mt-2 sm:w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
                       onMouseEnter={handleBusinessMenuEnter}
@@ -311,8 +333,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </button>
                         ))}
 
-                        {/* General Expense Account - only for admins and business owners/managers */}
-                        {(isSystemAdmin(user) || currentBusiness.role === 'business-owner' || currentBusiness.role === 'business-manager') && hasPermission('canAccessExpenseAccount') && (
+                        {/* General Expense Account - requires financial data access */}
+                        {(isAdmin || hasPermission('canAccessFinancialData')) && hasPermission('canAccessExpenseAccount') && (
                           <>
                             <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                             <button
@@ -533,7 +555,42 @@ interface UserDropdownProps {
 
 function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
   const pathname = usePathname()
-  const { hasPermission } = useBusinessPermissionsContext()
+  const { hasPermission, currentBusiness } = useBusinessPermissionsContext()
+  const userMenuOpenedByClick = useRef(false)
+  const userMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const userMenuOpenedAt = useRef(0)
+
+  const closeUserMenu = () => {
+    if (userMenuTimeoutRef.current) {
+      clearTimeout(userMenuTimeoutRef.current)
+      userMenuTimeoutRef.current = null
+    }
+    userMenuOpenedByClick.current = false
+    setShowMenu(false)
+  }
+
+  const handleUserMenuEnter = () => {
+    if (userMenuTimeoutRef.current) {
+      clearTimeout(userMenuTimeoutRef.current)
+      userMenuTimeoutRef.current = null
+    }
+    if (!userMenuOpenedByClick.current && !showMenu) {
+      userMenuTimeoutRef.current = setTimeout(() => {
+        setShowMenu(true)
+      }, 300)
+    }
+  }
+
+  const handleUserMenuLeave = () => {
+    if (userMenuTimeoutRef.current) {
+      clearTimeout(userMenuTimeoutRef.current)
+      userMenuTimeoutRef.current = null
+    }
+    if (userMenuOpenedByClick.current) return
+    userMenuTimeoutRef.current = setTimeout(() => {
+      setShowMenu(false)
+    }, 150)
+  }
 
   const handleSignOut = () => {
     // Clear any stored callback URLs and redirect to home page
@@ -549,7 +606,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
         }
       }, 100)
     })
-    setShowMenu(false)
+    closeUserMenu()
   }
 
   const getInitials = (name: string) => {
@@ -576,7 +633,22 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
   return (
     <div className="relative">
       <button
-        onClick={() => setShowMenu(!showMenu)}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (showMenu) {
+            closeUserMenu()
+          } else {
+            if (userMenuTimeoutRef.current) {
+              clearTimeout(userMenuTimeoutRef.current)
+              userMenuTimeoutRef.current = null
+            }
+            userMenuOpenedByClick.current = true
+            userMenuOpenedAt.current = Date.now()
+            setShowMenu(true)
+          }
+        }}
+        onMouseEnter={handleUserMenuEnter}
+        onMouseLeave={handleUserMenuLeave}
         className="flex items-center space-x-1 sm:space-x-3 text-sm rounded-md p-1 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       >
         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm shrink-0">
@@ -598,11 +670,21 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
 
       {showMenu && (
         <>
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={() => setShowMenu(false)}
-          />
-          <div className="fixed right-2 sm:absolute sm:right-0 mt-2 w-[calc(100vw-1rem)] sm:w-56 max-w-xs bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
+          {/* Overlay only when opened by click — hover uses mouseLeave instead */}
+          {userMenuOpenedByClick.current && (
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => {
+                if (Date.now() - userMenuOpenedAt.current < 200) return
+                closeUserMenu()
+              }}
+            />
+          )}
+          <div
+            className="fixed right-2 sm:absolute sm:right-0 mt-2 w-[calc(100vw-1rem)] sm:w-56 max-w-xs bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20"
+            onMouseEnter={handleUserMenuEnter}
+            onMouseLeave={handleUserMenuLeave}
+          >
             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <p className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
@@ -615,7 +697,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
               <Link
                 href="/profile"
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => setShowMenu(false)}
+                onClick={() => closeUserMenu()}
               >
                 <div className="flex items-center space-x-2">
                   <span>👤</span>
@@ -626,7 +708,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
               <Link
                 href="/dashboard"
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => setShowMenu(false)}
+                onClick={() => closeUserMenu()}
               >
                 <div className="flex items-center space-x-2">
                   <span>📊</span>
@@ -639,7 +721,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
                   <Link
                     href="/admin"
                     className="block px-4 py-2 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-semibold"
-                    onClick={() => setShowMenu(false)}
+                    onClick={() => closeUserMenu()}
                   >
                     <div className="flex items-center space-x-2">
                       <span>🛠️</span>
@@ -649,7 +731,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
                   <Link
                     href="/admin/users"
                     className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    onClick={() => setShowMenu(false)}
+                    onClick={() => closeUserMenu()}
                   >
                     <div className="flex items-center space-x-2">
                       <span>👥</span>
@@ -669,11 +751,25 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
                 <Link
                   href="/admin/data-management"
                   className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => setShowMenu(false)}
+                  onClick={() => closeUserMenu()}
                 >
                   <div className="flex items-center space-x-2">
                     <span>🗂️</span>
                     <span>Data Management</span>
+                  </div>
+                </Link>
+              )}
+
+              {/* Printer Management link - visible to admins and business owners */}
+              {(isSystemAdmin(user) || currentBusiness?.role === 'business-owner') && (
+                <Link
+                  href="/admin/printers"
+                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => closeUserMenu()}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>🖨️</span>
+                    <span>Printer Management</span>
                   </div>
                 </Link>
               )}
@@ -687,7 +783,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
                 <Link
                   href="/business/manage"
                   className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => setShowMenu(false)}
+                  onClick={() => closeUserMenu()}
                 >
                   <div className="flex items-center space-x-2">
                     <span>🏢</span>
@@ -704,7 +800,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
                 <Link
                   href="/expense-accounts"
                   className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => setShowMenu(false)}
+                  onClick={() => closeUserMenu()}
                 >
                   <div className="flex items-center space-x-2">
                     <span>💳</span>
@@ -718,7 +814,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
               <Link
                 href={getHelpUrl()}
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => setShowMenu(false)}
+                onClick={() => closeUserMenu()}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -731,7 +827,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
               <Link
                 href="/support"
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => setShowMenu(false)}
+                onClick={() => closeUserMenu()}
               >
                 <div className="flex items-center space-x-2">
                   <span>📧</span>
