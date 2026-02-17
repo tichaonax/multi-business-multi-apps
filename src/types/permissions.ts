@@ -1816,7 +1816,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canMakeExpenseDeposits: false,   // ❌ Cannot deposit money
   canMakeExpensePayments: true,    // ✅ Can record expenses
   canViewExpenseReports: true,     // ✅ Can view expense reports
-  canCreateIndividualPayees: true, // ✅ Can create payees for expenses
+  canCreateIndividualPayees: false, // ❌ Cannot create payees (business-owner/manager only)
   canDeleteExpenseAccounts: false,
   canAdjustExpensePayments: false,
   canEditExpenseTransactions: false,
@@ -2482,12 +2482,15 @@ export interface BusinessMembership {
   lastAccessedAt: Date | null;
 }
 
-// Helper function to merge permissions with defaults
+// Helper function to merge permissions with role-based defaults
 export function mergeWithBusinessPermissions(
-  userPermissions?: Partial<CoreBusinessPermissions>
+  userPermissions?: Partial<CoreBusinessPermissions>,
+  role?: string
 ): CoreBusinessPermissions {
+  const roleKey = role as BusinessPermissionPreset
+  const basePermissions = (roleKey && BUSINESS_PERMISSION_PRESETS[roleKey]) || BUSINESS_EMPLOYEE_PERMISSIONS
   return {
-    ...BUSINESS_EMPLOYEE_PERMISSIONS, // Default to employee permissions
+    ...basePermissions,
     ...userPermissions,
   };
 }

@@ -21,6 +21,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
+  const businessMenuOpenedByClick = useRef(false)
   const businessMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Close all menus on navigation
@@ -46,11 +47,13 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       clearTimeout(businessMenuTimeoutRef.current)
       businessMenuTimeoutRef.current = null
     }
+    businessMenuOpenedByClick.current = false
     setShowBusinessMenu(false)
   }
 
-  // Business menu hover handlers (desktop only)
+  // Business menu hover handlers (desktop only — disabled when opened by click)
   const handleBusinessMenuEnter = () => {
+    if (businessMenuOpenedByClick.current) return
     if (businessMenuTimeoutRef.current) {
       clearTimeout(businessMenuTimeoutRef.current)
     }
@@ -60,6 +63,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   }
 
   const handleBusinessMenuLeave = () => {
+    if (businessMenuOpenedByClick.current) return
     if (businessMenuTimeoutRef.current) {
       clearTimeout(businessMenuTimeoutRef.current)
     }
@@ -240,6 +244,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                     if (showBusinessMenu) {
                       closeBusinessMenu()
                     } else {
+                      if (businessMenuTimeoutRef.current) {
+                        clearTimeout(businessMenuTimeoutRef.current)
+                        businessMenuTimeoutRef.current = null
+                      }
+                      businessMenuOpenedByClick.current = true
                       setShowBusinessMenu(true)
                     }
                   }}

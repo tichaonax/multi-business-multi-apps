@@ -126,8 +126,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Start Date
@@ -199,26 +199,26 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="hidden sm:table-cell px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Description
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Category
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Source
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Amount
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Balance After
+                  <th className="hidden md:table-cell px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Balance
                   </th>
                 </tr>
               </thead>
@@ -237,23 +237,23 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         window.location.href = detailPath
                       }}
                     >
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {formatDate(transaction.date)}
                       </td>
 
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">
                         <span
-                          className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium rounded-full ${
                             isDeposit
                               ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                               : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
                           }`}
                         >
-                          {isDeposit ? '📥 Deposit' : '📤 Payment'}
+                          {isDeposit ? '📥' : '📤'}<span className="hidden sm:inline"> {isDeposit ? 'Deposit' : 'Payment'}</span>
                         </span>
                       </td>
 
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                      <td className="hidden sm:table-cell px-2 sm:px-4 py-2 sm:py-3 text-sm text-gray-900 dark:text-gray-100">
                         <div>
                           {transaction.description}
                         </div>
@@ -264,7 +264,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         )}
                       </td>
 
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                      <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                         {transaction.category ? (
                           <span>
                             {transaction.category.emoji} {transaction.category.name}
@@ -273,7 +273,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           <span className="text-gray-400 dark:text-gray-500">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                      <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                         {transaction.sourceBusiness ? (
                           <span className="font-medium">{transaction.sourceBusiness.name}</span>
                         ) : (
@@ -281,9 +281,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         )}
                       </td>
 
-                      <td className="px-4 py-3 whitespace-nowrap text-right">
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-right">
                         <span
-                          className={`text-sm font-semibold ${
+                          className={`text-xs sm:text-sm font-semibold ${
                             isDeposit
                               ? 'text-green-600 dark:text-green-400'
                               : 'text-red-600 dark:text-red-400'
@@ -294,7 +294,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         </span>
                       </td>
 
-                      <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <td className="hidden md:table-cell px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-gray-100">
                         {formatCurrency(transaction.balanceAfter)}
                       </td>
                     </tr>

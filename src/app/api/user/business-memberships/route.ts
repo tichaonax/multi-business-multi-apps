@@ -121,7 +121,7 @@ export async function GET() {
       businessType: membership.businesses.type,
       couponsEnabled: membership.businesses.couponsEnabled ?? false,
       role: membership.role as any,
-      permissions: mergeWithBusinessPermissions(membership.permissions as any),
+      permissions: mergeWithBusinessPermissions(membership.permissions as any, membership.role),
       isActive: membership.isActive && membership.businesses.isActive,
       isDemo: membership.businesses.isDemo, // Include demo flag
       address: membership.businesses.address, // Business address for receipts

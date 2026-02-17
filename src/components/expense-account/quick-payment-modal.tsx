@@ -7,6 +7,8 @@ import { useToastContext } from '@/components/ui/toast'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { PayeeSelector } from './payee-selector'
+import { SearchableCategorySelector } from './searchable-category-selector'
+import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { getTodayLocalDateString } from '@/lib/date-utils'
 
 interface ExpenseCategory {
@@ -31,6 +33,18 @@ interface ExpenseSubSubcategory {
   emoji: string
 }
 
+function getDefaultDomainName(businessType: string): string {
+  const map: Record<string, string> = {
+    restaurant: 'Restaurant',
+    grocery: 'Groceries',
+    clothing: 'Clothing',
+    hardware: 'Hardware',
+    construction: 'Construction',
+    vehicles: 'Vehicle',
+  }
+  return map[businessType] || 'Business'
+}
+
 interface QuickPaymentModalProps {
   isOpen: boolean
   onClose: () => void
@@ -39,6 +53,9 @@ interface QuickPaymentModalProps {
   currentBalance: number
   onSuccess: (payload: OnSuccessArg) => void
   onError: (error: string) => void
+  canCreatePayees?: boolean
+  canChangeCategory?: boolean
+  defaultCategoryBusinessType?: string
 }
 
 export function QuickPaymentModal({
@@ -48,9 +65,14 @@ export function QuickPaymentModal({
   accountName,
   currentBalance,
   onSuccess,
-  onError
+  onError,
+  canCreatePayees = false,
+  canChangeCategory = true,
+  defaultCategoryBusinessType
 }: QuickPaymentModalProps) {
   const [loading, setLoading] = useState(false)
+  const [showIndividualModal, setShowIndividualModal] = useState(false)
+  const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingSubcategories, setLoadingSubcategories] = useState(false)
   const toast = useToastContext()
@@ -83,6 +105,17 @@ export function QuickPaymentModal({
       loadCategories()
     }
   }, [isOpen])
+
+  // Auto-select category matching business type when categories load
+  useEffect(() => {
+    if (categories.length > 0 && defaultCategoryBusinessType && !formData.categoryId) {
+      const domainName = getDefaultDomainName(defaultCategoryBusinessType)
+      const match = categories.find(c => c.name === domainName)
+      if (match) {
+        setFormData(prev => ({ ...prev, categoryId: match.id }))
+      }
+    }
+  }, [categories, defaultCategoryBusinessType])
 
   // Load subcategories when category changes
   useEffect(() => {
@@ -276,9 +309,9 @@ export function QuickPaymentModal({
         payeeEmployeeId: formData.payee!.type === 'EMPLOYEE' ? formData.payee!.id : undefined,
         payeePersonId: formData.payee!.type === 'PERSON' ? formData.payee!.id : undefined,
         payeeBusinessId: formData.payee!.type === 'BUSINESS' ? formData.payee!.id : undefined,
-        categoryId: formData.categoryId,
-        subcategoryId: formData.subcategoryId || null,
-        subSubcategoryId: formData.subSubcategoryId || null,
+        // Form "category" = domain, "subcategory" = actual category, "sub-subcategory" = subcategory
+        categoryId: formData.subcategoryId || formData.categoryId,
+        subcategoryId: formData.subSubcategoryId || null,
         amount: parseFloat(formData.amount),
         paymentDate: formData.paymentDate,
         notes: formData.notes || null,
@@ -356,6 +389,22 @@ export function QuickPaymentModal({
     resetForm()
   }
 
+  const handleCreateIndividualSuccess = (payload: any) => {
+    if (payload.payee) {
+      setFormData({
+        ...formData,
+        payee: {
+          type: 'PERSON',
+          id: payload.payee.id,
+          name: payload.payee.fullName
+        }
+      })
+      setErrors({ ...errors, payee: '' })
+      setPayeeRefreshTrigger(prev => prev + 1)
+    }
+    setShowIndividualModal(false)
+  }
+
   const selectedCategory = categories.find(c => c.id === formData.categoryId)
 
   if (!isOpen) return null
@@ -380,7 +429,9 @@ export function QuickPaymentModal({
                 setFormData({ ...formData, payee })
                 setErrors({ ...errors, payee: '' })
               }}
+              onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
               error={errors.payee}
+              refreshTrigger={payeeRefreshTrigger}
             />
           </div>
 
@@ -392,28 +443,16 @@ export function QuickPaymentModal({
             {loadingCategories ? (
               <div className="text-sm text-secondary">Loading categories...</div>
             ) : (
-              <>
-                <select
-                  value={formData.categoryId}
-                  onChange={(e) => {
-                    setFormData({ ...formData, categoryId: e.target.value })
-                    setErrors({ ...errors, categoryId: '' })
-                  }}
-                  className={`w-full px-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.categoryId ? 'border-red-500' : 'border-border'
-                  }`}
-                >
-                  <option value="">Select a category...</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.emoji} {category.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.categoryId && (
-                  <p className="text-xs text-red-500 mt-1">{errors.categoryId}</p>
-                )}
-              </>
+              <SearchableCategorySelector
+                categories={categories}
+                value={formData.categoryId}
+                onChange={(categoryId) => {
+                  setFormData({ ...formData, categoryId })
+                  setErrors({ ...errors, categoryId: '' })
+                }}
+                error={errors.categoryId}
+                disabled={!canChangeCategory}
+              />
             )}
           </div>
 
@@ -542,6 +581,14 @@ export function QuickPaymentModal({
           </div>
         </form>
       </div>
+
+      {/* Create Individual Payee Modal */}
+      <CreateIndividualPayeeModal
+        isOpen={showIndividualModal}
+        onClose={() => setShowIndividualModal(false)}
+        onSuccess={handleCreateIndividualSuccess}
+        onError={(error) => console.error('Create individual error:', error)}
+      />
     </div>
   )
 }

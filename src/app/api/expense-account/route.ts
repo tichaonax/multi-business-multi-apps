@@ -24,15 +24,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Build where clause based on user role
-    // Admins see all accounts; non-admins see only their businesses' accounts
+    // Build where clause based on user role and optional businessId filter
     const isAdmin = user.role === 'admin'
-    const userBusinessIds = user.businessMemberships
-      ?.map((m: any) => m.businessId) || []
+    const { searchParams } = new URL(request.url)
+    const filterBusinessId = searchParams.get('businessId')
 
-    const whereClause = isAdmin
-      ? {}
-      : { businessId: { in: userBusinessIds } }
+    let whereClause: any = {}
+    if (filterBusinessId) {
+      // Filter to a specific business (used when scoping to current business)
+      whereClause = { businessId: filterBusinessId }
+    } else if (!isAdmin) {
+      // Non-admins see only their businesses' accounts
+      const userBusinessIds = user.businessMemberships
+        ?.map((m: any) => m.businessId) || []
+      whereClause = { businessId: { in: userBusinessIds } }
+    }
 
     const accounts = await prisma.expenseAccounts.findMany({
       where: whereClause,

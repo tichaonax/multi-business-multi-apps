@@ -71,7 +71,7 @@ export function ContentLayout({
   }, [showBackButton])
 
   return (
-    <div className={`${maxWidthClasses[maxWidth]} mx-auto py-2 min-w-0 w-full`}>
+    <div className={`${maxWidthClasses[maxWidth]} mx-auto px-2 sm:px-0 py-2 min-w-0 w-full`}>
       {/* Breadcrumb Navigation */}
       {breadcrumb && breadcrumb.length > 0 && (
         <div className="mb-4 overflow-x-auto">

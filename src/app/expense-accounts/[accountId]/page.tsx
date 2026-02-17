@@ -11,7 +11,8 @@ import { AccountBalanceCard } from '@/components/expense-account/account-balance
 import { DepositForm } from '@/components/expense-account/deposit-form'
 import { PaymentForm } from '@/components/expense-account/payment-form'
 import { TransactionHistory } from '@/components/expense-account/transaction-history'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { QuickPaymentModal } from '@/components/expense-account/quick-payment-modal'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
 interface ExpenseAccount {
@@ -43,12 +44,16 @@ export default function ExpenseAccountDetailPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   const [showDepositModal, setShowDepositModal] = useState(false)
+  const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
 
-  // Permissions
-  const [canAccessExpenseAccount, setCanAccessExpenseAccount] = useState(false)
-  const [canMakeExpenseDeposits, setCanMakeExpenseDeposits] = useState(false)
-  const [canMakeExpensePayments, setCanMakeExpensePayments] = useState(false)
-  const [canViewExpenseReports, setCanViewExpenseReports] = useState(false)
+  // Permissions from business context (properly fetched from API)
+  const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
+  const canAccessExpenseAccount = hasPermission('canAccessExpenseAccount')
+  const canMakeExpenseDeposits = hasPermission('canMakeExpenseDeposits')
+  const canMakeExpensePayments = hasPermission('canMakeExpensePayments')
+  const canViewExpenseReports = hasPermission('canViewExpenseReports')
+  const canCreatePayees = hasPermission('canCreateIndividualPayees')
+  const canChangeCategory = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -57,31 +62,17 @@ export default function ExpenseAccountDetailPage() {
   }, [status, router])
 
   useEffect(() => {
+    if (!permissionsLoading && !canAccessExpenseAccount) {
+      router.push('/dashboard')
+    }
+  }, [permissionsLoading, canAccessExpenseAccount, router])
+
+  useEffect(() => {
     if (session?.user && accountId) {
-      checkPermissions()
       loadAccount()
-      // Also fetch counts from the balance endpoint
       fetchCounts()
     }
   }, [session, accountId])
-
-  const checkPermissions = async () => {
-    try {
-      const permissions = getEffectivePermissions(session?.user)
-
-      setCanAccessExpenseAccount(permissions.canAccessExpenseAccount || false)
-      setCanMakeExpenseDeposits(permissions.canMakeExpenseDeposits || false)
-      setCanMakeExpensePayments(permissions.canMakeExpensePayments || false)
-      setCanViewExpenseReports(permissions.canViewExpenseReports || false)
-
-      if (!permissions.canAccessExpenseAccount) {
-        router.push('/dashboard')
-      }
-    } catch (error) {
-      console.error('Error checking permissions:', error)
-      router.push('/dashboard')
-    }
-  }
 
   const loadAccount = async () => {
     try {
@@ -137,7 +128,7 @@ export default function ExpenseAccountDetailPage() {
     loadAccount()
   }
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading' || loading || permissionsLoading) {
     return (
       <ContentLayout title="Expense Account">
         <div className="flex items-center justify-center h-64">
@@ -162,9 +153,9 @@ export default function ExpenseAccountDetailPage() {
       title={account.accountName}
       description={`Account #${account.accountNumber}`}
       headerActions={(
-        <div className="flex items-center gap-6">
-          <div className="text-sm text-secondary">Deposits</div>
-          <div>
+        <div className="flex items-center gap-3 sm:gap-6 text-xs sm:text-sm">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <span className="text-secondary">Deposits</span>
             {depositsCount !== null ? (
                   canMakeExpenseDeposits ? (
                     <a
@@ -176,24 +167,26 @@ export default function ExpenseAccountDetailPage() {
                       {depositsCount}
                     </a>
                   ) : (
-                  <div className="text-green-600 font-semibold">{depositsCount}</div>
+                  <span className="text-green-600 font-semibold">{depositsCount}</span>
                 )
               ) : (
-                <div title={countsError ? `Counts not available (${countsError})` : 'Counts not loaded'} className="text-green-600 font-semibold">—</div>
+                <span title={countsError ? `Counts not available (${countsError})` : 'Counts not loaded'} className="text-green-600 font-semibold">—</span>
               )}
           </div>
-          <div className="text-sm text-secondary">Payments</div>
-          <div title={countsError ? `Counts not available (${countsError})` : ''} className="text-orange-600 font-semibold">{paymentsCount ?? '—'}</div>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <span className="text-secondary">Payments</span>
+            <span title={countsError ? `Counts not available (${countsError})` : ''} className="text-orange-600 font-semibold">{paymentsCount ?? '—'}</span>
+          </div>
         </div>
       )}
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header with Actions */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <Link
               href="/expense-accounts"
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 mb-2"
+              className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 mb-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -201,18 +194,28 @@ export default function ExpenseAccountDetailPage() {
               Back to Expense Accounts
             </Link>
             {account.description && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">{account.description}</p>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{account.description}</p>
             )}
           </div>
 
-          {canViewExpenseReports && (
-            <Link
-              href={`/expense-accounts/${accountId}/reports`}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
-            >
-              View Reports
-            </Link>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {canMakeExpensePayments && (
+              <button
+                onClick={() => setShowQuickPaymentModal(true)}
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-xs sm:text-sm font-medium"
+              >
+                Quick Payment
+              </button>
+            )}
+            {canViewExpenseReports && (
+              <Link
+                href={`/expense-accounts/${accountId}/reports`}
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-xs sm:text-sm font-medium"
+              >
+                View Reports
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Balance Card */}
@@ -224,11 +227,11 @@ export default function ExpenseAccountDetailPage() {
 
         {/* Tabs */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="flex -mb-px">
+          <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+            <nav className="flex -mb-px min-w-0">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === 'overview'
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
@@ -240,7 +243,7 @@ export default function ExpenseAccountDetailPage() {
               {canMakeExpenseDeposits && (
                 <button
                   onClick={() => setActiveTab('deposits')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === 'deposits'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
@@ -253,7 +256,7 @@ export default function ExpenseAccountDetailPage() {
               {canMakeExpensePayments && (
                 <button
                   onClick={() => setActiveTab('payments')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === 'payments'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
@@ -265,55 +268,55 @@ export default function ExpenseAccountDetailPage() {
 
               <button
                 onClick={() => setActiveTab('transactions')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === 'transactions'
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                 }`}
               >
-                Transaction History
+                Transactions
               </button>
             </nav>
           </div>
 
-          <div className="p-6">
+          <div className="p-3 sm:p-6">
             {/* Overview Tab */}
             {activeTab === 'overview' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 sm:p-4">
+                    <h4 className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 sm:mb-3">
                       Account Information
                     </h4>
                     <dl className="space-y-2">
                       <div className="flex justify-between">
-                        <dt className="text-sm text-gray-600 dark:text-gray-400">Account Number:</dt>
-                        <dd className="text-sm font-medium text-gray-900 dark:text-gray-100">{account.accountNumber}</dd>
+                        <dt className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Account Number:</dt>
+                        <dd className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">{account.accountNumber}</dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt className="text-sm text-gray-600 dark:text-gray-400">Status:</dt>
-                        <dd className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <dt className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Status:</dt>
+                        <dd className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">
                           {account.isActive ? '✅ Active' : '❌ Inactive'}
                         </dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt className="text-sm text-gray-600 dark:text-gray-400">Created:</dt>
-                        <dd className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <dt className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Created:</dt>
+                        <dd className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">
                           {new Date(account.createdAt).toLocaleDateString()}
                         </dd>
                       </div>
                     </dl>
                   </div>
 
-                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 sm:p-4">
+                    <h4 className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 sm:mb-3">
                       Quick Actions
                     </h4>
                     <div className="space-y-2">
                       {canMakeExpenseDeposits && (
                         <button
                           onClick={() => setActiveTab('deposits')}
-                          className="w-full px-4 py-2 text-left text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                          className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
                           💰 Make a Deposit
                         </button>
@@ -321,23 +324,23 @@ export default function ExpenseAccountDetailPage() {
                       {canMakeExpensePayments && (
                         <button
                           onClick={() => setActiveTab('payments')}
-                          className="w-full px-4 py-2 text-left text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                          className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
                           💸 Make a Payment
                         </button>
                       )}
                       <button
                         onClick={() => setActiveTab('transactions')}
-                        className="w-full px-4 py-2 text-left text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                        className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
-                        📜 View Transaction History
+                        📜 View Transactions
                       </button>
                       {canViewExpenseReports && (
                         <Link
                           href={`/expense-accounts/${accountId}/reports`}
-                          className="block w-full px-4 py-2 text-left text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                          className="block w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
-                          📊 View Reports & Analytics
+                          📊 View Reports
                         </Link>
                       )}
                     </div>
@@ -345,7 +348,7 @@ export default function ExpenseAccountDetailPage() {
                 </div>
 
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
                     Recent Transactions
                   </h4>
                   <TransactionHistory accountId={accountId} />
@@ -356,7 +359,7 @@ export default function ExpenseAccountDetailPage() {
             {/* Deposits Tab */}
             {activeTab === 'deposits' && canMakeExpenseDeposits && (
               <div>
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
                   Add Deposit
                 </h4>
                 <DepositForm
@@ -369,7 +372,7 @@ export default function ExpenseAccountDetailPage() {
             {/* Payments Tab */}
             {activeTab === 'payments' && canMakeExpensePayments && (
               <div>
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
                   Create Payments
                 </h4>
                 <PaymentForm
@@ -390,7 +393,7 @@ export default function ExpenseAccountDetailPage() {
             {/* Transactions Tab */}
             {activeTab === 'transactions' && (
               <div>
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
                   Transaction History
                 </h4>
                 <TransactionHistory accountId={accountId} />
@@ -399,6 +402,25 @@ export default function ExpenseAccountDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Quick Payment Modal */}
+      {account && (
+        <QuickPaymentModal
+          isOpen={showQuickPaymentModal}
+          onClose={() => setShowQuickPaymentModal(false)}
+          accountId={accountId}
+          accountName={account.accountName}
+          currentBalance={Number(account.balance)}
+          onSuccess={() => {
+            loadAccount()
+            setShowQuickPaymentModal(false)
+          }}
+          onError={(error) => console.error('Quick payment error:', error)}
+          canCreatePayees={canCreatePayees}
+          canChangeCategory={canChangeCategory}
+          defaultCategoryBusinessType={currentBusiness?.businessType}
+        />
+      )}
     </ContentLayout>
   )
 }

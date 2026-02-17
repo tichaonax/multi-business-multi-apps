@@ -346,14 +346,15 @@ export async function POST(
       // Validate payment date
       const payDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date()
       const now = new Date()
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000) // 24 hours ago
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-      // Check if this is a historical date (more than 24 hours in the past)
-      const isHistoricalDate = payDate < oneDayAgo
+      // Anyone with canMakeExpensePayments can backdate up to 30 days.
+      // Dates older than 30 days require canEnterHistoricalData (sibling/archival entry).
+      const isDeepHistoricalDate = payDate < thirtyDaysAgo
 
-      if (isHistoricalDate && !permissions.canEnterHistoricalData) {
+      if (isDeepHistoricalDate && !permissions.canEnterHistoricalData) {
         return NextResponse.json(
-          { error: `Payment ${paymentIndex}: You do not have permission to enter historical expense data`, index: i },
+          { error: `Payment ${paymentIndex}: You do not have permission to enter expense data older than 30 days`, index: i },
           { status: 403 }
         )
       }

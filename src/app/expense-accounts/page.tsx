@@ -3,22 +3,26 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { AccountList } from '@/components/expense-account/account-list'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function ExpenseAccountsPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
-  const [canCreateAccount, setCanCreateAccount] = useState(false)
-  const [canAccessExpenseAccount, setCanAccessExpenseAccount] = useState(false)
-  const [canCreateSiblingAccounts, setCanCreateSiblingAccounts] = useState(false)
-  const [canMergeSiblingAccounts, setCanMergeSiblingAccounts] = useState(false)
-  const [canViewExpenseReports, setCanViewExpenseReports] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
+
+  const canAccessExpenseAccount = hasPermission('canAccessExpenseAccount')
+  const canCreateAccount = hasPermission('canCreateExpenseAccount')
+  const canMakeExpenseDeposits = hasPermission('canMakeExpenseDeposits')
+  const canCreateSiblingAccounts = hasPermission('canCreateSiblingAccounts')
+  const canMergeSiblingAccounts = hasPermission('canMergeSiblingAccounts')
+  const canViewExpenseReports = hasPermission('canViewExpenseReports')
+  const canCreatePayees = hasPermission('canCreateIndividualPayees')
+  const canChangeCategory = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -27,34 +31,12 @@ export default function ExpenseAccountsPage() {
   }, [status, router])
 
   useEffect(() => {
-    if (session?.user) {
-      checkPermissions()
-    }
-  }, [session])
-
-  const checkPermissions = async () => {
-    try {
-      const permissions = getEffectivePermissions(session?.user)
-
-      setCanAccessExpenseAccount(permissions.canAccessExpenseAccount || false)
-      setCanCreateAccount(permissions.canCreateExpenseAccount || false)
-      setCanCreateSiblingAccounts(permissions.canCreateSiblingAccounts || false)
-      setCanMergeSiblingAccounts(permissions.canMergeSiblingAccounts || false)
-      setCanViewExpenseReports(permissions.canViewExpenseReports || false)
-
-      // Redirect if no access permission
-      if (!permissions.canAccessExpenseAccount) {
-        router.push('/dashboard')
-      }
-    } catch (error) {
-      console.error('Error checking permissions:', error)
+    if (!permissionsLoading && !canAccessExpenseAccount) {
       router.push('/dashboard')
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [permissionsLoading, canAccessExpenseAccount, router])
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading' || permissionsLoading) {
     return (
       <ContentLayout title="Expense Accounts">
         <div className="flex items-center justify-center h-64">
@@ -80,11 +62,16 @@ export default function ExpenseAccountsPage() {
       description="Manage expense accounts, make deposits and payments"
     >
       <div className="space-y-6">
-        <AccountList 
+        <AccountList
           canCreateAccount={canCreateAccount}
+          canMakeExpenseDeposits={canMakeExpenseDeposits}
           canCreateSiblingAccounts={canCreateSiblingAccounts}
           canMergeSiblingAccounts={canMergeSiblingAccounts}
           canViewExpenseReports={canViewExpenseReports}
+          canCreatePayees={canCreatePayees}
+          canChangeCategory={canChangeCategory}
+          businessType={currentBusiness?.businessType}
+          currentBusinessId={currentBusiness?.businessId}
         />
       </div>
     </ContentLayout>
