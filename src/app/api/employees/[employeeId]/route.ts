@@ -499,6 +499,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         userSyncAction = 'deactivated'
       }
 
+      // SYNC: Employee terminated/deactivated → Meal program deactivated
+      if (newEmploymentStatus === 'terminated' || newIsActive === false) {
+        await tx.mealProgramParticipants.updateMany({
+          where: { employeeId: employeeId, isActive: true },
+          data: { isActive: false }
+        })
+      }
+
       // Create audit log for synchronization
       if (statusChanged && updatedEmployee.users) {
         await tx.auditLogs.create({
@@ -685,6 +693,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
         userSyncAction = 'deactivated'
       }
+
+      // SYNC: Employee deleted/terminated → Meal program deactivated
+      await tx.mealProgramParticipants.updateMany({
+        where: { employeeId: employeeId, isActive: true },
+        data: { isActive: false }
+      })
 
       // Create audit log for termination and synchronization
       await tx.auditLogs.create({

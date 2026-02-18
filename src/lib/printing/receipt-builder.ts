@@ -194,7 +194,7 @@ export function buildReceiptData(
       ? `Coupon (${order.attributes.couponCode})`
       : undefined,
     total: order.totalAmount,
-    paymentMethod: order.paymentMethod || 'cash',
+    paymentMethod: order.paymentMethod === 'EXPENSE_ACCOUNT' ? 'expense_account' : (order.paymentMethod || 'cash'),
     amountPaid: order.paymentStatus === 'PAID' ? order.totalAmount : undefined,
     changeDue: undefined,
     wifiTokens: order.wifiTokens?.filter(token => token.success).map(token => ({
@@ -255,6 +255,15 @@ function buildBusinessSpecificData(order: OrderData, businessType: string): any 
         tableNumber: order.attributes?.tableNumber,
         serverName: order.attributes?.serverName,
         orderTime: order.orderDate ? new Date(order.orderDate) : new Date(),
+        // Meal program fields
+        mealProgram: order.attributes?.mealProgram
+          ? {
+              participantName: order.attributes.participantName,
+              participantType: order.attributes.participantType,
+              expenseAmount: order.attributes.expenseAmount,
+              cashAmount: order.attributes.cashAmount,
+            }
+          : undefined,
         items: order.items.map(() => ({
           allergens: undefined,
           dietaryRestrictions: undefined,

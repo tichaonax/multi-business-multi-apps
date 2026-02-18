@@ -138,14 +138,15 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Calculate totals
-    const totalOrders = orders.length
-    const totalSales = orders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0)
-    const totalTax = orders.reduce((sum: number, order: any) => sum + Number(order.taxAmount || 0), 0)
+    // Calculate totals — exclude EXPENSE_ACCOUNT orders (meal program subsidy handled separately)
+    const regularOrders = orders.filter((o: any) => o.paymentMethod?.toUpperCase() !== 'EXPENSE_ACCOUNT')
+    const totalOrders = regularOrders.length
+    const totalSales = regularOrders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0)
+    const totalTax = regularOrders.reduce((sum: number, order: any) => sum + Number(order.taxAmount || 0), 0)
 
-    // Group by payment method
+    // Group by payment method (regular orders only — EXPENSE_ACCOUNT shown in meal program section)
     const paymentMethods: Record<string, { count: number; total: number }> = {}
-    orders.forEach((order: any) => {
+    regularOrders.forEach((order: any) => {
       const method = (order.paymentMethod || 'UNKNOWN').toUpperCase()
       if (!paymentMethods[method]) {
         paymentMethods[method] = { count: 0, total: 0 }
@@ -154,9 +155,9 @@ export async function GET(request: NextRequest) {
       paymentMethods[method].total += Number(order.totalAmount || 0)
     })
 
-    // Group by employee/salesperson
+    // Group by employee/salesperson (regular orders only)
     const employeeSales: Record<string, { name: string; orders: number; sales: number }> = {}
-    orders.forEach((order: any) => {
+    regularOrders.forEach((order: any) => {
       const employeeName = (order.attributes as any)?.employeeName || 'Unknown'
       if (!employeeSales[employeeName]) {
         employeeSales[employeeName] = {
@@ -169,7 +170,7 @@ export async function GET(request: NextRequest) {
       employeeSales[employeeName].sales += Number(order.totalAmount || 0)
     })
 
-    // Group by category
+    // Group by category (regular orders only)
     const categoryBreakdown: Record<
       string,
       { name: string; itemCount: number; totalSales: number }
@@ -177,7 +178,7 @@ export async function GET(request: NextRequest) {
 
     // Collect categoryIds from item attributes for fallback lookup
     const fallbackCategoryIds = new Set<string>()
-    orders.forEach((order: any) => {
+    regularOrders.forEach((order: any) => {
       order.business_order_items.forEach((item: any) => {
         const product = item.product_variants?.business_products
         if (!product?.business_categories) {
@@ -187,7 +188,7 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    // Batch-fetch fallback categories
+    // Batch-fetch fallback categories by categoryId attribute
     let fallbackCategories: Record<string, string> = {}
     if (fallbackCategoryIds.size > 0) {
       const cats = await prisma.businessCategories.findMany({
@@ -197,19 +198,65 @@ export async function GET(request: NextRequest) {
       cats.forEach(c => { fallbackCategories[c.id] = c.name })
     }
 
-    orders.forEach((order: any) => {
+    // Collect productIds from item attributes for a second-pass category lookup
+    // (meal program items and POS items that store productId in attributes)
+    const attrProductIds = new Set<string>()
+    regularOrders.forEach((order: any) => {
+      order.business_order_items.forEach((item: any) => {
+        const product = item.product_variants?.business_products
+        if (!product?.business_categories) {
+          const pid = (item.attributes as any)?.productId
+          if (pid) attrProductIds.add(pid)
+        }
+      })
+    })
+
+    let attrProductCategories: Record<string, string> = {}
+    if (attrProductIds.size > 0) {
+      const prods = await prisma.businessProducts.findMany({
+        where: { id: { in: Array.from(attrProductIds) } },
+        select: { id: true, business_categories: { select: { id: true, name: true } } }
+      })
+      prods.forEach((p: any) => {
+        if (p.business_categories) {
+          attrProductCategories[p.id] = p.business_categories.name
+          // Also store by categoryId for lookup
+          fallbackCategories[p.business_categories.id] = p.business_categories.name
+        }
+      })
+    }
+
+    regularOrders.forEach((order: any) => {
       order.business_order_items.forEach((item: any) => {
         const product = item.product_variants?.business_products
         const category = product?.business_categories
         let categoryId = category?.id
         let categoryName = category?.name
 
-        // Fallback: use categoryId from item attributes
+        // Fallback 1: use categoryId from item attributes
         if (!categoryId) {
           const attrCatId = (item.attributes as any)?.categoryId
           if (attrCatId && fallbackCategories[attrCatId]) {
             categoryId = attrCatId
             categoryName = fallbackCategories[attrCatId]
+          }
+        }
+
+        // Fallback 2: use productId from item attributes to resolve category
+        if (!categoryId) {
+          const pid = (item.attributes as any)?.productId
+          if (pid && attrProductCategories[pid]) {
+            categoryName = attrProductCategories[pid]
+            categoryId = pid + '-cat'
+          }
+        }
+
+        // Fallback 3: use productName from item attributes
+        if (!categoryId) {
+          const pName = (item.attributes as any)?.productName
+          if (pName) {
+            categoryId = 'attr-' + pName.replace(/\s+/g, '-').toLowerCase()
+            categoryName = pName
           }
         }
 
@@ -239,6 +286,25 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Expense account (meal program) breakdown for today
+    const mealTxns = await prisma.mealProgramTransactions.findMany({
+      where: {
+        businessId,
+        transactionDate: { gte: start, lt: end },
+      },
+      select: {
+        subsidyAmount: true,
+        cashAmount: true,
+        totalAmount: true,
+      },
+    })
+    const expenseAccountSales = {
+      count: mealTxns.length,
+      subsidyTotal: mealTxns.reduce((s: number, t: any) => s + Number(t.subsidyAmount || 0), 0),
+      cashTotal: mealTxns.reduce((s: number, t: any) => s + Number(t.cashAmount || 0), 0),
+      total: mealTxns.reduce((s: number, t: any) => s + Number(t.totalAmount || 0), 0),
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -255,6 +321,7 @@ export async function GET(request: NextRequest) {
           receiptsIssued: receiptSequence?.lastSequence || 0,
         },
         paymentMethods,
+        expenseAccountSales,
         employeeSales: Object.values(employeeSales).sort(
           (a, b) => b.sales - a.sales
         ),

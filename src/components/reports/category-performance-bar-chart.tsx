@@ -1,6 +1,7 @@
 'use client'
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
+import { useState, useEffect } from 'react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 interface CategoryData {
   name: string
@@ -27,6 +28,19 @@ const COLORS = [
 ]
 
 export function CategoryPerformanceBarChart({ data, topN = 10 }: CategoryPerformanceBarChartProps) {
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsDark(document.documentElement.classList.contains('dark'))
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
+  const tickColor = isDark ? '#9ca3af' : '#6b7280'
+  const gridColor = isDark ? '#374151' : '#e5e7eb'
+
   // Sort by sales and take top N
   const sortedData = [...data]
     .sort((a, b) => b.sales - a.sales)
@@ -51,25 +65,26 @@ export function CategoryPerformanceBarChart({ data, topN = 10 }: CategoryPerform
           data={chartData}
           margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
           <XAxis
             dataKey="name"
             angle={-45}
             textAnchor="end"
             height={100}
             interval={0}
-            tick={{ fill: '#6b7280', fontSize: 12 }}
+            tick={{ fill: tickColor, fontSize: 12 }}
           />
           <YAxis
-            tick={{ fill: '#6b7280' }}
-            label={{ value: 'Sales ($)', angle: -90, position: 'insideLeft', fill: '#6b7280' }}
+            tick={{ fill: tickColor }}
+            tickFormatter={(value: number) => `$${value}`}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              border: '1px solid #ccc',
+              backgroundColor: isDark ? '#1f2937' : 'rgba(255, 255, 255, 0.95)',
+              border: isDark ? '1px solid #374151' : '1px solid #ccc',
               borderRadius: '8px',
               padding: '10px',
+              color: isDark ? '#f9fafb' : '#111827',
             }}
             formatter={(value: number, name: string) => {
               if (name === 'sales') return [`$${value.toFixed(2)}`, 'Sales']
@@ -81,15 +96,6 @@ export function CategoryPerformanceBarChart({ data, topN = 10 }: CategoryPerform
                 return payload[0].payload.fullName
               }
               return label
-            }}
-          />
-          <Legend
-            verticalAlign="top"
-            height={36}
-            formatter={(value) => {
-              if (value === 'sales') return 'Sales'
-              if (value === 'orders') return 'Orders'
-              return value
             }}
           />
           <Bar dataKey="sales" name="sales" radius={[8, 8, 0, 0]}>

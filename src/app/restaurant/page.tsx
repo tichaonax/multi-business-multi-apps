@@ -109,6 +109,14 @@ export default function RestaurantPage() {
               <p className="text-secondary">Sales and financial reports</p>
             </div>
           </Link>
+
+          <Link href="/restaurant/meal-program" className="block">
+            <div className="card p-6 hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-4">🍱</div>
+              <h3 className="text-lg font-semibold mb-2 text-primary">Meal Program</h3>
+              <p className="text-secondary">Employee & guest discounted meal program</p>
+            </div>
+          </Link>
         </div>
       </ContentLayout>
       </BusinessTypeRoute>

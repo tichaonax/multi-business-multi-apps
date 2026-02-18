@@ -188,34 +188,35 @@ model BusinessOrderItems {
 }
 
 model BusinessOrders {
-  id                   String               @id @default(uuid())
-  businessId           String
-  orderNumber          String
-  customerId           String?
-  employeeId           String?
-  orderType            OrderType            @default(SALE)
-  status               OrderStatus          @default(PENDING)
-  subtotal             Decimal              @db.Decimal(10, 2)
-  taxAmount            Decimal              @db.Decimal(10, 2)
-  discountAmount       Decimal              @default(0) @db.Decimal(10, 2)
-  totalAmount          Decimal              @db.Decimal(10, 2)
-  paymentMethod        PaymentMethod?
-  paymentStatus        PaymentStatus        @default(PENDING)
-  businessType         String
-  attributes           Json?
-  notes                String?
-  processedAt          DateTime?
-  transactionDate      DateTime?
-  isManualEntry        Boolean              @default(false)
-  manualEntryNote      String?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime
-  business_order_items BusinessOrderItems[]
-  businesses           Businesses           @relation(fields: [businessId], references: [id])
-  business_customers   BusinessCustomers?   @relation(fields: [customerId], references: [id])
-  employees            Employees?           @relation(fields: [employeeId], references: [id])
-  reprint_logs         ReprintLog[]
-  coupon_usages        CouponUsages[]
+  id                       String                   @id @default(uuid())
+  businessId               String
+  orderNumber              String
+  customerId               String?
+  employeeId               String?
+  orderType                OrderType                @default(SALE)
+  status                   OrderStatus              @default(PENDING)
+  subtotal                 Decimal                  @db.Decimal(10, 2)
+  taxAmount                Decimal                  @db.Decimal(10, 2)
+  discountAmount           Decimal                  @default(0) @db.Decimal(10, 2)
+  totalAmount              Decimal                  @db.Decimal(10, 2)
+  paymentMethod            PaymentMethod?
+  paymentStatus            PaymentStatus            @default(PENDING)
+  businessType             String
+  attributes               Json?
+  notes                    String?
+  processedAt              DateTime?
+  transactionDate          DateTime?
+  isManualEntry            Boolean                  @default(false)
+  manualEntryNote          String?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime
+  business_order_items     BusinessOrderItems[]
+  businesses               Businesses               @relation(fields: [businessId], references: [id])
+  business_customers       BusinessCustomers?       @relation(fields: [customerId], references: [id])
+  employees                Employees?               @relation(fields: [employeeId], references: [id])
+  reprint_logs             ReprintLog[]
+  coupon_usages            CouponUsages[]
+  meal_program_transaction MealProgramTransactions?
 
   @@unique([businessId, orderNumber])
   @@index([orderNumber])
@@ -226,55 +227,56 @@ model BusinessOrders {
 }
 
 model BusinessProducts {
-  id                       String                   @id @default(uuid())
-  businessId               String
-  name                     String
-  description              String?
-  sku                      String?
-  barcode                  String?
-  brandId                  String?
-  categoryId               String
-  productType              ProductType              @default(PHYSICAL)
-  condition                ProductCondition         @default(NEW)
-  basePrice                Decimal                  @db.Decimal(10, 2)
-  costPrice                Decimal?                 @db.Decimal(10, 2)
-  isActive                 Boolean                  @default(true)
-  businessType             String
-  attributes               Json?
-  isAvailable              Boolean                  @default(true)
-  spiceLevel               Int?                     @default(0)
-  dietaryRestrictions      String[]
-  allergens                String[]
-  preparationTime          Int?                     @default(0)
-  calories                 Int?
-  isCombo                  Boolean                  @default(false)
-  comboItemsData           Json?
-  originalPrice            Decimal?                 @db.Decimal(10, 2)
-  discountPercent          Decimal?                 @db.Decimal(5, 2)
-  discountAmount           Decimal?                 @db.Decimal(10, 2)
-  promotionStartDate       DateTime?
-  promotionEndDate         DateTime?
-  promotionName            String?
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime
-  locationId               String?
-  subcategoryId            String?
-  supplierId               String?
-  requiresCompanionItem    Boolean                  @default(false)
-  business_brands          BusinessBrands?          @relation(fields: [brandId], references: [id])
-  businesses               Businesses               @relation(fields: [businessId], references: [id])
-  business_categories      BusinessCategories       @relation(fields: [categoryId], references: [id])
-  business_locations       BusinessLocations?       @relation("ProductLocation", fields: [locationId], references: [id])
-  inventory_subcategory    InventorySubcategories?  @relation(fields: [subcategoryId], references: [id])
-  business_suppliers       BusinessSuppliers?       @relation("ProductSupplier", fields: [supplierId], references: [id])
-  business_stock_movements BusinessStockMovements[]
-  menu_combo_items         MenuComboItems[]
-  product_attributes       ProductAttributes[]
-  product_barcodes         ProductBarcodes[]
-  product_images           ProductImages[]
-  product_price_changes    product_price_changes[]
-  product_variants         ProductVariants[]
-  supplier_products        SupplierProducts[]
+  id                          String                     @id @default(uuid())
+  businessId                  String
+  name                        String
+  description                 String?
+  sku                         String?
+  barcode                     String?
+  brandId                     String?
+  categoryId                  String
+  productType                 ProductType                @default(PHYSICAL)
+  condition                   ProductCondition           @default(NEW)
+  basePrice                   Decimal                    @db.Decimal(10, 2)
+  costPrice                   Decimal?                   @db.Decimal(10, 2)
+  isActive                    Boolean                    @default(true)
+  businessType                String
+  attributes                  Json?
+  isAvailable                 Boolean                    @default(true)
+  spiceLevel                  Int?                       @default(0)
+  dietaryRestrictions         String[]
+  allergens                   String[]
+  preparationTime             Int?                       @default(0)
+  calories                    Int?
+  isCombo                     Boolean                    @default(false)
+  comboItemsData              Json?
+  originalPrice               Decimal?                   @db.Decimal(10, 2)
+  discountPercent             Decimal?                   @db.Decimal(5, 2)
+  discountAmount              Decimal?                   @db.Decimal(10, 2)
+  promotionStartDate          DateTime?
+  promotionEndDate            DateTime?
+  promotionName               String?
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime
+  locationId                  String?
+  subcategoryId               String?
+  supplierId                  String?
+  requiresCompanionItem       Boolean                    @default(false)
+  business_brands             BusinessBrands?            @relation(fields: [brandId], references: [id])
+  businesses                  Businesses                 @relation(fields: [businessId], references: [id])
+  business_categories         BusinessCategories         @relation(fields: [categoryId], references: [id])
+  business_locations          BusinessLocations?         @relation("ProductLocation", fields: [locationId], references: [id])
+  inventory_subcategory       InventorySubcategories?    @relation(fields: [subcategoryId], references: [id])
+  business_suppliers          BusinessSuppliers?         @relation("ProductSupplier", fields: [supplierId], references: [id])
+  business_stock_movements    BusinessStockMovements[]
+  menu_combo_items            MenuComboItems[]
+  product_attributes          ProductAttributes[]
+  product_barcodes            ProductBarcodes[]
+  product_images              ProductImages[]
+  product_price_changes       product_price_changes[]
+  product_variants            ProductVariants[]
+  supplier_products           SupplierProducts[]
+  meal_program_eligible_items MealProgramEligibleItems[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -476,6 +478,9 @@ model Businesses {
   inventory_transfers_source                                               InventoryTransfers[]          @relation("TransferSource")
   inventory_transfers_target                                               InventoryTransfers[]          @relation("TransferTarget")
   clothing_bales                                                           ClothingBales[]
+  meal_program_participants                                                MealProgramParticipants[]
+  meal_program_eligible_items                                              MealProgramEligibleItems[]
+  meal_program_transactions                                                MealProgramTransactions[]
 
   @@map("businesses")
 }
@@ -1186,6 +1191,8 @@ model Employees {
   coupon_approvals                                                          CouponUsages[]                @relation("CouponApprovedBy")
   inventory_transfers                                                       InventoryTransfers[]          @relation("TransferEmployee")
   clothing_bales_stocked                                                    ClothingBales[]               @relation("BaleStockedBy")
+  meal_program_participant                                                  MealProgramParticipants?
+  meal_program_transactions_sold                                            MealProgramTransactions[]     @relation("MealProgramSoldByEmployee")
 
   @@map("employees")
 }
@@ -1269,6 +1276,7 @@ model ExpenseAccounts {
   r710_business_integrations R710BusinessIntegrations[] @relation("R710IntegrationExpenseAccount")
   r710_token_sales           R710TokenSales[]           @relation("R710TokenSaleToExpenseAccount")
   wifi_token_sales           WifiTokenSales[]
+  meal_program_transactions  MealProgramTransactions[]
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1305,39 +1313,40 @@ model ExpenseAccountDeposits {
 }
 
 model ExpenseAccountPayments {
-  id                     String                @id @default(uuid())
-  expenseAccountId       String
-  payeeType              String
-  payeeUserId            String?
-  payeeEmployeeId        String?
-  payeePersonId          String?
-  payeeBusinessId        String?
-  categoryId             String
-  subcategoryId          String?
-  subSubcategoryId       String?
-  amount                 Decimal               @db.Decimal(12, 2)
-  paymentDate            DateTime
-  notes                  String?
-  receiptNumber          String?
-  receiptServiceProvider String?
-  receiptReason          String?
-  isFullPayment          Boolean               @default(true)
-  batchId                String?
-  status                 String                @default("SUBMITTED")
-  createdBy              String
-  submittedBy            String?
-  submittedAt            DateTime?
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @default(now()) @updatedAt
-  category               ExpenseCategories     @relation("ExpensePaymentCategory", fields: [categoryId], references: [id])
-  creator                Users                 @relation("ExpensePaymentCreator", fields: [createdBy], references: [id])
-  expenseAccount         ExpenseAccounts       @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
-  payeeBusiness          Businesses?           @relation("ExpensePaymentPayeeBusiness", fields: [payeeBusinessId], references: [id])
-  payeeEmployee          Employees?            @relation("ExpensePaymentPayeeEmployee", fields: [payeeEmployeeId], references: [id])
-  payeePerson            Persons?              @relation("ExpensePaymentPayeePerson", fields: [payeePersonId], references: [id])
-  payeeUser              Users?                @relation("ExpensePaymentPayeeUser", fields: [payeeUserId], references: [id])
-  subcategory            ExpenseSubcategories? @relation("ExpensePaymentSubcategory", fields: [subcategoryId], references: [id])
-  submitter              Users?                @relation("ExpensePaymentSubmitter", fields: [submittedBy], references: [id])
+  id                       String                   @id @default(uuid())
+  expenseAccountId         String
+  payeeType                String
+  payeeUserId              String?
+  payeeEmployeeId          String?
+  payeePersonId            String?
+  payeeBusinessId          String?
+  categoryId               String
+  subcategoryId            String?
+  subSubcategoryId         String?
+  amount                   Decimal                  @db.Decimal(12, 2)
+  paymentDate              DateTime
+  notes                    String?
+  receiptNumber            String?
+  receiptServiceProvider   String?
+  receiptReason            String?
+  isFullPayment            Boolean                  @default(true)
+  batchId                  String?
+  status                   String                   @default("SUBMITTED")
+  createdBy                String
+  submittedBy              String?
+  submittedAt              DateTime?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @default(now()) @updatedAt
+  category                 ExpenseCategories        @relation("ExpensePaymentCategory", fields: [categoryId], references: [id])
+  creator                  Users                    @relation("ExpensePaymentCreator", fields: [createdBy], references: [id])
+  expenseAccount           ExpenseAccounts          @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
+  payeeBusiness            Businesses?              @relation("ExpensePaymentPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeEmployee            Employees?               @relation("ExpensePaymentPayeeEmployee", fields: [payeeEmployeeId], references: [id])
+  payeePerson              Persons?                 @relation("ExpensePaymentPayeePerson", fields: [payeePersonId], references: [id])
+  payeeUser                Users?                   @relation("ExpensePaymentPayeeUser", fields: [payeeUserId], references: [id])
+  subcategory              ExpenseSubcategories?    @relation("ExpensePaymentSubcategory", fields: [subcategoryId], references: [id])
+  submitter                Users?                   @relation("ExpensePaymentSubmitter", fields: [submittedBy], references: [id])
+  meal_program_transaction MealProgramTransactions? @relation("MealProgramExpensePayment")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -1349,6 +1358,90 @@ model ExpenseAccountPayments {
   @@index([createdAt(sort: Desc)], map: "idx_expense_payments_created_at")
   @@index([paymentDate(sort: Desc)], map: "idx_expense_payments_payment_date")
   @@map("expense_account_payments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MBM-124: Employee & Guest Discounted Meal Program
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MealProgramParticipants {
+  id              String   @id @default(uuid())
+  businessId      String
+  participantType String // "EMPLOYEE" | "EXTERNAL"
+  employeeId      String?  @unique
+  personId        String?  @unique
+  isActive        Boolean  @default(true)
+  registeredBy    String
+  registeredAt    DateTime @default(now())
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  businesses   Businesses                @relation(fields: [businessId], references: [id])
+  employees    Employees?                @relation(fields: [employeeId], references: [id])
+  persons      Persons?                  @relation(fields: [personId], references: [id])
+  registrar    Users                     @relation("MealProgramParticipantRegistrar", fields: [registeredBy], references: [id])
+  transactions MealProgramTransactions[]
+
+  @@unique([businessId, employeeId])
+  @@unique([businessId, personId])
+  @@index([businessId, isActive])
+  @@index([employeeId])
+  @@index([personId])
+  @@map("meal_program_participants")
+}
+
+model MealProgramEligibleItems {
+  id         String   @id @default(uuid())
+  businessId String
+  productId  String
+  isActive   Boolean  @default(true)
+  notes      String?
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  businesses Businesses       @relation(fields: [businessId], references: [id])
+  product    BusinessProducts @relation(fields: [productId], references: [id])
+  creator    Users            @relation("MealProgramEligibleItemCreator", fields: [createdBy], references: [id])
+
+  @@unique([businessId, productId])
+  @@index([businessId, isActive])
+  @@map("meal_program_eligible_items")
+}
+
+model MealProgramTransactions {
+  id                       String   @id @default(uuid())
+  businessId               String
+  participantId            String
+  orderId                  String   @unique
+  expenseAccountId         String
+  expensePaymentId         String?  @unique
+  soldByEmployeeId         String?
+  soldByUserId             String
+  subsidyAmount            Decimal  @default(0.50) @db.Decimal(10, 2)
+  cashAmount               Decimal  @default(0) @db.Decimal(10, 2)
+  totalAmount              Decimal  @db.Decimal(10, 2)
+  subsidizedProductId      String?
+  subsidizedProductName    String?
+  subsidizedIsEligibleItem Boolean  @default(true)
+  transactionDate          DateTime @default(now())
+  itemsSummary             Json
+  notes                    String?
+  createdAt                DateTime @default(now())
+
+  businesses     Businesses              @relation(fields: [businessId], references: [id])
+  participant    MealProgramParticipants @relation(fields: [participantId], references: [id])
+  order          BusinessOrders          @relation(fields: [orderId], references: [id])
+  expenseAccount ExpenseAccounts         @relation(fields: [expenseAccountId], references: [id])
+  expensePayment ExpenseAccountPayments? @relation("MealProgramExpensePayment", fields: [expensePaymentId], references: [id])
+  soldByEmployee Employees?              @relation("MealProgramSoldByEmployee", fields: [soldByEmployeeId], references: [id])
+  soldByUser     Users                   @relation("MealProgramSoldByUser", fields: [soldByUserId], references: [id])
+
+  @@index([businessId, transactionDate])
+  @@index([participantId, transactionDate])
+  @@index([soldByEmployeeId])
+  @@map("meal_program_transactions")
 }
 
 model EmojiLookup {
@@ -1984,6 +2077,7 @@ model Persons {
   id_format_templates               IdFormatTemplates?       @relation(fields: [idFormatTemplateId], references: [id])
   project_contractors               ProjectContractors[]
   project_transactions              ProjectTransactions[]
+  meal_program_participant          MealProgramParticipants?
 
   @@map("persons")
 }
@@ -2483,6 +2577,9 @@ model Users {
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]     @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicles[]
   wifi_token_sales                                                WifiTokenSales[]            @relation("WifiTokenSaleSeller")
+  meal_program_participants_registered                            MealProgramParticipants[]   @relation("MealProgramParticipantRegistrar")
+  meal_program_transactions_sold                                  MealProgramTransactions[]   @relation("MealProgramSoldByUser")
+  meal_program_eligible_items_created                             MealProgramEligibleItems[]  @relation("MealProgramEligibleItemCreator")
 
   @@map("users")
 }
@@ -3645,6 +3742,7 @@ enum PaymentMethod {
   LAYAWAY
   NET_30
   CHECK
+  EXPENSE_ACCOUNT
 }
 
 enum PaymentStatus {
@@ -3943,9 +4041,9 @@ model ClothingBales {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  business              Businesses              @relation(fields: [businessId], references: [id])
-  category              ClothingBaleCategories  @relation(fields: [categoryId], references: [id])
-  employee              Employees?              @relation("BaleStockedBy", fields: [employeeId], references: [id])
+  business                 Businesses               @relation(fields: [businessId], references: [id])
+  category                 ClothingBaleCategories   @relation(fields: [categoryId], references: [id])
+  employee                 Employees?               @relation("BaleStockedBy", fields: [employeeId], references: [id])
   inventory_transfer_items InventoryTransferItems[]
 
   @@unique([businessId, batchNumber])

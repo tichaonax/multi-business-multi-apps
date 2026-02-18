@@ -155,16 +155,21 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Calculate totals
-    const totalOrders = orders.length
-    const totalSales = orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0)
-    const totalTax = orders.reduce((sum, order) => sum + Number(order.taxAmount || 0), 0)
-    const totalDiscount = orders.reduce((sum, order) => sum + Number(order.discountAmount || 0), 0)
-    const subtotal = orders.reduce((sum, order) => sum + Number(order.subtotal || 0), 0)
+    // Filter out EXPENSE_ACCOUNT (meal program subsidy) orders — not real cash income
+    const regularOrders = orders.filter(order =>
+      (order.paymentMethod as string)?.toUpperCase() !== 'EXPENSE_ACCOUNT'
+    )
 
-    // Group by payment method
+    // Calculate totals (regular orders only)
+    const totalOrders = regularOrders.length
+    const totalSales = regularOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0)
+    const totalTax = regularOrders.reduce((sum, order) => sum + Number(order.taxAmount || 0), 0)
+    const totalDiscount = regularOrders.reduce((sum, order) => sum + Number(order.discountAmount || 0), 0)
+    const subtotal = regularOrders.reduce((sum, order) => sum + Number(order.subtotal || 0), 0)
+
+    // Group by payment method (regular orders only — EXPENSE_ACCOUNT shown in meal program section)
     const paymentMethods: Record<string, { count: number; total: number }> = {}
-    orders.forEach(order => {
+    regularOrders.forEach(order => {
       const method = (order.paymentMethod || 'UNKNOWN').toUpperCase()
       if (!paymentMethods[method]) {
         paymentMethods[method] = { count: 0, total: 0 }
@@ -173,9 +178,9 @@ export async function GET(request: NextRequest) {
       paymentMethods[method].total += Number(order.totalAmount || 0)
     })
 
-    // Group by employee/salesperson
+    // Group by employee/salesperson (regular orders only)
     const employeeSales: Record<string, { name: string; employeeNumber: string; orders: number; sales: number }> = {}
-    orders.forEach(order => {
+    regularOrders.forEach(order => {
       const employeeId = order.employeeId || 'unknown'
       const employeeName = order.employees?.fullName || (order.attributes as any)?.employeeName || 'Walk-in/Unknown'
       const employeeNumber = order.employees?.employeeNumber || ''
@@ -192,13 +197,13 @@ export async function GET(request: NextRequest) {
       employeeSales[employeeId].sales += Number(order.totalAmount || 0)
     })
 
-    // Group by category
+    // Group by category (regular orders only)
     const categoryBreakdown: Record<
       string,
       { name: string; itemCount: number; totalSales: number }
     > = {}
 
-    orders.forEach(order => {
+    regularOrders.forEach(order => {
       // Check if order has category data in attributes (from seed data)
       const orderAttributes = order.attributes as any
       if (orderAttributes?.categories && Array.isArray(orderAttributes.categories)) {
@@ -239,9 +244,9 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Group by order status
+    // Group by order status (regular orders only)
     const orderStatusBreakdown: Record<string, { count: number; total: number }> = {}
-    orders.forEach(order => {
+    regularOrders.forEach(order => {
       const status = order.status || 'UNKNOWN'
       if (!orderStatusBreakdown[status]) {
         orderStatusBreakdown[status] = { count: 0, total: 0 }
@@ -250,9 +255,9 @@ export async function GET(request: NextRequest) {
       orderStatusBreakdown[status].total += Number(order.totalAmount || 0)
     })
 
-    // Calculate hourly breakdown
+    // Calculate hourly breakdown (regular orders only)
     const hourlyBreakdown: Record<number, { hour: number; orders: number; sales: number }> = {}
-    orders.forEach(order => {
+    regularOrders.forEach(order => {
       const hour = new Date(order.createdAt).getHours()
       if (!hourlyBreakdown[hour]) {
         hourlyBreakdown[hour] = { hour, orders: 0, sales: 0 }
@@ -261,9 +266,9 @@ export async function GET(request: NextRequest) {
       hourlyBreakdown[hour].sales += Number(order.totalAmount || 0)
     })
 
-    // Calculate daily breakdown (for date range trends)
+    // Calculate daily breakdown (regular orders only, for date range trends)
     const dailyBreakdown: Record<string, { date: string; orders: number; sales: number }> = {}
-    orders.forEach(order => {
+    regularOrders.forEach(order => {
       const orderDate = order.transactionDate || order.createdAt
       const dayStr = new Date(orderDate).toISOString().split('T')[0]
       if (!dailyBreakdown[dayStr]) {

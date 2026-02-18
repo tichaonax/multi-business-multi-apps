@@ -173,6 +173,9 @@ export default function ReportsHistory() {
                         Total Sales
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                        Cash Counted
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Orders
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
@@ -219,6 +222,15 @@ export default function ReportsHistory() {
                           <div className="text-sm font-semibold text-green-600 dark:text-green-400">
                             {formatCurrency(report.totalSales)}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          {report.cashCounted != null ? (
+                            <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                              {formatCurrency(report.cashCounted)}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-400 dark:text-gray-500">—</div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="text-sm text-gray-900 dark:text-gray-100">{report.totalOrders}</div>

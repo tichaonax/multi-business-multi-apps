@@ -149,8 +149,9 @@ export default function EndOfDayReport() {
     }
   }
 
-  // Calculate expected cash
-  const expectedCash = dailySales?.paymentMethods?.CASH?.total || 0
+  // Calculate expected cash — subtract meal program subsidy (paid by expense account, not cashier)
+  const mealProgramSubsidy = dailySales?.expenseAccountSales?.subsidyTotal || 0
+  const expectedCash = (dailySales?.paymentMethods?.CASH?.total || 0) - mealProgramSubsidy
 
   // Calculate variance when cash counted changes
   useEffect(() => {
@@ -612,12 +613,81 @@ export default function EndOfDayReport() {
             </div>
           )}
 
+          {/* Meal Program (Expense Account) Section */}
+          {dailySales.expenseAccountSales && dailySales.expenseAccountSales.count > 0 && (
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
+                🍱 MEAL PROGRAM (EXPENSE ACCOUNTS)
+              </h3>
+              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4 print:bg-amber-50">
+                <p className="text-sm text-amber-900 dark:text-amber-100 print:text-amber-900">
+                  ℹ️ Subsidy amounts are <strong>not collected in cash</strong> — they are paid by the expense account.
+                  The expected cash total below has been adjusted accordingly.
+                </p>
+              </div>
+              <table className="w-full">
+                <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
+                  <tr>
+                    <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Item</th>
+                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
+                    <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">Total Transactions</td>
+                    <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">
+                      {dailySales.expenseAccountSales.count}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
+                    <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">
+                      💳 Expense Account Subsidy (not in cash drawer)
+                    </td>
+                    <td className="p-3 text-right font-semibold text-red-600 dark:text-red-400 print:text-red-600">
+                      −{formatCurrency(dailySales.expenseAccountSales.subsidyTotal)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
+                    <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">
+                      💵 Cash Collected from Participants
+                    </td>
+                    <td className="p-3 text-right font-semibold text-green-600 dark:text-green-400 print:text-green-600">
+                      {formatCurrency(dailySales.expenseAccountSales.cashTotal)}
+                    </td>
+                  </tr>
+                  <tr className="bg-gray-100 dark:bg-gray-700 font-bold print:bg-gray-100">
+                    <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">Total Meal Program Revenue</td>
+                    <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
+                      {formatCurrency(dailySales.expenseAccountSales.total)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Till Reconciliation */}
           <div className="mb-8">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
               TILL RECONCILIATION
             </h3>
             <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded print:bg-gray-50">
+                <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Cash Sales (from POS):</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(dailySales?.paymentMethods?.CASH?.total || 0)}</span>
+              </div>
+
+              {mealProgramSubsidy > 0 && (
+                <div className="flex justify-between items-center p-3 bg-amber-50 dark:bg-amber-900/20 rounded print:bg-amber-50">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">
+                    Less: 🍱 Meal Program Subsidy (expense account):
+                  </span>
+                  <span className="text-xl font-bold text-red-600 dark:text-red-400 print:text-red-600">
+                    −{formatCurrency(mealProgramSubsidy)}
+                  </span>
+                </div>
+              )}
+
               <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded print:bg-gray-50">
                 <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Expected Cash in Drawer:</span>
                 <span className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(expectedCash)}</span>

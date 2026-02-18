@@ -53,6 +53,11 @@ function ReceiptHistoryPageContent() {
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [crossBusinessResults, setCrossBusinessResults] = useState<any[]>([])
   const [showCrossBusinessAlert, setShowCrossBusinessAlert] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')       // ISO yyyy-mm-dd for API
+  const [dateTo, setDateTo] = useState('')         // ISO yyyy-mm-dd for API
+  const [dateFromDisplay, setDateFromDisplay] = useState('') // dd/mm/yyyy for input
+  const [dateToDisplay, setDateToDisplay] = useState('')     // dd/mm/yyyy for input
+  const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom' | ''>('')
 
   // Get businessId from URL params or localStorage
   useEffect(() => {
@@ -79,7 +84,7 @@ function ReceiptHistoryPageContent() {
   }, [])
 
   // Fetch receipts
-  const fetchReceipts = useCallback(async (query = '', offset = 0) => {
+  const fetchReceipts = useCallback(async (query = '', offset = 0, from = dateFrom, to = dateTo) => {
     if (!businessId) {
       setError('Please select a business first')
       setLoading(false)
@@ -98,6 +103,13 @@ function ReceiptHistoryPageContent() {
 
       if (query) {
         params.append('query', query)
+      }
+      if (from) {
+        params.append('startDate', from)
+      }
+      if (to) {
+        // set to end of day
+        params.append('endDate', `${to}T23:59:59`)
       }
 
       const response = await fetch(`/api/universal/receipts/search?${params}`)
@@ -119,7 +131,7 @@ function ReceiptHistoryPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [businessId, searchAcrossBusinesses])
+  }, [businessId, searchAcrossBusinesses, dateFrom, dateTo])
 
   // Initial load - only run once when businessId changes
   useEffect(() => {
@@ -133,6 +145,61 @@ function ReceiptHistoryPageContent() {
     setSearchQuery(query)
     fetchReceipts(query, 0)
   }, [fetchReceipts])
+
+  // Convert ISO date (yyyy-mm-dd) → display format (dd/mm/yyyy)
+  function isoToDisplay(iso: string): string {
+    if (!iso) return ''
+    const [y, m, d] = iso.split('-')
+    if (!y || !m || !d) return iso
+    return `${d}/${m}/${y}`
+  }
+
+  // Convert display format (dd/mm/yyyy) → ISO (yyyy-mm-dd); returns '' if invalid/incomplete
+  function displayToIso(display: string): string {
+    if (!display) return ''
+    const parts = display.split('/')
+    if (parts.length !== 3) return ''
+    const [d, m, y] = parts
+    if (!d || !m || !y || y.length !== 4) return ''
+    const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+    const date = new Date(iso)
+    return isNaN(date.getTime()) ? '' : iso
+  }
+
+  // Apply a date preset
+  function applyPreset(preset: 'today' | 'yesterday' | 'week' | 'month') {
+    const now = new Date()
+    const today = now.toISOString().slice(0, 10)
+    let from = today
+    let to = today
+    if (preset === 'yesterday') {
+      const d = new Date(now)
+      d.setDate(d.getDate() - 1)
+      from = d.toISOString().slice(0, 10)
+      to = from
+    } else if (preset === 'week') {
+      const d = new Date(now)
+      d.setDate(d.getDate() - 6)
+      from = d.toISOString().slice(0, 10)
+    } else if (preset === 'month') {
+      from = `${today.slice(0, 7)}-01`
+    }
+    setDateFrom(from)
+    setDateTo(to)
+    setDateFromDisplay(isoToDisplay(from))
+    setDateToDisplay(isoToDisplay(to))
+    setDatePreset(preset)
+    fetchReceipts(searchQuery, 0, from, to)
+  }
+
+  function clearDates() {
+    setDateFrom('')
+    setDateTo('')
+    setDateFromDisplay('')
+    setDateToDisplay('')
+    setDatePreset('')
+    fetchReceipts(searchQuery, 0, '', '')
+  }
 
   // Handle receipt click
   const handleReceiptClick = (receiptId: string) => {
@@ -196,8 +263,78 @@ function ReceiptHistoryPageContent() {
         </div>
 
         {/* Search Bar */}
-        <div className="mb-6">
+        <div className="mb-4">
           <ReceiptSearchBar onSearch={handleSearch} loading={loading} />
+        </div>
+
+        {/* Date Filters */}
+        <div className="mb-6 flex flex-wrap items-end gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          {/* Presets */}
+          <div className="flex gap-2">
+            {(['today', 'yesterday', 'week', 'month'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => applyPreset(p)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  datePreset === p
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                }`}
+              >
+                {p === 'today' ? 'Today' : p === 'yesterday' ? 'Yesterday' : p === 'week' ? 'Last 7 Days' : 'This Month'}
+              </button>
+            ))}
+          </div>
+          {/* Custom range */}
+          <div className="flex items-end gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
+              <input
+                type="text"
+                placeholder="dd/mm/yyyy"
+                maxLength={10}
+                value={dateFromDisplay}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setDateFromDisplay(val)
+                  setDateFrom(displayToIso(val))
+                  setDatePreset('custom')
+                }}
+                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white w-28"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
+              <input
+                type="text"
+                placeholder="dd/mm/yyyy"
+                maxLength={10}
+                value={dateToDisplay}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setDateToDisplay(val)
+                  setDateTo(displayToIso(val))
+                  setDatePreset('custom')
+                }}
+                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white w-28"
+              />
+            </div>
+            <button
+              onClick={() => fetchReceipts(searchQuery, 0)}
+              disabled={loading}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg disabled:opacity-50"
+            >
+              Apply
+            </button>
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={clearDates}
+                className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Error Message */}
@@ -282,7 +419,7 @@ function ReceiptHistoryPageContent() {
             {pagination && pagination.hasMore && (
               <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                 <button
-                  onClick={() => fetchReceipts(searchQuery, pagination.offset + pagination.limit)}
+                  onClick={() => fetchReceipts(searchQuery, pagination.offset + pagination.limit, dateFrom, dateTo)}
                   className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
                 >
                   Load More ({pagination.total - pagination.offset - pagination.limit} remaining)

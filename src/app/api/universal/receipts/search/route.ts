@@ -74,6 +74,7 @@ export async function GET(request: NextRequest) {
         paymentMethod: true,
         status: true,
         createdAt: true,
+        attributes: true,
         business_customers: {
           select: {
             name: true,
@@ -104,7 +105,9 @@ export async function GET(request: NextRequest) {
         orderNumber: order.orderNumber,
         customerId: order.customerId,
         customerName: order.business_customers?.name || 'Walk-in Customer',
-        salespersonName: order.employees?.fullName || null,
+        salespersonName: order.employees?.fullName
+          || (order.attributes as any)?.soldByName
+          || null,
         totalAmount: order.totalAmount,
         businessType: order.businessType,
         paymentMethod: order.paymentMethod,

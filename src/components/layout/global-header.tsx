@@ -104,7 +104,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
         { href: `/${businessType}/menu`, icon: '📋', label: 'Menu Management', permissions: ['canManageMenu'] },
-        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] },
+        { href: '/restaurant/meal-program/participants', icon: '👥', label: 'Meal Program · Participants', permissions: ['canManageEmployees', 'canManageMenu', 'canManageInventory'] },
+        { href: '/restaurant/meal-program/eligible-items', icon: '🍱', label: 'Meal Program · Items', permissions: ['canManageEmployees', 'canManageMenu', 'canManageInventory'] }
       ],
       grocery: [
         { href: `/${businessType}/pos`, icon: '🛒', label: 'POS System' },

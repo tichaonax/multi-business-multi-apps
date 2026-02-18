@@ -35,6 +35,8 @@ export async function GET(
     const startDateStr = searchParams.get('startDate');
     const endDateStr = searchParams.get('endDate');
 
+    const timezone = searchParams.get('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
     if (!startDateStr || !endDateStr) {
       return NextResponse.json(
         { error: 'startDate and endDate are required' },
@@ -42,15 +44,27 @@ export async function GET(
       );
     }
 
-    // Parse dates
-    const startDate = new Date(startDateStr);
-    const endDate = new Date(endDateStr);
-    endDate.setHours(23, 59, 59, 999); // Include full end date
+    // Parse dates with timezone awareness (same approach as /api/universal/orders)
+    // startDateStr/endDateStr are in YYYY-MM-DD format (local dates)
+    const [sy, sm, sd] = startDateStr.split('-').map(Number);
+    const [ey, em, ed] = endDateStr.split('-').map(Number);
 
-    // Fetch all orders for the period with relations
+    // Convert local midnight to UTC by calculating timezone offset
+    const startMidnightUTC = Date.UTC(sy, sm - 1, sd, 0, 0, 0);
+    const startTzOffset = new Date(new Date(startMidnightUTC).toLocaleString('en-US', { timeZone: timezone })).getTime()
+      - new Date(new Date(startMidnightUTC).toLocaleString('en-US', { timeZone: 'UTC' })).getTime();
+    const startDate = new Date(startMidnightUTC - startTzOffset);
+
+    const endMidnightUTC = Date.UTC(ey, em - 1, ed, 0, 0, 0);
+    const endTzOffset = new Date(new Date(endMidnightUTC).toLocaleString('en-US', { timeZone: timezone })).getTime()
+      - new Date(new Date(endMidnightUTC).toLocaleString('en-US', { timeZone: 'UTC' })).getTime();
+    const endDate = new Date(endMidnightUTC - endTzOffset + 24 * 60 * 60 * 1000 - 1); // end of day in timezone
+
+    // Fetch completed orders for the period with relations
     const orders = await prisma.businessOrders.findMany({
       where: {
         businessId: businessId,
+        status: 'COMPLETED',
         createdAt: {
           gte: startDate,
           lte: endDate,
@@ -102,10 +116,13 @@ export async function GET(
       }
     });
 
+    // Filter out EXPENSE_ACCOUNT (meal program subsidy) orders — these are not real cash income
+    const regularOrders = orders.filter(order => order.paymentMethod !== 'EXPENSE_ACCOUNT')
+
     // Calculate summary metrics
-    const totalSales = orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
-    const totalTax = orders.reduce((sum, order) => sum + Number(order.taxAmount || 0), 0);
-    const totalOrders = orders.length;
+    const totalSales = regularOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+    const totalTax = regularOrders.reduce((sum, order) => sum + Number(order.taxAmount || 0), 0);
+    const totalOrders = regularOrders.length;
     const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
     // Aggregate by product (units and revenue)
@@ -142,7 +159,7 @@ export async function GET(
     }> = {};
 
     // Process each order
-    orders.forEach(order => {
+    regularOrders.forEach(order => {
       const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
       const orderRevenue = Number(order.totalAmount || 0);
 
@@ -290,7 +307,7 @@ export async function GET(
     // (combos, WiFi tokens, R710 tokens, and any item where variant lookup failed)
     // The restaurant orders API stores productId in item.attributes.productId.
     const noVariantProductIds = new Set<string>();
-    orders.forEach(order => {
+    regularOrders.forEach(order => {
       order.business_order_items.forEach(item => {
         if (!item.product_variants && item.attributes && (item.attributes as any).productId) {
           noVariantProductIds.add((item.attributes as any).productId as string);
@@ -326,7 +343,7 @@ export async function GET(
       const noVariantProductMap = new Map(noVariantProducts.map(p => [p.id, p]));
 
       // Second pass: fill in category stats for no-variant items
-      orders.forEach(order => {
+      regularOrders.forEach(order => {
         order.business_order_items.forEach(item => {
           if (!item.product_variants && item.attributes) {
             const attrs = item.attributes as any;
@@ -492,12 +509,13 @@ export async function GET(
       categoryBreakdown,
       salesRepBreakdown,
       debug: {
-        orderCount: orders.length,
-        itemCount: orders.reduce((sum, o) => sum + o.business_order_items.length, 0),
-        itemsWithVariants: orders.reduce((sum, o) => sum + o.business_order_items.filter(i => i.product_variants).length, 0),
-        itemsWithProducts: orders.reduce((sum, o) => sum + o.business_order_items.filter(i => i.product_variants?.business_products).length, 0),
-        itemsWithCategories: orders.reduce((sum, o) => sum + o.business_order_items.filter(i => i.product_variants?.business_products?.business_categories).length, 0),
-        itemsWithAttributes: orders.reduce((sum, o) => sum + o.business_order_items.filter(i => i.attributes?.productName).length, 0)
+        orderCount: regularOrders.length,
+        expenseAccountOrdersExcluded: orders.length - regularOrders.length,
+        itemCount: regularOrders.reduce((sum, o) => sum + o.business_order_items.length, 0),
+        itemsWithVariants: regularOrders.reduce((sum, o) => sum + o.business_order_items.filter(i => i.product_variants).length, 0),
+        itemsWithProducts: regularOrders.reduce((sum, o) => sum + o.business_order_items.filter(i => i.product_variants?.business_products).length, 0),
+        itemsWithCategories: regularOrders.reduce((sum, o) => sum + o.business_order_items.filter(i => i.product_variants?.business_products?.business_categories).length, 0),
+        itemsWithAttributes: regularOrders.reduce((sum, o) => sum + o.business_order_items.filter(i => i.attributes?.productName).length, 0)
       }
     });
 

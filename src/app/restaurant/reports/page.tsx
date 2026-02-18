@@ -47,6 +47,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/history`,
       icon: '📅',
       color: 'bg-blue-600 hover:bg-blue-700'
+    },
+    {
+      title: '🍱 Meal Program Report',
+      description: 'Expense tracking, salesperson summaries, and participant meal history',
+      href: `/${businessType}/reports/meal-program`,
+      icon: '🍱',
+      color: 'bg-amber-600 hover:bg-amber-700'
     }
   ]
 

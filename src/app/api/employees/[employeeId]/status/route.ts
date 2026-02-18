@@ -112,6 +112,12 @@ export async function PUT(
             endDate: new Date()
           }
         });
+
+        // SYNC RULE: Employee terminated → Meal program deactivated
+        await tx.mealProgramParticipants.updateMany({
+          where: { employeeId: employeeId, isActive: true },
+          data: { isActive: false }
+        })
       }
 
       // NOTE: Other employee status changes (active, on_leave, suspended, pending_contract)

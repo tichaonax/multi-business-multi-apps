@@ -15,14 +15,16 @@ interface DateRangeSelectorProps {
 }
 
 const presets = [
-  { label: 'Last 7 Days', days: 7 },
-  { label: 'Last 30 Days', days: 30 },
-  { label: 'Last 90 Days', days: 90 },
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: '7', label: 'Last 7 Days', days: 7 },
+  { key: '30', label: 'Last 30 Days', days: 30 },
+  { key: '90', label: 'Last 90 Days', days: 90 },
 ]
 
 export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
   const [showCustom, setShowCustom] = useState(false)
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(30)
+  const [selectedPreset, setSelectedPreset] = useState<string | null>('30')
   const { format: dateFormat } = useDateFormat()
 
   // Local text state so the user can type freely; only committed on valid parse
@@ -39,23 +41,49 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
 
   // Synchronize selectedPreset with the value prop
   useEffect(() => {
+    const now = new Date()
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const startOfYesterday = new Date(startOfToday)
+    startOfYesterday.setDate(startOfToday.getDate() - 1)
+    const valueStartDay = new Date(value.start.getFullYear(), value.start.getMonth(), value.start.getDate())
     const daysDiff = Math.round((value.end.getTime() - value.start.getTime()) / (1000 * 60 * 60 * 24))
-    const matchingPreset = presets.find(preset => preset.days === daysDiff)
-    if (matchingPreset) {
-      setSelectedPreset(matchingPreset.days)
+
+    if (valueStartDay.getTime() === startOfToday.getTime()) {
+      setSelectedPreset('today')
+      setShowCustom(false)
+    } else if (valueStartDay.getTime() === startOfYesterday.getTime() && daysDiff <= 1) {
+      setSelectedPreset('yesterday')
       setShowCustom(false)
     } else {
-      setSelectedPreset(null)
-      setShowCustom(true)
+      const matchingPreset = presets.find(p => p.days === daysDiff)
+      if (matchingPreset) {
+        setSelectedPreset(matchingPreset.key)
+        setShowCustom(false)
+      } else {
+        setSelectedPreset(null)
+        setShowCustom(true)
+      }
     }
   }, [value])
 
-  const handlePresetClick = (days: number) => {
-    const end = new Date()
-    const start = new Date()
-    start.setDate(end.getDate() - days)
+  const handlePresetClick = (key: string, days?: number) => {
+    const now = new Date()
+    let start: Date
+    let end: Date = now
 
-    setSelectedPreset(days)
+    if (key === 'today') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    } else if (key === 'yesterday') {
+      const yesterday = new Date(now)
+      yesterday.setDate(now.getDate() - 1)
+      start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    } else {
+      start = new Date(now)
+      start.setDate(now.getDate() - (days || 7))
+    }
+
+    setSelectedPreset(key)
     setShowCustom(false)
     onChange({ start, end })
   }
@@ -111,10 +139,10 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
         <div className="flex flex-wrap gap-2">
           {presets.map((preset) => (
             <button
-              key={preset.days}
-              onClick={() => handlePresetClick(preset.days)}
+              key={preset.key}
+              onClick={() => handlePresetClick(preset.key, preset.days)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedPreset === preset.days
+                selectedPreset === preset.key
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}

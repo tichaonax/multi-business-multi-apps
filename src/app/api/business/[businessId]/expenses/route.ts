@@ -63,14 +63,20 @@ export async function GET(
       expenseAccountId: { in: accountIds },
     };
 
-    // Date filtering
+    // Date filtering (timezone-aware: startDate/endDate are YYYY-MM-DD local dates)
     if (startDate || endDate) {
       where.paymentDate = {};
       if (startDate) {
-        where.paymentDate.gte = new Date(startDate);
+        // Start of day: midnight local → UTC
+        const [sy, sm, sd] = startDate.split('-').map(Number);
+        const startUTC = new Date(Date.UTC(sy, sm - 1, sd, 0, 0, 0));
+        where.paymentDate.gte = startUTC;
       }
       if (endDate) {
-        where.paymentDate.lte = new Date(endDate);
+        // End of day: 23:59:59.999 local → UTC
+        const [ey, em, ed] = endDate.split('-').map(Number);
+        const endUTC = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
+        where.paymentDate.lte = endUTC;
       }
     }
 

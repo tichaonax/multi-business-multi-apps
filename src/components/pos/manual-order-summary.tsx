@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Lock, CheckCircle, AlertCircle, Trash2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Lock, CheckCircle, AlertCircle, Trash2, Calendar } from 'lucide-react'
 import type { ManualCartItem } from './manual-entry-tab'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
@@ -43,6 +43,7 @@ export function ManualOrderSummary({
 }: ManualOrderSummaryProps) {
   const { format: globalDateFormat } = useDateFormat()
   const [transactionDate, setTransactionDate] = useState('')
+  const dateInputRef = useRef<HTMLInputElement>(null)
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [notes, setNotes] = useState('')
   const [closedDatesSet, setClosedDatesSet] = useState<Set<string>>(new Set())
@@ -181,25 +182,39 @@ export function ManualOrderSummary({
         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
           Transaction Date
         </label>
-        <input
-          type="date"
-          value={transactionDate}
-          onChange={(e) => {
-            const val = e.target.value
-            if (val && availableDates.includes(val)) {
-              setTransactionDate(val)
-              setError(null)
-            } else if (val && allDates.includes(val) && closedDatesSet.has(val)) {
-              setError('That date is closed.')
-            } else if (val) {
-              setError(`Date must be within the past ${MANUAL_ENTRY_LOOKBACK_DAYS} days.`)
-            }
-          }}
-          min={allDates[allDates.length - 1]}
-          max={allDates[0]}
-          disabled={loadingDates}
-          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-1"
-        />
+        <div className="relative mb-1">
+          <button
+            type="button"
+            onClick={() => dateInputRef.current?.showPicker?.()}
+            disabled={loadingDates}
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-left flex items-center justify-between"
+          >
+            <span className={transactionDate ? '' : 'text-gray-400 dark:text-gray-500'}>
+              {transactionDate ? displayDate(transactionDate) : 'Pick date...'}
+            </span>
+            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+          </button>
+          <input
+            ref={dateInputRef}
+            type="date"
+            value={transactionDate}
+            onChange={(e) => {
+              const val = e.target.value
+              if (val && availableDates.includes(val)) {
+                setTransactionDate(val)
+                setError(null)
+              } else if (val && allDates.includes(val) && closedDatesSet.has(val)) {
+                setError('That date is closed.')
+              } else if (val) {
+                setError(`Date must be within the past ${MANUAL_ENTRY_LOOKBACK_DAYS} days.`)
+              }
+            }}
+            min={allDates[allDates.length - 1]}
+            max={allDates[0]}
+            className="absolute inset-0 opacity-0 pointer-events-none"
+            tabIndex={-1}
+          />
+        </div>
         <select
           value={transactionDate}
           onChange={(e) => setTransactionDate(e.target.value)}

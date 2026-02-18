@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Plus, Calendar, Trash2, Lock, CheckCircle, AlertCircle } from 'lucide-react'
 import { BarcodeScanner } from '@/components/universal'
 import { useDateFormat } from '@/contexts/settings-context'
@@ -353,6 +353,7 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
   const { format: globalDateFormat } = useDateFormat()
   const displayDate = (isoDate: string) => formatDateByFormat(isoDate + 'T12:00:00Z', globalDateFormat)
   const [transactionDate, setTransactionDate] = useState('')
+  const dateInputRef = useRef<HTMLInputElement>(null)
   const [closedDatesSet, setClosedDatesSet] = useState<Set<string>>(new Set())
   const [loadingDates, setLoadingDates] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState('CASH')
@@ -456,24 +457,38 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Transaction Date</label>
         <div className="flex gap-2">
-          <input
-            type="date"
-            value={transactionDate}
-            onChange={(e) => {
-              const val = e.target.value
-              if (val && availableDates.includes(val)) {
-                setTransactionDate(val)
-              } else if (val && allDates.includes(val) && closedDatesSet.has(val)) {
-                setError('That date is closed. Choose another date.')
-              } else if (val) {
-                setError(`Date must be within the past ${MANUAL_ENTRY_LOOKBACK_DAYS} days.`)
-              }
-            }}
-            min={allDates[allDates.length - 1]}
-            max={allDates[0]}
-            disabled={loadingDates}
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-          />
+          <div className="flex-1 relative">
+            <button
+              type="button"
+              onClick={() => dateInputRef.current?.showPicker?.()}
+              disabled={loadingDates}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm text-left flex items-center justify-between"
+            >
+              <span className={transactionDate ? '' : 'text-gray-400 dark:text-gray-500'}>
+                {transactionDate ? displayDate(transactionDate) : 'Pick date...'}
+              </span>
+              <Calendar className="w-4 h-4 text-gray-400" />
+            </button>
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={transactionDate}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val && availableDates.includes(val)) {
+                  setTransactionDate(val)
+                } else if (val && allDates.includes(val) && closedDatesSet.has(val)) {
+                  setError('That date is closed. Choose another date.')
+                } else if (val) {
+                  setError(`Date must be within the past ${MANUAL_ENTRY_LOOKBACK_DAYS} days.`)
+                }
+              }}
+              min={allDates[allDates.length - 1]}
+              max={allDates[0]}
+              className="absolute inset-0 opacity-0 pointer-events-none"
+              tabIndex={-1}
+            />
+          </div>
           <select value={transactionDate} onChange={(e) => setTransactionDate(e.target.value)} disabled={loadingDates}
             className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
             <option value="">{loadingDates ? 'Loading...' : 'Or pick from list...'}</option>

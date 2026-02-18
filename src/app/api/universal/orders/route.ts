@@ -235,9 +235,11 @@ export async function GET(request: NextRequest) {
       prisma.businessOrders.count({ where })
     ])
 
-    // Calculate summary statistics
+    // Calculate summary statistics — only count completed/paid orders for totals
+    // Exclude EXPENSE_ACCOUNT orders (meal program subsidies) from revenue totals
+    const summaryWhere = { ...where, status: 'COMPLETED' as any, paymentMethod: { not: 'EXPENSE_ACCOUNT' } }
     const summary = await prisma.businessOrders.aggregate({
-      where,
+      where: summaryWhere,
       _sum: {
         totalAmount: true,
         subtotal: true,
@@ -248,10 +250,12 @@ export async function GET(request: NextRequest) {
     })
 
     // Calculate completed and pending revenue for all orders matching filters
+    // Exclude EXPENSE_ACCOUNT orders (meal program subsidies) from revenue
     const completedRevenueResult = await prisma.businessOrders.aggregate({
       where: {
         ...where,
-        status: 'COMPLETED'
+        status: 'COMPLETED',
+        paymentMethod: { not: 'EXPENSE_ACCOUNT' }
       },
       _sum: {
         totalAmount: true

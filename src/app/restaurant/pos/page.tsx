@@ -32,6 +32,7 @@ import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
 import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 import { CloseBooksBanner } from '@/components/pos/close-books-banner'
+import { MealProgramPanel } from '@/components/restaurant/meal-program/MealProgramPanel'
 
 interface MenuItem {
   id: string
@@ -69,7 +70,7 @@ export default function RestaurantPOS() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
+  const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -79,6 +80,8 @@ export default function RestaurantPOS() {
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [completedOrder, setCompletedOrder] = useState<any>(null)
+  // When non-null: meal program transaction is already saved; this is the cash amount the cashier must collect
+  const [mealProgramCashDue, setMealProgramCashDue] = useState<number | null>(null)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [taxIncludedInPrice, setTaxIncludedInPrice] = useState(true) // Default: tax included
   const [taxRate, setTaxRate] = useState(0) // Default: 0% - businesses configure their own tax rate
@@ -1462,6 +1465,23 @@ export default function RestaurantPOS() {
   }
 
   const completeOrderWithPayment = async () => {
+    // Meal-program orders are already saved — just close tender modal and show receipt
+    if (mealProgramCashDue !== null) {
+      const received = parseFloat(amountReceived) || 0
+      // Patch the stored completedOrder with the actual change so the receipt shows it
+      setCompletedOrder((prev: any) => prev ? {
+        ...prev,
+        paymentMethod: 'CASH',
+        amountReceived: received,
+        change: Math.max(0, received - mealProgramCashDue),
+      } : prev)
+      setShowPaymentModal(false)
+      setMealProgramCashDue(null)
+      setAmountReceived('')
+      setShowReceiptModal(true)
+      return
+    }
+
     console.log('💳 Completing order with payment')
     console.log('Cart items:', cart)
     console.log('Payment method:', paymentMethod)
@@ -1661,6 +1681,16 @@ export default function RestaurantPOS() {
                 >
                   Manual Entry
                 </button>
+                <button
+                  onClick={() => setPosMode('meal_program')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    posMode === 'meal_program'
+                      ? 'bg-white dark:bg-gray-700 text-amber-600 dark:text-amber-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  🍱 Meal Program
+                </button>
               </div>
             )}
 
@@ -1726,6 +1756,31 @@ export default function RestaurantPOS() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Expense Account (Meal Program) Breakdown */}
+                    {dailySales.expenseAccountSales && dailySales.expenseAccountSales.count > 0 && (
+                      <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-700">
+                        <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-2">🍱 Meal Program (Expense Accounts)</h3>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Transactions</div>
+                            <div className="font-bold text-primary">{dailySales.expenseAccountSales.count}</div>
+                          </div>
+                          <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Subsidy Paid</div>
+                            <div className="font-bold text-green-600 dark:text-green-400">${dailySales.expenseAccountSales.subsidyTotal.toFixed(2)}</div>
+                          </div>
+                          <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Cash Collected</div>
+                            <div className="font-bold text-blue-600 dark:text-blue-400">${dailySales.expenseAccountSales.cashTotal.toFixed(2)}</div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-2 pt-2 border-t border-amber-200 dark:border-amber-700">
+                          <span>Total meal program revenue:</span>
+                          <span className="font-semibold text-primary">${dailySales.expenseAccountSales.total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Top Categories */}
                     {dailySales.categoryBreakdown && dailySales.categoryBreakdown.length > 0 && (
@@ -2037,6 +2092,58 @@ export default function RestaurantPOS() {
             />
           )}
 
+          {/* Meal Program Panel (right panel) */}
+          {posMode === 'meal_program' && currentBusinessId && (
+            <div className="card overflow-hidden sticky top-20 self-start" style={{ minHeight: '480px' }}>
+              <MealProgramPanel
+                businessId={currentBusinessId}
+                soldByEmployeeId={employeeId}
+                allMenuItems={menuItems.map((m) => ({
+                  id: m.id,
+                  name: m.name,
+                  price: Number(m.price),
+                  category: m.category,
+                }))}
+                onTransactionComplete={(result) => {
+                  const cashDue = Number(result.cashAmount)
+                  const orderForReceipt = {
+                    orderNumber: result.orderNumber,
+                    items: result.items.map((i) => ({
+                      ...i,
+                      sku: undefined,
+                    })),
+                    subtotal: Number(result.totalAmount),
+                    total: Number(result.totalAmount),
+                    paymentMethod: 'EXPENSE_ACCOUNT',
+                    amountReceived: Number(result.totalAmount),
+                    change: 0,
+                    wifiTokens: [],
+                    r710Tokens: [],
+                    businessInfo: businessDetails || currentBusiness,
+                    attributes: {
+                      mealProgram: true,
+                      participantName: result.participantName,
+                      expenseAmount: result.subsidyAmount,
+                      cashAmount: result.cashAmount,
+                    },
+                  }
+                  setCompletedOrder(orderForReceipt)
+                  if (cashDue > 0) {
+                    // Reuse existing payment modal as cash-tender step (transaction already saved)
+                    setMealProgramCashDue(cashDue)
+                    setAmountReceived('')
+                    setPaymentMethod('CASH')
+                    setShowPaymentModal(true)
+                  } else {
+                    // Fully subsidised — skip tender, go straight to receipt
+                    setShowReceiptModal(true)
+                  }
+                }}
+                onCancel={() => setPosMode('live')}
+              />
+            </div>
+          )}
+
           {/* Live Order Summary (right panel) */}
           {posMode === 'live' && (
           <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
@@ -2131,22 +2238,40 @@ export default function RestaurantPOS() {
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-primary mb-4">💳 Payment</h2>
+            <h2 className="text-2xl font-bold text-primary mb-4">
+              {mealProgramCashDue !== null ? '🍱 Collect Cash Payment' : '💳 Payment'}
+            </h2>
 
             <div className="space-y-4">
-              {/* Order Total */}
+              {/* Order Total / Cash Due */}
               <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-medium">Total Amount:</span>
-                  <span className="text-2xl font-bold text-green-600">${total.toFixed(2)}</span>
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {cart.length} item{cart.length !== 1 ? 's' : ''}
-                </div>
+                {mealProgramCashDue !== null ? (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-medium">Cash Due:</span>
+                      <span className="text-2xl font-bold text-green-600">${mealProgramCashDue.toFixed(2)}</span>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Expense account covers ${completedOrder?.attributes?.expenseAmount !== undefined
+                        ? Number(completedOrder.attributes.expenseAmount).toFixed(2)
+                        : '0.50'} subsidy
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-medium">Total Amount:</span>
+                      <span className="text-2xl font-bold text-green-600">${total.toFixed(2)}</span>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      {cart.length} item{cart.length !== 1 ? 's' : ''}
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Payment Method */}
-              <div>
+              {/* Payment Method — hidden for meal-program tender (always cash) */}
+              {mealProgramCashDue === null && <div>
                 <label className="block text-sm font-medium text-primary mb-2">Payment Method</label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
@@ -2180,37 +2305,40 @@ export default function RestaurantPOS() {
                     📱 Mobile
                   </button>
                 </div>
-              </div>
+              </div>}
 
-              {/* Amount Received (for Cash) - only show if total > 0 */}
-              {paymentMethod === 'CASH' && total > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-primary mb-2">Amount Received</label>
-                  <input
-                    type="number"
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    step="0.01"
-                    min="0"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
-                    placeholder="Enter amount received"
-                    autoFocus
-                  />
-                  {amountReceived && parseFloat(amountReceived) >= total && (
-                    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded text-green-800 dark:text-green-200 font-medium">
-                      💵 Change: ${(parseFloat(amountReceived) - total).toFixed(2)}
-                    </div>
-                  )}
-                  {amountReceived && parseFloat(amountReceived) < total && (
-                    <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
-                      ⚠️ Amount received is less than total (${total.toFixed(2)})
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Amount Received — shown for cash (regular or meal-program tender) */}
+              {(mealProgramCashDue !== null || (paymentMethod === 'CASH' && total > 0)) && (() => {
+                const cashRef = mealProgramCashDue ?? total
+                return (
+                  <div>
+                    <label className="block text-sm font-medium text-primary mb-2">Amount Received</label>
+                    <input
+                      type="number"
+                      value={amountReceived}
+                      onChange={(e) => setAmountReceived(e.target.value)}
+                      step="0.01"
+                      min="0"
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
+                      placeholder="Enter amount received"
+                      autoFocus
+                    />
+                    {amountReceived && parseFloat(amountReceived) >= cashRef && (
+                      <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded text-green-800 dark:text-green-200 font-medium">
+                        💵 Change: ${(parseFloat(amountReceived) - cashRef).toFixed(2)}
+                      </div>
+                    )}
+                    {amountReceived && parseFloat(amountReceived) < cashRef && (
+                      <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
+                        ⚠️ Amount received is less than total (${cashRef.toFixed(2)})
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Free item notice */}
-              {paymentMethod === 'CASH' && total === 0 && (
+              {mealProgramCashDue === null && paymentMethod === 'CASH' && total === 0 && (
                 <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-800 dark:text-green-200">
                   ✅ Free item - no payment required
                 </div>
@@ -2233,6 +2361,7 @@ export default function RestaurantPOS() {
                     })
 
                     setShowPaymentModal(false)
+                    setMealProgramCashDue(null)
                     setAmountReceived('')
                   }}
                   className="flex-1 py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600"
@@ -2241,10 +2370,14 @@ export default function RestaurantPOS() {
                 </button>
                 <button
                   onClick={completeOrderWithPayment}
-                  disabled={orderSubmitting || (paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total))}
+                  disabled={orderSubmitting || (
+                    mealProgramCashDue !== null
+                      ? (mealProgramCashDue > 0 && (!amountReceived || parseFloat(amountReceived) < mealProgramCashDue))
+                      : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total))
+                  )}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {orderSubmitting ? 'Processing...' : 'Complete Order'}
+                  {orderSubmitting ? 'Processing...' : mealProgramCashDue !== null ? 'Confirm & Print Receipt' : 'Complete Order'}
                 </button>
               </div>
             </div>
@@ -2397,19 +2530,38 @@ export default function RestaurantPOS() {
 
                 {/* Total */}
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                  {/* Meal program payment breakdown */}
+                  {completedOrder.attributes?.mealProgram && (
+                    <div className="mb-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700 text-sm space-y-1">
+                      <div className="font-semibold text-amber-700 dark:text-amber-400 text-xs uppercase tracking-wide mb-1">🍱 Meal Program Payment</div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">Expense account (subsidy):</span>
+                        <span className="text-green-600 dark:text-green-400 font-medium">−${Number(completedOrder.attributes.expenseAmount).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">Cash collected:</span>
+                        <span className="text-gray-900 dark:text-gray-100 font-medium">${Number(completedOrder.attributes.cashAmount).toFixed(2)}</span>
+                      </div>
+                      {completedOrder.attributes.participantName && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 pt-1 border-t border-amber-200 dark:border-amber-700">
+                          Participant: {completedOrder.attributes.participantName}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex justify-between text-lg font-bold">
                     <span className="text-gray-700 dark:text-gray-300">Total:</span>
-                    <span className="text-gray-900 dark:text-gray-100">${completedOrder.total.toFixed(2)}</span>
+                    <span className="text-gray-900 dark:text-gray-100">${Number(completedOrder.total).toFixed(2)}</span>
                   </div>
-                  {completedOrder.paymentMethod === 'CASH' && (
+                  {(completedOrder.paymentMethod === 'CASH' || completedOrder.paymentMethod === 'EXPENSE_ACCOUNT') && completedOrder.amountReceived > 0 && (
                     <>
                       <div className="flex justify-between text-sm mt-1">
                         <span className="text-gray-600 dark:text-gray-400">Received:</span>
-                        <span className="text-gray-900 dark:text-gray-100">${completedOrder.amountReceived.toFixed(2)}</span>
+                        <span className="text-gray-900 dark:text-gray-100">${Number(completedOrder.amountReceived).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-sm font-medium">
                         <span className="text-gray-600 dark:text-gray-400">Change:</span>
-                        <span className="text-green-600 dark:text-green-400">${completedOrder.change.toFixed(2)}</span>
+                        <span className="text-green-600 dark:text-green-400">${Number(completedOrder.change).toFixed(2)}</span>
                       </div>
                     </>
                   )}

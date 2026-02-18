@@ -65,8 +65,9 @@ export default function RestaurantSalesAnalytics() {
       const startDate = dateRange.start.toISOString().split('T')[0]
       const endDate = dateRange.end.toISOString().split('T')[0]
 
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
       const response = await fetch(
-        `/api/business/${currentBusinessId}/sales-analytics?startDate=${startDate}&endDate=${endDate}`
+        `/api/business/${currentBusinessId}/sales-analytics?startDate=${startDate}&endDate=${endDate}&timezone=${encodeURIComponent(tz)}`
       )
 
       if (response.ok) {

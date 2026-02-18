@@ -35,6 +35,10 @@ export const CATEGORY_EMOJIS: Record<string, string> = {
   'Cabbage': '🥬',
   'Greens': '🥬',
 
+  // Meal Program
+  'Employee Meal Program': '🍱',
+  'Meal Program': '🍱',
+
   // Expenses (some may have combos too)
   'Broiler': '🔥',
   'Rent': '🏠',
@@ -136,6 +140,7 @@ export function getCategoryEmoji(categoryName: string): string {
   if (lowerName.includes('loan')) return '💰'
   if (lowerName.includes('rent')) return '🏠'
   if (lowerName.includes('salary') || lowerName.includes('wage')) return '💰'
+  if (lowerName.includes('meal') || lowerName.includes('lunch') || lowerName.includes('dinner')) return '🍱'
   if (lowerName.includes('fuel') || lowerName.includes('gas')) return '⛽'
   if (lowerName.includes('electric')) return '⚡'
 

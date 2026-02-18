@@ -366,6 +366,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           })
         }
 
+        // SYNC: Contract terminated → Meal program deactivated
+        await tx.mealProgramParticipants.updateMany({
+          where: { employeeId: employeeId, isActive: true },
+          data: { isActive: false }
+        })
+
         // Create audit log for contract termination
         await tx.auditLogs.create({
           data: {

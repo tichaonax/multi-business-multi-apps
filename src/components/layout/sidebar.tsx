@@ -632,6 +632,19 @@ export function Sidebar() {
                     <span>R710 WiFi Sales</span>
                   </Link>
                 )}
+                {/* Meal Program — management links only for managers/admins */}
+                {(isSystemAdmin(currentUser) || hasPermission('canManageEmployees') || hasPermission('canManageMenu') || hasPermission('canManageInventory')) && (
+                  <>
+                    <Link href="/restaurant/meal-program/participants" className={getLinkClasses('/restaurant/meal-program/participants')}>
+                      <span className="text-lg">👥</span>
+                      <span>Meal Program · Participants</span>
+                    </Link>
+                    <Link href="/restaurant/meal-program/eligible-items" className={getLinkClasses('/restaurant/meal-program/eligible-items')}>
+                      <span className="text-lg">🍱</span>
+                      <span>Meal Program · Items</span>
+                    </Link>
+                  </>
+                )}
               </>
             )}
 
