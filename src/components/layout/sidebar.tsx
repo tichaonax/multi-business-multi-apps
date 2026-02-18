@@ -508,6 +508,12 @@ export function Sidebar() {
                     <span className="text-lg">{group.icon}</span>
                     <span>{getBusinessTypeName(group.type)}</span>
                     <span className="text-xs text-gray-400">({group.businesses.length})</span>
+                    {/* Cart indicator on collapsed business type — shows when any business in group has items in cart */}
+                    {!expandedBusinessTypes.has(group.type) && group.businesses.some(b =>
+                      (b.id === currentBusinessId ? getGlobalCartCount() : (businessCartCounts[b.id] || 0)) > 0
+                    ) && (
+                      <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                    )}
                   </div>
                   <span className="text-sm text-gray-400">
                     {expandedBusinessTypes.has(group.type) ? '▼' : '▶'}
