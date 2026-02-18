@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { PayrollPeriodsList } from '@/components/payroll/payroll-periods-list'
 import { CreatePayrollPeriodModal } from '@/components/payroll/create-payroll-period-modal'
-import { hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface Business {
   id: string
@@ -21,6 +21,7 @@ interface Business {
 export default function PayrollPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { hasPermission } = useBusinessPermissionsContext()
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('')
@@ -109,8 +110,8 @@ export default function PayrollPage() {
     return null
   }
 
-  const canAccessPayroll = hasPermission(session.user, 'canAccessPayroll')
-  const canCreatePeriod = hasPermission(session.user, 'canCreatePayrollPeriod')
+  const canAccessPayroll = hasPermission('canAccessPayroll')
+  const canCreatePeriod = hasPermission('canCreatePayrollPeriod')
 
   if (!canAccessPayroll) {
     return (
@@ -131,9 +132,9 @@ export default function PayrollPage() {
         { label: 'Payroll', isActive: true }
       ]}
       headerActions={
-        (canCreatePeriod && (selectedBusinessId || (createForAllEmployees && umbrellaBusinessId))) || hasPermission(session.user, 'canManageEmployees') ? (
+        (canCreatePeriod && (selectedBusinessId || (createForAllEmployees && umbrellaBusinessId))) || hasPermission('canManageEmployees') ? (
           <div className="flex items-center gap-2">
-            {hasPermission(session.user, 'canManageEmployees') && (
+            {hasPermission('canManageEmployees') && (
               <button
                 onClick={() => window.location.href = '/employees'}
                 className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-border rounded-md hover:bg-gray-50"

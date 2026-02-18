@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
@@ -45,7 +44,7 @@ interface TokenConfig {
 export default function WiFiTokensPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const confirm = useConfirm()
   const alert = useAlert()
 
@@ -94,7 +93,7 @@ export default function WiFiTokensPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [availableByConfig, setAvailableByConfig] = useState<Record<string, AvailabilityData>>({})
 
-  const canManage = session?.user ? (isSystemAdmin(session.user) || hasPermission(session.user, 'canSellWifiTokens')) : false
+  const canManage = isSystemAdmin || hasPermission('canSellWifiTokens')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return

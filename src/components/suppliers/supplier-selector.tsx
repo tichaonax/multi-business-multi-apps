@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { useSession } from 'next-auth/react'
-import { hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SupplierEditor } from './supplier-editor'
 
 // Helper to check if a string is a valid emoji character (not text)
@@ -37,7 +36,7 @@ export function SupplierSelector({
   canCreate = false,
   className = ''
 }: SupplierSelectorProps) {
-  const { data: session } = useSession()
+  const { hasPermission } = useBusinessPermissionsContext()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [showEditor, setShowEditor] = useState(false)
@@ -45,7 +44,7 @@ export function SupplierSelector({
   const [showDropdown, setShowDropdown] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
 
-  const userCanCreate = session?.user ? hasPermission(session.user, 'canCreateSuppliers') : false
+  const userCanCreate = hasPermission('canCreateSuppliers')
   const allowCreate = canCreate && userCanCreate
 
   // Track client-side mounting for portal

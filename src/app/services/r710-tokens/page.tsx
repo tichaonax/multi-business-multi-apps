@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { checkPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { R710TokenMenuManager } from '@/components/business/r710-token-menu-manager'
@@ -14,7 +13,7 @@ import { R710TokenMenuManager } from '@/components/business/r710-token-menu-mana
 export default function ServicesR710TokensPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
 
   const [loading, setLoading] = useState(true)
   const [hasIntegration, setHasIntegration] = useState(false)
@@ -26,8 +25,8 @@ export default function ServicesR710TokensPage() {
     if (businessLoading || !currentBusinessId) return
 
     // Check permission
-    const hasPermission = session?.user ? checkPermission(session.user, 'canSellWifiTokens', currentBusinessId) : false
-    setCanManage(hasPermission)
+    const permitted = hasPermission('canSellWifiTokens')
+    setCanManage(permitted)
 
     // Check business type
     if (currentBusiness?.businessType !== 'services') {
@@ -35,7 +34,7 @@ export default function ServicesR710TokensPage() {
       return
     }
 
-    if (!hasPermission) {
+    if (!permitted) {
       router.push('/dashboard')
       return
     }

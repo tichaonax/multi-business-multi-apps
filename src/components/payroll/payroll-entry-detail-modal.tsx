@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import type { OnSuccessArg } from '@/types/ui'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { usePrompt } from '@/components/ui/input-modal'
-import { hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { generatePayrollEntryPDF, generatePayrollEntryFileName, PayrollEntryData } from '@/lib/pdf-utils'
 import { calculateTotalOvertimePay, deriveHourlyRateFromMonthlySalary } from '@/lib/payroll/overtime-utils'
 
@@ -93,6 +93,7 @@ export function PayrollEntryDetailModal({
 
   const showPrompt = usePrompt()
   const { data: session } = useSession()
+  const { hasPermission } = useBusinessPermissionsContext()
   const modalContentRef = useRef<HTMLDivElement>(null)
 
   const [formData, setFormData] = useState({
@@ -2586,7 +2587,7 @@ export function PayrollEntryDetailModal({
             {/* Actions */}
             <div className="flex justify-between items-center pt-4 border-t border-border">
               <div>
-                {session?.user && hasPermission(session.user, 'canPrintPayrollEntryDetails') && (
+                {hasPermission('canPrintPayrollEntryDetails') && (
                   <button
                     type="button"
                     onClick={handlePrintPDF}

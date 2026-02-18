@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { useSession } from 'next-auth/react'
-import { hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { LocationEditor } from './location-editor'
 
 interface Location {
@@ -30,7 +29,7 @@ export function LocationSelector({
   canCreate = false,
   className = ''
 }: LocationSelectorProps) {
-  const { data: session } = useSession()
+  const { hasPermission } = useBusinessPermissionsContext()
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [showEditor, setShowEditor] = useState(false)
@@ -38,7 +37,7 @@ export function LocationSelector({
   const [showDropdown, setShowDropdown] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
 
-  const userCanCreate = session?.user ? hasPermission(session.user, 'canCreateLocations') : false
+  const userCanCreate = hasPermission('canCreateLocations')
   const allowCreate = canCreate && userCanCreate
 
   // Track client-side mounting for portal

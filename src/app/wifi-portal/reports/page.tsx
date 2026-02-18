@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
@@ -72,7 +71,7 @@ interface WifiPortalStats {
 export default function WiFiPortalReportsPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
 
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<WifiPortalStats | null>(null)
@@ -88,7 +87,7 @@ export default function WiFiPortalReportsPage() {
 
   const [dateRange, setDateRange] = useState<DateRange>(getInitialDateRange())
 
-  const canViewReports = session?.user ? hasPermission(session.user, 'canViewWifiReports') : false
+  const canViewReports = hasPermission('canViewWifiReports')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return

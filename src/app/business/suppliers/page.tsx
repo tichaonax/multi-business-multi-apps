@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission } from '@/lib/permission-utils'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
@@ -44,7 +43,7 @@ interface Supplier {
 export default function SuppliersPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -54,10 +53,10 @@ export default function SuppliersPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const canView = session?.user ? hasPermission(session.user, 'canViewSuppliers') : false
-  const canCreate = session?.user ? hasPermission(session.user, 'canCreateSuppliers') : false
-  const canEdit = session?.user ? hasPermission(session.user, 'canEditSuppliers') : false
-  const canDelete = session?.user ? hasPermission(session.user, 'canDeleteSuppliers') : false
+  const canView = hasPermission('canViewSuppliers')
+  const canCreate = hasPermission('canCreateSuppliers')
+  const canEdit = hasPermission('canEditSuppliers')
+  const canDelete = hasPermission('canDeleteSuppliers')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return

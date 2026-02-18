@@ -12,7 +12,8 @@ import { PayrollEntryForm } from '@/components/payroll/payroll-entry-form'
 import { PayrollEntryDetailModal } from '@/components/payroll/payroll-entry-detail-modal'
 import { PayrollExportPreviewModal } from '@/components/payroll/payroll-export-preview-modal'
 import { BatchPaymentModal } from '@/components/payroll/batch-payment-modal'
-import { hasPermission, isSystemAdmin, getUserRoleInBusiness, canDeletePayroll } from '@/lib/permission-utils'
+import { getUserRoleInBusiness, canDeletePayroll } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface PayrollPeriod {
   id: string
@@ -96,6 +97,7 @@ export default function PayrollPeriodDetailPage() {
   const router = useRouter()
   const params = useParams()
   const periodId = params.periodId as string
+  const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
 
   const confirm = useConfirm()
 
@@ -834,10 +836,10 @@ export default function PayrollPeriodDetailPage() {
     )
   }
 
-  const canEditEntry = hasPermission(session?.user, 'canEditPayrollEntry')
-  const canApprove = hasPermission(session?.user, 'canApprovePayroll')
-  const canExport = hasPermission(session?.user, 'canExportPayroll')
-  const canResetExported = isSystemAdmin(session?.user) || hasPermission(session?.user, 'canResetExportedPayrollToPreview', period.businesses.id)
+  const canEditEntry = hasPermission('canEditPayrollEntry')
+  const canApprove = hasPermission('canApprovePayroll')
+  const canExport = hasPermission('canExportPayroll')
+  const canResetExported = isSystemAdmin || hasPermission('canResetExportedPayrollToPreview')
 
   // Diagnostic code removed: rely on server-provided totals (mergedBenefits / totalBenefitsAmount)
 
@@ -903,7 +905,7 @@ export default function PayrollPeriodDetailPage() {
               let disabledReason: string | null = null
               if (!session?.user) {
                 disabledReason = 'Sign in to delete payroll periods'
-              } else if (isSystemAdmin(session.user)) {
+              } else if (isSystemAdmin) {
                 disabledReason = null
               } else {
                 const role = getUserRoleInBusiness(session.user, period.businesses.id)

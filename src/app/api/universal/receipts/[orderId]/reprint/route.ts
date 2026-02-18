@@ -150,43 +150,16 @@ export async function POST(
     // Generate receipt text (thermal printer format)
     const receiptText = generateReceipt(receiptData)
 
-    // Sanitize jobData to remove null characters
-    const sanitizedJobData = sanitizeForDatabase({
-      receiptData,
-      receiptText,
-      isReprint: true,
-      reprintLogId: reprintLog.id,
-    })
-
-    // Create print job
-    const printJob = await prisma.printJobs.create({
-      data: {
-        printerId: null, // TODO: Get from business settings or create default printer
-        businessId: order.businessId,
-        businessType: order.businessType,
-        userId: user.id,
-        jobType: 'receipt',
-        jobData: sanitizedJobData,
-        status: 'PENDING',
-        retryCount: 0,
-      },
-      // Removed include - sync extension handles relation automatically
-    })
-
-    // TODO: Trigger actual printing (this would connect to the print queue worker)
-    // For now, just return success with the print job ID
-
+    // Return receipt data to client for printing via UnifiedReceiptPreviewModal
     return NextResponse.json({
       success: true,
-      message: 'Receipt reprint queued successfully',
+      message: 'Receipt reprint ready',
       reprintLog: {
         id: reprintLog.id,
         reprintedAt: reprintLog.reprintedAt,
       },
-      printJob: {
-        id: printJob.id,
-        status: printJob.status,
-      },
+      receiptData: sanitizeForDatabase(receiptData),
+      receiptText,
     })
   } catch (error) {
     console.error('Reprint receipt error:', error)

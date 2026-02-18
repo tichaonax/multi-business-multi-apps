@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm } from '@/components/ui/confirm-modal'
@@ -28,7 +27,7 @@ interface PortalIntegration {
 export default function WiFiPortalSetupPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
   const confirm = useConfirm()
 
   const [loading, setLoading] = useState(true)
@@ -45,7 +44,7 @@ export default function WiFiPortalSetupPage() {
   const [showTokensInPOS, setShowTokensInPOS] = useState(false)
   const [isActive, setIsActive] = useState(true)
 
-  const canSetup = session?.user ? hasPermission(session.user, 'canSetupPortalIntegration') : false
+  const canSetup = hasPermission('canSetupPortalIntegration')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return

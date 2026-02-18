@@ -7,7 +7,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm } from '@/components/ui/confirm-modal'
@@ -67,7 +66,7 @@ interface ExpenseAccount {
 export default function WiFiTokenSalesPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
   const confirm = useConfirm()
 
   const [loading, setLoading] = useState(true)
@@ -93,7 +92,7 @@ export default function WiFiTokenSalesPage() {
   // Ref-based guard to prevent duplicate print calls (state updates are async)
   const printInFlightRef = useRef(false)
 
-  const canSell = session?.user ? hasPermission(session.user, 'canSellWifiTokens') : false
+  const canSell = hasPermission('canSellWifiTokens')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return
@@ -438,7 +437,7 @@ export default function WiFiTokenSalesPage() {
           <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
             <p className="text-yellow-800 dark:text-yellow-200">
               ⚠️ No printer configured. Receipts cannot be printed.
-              {session?.user && hasPermission(session.user, 'canManageNetworkPrinters') ? (
+              {hasPermission('canManageNetworkPrinters') ? (
                 <Link href="/admin/printers" className="ml-2 underline font-medium hover:text-yellow-900 dark:hover:text-yellow-100">
                   Configure Printer →
                 </Link>

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatCurrency } from '@/lib/format-currency'
 
 interface PayeeExpenseSummaryProps {
@@ -29,33 +28,17 @@ export function PayeeExpenseSummary({
   payeeId,
   onViewDetails,
 }: PayeeExpenseSummaryProps) {
-  const { data: session } = useSession()
-  const [hasPermission, setHasPermission] = useState(false)
+  const { hasPermission } = useBusinessPermissionsContext()
+  const canAccessExpenseAccount = hasPermission('canAccessExpenseAccount')
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<SummaryData | null>(null)
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
-    if (session?.user) {
-      checkPermission()
-    }
-  }, [session])
-
-  useEffect(() => {
-    if (hasPermission && payeeId) {
+    if (canAccessExpenseAccount && payeeId) {
       fetchSummaryData()
     }
-  }, [hasPermission, payeeId, payeeType])
-
-  const checkPermission = async () => {
-    try {
-      const permissions = await getEffectivePermissions(session?.user?.id || '')
-      setHasPermission(permissions.canAccessExpenseAccount || false)
-    } catch (error) {
-      console.error('Error checking permissions:', error)
-      setHasPermission(false)
-    }
-  }
+  }, [canAccessExpenseAccount, payeeId, payeeType])
 
   const fetchSummaryData = async () => {
     try {
@@ -82,7 +65,7 @@ export function PayeeExpenseSummary({
   }
 
   // Don't render if no permission
-  if (!hasPermission) {
+  if (!canAccessExpenseAccount) {
     return null
   }
 

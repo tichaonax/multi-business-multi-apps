@@ -9,7 +9,7 @@ import { VehicleDriver, DriverApiResponse } from '@/types/vehicle'
 import { DriverPromotionModal } from '@/components/user-management/driver-promotion-modal'
 import { VehicleAssignmentModal } from '@/components/vehicles/vehicle-assignment-modal'
 import { useSession } from 'next-auth/react'
-import { hasPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface DriverListProps {
   onDriverSelect?: (driver: VehicleDriver) => void
@@ -20,6 +20,7 @@ interface DriverListProps {
 
 export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: DriverListProps) {
   const { data: session } = useSession()
+  const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const [drivers, setDrivers] = useState<VehicleDriver[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -38,19 +39,13 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
   const [selectedDriverForAssignment, setSelectedDriverForAssignment] = useState<VehicleDriver | null>(null)
 
   // Check if current user can manage business users
-  const canManageUsers = session?.user && (
-    isSystemAdmin(session.user as SessionUser) ||
-    hasPermission(session.user as SessionUser, 'canManageBusinessUsers')
-  )
+  const canManageUsers = isSystemAdmin || hasPermission('canManageBusinessUsers')
 
   // Check if current user can manage driver assignments
-  const canManageAssignments = session?.user && (
-    isSystemAdmin(session.user as SessionUser) ||
-    hasPermission(session.user as SessionUser, 'canManageDrivers')
-  )
+  const canManageAssignments = isSystemAdmin || hasPermission('canManageDrivers')
 
   // Check if user has permission to delete drivers (only system admins)
-  const canDeleteDrivers = session?.user && isSystemAdmin(session.user as SessionUser)
+  const canDeleteDrivers = isSystemAdmin
 
   // Check if driver can be deleted (has no related data)
   const canDeleteDriver = (driver: VehicleDriver): boolean => {

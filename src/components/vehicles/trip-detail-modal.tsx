@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import { VehicleTrip } from '@/types/vehicle'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
-import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-modal'
 
@@ -18,13 +18,14 @@ interface TripDetailModalProps {
 }
 
 export function TripDetailModal({ trip, onClose, onUpdate, onTripStatusChanged }: TripDetailModalProps) {
-  if (!trip) return null
-
   const { data: session } = useSession()
   const { format: globalDateFormat } = useDateFormat()
   const toast = useToastContext()
   const confirm = useConfirm()
+  const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const [reopening, setReopening] = useState(false)
+
+  if (!trip) return null
 
   const formatDateTime = (d?: string) => (d ? `${formatDateByFormat(d, globalDateFormat)} ${new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'N/A')
 
@@ -32,13 +33,13 @@ export function TripDetailModal({ trip, onClose, onUpdate, onTripStatusChanged }
   const totalExpenses = trip.expenses?.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0) || 0
 
   // Check if user can edit trips (only if trip is not completed)
-  const canEdit = !trip.isCompleted && session?.user && (isSystemAdmin(session.user) || hasPermission(session.user, 'canManageTrips'))
+  const canEdit = !trip.isCompleted && (isSystemAdmin || hasPermission('canManageTrips'))
 
   // Check if user can reopen completed trips (admins, managers, business owners)
-  const canReopen = trip.isCompleted && session?.user && (
-    isSystemAdmin(session.user) ||
-    hasPermission(session.user, 'canManageTrips') ||
-    hasPermission(session.user, 'canManageBusinessUsers')
+  const canReopen = trip.isCompleted && (
+    isSystemAdmin ||
+    hasPermission('canManageTrips') ||
+    hasPermission('canManageBusinessUsers')
   )
 
   // Debug logging
@@ -46,9 +47,9 @@ export function TripDetailModal({ trip, onClose, onUpdate, onTripStatusChanged }
     tripId: trip.id,
     isCompleted: trip.isCompleted,
     hasSession: !!session?.user,
-    isSystemAdmin: session?.user ? isSystemAdmin(session.user) : false,
-    canManageTrips: session?.user ? hasPermission(session.user, 'canManageTrips') : false,
-    canManageBusinessUsers: session?.user ? hasPermission(session.user, 'canManageBusinessUsers') : false,
+    isSystemAdmin,
+    canManageTrips: hasPermission('canManageTrips'),
+    canManageBusinessUsers: hasPermission('canManageBusinessUsers'),
     canEdit,
     canReopen
   })

@@ -8,7 +8,7 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, use } from 'react'
 import { useSession } from 'next-auth/react'
-import { checkPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
 interface MacFilterEntry {
@@ -41,6 +41,7 @@ function ESP32MacFilteringContent({ params }: { params: Promise<{ id: string }> 
   const resolvedParams = use(params)
   const { data: session } = useSession()
   const user = session?.user as any
+  const { hasPermission } = useBusinessPermissionsContext()
 
   const [macData, setMacData] = useState<MacFilterData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -204,7 +205,7 @@ function ESP32MacFilteringContent({ params }: { params: Promise<{ id: string }> 
     }
 
     // Check admin permission for destructive operations
-    if (!checkPermission(user, 'isAdmin')) {
+    if (!hasPermission('isAdmin')) {
       setError('Only administrators can clear all MAC filters')
       return
     }
@@ -359,7 +360,7 @@ function ESP32MacFilteringContent({ params }: { params: Promise<{ id: string }> 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Blocked Devices</h2>
-                {checkPermission(user, 'isAdmin') && (
+                {hasPermission('isAdmin') && (
                   <button
                     onClick={() => handleClearAll('blacklist')}
                     disabled={processing}
@@ -455,7 +456,7 @@ function ESP32MacFilteringContent({ params }: { params: Promise<{ id: string }> 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">VIP Devices</h2>
-                {checkPermission(user, 'isAdmin') && (
+                {hasPermission('isAdmin') && (
                   <button
                     onClick={() => handleClearAll('whitelist')}
                     disabled={processing}

@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { WifiTokenMenuManager } from '@/components/business/wifi-token-menu-manager'
@@ -14,13 +13,13 @@ import { WifiTokenMenuManager } from '@/components/business/wifi-token-menu-mana
 export default function GroceryWifiTokensPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
 
   const [loading, setLoading] = useState(true)
   const [hasIntegration, setHasIntegration] = useState(false)
   const [integrationError, setIntegrationError] = useState<string | null>(null)
 
-  const canManage = session?.user ? hasPermission(session.user, 'canConfigureWifiTokens') : false
+  const canManage = hasPermission('canConfigureWifiTokens')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return

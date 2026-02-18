@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatCurrency } from '@/lib/format-currency'
 import Link from 'next/link'
 
@@ -50,8 +49,8 @@ export function PayeePaymentsTable({
   payeeType,
   payeeId,
 }: PayeePaymentsTableProps) {
-  const { data: session } = useSession()
-  const [hasPermission, setHasPermission] = useState(false)
+  const { hasPermission } = useBusinessPermissionsContext()
+  const canAccessExpenseAccount = hasPermission('canAccessExpenseAccount')
   const [loading, setLoading] = useState(true)
   const [payments, setPayments] = useState<Payment[]>([])
   const [accountBreakdown, setAccountBreakdown] = useState<AccountGroup[]>([])
@@ -65,26 +64,10 @@ export function PayeePaymentsTable({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
-    if (session?.user) {
-      checkPermission()
-    }
-  }, [session])
-
-  useEffect(() => {
-    if (hasPermission && payeeId) {
+    if (canAccessExpenseAccount && payeeId) {
       fetchPayments()
     }
-  }, [hasPermission, payeeId, payeeType, startDate, endDate])
-
-  const checkPermission = async () => {
-    try {
-      const permissions = await getEffectivePermissions(session?.user?.id || '')
-      setHasPermission(permissions.canAccessExpenseAccount || false)
-    } catch (error) {
-      console.error('Error checking permissions:', error)
-      setHasPermission(false)
-    }
-  }
+  }, [canAccessExpenseAccount, payeeId, payeeType, startDate, endDate])
 
   const fetchPayments = async () => {
     try {
@@ -169,7 +152,7 @@ export function PayeePaymentsTable({
   }
 
   // Don't render if no permission
-  if (!hasPermission) {
+  if (!canAccessExpenseAccount) {
     return null
   }
 

@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission } from '@/lib/permission-utils'
 import { LocationEditor } from '@/components/locations/location-editor'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -30,7 +29,7 @@ interface Location {
 export default function LocationsPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -40,10 +39,10 @@ export default function LocationsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const canView = session?.user ? hasPermission(session.user, 'canViewLocations') : false
-  const canCreate = session?.user ? hasPermission(session.user, 'canCreateLocations') : false
-  const canEdit = session?.user ? hasPermission(session.user, 'canEditLocations') : false
-  const canDelete = session?.user ? hasPermission(session.user, 'canDeleteLocations') : false
+  const canView = hasPermission('canViewLocations')
+  const canCreate = hasPermission('canCreateLocations')
+  const canEdit = hasPermission('canEditLocations')
+  const canDelete = hasPermission('canDeleteLocations')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return

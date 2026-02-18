@@ -2,9 +2,6 @@ import React from 'react'
 import { OrderStats as OrderStatsType } from './types'
 import { formatCurrency } from './utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
-import { useSession } from 'next-auth/react'
-import { SessionUser } from '@/lib/permission-utils'
-import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 
 interface OrderStatsProps {
   stats: OrderStatsType | null
@@ -13,16 +10,10 @@ interface OrderStatsProps {
 }
 
 export function OrderStats({ stats, loading, businessType }: OrderStatsProps) {
-  const { data: session } = useSession()
-  const sessionUser = session?.user as SessionUser
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
 
   // Check if user has permission to view financial data
-  const canViewFinancialData = React.useMemo(() => {
-    if (!sessionUser || !currentBusinessId) return false
-    if (isSystemAdmin(sessionUser)) return true
-    return hasPermission(sessionUser, 'canAccessFinancialData', currentBusinessId)
-  }, [sessionUser, currentBusinessId])
+  const canViewFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
 
   if (loading) {
     return (

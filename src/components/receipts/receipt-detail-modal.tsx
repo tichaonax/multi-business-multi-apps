@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { formatReprintDate } from '@/lib/receipts/watermark'
+import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
+import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 
 interface ReceiptDetailModalProps {
   receiptId: string
@@ -15,6 +17,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
   const [error, setError] = useState<string | null>(null)
   const [reprinting, setReprinting] = useState(false)
   const [reprintSuccess, setReprintSuccess] = useState(false)
+  const [reprintReceiptData, setReprintReceiptData] = useState<any>(null)
 
   useEffect(() => {
     fetchReceipt()
@@ -62,11 +65,11 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
         throw new Error(data.error || 'Failed to reprint receipt')
       }
 
-      setReprintSuccess(true)
-      setTimeout(() => setReprintSuccess(false), 3000)
-
-      // Refresh receipt data to show new reprint log
-      await fetchReceipt()
+      // Open receipt preview modal for printer selection and close detail modal
+      if (data.receiptData) {
+        setReprintReceiptData(data.receiptData)
+        onClose() // Close the detail modal, go back to receipt list
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -83,6 +86,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         {/* Background overlay */}
@@ -287,5 +291,18 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
         </div>
       </div>
     </div>
+
+      {/* Receipt Preview Modal for reprinting */}
+      {reprintReceiptData && (
+        <UnifiedReceiptPreviewModal
+          receiptData={reprintReceiptData}
+          onClose={() => setReprintReceiptData(null)}
+          onPrintConfirm={async (printer) => {
+            await ReceiptPrintManager.printReceipt(reprintReceiptData, printer)
+            setReprintReceiptData(null)
+          }}
+        />
+      )}
+    </>
   )
 }

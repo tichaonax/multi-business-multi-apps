@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
@@ -64,7 +63,7 @@ export default function R710SetupPage() {
 function R710SetupContent() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const confirm = useConfirm()
   const alert = useAlert()
 
@@ -91,7 +90,7 @@ function R710SetupContent() {
   const [editEnableZeroIt, setEditEnableZeroIt] = useState(true)
   const [updating, setUpdating] = useState(false)
 
-  const canSetup = session?.user ? (isSystemAdmin(session.user) || hasPermission(session.user, 'canSetupPortalIntegration')) : false
+  const canSetup = isSystemAdmin || hasPermission('canSetupPortalIntegration')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return

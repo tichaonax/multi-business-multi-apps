@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { canAccessModule, hasPermission, hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { hasUserPermission, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 const businessTypeModules = [
@@ -36,6 +36,7 @@ export function MobileSidebar() {
     currentBusinessId,
     switchBusiness,
     hasPermission: hasBusinessPermission,
+    isSystemAdmin: isAdmin,
   } = useBusinessPermissionsContext()
 
   // Check WiFi integrations for current business
@@ -67,11 +68,6 @@ export function MobileSidebar() {
   if (!session?.user) return null
 
   const user = session.user as SessionUser
-
-  const checkPermission = (u: any, perm: string) => {
-    if (!currentBusiness) return false
-    return hasBusinessPermission(perm as any)
-  }
 
   // Group businesses by type
   const businessesByType: Record<string, typeof businesses> = {}
@@ -115,11 +111,10 @@ export function MobileSidebar() {
   const getBusinessModuleLinks = () => {
     if (!currentBusiness) return null
     const bt = currentBusiness.businessType
-    const isAdmin = isSystemAdmin(user)
-    const canReport = isAdmin || checkPermission(user, 'canViewWifiReports') || checkPermission(user, 'canAccessFinancialData')
-    const canManageMenuPerm = isAdmin || checkPermission(user, 'canManageMenu')
-    const canConfigWifi = isAdmin || checkPermission(user, 'canConfigureWifiTokens')
-    const canSellWifi = isAdmin || checkPermission(user, 'canSellWifiTokens')
+    const canReport = isAdmin || hasBusinessPermission('canViewWifiReports') || hasBusinessPermission('canAccessFinancialData')
+    const canManageMenuPerm = isAdmin || hasBusinessPermission('canManageMenu')
+    const canConfigWifi = isAdmin || hasBusinessPermission('canConfigureWifiTokens')
+    const canSellWifi = isAdmin || hasBusinessPermission('canSellWifiTokens')
 
     const wifiLinks = () => (
       <>
@@ -320,7 +315,7 @@ export function MobileSidebar() {
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">Finance & Tools</div>
               </div>
 
-              {(hasUserPermission(user, 'canAccessPersonalFinance') || isSystemAdmin(user)) && (
+              {(hasUserPermission(user, 'canAccessPersonalFinance') || isAdmin) && (
                 <Link
                   href="/personal"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -331,14 +326,14 @@ export function MobileSidebar() {
               )}
 
               {/* Fleet Management */}
-              {(hasUserPermission(user, 'canAccessVehicles') || hasUserPermission(user, 'canLogDriverTrips') || hasUserPermission(user, 'canLogDriverMaintenance') || isSystemAdmin(user)) && (
+              {(hasUserPermission(user, 'canAccessVehicles') || hasUserPermission(user, 'canLogDriverTrips') || hasUserPermission(user, 'canLogDriverMaintenance') || isAdmin) && (
                 <button
                   onClick={() => {
                     const isDriver = user &&
                       hasUserPermission(user, 'canLogDriverTrips') &&
                       hasUserPermission(user, 'canLogDriverMaintenance') &&
                       !hasUserPermission(user, 'canAccessPersonalFinance') &&
-                      !isSystemAdmin(user)
+                      !isAdmin
                     window.location.href = isDriver ? '/driver' : '/vehicles'
                     setIsOpen(false)
                   }}
@@ -349,7 +344,7 @@ export function MobileSidebar() {
               )}
 
               {/* Contractor Management */}
-              {(hasUserPermission(user, 'canManagePersonalContractors') || isSystemAdmin(user)) && (
+              {(hasUserPermission(user, 'canManagePersonalContractors') || isAdmin) && (
                 <Link
                   href="/contractors"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -360,7 +355,7 @@ export function MobileSidebar() {
               )}
 
               {/* Employees */}
-              {(hasPermission(user, 'canManageEmployees') || hasPermission(user, 'canEditEmployees') || hasPermission(user, 'canManageBusinessUsers') || isSystemAdmin(user)) && (
+              {(hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canEditEmployees') || hasBusinessPermission('canManageBusinessUsers') || isAdmin) && (
                 <Link
                   href="/employees"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -371,7 +366,7 @@ export function MobileSidebar() {
               )}
 
               {/* Reports */}
-              {(isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers') || hasPermission(user, 'canAccessFinancialData')) && (
+              {(isAdmin || hasBusinessPermission('canManageBusinessUsers') || hasBusinessPermission('canAccessFinancialData')) && (
                 <Link
                   href="/reports"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -382,7 +377,7 @@ export function MobileSidebar() {
               )}
 
               {/* Payroll */}
-              {(hasPermission(user, 'canAccessPayroll') || hasPermission(user, 'canManagePayroll') || isSystemAdmin(user)) && (
+              {(hasBusinessPermission('canAccessPayroll') || hasBusinessPermission('canManagePayroll') || isAdmin) && (
                 <Link
                   href="/payroll"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -393,7 +388,7 @@ export function MobileSidebar() {
               )}
 
               {/* Expense Accounts */}
-              {(hasUserPermission(user, 'canAccessExpenseAccount') || isSystemAdmin(user)) && (
+              {(hasUserPermission(user, 'canAccessExpenseAccount') || isAdmin) && (
                 <Link
                   href="/expense-accounts"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -404,7 +399,7 @@ export function MobileSidebar() {
               )}
 
               {/* Categories */}
-              {(isSystemAdmin(user) || hasUserPermission(user, 'canCreateBusinessCategories') || hasUserPermission(user, 'canEditBusinessCategories')) && (
+              {(isAdmin || hasUserPermission(user, 'canCreateBusinessCategories') || hasUserPermission(user, 'canEditBusinessCategories')) && (
                 <Link
                   href="/business/categories"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -415,7 +410,7 @@ export function MobileSidebar() {
               )}
 
               {/* Customers */}
-              {(isSystemAdmin(user) || hasPermission(user, 'canAccessCustomers') || hasPermission(user, 'canManageCustomers')) && (
+              {(isAdmin || hasBusinessPermission('canAccessCustomers') || hasBusinessPermission('canManageCustomers')) && (
                 <Link
                   href="/customers"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -426,7 +421,7 @@ export function MobileSidebar() {
               )}
 
               {/* Projects */}
-              {(isSystemAdmin(user) || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
+              {(isAdmin || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
                 <Link
                   href="/projects"
                   className="block px-4 py-2.5 rounded hover:bg-gray-700"
@@ -445,25 +440,25 @@ export function MobileSidebar() {
               </Link>
 
               {/* Administration */}
-              {(isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers') || hasPermission(user, 'canManageBusinessSettings')) && (
+              {(isAdmin || hasBusinessPermission('canManageBusinessUsers') || hasBusinessPermission('canManageBusinessSettings')) && (
                 <>
                   <div className="pt-3 pb-1">
                     <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">Administration</div>
                   </div>
 
-                  {isSystemAdmin(user) && (
+                  {isAdmin && (
                     <Link href="/admin" className="block px-4 py-2.5 rounded hover:bg-gray-700" onClick={() => setIsOpen(false)}>
                       🛠️ System Admin
                     </Link>
                   )}
 
-                  {(isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers')) && (
+                  {(isAdmin || hasBusinessPermission('canManageBusinessUsers')) && (
                     <Link href="/business/manage" className="block px-4 py-2.5 rounded hover:bg-gray-700" onClick={() => setIsOpen(false)}>
                       🏢 Business Management
                     </Link>
                   )}
 
-                  {hasPermission(user, 'canManageBusinessUsers') && (
+                  {hasBusinessPermission('canManageBusinessUsers') && (
                     <Link href="/admin/users" className="block px-4 py-2.5 rounded hover:bg-gray-700" onClick={() => setIsOpen(false)}>
                       👥 User Management
                     </Link>

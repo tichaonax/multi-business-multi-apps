@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface EmployeeMetrics {
   totalEmployees: number
@@ -91,17 +91,16 @@ interface DashboardData {
 
 export default function ReportsPage() {
   const { data: session } = useSession()
+  const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPeriod, setSelectedPeriod] = useState('month')
   const [selectedBusiness, setSelectedBusiness] = useState('')
   const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; type: string }>>([])
 
-  const canViewReports = session?.user && (
-    hasPermission(session.user, 'canViewEmployees') ||
-    hasPermission(session.user, 'canManageEmployees') ||
-    hasPermission(session.user, 'isSystemAdmin')
-  )
+  const canViewReports = hasPermission('canViewEmployees') ||
+    hasPermission('canManageEmployees') ||
+    isSystemAdmin
 
   useEffect(() => {
     if (canViewReports) {
