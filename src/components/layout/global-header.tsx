@@ -336,8 +336,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </button>
                         ))}
 
-                        {/* Test Print - for users with POS access */}
-                        {hasPermission('canProcessOrders') && (
+                        {/* Test Print - available to all business members */}
+                        {hasPermission('canViewBusiness') && (
                           <>
                             <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                             <button
