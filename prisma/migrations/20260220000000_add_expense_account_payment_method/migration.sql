@@ -1,2 +1,2 @@
 -- AlterEnum
-ALTER TYPE "public"."PaymentMethod" ADD VALUE 'EXPENSE_ACCOUNT';
+ALTER TYPE "public"."PaymentMethod" ADD VALUE IF NOT EXISTS 'EXPENSE_ACCOUNT';
