@@ -8,10 +8,11 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
 import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
-import { useEffect } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { HomeStatBadge, type OrderSummary } from '@/components/universal/home/HomeStatBadge'
 
 const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
 
@@ -19,6 +20,27 @@ export default function GroceryStorePage() {
   const { data: session } = useSession()
   const currentUser = session?.user as any
   const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
+
+  const { currentBusinessId, hasPermission: hasBizPermission, isSystemAdmin: isSysAdmin } = useBusinessPermissionsContext()
+  const canViewOrders = isSysAdmin || hasBizPermission('canEnterManualOrders') || hasBizPermission('canAccessFinancialData')
+  const canViewFinancials = isSysAdmin || hasBizPermission('canAccessFinancialData')
+
+  const [homeStats, setHomeStats] = useState<OrderSummary | null>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+
+  useEffect(() => {
+    if (!currentBusinessId || !canViewOrders) return
+    let cancelled = false
+    setLoadingStats(true)
+    fetch(`/api/universal/orders?businessId=${currentBusinessId}&dateRange=today&page=1&limit=1`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!cancelled && data?.meta?.summary) setHomeStats(data.meta.summary)
+        if (!cancelled) setLoadingStats(false)
+      })
+      .catch(() => { if (!cancelled) setLoadingStats(false) })
+    return () => { cancelled = true }
+  }, [currentBusinessId, canViewOrders])
 
   const quickActions = [
     {
@@ -250,7 +272,15 @@ export default function GroceryStorePage() {
                       <div className="text-4xl">{action.icon}</div>
                     </div>
 
-                    <h3 className="text-lg font-semibold mb-2">{action.title}</h3>
+                    <h3 className="text-lg font-semibold mb-1">{action.title}</h3>
+                    {canViewOrders && (action.href.includes('/pos') || action.href.includes('/orders')) && (
+                      <HomeStatBadge
+                        summary={homeStats}
+                        loading={loadingStats}
+                        variant={action.href.includes('/pos') ? 'pos' : 'orders'}
+                        canViewFinancials={canViewFinancials}
+                      />
+                    )}
                     <p className="text-sm mb-4 opacity-90">{action.description}</p>
 
                     <div className="space-y-1">

@@ -173,6 +173,39 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                         {formatCurrency(order.totalAmount)}
                       </dd>
                     </div>
+                    {order.customerName && (
+                      <div>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Customer</dt>
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                          {order.customerName}
+                        </dd>
+                      </div>
+                    )}
+                    {order.employeeName && (
+                      <div>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Served by</dt>
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                          {order.employeeName}
+                        </dd>
+                      </div>
+                    )}
+                    {order.paymentMethod && (
+                      <div>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Payment</dt>
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-white capitalize">
+                          {order.paymentMethod.replace('_', ' ').toLowerCase()}
+                          {order.paymentStatus && (
+                            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
+                              order.paymentStatus === 'PAID'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                            }`}>
+                              {order.paymentStatus.toLowerCase()}
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                    )}
                   </dl>
                 </div>
 
@@ -183,17 +216,26 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                   </h4>
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
                     {receipt.items.map((item: any, index: number) => (
-                      <div key={index} className="px-4 py-3 flex justify-between">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            {item.name}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Qty: {item.quantity} × {formatCurrency(item.unitPrice)}
-                          </p>
-                        </div>
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {formatCurrency(item.totalPrice)}
+                      <div key={index} className="px-4 py-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0 pr-3">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {item.name || 'Unknown Product'}
+                            </p>
+                            {item.notes && (
+                              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                                {item.notes}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              Qty: {item.quantity} × {formatCurrency(item.unitPrice)}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              {formatCurrency(item.totalPrice)}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ))}

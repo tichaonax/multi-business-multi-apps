@@ -240,7 +240,7 @@ export default function WiFiPortalReportsPage() {
 
       {/* Date Range Selector */}
       <div className="mb-6 no-print">
-        <DateRangeSelector dateRange={dateRange} onChange={setDateRange} />
+        <DateRangeSelector value={dateRange} onChange={setDateRange} />
       </div>
 
       {stats && (

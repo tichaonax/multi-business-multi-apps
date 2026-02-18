@@ -104,7 +104,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
         { href: `/${businessType}/menu`, icon: '📋', label: 'Menu Management', permissions: ['canManageMenu'] },
-        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
       ],
       grocery: [
         { href: `/${businessType}/pos`, icon: '🛒', label: 'POS System' },
@@ -112,7 +112,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
         { href: '/clothing/inventory?tab=bales', icon: '📦', label: 'Bales Inventory' },
         { href: `/${businessType}/products`, icon: '📦', label: 'Products' },
-        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
       ],
       clothing: [
         { href: `/${businessType}/pos`, icon: '👕', label: 'POS System' },
@@ -120,14 +120,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
         { href: '/clothing/inventory?tab=bales', icon: '📦', label: 'Bales Inventory' },
         { href: `/${businessType}/products`, icon: '👗', label: 'Products' },
-        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
       ],
       hardware: [
         { href: `/${businessType}/pos`, icon: '🔧', label: 'POS System' },
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
         { href: `/${businessType}/products`, icon: '🛠️', label: 'Products' },
-        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders' }
+        { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
       ],
       services: [
         { href: '/universal/pos', icon: '💼', label: 'POS System' },

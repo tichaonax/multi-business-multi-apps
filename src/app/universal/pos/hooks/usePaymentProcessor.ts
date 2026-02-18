@@ -156,6 +156,7 @@ export function usePaymentProcessor(
           paymentMethod: checkoutData.paymentMethod.toUpperCase(),
           paymentStatus: 'PAID',
           orderType: 'SALE',
+          employeeId: session?.user?.id,
           customerName: checkoutData.customerName,
           customerPhone: checkoutData.customerPhone,
           customerEmail: checkoutData.customerEmail,

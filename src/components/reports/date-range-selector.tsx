@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useDateFormat } from '@/contexts/settings-context'
+import { formatDateByFormat, parseDateFromFormat } from '@/lib/country-codes'
 
 export interface DateRange {
   start: Date
@@ -21,6 +23,19 @@ const presets = [
 export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
   const [showCustom, setShowCustom] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState<number | null>(30)
+  const { format: dateFormat } = useDateFormat()
+
+  // Local text state so the user can type freely; only committed on valid parse
+  const [startText, setStartText] = useState('')
+  const [endText, setEndText] = useState('')
+  const [startError, setStartError] = useState(false)
+  const [endError, setEndError] = useState(false)
+
+  // Keep text inputs in sync when the value prop changes from outside (preset clicks, etc.)
+  useEffect(() => {
+    setStartText(formatDateByFormat(value.start, dateFormat))
+    setEndText(formatDateByFormat(value.end, dateFormat))
+  }, [value.start, value.end, dateFormat])
 
   // Synchronize selectedPreset with the value prop
   useEffect(() => {
@@ -45,8 +60,36 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
     onChange({ start, end })
   }
 
-  const handleCustomRangeChange = (type: 'start' | 'end', dateString: string) => {
-    const newDate = new Date(dateString)
+  const handleDateTextChange = (type: 'start' | 'end', text: string) => {
+    if (type === 'start') {
+      setStartText(text)
+      setStartError(false)
+    } else {
+      setEndText(text)
+      setEndError(false)
+    }
+  }
+
+  const handleDateTextBlur = (type: 'start' | 'end') => {
+    const text = type === 'start' ? startText : endText
+    const isoString = parseDateFromFormat(text, dateFormat)
+
+    if (!isoString) {
+      // Reset to current valid value on bad input
+      if (type === 'start') {
+        setStartText(formatDateByFormat(value.start, dateFormat))
+        setStartError(true)
+        setTimeout(() => setStartError(false), 2000)
+      } else {
+        setEndText(formatDateByFormat(value.end, dateFormat))
+        setEndError(true)
+        setTimeout(() => setEndError(false), 2000)
+      }
+      return
+    }
+
+    // Parse as local date (YYYY-MM-DD at noon to avoid timezone shifts)
+    const newDate = new Date(isoString + 'T12:00:00')
 
     if (type === 'start') {
       onChange({ start: newDate, end: value.end })
@@ -55,13 +98,6 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
     }
 
     setSelectedPreset(null)
-  }
-
-  const formatDateForInput = (date: Date): string => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
   }
 
   return (
@@ -109,22 +145,38 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
             <input
-              type="date"
-              value={formatDateForInput(value.start)}
-              onChange={(e) => handleCustomRangeChange('start', e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              type="text"
+              value={startText}
+              placeholder={dateFormat}
+              onChange={(e) => handleDateTextChange('start', e.target.value)}
+              onBlur={() => handleDateTextBlur('start')}
+              className={`px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-32 ${
+                startError
+                  ? 'border-red-500 dark:border-red-400'
+                  : 'border-gray-300 dark:border-gray-600'
+              }`}
             />
           </div>
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
             <input
-              type="date"
-              value={formatDateForInput(value.end)}
-              onChange={(e) => handleCustomRangeChange('end', e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              type="text"
+              value={endText}
+              placeholder={dateFormat}
+              onChange={(e) => handleDateTextChange('end', e.target.value)}
+              onBlur={() => handleDateTextBlur('end')}
+              className={`px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-32 ${
+                endError
+                  ? 'border-red-500 dark:border-red-400'
+                  : 'border-gray-300 dark:border-gray-600'
+              }`}
             />
           </div>
+
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            Format: {dateFormat.toUpperCase()}
+          </span>
         </div>
       )}
     </div>

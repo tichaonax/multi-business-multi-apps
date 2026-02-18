@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Tag, X, Loader2, ChevronDown, Search } from 'lucide-react'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 
@@ -20,7 +20,11 @@ export function MiniCart() {
   const { cart, removeFromCart, updateQuantity, clearCart, getCartItemCount, getCartSubtotal, isCartEmpty } = useGlobalCart()
   const { currentBusiness, currentBusinessId } = useBusinessPermissionsContext()
   const router = useRouter()
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+
+  // Detect if user is already on a POS page — avoid navigating away and losing their cart
+  const isOnPOSPage = !!(pathname?.includes('/pos'))
 
   // Coupon state
   const [couponPhone, setCouponPhone] = useState('')
@@ -38,6 +42,28 @@ export function MiniCart() {
   const couponDropdownRef = useRef<HTMLDivElement>(null)
 
   const couponsEnabled = currentBusiness?.couponsEnabled
+
+  // When the active business changes, reload (or clear) the coupon from localStorage
+  // so we always show the coupon that belongs to the currently selected business.
+  useEffect(() => {
+    if (!currentBusinessId) {
+      setAppliedCoupon(null)
+      return
+    }
+    try {
+      const saved = localStorage.getItem(`applied-coupon-${currentBusinessId}`)
+      setAppliedCoupon(saved ? JSON.parse(saved) : null)
+    } catch {
+      setAppliedCoupon(null)
+    }
+    // Reset coupon form state when switching businesses
+    setShowCouponForm(false)
+    setCouponSearch('')
+    setSelectedCoupon(null)
+    setCouponError(null)
+    setCouponsLoaded(false)
+    setCouponOptions([])
+  }, [currentBusinessId])
 
   // Fetch available coupons when form is shown
   useEffect(() => {
@@ -64,6 +90,19 @@ export function MiniCart() {
         .catch(() => setCouponsLoaded(true))
     }
   }, [showCouponForm, currentBusinessId, couponsLoaded])
+
+  // Keep mini-cart coupon state in sync when the POS removes the coupon
+  // (e.g. cart was emptied in the POS, or payment was completed)
+  useEffect(() => {
+    const handlePOSCouponRemoved = () => {
+      setAppliedCoupon(null)
+      if (currentBusinessId) {
+        try { localStorage.removeItem(`applied-coupon-${currentBusinessId}`) } catch {}
+      }
+    }
+    window.addEventListener('coupon-removed', handlePOSCouponRemoved)
+    return () => window.removeEventListener('coupon-removed', handlePOSCouponRemoved)
+  }, [currentBusinessId])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -179,9 +218,12 @@ export function MiniCart() {
 
   const handleGoToPOS = () => {
     setIsOpen(false)
-    // Always navigate to universal POS — it adapts to all business types
-    // and supports coupons, unlike the business-specific POS pages
-    router.push('/universal/pos')
+    // If already on a POS page, just close the mini-cart so the user can
+    // complete the purchase using the POS's own checkout flow.
+    // Navigating to /universal/pos would unmount the current POS and lose the sale.
+    if (!isOnPOSPage) {
+      router.push('/universal/pos')
+    }
   }
 
   if (!currentBusiness) {
@@ -528,7 +570,7 @@ export function MiniCart() {
                     onClick={handleGoToPOS}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                   >
-                    Go to Checkout
+                    {isOnPOSPage ? '✕ Close & Continue Checkout' : 'Go to Checkout'}
                   </button>
                 </div>
               </>

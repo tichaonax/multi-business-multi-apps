@@ -32,22 +32,35 @@ export function OrderStats({ stats, loading, businessType }: OrderStatsProps) {
     return null
   }
 
-  const baseMetrics = [
+  type Metric = {
+    label: string
+    value: string
+    subValue?: string
+    icon: string
+    color: string
+    subColor?: string
+  }
+
+  const baseMetrics: Metric[] = [
     {
       label: 'Total Orders',
       value: stats.totalOrders.toString(),
+      subValue: formatCurrency(stats.totalRevenue),
       icon: '📋',
-      color: 'text-blue-600 dark:text-blue-400'
+      color: 'text-blue-600 dark:text-blue-400',
+      subColor: 'text-blue-500 dark:text-blue-300'
     },
     {
       label: 'Pending Orders',
       value: stats.pendingOrders.toString(),
+      subValue: formatCurrency(stats.pendingRevenue),
       icon: '⏳',
-      color: 'text-orange-600 dark:text-orange-400'
+      color: 'text-orange-600 dark:text-orange-400',
+      subColor: 'text-orange-500 dark:text-orange-300'
     }
   ]
 
-  const financialMetrics = canViewFinancialData ? [
+  const financialMetrics: Metric[] = canViewFinancialData ? [
     {
       label: 'Total Revenue',
       value: formatCurrency(stats.totalRevenue),
@@ -83,6 +96,11 @@ export function OrderStats({ stats, loading, businessType }: OrderStatsProps) {
               <p className={`text-2xl font-bold ${metric.color}`}>
                 {metric.value}
               </p>
+              {metric.subValue && (
+                <p className={`text-2xl font-bold mt-1 tracking-wide ${metric.subColor || metric.color}`}>
+                  {metric.subValue}
+                </p>
+              )}
             </div>
           </div>
         </div>

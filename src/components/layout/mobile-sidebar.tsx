@@ -115,6 +115,7 @@ export function MobileSidebar() {
     const canManageMenuPerm = isAdmin || hasBusinessPermission('canManageMenu')
     const canConfigWifi = isAdmin || hasBusinessPermission('canConfigureWifiTokens')
     const canSellWifi = isAdmin || hasBusinessPermission('canSellWifiTokens')
+    const canViewOrders = isAdmin || hasBusinessPermission('canEnterManualOrders') || hasBusinessPermission('canAccessFinancialData')
 
     const wifiLinks = () => (
       <>
@@ -133,7 +134,7 @@ export function MobileSidebar() {
             {canReport && navLink('/restaurant/reports', '📊', 'Sales Reports')}
             {navLink('/restaurant/inventory', '📦', 'Inventory')}
             {canManageMenuPerm && navLink('/restaurant/menu', '📋', 'Menu Management')}
-            {navLink('/restaurant/orders', '📦', 'Orders')}
+            {canViewOrders && navLink('/restaurant/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
           </>
@@ -146,7 +147,7 @@ export function MobileSidebar() {
             {navLink('/grocery/inventory', '📦', 'Inventory')}
             {navLink('/grocery/products', '📦', 'Products')}
             {navLink('/clothing/inventory?tab=bales', '📦', 'Bales Inventory')}
-            {navLink('/grocery/orders', '📦', 'Orders')}
+            {canViewOrders && navLink('/grocery/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
           </>
@@ -159,7 +160,7 @@ export function MobileSidebar() {
             {navLink('/clothing/inventory', '📦', 'Inventory')}
             {navLink('/clothing/products', '👗', 'Products')}
             {navLink('/clothing/inventory?tab=bales', '📦', 'Bales Inventory')}
-            {navLink('/clothing/orders', '📦', 'Orders')}
+            {canViewOrders && navLink('/clothing/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
           </>
@@ -171,7 +172,7 @@ export function MobileSidebar() {
             {canReport && navLink('/hardware/reports', '📊', 'Sales Reports')}
             {navLink('/hardware/inventory', '📦', 'Inventory')}
             {navLink('/hardware/products', '🛠️', 'Products')}
-            {navLink('/hardware/orders', '📦', 'Orders')}
+            {canViewOrders && navLink('/hardware/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
           </>

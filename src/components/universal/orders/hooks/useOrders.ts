@@ -49,7 +49,8 @@ export function useOrders({
     searchTerm: '',
     statusFilter: 'all',
     typeFilter: 'all',
-    paymentFilter: 'all'
+    paymentFilter: 'all',
+    dateRange: 'today'
   })
 
   const loadOrders = useCallback(async () => {
@@ -67,20 +68,38 @@ export function useOrders({
       })
 
       // Add filters
-      if (filters.statusFilter !== 'all') {
-        params.set('status', filters.statusFilter)
-      }
+      const statusToUse = filters.status || (filters.statusFilter !== 'all' ? filters.statusFilter : undefined)
+      if (statusToUse) params.set('status', statusToUse)
+
       if (filters.typeFilter !== 'all') {
         params.set('orderType', filters.typeFilter)
       }
       if (filters.paymentFilter !== 'all') {
         params.set('paymentStatus', filters.paymentFilter)
       }
-      if (filters.startDate) {
+
+      // Translate dateRange to startDate/endDate
+      if (filters.dateRange === 'custom') {
+        // Custom range: use explicit startDate/endDate directly
+        if (filters.startDate) params.set('startDate', filters.startDate)
+        if (filters.endDate) params.set('endDate', filters.endDate)
+      } else if (filters.startDate) {
+        // Explicit dates set without custom mode
         params.set('startDate', filters.startDate)
-      }
-      if (filters.endDate) {
-        params.set('endDate', filters.endDate)
+        if (filters.endDate) params.set('endDate', filters.endDate)
+      } else if (filters.dateRange && filters.dateRange !== 'all') {
+        const now = new Date()
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        if (filters.dateRange === 'today') {
+          params.set('startDate', startOfToday.toISOString())
+          params.set('endDate', new Date(startOfToday.getFullYear(), startOfToday.getMonth(), startOfToday.getDate() + 1).toISOString())
+        } else if (filters.dateRange === 'week') {
+          const startOfWeek = new Date(startOfToday)
+          startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay())
+          params.set('startDate', startOfWeek.toISOString())
+        } else if (filters.dateRange === 'month') {
+          params.set('startDate', new Date(now.getFullYear(), now.getMonth(), 1).toISOString())
+        }
       }
 
       const response = await fetch(`/api/universal/orders?${params}`)

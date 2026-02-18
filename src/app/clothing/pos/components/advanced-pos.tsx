@@ -100,6 +100,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'GIFT_CARD'>('CASH')
   const [cashTendered, setCashTendered] = useState('')
 
+  // Applied coupon (synced from mini-cart via localStorage + custom events)
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    id: string
+    code: string
+    discountAmount: number
+    customerPhone: string
+  } | null>(null)
+
   // Product data loaded from database
   const [quickAddProducts, setQuickAddProducts] = useState<any[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
@@ -199,6 +207,35 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       if (stored) setPinnedProductIds(new Set(JSON.parse(stored)))
     } catch { /* ignore */ }
   }, [businessId])
+
+  // Clear coupon automatically when the cart becomes empty
+  // (e.g. user removed the last item — coupon no longer applies to anything)
+  useEffect(() => {
+    if (cart.length === 0 && appliedCoupon) {
+      setAppliedCoupon(null)
+      try { localStorage.removeItem(`applied-coupon-${businessId}`) } catch {}
+      window.dispatchEvent(new Event('coupon-removed'))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart.length])
+
+  // Listen for coupon-applied / coupon-removed events dispatched by the mini-cart
+  // so the POS totals update in real-time without requiring page navigation
+  useEffect(() => {
+    const handleCouponApplied = (e: Event) => {
+      const couponData = (e as CustomEvent).detail
+      setAppliedCoupon(couponData)
+    }
+    const handleCouponRemoved = () => {
+      setAppliedCoupon(null)
+    }
+    window.addEventListener('coupon-applied', handleCouponApplied)
+    window.addEventListener('coupon-removed', handleCouponRemoved)
+    return () => {
+      window.removeEventListener('coupon-applied', handleCouponApplied)
+      window.removeEventListener('coupon-removed', handleCouponRemoved)
+    }
+  }, [])
 
   // Toggle pin/unpin a product for quick add
   const toggleQuickAdd = (productId: string) => {
@@ -820,7 +857,11 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
     // If tax is included, total equals subtotal (tax is embedded)
     // If tax is not included, total = subtotal + tax
-    return businessConfig.taxIncludedInPrice ? subtotal : subtotal + tax
+    const baseTotal = businessConfig.taxIncludedInPrice ? subtotal : subtotal + tax
+
+    // Subtract any coupon applied via the mini-cart
+    const couponDiscount = appliedCoupon?.discountAmount || 0
+    return Math.max(0, baseTotal - couponDiscount)
   }
 
   const requiresSupervisorOverride = () => {
@@ -849,8 +890,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       // Calculate totals
       const subtotal = calculateSubtotal()
       const tax = calculateTax()
-      const total = calculateTotal()
-      const discount = cart.reduce((sum, item) => sum + (item.discount || 0) * item.quantity, 0)
+      const total = calculateTotal() // already includes coupon discount
+      const itemDiscount = cart.reduce((sum, item) => sum + (item.discount || 0) * item.quantity, 0)
+      const couponDiscount = appliedCoupon?.discountAmount || 0
+      const discount = itemDiscount + couponDiscount
 
       const totals = {
         subtotal,
@@ -866,6 +909,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         employeeId,
         orderType: mode === 'return' ? 'RETURN' : mode === 'exchange' ? 'EXCHANGE' : 'SALE',
         paymentMethod: selectedPaymentMethod,
+        couponId: appliedCoupon?.id || null,
         discountAmount: totals.discount,
         taxAmount: totals.tax,
         businessType: 'clothing',
@@ -875,7 +919,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           supervisorOverride: supervisorOverride || undefined,
           customerInfo: customerInfo || undefined,
           cashTendered: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
-          change: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined
+          change: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined,
+          couponCode: appliedCoupon?.code || undefined,
+          couponDiscount: appliedCoupon?.discountAmount || undefined
         },
         items: cart.map(item => {
           const isWiFiToken = item.attributes?.isWiFiToken === true
@@ -943,7 +989,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         date: new Date(),
         cashierName: employeeId ? 'Employee' : undefined,
         businessSpecificData: {
-          supervisorOverride: supervisorOverride?.supervisorId ? 'Yes' : 'No'
+          supervisorOverride: supervisorOverride?.supervisorId ? 'Yes' : 'No',
+          ...(appliedCoupon ? { couponCode: appliedCoupon.code, couponDiscount: appliedCoupon.discountAmount } : {})
         },
         // Include WiFi tokens from order result for receipt printing
         wifiTokens: result.data.wifiTokens || [],
@@ -959,6 +1006,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       setShowPaymentModal(false)
       setCashTendered('')
       setSelectedPaymentMethod('CASH')
+      // Clear any applied coupon after successful payment
+      setAppliedCoupon(null)
+      try { localStorage.removeItem(`applied-coupon-${businessId}`) } catch {}
+      window.dispatchEvent(new Event('coupon-removed'))
 
       // Send CLEAR_CART to customer display after successful checkout
       if (terminalId) {
@@ -1391,6 +1442,26 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 </span>
                 <span>{formatCurrency(calculateTax())}</span>
               </div>
+              {appliedCoupon && (
+                <div className="flex justify-between items-center text-green-700 dark:text-green-400">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs">🏷️</span>
+                    <span className="text-sm font-medium">Coupon ({appliedCoupon.code}):</span>
+                    <button
+                      onClick={() => {
+                        setAppliedCoupon(null)
+                        try { localStorage.removeItem(`applied-coupon-${businessId}`) } catch {}
+                        window.dispatchEvent(new Event('coupon-removed'))
+                      }}
+                      className="text-xs text-red-500 hover:text-red-700 ml-1"
+                      title="Remove coupon"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <span className="text-sm font-medium">-{formatCurrency(appliedCoupon.discountAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total:</span>
                 <span>{formatCurrency(calculateTotal())}</span>
@@ -1418,13 +1489,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               {mode === 'return' ? 'Process Return' : 'Proceed to Payment'}
             </button>
           </div>
-        ) : (
-          <div className="card p-4 bg-yellow-50 border-yellow-200">
-            <div className="text-yellow-800">
-              DEBUG: Cart length is {cart.length}, totals section hidden
-            </div>
-          </div>
-        )}
+        ) : null}
 
         {/* Customer Info */}
         <div className="card p-4">
@@ -1473,7 +1538,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 </select>
               </div>
 
-              <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
+              <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded space-y-1">
+                {appliedCoupon && (
+                  <div className="flex justify-between text-sm text-green-700 dark:text-green-400">
+                    <span>🏷️ Coupon ({appliedCoupon.code}):</span>
+                    <span>-{formatCurrency(appliedCoupon.discountAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Total Amount:</span>
                   <span className="font-bold text-green-600">{formatCurrency(calculateTotal())}</span>

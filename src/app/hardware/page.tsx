@@ -13,8 +13,9 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { HomeStatBadge } from '@/components/universal/home/HomeStatBadge'
 
-function HardwareContent({ session, businessId }: { session: any; businessId: string }) {
+function HardwareContent({ session, businessId, canViewFinancials }: { session: any; businessId: string; canViewFinancials: boolean }) {
   const currentUser = session?.user as any
   const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
   const [stats, setStats] = React.useState<{
@@ -139,6 +140,22 @@ function HardwareContent({ session, businessId }: { session: any; businessId: st
                   <h3 className="font-semibold text-primary group-hover:text-blue-600 dark:group-hover:text-blue-400">
                     {action.label}
                   </h3>
+                  {action.href === '/hardware/pos' && (
+                    <HomeStatBadge
+                      summary={stats ? { totalOrders: stats.ordersToday, totalAmount: stats.dailySales, completedRevenue: stats.dailySales, pendingRevenue: 0, pendingOrders: 0 } : null}
+                      loading={loading}
+                      variant="pos"
+                      canViewFinancials={canViewFinancials}
+                    />
+                  )}
+                  {action.href === '/hardware/orders' && (
+                    <HomeStatBadge
+                      summary={stats ? { totalOrders: stats.ordersToday, totalAmount: stats.dailySales, completedRevenue: stats.dailySales, pendingRevenue: 0, pendingOrders: 0 } : null}
+                      loading={loading}
+                      variant="orders"
+                      canViewFinancials={canViewFinancials}
+                    />
+                  )}
                   <p className="text-sm text-secondary mt-1">
                     {action.description}
                   </p>
@@ -273,6 +290,7 @@ export default function HardwarePage() {
 
   // At this point, we have a valid hardware business selected
   const businessId = currentBusinessId!
+  const canViewFinancials = isAuthenticated && (businesses.find(b => b.businessId === businessId)?.permissions?.canAccessFinancialData || session?.user?.role === 'admin' || false)
 
   return (
     <BusinessProvider businessId={businessId}>
@@ -284,7 +302,7 @@ export default function HardwarePage() {
             { label: 'Hardware Store', isActive: true }
           ]}
         >
-          <HardwareContent session={session} businessId={businessId} />
+          <HardwareContent session={session} businessId={businessId} canViewFinancials={canViewFinancials} />
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>

@@ -67,6 +67,10 @@ export interface OrderFilters {
   paymentFilter: string
   startDate?: string
   endDate?: string
+  dateRange?: string   // 'today' | 'week' | 'month' | 'all'
+  status?: string
+  search?: string
+  sortBy?: string
 }
 
 export interface OrderStats {

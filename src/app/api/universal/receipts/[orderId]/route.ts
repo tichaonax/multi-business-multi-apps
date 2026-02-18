@@ -87,16 +87,24 @@ export async function GET(
       notes: order.notes || undefined,
       processedAt: order.processedAt || order.createdAt,
       createdAt: order.createdAt,
-      items: order.business_order_items.map(item => ({
-        id: item.id,
-        productVariantId: item.productVariantId || undefined,
-        productName: item.product_variants?.business_products?.name || 'Unknown Product',
-        quantity: parseFloat(item.quantity.toString()),
-        unitPrice: parseFloat(item.unitPrice.toString()),
-        discountAmount: parseFloat(item.discountAmount.toString()),
-        totalPrice: parseFloat(item.totalPrice.toString()),
-        attributes: item.attributes as any,
-      })),
+      items: order.business_order_items.map(item => {
+        const productName = item.product_variants?.business_products?.name || (item.attributes as any)?.productName || 'Unknown Product'
+        const variantName = (item.product_variants as any)?.name
+        // Append variant details only when they differ from the product name
+        const fullName = variantName && variantName !== productName
+          ? `${productName} (${variantName})`
+          : productName
+        return {
+          id: item.id,
+          productVariantId: item.productVariantId || undefined,
+          name: fullName,
+          quantity: parseFloat(item.quantity.toString()),
+          unitPrice: parseFloat(item.unitPrice.toString()),
+          discountAmount: parseFloat(item.discountAmount.toString()),
+          totalPrice: parseFloat(item.totalPrice.toString()),
+          attributes: item.attributes as any,
+        }
+      }),
     }
 
     // Build receipt data (pass current user as fallback salesperson)
@@ -122,6 +130,10 @@ export async function GET(
         businessName: order.businesses.name,
         businessType: order.businessType,
         totalAmount: order.totalAmount,
+        customerName: order.business_customers?.name || null,
+        employeeName: order.employees?.fullName || null,
+        paymentMethod: order.paymentMethod || null,
+        paymentStatus: order.paymentStatus || null,
         createdAt: order.createdAt,
         reprintHistory: order.reprint_logs.map(log => ({
           id: log.id,

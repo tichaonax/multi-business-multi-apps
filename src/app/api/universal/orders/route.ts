@@ -117,6 +117,8 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const includeItems = searchParams.get('includeItems') === 'true'
+    const dateRange = searchParams.get('dateRange')
+    const timezone = searchParams.get('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone
     const page = parseInt(searchParams.get('page') || '1')
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
     const skip = (page - 1) * limit
@@ -143,9 +145,12 @@ export async function GET(request: NextRequest) {
     })
 
     if (!isAdmin) {
+      // canAccessFinancialData: managers/owners
+      // canEnterManualOrders: employees, associates, salespersons — role preset already includes this
       const hasFinancialAccess = hasPermission(user, 'canAccessFinancialData', businessId)
-      console.log('Non-admin user financial access check:', { businessId, hasFinancialAccess })
-      if (!hasFinancialAccess) {
+      const canViewOrders = hasPermission(user, 'canEnterManualOrders', businessId)
+      console.log('Non-admin user financial access check:', { businessId, hasFinancialAccess, canViewOrders })
+      if (!hasFinancialAccess && !canViewOrders) {
         return NextResponse.json({ error: 'Insufficient permissions to access financial data' }, { status: 403 })
       }
     }
@@ -158,10 +163,42 @@ export async function GET(request: NextRequest) {
     if (paymentStatus) where.paymentStatus = paymentStatus as any
     if (orderType) where.orderType = orderType as any
 
-    if (startDate || endDate) {
+    // Resolve effective date bounds: explicit startDate/endDate win over dateRange shorthand
+    let effectiveStart: Date | undefined = startDate ? new Date(startDate) : undefined
+    let effectiveEnd: Date | undefined = endDate ? new Date(endDate) : undefined
+
+    if (!effectiveStart && dateRange && dateRange !== 'all') {
+      const now = new Date()
+      // Get today's date string in the requested timezone
+      const todayStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(now)
+      const [y, m, d] = todayStr.split('-').map(Number)
+
+      if (dateRange === 'today') {
+        // midnight → next midnight in timezone, expressed as UTC
+        const midnightUTC = Date.UTC(y, m - 1, d, 0, 0, 0)
+        const tzOffset = new Date(new Date(midnightUTC).toLocaleString('en-US', { timeZone: timezone })).getTime()
+          - new Date(new Date(midnightUTC).toLocaleString('en-US', { timeZone: 'UTC' })).getTime()
+        effectiveStart = new Date(midnightUTC - tzOffset)
+        effectiveEnd = new Date(effectiveStart.getTime() + 24 * 60 * 60 * 1000)
+      } else if (dateRange === 'week') {
+        // ISO week: Monday as first day
+        const day = now.getDay() // 0=Sun
+        const daysBack = (day === 0 ? 6 : day - 1)
+        effectiveStart = new Date(now)
+        effectiveStart.setDate(now.getDate() - daysBack)
+        effectiveStart.setHours(0, 0, 0, 0)
+      } else if (dateRange === 'month') {
+        effectiveStart = new Date(y, m - 1, 1, 0, 0, 0)
+      }
+    }
+
+    if (effectiveStart || effectiveEnd) {
       where.createdAt = {}
-      if (startDate) where.createdAt.gte = new Date(startDate)
-      if (endDate) where.createdAt.lte = new Date(endDate)
+      if (effectiveStart) where.createdAt.gte = effectiveStart
+      if (effectiveEnd) where.createdAt.lt = effectiveEnd
     }
 
     const [orders, totalCount] = await Promise.all([
@@ -349,14 +386,26 @@ export async function POST(request: NextRequest) {
 
     // Verify employee exists if specified (but don't fail if not found - might be admin/user ID)
     if (orderData.employeeId) {
+      // First try direct employee ID lookup
       const employee = await prisma.employees.findUnique({
         where: { id: orderData.employeeId }
       })
 
       if (!employee) {
-        console.warn(`Employee ID ${orderData.employeeId} not found in employees table - might be admin/user. Order will proceed without employee link.`)
-        // Remove employeeId if not found so order creation doesn't fail
-        orderData.employeeId = undefined
+        // POS sends session.user.id (user account ID), not the employee record ID.
+        // Try resolving via the userId foreign key on the Employees table.
+        const employeeByUserId = await prisma.employees.findUnique({
+          where: { userId: orderData.employeeId }
+        })
+
+        if (employeeByUserId) {
+          // Remap to the actual employee record ID so the FK is saved correctly
+          orderData.employeeId = employeeByUserId.id
+        } else {
+          console.warn(`Employee ID ${orderData.employeeId} not found in employees table (tried id and userId) - might be non-employee admin. Order will proceed without employee link.`)
+          // Remove employeeId if not found so order creation doesn't fail
+          orderData.employeeId = undefined
+        }
       }
     }
 

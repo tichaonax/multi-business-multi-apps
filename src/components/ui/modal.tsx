@@ -10,9 +10,10 @@ interface ModalProps {
   title: string
   children: React.ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
+  noPadding?: boolean
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', noPadding = false }: ModalProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -69,9 +70,9 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
           borderRadius: '0.5rem',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
           border: '1px solid rgba(0, 0, 0, 0.1)',
-          maxWidth: size === 'sm' ? '24rem' : size === 'md' ? '28rem' : size === 'lg' ? '48rem' : '64rem',
+          maxWidth: size === 'sm' ? '24rem' : size === 'md' ? '28rem' : size === 'lg' ? '48rem' : '56rem',
           width: '100%',
-          maxHeight: '85vh',
+          maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
           pointerEvents: 'auto'
@@ -90,7 +91,9 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         </div>
 
         {/* Content */}
-        <div className="p-6 bg-white dark:bg-gray-900 flex-1 overflow-y-auto rounded-b-lg">{children}</div>
+        <div className={`bg-white dark:bg-gray-900 flex-1 rounded-b-lg ${
+          noPadding ? 'overflow-hidden flex flex-col' : 'p-6 overflow-y-auto'
+        }`}>{children}</div>
       </div>
     </div>,
     document.body

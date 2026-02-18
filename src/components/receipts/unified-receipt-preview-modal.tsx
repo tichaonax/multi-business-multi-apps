@@ -250,247 +250,235 @@ export function UnifiedReceiptPreviewModal({
   const supportsCustomerCopy = ['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)
   const hasPrintersOrLocal = printers.length > 0 || hasLocalPrinter
 
+  if (!isOpen) return null
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Receipt Preview"
-      maxWidth="2xl"
+      title="Print Receipt"
+      size="xl"
+      noPadding
     >
-      <div className="space-y-6">
-        {/* Receipt Preview */}
-        <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
-          <h3 className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">
-            Receipt Preview
-          </h3>
+      {/* Two-panel layout: receipt preview left, settings right */}
+      <div className="flex flex-col md:flex-row flex-1 min-h-0">
 
-          {receiptData ? (
-            <div className="bg-white dark:bg-gray-900 rounded border max-h-96 overflow-y-auto">
-              <ReceiptTemplate
-                data={{
-                  ...receiptData,
-                  receiptType: 'customer' // Show customer copy in preview to verify WiFi token details
-                }}
-              />
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No receipt data
-            </div>
-          )}
-        </div>
-
-        {/* Print Settings */}
-        <div className="space-y-4">
-          {/* Printer Selection */}
-          <div>
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-              Select Printer <span className="text-red-500">*</span>
-            </label>
-
-            {printersLoading ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 dark:border-gray-100"></div>
-                Loading printers...
-              </div>
-            ) : !hasPrintersOrLocal ? (
-              <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm">
-                <AlertCircle className="w-4 h-4 text-yellow-600" />
-                <div>
-                  <div className="font-medium text-yellow-800 dark:text-yellow-200">
-                    No printers configured
-                  </div>
-                  <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">
-                    Set up a network printer in Admin → Printers, or connect a local USB printer below.
-                  </div>
-                </div>
+        {/* Left panel — receipt preview */}
+        <div className="md:w-[42%] border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50 dark:bg-gray-800/50">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+              <span>🧾</span> Receipt Preview
+            </h3>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 max-h-[55vh] md:max-h-[70vh]">
+            {receiptData ? (
+              <div className="bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 shadow-sm">
+                <ReceiptTemplate
+                  data={{
+                    ...receiptData,
+                    receiptType: 'customer'
+                  }}
+                />
               </div>
             ) : (
-              <select
-                value={selectedPrinterId || ''}
-                onChange={(e) => {
-                  const printerId = e.target.value
-                  setSelectedPrinterId(printerId)
-
-                  // Save selected printer to localStorage (user-scoped)
-                  if (printerId) {
-                    try {
-                      localStorage.setItem(printerKey, printerId)
-                      console.log('✓ Saved printer preference:', printerId)
-                    } catch (storageError) {
-                      console.warn('Failed to save printer preference:', storageError)
-                    }
-                  }
-                }}
-                className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
-              >
-                <option value="">-- Select a printer --</option>
-                {hasLocalPrinter && (
-                  <option value={LOCAL_PRINTER_ID}>
-                    {localPrinterName} (Local USB)
-                  </option>
-                )}
-                {printers.map((printer) => (
-                  <option key={printer.id} value={printer.id}>
-                    {printer.printerName} {printer.isOnline ? '(Online)' : '(Offline)'}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {!selectedPrinterId && hasPrintersOrLocal && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
-                <AlertCircle className="w-4 h-4" />
-                Please select a printer to continue
+              <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+                No receipt data
               </div>
             )}
-
-            {isLocalSelected && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                <Usb className="w-4 h-4" />
-                Local USB printer — prints directly from this browser
-              </div>
-            )}
-
-            {selectedPrinter && !isLocalSelected && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                {selectedPrinter.isOnline ? (
-                  <>
-                    <Check className="w-4 h-4 text-green-500" />
-                    Printer is online and ready
-                  </>
-                ) : (
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-red-500" />
-                      <span className="text-red-600 dark:text-red-400">Printer is offline</span>
-                    </div>
-                    <button
-                      onClick={() => handleBringOnline(selectedPrinter.id)}
-                      disabled={checkingOnline}
-                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
-                    >
-                      <Wifi className="w-3 h-3" />
-                      {checkingOnline ? 'Checking...' : 'Bring Online'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Local USB Printer Setup */}
-            {isWebSerialSupported() && (
-              <div className="mt-3">
-                {!hasLocalPrinter && !showLocalSetup && (
-                  <button
-                    onClick={() => setShowLocalSetup(true)}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                  >
-                    <Usb className="w-3 h-3" />
-                    Setup Local USB Printer
-                  </button>
-                )}
-                {showLocalSetup && !hasLocalPrinter && (
-                  <LocalPrinterSetup
-                    compact
-                    onSetupComplete={(config) => {
-                      setHasLocalPrinter(true)
-                      setLocalPrinterName(config.name)
-                      setSelectedPrinterId(LOCAL_PRINTER_ID)
-                      setShowLocalSetup(false)
-                      localStorage.setItem(printerKey, LOCAL_PRINTER_ID)
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Number of Copies (for Customer Copy only) */}
-          {supportsCustomerCopy && (
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                Customer Copy Quantity
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="5"
-                value={copies}
-                onChange={(e) => setCopies(parseInt(e.target.value) || 1)}
-                className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                How many customer copies to print (business copy is always 1)
-              </p>
-            </div>
-          )}
-
-          {/* Customer Copy Toggle (Restaurant & Grocery) */}
-          {supportsCustomerCopy && (
-            <div className="flex items-center justify-between p-3 border rounded-lg dark:border-gray-600">
-              <div>
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Print Customer Copy
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Business copy always prints. Customer copy is optional.
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={printCustomerCopy}
-                  onChange={(e) => setPrintCustomerCopy(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          )}
-
-          {/* Print Summary */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm">
-            <div className="font-medium text-blue-900 dark:text-blue-100 mb-2">
-              Print Summary
-            </div>
-            <ul className="space-y-1 text-blue-800 dark:text-blue-200">
-              <li>• Business Copy: 1 copy (always)</li>
-              {supportsCustomerCopy && printCustomerCopy && (
-                <li>• Customer Copy: {copies} {copies > 1 ? 'copies' : 'copy'}</li>
-              )}
-              {supportsCustomerCopy && !printCustomerCopy && (
-                <li className="text-blue-600 dark:text-blue-400">• Customer Copy: Disabled</li>
-              )}
-            </ul>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 justify-end pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={loading}
-          >
-            <X className="w-4 h-4 mr-2" />
-            Cancel
-          </Button>
+        {/* Right panel — settings + actions (no scroll needed) */}
+        <div className="md:flex-1 flex flex-col">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 
-          <Button
-            onClick={handlePrint}
-            disabled={loading || !selectedPrinterId || (!isLocalSelected && !selectedPrinter?.isOnline)}
-            title={
-              !selectedPrinterId
-                ? 'Please select a printer first'
-                : !isLocalSelected && !selectedPrinter?.isOnline
-                ? 'Selected printer is offline'
-                : 'Print receipt'
-            }
-          >
-            <Printer className="w-4 h-4 mr-2" />
-            {loading ? 'Printing...' : 'Print Receipt'}
-          </Button>
+            {/* Printer Selection */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
+                Printer <span className="text-red-500">*</span>
+              </label>
+
+              {printersLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 dark:border-gray-100"></div>
+                  Loading printers...
+                </div>
+              ) : !hasPrintersOrLocal ? (
+                <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm">
+                  <AlertCircle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium text-yellow-800 dark:text-yellow-200">No printers configured</div>
+                    <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-0.5">
+                      Set up a network printer in Admin → Printers, or connect a local USB printer below.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <select
+                  value={selectedPrinterId || ''}
+                  onChange={(e) => {
+                    const printerId = e.target.value
+                    setSelectedPrinterId(printerId)
+                    if (printerId) {
+                      try {
+                        localStorage.setItem(printerKey, printerId)
+                      } catch (storageError) {
+                        console.warn('Failed to save printer preference:', storageError)
+                      }
+                    }
+                  }}
+                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                >
+                  <option value="">-- Select a printer --</option>
+                  {hasLocalPrinter && (
+                    <option value={LOCAL_PRINTER_ID}>{localPrinterName} (Local USB)</option>
+                  )}
+                  {printers.map((printer) => (
+                    <option key={printer.id} value={printer.id}>
+                      {printer.printerName} {printer.isOnline ? '(Online)' : '(Offline)'}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Printer status */}
+              {!selectedPrinterId && hasPrintersOrLocal && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertCircle className="w-3.5 h-3.5" /> Select a printer to continue
+                </p>
+              )}
+              {isLocalSelected && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                  <Usb className="w-3.5 h-3.5" /> Prints directly from this browser
+                </p>
+              )}
+              {selectedPrinter && !isLocalSelected && (
+                <div className="mt-1.5">
+                  {selectedPrinter.isOnline ? (
+                    <p className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                      <Check className="w-3.5 h-3.5" /> Online and ready
+                    </p>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <p className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+                        <AlertCircle className="w-3.5 h-3.5" /> Printer offline
+                      </p>
+                      <button
+                        onClick={() => handleBringOnline(selectedPrinter.id)}
+                        disabled={checkingOnline}
+                        className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                      >
+                        <Wifi className="w-3 h-3" />
+                        {checkingOnline ? 'Checking...' : 'Bring Online'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Local USB Printer Setup */}
+              {isWebSerialSupported() && (
+                <div className="mt-2">
+                  {!hasLocalPrinter && !showLocalSetup && (
+                    <button
+                      onClick={() => setShowLocalSetup(true)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <Usb className="w-3 h-3" /> Setup Local USB Printer
+                    </button>
+                  )}
+                  {showLocalSetup && !hasLocalPrinter && (
+                    <LocalPrinterSetup
+                      compact
+                      onSetupComplete={(config) => {
+                        setHasLocalPrinter(true)
+                        setLocalPrinterName(config.name)
+                        setSelectedPrinterId(LOCAL_PRINTER_ID)
+                        setShowLocalSetup(false)
+                        localStorage.setItem(printerKey, LOCAL_PRINTER_ID)
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Customer copy settings */}
+            {supportsCustomerCopy && (
+              <>
+                {/* Copies */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
+                    Customer Copy Qty
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="5"
+                      value={copies}
+                      onChange={(e) => setCopies(parseInt(e.target.value) || 1)}
+                      className="w-20 border rounded-lg px-3 py-1.5 text-sm dark:bg-gray-800 dark:border-gray-600"
+                    />
+                    <span className="text-xs text-gray-500">Business copy is always 1</span>
+                  </div>
+                </div>
+
+                {/* Customer copy toggle */}
+                <div className="flex items-center justify-between py-2.5 px-3 border rounded-lg dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Print Customer Copy</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Optional — business copy always prints</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer ml-3 flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={printCustomerCopy}
+                      onChange={(e) => setPrintCustomerCopy(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </>
+            )}
+
+            {/* Print Summary */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm">
+              <p className="font-semibold text-blue-900 dark:text-blue-100 mb-1.5 text-xs uppercase tracking-wide">Print Summary</p>
+              <ul className="space-y-1 text-blue-800 dark:text-blue-200 text-sm">
+                <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-blue-500" /> Business Copy: 1</li>
+                {supportsCustomerCopy && printCustomerCopy && (
+                  <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-blue-500" /> Customer Copy: {copies}</li>
+                )}
+                {supportsCustomerCopy && !printCustomerCopy && (
+                  <li className="flex items-center gap-1.5 text-blue-400 dark:text-blue-500 line-through">Customer Copy: disabled</li>
+                )}
+              </ul>
+            </div>
+          </div>
+
+          {/* Action buttons — always visible, stuck to bottom of right panel */}
+          <div className="flex-shrink-0 flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <Button variant="outline" onClick={onClose} disabled={loading}>
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePrint}
+              disabled={loading || !selectedPrinterId || (!isLocalSelected && !selectedPrinter?.isOnline)}
+              title={
+                !selectedPrinterId
+                  ? 'Please select a printer first'
+                  : !isLocalSelected && !selectedPrinter?.isOnline
+                  ? 'Selected printer is offline'
+                  : 'Print receipt'
+              }
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              {loading ? 'Printing...' : 'Print Receipt'}
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>

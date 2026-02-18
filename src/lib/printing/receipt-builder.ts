@@ -72,7 +72,9 @@ interface OrderData {
     name: string
     quantity: number
     unitPrice: number
+    discountAmount?: number
     totalPrice: number
+    attributes?: Record<string, any>
     productVariant?: {
       product?: {
         name: string
@@ -167,14 +169,24 @@ export function buildReceiptData(
     transactionDate: order.orderDate ? new Date(order.orderDate) : new Date(),
     salespersonName: order.employeeName || options.currentUserName || 'Unknown',
     salespersonId: order.employeeId || options.currentUserId || 'unknown',
-    items: order.items.map(item => ({
-      name: item.name,
-      sku: undefined, // SKU not available in current order structure
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: item.totalPrice,
-      notes: undefined
-    })),
+    items: order.items.map(item => {
+      const attrs = item.attributes || {}
+      const noteParts: string[] = []
+      if (attrs.isBOGOFree) noteParts.push('BOGO Free')
+      if (attrs.size) noteParts.push(`Size: ${attrs.size}`)
+      if (attrs.color) noteParts.push(`Color: ${attrs.color}`)
+      if (attrs.batchNumber) noteParts.push(`Batch: ${attrs.batchNumber}`)
+      if (attrs.specialInstructions) noteParts.push(attrs.specialInstructions)
+      if (attrs.couponCode) noteParts.push(`Coupon: ${attrs.couponCode}`)
+      return {
+        name: item.name,
+        sku: undefined,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        notes: noteParts.length > 0 ? noteParts.join(' · ') : undefined
+      }
+    }),
     subtotal: order.subtotal,
     tax: order.taxAmount,
     discount: order.discountAmount,

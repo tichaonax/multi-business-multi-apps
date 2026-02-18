@@ -39,7 +39,7 @@ function DashboardContent() {
   const customAlert = useAlert()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentBusiness, switchBusiness, activeBusinesses, loading: businessesLoading, hasPermission } = useBusinessPermissionsContext()
+  const { currentBusiness, switchBusiness, activeBusinesses, loading: businessesLoading, hasPermission, hasPermissionInBusiness, isSystemAdmin: isSysAdmin } = useBusinessPermissionsContext()
   const currentUser = session?.user as any
   const businessId = currentBusiness?.businessId
   const [stats, setStats] = useState({
@@ -62,6 +62,9 @@ function DashboardContent() {
   const [activityFinancialSummary, setActivityFinancialSummary] = useState<any>(null)
 
   // Activity filter states
+  const [todayStats, setTodayStats] = useState<Record<string, any>>({})
+  const [loadingTodayStats, setLoadingTodayStats] = useState(false)
+
   const [activityFilterScope, setActivityFilterScope] = useState<string>('my') // 'my', 'all', 'user', 'business'
   const [activityFilterUserId, setActivityFilterUserId] = useState<string>('')
   const [activityFilterBusinessId, setActivityFilterBusinessId] = useState<string>('')
@@ -388,6 +391,32 @@ function DashboardContent() {
     setSelectedUser(null)
   }
 
+  // Fetch today's stats for each active POS-type business
+  useEffect(() => {
+    if (!activeBusinesses.length || businessesLoading) return
+    const posBizTypes = ['restaurant', 'grocery', 'clothing', 'hardware']
+    const eligible = activeBusinesses.filter(b =>
+      b.isActive &&
+      posBizTypes.includes(b.businessType) &&
+      (isSysAdmin || hasPermissionInBusiness('canEnterManualOrders', b.businessId) || hasPermissionInBusiness('canAccessFinancialData', b.businessId))
+    )
+    if (!eligible.length) return
+    setLoadingTodayStats(true)
+    Promise.all(
+      eligible.map(b =>
+        fetch(`/api/universal/orders?businessId=${b.businessId}&dateRange=today&page=1&limit=1`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => ({ businessId: b.businessId, summary: data?.meta?.summary || null }))
+          .catch(() => ({ businessId: b.businessId, summary: null }))
+      )
+    ).then(results => {
+      const map: Record<string, any> = {}
+      results.forEach(r => { map[r.businessId] = r.summary })
+      setTodayStats(map)
+      setLoadingTodayStats(false)
+    })
+  }, [activeBusinesses, businessesLoading, isSysAdmin])
+
   // Auto-refresh stats every 60 seconds
   useEffect(() => {
     if (!session?.user) return
@@ -712,6 +741,93 @@ function DashboardContent() {
             )}
           </div>
         </div>
+
+        {/* Today's Performance — per business */}
+        {!businessesLoading && activeBusinesses.some(b =>
+          b.isActive && ['restaurant','grocery','clothing','hardware'].includes(b.businessType) &&
+          (isSysAdmin || hasPermissionInBusiness('canEnterManualOrders', b.businessId) || hasPermissionInBusiness('canAccessFinancialData', b.businessId))
+        ) && (
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-primary flex items-center gap-2">
+                <span>📅</span> Today&apos;s Performance
+              </h2>
+              {loadingTodayStats && <span className="text-xs text-secondary animate-pulse">Refreshing...</span>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {activeBusinesses
+                .filter(b =>
+                  b.isActive &&
+                  ['restaurant','grocery','clothing','hardware'].includes(b.businessType) &&
+                  (isSysAdmin || hasPermissionInBusiness('canEnterManualOrders', b.businessId) || hasPermissionInBusiness('canAccessFinancialData', b.businessId))
+                )
+                .map(b => {
+                  const icon = b.businessType === 'restaurant' ? '🍽️' : b.businessType === 'grocery' ? '🛒' : b.businessType === 'clothing' ? '👕' : '🔧'
+                  const href = `/${b.businessType}`
+                  const summary = todayStats[b.businessId]
+                  const canFinancial = isSysAdmin || hasPermissionInBusiness('canAccessFinancialData', b.businessId)
+                  const isActive = currentBusiness?.businessId === b.businessId
+                  const fmt = (n: number) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                  return (
+                    <Link key={b.businessId} href={href}>
+                      <div className={`card p-4 hover:shadow-lg transition-all cursor-pointer ${
+                        isActive ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{icon}</span>
+                            <div>
+                              <p className="font-semibold text-primary text-sm leading-tight">{b.businessName}</p>
+                              <p className="text-xs text-secondary capitalize">{b.businessType}</p>
+                            </div>
+                          </div>
+                          {isActive && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">Active</span>
+                          )}
+                        </div>
+                        {loadingTodayStats ? (
+                          <div className="space-y-1.5 mt-2">
+                            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-24" />
+                            {canFinancial && <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-16" />}
+                          </div>
+                        ) : summary ? (
+                          <div className="mt-2 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-secondary">Orders today</span>
+                              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{summary.totalOrders}</span>
+                            </div>
+                            {canFinancial && (
+                              <>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-secondary">Revenue</span>
+                                  <span className="text-sm font-bold text-green-600 dark:text-green-400">{fmt(summary.totalAmount)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-secondary">Completed</span>
+                                  <span className="text-xs text-green-600 dark:text-green-400">{fmt(summary.completedRevenue)}</span>
+                                </div>
+                                {summary.pendingOrders > 0 && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-secondary">Pending</span>
+                                    <span className="text-xs text-orange-600 dark:text-orange-400">
+                                      {summary.pendingOrders} · {fmt(summary.pendingRevenue)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-secondary mt-2">No orders yet today</p>
+                        )}
+                      </div>
+                    </Link>
+                  )
+                })
+              }
+            </div>
+          </div>
+        )}
 
         {/* Expense Account Low Balance Alerts - only for roles with financial data access */}
         {hasPermission('canAccessFinancialData') && (

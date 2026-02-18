@@ -214,16 +214,19 @@ export async function GET(
             const categoryId = category.id;
 
             // Build category path (e.g., "Ladies > Dresses")
+            // Note: Prisma self-relation is named "business_categories" (the parent), not "parent"
             let categoryPath = category.name;
             let currentEmoji = extractEmoji(category.name) || category.emoji || '📦';
 
-            if (category.parent) {
-              if (category.parent.parent) {
-                categoryPath = `${category.parent.parent.name} > ${category.parent.name} > ${category.name}`;
-                currentEmoji = extractEmoji(category.parent.parent.name) || extractEmoji(category.parent.name) || extractEmoji(category.name) || category.parent.parent.emoji || category.parent.emoji || category.emoji || '📦';
+            const parentCat = (category as any).business_categories;
+            if (parentCat) {
+              const grandParentCat = parentCat.business_categories;
+              if (grandParentCat) {
+                categoryPath = `${grandParentCat.name} > ${parentCat.name} > ${category.name}`;
+                currentEmoji = extractEmoji(grandParentCat.name) || extractEmoji(parentCat.name) || extractEmoji(category.name) || grandParentCat.emoji || parentCat.emoji || category.emoji || '📦';
               } else {
-                categoryPath = `${category.parent.name} > ${category.name}`;
-                currentEmoji = extractEmoji(category.parent.name) || extractEmoji(category.name) || category.parent.emoji || category.emoji || '📦';
+                categoryPath = `${parentCat.name} > ${category.name}`;
+                currentEmoji = extractEmoji(parentCat.name) || extractEmoji(category.name) || parentCat.emoji || category.emoji || '📦';
               }
             }
 
@@ -282,6 +285,107 @@ export async function GET(
         }
       });
     });
+
+    // ── Batch-resolve categories for items that had no productVariantId link ──
+    // (combos, WiFi tokens, R710 tokens, and any item where variant lookup failed)
+    // The restaurant orders API stores productId in item.attributes.productId.
+    const noVariantProductIds = new Set<string>();
+    orders.forEach(order => {
+      order.business_order_items.forEach(item => {
+        if (!item.product_variants && item.attributes && (item.attributes as any).productId) {
+          noVariantProductIds.add((item.attributes as any).productId as string);
+        }
+      });
+    });
+
+    if (noVariantProductIds.size > 0) {
+      const noVariantProducts = await prisma.businessProducts.findMany({
+        where: { id: { in: Array.from(noVariantProductIds) } },
+        include: {
+          business_categories: {
+            select: {
+              id: true,
+              name: true,
+              emoji: true,
+              parentId: true,
+              business_categories: {
+                select: {
+                  name: true,
+                  emoji: true,
+                  parentId: true,
+                  business_categories: {
+                    select: { name: true, emoji: true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      const noVariantProductMap = new Map(noVariantProducts.map(p => [p.id, p]));
+
+      // Second pass: fill in category stats for no-variant items
+      orders.forEach(order => {
+        order.business_order_items.forEach(item => {
+          if (!item.product_variants && item.attributes) {
+            const attrs = item.attributes as any;
+            const productId = attrs.productId as string | undefined;
+            if (!productId) return;
+
+            const product = noVariantProductMap.get(productId);
+            if (!product) return;
+
+            const itemRevenue = Number(item.totalPrice || 0);
+            const category = product.business_categories;
+
+            // Product stats (if not already counted via variant path)
+            if (!productStats[productId]) {
+              const emoji = extractEmoji(product.name) || category?.emoji || '📦';
+              productStats[productId] = {
+                productId,
+                productName: product.name,
+                emoji,
+                unitsSold: 0,
+                revenue: 0
+              };
+            }
+            productStats[productId].unitsSold += Number(item.quantity || 1);
+            productStats[productId].revenue += itemRevenue;
+
+            // Category stats
+            if (category) {
+              const categoryId = category.id;
+              let categoryPath = category.name;
+              let currentEmoji = extractEmoji(category.name) || category.emoji || '📦';
+
+              const parentCat = (category as any).business_categories;
+              if (parentCat) {
+                const grandParentCat = parentCat.business_categories;
+                if (grandParentCat) {
+                  categoryPath = `${grandParentCat.name} > ${parentCat.name} > ${category.name}`;
+                  currentEmoji = extractEmoji(grandParentCat.name) || extractEmoji(parentCat.name) || extractEmoji(category.name) || grandParentCat.emoji || parentCat.emoji || category.emoji || '📦';
+                } else {
+                  categoryPath = `${parentCat.name} > ${category.name}`;
+                  currentEmoji = extractEmoji(parentCat.name) || extractEmoji(category.name) || parentCat.emoji || category.emoji || '📦';
+                }
+              }
+
+              if (!categoryStats[categoryId]) {
+                categoryStats[categoryId] = {
+                  categoryId,
+                  categoryName: category.name,
+                  categoryPath,
+                  emoji: currentEmoji,
+                  revenue: 0
+                };
+              }
+              categoryStats[categoryId].revenue += itemRevenue;
+            }
+          }
+        });
+      });
+    }
 
     // Sort and get top products by units
     const topProductsByUnits = Object.values(productStats)
