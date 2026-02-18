@@ -11,6 +11,7 @@ import { ExpensePieChart } from '@/components/reports/expense-pie-chart'
 import { DailyTrendsChart } from '@/components/reports/daily-trends-chart'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { EmployeeFilter } from '@/components/reports/employee-filter'
+import { getLocalDateString } from '@/lib/utils'
 
 export default function ReportsDashboard() {
   // Initialize date range to last 30 days
@@ -47,8 +48,8 @@ export default function ReportsDashboard() {
       setLoading(true)
 
       // Format dates for API
-      const startDate = dateRange.start.toISOString().split('T')[0]
-      const endDate = dateRange.end.toISOString().split('T')[0]
+      const startDate = getLocalDateString(dateRange.start)
+      const endDate = getLocalDateString(dateRange.end)
 
       // Load daily sales data for date range (income) - use universal API
       const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=${businessType}&startDate=${startDate}&endDate=${endDate}`)
@@ -100,7 +101,7 @@ export default function ReportsDashboard() {
         // Build expense totals by date from already-loaded expenses
         const expensesByDate: Record<string, number> = {}
         expensesList.forEach((exp: any) => {
-          const expDate = new Date(exp.expenseDate).toISOString().split('T')[0]
+          const expDate = getLocalDateString(new Date(exp.expenseDate))
           expensesByDate[expDate] = (expensesByDate[expDate] || 0) + exp.amount
         })
 
@@ -109,7 +110,7 @@ export default function ReportsDashboard() {
         const realTrends = Array.from({ length: daysDiff + 1 }, (_, i) => {
           const date = new Date(dateRange.start)
           date.setDate(date.getDate() + i)
-          const isoDate = date.toISOString().split('T')[0]
+          const isoDate = getLocalDateString(date)
           const day = String(date.getDate()).padStart(2, '0')
           const month = String(date.getMonth() + 1).padStart(2, '0')
           const income = dailySalesByDate[isoDate] || 0

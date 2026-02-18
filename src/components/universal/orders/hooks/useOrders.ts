@@ -96,8 +96,10 @@ export function useOrders({
         } else if (filters.dateRange === 'yesterday') {
           const startOfYesterday = new Date(startOfToday)
           startOfYesterday.setDate(startOfToday.getDate() - 1)
+          const endOfYesterday = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), startOfToday.getDate())
+          endOfYesterday.setMilliseconds(endOfYesterday.getMilliseconds() - 1)
           params.set('startDate', startOfYesterday.toISOString())
-          params.set('endDate', startOfToday.toISOString())
+          params.set('endDate', endOfYesterday.toISOString())
         } else if (filters.dateRange === 'week') {
           const startOfWeek = new Date(startOfToday)
           startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay())

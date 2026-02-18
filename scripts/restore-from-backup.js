@@ -6,6 +6,9 @@ const path = require('path')
 /**
  * Restore order - dependencies first, then dependent tables
  * This ensures foreign key constraints are satisfied
+ *
+ * NOTE: Excludes local/ephemeral tables (sync, printers, print jobs, device registry,
+ * connected clients, network partitions, node states, offline queue, audit logs, chat)
  */
 const RESTORE_ORDER = [
   // System settings (no dependencies)
@@ -31,6 +34,9 @@ const RESTORE_ORDER = [
   // Users and authentication
   'users',
   'accounts',
+  'sessions',
+  'permissions',
+  'userPermissions',
   'permissionTemplates',  // Depends on users via createdBy FK
   'seedDataTemplates',  // Depends on users via createdBy FK
 
@@ -76,22 +82,42 @@ const RESTORE_ORDER = [
   'productImages',
   'productAttributes',
   'businessStockMovements',
+  'product_price_changes',
+  'sku_sequences',
+
+  // Barcode system
+  'barcodeTemplates',
+  'barcodeInventoryItems',
+  'barcodePrintJobs',
 
   // Customers and orders
   'businessCustomers',
   'businessOrders',
   'businessOrderItems',
   'businessTransactions',
-  'customerLaybys',
-  'customerLaybyPayments',
+  'receiptSequences',
+  'reprintLog',
+  'customerLayby',
+  'customerLaybyPayment',
+
+  // Coupons (depends on businessOrders, employees)
+  'coupons',
+  'couponUsages',
 
   // Expense accounts
   'expenseAccounts',
   'expenseAccountDeposits',
   'expenseAccountPayments',
 
+  // Meal program (depends on businesses, employees, persons, expenseAccounts, businessOrders)
+  'mealProgramParticipants',
+  'mealProgramEligibleItems',
+  'mealProgramTransactions',
+
   // Payroll
   'payrollAccounts',
+  'payrollAccountDeposits',
+  'payrollAccountPayments',
   'payrollPeriods',
   'payrollEntries',
   'payrollEntryBenefits',
@@ -132,10 +158,37 @@ const RESTORE_ORDER = [
   'orders',
   'orderItems',
 
+  // Inventory transfers (depends on businesses, employees, productVariants)
+  'inventoryTransfers',
+  'inventoryTransferItems',
+
+  // Clothing bales
+  'clothingBaleCategories',
+  'clothingBales',
+
+  // WiFi / ESP32 token system (depends on businesses)
+  'portalIntegrations',
+  'tokenConfigurations',
+  'businessTokenMenuItems',
+  'wifiTokenDevices',
+  'wifiTokens',
+  'wifiTokenSales',
+
+  // R710 token system (depends on businesses, businessOrders)
+  'r710BusinessIntegrations',
+  'r710Wlans',
+  'r710TokenConfigs',
+  'r710Tokens',
+  'r710TokenSales',
+  'r710BusinessTokenMenuItems',
+
+  // Saved reports
+  'savedReports',
+
   // Miscellaneous
   'supplierProducts',
   'interBusinessLoans',
-  'loanTransactions'
+  'loanTransactions',
 ]
 
 /**

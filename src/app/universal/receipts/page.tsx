@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import ReceiptSearchBar from '@/components/receipts/receipt-search-bar'
 import ReceiptDetailModal from '@/components/receipts/receipt-detail-modal'
 import CrossBusinessAlert from '@/components/receipts/cross-business-alert'
+import { getLocalDateString } from '@/lib/utils'
 
 interface ReceiptListItem {
   id: string
@@ -169,18 +170,18 @@ function ReceiptHistoryPageContent() {
   // Apply a date preset
   function applyPreset(preset: 'today' | 'yesterday' | 'week' | 'month') {
     const now = new Date()
-    const today = now.toISOString().slice(0, 10)
+    const today = getLocalDateString(now)
     let from = today
     let to = today
     if (preset === 'yesterday') {
       const d = new Date(now)
       d.setDate(d.getDate() - 1)
-      from = d.toISOString().slice(0, 10)
+      from = getLocalDateString(d)
       to = from
     } else if (preset === 'week') {
       const d = new Date(now)
       d.setDate(d.getDate() - 6)
-      from = d.toISOString().slice(0, 10)
+      from = getLocalDateString(d)
     } else if (preset === 'month') {
       from = `${today.slice(0, 7)}-01`
     }

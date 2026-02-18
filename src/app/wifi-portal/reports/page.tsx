@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
+import { getLocalDateString } from '@/lib/utils'
 import { formatCurrency } from '@/lib/format-currency'
 import { RevenueTrendsChart } from '@/components/wifi-portal/revenue-trends-chart'
 import { PackagePopularityChart } from '@/components/wifi-portal/package-popularity-chart'
@@ -114,8 +115,8 @@ export default function WiFiPortalReportsPage() {
       setLoading(true)
       setErrorMessage(null)
 
-      const startDate = dateRange.start.toISOString().split('T')[0]
-      const endDate = dateRange.end.toISOString().split('T')[0]
+      const startDate = getLocalDateString(dateRange.start)
+      const endDate = getLocalDateString(dateRange.end)
 
       const response = await fetch(
         `/api/wifi-portal/stats?businessId=${currentBusinessId}&startDate=${startDate}&endDate=${endDate}`

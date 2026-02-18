@@ -10,6 +10,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { hasUserPermission } from '@/lib/permission-utils'
+import { getLocalDateString } from '@/lib/utils'
 
 interface ExpenseReport {
   totalExpenses: number
@@ -37,8 +38,8 @@ export default function PersonalReportsPage() {
   const [reportData, setReportData] = useState<ExpenseReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0], // Start of current year
-    endDate: new Date().toISOString().split('T')[0] // Today
+    startDate: getLocalDateString(new Date(new Date().getFullYear(), 0, 1)), // Start of current year
+    endDate: getLocalDateString() // Today
   })
 
   const fetchReportData = async () => {

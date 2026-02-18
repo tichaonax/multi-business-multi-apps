@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat, parseDateFromFormat } from '@/lib/country-codes'
+import { getLocalDateString } from '@/lib/utils'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -67,9 +68,9 @@ export default function MealProgramReportPage() {
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date()
     d.setDate(1) // first of month
-    return d.toISOString().slice(0, 10)
+    return getLocalDateString(d)
   })
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dateTo, setDateTo] = useState(() => getLocalDateString())
   const [loading, setLoading] = useState(false)
 
   // Locale-aware display state for the date text inputs
@@ -164,31 +165,31 @@ export default function MealProgramReportPage() {
           <div className="flex flex-wrap items-end gap-3 mb-6">
             <div className="flex gap-2">
               <button
-                onClick={() => { const t = new Date().toISOString().slice(0, 10); setDateFrom(t); setDateTo(t) }}
+                onClick={() => { const t = getLocalDateString(); setDateFrom(t); setDateTo(t) }}
                 className="px-3 py-1.5 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
               >
                 Today
               </button>
               <button
-                onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); const y = d.toISOString().slice(0, 10); setDateFrom(y); setDateTo(y) }}
+                onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); const y = getLocalDateString(d); setDateFrom(y); setDateTo(y) }}
                 className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
               >
                 Yesterday
               </button>
               <button
-                onClick={() => { const d = new Date(); d.setDate(d.getDate() - 6); setDateFrom(d.toISOString().slice(0, 10)); setDateTo(new Date().toISOString().slice(0, 10)) }}
+                onClick={() => { const d = new Date(); d.setDate(d.getDate() - 6); setDateFrom(getLocalDateString(d)); setDateTo(getLocalDateString()) }}
                 className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
               >
                 Last 7 Days
               </button>
               <button
-                onClick={() => { const d = new Date(); d.setDate(d.getDate() - 29); setDateFrom(d.toISOString().slice(0, 10)); setDateTo(new Date().toISOString().slice(0, 10)) }}
+                onClick={() => { const d = new Date(); d.setDate(d.getDate() - 29); setDateFrom(getLocalDateString(d)); setDateTo(getLocalDateString()) }}
                 className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
               >
                 Last 30 Days
               </button>
               <button
-                onClick={() => { const d = new Date(); d.setDate(d.getDate() - 89); setDateFrom(d.toISOString().slice(0, 10)); setDateTo(new Date().toISOString().slice(0, 10)) }}
+                onClick={() => { const d = new Date(); d.setDate(d.getDate() - 89); setDateFrom(getLocalDateString(d)); setDateTo(getLocalDateString()) }}
                 className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
               >
                 Last 90 Days

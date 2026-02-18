@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-format'
+import { getLocalDateString } from '@/lib/utils'
 import { getCategoryEmoji, getPaymentMethodEmoji } from '@/lib/category-emojis'
 import '@/styles/print-report.css'
 
@@ -47,8 +48,8 @@ export default function EndOfWeekReport() {
     sunday.setHours(23, 59, 59, 999)
 
     return {
-      start: monday.toISOString().split('T')[0],
-      end: sunday.toISOString().split('T')[0]
+      start: getLocalDateString(monday),
+      end: getLocalDateString(sunday)
     }
   }
 

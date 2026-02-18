@@ -9,6 +9,7 @@ import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import Link from 'next/link'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
+import { getLocalDateString } from '@/lib/utils'
 import { SalesSummaryCards } from '@/components/reports/sales-summary-cards'
 import { TopPerformersCards } from '@/components/reports/top-performers-cards'
 import { DailySalesLineChart } from '@/components/reports/daily-sales-line-chart'
@@ -62,8 +63,8 @@ export default function RestaurantSalesAnalytics() {
     try {
       setLoading(true)
 
-      const startDate = dateRange.start.toISOString().split('T')[0]
-      const endDate = dateRange.end.toISOString().split('T')[0]
+      const startDate = getLocalDateString(dateRange.start)
+      const endDate = getLocalDateString(dateRange.end)
 
       const response = await fetch(
         `/api/business/${currentBusinessId}/sales-analytics?startDate=${startDate}&endDate=${endDate}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`
@@ -93,8 +94,8 @@ export default function RestaurantSalesAnalytics() {
     )
   }
 
-  const formattedStartDate = formatDateByFormat(dateRange.start.toISOString().split('T')[0], dateFormat)
-  const formattedEndDate = formatDateByFormat(dateRange.end.toISOString().split('T')[0], dateFormat)
+  const formattedStartDate = formatDateByFormat(getLocalDateString(dateRange.start), dateFormat)
+  const formattedEndDate = formatDateByFormat(getLocalDateString(dateRange.end), dateFormat)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">

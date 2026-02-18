@@ -77,7 +77,7 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
       const yesterday = new Date(now)
       yesterday.setDate(now.getDate() - 1)
       start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      end = start // Yesterday only — same day, not today
     } else {
       start = new Date(now)
       start.setDate(now.getDate() - (days || 7))

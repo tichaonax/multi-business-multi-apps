@@ -4,31 +4,94 @@ const path = require('path')
 
 const prisma = new PrismaClient()
 
-// All tables that should be included in backup (matching seeded tables)
+// All tables that should be included in backup
+// NOTE: Excludes local/ephemeral tables (sync, printers, print jobs, device registry,
+// connected clients, network partitions, node states, offline queue, audit logs, chat)
 const allTables = [
+  // Reference data
   'systemSettings', 'emojiLookup', 'jobTitles', 'compensationTypes', 'benefitTypes',
   'permissionTemplates', 'idFormatTemplates', 'driverLicenseTemplates', 'projectTypes',
   'inventoryDomains', 'inventorySubcategories', 'expenseDomains', 'expenseCategories',
-  'expenseSubcategories', 'users', 'accounts', 'sessions', 'businesses', 'businessMemberships',
-  'businessAccounts', 'businessLocations', 'businessBrands', 'persons', 'employees',
-  'employeeBusinessAssignments', 'employeeContracts', 'contractBenefits', 'contractRenewals',
-  'employeeBenefits', 'employeeAllowances', 'employeeBonuses', 'employeeSalaryIncreases',
-  'employeeLeaveBalance', 'employeeLeaveRequests', 'employeeLoans', 'employeeLoanPayments',
-  'employeeDeductions', 'employeeDeductionPayments', 'businessCustomers', 'businessSuppliers',
-  'supplierProducts', 'businessCategories', 'businessProducts', 'productVariants',
-  'productBarcodes', 'productAttributes', 'productImages', 'businessStockMovements',
-  'businessOrders', 'businessOrderItems', 'businessTransactions', 'expenseAccounts',
-  'expenseAccountDeposits', 'expenseAccountPayments', 'payrollPeriods', 'payrollEntries',
-  'payrollEntryBenefits', 'payrollAdjustments', 'payrollAccounts', 'payrollExports',
+  'expenseSubcategories', 'conflictResolutions', 'dataSnapshots', 'seedDataTemplates',
+
+  // Users and authentication
+  'users', 'accounts', 'sessions', 'permissions', 'userPermissions',
+
+  // Businesses
+  'businesses', 'businessMemberships', 'businessAccounts', 'businessLocations', 'businessBrands',
+
+  // Persons and employees
+  'persons', 'employees', 'employeeBusinessAssignments', 'employeeContracts',
+  'contractBenefits', 'contractRenewals', 'employeeBenefits', 'employeeAllowances',
+  'employeeBonuses', 'employeeSalaryIncreases', 'employeeLeaveBalance', 'employeeLeaveRequests',
+  'employeeLoans', 'employeeLoanPayments', 'employeeDeductions', 'employeeDeductionPayments',
+  'employeeAttendance', 'employeeTimeTracking', 'disciplinaryActions',
+
+  // Customers and suppliers
+  'businessCustomers', 'businessSuppliers', 'supplierProducts',
+
+  // Products and inventory
+  'businessCategories', 'businessProducts', 'productVariants', 'productBarcodes',
+  'productAttributes', 'productImages', 'businessStockMovements', 'product_price_changes',
+  'sku_sequences',
+
+  // Barcode system
+  'barcodeTemplates', 'barcodeInventoryItems', 'barcodePrintJobs',
+
+  // Orders and transactions
+  'businessOrders', 'businessOrderItems', 'businessTransactions',
+  'receiptSequences', 'reprintLog',
+
+  // Expense accounts
+  'expenseAccounts', 'expenseAccountDeposits', 'expenseAccountPayments',
+
+  // Payroll
+  'payrollAccounts', 'payrollAccountDeposits', 'payrollAccountPayments',
+  'payrollPeriods', 'payrollEntries', 'payrollEntryBenefits', 'payrollAdjustments',
+  'payrollExports',
+
+  // Vehicles
   'vehicles', 'vehicleDrivers', 'vehicleLicenses', 'vehicleMaintenanceRecords',
   'vehicleMaintenanceServices', 'vehicleMaintenanceServiceExpenses', 'vehicleTrips',
-  'vehicleExpenses', 'vehicleReimbursements', 'driverAuthorizations', 'projects',
-  'projectStages', 'projectContractors', 'stageContractorAssignments', 'projectTransactions',
-  'constructionExpenses', 'constructionProjects', 'menuItems', 'menuCombos', 'menuComboItems',
-  'menuPromotions', 'orders', 'orderItems', 'customerLayby', 'customerLaybyPayment',
-  'personalBudgets', 'personalExpenses', 'fundSources', 'interBusinessLoans',
-  'loanTransactions', 'conflictResolutions', 'disciplinaryActions', 'employeeAttendance',
-  'employeeTimeTracking', 'dataSnapshots', 'seedDataTemplates'
+  'vehicleExpenses', 'vehicleReimbursements', 'driverAuthorizations',
+
+  // Projects and construction
+  'projects', 'projectStages', 'projectContractors', 'stageContractorAssignments',
+  'projectTransactions', 'constructionExpenses', 'constructionProjects',
+
+  // Restaurant / Menu
+  'menuItems', 'menuCombos', 'menuComboItems', 'menuPromotions',
+  'orders', 'orderItems',
+
+  // Meal program
+  'mealProgramParticipants', 'mealProgramEligibleItems', 'mealProgramTransactions',
+
+  // Coupons
+  'coupons', 'couponUsages',
+
+  // Inventory transfers
+  'inventoryTransfers', 'inventoryTransferItems',
+
+  // Clothing bales
+  'clothingBaleCategories', 'clothingBales',
+
+  // Customer layby
+  'customerLayby', 'customerLaybyPayment',
+
+  // Personal finance
+  'personalBudgets', 'personalExpenses', 'fundSources',
+  'interBusinessLoans', 'loanTransactions',
+
+  // WiFi / ESP32 token system
+  'portalIntegrations', 'tokenConfigurations', 'businessTokenMenuItems',
+  'wifiTokens', 'wifiTokenSales', 'wifiTokenDevices',
+
+  // R710 token system
+  'r710BusinessIntegrations', 'r710Wlans', 'r710TokenConfigs', 'r710Tokens',
+  'r710TokenSales', 'r710BusinessTokenMenuItems',
+
+  // Saved reports
+  'savedReports',
 ]
 
 async function createCompleteBackup() {

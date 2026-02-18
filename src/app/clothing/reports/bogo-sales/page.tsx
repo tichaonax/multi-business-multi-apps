@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { getLocalDateString } from '@/lib/utils'
 
 export default function BogoSalesReportPage() {
   const { currentBusinessId } = useBusinessPermissionsContext()
@@ -11,9 +12,9 @@ export default function BogoSalesReportPage() {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
-    return d.toISOString().split('T')[0]
+    return getLocalDateString(d)
   })
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(() => getLocalDateString())
 
   const fetchReport = async () => {
     if (!currentBusinessId) return
@@ -53,13 +54,13 @@ export default function BogoSalesReportPage() {
         <div className="flex flex-wrap items-end gap-4 mb-6">
           <div className="flex gap-2">
             <button
-              onClick={() => { const t = new Date().toISOString().split('T')[0]; setStartDate(t); setEndDate(t) }}
+              onClick={() => { const t = getLocalDateString(); setStartDate(t); setEndDate(t) }}
               className="px-3 py-2 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
             >
               Today
             </button>
             <button
-              onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); const y = d.toISOString().split('T')[0]; setStartDate(y); setEndDate(y) }}
+              onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); const y = getLocalDateString(d); setStartDate(y); setEndDate(y) }}
               className="px-3 py-2 text-xs font-medium bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
             >
               Yesterday

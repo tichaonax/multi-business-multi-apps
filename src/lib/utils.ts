@@ -66,3 +66,16 @@ export function truncateText(text: string, maxLength: number): string {
 export function generateId(): string {
   return Math.random().toString(36).substr(2, 9)
 }
+
+/**
+ * Returns a date string in YYYY-MM-DD format using the LOCAL timezone.
+ * Unlike `date.toISOString().split('T')[0]` (which uses UTC), this function
+ * respects the browser/server's local timezone so that e.g. "Today" buttons
+ * always return the correct calendar date.
+ */
+export function getLocalDateString(date: Date = new Date()): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
