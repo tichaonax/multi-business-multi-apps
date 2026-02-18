@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { VehicleMaintenanceRecord } from '@/types/vehicle'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
-import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface MaintenanceDetailModalProps {
   maintenance: VehicleMaintenanceRecord | null
@@ -42,17 +42,16 @@ export function MaintenanceDetailModal({ maintenance, onClose, onStatusChanged, 
   const { format: globalDateFormat } = useDateFormat()
   const toast = useToastContext()
   const confirm = useConfirm()
+  const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const formatDate = (d?: string) => (d ? formatDateByFormat(d, globalDateFormat) : 'N/A')
 
   if (!maintenance) return null
   if (!mounted || !elRef.current) return null
 
   // Permission checks
-  const canManage = session?.user && (
-    isSystemAdmin(session.user) ||
-    hasPermission(session.user, 'canManageTrips') ||
-    hasPermission(session.user, 'canManageBusinessUsers')
-  )
+  const canManage = isSystemAdmin ||
+    hasPermission('canManageTrips') ||
+    hasPermission('canManageBusinessUsers')
 
   // Can edit only if maintenance is not completed
   const canEdit = !maintenance.isCompleted && canManage

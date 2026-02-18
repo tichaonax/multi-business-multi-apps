@@ -8,6 +8,7 @@ import { useTheme } from '@/contexts/theme-context'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
 import { MiniCart } from '@/components/global/mini-cart'
+import { TestPrintModal } from '@/components/printing/test-print-modal'
 
 interface GlobalHeaderProps {
   title?: string
@@ -21,6 +22,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
+  const [showTestPrint, setShowTestPrint] = useState(false)
   const businessMenuOpenedByClick = useRef(false)
   const businessMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const businessMenuOpenedAt = useRef(0)
@@ -229,6 +231,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   }
 
   return (
+    <>
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
         <div className="flex justify-between items-center h-14 sm:h-16">
@@ -333,6 +336,23 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </button>
                         ))}
 
+                        {/* Test Print - for users with POS access */}
+                        {hasPermission('canProcessOrders') && (
+                          <>
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                            <button
+                              className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full text-left"
+                              onClick={() => {
+                                closeBusinessMenu()
+                                setShowTestPrint(true)
+                              }}
+                            >
+                              <span>🖨️</span>
+                              <span>Test Print</span>
+                            </button>
+                          </>
+                        )}
+
                         {/* General Expense Account - requires financial data access */}
                         {(isAdmin || hasPermission('canAccessFinancialData')) && hasPermission('canAccessExpenseAccount') && (
                           <>
@@ -394,6 +414,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         </div>
       </div>
     </header>
+
+      {/* Test Print Modal */}
+      {showTestPrint && currentBusiness?.businessId && (
+        <TestPrintModal
+          businessId={currentBusiness.businessId}
+          onClose={() => setShowTestPrint(false)}
+        />
+      )}
+    </>
   )
 }
 
