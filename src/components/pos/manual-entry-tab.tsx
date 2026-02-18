@@ -332,7 +332,8 @@ function generateTempId() {
   return `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-const MANUAL_ENTRY_LOOKBACK_DAYS = 20
+const MANUAL_ENTRY_LOOKBACK_DAYS = 30
+const DROPDOWN_SHOW_DAYS = 7
 
 function getPastDays(): string[] {
   const days: string[] = []
@@ -390,6 +391,7 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
   }, [businessId])
 
   const availableDates = allDates.filter(d => !closedDatesSet.has(d))
+  const dropdownDates = availableDates.slice(0, DROPDOWN_SHOW_DAYS)
 
   const addItem = () => setItems(prev => [...prev, { id: generateTempId(), name: '', quantity: 1, unitPrice: 0, discountAmount: 0 }])
   const removeItem = (id: string) => setItems(prev => prev.length > 1 ? prev.filter(i => i.id !== id) : prev)
@@ -475,7 +477,7 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
           <select value={transactionDate} onChange={(e) => setTransactionDate(e.target.value)} disabled={loadingDates}
             className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
             <option value="">{loadingDates ? 'Loading...' : 'Or pick from list...'}</option>
-            {availableDates.map(date => (<option key={date} value={date}>{displayDate(date)} {date === allDates[0] ? '(Today)' : ''}</option>))}
+            {dropdownDates.map(date => (<option key={date} value={date}>{displayDate(date)} {date === allDates[0] ? '(Today)' : ''}</option>))}
           </select>
         </div>
         {!loadingDates && availableDates.length === 0 && (

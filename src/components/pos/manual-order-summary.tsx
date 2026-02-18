@@ -6,7 +6,8 @@ import type { ManualCartItem } from './manual-entry-tab'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 
-const MANUAL_ENTRY_LOOKBACK_DAYS = 20
+const MANUAL_ENTRY_LOOKBACK_DAYS = 30
+const DROPDOWN_SHOW_DAYS = 7
 
 // Get past days as YYYY-MM-DD strings (local timezone)
 function getPastDays(): string[] {
@@ -80,6 +81,7 @@ export function ManualOrderSummary({
   }, [businessId])
 
   const availableDates = allDates.filter(d => !closedDatesSet.has(d))
+  const dropdownDates = availableDates.slice(0, DROPDOWN_SHOW_DAYS)
 
   // Format an ISO date string (yyyy-mm-dd) to the global display format
   const displayDate = (isoDate: string) => formatDateByFormat(isoDate + 'T12:00:00Z', globalDateFormat)
@@ -205,7 +207,7 @@ export function ManualOrderSummary({
           disabled={loadingDates}
         >
           <option value="">{loadingDates ? 'Loading...' : 'Or pick from list...'}</option>
-          {availableDates.map(date => (
+          {dropdownDates.map(date => (
             <option key={date} value={date}>
               {displayDate(date)} {date === allDates[0] ? '(Today)' : ''}
             </option>
