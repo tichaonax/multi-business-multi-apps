@@ -258,6 +258,11 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
         receipt += `  SKU: ${item.sku}` + LF;
       }
     }
+
+    // Always render item notes (e.g. Meals Program tag)
+    if (item.notes) {
+      receipt += `  ${item.notes}` + LF;
+    }
   });
 
   // ============================================================================
@@ -466,6 +471,15 @@ function generateRestaurantReceipt(data: ReceiptData): string {
   }
   if (restaurantData?.serverName) {
     businessSpecific += `Server: ${restaurantData.serverName}` + LF;
+  }
+
+  // Meal Program section
+  if (data.mealProgram) {
+    businessSpecific += line('-') + LF;
+    businessSpecific += `MEALS PROGRAM` + LF;
+    businessSpecific += `Customer: ${stripEmojis(data.mealProgram.participantName)}` + LF;
+    businessSpecific += `Subsidy: $${Number(data.mealProgram.subsidyAmount).toFixed(2)}` + LF;
+    businessSpecific += line('-') + LF;
   }
 
   // Item details renderer: Show allergens, spice level, dietary restrictions
