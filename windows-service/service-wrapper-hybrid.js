@@ -104,6 +104,17 @@ class HybridServiceWrapper extends EventEmitter {
     this.logFile = path.join(__dirname, 'daemon', 'service.log');
     this.forceBuild = options.forceBuild || false;
 
+    // Resolve node/npm/npx paths for child process spawning
+    // On Windows with nvm, npx may not be on PATH for spawned processes
+    const nodeDir = path.dirname(process.execPath);
+    this.spawnEnv = {
+      ...process.env,
+      NODE_ENV: 'production',
+      PATH: `${nodeDir}${path.delimiter}${process.env.PATH || ''}`,
+    };
+    this.npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+    this.npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+
     this.setupPidManagement();
     this.setupLogging();
     this.setupShutdownHandlers();
@@ -228,18 +239,13 @@ class HybridServiceWrapper extends EventEmitter {
     return new Promise((resolve, reject) => {
       console.log('🗄️  Running database migrations...');
 
-      const { spawn } = require('child_process');
-
       // First check migration status to see what needs to be applied
       console.log('Checking migration status...');
-      const statusProcess = spawn('npx', ['prisma', 'migrate', 'status'], {
-        cwd: path.join(__dirname, '..'),
+      const statusProcess = spawn(this.npxCmd, ['prisma', 'migrate', 'status'], {
+        cwd: this.appRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
-        env: {
-          ...process.env,
-          NODE_ENV: 'production',
-        },
+        env: this.spawnEnv,
       });
 
       let statusOutput = '';
@@ -296,14 +302,11 @@ class HybridServiceWrapper extends EventEmitter {
           
           // Still run seeding in case reference data is missing
           console.log('🌱 Seeding reference data...');
-          const seedProcess = spawn('npm', ['run', 'seed:migration'], {
-            cwd: path.join(__dirname, '..'),
+          const seedProcess = spawn(this.npmCmd, ['run', 'seed:migration'], {
+            cwd: this.appRoot,
             stdio: ['ignore', 'pipe', 'pipe'],
             shell: true,
-            env: {
-              ...process.env,
-              NODE_ENV: 'production',
-            },
+            env: this.spawnEnv,
           });
 
           seedProcess.stdout.on('data', (data) => {
@@ -341,19 +344,19 @@ class HybridServiceWrapper extends EventEmitter {
             try { fs.unlinkSync(lockFile) } catch (e) {}
             reject(err);
           });
-          
+
           return; // Exit early since no migration is needed
         } else if (needsInitialSchema) {
           console.log('🆕 Database needs initial schema - using db push');
-          migrationCommand = 'npx';
+          migrationCommand = this.npxCmd;
           migrationArgs = ['prisma', 'db', 'push'];
         } else if (hasPendingMigrations) {
           console.log('🔄 Database exists, applying pending migrations only');
-          migrationCommand = 'npx';
+          migrationCommand = this.npxCmd;
           migrationArgs = ['prisma', 'migrate', 'deploy'];
         } else {
           console.log('🔄 Unknown migration status, using safe migrate deploy');
-          migrationCommand = 'npx';
+          migrationCommand = this.npxCmd;
           migrationArgs = ['prisma', 'migrate', 'deploy'];
         }
 
@@ -409,15 +412,10 @@ class HybridServiceWrapper extends EventEmitter {
           // Continue with migration process
 
           const migrationProcess = spawn(migrationCommand, migrationArgs, {
-          cwd: path.join(__dirname, '..'),
+          cwd: this.appRoot,
           stdio: ['ignore', 'pipe', 'pipe'],
-          shell: true, // Use shell for Windows compatibility
-          env: {
-            ...process.env,
-            NODE_ENV: 'production',
-            // Ensure DATABASE_URL is passed from loaded .env.local
-            DATABASE_URL: process.env.DATABASE_URL
-          },
+          shell: true,
+          env: this.spawnEnv,
         });
 
         migrationProcess.stdout.on('data', (data) => {
@@ -478,14 +476,11 @@ class HybridServiceWrapper extends EventEmitter {
 
                 // Run seeding after successful migration AND UI validation
                 console.log('🌱 Seeding reference data...');
-                const seedProcess = spawn('npm', ['run', 'seed:migration'], {
-                  cwd: path.join(__dirname, '..'),
+                const seedProcess = spawn(this.npmCmd, ['run', 'seed:migration'], {
+                  cwd: this.appRoot,
                   stdio: ['ignore', 'pipe', 'pipe'],
                   shell: true,
-                  env: {
-                    ...process.env,
-                    NODE_ENV: 'production',
-                  },
+                  env: this.spawnEnv,
                 });
 
                 seedProcess.stdout.on('data', (data) => {
@@ -626,14 +621,11 @@ class HybridServiceWrapper extends EventEmitter {
       console.log('Building application (this may take a few minutes)...');
       console.log('Executing: npm run build');
 
-      const buildProcess = spawn('npm', ['run', 'build'], {
-        cwd: path.join(__dirname, '..'),
+      const buildProcess = spawn(this.npmCmd, ['run', 'build'], {
+        cwd: this.appRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true, // Use shell for Windows compatibility
-        env: {
-          ...process.env,
-          NODE_ENV: 'production',
-        },
+        shell: true,
+        env: this.spawnEnv,
       });
 
       let buildOutput = '';
@@ -729,14 +721,11 @@ class HybridServiceWrapper extends EventEmitter {
       console.log('Building service components (this may take a few minutes)...');
       console.log('Executing: npm run build:service');
 
-      const buildProcess = spawn('npm', ['run', 'build:service'], {
-        cwd: path.join(__dirname, '..'),
+      const buildProcess = spawn(this.npmCmd, ['run', 'build:service'], {
+        cwd: this.appRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true, // Use shell for Windows compatibility
-        env: {
-          ...process.env,
-          NODE_ENV: 'production',
-        },
+        shell: true,
+        env: this.spawnEnv,
       });
 
       let buildOutput = '';
@@ -929,16 +918,11 @@ class HybridServiceWrapper extends EventEmitter {
 
       // Test database connection using Prisma (safer approach - just check connection)
       await new Promise((resolve, reject) => {
-        const testProcess = spawn('npx', ['prisma', 'migrate', 'status'], {
-          cwd: path.join(__dirname, '..'),
+        const testProcess = spawn(this.npxCmd, ['prisma', 'migrate', 'status'], {
+          cwd: this.appRoot,
           stdio: ['ignore', 'pipe', 'pipe'],
           shell: true,
-          env: {
-            ...process.env,
-            NODE_ENV: 'production',
-            // Ensure DATABASE_URL is explicitly passed (loaded from .env.local in wrapper)
-            DATABASE_URL: process.env.DATABASE_URL,
-          },
+          env: this.spawnEnv,
         });
 
         let output = '';
@@ -1300,13 +1284,12 @@ class HybridServiceWrapper extends EventEmitter {
       } else {
         // Fallback to npm start
         console.log('📝 Spawning: npm start (in electron directory)');
-        this.electronProcess = spawn('npm', ['start'], {
+        this.electronProcess = spawn(this.npmCmd, ['start'], {
           cwd: electronPath,
           stdio: ['ignore', 'pipe', 'pipe'],
           env: {
-            ...process.env,
+            ...this.spawnEnv,
             PORT: appPort,
-            NODE_ENV: 'production'
           },
           shell: true,
           detached: false

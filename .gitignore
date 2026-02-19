@@ -55,6 +55,9 @@ prisma/*.sqlite
 prisma/migrations/.DS_Store
 prisma/migrations/*/migration.sql.bak
 
+# runtime lock files
+.migration.lock
+
 # logs
 logs
 *.log
