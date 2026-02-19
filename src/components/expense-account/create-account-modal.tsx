@@ -27,7 +27,8 @@ export function CreateAccountModal({
   const [formData, setFormData] = useState({
     accountName: '',
     description: '',
-    lowBalanceThreshold: 500
+    lowBalanceThreshold: 500,
+    accountType: 'GENERAL' as 'GENERAL' | 'PERSONAL'
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,7 +55,8 @@ export function CreateAccountModal({
         body: JSON.stringify({
           accountName: formData.accountName.trim(),
           description: formData.description.trim() || null,
-          lowBalanceThreshold: formData.lowBalanceThreshold
+          lowBalanceThreshold: formData.lowBalanceThreshold,
+          accountType: formData.accountType
         })
       })
 
@@ -107,7 +109,8 @@ export function CreateAccountModal({
     setFormData({
       accountName: '',
       description: '',
-      lowBalanceThreshold: 500
+      lowBalanceThreshold: 500,
+      accountType: 'GENERAL'
     })
   }
 
@@ -119,6 +122,39 @@ export function CreateAccountModal({
         <h2 className="text-xl font-bold text-primary mb-4">Create Expense Account</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Account Type */}
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-2">
+              Account Type
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, accountType: 'GENERAL' })}
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  formData.accountType === 'GENERAL'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-border bg-background hover:border-blue-300'
+                }`}
+              >
+                <div className="font-semibold text-sm text-primary">General</div>
+                <div className="text-xs text-secondary mt-0.5">All expense categories available</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, accountType: 'PERSONAL' })}
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  formData.accountType === 'PERSONAL'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-border bg-background hover:border-purple-300'
+                }`}
+              >
+                <div className="font-semibold text-sm text-primary">Personal</div>
+                <div className="text-xs text-secondary mt-0.5">Locked to Personal category</div>
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
               Account Name <span className="text-red-500">*</span>

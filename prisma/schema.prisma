@@ -1272,6 +1272,7 @@ model ExpenseAccounts {
   isSibling                  Boolean                    @default(false)
   canMerge                   Boolean                    @default(true)
   businessId                 String?
+  accountType                String                     @default("GENERAL") // "GENERAL" or "PERSONAL"
   business                   Businesses?                @relation("BusinessExpenseAccounts", fields: [businessId], references: [id])
   deposits                   ExpenseAccountDeposits[]
   payments                   ExpenseAccountPayments[]

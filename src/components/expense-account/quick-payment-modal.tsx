@@ -55,6 +55,7 @@ interface QuickPaymentModalProps {
   onError: (error: string) => void
   canCreatePayees?: boolean
   canChangeCategory?: boolean
+  accountType?: string
   defaultCategoryBusinessType?: string
 }
 
@@ -68,8 +69,10 @@ export function QuickPaymentModal({
   onError,
   canCreatePayees = false,
   canChangeCategory = true,
+  accountType = 'GENERAL',
   defaultCategoryBusinessType
 }: QuickPaymentModalProps) {
+  const isPersonalAccount = accountType === 'PERSONAL'
   const [loading, setLoading] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
   const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)
@@ -152,6 +155,7 @@ export function QuickPaymentModal({
 
         if (data.domains && Array.isArray(data.domains)) {
           data.domains.forEach((domain: any) => {
+            if (isPersonalAccount && domain.name !== 'Personal') return
             if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
               domain.expense_categories.forEach((cat: any) => {
                 flattenedCategories.push({
@@ -167,6 +171,11 @@ export function QuickPaymentModal({
         }
 
         setCategories(flattenedCategories)
+
+        // For PERSONAL accounts: auto-select the first Personal category
+        if (isPersonalAccount && flattenedCategories.length > 0) {
+          setFormData(prev => ({ ...prev, categoryId: flattenedCategories[0].id }))
+        }
       }
     } catch (error) {
       console.error('Error loading categories:', error)
@@ -435,7 +444,8 @@ export function QuickPaymentModal({
             />
           </div>
 
-          {/* Category Selection */}
+          {/* Category Selection — hidden for Personal accounts (auto-set) */}
+          {!isPersonalAccount && (
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
               Category <span className="text-red-500">*</span>
@@ -455,6 +465,7 @@ export function QuickPaymentModal({
               />
             )}
           </div>
+          )}
 
           {/* Subcategory Selection (if category has subcategories) */}
           {subcategories.length > 0 && (

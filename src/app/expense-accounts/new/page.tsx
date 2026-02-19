@@ -25,7 +25,8 @@ export default function NewExpenseAccountPage() {
   const [formData, setFormData] = useState({
     accountName: '',
     description: '',
-    lowBalanceThreshold: 500
+    lowBalanceThreshold: 500,
+    accountType: 'GENERAL' as 'GENERAL' | 'PERSONAL',
   })
 
   useEffect(() => {
@@ -82,7 +83,8 @@ export default function NewExpenseAccountPage() {
         body: JSON.stringify({
           accountName: formData.accountName.trim(),
           description: formData.description.trim() || null,
-          lowBalanceThreshold: formData.lowBalanceThreshold
+          lowBalanceThreshold: formData.lowBalanceThreshold,
+          accountType: formData.accountType,
         })
       })
 
@@ -132,6 +134,52 @@ export default function NewExpenseAccountPage() {
       <div className="max-w-2xl mx-auto">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+
+            {/* Account Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Account Type <span className="text-red-500">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className={`flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                  formData.accountType === 'GENERAL'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                }`}>
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value="GENERAL"
+                    checked={formData.accountType === 'GENERAL'}
+                    onChange={() => setFormData({ ...formData, accountType: 'GENERAL' })}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">💼 General</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">All expense categories available</div>
+                  </div>
+                </label>
+                <label className={`flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                  formData.accountType === 'PERSONAL'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                }`}>
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value="PERSONAL"
+                    checked={formData.accountType === 'PERSONAL'}
+                    onChange={() => setFormData({ ...formData, accountType: 'PERSONAL' })}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">👤 Personal</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Restricted to Personal category only</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Account Name <span className="text-red-500">*</span>

@@ -27,6 +27,7 @@ interface ExpenseAccount {
   isActive: boolean
   createdAt: string
   businessId: string | null
+  accountType: string
   // Sibling account fields
   parentAccountId: string | null
   siblingNumber: number | null
@@ -196,8 +197,19 @@ export default function ExpenseAccountDetailPage() {
               </svg>
               Back to Expense Accounts
             </Link>
+            <div className="flex items-center gap-2 mt-1">
+              {account.accountType === 'PERSONAL' ? (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                  PERSONAL ACCOUNT
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                  GENERAL ACCOUNT
+                </span>
+              )}
+            </div>
             {account.description && (
-              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{account.description}</p>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">{account.description}</p>
             )}
           </div>
 
@@ -406,6 +418,7 @@ export default function ExpenseAccountDetailPage() {
                   onSuccess={handlePaymentSuccess}
                   onAddFunds={() => setActiveTab('deposits')}
                   canCreatePayees={canCreatePayees}
+                  accountType={account.accountType}
                   defaultCategoryBusinessType={currentBusiness?.businessType}
                   accountInfo={{
                     accountName: account.accountName,
@@ -470,6 +483,7 @@ export default function ExpenseAccountDetailPage() {
           onError={(error) => console.error('Quick payment error:', error)}
           canCreatePayees={canCreatePayees}
           canChangeCategory={canChangeCategory}
+          accountType={account.accountType}
           defaultCategoryBusinessType={currentBusiness?.businessType}
         />
       )}

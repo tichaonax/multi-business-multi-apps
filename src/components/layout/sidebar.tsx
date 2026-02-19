@@ -66,7 +66,9 @@ export function Sidebar() {
   const [businessGroups, setBusinessGroups] = useState<BusinessGroup[]>([])
   const [expandedBusinessTypes, setExpandedBusinessTypes] = useState<Set<string>>(new Set())
   const [businessSectionExpanded, setBusinessSectionExpanded] = useState(false)
-  const [financeOpsSectionExpanded, setFinanceOpsSectionExpanded] = useState(false)
+  const [financeOpsSectionExpanded, setFinanceOpsSectionExpanded] = useState(
+    () => pathname.startsWith('/expense-accounts') || pathname.startsWith('/payroll') || pathname.startsWith('/payees') || pathname.startsWith('/reports')
+  )
   const [toolsSectionExpanded, setToolsSectionExpanded] = useState(false)
   const [employeeSectionExpanded, setEmployeeSectionExpanded] = useState(false)
   const [adminSectionExpanded, setAdminSectionExpanded] = useState(false)
@@ -1080,8 +1082,8 @@ export function Sidebar() {
               <span>Expense Accounts</span>
             </Link>
 
-            {/* Expense Accounts Sub-menu - Show when on expense account pages */}
-            {pathname.startsWith('/expense-accounts') && (
+            {/* Expense Accounts Sub-menu - Always visible when Finance & Ops is expanded */}
+            {(
               <div className="ml-8 space-y-1 mt-1">
                 {hasPermission('canCreateExpenseAccount') && (
                   <Link

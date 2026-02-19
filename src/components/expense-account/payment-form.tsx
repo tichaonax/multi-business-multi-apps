@@ -269,6 +269,7 @@ interface PaymentFormProps {
   onSuccess?: () => void
   onAddFunds?: () => void
   canCreatePayees?: boolean
+  accountType?: string
   defaultCategoryBusinessType?: string
   accountInfo?: {
     accountName: string
@@ -297,9 +298,11 @@ export function PaymentForm({
   onSuccess,
   onAddFunds,
   canCreatePayees = false,
+  accountType = 'GENERAL',
   defaultCategoryBusinessType,
   accountInfo
 }: PaymentFormProps) {
+  const isPersonalAccount = accountType === 'PERSONAL'
   const customAlert = useAlert()
   const customConfirm = useConfirm()
 
@@ -420,11 +423,12 @@ export function PaymentForm({
 
       if (response.ok) {
         const data = await response.json()
-        // Flatten categories from all domains
         const flattenedCategories: ExpenseCategory[] = []
 
         if (data.domains && Array.isArray(data.domains)) {
           data.domains.forEach((domain: any) => {
+            // For PERSONAL accounts, only include the Personal domain
+            if (isPersonalAccount && domain.name !== 'Personal') return
             if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
               domain.expense_categories.forEach((cat: any) => {
                 flattenedCategories.push({
@@ -441,6 +445,11 @@ export function PaymentForm({
 
         flattenedCategories.sort((a, b) => a.name.localeCompare(b.name))
         setCategories(flattenedCategories)
+
+        // For PERSONAL accounts: auto-select the first (and only) Personal category
+        if (isPersonalAccount && flattenedCategories.length > 0) {
+          setFormData(prev => ({ ...prev, categoryId: flattenedCategories[0].id }))
+        }
       }
     } catch (error) {
       console.error('Error loading categories:', error)
@@ -1015,7 +1024,9 @@ export function PaymentForm({
             const showSubcategories = selectedCategory?.requiresSubcategory !== false
 
             return (
-              <div className={`grid ${showSubcategories ? 'grid-cols-3' : 'grid-cols-1'} gap-4`}>
+              <div className={`grid ${!isPersonalAccount && showSubcategories ? 'grid-cols-3' : 'grid-cols-1'} gap-4`}>
+                {/* Category selector — hidden for Personal accounts (auto-set behind the scenes) */}
+                {!isPersonalAccount && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1048,6 +1059,7 @@ export function PaymentForm({
                     </p>
                   )}
                 </div>
+                )}
 
                 {showSubcategories && (
                   <>

@@ -28,6 +28,7 @@ interface ExpenseAccount {
   siblingNumber?: number | null
   isSibling: boolean
   canMerge: boolean
+  accountType?: string
   creator?: {
     name: string
     email: string
@@ -327,6 +328,15 @@ export function AccountList({
                       {account.isSibling && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
                           SIBLING
+                        </span>
+                      )}
+                      {account.accountType === 'PERSONAL' ? (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                          PERSONAL
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                          GENERAL
                         </span>
                       )}
                       {!account.isActive && (

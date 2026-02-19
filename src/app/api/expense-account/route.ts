@@ -176,6 +176,7 @@ export async function GET(request: NextRequest) {
           siblingNumber: account.siblingNumber,
           isSibling: account.isSibling,
           canMerge: account.canMerge,
+          accountType: account.accountType,
           createdBy: account.createdBy,
           createdAt: account.createdAt.toISOString(),
           updatedAt: account.updatedAt.toISOString(),
@@ -225,7 +226,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { accountName, description, lowBalanceThreshold } = body
+    const { accountName, description, lowBalanceThreshold, accountType = 'GENERAL' } = body
+
+    // Validate accountType
+    if (!['GENERAL', 'PERSONAL'].includes(accountType)) {
+      return NextResponse.json({ error: 'accountType must be GENERAL or PERSONAL' }, { status: 400 })
+    }
 
     // Validate required fields
     if (!accountName || accountName.trim() === '') {
@@ -272,6 +278,7 @@ export async function POST(request: NextRequest) {
         balance: 0,
         isActive: true,
         lowBalanceThreshold: threshold,
+        accountType,
         createdBy: user.id,
       },
       include: {
@@ -298,6 +305,7 @@ export async function POST(request: NextRequest) {
             description: account.description,
             isActive: account.isActive,
             lowBalanceThreshold: Number(account.lowBalanceThreshold),
+            accountType: account.accountType,
             createdBy: account.createdBy,
             createdAt: account.createdAt.toISOString(),
             updatedAt: account.updatedAt.toISOString(),
