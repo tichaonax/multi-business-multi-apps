@@ -1025,12 +1025,16 @@ export default function RestaurantPOS() {
       transactionDate: new Date(),
       salespersonName: session?.user?.name || 'Staff',
       salespersonId: session?.user?.id || '',
-      items: order.items.map((item: any) => ({
+      items: order.items.map((item: any, index: number) => ({
         name: item.name,
         sku: item.sku,
         quantity: item.quantity,
         unitPrice: item.price,
-        totalPrice: item.price * item.quantity
+        totalPrice: item.price * item.quantity,
+        // Mark the first item as the subsidized meal program item
+        notes: order.attributes?.mealProgram && index === 0
+          ? `[Meals Program] Subsidy: $${Number(order.attributes.expenseAmount || 0.50).toFixed(2)}`
+          : undefined,
       })),
       subtotal: order.subtotal,
       tax: 0,
@@ -1093,7 +1097,14 @@ export default function RestaurantPOS() {
         console.log('📶 [Restaurant] Mapped R710 token:', mapped)
         return mapped
       }),
-      footerMessage: 'Thank you for dining with us!'
+      footerMessage: 'Thank you for dining with us!',
+      mealProgram: order.attributes?.mealProgram
+        ? {
+            participantName: order.attributes.participantName || '',
+            subsidyAmount: String(order.attributes.expenseAmount || '0.50'),
+            cashAmount: String(order.attributes.cashAmount || '0.00'),
+          }
+        : undefined,
     }
   }
 

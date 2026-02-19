@@ -131,17 +131,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ----- Resolve "Employee Meal Program" expense category -----
-    const mealCategory = await prisma.expenseCategories.findFirst({
+    // ----- Resolve "Employee Meal Program" expense category (auto-create if missing) -----
+    let mealCategory = await prisma.expenseCategories.findFirst({
       where: { name: 'Employee Meal Program' },
       select: { id: true },
     })
 
     if (!mealCategory) {
-      return NextResponse.json(
-        { success: false, error: 'Expense category "Employee Meal Program" not found. Please seed it.' },
-        { status: 400 }
-      )
+      mealCategory = await prisma.expenseCategories.create({
+        data: {
+          name: 'Employee Meal Program',
+          emoji: '🍽️',
+          color: '#EC4899',
+          description: 'Subsidized employee meal program expenses',
+          isDefault: true,
+          isUserCreated: false,
+        },
+        select: { id: true },
+      })
     }
 
     // ----- Compute amounts -----

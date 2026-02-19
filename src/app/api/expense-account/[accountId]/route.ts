@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { canUserAccessAccount } from '@/lib/expense-account-access'
 
 /**
  * GET /api/expense-account/[accountId]
@@ -17,16 +18,16 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions (pass full user object, not just ID)
-    const permissions = getEffectivePermissions(user)
-    if (!permissions.canAccessExpenseAccount) {
+    const { accountId } = await params
+
+    // Check access: admin, own-business member, or explicit grant
+    const hasAccess = await canUserAccessAccount(user, accountId)
+    if (!hasAccess) {
       return NextResponse.json(
-        { error: 'You do not have permission to access expense accounts' },
+        { error: 'You do not have permission to access this expense account' },
         { status: 403 }
       )
     }
-
-    const { accountId } = await params
 
     // Get expense account
     const account = await prisma.expenseAccounts.findUnique({

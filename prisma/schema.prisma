@@ -1281,6 +1281,7 @@ model ExpenseAccounts {
   r710_token_sales           R710TokenSales[]           @relation("R710TokenSaleToExpenseAccount")
   wifi_token_sales           WifiTokenSales[]
   meal_program_transactions  MealProgramTransactions[]
+  expense_account_grants     ExpenseAccountGrants[]     @relation("ExpenseAccountGrants")
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1289,6 +1290,22 @@ model ExpenseAccounts {
   @@index([isSibling], map: "idx_expense_accounts_sibling")
   @@index([businessId], map: "idx_expense_accounts_business")
   @@map("expense_accounts")
+}
+
+model ExpenseAccountGrants {
+  id               String          @id @default(uuid())
+  expenseAccountId String
+  userId           String
+  grantedBy        String
+  permissionLevel  String          @default("FULL") // "VIEW" = view + reports only, "FULL" = view + payments + deposits
+  grantedAt        DateTime        @default(now())
+  expenseAccount   ExpenseAccounts @relation("ExpenseAccountGrants", fields: [expenseAccountId], references: [id], onDelete: Cascade)
+  user             Users           @relation("ExpenseAccountGrantUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantor          Users           @relation("ExpenseAccountGrantGrantor", fields: [grantedBy], references: [id])
+
+  @@unique([expenseAccountId, userId])
+  @@index([userId])
+  @@map("expense_account_grants")
 }
 
 model ExpenseAccountDeposits {
@@ -2540,6 +2557,8 @@ model Users {
   expense_account_payments_as_payee                               ExpenseAccountPayments[]    @relation("ExpensePaymentPayeeUser")
   expense_account_payments_submitted                              ExpenseAccountPayments[]    @relation("ExpensePaymentSubmitter")
   expense_accounts_created                                        ExpenseAccounts[]           @relation("ExpenseAccountCreator")
+  expense_account_grants_received                                 ExpenseAccountGrants[]      @relation("ExpenseAccountGrantUser")
+  expense_account_grants_given                                    ExpenseAccountGrants[]      @relation("ExpenseAccountGrantGrantor")
   expense_categories                                              ExpenseCategories[]
   expense_subcategories                                           ExpenseSubcategories[]
   fund_sources                                                    FundSources[]

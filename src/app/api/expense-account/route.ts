@@ -15,14 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions (pass full user object, not just ID)
     const permissions = getEffectivePermissions(user)
-    if (!permissions.canAccessExpenseAccount) {
-      return NextResponse.json(
-        { error: 'You do not have permission to access expense accounts' },
-        { status: 403 }
-      )
-    }
 
     // Build where clause based on user role and optional businessId filter
     const isAdmin = user.role === 'admin'
@@ -30,14 +23,35 @@ export async function GET(request: NextRequest) {
     const filterBusinessId = searchParams.get('businessId')
 
     let whereClause: any = {}
-    if (filterBusinessId) {
-      // Filter to a specific business (used when scoping to current business)
-      whereClause = { businessId: filterBusinessId }
-    } else if (!isAdmin) {
-      // Non-admins see only their businesses' accounts
-      const userBusinessIds = user.businessMemberships
-        ?.map((m: any) => m.businessId) || []
-      whereClause = { businessId: { in: userBusinessIds } }
+    if (!isAdmin) {
+      // Fetch explicit grants for this user
+      const grants = await prisma.expenseAccountGrants.findMany({
+        where: { userId: user.id },
+        select: { expenseAccountId: true },
+      })
+      const grantedAccountIds = grants.map(g => g.expenseAccountId)
+
+      // Require either business permission or at least one grant
+      if (!permissions.canAccessExpenseAccount && grantedAccountIds.length === 0) {
+        return NextResponse.json(
+          { error: 'You do not have permission to access expense accounts' },
+          { status: 403 }
+        )
+      }
+
+      if (filterBusinessId) {
+        whereClause = { businessId: filterBusinessId }
+      } else {
+        const userBusinessIds = user.businessMemberships?.map((m: any) => m.businessId) || []
+        const orClauses: any[] = []
+        if (permissions.canAccessExpenseAccount) {
+          orClauses.push({ businessId: { in: userBusinessIds } })
+        }
+        if (grantedAccountIds.length > 0) {
+          orClauses.push({ id: { in: grantedAccountIds } })
+        }
+        whereClause = orClauses.length === 1 ? orClauses[0] : { OR: orClauses }
+      }
     }
 
     const accounts = await prisma.expenseAccounts.findMany({

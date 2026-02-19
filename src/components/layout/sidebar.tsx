@@ -65,9 +65,15 @@ export function Sidebar() {
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [businessGroups, setBusinessGroups] = useState<BusinessGroup[]>([])
   const [expandedBusinessTypes, setExpandedBusinessTypes] = useState<Set<string>>(new Set())
+  const [businessSectionExpanded, setBusinessSectionExpanded] = useState(false)
+  const [financeOpsSectionExpanded, setFinanceOpsSectionExpanded] = useState(false)
+  const [toolsSectionExpanded, setToolsSectionExpanded] = useState(false)
+  const [employeeSectionExpanded, setEmployeeSectionExpanded] = useState(false)
+  const [adminSectionExpanded, setAdminSectionExpanded] = useState(false)
   const [loadingBusinesses, setLoadingBusinesses] = useState(false)
   const [showRevenueModal, setShowRevenueModal] = useState(false)
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
+  const [grantedAccounts, setGrantedAccounts] = useState<{ id: string; accountName: string; accountNumber: string; permissionLevel: string }[]>([])
   const [r710IntegrationEnabled, setR710IntegrationEnabled] = useState(false)
   const [showWiFiPortalLinks, setShowWiFiPortalLinks] = useState(false)
   const [businessCartCounts, setBusinessCartCounts] = useState<Record<string, number>>({})
@@ -124,6 +130,16 @@ export function Sidebar() {
       setLoadingBusinesses(false)
     }
   }, [session?.user, businessMemberships])
+
+  // Fetch cross-business expense account grants for sidebar
+  useEffect(() => {
+    if (!currentUser || isSystemAdmin(currentUser)) return
+    if (!hasPermission('canAccessExpenseAccount')) return
+    fetch('/api/expense-account/my-grants', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.success) setGrantedAccounts(data.data || []) })
+      .catch(() => {})
+  }, [currentUser])
 
   // Check if user has WiFi setup permissions (for main WiFi Portal links)
   useEffect(() => {
@@ -578,12 +594,18 @@ export function Sidebar() {
         {/* Business-Type-Specific Features */}
         {currentBusiness && (
           <>
-            <div className="pt-4 pb-2">
+            <button
+              type="button"
+              onClick={() => setBusinessSectionExpanded(prev => !prev)}
+              className="w-full flex items-center justify-between pt-4 pb-2 text-left"
+            >
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                 {currentBusiness.businessName}
               </h3>
-            </div>
+              <span className="text-gray-400 text-xs">{businessSectionExpanded ? '▼' : '▶'}</span>
+            </button>
 
+            {businessSectionExpanded && (<>
             {/* Restaurant Features */}
             {currentBusiness.businessType === 'restaurant' && (
               <>
@@ -903,9 +925,20 @@ export function Sidebar() {
                 </div>
               </>
             )}
+            </>)}
           </>
         )}
 
+        <button
+          type="button"
+          onClick={() => setFinanceOpsSectionExpanded(prev => !prev)}
+          className="w-full flex items-center justify-between pt-4 pb-2 text-left"
+        >
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Finance &amp; Operations</h3>
+          <span className="text-gray-400 text-xs">{financeOpsSectionExpanded ? '▼' : '▶'}</span>
+        </button>
+
+        {financeOpsSectionExpanded && (<>
         {/* Business and Personal Finances - User-level permissions (business-agnostic) */}
   {hasPermission('canAccessPersonalFinance') && (
           <div className="pt-2">
@@ -1071,6 +1104,25 @@ export function Sidebar() {
                 )}
               </div>
             )}
+
+            {/* Cross-business granted accounts — always visible once loaded */}
+            {grantedAccounts.length > 0 && (
+              <div className="ml-8 space-y-1 mt-1">
+                <p className="text-xs text-gray-500 px-3 py-1 uppercase tracking-wide">Other Accounts</p>
+                {grantedAccounts.map(acct => (
+                  <Link
+                    key={acct.id}
+                    href={`/expense-accounts/${acct.id}`}
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center justify-between"
+                  >
+                    <span className="truncate">{acct.accountName}</span>
+                    {acct.permissionLevel === 'VIEW' && (
+                      <span className="ml-1 text-xs text-gray-500 flex-shrink-0">view</span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )}
           </>
         )}
 
@@ -1128,11 +1180,18 @@ export function Sidebar() {
             <span>HR Reports</span>
           </Link>
         )}
+        </>)}
 
-        <div className="pt-4 pb-2">
+        <button
+          type="button"
+          onClick={() => setToolsSectionExpanded(prev => !prev)}
+          className="w-full flex items-center justify-between pt-4 pb-2 text-left"
+        >
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tools</h3>
-        </div>
+          <span className="text-gray-400 text-xs">{toolsSectionExpanded ? '▼' : '▶'}</span>
+        </button>
 
+        {toolsSectionExpanded && (<>
         {/* Receipt History - Universal receipt search and reprint */}
         <Link
           href={`/universal/receipts${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
@@ -1254,6 +1313,7 @@ export function Sidebar() {
           <span className="text-lg">💬</span>
           <span>Team Chat</span>
         </Link>
+        </>)}
 
         {/* Employee Management Section - Only for users with actual management permissions */}
         {(hasPermission('canManageEmployees') ||
@@ -1263,10 +1323,16 @@ export function Sidebar() {
           hasPermission('canManageCompensationTypes') ||
           hasPermission('canManageDisciplinaryActions')) && (
           <>
-            <div className="pt-4 pb-2">
+            <button
+              type="button"
+              onClick={() => setEmployeeSectionExpanded(prev => !prev)}
+              className="w-full flex items-center justify-between pt-4 pb-2 text-left"
+            >
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Employee Management</h3>
-            </div>
+              <span className="text-gray-400 text-xs">{employeeSectionExpanded ? '▼' : '▶'}</span>
+            </button>
 
+            {employeeSectionExpanded && (<>
             {hasPermission('canManageJobTitles') && (
               <Link
                 href="/admin/job-titles"
@@ -1306,15 +1372,22 @@ export function Sidebar() {
                 <span>Disciplinary Actions</span>
               </Link>
             )}
+            </>)}
           </>
         )}
-        
+
   {(hasPermission('canManageBusinessUsers') || hasPermission('canManageBusinessSettings')) && (
           <>
-            <div className="pt-4 pb-2">
+            <button
+              type="button"
+              onClick={() => setAdminSectionExpanded(prev => !prev)}
+              className="w-full flex items-center justify-between pt-4 pb-2 text-left"
+            >
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</h3>
-            </div>
-            
+              <span className="text-gray-400 text-xs">{adminSectionExpanded ? '▼' : '▶'}</span>
+            </button>
+
+            {adminSectionExpanded && (<>
             {isSystemAdmin(currentUser) && (
               <Link
                 href="/admin"
@@ -1410,6 +1483,7 @@ export function Sidebar() {
                 <span>Umbrella Business</span>
               </Link>
             )}
+            </>)}
 
           </>
         )}

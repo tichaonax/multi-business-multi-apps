@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { canUserViewAccount } from '@/lib/expense-account-access'
 import { getServerUser } from '@/lib/get-server-user'
 
 /**
@@ -30,16 +31,17 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
     const permissions = getEffectivePermissions(user)
-    if (!permissions.canViewExpenseReports) {
-      return NextResponse.json(
-        { error: 'You do not have permission to view expense reports' },
-        { status: 403 }
-      )
-    }
-
     const { accountId } = params
+
+    if (!permissions.canViewExpenseReports && user.role !== 'admin') {
+      if (!(await canUserViewAccount(user.id, accountId))) {
+        return NextResponse.json(
+          { error: 'You do not have permission to view expense reports' },
+          { status: 403 }
+        )
+      }
+    }
 
     // Check if expense account exists
     const account = await prisma.expenseAccounts.findUnique({

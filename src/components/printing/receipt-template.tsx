@@ -53,6 +53,21 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
         </div>
       </div>
 
+      {/* Meals Program Section */}
+      {data.mealProgram && (
+        <div className="border border-dashed border-black px-2 py-1.5 mb-3 text-[11px]">
+          <div className="text-center font-bold mb-1">🍽️ MEALS PROGRAM</div>
+          <div className="flex justify-between">
+            <span>Customer:</span>
+            <span className="font-bold">{data.mealProgram.participantName}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Subsidy:</span>
+            <span className="font-bold">${Number(data.mealProgram.subsidyAmount).toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
       <div className="border-t-2 border-b-2 border-dashed border-black py-2.5 mb-2.5">
         <div className="flex justify-between font-bold mb-2">
           <span className="flex-[2]">Item</span>
@@ -71,6 +86,9 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
               <span className="flex-1 text-right">${Number(item.unitPrice).toFixed(2)}</span>
               <span className="flex-1 text-right">${Number(item.totalPrice).toFixed(2)}</span>
             </div>
+            {item.notes && (
+              <div className="text-[10px] text-gray-600 italic mt-0.5 ml-1">{item.notes}</div>
+            )}
           </div>
         ))}
       </div>

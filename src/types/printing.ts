@@ -213,6 +213,13 @@ export interface ReceiptData {
   reprintedBy?: string;
   // Umbrella/umbrella business-level phone number (optional)
   umbrellaPhone?: string;
+
+  // Meal Program metadata (restaurant only)
+  mealProgram?: {
+    participantName: string;
+    subsidyAmount: string; // e.g. "0.50"
+    cashAmount: string;    // e.g. "0.50"
+  };
 }
 
 export interface ReceiptItem {

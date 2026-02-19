@@ -6,6 +6,7 @@ import {
 } from '@/lib/expense-account-utils'
 import { validatePayee } from '@/lib/payee-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { canUserViewAccount, canUserWriteAccount } from '@/lib/expense-account-access'
 import { v4 as uuidv4 } from 'uuid'
 import { getServerUser } from '@/lib/get-server-user'
 
@@ -34,16 +35,17 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
     const permissions = getEffectivePermissions(user)
-    if (!permissions.canAccessExpenseAccount) {
-      return NextResponse.json(
-        { error: 'You do not have permission to access expense accounts' },
-        { status: 403 }
-      )
-    }
-
     const { accountId } = await params
+
+    if (!permissions.canAccessExpenseAccount && user.role !== 'admin') {
+      if (!(await canUserViewAccount(user.id, accountId))) {
+        return NextResponse.json(
+          { error: 'You do not have permission to access this expense account' },
+          { status: 403 }
+        )
+      }
+    }
 
     // Check if expense account exists
     const account = await prisma.expenseAccounts.findUnique({
@@ -241,16 +243,17 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
     const permissions = getEffectivePermissions(user)
-    if (!permissions.canMakeExpensePayments) {
-      return NextResponse.json(
-        { error: 'You do not have permission to make expense payments' },
-        { status: 403 }
-      )
-    }
-
     const { accountId } = await params
+
+    if (!permissions.canMakeExpensePayments && user.role !== 'admin') {
+      if (!(await canUserWriteAccount(user.id, accountId))) {
+        return NextResponse.json(
+          { error: 'You do not have permission to make expense payments' },
+          { status: 403 }
+        )
+      }
+    }
 
     // Check if expense account exists and is active
     const account = await prisma.expenseAccounts.findUnique({
