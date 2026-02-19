@@ -503,6 +503,7 @@ export async function POST(request: NextRequest) {
           businessId: orderData.businessId,
           customerId: orderData.customerId,
           employeeId: orderData.employeeId,
+          createdBy: user.id,
           orderType: orderData.orderType,
           paymentMethod: orderData.paymentMethod,
           discountAmount: effectiveDiscount,

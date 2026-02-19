@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
           orderNumber,
           customerId: customerId || null,
           employeeId: employee?.id || null,
+          createdBy: user.id,
           orderType: 'SALE',
           status: 'COMPLETED',
           subtotal,

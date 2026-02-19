@@ -1386,6 +1386,12 @@ class HybridServiceWrapper extends EventEmitter {
   async stop() {
     this.isShuttingDown = true;
 
+    // Stop log cleanup interval
+    if (this.logCleanupInterval) {
+      clearInterval(this.logCleanupInterval);
+      this.logCleanupInterval = null;
+    }
+
     // Stop Electron first
     await this.stopElectron();
 
@@ -1603,24 +1609,72 @@ class HybridServiceWrapper extends EventEmitter {
   }
 
   /**
-   * Setup logging
+   * Setup logging with daily rotation and 14-day cleanup
    */
   setupLogging() {
     const logDir = path.dirname(this.logFile);
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
+    this.logDate = this.getTodayString();
+    // Run cleanup on startup and then every hour
+    this.cleanupOldLogs();
+    this.logCleanupInterval = setInterval(() => this.cleanupOldLogs(), 60 * 60 * 1000);
   }
 
   /**
-   * Log output to file
+   * Get today's date string (YYYY-MM-DD)
+   */
+  getTodayString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
+
+  /**
+   * Get the daily log file path
+   */
+  getDailyLogFile() {
+    const today = this.getTodayString();
+    if (this.logDate !== today) {
+      this.logDate = today;
+      this.cleanupOldLogs();
+    }
+    const logDir = path.dirname(this.logFile);
+    return path.join(logDir, `service-${today}.log`);
+  }
+
+  /**
+   * Delete log files older than 14 days
+   */
+  cleanupOldLogs() {
+    try {
+      const logDir = path.dirname(this.logFile);
+      const files = fs.readdirSync(logDir);
+      const now = Date.now();
+      const maxAge = 14 * 24 * 60 * 60 * 1000; // 14 days
+
+      for (const file of files) {
+        const match = file.match(/^service-(\d{4}-\d{2}-\d{2})\.log$/);
+        if (!match) continue;
+        const fileDate = new Date(match[1]);
+        if (now - fileDate.getTime() > maxAge) {
+          fs.unlinkSync(path.join(logDir, file));
+        }
+      }
+    } catch (error) {
+      // Ignore cleanup errors
+    }
+  }
+
+  /**
+   * Log output to daily rotated file
    */
   logOutput(type, output) {
     try {
       const timestamp = new Date().toISOString();
       const logEntry = `[${timestamp}] [${type}] ${output}`;
 
-      fs.appendFileSync(this.logFile, logEntry);
+      fs.appendFileSync(this.getDailyLogFile(), logEntry);
     } catch (error) {
       // Ignore logging errors
     }

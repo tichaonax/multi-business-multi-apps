@@ -128,6 +128,12 @@ export async function GET(request: NextRequest) {
           employeeNumber: true,
         },
       },
+      creator: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     }
 
     // Query orders for the period
@@ -179,23 +185,50 @@ export async function GET(request: NextRequest) {
     })
 
     // Group by employee/salesperson (regular orders only)
+    // Prefer employeeId, fall back to createdBy (userId) for non-employee salespeople
     const employeeSales: Record<string, { name: string; employeeNumber: string; orders: number; sales: number }> = {}
     regularOrders.forEach(order => {
-      const employeeId = order.employeeId || 'unknown'
-      const employeeName = order.employees?.fullName || (order.attributes as any)?.employeeName || 'Walk-in/Unknown'
+      const repId = order.employeeId || order.createdBy || 'unknown'
+      const employeeName = order.employees?.fullName || order.creator?.name || (order.attributes as any)?.employeeName || 'Walk-in/Unknown'
       const employeeNumber = order.employees?.employeeNumber || ''
 
-      if (!employeeSales[employeeId]) {
-        employeeSales[employeeId] = {
+      if (!employeeSales[repId]) {
+        employeeSales[repId] = {
           name: employeeName,
           employeeNumber: employeeNumber,
           orders: 0,
           sales: 0
         }
       }
-      employeeSales[employeeId].orders++
-      employeeSales[employeeId].sales += Number(order.totalAmount || 0)
+      employeeSales[repId].orders++
+      employeeSales[repId].sales += Number(order.totalAmount || 0)
     })
+
+    // Batch-resolve categories for items without product_variants link
+    // (e.g., restaurant POS orders that store productId in attributes)
+    const noVariantProductIds = new Set<string>()
+    regularOrders.forEach(order => {
+      order.business_order_items.forEach(item => {
+        if (!item.product_variants) {
+          const attrs = item.attributes as any
+          if (attrs?.productId) noVariantProductIds.add(attrs.productId as string)
+        }
+      })
+    })
+
+    let noVariantProductMap = new Map<string, any>()
+    if (noVariantProductIds.size > 0) {
+      const products = await prisma.businessProducts.findMany({
+        where: { id: { in: Array.from(noVariantProductIds) } },
+        select: {
+          id: true,
+          name: true,
+          categoryId: true,
+          business_categories: { select: { id: true, name: true } },
+        },
+      })
+      noVariantProductMap = new Map(products.map(p => [p.id, p]))
+    }
 
     // Group by category (regular orders only)
     const categoryBreakdown: Record<
@@ -223,10 +256,21 @@ export async function GET(request: NextRequest) {
           categoryBreakdown[categoryId].totalSales += Number(cat.total || 0)
         })
       } else {
-        // Fallback to product-based category lookup
+        // Product-based category lookup
         order.business_order_items.forEach(item => {
-          const product = item.product_variants?.business_products
-          const category = product?.business_categories
+          let product = item.product_variants?.business_products
+          let category = product?.business_categories
+
+          // Fallback: resolve from attributes.productId if no variant link
+          if (!product) {
+            const attrs = item.attributes as any
+            const resolvedProduct = attrs?.productId ? noVariantProductMap.get(attrs.productId) : null
+            if (resolvedProduct) {
+              product = resolvedProduct
+              category = resolvedProduct.business_categories
+            }
+          }
+
           const categoryId = category?.id || item.notes?.toLowerCase().replace(/\s+/g, '-') || 'uncategorized'
           const categoryName = category?.name || item.notes || 'Uncategorized'
 

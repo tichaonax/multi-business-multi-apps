@@ -387,6 +387,7 @@ export async function POST(req: NextRequest) {
           businessId: businessId,
           orderNumber,
           employeeId: employeeId, // Can be null if user is not an employee
+          createdBy: user.id,
           orderType: 'SALE',
           status: 'COMPLETED',
           subtotal: total,
@@ -419,6 +420,7 @@ export async function POST(req: NextRequest) {
             businessId: businessId,
             orderNumber,
             employeeId: employeeId,
+            createdBy: user.id,
             orderType: 'SALE',
             status: 'COMPLETED',
             subtotal: total,

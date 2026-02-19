@@ -208,12 +208,14 @@ model BusinessOrders {
   transactionDate          DateTime?
   isManualEntry            Boolean                  @default(false)
   manualEntryNote          String?
+  createdBy                String?
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime
   business_order_items     BusinessOrderItems[]
   businesses               Businesses               @relation(fields: [businessId], references: [id])
   business_customers       BusinessCustomers?       @relation(fields: [customerId], references: [id])
   employees                Employees?               @relation(fields: [employeeId], references: [id])
+  creator                  Users?                   @relation("BusinessOrderCreator", fields: [createdBy], references: [id])
   reprint_logs             ReprintLog[]
   coupon_usages            CouponUsages[]
   meal_program_transaction MealProgramTransactions?
@@ -223,6 +225,7 @@ model BusinessOrders {
   @@index([businessId, createdAt(sort: Desc)])
   @@index([customerId, createdAt(sort: Desc)])
   @@index([businessId, transactionDate])
+  @@index([createdBy])
   @@map("business_orders")
 }
 
@@ -2580,6 +2583,7 @@ model Users {
   meal_program_participants_registered                            MealProgramParticipants[]   @relation("MealProgramParticipantRegistrar")
   meal_program_transactions_sold                                  MealProgramTransactions[]   @relation("MealProgramSoldByUser")
   meal_program_eligible_items_created                             MealProgramEligibleItems[]  @relation("MealProgramEligibleItemCreator")
+  business_orders_created                                        BusinessOrders[]            @relation("BusinessOrderCreator")
 
   @@map("users")
 }

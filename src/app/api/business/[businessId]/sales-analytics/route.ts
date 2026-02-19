@@ -109,6 +109,12 @@ export async function GET(
             id: true,
             fullName: true,
           }
+        },
+        creator: {
+          select: {
+            id: true,
+            name: true,
+          }
         }
       },
       orderBy: {
@@ -174,19 +180,19 @@ export async function GET(
       dailySalesMap[orderDate].sales += orderRevenue;
       dailySalesMap[orderDate].orderCount += 1;
 
-      // Sales rep
-      const employeeId = order.employeeId || 'unknown';
-      const employeeName = order.employees?.fullName || 'Other';
-      if (!salesRepStats[employeeId]) {
-        salesRepStats[employeeId] = {
-          employeeId,
+      // Sales rep - prefer employee, fall back to creator (user who made the sale)
+      const repId = order.employeeId || order.createdBy || 'unknown';
+      const employeeName = order.employees?.fullName || order.creator?.name || (order.attributes as any)?.employeeName || 'Other';
+      if (!salesRepStats[repId]) {
+        salesRepStats[repId] = {
+          employeeId: repId,
           employeeName,
           revenue: 0,
           orderCount: 0
         };
       }
-      salesRepStats[employeeId].revenue += orderRevenue;
-      salesRepStats[employeeId].orderCount += 1;
+      salesRepStats[repId].revenue += orderRevenue;
+      salesRepStats[repId].orderCount += 1;
 
       // Process order items
       order.business_order_items.forEach(item => {

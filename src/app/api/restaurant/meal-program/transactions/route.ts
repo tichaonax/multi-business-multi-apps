@@ -248,6 +248,7 @@ export async function POST(req: NextRequest) {
           businessId,
           orderNumber,
           employeeId: resolvedSoldByEmployeeId,
+          createdBy: user.id,
           orderType: 'SALE',
           status: 'COMPLETED',
           businessType: 'restaurant',

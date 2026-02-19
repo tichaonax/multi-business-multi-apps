@@ -236,6 +236,14 @@ async function restore(backupPath) {
   // Basic validation of shape
   if (!backupData || typeof backupData !== 'object') throw new Error('Invalid backup format')
 
+  // Handle v3.0 format: data is nested under businessData key
+  // v1.0/v2.0 format has tables at the top level
+  let tableData = backupData
+  if (backupData.businessData && typeof backupData.businessData === 'object') {
+    console.log('Detected v3.0 backup format — unwrapping businessData')
+    tableData = backupData.businessData
+  }
+
   try {
     console.log('Restoring backup from:', backupData.metadata?.timestamp || backupData.createdAt || 'unknown')
     console.log('Backup version:', backupData.metadata?.version || 'legacy')
@@ -246,7 +254,7 @@ async function restore(backupPath) {
 
     // Process each table in dependency order
     for (const tableName of RESTORE_ORDER) {
-      const data = backupData[tableName]
+      const data = tableData[tableName]
 
       if (!data || !Array.isArray(data) || data.length === 0) {
         continue
