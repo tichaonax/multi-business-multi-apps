@@ -14,6 +14,7 @@ interface PayeeSelectorProps {
   value?: { type: string; id: string } | null
   onChange: (payee: { type: string; id: string; name: string } | null) => void
   onCreateIndividual?: () => void
+  onCreateSupplier?: () => void
   disabled?: boolean
   error?: string
   refreshTrigger?: number  // Increment this to trigger a refresh
@@ -23,6 +24,7 @@ export function PayeeSelector({
   value,
   onChange,
   onCreateIndividual,
+  onCreateSupplier,
   disabled = false,
   error,
   refreshTrigger = 0
@@ -31,7 +33,8 @@ export function PayeeSelector({
     USER: [],
     EMPLOYEE: [],
     PERSON: [],
-    BUSINESS: []
+    BUSINESS: [],
+    SUPPLIER: []
   })
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -55,7 +58,8 @@ export function PayeeSelector({
           USER: data.data.users || [],
           EMPLOYEE: data.data.employees || [],
           PERSON: data.data.persons || [],
-          BUSINESS: data.data.businesses || []
+          BUSINESS: data.data.businesses || [],
+          SUPPLIER: data.data.suppliers || []
         })
       }
     } catch (error) {
@@ -108,7 +112,8 @@ export function PayeeSelector({
       USER: { label: 'User', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
       EMPLOYEE: { label: 'Employee', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
       PERSON: { label: 'Individual', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
-      BUSINESS: { label: 'Business', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' }
+      BUSINESS: { label: 'Business', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
+      SUPPLIER: { label: 'Supplier', className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' }
     }
     return badges[type] || { label: type, className: 'bg-gray-100 text-gray-800' }
   }
@@ -134,7 +139,7 @@ export function PayeeSelector({
     onChange(null)
   }
 
-  const allPayeesCount = Object.values(payees).reduce((sum, list) => sum + list.length, 0)
+  const allPayeesCount = Object.values(payees).reduce((sum, list) => sum + (list?.length || 0), 0)
 
   if (loading) {
     return (
@@ -148,28 +153,42 @@ export function PayeeSelector({
   return (
     <div className="relative w-full">
       {/* Selected Value Display / Trigger */}
-      <button
-        type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
-        className={`w-full px-3 py-2 text-left border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-          error ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-        } ${disabled ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'bg-white dark:bg-gray-800'}`}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            {getSelectedPayeeDisplay()}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          className={`flex-1 px-3 py-2 text-left border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+            error ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+          } ${disabled ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'bg-white dark:bg-gray-800'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              {getSelectedPayeeDisplay()}
+            </div>
+            <svg
+              className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'transform rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
-          <svg
-            className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'transform rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        </button>
+        {value && !disabled && (
+          <button
+            type="button"
+            onClick={handleClear}
+            title="Clear selection"
+            className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       {/* Dropdown Panel */}
       {isOpen && (
@@ -301,24 +320,65 @@ export function PayeeSelector({
                     ))}
                   </div>
                 )}
+
+                {/* Suppliers */}
+                {filterPayees(payees.SUPPLIER).length > 0 && (
+                  <div>
+                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Suppliers
+                    </div>
+                    {filterPayees(payees.SUPPLIER).map(payee => (
+                      <button
+                        key={payee.id}
+                        type="button"
+                        onClick={() => handleSelect('SUPPLIER', payee)}
+                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{payee.name}</div>
+                          {payee.identifier && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">#{payee.identifier}</div>
+                          )}
+                        </div>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('SUPPLIER').className}`}>
+                          {getTypeBadge('SUPPLIER').label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>
 
           {/* Footer Actions */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
-            {onCreateIndividual && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false)
-                  onCreateIndividual()
-                }}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-              >
-                + Create New Individual
-              </button>
-            )}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              {onCreateIndividual && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false)
+                    onCreateIndividual()
+                  }}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                >
+                  + Individual
+                </button>
+              )}
+              {onCreateSupplier && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false)
+                    onCreateSupplier()
+                  }}
+                  className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium"
+                >
+                  + Supplier
+                </button>
+              )}
+            </div>
             {value && (
               <button
                 type="button"

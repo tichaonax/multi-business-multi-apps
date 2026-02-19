@@ -25,6 +25,7 @@ interface ExpenseAccount {
   lowBalanceThreshold: number
   isActive: boolean
   createdAt: string
+  businessId: string | null
   // Sibling account fields
   parentAccountId: string | null
   siblingNumber: number | null
@@ -386,10 +387,12 @@ export default function ExpenseAccountDetailPage() {
                 </h4>
                 <PaymentForm
                   accountId={accountId}
+                  businessId={account.businessId || currentBusiness?.id}
                   currentBalance={Number(account.balance)}
                   onSuccess={handlePaymentSuccess}
                   onAddFunds={() => setActiveTab('deposits')}
                   canCreatePayees={canCreatePayees}
+                  defaultCategoryBusinessType={currentBusiness?.businessType}
                   accountInfo={{
                     accountName: account.accountName,
                     isSibling: account.isSibling,

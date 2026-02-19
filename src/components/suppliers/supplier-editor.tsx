@@ -94,6 +94,11 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel }: Suppl
       return
     }
 
+    if (!formData.phone?.trim()) {
+      setError('Phone number is required')
+      return
+    }
+
     try {
       setLoading(true)
 
@@ -247,7 +252,7 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel }: Suppl
                   <PhoneNumberInput
                     value={formData.phone || ''}
                     onChange={handlePhoneChange}
-                    label="Phone"
+                    label="Phone *"
                   />
                 </div>
 

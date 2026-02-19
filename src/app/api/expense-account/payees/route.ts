@@ -52,11 +52,13 @@ export async function GET(request: NextRequest) {
         employees: payees.employees,
         persons: payees.persons,
         businesses: payees.businesses,
+        suppliers: (payees as any).suppliers || [],
         totalCount:
           payees.users.length +
           payees.employees.length +
           payees.persons.length +
-          payees.businesses.length,
+          payees.businesses.length +
+          ((payees as any).suppliers?.length || 0),
       },
     })
   } catch (error) {

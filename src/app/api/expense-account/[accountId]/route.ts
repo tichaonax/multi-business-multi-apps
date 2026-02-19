@@ -64,6 +64,7 @@ export async function GET(
           createdAt: account.createdAt.toISOString(),
           updatedAt: account.updatedAt.toISOString(),
           creator: account.creator,
+          businessId: account.businessId,
           // Sibling account fields
           parentAccountId: account.parentAccountId,
           siblingNumber: account.siblingNumber,

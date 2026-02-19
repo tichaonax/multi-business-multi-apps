@@ -5,6 +5,7 @@ import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { PayeeSelector } from './payee-selector'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
+import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { CreateCategoryModal } from './create-category-modal'
 import { PaymentBatchList } from './payment-batch-list'
 import { getTodayLocalDateString } from '@/lib/date-utils'
@@ -263,10 +264,12 @@ function SearchableSelect({
 
 interface PaymentFormProps {
   accountId: string
+  businessId?: string
   currentBalance: number
   onSuccess?: () => void
   onAddFunds?: () => void
   canCreatePayees?: boolean
+  defaultCategoryBusinessType?: string
   accountInfo?: {
     accountName: string
     isSibling: boolean
@@ -275,12 +278,26 @@ interface PaymentFormProps {
   }
 }
 
+function getDefaultDomainName(businessType: string): string {
+  const map: Record<string, string> = {
+    restaurant: 'Restaurant',
+    grocery: 'Groceries',
+    clothing: 'Clothing',
+    hardware: 'Hardware',
+    construction: 'Construction',
+    vehicles: 'Vehicle',
+  }
+  return map[businessType] || 'Business'
+}
+
 export function PaymentForm({
   accountId,
+  businessId,
   currentBalance,
   onSuccess,
   onAddFunds,
   canCreatePayees = false,
+  defaultCategoryBusinessType,
   accountInfo
 }: PaymentFormProps) {
   const customAlert = useAlert()
@@ -294,6 +311,7 @@ export function PaymentForm({
   const [loadingSubSubcategories, setLoadingSubSubcategories] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
+  const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [showCreateSubcategory, setShowCreateSubcategory] = useState(false)
   const [showCreateSubSubcategory, setShowCreateSubSubcategory] = useState(false)
@@ -331,6 +349,17 @@ export function PaymentForm({
   useEffect(() => {
     loadCategories()
   }, [categoryRefreshTrigger])
+
+  // Auto-select category matching business type when categories load
+  useEffect(() => {
+    if (categories.length > 0 && defaultCategoryBusinessType && !formData.categoryId) {
+      const domainName = getDefaultDomainName(defaultCategoryBusinessType)
+      const match = categories.find(c => c.name === domainName)
+      if (match) {
+        setFormData(prev => ({ ...prev, categoryId: match.id }))
+      }
+    }
+  }, [categories, defaultCategoryBusinessType])
 
   // Load batch from sessionStorage
   useEffect(() => {
@@ -739,6 +768,7 @@ export function PaymentForm({
         payeeEmployeeId: p.payeeType === 'EMPLOYEE' ? p.payeeId : undefined,
         payeePersonId: p.payeeType === 'PERSON' ? p.payeeId : undefined,
         payeeBusinessId: p.payeeType === 'BUSINESS' ? p.payeeId : undefined,
+        payeeSupplierId: p.payeeType === 'SUPPLIER' ? p.payeeId : undefined,
         categoryId: p.subcategoryId || p.categoryId,
         subcategoryId: p.subSubcategoryId || null,
         amount: p.amount,
@@ -807,6 +837,33 @@ export function PaymentForm({
       // Trigger payee list refresh
       setPayeeRefreshTrigger(prev => prev + 1)
     }
+  }
+
+  const handleCreateSupplierSuccess = async (supplierId?: string) => {
+    setShowSupplierModal(false)
+    if (!supplierId) {
+      setPayeeRefreshTrigger(prev => prev + 1)
+      return
+    }
+
+    // Fetch the created supplier's name to auto-select it
+    let supplierName = 'New Supplier'
+    try {
+      const res = await fetch(`/api/business/${businessId}/suppliers`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        const found = (data.data || []).find((s: any) => s.id === supplierId)
+        if (found) supplierName = found.name
+      }
+    } catch (e) {
+      // ignore, still auto-select with fallback name
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      payee: { type: 'SUPPLIER', id: supplierId, name: supplierName }
+    }))
+    setPayeeRefreshTrigger(prev => prev + 1)
   }
 
   const handleCreateCategorySuccess = (payload: any) => {
@@ -945,6 +1002,7 @@ export function PaymentForm({
                 setErrors({ ...errors, payee: '' })
               }}
               onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
+              onCreateSupplier={canCreatePayees ? () => setShowSupplierModal(true) : undefined}
               error={errors.payee}
               refreshTrigger={payeeRefreshTrigger}
             />
@@ -1282,6 +1340,15 @@ export function PaymentForm({
         onSuccess={handleCreateIndividualSuccess}
         onError={(error) => console.error('Create individual error:', error)}
       />
+
+      {/* Create Supplier Modal */}
+      {showSupplierModal && businessId && (
+        <SupplierEditor
+          businessId={businessId}
+          onSave={handleCreateSupplierSuccess}
+          onCancel={() => setShowSupplierModal(false)}
+        />
+      )}
 
       {/* Create Category Modal */}
       <CreateCategoryModal

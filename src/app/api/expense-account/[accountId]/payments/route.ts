@@ -138,6 +138,9 @@ export async function GET(
           payeeBusiness: {
             select: { id: true, name: true, type: true },
           },
+          payeeSupplier: {
+            select: { id: true, name: true, supplierNumber: true },
+          },
           category: {
             select: { id: true, name: true, emoji: true, color: true },
           },
@@ -169,6 +172,7 @@ export async function GET(
           payeeEmployee: p.payeeEmployee,
           payeePerson: p.payeePerson,
           payeeBusiness: p.payeeBusiness,
+          payeeSupplier: (p as any).payeeSupplier,
           category: p.category,
           subcategory: p.subcategory,
           amount: Number(p.amount),
@@ -316,6 +320,12 @@ export async function POST(
           { status: 400 }
         )
       }
+      if (payment.payeeType === 'SUPPLIER' && !payment.payeeSupplierId) {
+        return NextResponse.json(
+          { error: `Payment ${paymentIndex}: Supplier ID is required for SUPPLIER payee`, index: i },
+          { status: 400 }
+        )
+      }
 
       if (!payment.categoryId) {
         return NextResponse.json(
@@ -372,7 +382,8 @@ export async function POST(
         payment.payeeUserId ||
         payment.payeeEmployeeId ||
         payment.payeePersonId ||
-        payment.payeeBusinessId
+        payment.payeeBusinessId ||
+        payment.payeeSupplierId
 
       const payeeValidation = await validatePayee(payment.payeeType, payeeId)
       if (!payeeValidation.valid) {
@@ -546,6 +557,7 @@ export async function POST(
             payeeEmployeeId: payment.payeeEmployeeId || null,
             payeePersonId: payment.payeePersonId || null,
             payeeBusinessId: payment.payeeBusinessId || null,
+            payeeSupplierId: payment.payeeSupplierId || null,
             categoryId: payment.categoryId,
             subcategoryId: payment.subcategoryId || null,
             amount: Number(payment.amount),
@@ -581,6 +593,9 @@ export async function POST(
             },
             payeeBusiness: {
               select: { id: true, name: true, type: true },
+            },
+            payeeSupplier: {
+              select: { id: true, name: true, supplierNumber: true },
             },
             category: {
               select: { id: true, name: true, emoji: true },

@@ -328,9 +328,10 @@ model BusinessSuppliers {
   notes             String?
   taxId             String?
   productsSupplied  String?
-  business_products BusinessProducts[] @relation("ProductSupplier")
-  businesses        Businesses?        @relation(fields: [businessId], references: [id])
-  supplier_products SupplierProducts[]
+  business_products         BusinessProducts[]         @relation("ProductSupplier")
+  businesses                Businesses?                @relation(fields: [businessId], references: [id])
+  supplier_products         SupplierProducts[]
+  expense_account_payments  ExpenseAccountPayments[]   @relation("ExpensePaymentPayeeSupplier")
 
   @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
@@ -1323,6 +1324,7 @@ model ExpenseAccountPayments {
   payeeEmployeeId          String?
   payeePersonId            String?
   payeeBusinessId          String?
+  payeeSupplierId          String?
   categoryId               String
   subcategoryId            String?
   subSubcategoryId         String?
@@ -1344,6 +1346,7 @@ model ExpenseAccountPayments {
   creator                  Users                    @relation("ExpensePaymentCreator", fields: [createdBy], references: [id])
   expenseAccount           ExpenseAccounts          @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
   payeeBusiness            Businesses?              @relation("ExpensePaymentPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier            BusinessSuppliers?       @relation("ExpensePaymentPayeeSupplier", fields: [payeeSupplierId], references: [id])
   payeeEmployee            Employees?               @relation("ExpensePaymentPayeeEmployee", fields: [payeeEmployeeId], references: [id])
   payeePerson              Persons?                 @relation("ExpensePaymentPayeePerson", fields: [payeePersonId], references: [id])
   payeeUser                Users?                   @relation("ExpensePaymentPayeeUser", fields: [payeeUserId], references: [id])

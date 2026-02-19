@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import type { PayeeType, GroupedPayees, AnyPayee, CreateIndividualPayeeInput } from '@/types/payee'
+
+type ExtendedPayeeType = PayeeType | 'SUPPLIER'
 import { formatPayeeDisplayName } from '@/types/payee'
 
 const prisma = new PrismaClient()
@@ -12,9 +14,9 @@ const prisma = new PrismaClient()
 export async function getAllAvailablePayees(
   userId?: string,
   businessId?: string
-): Promise<GroupedPayees> {
+): Promise<GroupedPayees & { suppliers: any[] }> {
   // Fetch all payee types in parallel
-  const [users, employees, persons, businesses] = await Promise.all([
+  const [users, employees, persons, businesses, suppliers] = await Promise.all([
     // Get active users
     prisma.users.findMany({
       where: { isActive: true },
@@ -76,6 +78,20 @@ export async function getAllAvailablePayees(
         name: true,
         type: true,
         description: true,
+      },
+      orderBy: { name: 'asc' },
+    }),
+
+    // Get active suppliers
+    prisma.businessSuppliers.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        supplierNumber: true,
+        phone: true,
+        email: true,
+        businessType: true,
       },
       orderBy: { name: 'asc' },
     }),
@@ -158,6 +174,18 @@ export async function getAllAvailablePayees(
       businessType: business.type,
       description: business.description,
     })),
+
+    suppliers: suppliers.map((supplier) => ({
+      id: supplier.id,
+      type: 'SUPPLIER' as const,
+      name: supplier.name,
+      displayName: supplier.supplierNumber ? `${supplier.name} (${supplier.supplierNumber})` : supplier.name,
+      identifier: supplier.supplierNumber,
+      isActive: true,
+      phone: supplier.phone,
+      email: supplier.email,
+      businessType: supplier.businessType,
+    })),
   }
 }
 
@@ -167,7 +195,7 @@ export async function getAllAvailablePayees(
  * @param payeeId - ID of the payee
  */
 export async function validatePayee(
-  payeeType: PayeeType,
+  payeeType: ExtendedPayeeType,
   payeeId: string
 ): Promise<{ valid: boolean; error?: string; payee?: AnyPayee }> {
   try {
@@ -330,6 +358,42 @@ export async function validatePayee(
           },
         }
 
+      case 'SUPPLIER':
+        payee = await prisma.businessSuppliers.findUnique({
+          where: { id: payeeId },
+          select: {
+            id: true,
+            name: true,
+            supplierNumber: true,
+            phone: true,
+            email: true,
+            businessType: true,
+            isActive: true,
+          },
+        })
+
+        if (!payee) {
+          return { valid: false, error: 'Supplier not found' }
+        }
+        if (!payee.isActive) {
+          return { valid: false, error: 'Supplier is inactive' }
+        }
+
+        return {
+          valid: true,
+          payee: {
+            id: payee.id,
+            type: 'SUPPLIER' as any,
+            name: payee.name,
+            displayName: payee.supplierNumber ? `${payee.name} (${payee.supplierNumber})` : payee.name,
+            identifier: payee.supplierNumber,
+            isActive: payee.isActive,
+            phone: payee.phone,
+            email: payee.email,
+            businessType: payee.businessType,
+          } as any,
+        }
+
       default:
         return { valid: false, error: 'Invalid payee type' }
     }
@@ -458,7 +522,7 @@ export async function getPayee(payeeType: PayeeType, payeeId: string): Promise<A
 export async function searchPayees(
   searchTerm: string,
   businessId?: string
-): Promise<GroupedPayees> {
+): Promise<GroupedPayees & { suppliers: any[] }> {
   const term = searchTerm.toLowerCase().trim()
 
   if (!term) {
@@ -466,7 +530,7 @@ export async function searchPayees(
   }
 
   // Search across all payee types
-  const [users, employees, persons, businesses] = await Promise.all([
+  const [users, employees, persons, businesses, suppliers] = await Promise.all([
     prisma.users.findMany({
       where: {
         isActive: true,
@@ -549,6 +613,25 @@ export async function searchPayees(
       },
       orderBy: { name: 'asc' },
     }),
+
+    prisma.businessSuppliers.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { name: { contains: term, mode: 'insensitive' } },
+          { supplierNumber: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        supplierNumber: true,
+        phone: true,
+        email: true,
+        businessType: true,
+      },
+      orderBy: { name: 'asc' },
+    }),
   ])
 
   // Transform to payee format (same as getAllAvailablePayees)
@@ -611,6 +694,18 @@ export async function searchPayees(
       businessName: business.name,
       businessType: business.type,
       description: business.description,
+    })),
+
+    suppliers: suppliers.map((supplier) => ({
+      id: supplier.id,
+      type: 'SUPPLIER' as const,
+      name: supplier.name,
+      displayName: supplier.supplierNumber ? `${supplier.name} (${supplier.supplierNumber})` : supplier.name,
+      identifier: supplier.supplierNumber,
+      isActive: true,
+      phone: supplier.phone,
+      email: supplier.email,
+      businessType: supplier.businessType,
     })),
   }
 }
