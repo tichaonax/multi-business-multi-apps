@@ -48,10 +48,18 @@ const startupFolder = path.join(
   'Startup'
 );
 
-const desktopFolder = path.join(
-  process.env.USERPROFILE,
-  'Desktop'
-);
+// Desktop may be at USERPROFILE\Desktop or OneDrive\Desktop
+let desktopFolder = path.join(process.env.USERPROFILE, 'Desktop');
+if (!fs.existsSync(desktopFolder)) {
+  // Try OneDrive Desktop
+  const oneDriveDesktop = path.join(process.env.USERPROFILE, 'OneDrive', 'Desktop');
+  if (fs.existsSync(oneDriveDesktop)) {
+    desktopFolder = oneDriveDesktop;
+  } else {
+    // Last resort: create it
+    fs.mkdirSync(desktopFolder, { recursive: true });
+  }
+}
 
 console.log('📁 Startup folder:', startupFolder);
 console.log('🖥️  Desktop folder:', desktopFolder);
@@ -88,6 +96,10 @@ fs.writeFileSync(psFile, powershellScript);
 console.log('\n🔧 Creating shortcuts...');
 
 exec(`powershell -ExecutionPolicy Bypass -File "${psFile}"`, (error, stdout, stderr) => {
+  // Log PowerShell output for debugging
+  if (stdout) console.log('[PowerShell]', stdout.trim());
+  if (stderr) console.error('[PowerShell Error]', stderr.trim());
+
   // Clean up temp PowerShell file
   try {
     fs.unlinkSync(psFile);
@@ -95,7 +107,6 @@ exec(`powershell -ExecutionPolicy Bypass -File "${psFile}"`, (error, stdout, std
 
   if (error) {
     console.error('❌ Failed to create shortcuts:', error.message);
-    if (stderr) console.error(stderr);
     process.exit(1);
   }
 

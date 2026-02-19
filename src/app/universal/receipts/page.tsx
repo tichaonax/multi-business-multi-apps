@@ -59,6 +59,7 @@ function ReceiptHistoryPageContent() {
   const [dateFromDisplay, setDateFromDisplay] = useState('') // dd/mm/yyyy for input
   const [dateToDisplay, setDateToDisplay] = useState('')     // dd/mm/yyyy for input
   const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom' | ''>('')
+  const [useServerTime, setUseServerTime] = useState(false)
 
   // Get businessId from URL params or localStorage
   useEffect(() => {
@@ -226,9 +227,20 @@ function ReceiptHistoryPageContent() {
     }).format(num)
   }
 
-  // Format date
+  // Format date — server time shows UTC, local shows workstation timezone
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString([], {
+    const date = new Date(dateString)
+    if (useServerTime) {
+      return date.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'UTC',
+      }) + ' UTC'
+    }
+    return date.toLocaleString([], {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -286,47 +298,43 @@ function ReceiptHistoryPageContent() {
               </button>
             ))}
           </div>
-          {/* Custom range */}
+          {/* Date pickers */}
           <div className="flex items-end gap-2">
             <div>
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
               <input
-                type="text"
-                placeholder="dd/mm/yyyy"
-                maxLength={10}
-                value={dateFromDisplay}
+                type="date"
+                value={dateFrom}
                 onChange={(e) => {
-                  const val = e.target.value
-                  setDateFromDisplay(val)
-                  setDateFrom(displayToIso(val))
+                  const iso = e.target.value
+                  setDateFrom(iso)
+                  // If no end date yet, or end is before new start, sync end to start
+                  const newTo = (!dateTo || iso > dateTo) ? iso : dateTo
+                  setDateTo(newTo)
+                  setDateFromDisplay(isoToDisplay(iso))
+                  setDateToDisplay(isoToDisplay(newTo))
                   setDatePreset('custom')
+                  fetchReceipts(searchQuery, 0, iso, newTo)
                 }}
-                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white w-28"
+                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
               />
             </div>
             <div>
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
               <input
-                type="text"
-                placeholder="dd/mm/yyyy"
-                maxLength={10}
-                value={dateToDisplay}
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
                 onChange={(e) => {
-                  const val = e.target.value
-                  setDateToDisplay(val)
-                  setDateTo(displayToIso(val))
+                  const iso = e.target.value
+                  setDateTo(iso)
+                  setDateToDisplay(isoToDisplay(iso))
                   setDatePreset('custom')
+                  fetchReceipts(searchQuery, 0, dateFrom, iso)
                 }}
-                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white w-28"
+                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
               />
             </div>
-            <button
-              onClick={() => fetchReceipts(searchQuery, 0)}
-              disabled={loading}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg disabled:opacity-50"
-            >
-              Apply
-            </button>
             {(dateFrom || dateTo) && (
               <button
                 onClick={clearDates}
@@ -371,7 +379,20 @@ function ReceiptHistoryPageContent() {
                     Amount
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Date
+                    <div className="flex items-center gap-2">
+                      <span>Date</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setUseServerTime(!useServerTime) }}
+                        className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors ${
+                          useServerTime
+                            ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700'
+                            : 'bg-gray-100 text-gray-500 border-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600'
+                        }`}
+                        title={useServerTime ? 'Showing server time (UTC) — click for local time' : 'Showing local time — click for server time (UTC)'}
+                      >
+                        {useServerTime ? 'UTC' : 'Local'}
+                      </button>
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status

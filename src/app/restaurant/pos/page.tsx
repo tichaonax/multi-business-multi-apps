@@ -89,6 +89,10 @@ export default function RestaurantPOS() {
   const [isPrinting, setIsPrinting] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
   const [showDailySales, setShowDailySales] = useState(false)
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([])
+  const [showRecentTransactions, setShowRecentTransactions] = useState(false)
+  const [loadingRecent, setLoadingRecent] = useState(false)
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
   const { data: session, status } = useSession()
@@ -1108,10 +1112,36 @@ export default function RestaurantPOS() {
     }
   }
 
-  // Load daily sales on mount and after orders
+  // Load last 5 transactions for quick view
+  const loadRecentTransactions = async () => {
+    if (!currentBusinessId || loadingRecent) return
+    setLoadingRecent(true)
+    try {
+      const params = new URLSearchParams({
+        businessId: currentBusinessId,
+        includeItems: 'true',
+        limit: '5',
+        page: '1',
+      })
+      const response = await fetch(`/api/universal/orders?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setRecentTransactions(data.data || [])
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load recent transactions:', error)
+    } finally {
+      setLoadingRecent(false)
+    }
+  }
+
+  // Load daily sales and recent transactions on mount
   useEffect(() => {
     if (currentBusinessId && isRestaurantBusiness) {
       loadDailySales()
+      loadRecentTransactions()
     }
   }, [currentBusinessId, isRestaurantBusiness])
 
@@ -1154,6 +1184,7 @@ export default function RestaurantPOS() {
       setTimeout(() => {
         loadDailySales()
         loadMenuItems() // Refresh WiFi token availability badges
+        loadRecentTransactions()
       }, 500)
     }
   }, [completedOrder])
@@ -1738,6 +1769,125 @@ export default function RestaurantPOS() {
                       {dailySales.summary.receiptsIssued}
                     </div>
                   </div>
+                </div>
+
+                {/* Recent Transactions Toggle */}
+                <div className="mt-3">
+                  <button
+                    onClick={() => {
+                      const next = !showRecentTransactions
+                      setShowRecentTransactions(next)
+                      if (next && recentTransactions.length === 0) loadRecentTransactions()
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Last 5 Transactions</span>
+                    <div className="flex items-center gap-2">
+                      {recentTransactions.length > 0 && (
+                        <span className="text-sm font-bold text-green-600 dark:text-green-400">
+                          ${recentTransactions.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0).toFixed(2)}
+                        </span>
+                      )}
+                      <span className={`text-xs text-gray-400 transition-transform ${showRecentTransactions ? 'rotate-180' : ''}`}>
+                        &#9660;
+                      </span>
+                    </div>
+                  </button>
+
+                  {showRecentTransactions && (
+                    <div className="mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                      {loadingRecent ? (
+                        <div className="flex justify-center py-4">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                        </div>
+                      ) : recentTransactions.length === 0 ? (
+                        <div className="text-center py-4 text-sm text-gray-400">No transactions yet</div>
+                      ) : (
+                        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                          {recentTransactions.map((order: any) => {
+                            const isExpanded = expandedOrderId === order.id
+                            const items = order.business_order_items || []
+                            return (
+                              <div key={order.id}>
+                                <button
+                                  onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                                  className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
+                                      <span className="text-sm font-medium text-gray-900 dark:text-white">#{order.orderNumber}</span>
+                                      <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${
+                                        order.status === 'COMPLETED'
+                                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                          : order.status === 'REFUNDED'
+                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                      }`}>{order.status}</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 pl-5">
+                                      {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      {order.paymentMethod && <span className="ml-2">{order.paymentMethod}</span>}
+                                      {items.length > 0 && (
+                                        <span className="ml-2">{items.length} item{items.length > 1 ? 's' : ''}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-sm font-bold text-green-600 dark:text-green-400 whitespace-nowrap">
+                                    ${Number(order.totalAmount || 0).toFixed(2)}
+                                  </div>
+                                </button>
+
+                                {isExpanded && items.length > 0 && (
+                                  <div className="px-3 pb-3 pl-8">
+                                    <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2 space-y-1">
+                                      {items.map((item: any, idx: number) => {
+                                        const name = item.product_variants?.business_products?.name
+                                          || item.attributes?.productName
+                                          || item.notes
+                                          || 'Item'
+                                        return (
+                                          <div key={item.id || idx} className="flex items-center justify-between text-xs">
+                                            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                                              <span className="text-gray-400">{item.quantity}x</span>
+                                              <span>{name}</span>
+                                            </div>
+                                            <span className="font-medium text-gray-900 dark:text-white">
+                                              ${Number(item.totalPrice || item.unitPrice * item.quantity || 0).toFixed(2)}
+                                            </span>
+                                          </div>
+                                        )
+                                      })}
+                                      {(Number(order.discountAmount) > 0 || Number(order.taxAmount) > 0) && (
+                                        <div className="border-t border-gray-200 dark:border-gray-600 pt-1 mt-1 space-y-0.5">
+                                          {Number(order.discountAmount) > 0 && (
+                                            <div className="flex justify-between text-xs text-red-500">
+                                              <span>Discount</span>
+                                              <span>-${Number(order.discountAmount).toFixed(2)}</span>
+                                            </div>
+                                          )}
+                                          {Number(order.taxAmount) > 0 && (
+                                            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                                              <span>Tax</span>
+                                              <span>${Number(order.taxAmount).toFixed(2)}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                      <div className="border-t border-gray-200 dark:border-gray-600 pt-1 mt-1 flex justify-between text-xs font-bold text-gray-900 dark:text-white">
+                                        <span>Total</span>
+                                        <span>${Number(order.totalAmount || 0).toFixed(2)}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Detailed Breakdown (Collapsible) */}
