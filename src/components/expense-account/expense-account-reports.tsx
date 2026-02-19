@@ -42,6 +42,19 @@ interface ReportData {
       accountName: string
     }
   }
+  accountType?: string
+  byDepositSource?: Array<{
+    sourceId: string
+    sourceName: string
+    totalAmount: number
+    depositCount: number
+    percentage: number
+  }>
+  incomeVsExpenses?: Array<{
+    month: string
+    income: number
+    expenses: number
+  }>
 }
 
 interface ExpenseAccountReportsProps {
@@ -162,7 +175,8 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
     )
   }
 
-  const { byCategory, byPayee, trends, summary } = reportData
+  const { byCategory, byPayee, trends, summary, accountType, byDepositSource, incomeVsExpenses } = reportData
+  const isPersonal = accountType === 'PERSONAL'
 
   return (
     <div className="space-y-6">
@@ -371,6 +385,90 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
             </BarChart>
           </ResponsiveContainer>
         </div>
+      )}
+
+      {/* PERSONAL ACCOUNT SECTIONS */}
+      {isPersonal && (
+        <>
+          {/* Savings Summary */}
+          {byDepositSource && incomeVsExpenses && (() => {
+            const totalIncome = byDepositSource.reduce((s, d) => s + d.totalAmount, 0)
+            const totalExpenses = summary.totalSpent
+            const netSavings = totalIncome - totalExpenses
+            const savingsRate = totalIncome > 0 ? (netSavings / totalIncome) * 100 : 0
+            return (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-green-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Total Income</p>
+                  <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-1">{formatCurrency(totalIncome)}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-red-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Total Expenses</p>
+                  <p className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">{formatCurrency(totalExpenses)}</p>
+                </div>
+                <div className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 ${netSavings >= 0 ? 'border-teal-500' : 'border-orange-500'}`}>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Net Savings</p>
+                  <p className={`text-xl font-bold mt-1 ${netSavings >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                    {netSavings >= 0 ? '+' : ''}{formatCurrency(netSavings)}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-blue-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Savings Rate</p>
+                  <p className={`text-xl font-bold mt-1 ${savingsRate >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                    {savingsRate.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Income by Source */}
+          {byDepositSource && byDepositSource.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Income by Source</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie data={byDepositSource.slice(0, 8)} dataKey="totalAmount" nameKey="sourceName" cx="50%" cy="50%" outerRadius={90} labelLine={false} label={renderPieLabel}>
+                      {byDepositSource.slice(0, 8).map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-2">
+                  {byDepositSource.slice(0, 8).map((src, i) => (
+                    <div key={src.sourceId} className="flex items-center gap-2 text-sm bg-gray-50 dark:bg-gray-700 rounded px-2 py-1">
+                      <div className="w-4 h-4 rounded-sm flex-shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      <span className="text-gray-900 dark:text-gray-100 flex-1 truncate">{src.sourceName}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{src.percentage.toFixed(1)}%</span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(src.totalAmount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Income vs Expenses chart */}
+          {incomeVsExpenses && incomeVsExpenses.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Income vs Expenses</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={incomeVsExpenses.map((m) => ({ ...m, name: formatPeriod(m.month) }))}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: any) => formatCurrency(v)} />
+                  <Legend />
+                  <Bar dataKey="income" name="Income" fill="#87B5A5" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" name="Expenses" fill="#E8D5C4" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

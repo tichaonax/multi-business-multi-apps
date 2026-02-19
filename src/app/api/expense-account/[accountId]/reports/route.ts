@@ -23,7 +23,7 @@ import { getServerUser } from '@/lib/get-server-user'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { accountId: string } }
+  { params }: { params: Promise<{ accountId: string }> }
 ) {
   try {
     const user = await getServerUser()
@@ -32,7 +32,7 @@ export async function GET(
     }
 
     const permissions = getEffectivePermissions(user)
-    const { accountId } = params
+    const { accountId } = await params
 
     if (!permissions.canViewExpenseReports && user.role !== 'admin') {
       if (!(await canUserViewAccount(user.id, accountId))) {
@@ -46,7 +46,7 @@ export async function GET(
     // Check if expense account exists
     const account = await prisma.expenseAccounts.findUnique({
       where: { id: accountId },
-      select: { id: true, accountName: true, accountNumber: true },
+      select: { id: true, accountName: true, accountNumber: true, accountType: true },
     })
 
     if (!account) {
@@ -127,6 +127,7 @@ export async function GET(
     // 1. BY CATEGORY (for pie chart)
     const categoryMap = new Map<string, any>()
     payments.forEach((payment) => {
+      if (!payment.categoryId || !payment.category) return
       const catId = payment.categoryId
       if (!categoryMap.has(catId)) {
         categoryMap.set(catId, {
@@ -235,6 +236,65 @@ export async function GET(
       },
     }
 
+    // 5. PERSONAL-ONLY: deposit source breakdown + income vs expenses monthly
+    let byDepositSource: any[] = []
+    let incomeVsExpenses: any[] = []
+
+    if (account.accountType === 'PERSONAL') {
+      const depositWhere: any = { expenseAccountId: accountId }
+      if (startDate || endDate) {
+        depositWhere.depositDate = {}
+        if (startDate) depositWhere.depositDate.gte = new Date(startDate)
+        if (endDate) depositWhere.depositDate.lte = new Date(endDate)
+      }
+
+      const deposits = await prisma.expenseAccountDeposits.findMany({
+        where: depositWhere,
+        select: {
+          id: true,
+          amount: true,
+          depositDate: true,
+          sourceType: true,
+          depositSourceId: true,
+          depositSource: { select: { id: true, name: true, emoji: true } },
+        },
+      })
+
+      const totalDepositAmount = deposits.reduce((s, d) => s + Number(d.amount), 0)
+
+      // By deposit source
+      const sourceMap = new Map<string, any>()
+      deposits.forEach((d) => {
+        const key = d.depositSourceId || d.sourceType
+        const name = d.depositSource ? `${d.depositSource.emoji || ''} ${d.depositSource.name}`.trim() : d.sourceType
+        if (!sourceMap.has(key)) {
+          sourceMap.set(key, { sourceId: key, sourceName: name, totalAmount: 0, depositCount: 0, percentage: 0 })
+        }
+        const entry = sourceMap.get(key)!
+        entry.totalAmount += Number(d.amount)
+        entry.depositCount++
+      })
+      byDepositSource = Array.from(sourceMap.values())
+        .map((s) => ({ ...s, percentage: totalDepositAmount > 0 ? (s.totalAmount / totalDepositAmount) * 100 : 0 }))
+        .sort((a, b) => b.totalAmount - a.totalAmount)
+
+      // Income vs expenses by month
+      const monthSet = new Map<string, { month: string; income: number; expenses: number }>()
+      deposits.forEach((d) => {
+        const date = new Date(d.depositDate)
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        if (!monthSet.has(key)) monthSet.set(key, { month: key, income: 0, expenses: 0 })
+        monthSet.get(key)!.income += Number(d.amount)
+      })
+      payments.forEach((p) => {
+        const date = new Date(p.paymentDate)
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        if (!monthSet.has(key)) monthSet.set(key, { month: key, income: 0, expenses: 0 })
+        monthSet.get(key)!.expenses += Number(p.amount)
+      })
+      incomeVsExpenses = Array.from(monthSet.values()).sort((a, b) => a.month.localeCompare(b.month))
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -242,6 +302,8 @@ export async function GET(
         byPayee,
         trends,
         summary,
+        accountType: account.accountType,
+        ...(account.accountType === 'PERSONAL' && { byDepositSource, incomeVsExpenses }),
       },
     })
   } catch (error) {

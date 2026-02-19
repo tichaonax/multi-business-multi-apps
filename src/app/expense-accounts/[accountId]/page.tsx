@@ -14,6 +14,7 @@ import { TransactionHistory } from '@/components/expense-account/transaction-his
 import { QuickPaymentModal } from '@/components/expense-account/quick-payment-modal'
 import { QuickDepositModal } from '@/components/expense-account/quick-deposit-modal'
 import { AccountPermissionsTab } from '@/components/expense-account/account-permissions-tab'
+import { LoansTab } from '@/components/expense-account/loans-tab'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -300,6 +301,17 @@ export default function ExpenseAccountDetailPage() {
                 Transactions
               </button>
 
+              <button
+                onClick={() => setActiveTab('loans')}
+                className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === 'loans'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                }`}
+              >
+                Loans
+              </button>
+
               {isSystemAdmin && (
                 <button
                   onClick={() => setActiveTab('permissions')}
@@ -400,6 +412,7 @@ export default function ExpenseAccountDetailPage() {
                 </h4>
                 <DepositForm
                   accountId={accountId}
+                  accountType={account.accountType}
                   onSuccess={handleDepositSuccess}
                 />
               </div>
@@ -437,6 +450,16 @@ export default function ExpenseAccountDetailPage() {
                   Transaction History
                 </h4>
                 <TransactionHistory accountId={accountId} />
+              </div>
+            )}
+
+            {/* Loans Tab */}
+            {activeTab === 'loans' && (
+              <div>
+                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
+                  Loans
+                </h4>
+                <LoansTab accountId={accountId} />
               </div>
             )}
 

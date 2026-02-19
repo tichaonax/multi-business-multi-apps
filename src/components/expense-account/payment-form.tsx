@@ -51,6 +51,10 @@ interface BatchPayment {
   receiptServiceProvider?: string
   receiptReason?: string
   isFullPayment?: boolean
+  paymentType?: string
+  loanId?: string
+  interestAmount?: number
+  transferLedgerId?: string
 }
 
 // Quick inline create modal for subcategory/sub-subcategory
@@ -321,7 +325,13 @@ export function PaymentForm({
   const [creatingSubItem, setCreatingSubItem] = useState(false)
   const [showReceiptSection, setShowReceiptSection] = useState(false)
   const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)  // Increment to refresh payee list
+  const [skipPayee, setSkipPayee] = useState(false)  // Personal accounts: no specific payee
   const [categoryRefreshTrigger, setCategoryRefreshTrigger] = useState(0)  // Increment to refresh category list
+  const [loans, setLoans] = useState<{ id: string; loanNumber: string; principalAmount: number; remainingBalance: number; dueDate: string | null; status: string; lender: { name: string } }[]>([])
+  const [loadingLoans, setLoadingLoans] = useState(false)
+  const [transfers, setTransfers] = useState<{ id: string; fromBusinessName: string; originalAmount: number; outstandingAmount: number; transferDate: string }[]>([])
+  const [loadingTransfers, setLoadingTransfers] = useState(false)
+  const [personalDomainId, setPersonalDomainId] = useState('')
 
   const [batchPayments, setBatchPayments] = useState<BatchPayment[]>([])
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
@@ -338,7 +348,11 @@ export function PaymentForm({
     receiptNumber: '',
     receiptServiceProvider: '',
     receiptReason: '',
-    isFullPayment: true
+    isFullPayment: true,
+    paymentType: 'REGULAR' as 'REGULAR' | 'LOAN_REPAYMENT' | 'TRANSFER_RETURN',
+    loanId: '',
+    interestAmount: '0',
+    transferLedgerId: '',
   })
 
   const [errors, setErrors] = useState({
@@ -353,7 +367,7 @@ export function PaymentForm({
     loadCategories()
   }, [categoryRefreshTrigger])
 
-  // Auto-select category matching business type when categories load
+  // Auto-select category matching business type when categories load (general accounts)
   useEffect(() => {
     if (categories.length > 0 && defaultCategoryBusinessType && !formData.categoryId) {
       const domainName = getDefaultDomainName(defaultCategoryBusinessType)
@@ -363,6 +377,14 @@ export function PaymentForm({
       }
     }
   }, [categories, defaultCategoryBusinessType])
+
+  // For personal accounts: auto-set categoryId to personalDomainId so loadSubcategories
+  // fetches the 20 personal ExpenseCategories into subcategories[] automatically
+  useEffect(() => {
+    if (isPersonalAccount && personalDomainId && !formData.categoryId) {
+      setFormData(prev => ({ ...prev, categoryId: personalDomainId }))
+    }
+  }, [personalDomainId])
 
   // Load batch from sessionStorage
   useEffect(() => {
@@ -414,6 +436,16 @@ export function PaymentForm({
     restoringEditRef.current = false
   }, [formData.subcategoryId])
 
+  // Load active loans when loan repayment type is selected
+  useEffect(() => {
+    if (formData.paymentType === 'LOAN_REPAYMENT' && loans.length === 0) {
+      loadLoans()
+    }
+    if (formData.paymentType === 'TRANSFER_RETURN' && transfers.length === 0) {
+      loadTransfers()
+    }
+  }, [formData.paymentType])
+
   const loadCategories = async () => {
     try {
       setLoadingCategories(true)
@@ -426,30 +458,38 @@ export function PaymentForm({
         const flattenedCategories: ExpenseCategory[] = []
 
         if (data.domains && Array.isArray(data.domains)) {
-          data.domains.forEach((domain: any) => {
-            // For PERSONAL accounts, only include the Personal domain
-            if (isPersonalAccount && domain.name !== 'Personal') return
-            if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
-              domain.expense_categories.forEach((cat: any) => {
-                flattenedCategories.push({
-                  id: cat.id,
-                  name: cat.name,
-                  emoji: cat.emoji,
-                  color: cat.color || '#000000',
-                  requiresSubcategory: cat.requiresSubcategory ?? false,
-                })
-              })
+          // The hierarchical API returns a single fake wrapper with all categories inside.
+          // Domains (like "Personal") appear as category entries with name = "Personal".
+          if (isPersonalAccount) {
+            // Find the "Personal" domain entry inside expense_categories and capture its ID.
+            // The existing loadSubcategories(personalDomainId) flow will then fetch the 20 personal categories.
+            const allCats = data.domains[0]?.expense_categories || []
+            const personalEntry = allCats.find((c: any) => c.name === 'Personal')
+            if (personalEntry) {
+              setPersonalDomainId(personalEntry.id)
             }
-          })
+            // categories[] stays empty for personal accounts (category column shows locked label)
+          } else {
+            data.domains.forEach((domain: any) => {
+              if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
+                domain.expense_categories.forEach((cat: any) => {
+                  flattenedCategories.push({
+                    id: cat.id,
+                    name: cat.name,
+                    emoji: cat.emoji,
+                    color: cat.color || '#000000',
+                    requiresSubcategory: cat.requiresSubcategory ?? false,
+                  })
+                })
+              }
+            })
+          }
         }
 
         flattenedCategories.sort((a, b) => a.name.localeCompare(b.name))
         setCategories(flattenedCategories)
 
-        // For PERSONAL accounts: auto-select the first (and only) Personal category
-        if (isPersonalAccount && flattenedCategories.length > 0) {
-          setFormData(prev => ({ ...prev, categoryId: flattenedCategories[0].id }))
-        }
+        // Personal accounts: categoryId is auto-set via the personalDomainId useEffect
       }
     } catch (error) {
       console.error('Error loading categories:', error)
@@ -510,6 +550,40 @@ export function PaymentForm({
     }
   }
 
+  const loadLoans = async () => {
+    try {
+      setLoadingLoans(true)
+      const res = await fetch(`/api/expense-account/${accountId}/loans`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setLoans((data.data?.loans || []).filter((l: any) => l.status === 'ACTIVE'))
+      }
+    } catch (e) {
+      console.error('Error loading loans:', e)
+    } finally {
+      setLoadingLoans(false)
+    }
+  }
+
+  const loadTransfers = async () => {
+    try {
+      setLoadingTransfers(true)
+      const res = await fetch(`/api/expense-account/${accountId}/transfers?status=OUTSTANDING`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        const all = data.data?.transfers || []
+        // Also include PARTIALLY_RETURNED
+        const res2 = await fetch(`/api/expense-account/${accountId}/transfers?status=PARTIALLY_RETURNED`, { credentials: 'include' })
+        const data2 = res2.ok ? await res2.json() : { data: { transfers: [] } }
+        setTransfers([...all, ...(data2.data?.transfers || [])])
+      }
+    } catch (e) {
+      console.error('Error loading transfers:', e)
+    } finally {
+      setLoadingTransfers(false)
+    }
+  }
+
   const selectedCategory = categories.find(c => c.id === formData.categoryId)
   const selectedSubcategory = subcategories.find(s => s.id === formData.subcategoryId)
 
@@ -534,12 +608,12 @@ export function PaymentForm({
       paymentDate: ''
     }
 
-    if (!formData.payee) {
+    if (!skipPayee && !formData.payee) {
       newErrors.payee = 'Please select a payee'
     }
 
-    if (!formData.categoryId) {
-      newErrors.categoryId = 'Please select a category'
+    if (isPersonalAccount ? !formData.subcategoryId : !formData.categoryId) {
+      newErrors.categoryId = isPersonalAccount ? 'Please select a personal category' : 'Please select a category'
     }
 
     const amount = parseFloat(formData.amount)
@@ -631,9 +705,9 @@ export function PaymentForm({
 
     const payment: BatchPayment = {
       id: editingPaymentId || `temp-${Date.now()}-${Math.random()}`,
-      payeeType: formData.payee!.type,
-      payeeName: formData.payee!.name,
-      payeeId: formData.payee!.id,
+      payeeType: skipPayee ? 'NONE' : formData.payee!.type,
+      payeeName: skipPayee ? 'No specific payee' : formData.payee!.name,
+      payeeId: skipPayee ? '' : formData.payee!.id,
       categoryId: formData.categoryId,
       categoryName: category?.name || '',
       categoryEmoji: category?.emoji || '',
@@ -647,7 +721,11 @@ export function PaymentForm({
       receiptNumber: formData.receiptNumber.trim() || undefined,
       receiptServiceProvider: formData.receiptServiceProvider.trim() || undefined,
       receiptReason: formData.receiptReason.trim() || undefined,
-      isFullPayment: formData.isFullPayment
+      isFullPayment: formData.isFullPayment,
+      paymentType: formData.paymentType,
+      loanId: formData.paymentType === 'LOAN_REPAYMENT' ? formData.loanId : undefined,
+      interestAmount: formData.paymentType === 'LOAN_REPAYMENT' ? parseFloat(formData.interestAmount || '0') : undefined,
+      transferLedgerId: formData.paymentType === 'TRANSFER_RETURN' ? formData.transferLedgerId : undefined,
     }
 
     if (editingPaymentId) {
@@ -676,7 +754,11 @@ export function PaymentForm({
         receiptNumber: '',
         receiptServiceProvider: '',
         receiptReason: '',
-        isFullPayment: true
+        isFullPayment: true,
+        paymentType: 'REGULAR',
+        loanId: '',
+        interestAmount: '0',
+        transferLedgerId: '',
       })
     } else {
       // Keep category and subcategory for faster repeat entries
@@ -689,7 +771,11 @@ export function PaymentForm({
         receiptNumber: '',
         receiptServiceProvider: '',
         receiptReason: '',
-        isFullPayment: true
+        isFullPayment: true,
+        paymentType: 'REGULAR',
+        loanId: '',
+        interestAmount: '0',
+        transferLedgerId: '',
       }))
     }
     setErrors({ payee: '', categoryId: '', amount: '', paymentDate: '' })
@@ -710,7 +796,11 @@ export function PaymentForm({
       receiptNumber: payment.receiptNumber || '',
       receiptServiceProvider: payment.receiptServiceProvider || '',
       receiptReason: payment.receiptReason || '',
-      isFullPayment: payment.isFullPayment ?? true
+      isFullPayment: payment.isFullPayment ?? true,
+      paymentType: (payment.paymentType as 'REGULAR' | 'LOAN_REPAYMENT' | 'TRANSFER_RETURN') || 'REGULAR',
+      loanId: payment.loanId || '',
+      interestAmount: payment.interestAmount?.toString() || '0',
+      transferLedgerId: payment.transferLedgerId || '',
     })
     setEditingPaymentId(payment.id)
     if (payment.receiptNumber || payment.receiptServiceProvider || payment.receiptReason) {
@@ -787,6 +877,10 @@ export function PaymentForm({
         receiptServiceProvider: p.receiptServiceProvider || null,
         receiptReason: p.receiptReason || null,
         isFullPayment: p.isFullPayment,
+        paymentType: p.paymentType || 'REGULAR',
+        loanId: p.loanId || null,
+        interestAmount: p.interestAmount ?? null,
+        transferLedgerId: p.transferLedgerId || null,
         status: 'SUBMITTED'
       }))
 
@@ -902,7 +996,7 @@ export function PaymentForm({
           name,
           emoji,
           color: '#3B82F6',
-          domainId: formData.categoryId,
+          domainId: formData.categoryId,  // = personalDomainId for personal accounts
           requiresSubcategory: false,
           isUserCreated: true,
         }),
@@ -1001,122 +1095,209 @@ export function PaymentForm({
         <div className="space-y-4">
           {/* Payee Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Payee <span className="text-red-500">*</span>
-            </label>
-            <PayeeSelector
-              value={formData.payee}
-              onChange={(payee) => {
-                setFormData({ ...formData, payee })
-                setErrors({ ...errors, payee: '' })
-              }}
-              onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
-              onCreateSupplier={canCreatePayees ? () => setShowSupplierModal(true) : undefined}
-              error={errors.payee}
-              refreshTrigger={payeeRefreshTrigger}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Payee {!isPersonalAccount && <span className="text-red-500">*</span>}
+              </label>
+              {isPersonalAccount && (
+                <label className="flex items-center gap-1.5 text-xs text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={skipPayee}
+                    onChange={(e) => {
+                      setSkipPayee(e.target.checked)
+                      if (e.target.checked) setFormData(prev => ({ ...prev, payee: null }))
+                      setErrors(prev => ({ ...prev, payee: '' }))
+                    }}
+                    className="rounded"
+                  />
+                  No specific payee
+                </label>
+              )}
+            </div>
+            {!skipPayee && (
+              <PayeeSelector
+                value={formData.payee}
+                onChange={(payee) => {
+                  setFormData({ ...formData, payee })
+                  setErrors({ ...errors, payee: '' })
+                }}
+                onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
+                onCreateSupplier={canCreatePayees ? () => setShowSupplierModal(true) : undefined}
+                error={errors.payee}
+                refreshTrigger={payeeRefreshTrigger}
+              />
+            )}
           </div>
 
           {/* Category, Subcategory & Sub-subcategory */}
-          {(() => {
-            // Get selected category to check if it requires subcategory
-            const selectedCategory = categories.find(c => c.id === formData.categoryId)
-            const showSubcategories = selectedCategory?.requiresSubcategory !== false
+          {isPersonalAccount ? (
+            /* Personal account: locked "Personal" label + 20 personal categories + sub-categories */
+            <div className="grid grid-cols-3 gap-4">
+              {/* Locked Category label */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Category
+                </label>
+                <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium">
+                  👤 Personal
+                </div>
+              </div>
 
-            return (
-              <div className={`grid ${!isPersonalAccount && showSubcategories ? 'grid-cols-3' : 'grid-cols-1'} gap-4`}>
-                {/* Category selector — hidden for Personal accounts (auto-set behind the scenes) */}
-                {!isPersonalAccount && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Category <span className="text-red-500">*</span>
-                    </label>
+              {/* Personal Category picker — shows subcategories[] which loadSubcategories(personalDomainId) populates */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Personal Category <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateSubcategory(true)}
+                    className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                  >
+                    + Create New
+                  </button>
+                </div>
+                <SearchableSelect
+                  value={formData.subcategoryId}
+                  options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                  onChange={(val) => {
+                    setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })
+                    setErrors({ ...errors, categoryId: '' })
+                  }}
+                  placeholder="Select category..."
+                  loading={loadingSubcategories}
+                  error={!!errors.categoryId}
+                />
+                {errors.categoryId && (
+                  <p className="mt-1 text-sm text-red-500">{errors.categoryId}</p>
+                )}
+              </div>
+
+              {/* Sub-category picker — shows subSubcategories[] which loadSubSubcategories(subcategoryId) populates */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Subcategory
+                  </label>
+                  {formData.subcategoryId && (
                     <button
                       type="button"
-                      onClick={() => setShowCategoryModal(true)}
+                      onClick={() => setShowCreateSubSubcategory(true)}
                       className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                     >
                       + Create New
                     </button>
-                  </div>
-                  <SearchableSelect
-                    value={formData.categoryId}
-                    options={categories.map(c => ({ id: c.id, label: `${c.emoji} ${c.name}` }))}
-                    onChange={(val) => {
-                      setFormData({ ...formData, categoryId: val, subcategoryId: '', subSubcategoryId: '' })
-                      setErrors({ ...errors, categoryId: '' })
-                    }}
-                    placeholder="Select category..."
-                    error={!!errors.categoryId}
-                  />
-                  {errors.categoryId && (
-                    <p className="mt-1 text-sm text-red-500">{errors.categoryId}</p>
-                  )}
-                  {selectedCategory && !selectedCategory.requiresSubcategory && (
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      ✓ This category doesn't require subcategories
-                    </p>
                   )}
                 </div>
-                )}
-
-                {showSubcategories && (
-                  <>
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Subcategory
-                        </label>
-                        {formData.categoryId && (
-                          <button
-                            type="button"
-                            onClick={() => setShowCreateSubcategory(true)}
-                            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                          >
-                            + Create New
-                          </button>
-                        )}
-                      </div>
-                      <SearchableSelect
-                        value={formData.subcategoryId}
-                        options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
-                        onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
-                        placeholder="None"
-                        disabled={!formData.categoryId}
-                        loading={loadingSubcategories}
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Sub-subcategory
-                        </label>
-                        {formData.subcategoryId && (
-                          <button
-                            type="button"
-                            onClick={() => setShowCreateSubSubcategory(true)}
-                            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                          >
-                            + Create New
-                          </button>
-                        )}
-                      </div>
-                      <SearchableSelect
-                        value={formData.subSubcategoryId}
-                        options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
-                        onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
-                        placeholder="None"
-                        disabled={!formData.subcategoryId}
-                        loading={loadingSubSubcategories}
-                      />
-                    </div>
-                  </>
-                )}
+                <SearchableSelect
+                  value={formData.subSubcategoryId}
+                  options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                  onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
+                  placeholder="None"
+                  disabled={!formData.subcategoryId}
+                  loading={loadingSubSubcategories}
+                />
               </div>
-            )
-          })()}
+            </div>
+          ) : (
+            /* General account: standard category → subcategory → sub-subcategory */
+            (() => {
+              const selectedCategory = categories.find(c => c.id === formData.categoryId)
+              const showSubcategories = selectedCategory?.requiresSubcategory !== false
+
+              return (
+                <div className={`grid ${showSubcategories ? 'grid-cols-3' : 'grid-cols-1'} gap-4`}>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Category <span className="text-red-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCategoryModal(true)}
+                        className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                      >
+                        + Create New
+                      </button>
+                    </div>
+                    <SearchableSelect
+                      value={formData.categoryId}
+                      options={categories.map(c => ({ id: c.id, label: `${c.emoji} ${c.name}` }))}
+                      onChange={(val) => {
+                        setFormData({ ...formData, categoryId: val, subcategoryId: '', subSubcategoryId: '' })
+                        setErrors({ ...errors, categoryId: '' })
+                      }}
+                      placeholder="Select category..."
+                      error={!!errors.categoryId}
+                    />
+                    {errors.categoryId && (
+                      <p className="mt-1 text-sm text-red-500">{errors.categoryId}</p>
+                    )}
+                    {selectedCategory && !selectedCategory.requiresSubcategory && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        ✓ This category doesn't require subcategories
+                      </p>
+                    )}
+                  </div>
+
+                  {showSubcategories && (
+                    <>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Subcategory
+                          </label>
+                          {formData.categoryId && (
+                            <button
+                              type="button"
+                              onClick={() => setShowCreateSubcategory(true)}
+                              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                            >
+                              + Create New
+                            </button>
+                          )}
+                        </div>
+                        <SearchableSelect
+                          value={formData.subcategoryId}
+                          options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                          onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
+                          placeholder="None"
+                          disabled={!formData.categoryId}
+                          loading={loadingSubcategories}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Sub-subcategory
+                          </label>
+                          {formData.subcategoryId && (
+                            <button
+                              type="button"
+                              onClick={() => setShowCreateSubSubcategory(true)}
+                              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                            >
+                              + Create New
+                            </button>
+                          )}
+                        </div>
+                        <SearchableSelect
+                          value={formData.subSubcategoryId}
+                          options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                          onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
+                          placeholder="None"
+                          disabled={!formData.subcategoryId}
+                          loading={loadingSubSubcategories}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })()
+          )}
 
           {/* Amount & Date */}
           <div className="grid grid-cols-2 gap-4">
@@ -1179,6 +1360,124 @@ export function PaymentForm({
               maxLength={500}
             />
           </div>
+
+          {/* Loan Repayment Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Payment Classification
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  checked={formData.paymentType === 'REGULAR'}
+                  onChange={() => setFormData({ ...formData, paymentType: 'REGULAR', loanId: '', interestAmount: '0' })}
+                  className="mr-2"
+                />
+                <span className="text-sm">Regular Payment</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  checked={formData.paymentType === 'LOAN_REPAYMENT'}
+                  onChange={() => setFormData({ ...formData, paymentType: 'LOAN_REPAYMENT', transferLedgerId: '' })}
+                  className="mr-2"
+                />
+                <span className="text-sm">Loan Repayment</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  checked={formData.paymentType === 'TRANSFER_RETURN'}
+                  onChange={() => setFormData({ ...formData, paymentType: 'TRANSFER_RETURN', loanId: '', interestAmount: '0' })}
+                  className="mr-2"
+                />
+                <span className="text-sm">Transfer Return</span>
+              </label>
+            </div>
+            {formData.paymentType === 'LOAN_REPAYMENT' && (
+              <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-lg space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Select Loan <span className="text-red-500">*</span>
+                  </label>
+                  {loadingLoans ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Loading loans...</div>
+                  ) : loans.length === 0 ? (
+                    <div className="text-sm text-amber-600 dark:text-amber-400">No active loans found for this account</div>
+                  ) : (
+                    <select
+                      value={formData.loanId}
+                      onChange={(e) => setFormData({ ...formData, loanId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select a loan...</option>
+                      {loans.map((loan) => (
+                        <option key={loan.id} value={loan.id}>
+                          {loan.loanNumber} — {loan.lender.name} (${loan.remainingBalance.toFixed(2)} remaining)
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Interest Amount (optional)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.interestAmount}
+                      onChange={(e) => setFormData({ ...formData, interestAmount: e.target.value })}
+                      className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Interest portion of this payment. Principal = total amount − interest.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Transfer Return UI */}
+          {formData.paymentType === 'TRANSFER_RETURN' && (
+            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Select Transfer to Return <span className="text-red-500">*</span>
+              </label>
+              {loadingTransfers ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400">Loading transfers...</div>
+              ) : transfers.length === 0 ? (
+                <div className="text-sm text-amber-600 dark:text-amber-400">No outstanding transfers found for this account</div>
+              ) : (
+                <select
+                  value={formData.transferLedgerId}
+                  onChange={(e) => setFormData({ ...formData, transferLedgerId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a transfer...</option>
+                  {transfers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.fromBusinessName} — ${t.outstandingAmount.toFixed(2)} outstanding (of ${t.originalAmount.toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {formData.transferLedgerId && (() => {
+                const selected = transfers.find(t => t.id === formData.transferLedgerId)
+                return selected ? (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    Max returnable: ${selected.outstandingAmount.toFixed(2)}
+                  </p>
+                ) : null
+              })()}
+            </div>
+          )}
 
           {/* Receipt Section (Collapsible) */}
           <div>

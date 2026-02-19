@@ -1095,14 +1095,68 @@ export function Sidebar() {
                   </Link>
                 )}
 
-                {hasPermission('canViewExpenseReports') && (
+                {hasPermission('canAccessExpenseAccount') && (
                   <Link
-                    href="/expense-accounts/reports"
+                    href="/expense-accounts/lenders"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
-                    <span>📊</span>
-                    <span>All Reports</span>
+                    <span>🏦</span>
+                    <span>Lenders</span>
                   </Link>
+                )}
+
+                {hasPermission('canViewExpenseReports') && (
+                  <>
+                    <Link
+                      href="/expense-accounts/reports"
+                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    >
+                      <span>📊</span>
+                      <span>Reports Hub</span>
+                    </Link>
+                    <Link
+                      href="/expense-accounts/reports/accounts-overview"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>🏦</span>
+                      <span>Accounts Overview</span>
+                    </Link>
+                    <Link
+                      href="/expense-accounts/reports/loans"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>💼</span>
+                      <span>Loan Portfolio</span>
+                    </Link>
+                    <Link
+                      href="/expense-accounts/reports/categories"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>🏷️</span>
+                      <span>Category Analysis</span>
+                    </Link>
+                    <Link
+                      href="/expense-accounts/reports/payees"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>👥</span>
+                      <span>Payee Analysis</span>
+                    </Link>
+                    <Link
+                      href="/expense-accounts/reports/trends"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>📈</span>
+                      <span>Monthly Trends</span>
+                    </Link>
+                    <Link
+                      href="/expense-accounts/reports/transfers"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>🔄</span>
+                      <span>Transfer Report</span>
+                    </Link>
+                  </>
                 )}
               </div>
             )}

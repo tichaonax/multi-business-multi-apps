@@ -298,6 +298,11 @@ export async function POST(
         )
       }
 
+      // NONE payee type — skip all payee ID and existence validation
+      if (payment.payeeType === 'NONE') {
+        // allowed: no payee ID needed
+      } else
+
       // Validate payee ID based on type
       if (payment.payeeType === 'USER' && !payment.payeeUserId) {
         return NextResponse.json(
@@ -330,7 +335,8 @@ export async function POST(
         )
       }
 
-      if (!payment.categoryId) {
+      const isClassifiedPayment = payment.paymentType === 'LOAN_REPAYMENT' || payment.paymentType === 'TRANSFER_RETURN'
+      if (!payment.categoryId && !isClassifiedPayment) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Category ID is required`, index: i },
           { status: 400 }
@@ -380,7 +386,7 @@ export async function POST(
         )
       }
 
-      // Validate payee exists and is active
+      // Validate payee exists and is active (skip for NONE payee type)
       const payeeId =
         payment.payeeUserId ||
         payment.payeeEmployeeId ||
@@ -388,15 +394,17 @@ export async function POST(
         payment.payeeBusinessId ||
         payment.payeeSupplierId
 
-      const payeeValidation = await validatePayee(payment.payeeType, payeeId)
-      if (!payeeValidation.valid) {
-        return NextResponse.json(
-          {
-            error: `Payment ${paymentIndex}: ${payeeValidation.error}`,
-            index: i,
-          },
-          { status: 400 }
-        )
+      if (payment.payeeType !== 'NONE') {
+        const payeeValidation = await validatePayee(payment.payeeType, payeeId)
+        if (!payeeValidation.valid) {
+          return NextResponse.json(
+            {
+              error: `Payment ${paymentIndex}: ${payeeValidation.error}`,
+              index: i,
+            },
+            { status: 400 }
+          )
+        }
       }
 
       // Validate payment amount for individuals without national ID
@@ -448,19 +456,22 @@ export async function POST(
         }
       }
 
-      // Validate category exists
-      const category = await prisma.expenseCategories.findUnique({
-        where: { id: payment.categoryId },
-      })
-      if (!category) {
-        return NextResponse.json(
-          { error: `Payment ${paymentIndex}: Expense category not found`, index: i },
-          { status: 404 }
-        )
+      // Validate category exists (skip for classified payment types)
+      let category = null
+      if (payment.categoryId) {
+        category = await prisma.expenseCategories.findUnique({
+          where: { id: payment.categoryId },
+        })
+        if (!category) {
+          return NextResponse.json(
+            { error: `Payment ${paymentIndex}: Expense category not found`, index: i },
+            { status: 404 }
+          )
+        }
       }
 
       // Validate subcategory if category requires it
-      if (category.requiresSubcategory && !payment.subcategoryId) {
+      if (category?.requiresSubcategory && !payment.subcategoryId) {
         return NextResponse.json(
           {
             error: `Payment ${paymentIndex}: This category requires a subcategory`,
@@ -561,7 +572,7 @@ export async function POST(
             payeePersonId: payment.payeePersonId || null,
             payeeBusinessId: payment.payeeBusinessId || null,
             payeeSupplierId: payment.payeeSupplierId || null,
-            categoryId: payment.categoryId,
+            categoryId: payment.categoryId || null,
             subcategoryId: payment.subcategoryId || null,
             amount: Number(payment.amount),
             paymentDate,
@@ -572,6 +583,10 @@ export async function POST(
             isFullPayment: payment.isFullPayment !== undefined ? payment.isFullPayment : true,
             batchId,
             status: paymentStatus,
+            paymentType: payment.paymentType || 'REGULAR',
+            loanId: payment.loanId || null,
+            interestAmount: payment.interestAmount != null ? Number(payment.interestAmount) : null,
+            transferLedgerId: payment.transferLedgerId || null,
             createdBy: user.id,
             submittedBy: paymentStatus === 'SUBMITTED' ? user.id : null,
             submittedAt: paymentStatus === 'SUBMITTED' ? new Date() : null,
@@ -608,6 +623,61 @@ export async function POST(
             },
           },
         })
+
+        // If LOAN_REPAYMENT, update loan remaining balance.
+        // Interest is a charge that increases the balance (not an extra payment).
+        // new balance = (remaining + interest charged) - payment
+        // Only `amount` (the payment) is deducted from the expense account.
+        if (payment.paymentType === 'LOAN_REPAYMENT' && payment.loanId) {
+          const loan = await tx.expenseAccountLoans.findUnique({ where: { id: payment.loanId } })
+          if (loan) {
+            const interestAmt = Number(payment.interestAmount || 0)
+            const newBalance = Math.max(0, Number(loan.remainingBalance) + interestAmt - Number(payment.amount))
+            await tx.expenseAccountLoans.update({
+              where: { id: payment.loanId },
+              data: {
+                remainingBalance: newBalance,
+                status: newBalance <= 0 ? 'PAID_OFF' : 'ACTIVE',
+              },
+            })
+          }
+        }
+
+        // If TRANSFER_RETURN, update ledger outstanding amount and credit originating business
+        if (payment.paymentType === 'TRANSFER_RETURN' && payment.transferLedgerId) {
+          const ledger = await tx.businessTransferLedger.findUnique({ where: { id: payment.transferLedgerId } })
+          if (ledger) {
+            const newOutstanding = Math.max(0, Number(ledger.outstandingAmount) - Number(payment.amount))
+            await tx.businessTransferLedger.update({
+              where: { id: payment.transferLedgerId },
+              data: {
+                outstandingAmount: newOutstanding,
+                status: newOutstanding <= 0 ? 'RETURNED' : 'PARTIALLY_RETURNED',
+              },
+            })
+
+            // Credit the originating business's business account
+            const fromBizAccount = await tx.businessAccounts.findUnique({ where: { businessId: ledger.fromBusinessId } })
+            if (fromBizAccount) {
+              const creditedBalance = Number(fromBizAccount.balance) + Number(payment.amount)
+              await tx.businessAccounts.update({
+                where: { businessId: ledger.fromBusinessId },
+                data: { balance: creditedBalance },
+              })
+              await tx.businessTransactions.create({
+                data: {
+                  businessId: ledger.fromBusinessId,
+                  type: 'CREDIT',
+                  amount: Number(payment.amount),
+                  description: `Transfer return from expense account`,
+                  balanceAfter: creditedBalance,
+                  createdBy: user.id,
+                  referenceType: 'EXPENSE_TRANSFER_RETURN',
+                },
+              })
+            }
+          }
+        }
 
         createdPayments.push(newPayment)
       }

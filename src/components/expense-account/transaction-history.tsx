@@ -13,6 +13,7 @@ interface Transaction {
   // Deposit-specific
   sourceType?: string
   sourceBusiness?: { id: string; name: string; type: string }
+  depositSource?: { id: string; name: string; emoji: string }
   transactionType?: string
   // Payment-specific
   payeeType?: string
@@ -21,6 +22,7 @@ interface Transaction {
   payeePerson?: { id: string; fullName: string }
   payeeBusiness?: { id: string; name: string }
   category?: { id: string; name: string; emoji: string }
+  paymentType?: string
   receiptNumber?: string
   status?: string
   createdBy?: { id: string; name: string }
@@ -115,6 +117,36 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     setPage(0)
   }
 
+  const toDateStr = (d: Date) => d.toISOString().split('T')[0]
+
+  const applyQuickFilter = (days: number | 'today' | 'yesterday') => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (days === 'today') {
+      setStartDate(toDateStr(today))
+      setEndDate(toDateStr(today))
+    } else if (days === 'yesterday') {
+      const y = new Date(today)
+      y.setDate(y.getDate() - 1)
+      setStartDate(toDateStr(y))
+      setEndDate(toDateStr(y))
+    } else {
+      const from = new Date(today)
+      from.setDate(from.getDate() - days + 1)
+      setStartDate(toDateStr(from))
+      setEndDate(toDateStr(today))
+    }
+    setPage(0)
+  }
+
+  const QUICK_FILTERS = [
+    { label: 'Today', action: () => applyQuickFilter('today') },
+    { label: 'Yesterday', action: () => applyQuickFilter('yesterday') },
+    { label: '7 Days', action: () => applyQuickFilter(7) },
+    { label: '30 Days', action: () => applyQuickFilter(30) },
+    { label: '90 Days', action: () => applyQuickFilter(90) },
+  ]
+
   if (loading && page === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -127,6 +159,18 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     <div className="space-y-4">
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4">
+        {/* Quick date filters */}
+        <div className="flex gap-1.5 flex-wrap mb-3">
+          {QUICK_FILTERS.map((f) => (
+            <button
+              key={f.label}
+              onClick={f.action}
+              className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -266,9 +310,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                         {transaction.category ? (
-                          <span>
-                            {transaction.category.emoji} {transaction.category.name}
-                          </span>
+                          <span>{transaction.category.emoji} {transaction.category.name}</span>
+                        ) : transaction.paymentType === 'LOAN_REPAYMENT' ? (
+                          <span className="text-blue-600 dark:text-blue-400">🏦 Loan Repayment</span>
+                        ) : transaction.paymentType === 'TRANSFER_RETURN' ? (
+                          <span className="text-purple-600 dark:text-purple-400">🔄 Transfer Return</span>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500">—</span>
                         )}
@@ -276,6 +322,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                         {transaction.sourceBusiness ? (
                           <span className="font-medium">{transaction.sourceBusiness.name}</span>
+                        ) : transaction.depositSource ? (
+                          <span className="font-medium">{transaction.depositSource.emoji} {transaction.depositSource.name}</span>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500">—</span>
                         )}

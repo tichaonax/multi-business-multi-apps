@@ -76,6 +76,7 @@ export function QuickPaymentModal({
   const [loading, setLoading] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
   const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)
+  const [skipPayee, setSkipPayee] = useState(false)
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingSubcategories, setLoadingSubcategories] = useState(false)
   const toast = useToastContext()
@@ -225,7 +226,7 @@ export function QuickPaymentModal({
       paymentDate: ''
     }
 
-    if (!formData.payee) {
+    if (!skipPayee && !formData.payee) {
       newErrors.payee = 'Please select a payee'
     }
 
@@ -313,11 +314,11 @@ export function QuickPaymentModal({
     try {
       // Construct the payment payload with correct field names based on payee type
       const payment = {
-        payeeType: formData.payee!.type,
-        payeeUserId: formData.payee!.type === 'USER' ? formData.payee!.id : undefined,
-        payeeEmployeeId: formData.payee!.type === 'EMPLOYEE' ? formData.payee!.id : undefined,
-        payeePersonId: formData.payee!.type === 'PERSON' ? formData.payee!.id : undefined,
-        payeeBusinessId: formData.payee!.type === 'BUSINESS' ? formData.payee!.id : undefined,
+        payeeType: skipPayee ? 'NONE' : formData.payee!.type,
+        payeeUserId: !skipPayee && formData.payee?.type === 'USER' ? formData.payee.id : undefined,
+        payeeEmployeeId: !skipPayee && formData.payee?.type === 'EMPLOYEE' ? formData.payee.id : undefined,
+        payeePersonId: !skipPayee && formData.payee?.type === 'PERSON' ? formData.payee.id : undefined,
+        payeeBusinessId: !skipPayee && formData.payee?.type === 'BUSINESS' ? formData.payee.id : undefined,
         // Form "category" = domain, "subcategory" = actual category, "sub-subcategory" = subcategory
         categoryId: formData.subcategoryId || formData.categoryId,
         subcategoryId: formData.subSubcategoryId || null,
@@ -429,19 +430,38 @@ export function QuickPaymentModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Payee Selection */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Payee <span className="text-red-500">*</span>
-            </label>
-            <PayeeSelector
-              value={formData.payee}
-              onChange={(payee) => {
-                setFormData({ ...formData, payee })
-                setErrors({ ...errors, payee: '' })
-              }}
-              onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
-              error={errors.payee}
-              refreshTrigger={payeeRefreshTrigger}
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-secondary">
+                Payee {!isPersonalAccount && <span className="text-red-500">*</span>}
+              </label>
+              {isPersonalAccount && (
+                <label className="flex items-center gap-1.5 text-xs text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={skipPayee}
+                    onChange={(e) => {
+                      setSkipPayee(e.target.checked)
+                      if (e.target.checked) setFormData(prev => ({ ...prev, payee: null }))
+                      setErrors(prev => ({ ...prev, payee: '' }))
+                    }}
+                    className="rounded"
+                  />
+                  No specific payee
+                </label>
+              )}
+            </div>
+            {!skipPayee && (
+              <PayeeSelector
+                value={formData.payee}
+                onChange={(payee) => {
+                  setFormData({ ...formData, payee })
+                  setErrors({ ...errors, payee: '' })
+                }}
+                onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
+                error={errors.payee}
+                refreshTrigger={payeeRefreshTrigger}
+              />
+            )}
           </div>
 
           {/* Category Selection — hidden for Personal accounts (auto-set) */}

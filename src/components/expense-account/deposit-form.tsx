@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { getTodayLocalDateString } from '@/lib/date-utils'
+import { LenderSelector } from './lender-selector'
 
 interface Business {
   id: string
@@ -12,20 +13,35 @@ interface Business {
   balance: number
 }
 
+interface DepositSource {
+  id: string
+  name: string
+  emoji: string
+  isDefault: boolean
+}
+
 interface DepositFormProps {
   accountId: string
+  accountType?: string
   onSuccess?: () => void
 }
 
-export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
+export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: DepositFormProps) {
+  const isPersonalAccount = accountType === 'PERSONAL'
   const customAlert = useAlert()
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [loadingBusinesses, setLoadingBusinesses] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [depositSources, setDepositSources] = useState<DepositSource[]>([])
 
   const [formData, setFormData] = useState({
-    sourceType: 'MANUAL' as 'BUSINESS' | 'MANUAL' | 'OTHER',
+    sourceType: 'MANUAL' as 'BUSINESS' | 'MANUAL' | 'OTHER' | 'LOAN',
     sourceBusinessId: '',
+    depositSourceId: '',
+    lenderId: '',
+    lenderName: '',
+    loanDueDate: '',
+    loanNotes: '',
     amount: '',
     depositDate: getTodayLocalDateString(),
     transactionType: 'DEPOSIT' as string,
@@ -43,6 +59,15 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
       fetchBusinesses()
     }
   }, [formData.sourceType])
+
+  useEffect(() => {
+    if (isPersonalAccount) {
+      fetch('/api/expense-account/deposit-sources', { credentials: 'include' })
+        .then(r => r.json())
+        .then(d => setDepositSources(d.data?.sources || []))
+        .catch(() => {})
+    }
+  }, [isPersonalAccount])
 
   const fetchBusinesses = async () => {
     try {
@@ -146,6 +171,10 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
         body: JSON.stringify({
           sourceType: formData.sourceType,
           sourceBusinessId: formData.sourceType === 'BUSINESS' ? formData.sourceBusinessId : undefined,
+          depositSourceId: isPersonalAccount && formData.depositSourceId ? formData.depositSourceId : undefined,
+          lenderId: formData.sourceType === 'LOAN' ? formData.lenderId : undefined,
+          loanDueDate: formData.sourceType === 'LOAN' && formData.loanDueDate ? formData.loanDueDate : undefined,
+          loanNotes: formData.sourceType === 'LOAN' && formData.loanNotes ? formData.loanNotes : undefined,
           amount: parseFloat(formData.amount),
           depositDate: formData.depositDate,
           transactionType: formData.transactionType,
@@ -166,6 +195,11 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
         setFormData({
           sourceType: 'MANUAL',
           sourceBusinessId: '',
+          depositSourceId: '',
+          lenderId: '',
+          lenderName: '',
+          loanDueDate: '',
+          loanNotes: '',
           amount: '',
           depositDate: getTodayLocalDateString(),
           transactionType: 'DEPOSIT',
@@ -210,7 +244,7 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Deposit Source <span className="text-red-500">*</span>
         </label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-2">
           <button
             type="button"
             onClick={() => setFormData({ ...formData, sourceType: 'BUSINESS', sourceBusinessId: '' })}
@@ -252,8 +286,72 @@ export function DepositForm({ accountId, onSuccess }: DepositFormProps) {
             <div className="text-sm font-medium">Other</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">External source</div>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, sourceType: 'LOAN', sourceBusinessId: '' })}
+            className={`p-3 border-2 rounded-lg transition-colors ${
+              formData.sourceType === 'LOAN'
+                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+            }`}
+          >
+            <div className="text-2xl mb-1">📚</div>
+            <div className="text-sm font-medium">Loan</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">From a lender</div>
+          </button>
         </div>
       </div>
+
+      {/* Loan Fields */}
+      {formData.sourceType === 'LOAN' && (
+        <div className="space-y-3 p-3 border border-purple-200 dark:border-purple-800 rounded-lg bg-purple-50 dark:bg-purple-900/10">
+          <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">Loan Details</p>
+          <LenderSelector
+            value={formData.lenderId}
+            onChange={(id, name) => setFormData({ ...formData, lenderId: id, lenderName: name })}
+            error={formData.sourceType === 'LOAN' && !formData.lenderId ? '' : undefined}
+          />
+          <div>
+            <label className="block text-xs font-medium text-secondary mb-1">Due Date (optional)</label>
+            <input
+              type="date"
+              value={formData.loanDueDate}
+              onChange={e => setFormData({ ...formData, loanDueDate: e.target.value })}
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-secondary mb-1">Loan Notes (optional)</label>
+            <input
+              type="text"
+              value={formData.loanNotes}
+              onChange={e => setFormData({ ...formData, loanNotes: e.target.value })}
+              placeholder="e.g. House renovation loan"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary text-sm"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Deposit Source (personal accounts) */}
+      {isPersonalAccount && depositSources.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Funding Source
+          </label>
+          <select
+            value={formData.depositSourceId}
+            onChange={(e) => setFormData({ ...formData, depositSourceId: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">-- Select funding source (optional) --</option>
+            {depositSources.map(s => (
+              <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Business Selection (only if source type is BUSINESS) */}
       {formData.sourceType === 'BUSINESS' && (

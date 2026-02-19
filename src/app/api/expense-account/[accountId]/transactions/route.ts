@@ -79,6 +79,9 @@ export async function GET(
               sourceBusiness: {
                 select: { id: true, name: true, type: true },
               },
+              depositSource: {
+                select: { id: true, name: true, emoji: true },
+              },
               creator: {
                 select: { id: true, name: true, email: true },
               },
@@ -137,6 +140,9 @@ export async function GET(
       if (deposit.sourceBusiness) {
         description = `Deposit from ${deposit.sourceBusiness.name}`
       }
+      if ((deposit as any).depositSource) {
+        description = (deposit as any).depositSource.name
+      }
 
       // Add pseudo-category based on sourceType for deposits
       let category = null
@@ -162,6 +168,7 @@ export async function GET(
         description,
         sourceType: deposit.sourceType,
         sourceBusiness: deposit.sourceBusiness,
+        depositSource: (deposit as any).depositSource || null,
         transactionType: deposit.transactionType,
         category, // Add category for display
         createdBy: deposit.creator,
@@ -172,7 +179,9 @@ export async function GET(
     payments.forEach((payment) => {
       // Get payee name
       let payeeName = 'Unknown Payee'
-      if (payment.payeeUser) {
+      if (payment.payeeType === 'NONE') {
+        payeeName = null
+      } else if (payment.payeeUser) {
         payeeName = payment.payeeUser.name
       } else if (payment.payeeEmployee) {
         payeeName = payment.payeeEmployee.fullName
@@ -182,7 +191,7 @@ export async function GET(
         payeeName = payment.payeeBusiness.name
       }
 
-      const description = `Payment to ${payeeName}`
+      const description = payeeName ? `Payment to ${payeeName}` : 'General Payment'
 
       transactions.push({
         id: payment.id,
@@ -196,6 +205,7 @@ export async function GET(
         payeePerson: payment.payeePerson,
         payeeBusiness: payment.payeeBusiness,
         category: payment.category,
+        paymentType: (payment as any).paymentType || 'REGULAR',
         receiptNumber: payment.receiptNumber,
         status: payment.status,
         createdBy: payment.creator,
