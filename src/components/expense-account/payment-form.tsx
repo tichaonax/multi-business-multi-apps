@@ -329,8 +329,6 @@ export function PaymentForm({
   const [categoryRefreshTrigger, setCategoryRefreshTrigger] = useState(0)  // Increment to refresh category list
   const [loans, setLoans] = useState<{ id: string; loanNumber: string; principalAmount: number; remainingBalance: number; dueDate: string | null; status: string; lender: { name: string } }[]>([])
   const [loadingLoans, setLoadingLoans] = useState(false)
-  const [transfers, setTransfers] = useState<{ id: string; fromBusinessName: string; originalAmount: number; outstandingAmount: number; transferDate: string }[]>([])
-  const [loadingTransfers, setLoadingTransfers] = useState(false)
   const [personalDomainId, setPersonalDomainId] = useState('')
 
   const [batchPayments, setBatchPayments] = useState<BatchPayment[]>([])
@@ -349,10 +347,9 @@ export function PaymentForm({
     receiptServiceProvider: '',
     receiptReason: '',
     isFullPayment: true,
-    paymentType: 'REGULAR' as 'REGULAR' | 'LOAN_REPAYMENT' | 'TRANSFER_RETURN',
+    paymentType: 'REGULAR' as 'REGULAR' | 'LOAN_REPAYMENT',
     loanId: '',
     interestAmount: '0',
-    transferLedgerId: '',
   })
 
   const [errors, setErrors] = useState({
@@ -440,9 +437,6 @@ export function PaymentForm({
   useEffect(() => {
     if (formData.paymentType === 'LOAN_REPAYMENT' && loans.length === 0) {
       loadLoans()
-    }
-    if (formData.paymentType === 'TRANSFER_RETURN' && transfers.length === 0) {
-      loadTransfers()
     }
   }, [formData.paymentType])
 
@@ -562,25 +556,6 @@ export function PaymentForm({
       console.error('Error loading loans:', e)
     } finally {
       setLoadingLoans(false)
-    }
-  }
-
-  const loadTransfers = async () => {
-    try {
-      setLoadingTransfers(true)
-      const res = await fetch(`/api/expense-account/${accountId}/transfers?status=OUTSTANDING`, { credentials: 'include' })
-      if (res.ok) {
-        const data = await res.json()
-        const all = data.data?.transfers || []
-        // Also include PARTIALLY_RETURNED
-        const res2 = await fetch(`/api/expense-account/${accountId}/transfers?status=PARTIALLY_RETURNED`, { credentials: 'include' })
-        const data2 = res2.ok ? await res2.json() : { data: { transfers: [] } }
-        setTransfers([...all, ...(data2.data?.transfers || [])])
-      }
-    } catch (e) {
-      console.error('Error loading transfers:', e)
-    } finally {
-      setLoadingTransfers(false)
     }
   }
 
@@ -725,7 +700,7 @@ export function PaymentForm({
       paymentType: formData.paymentType,
       loanId: formData.paymentType === 'LOAN_REPAYMENT' ? formData.loanId : undefined,
       interestAmount: formData.paymentType === 'LOAN_REPAYMENT' ? parseFloat(formData.interestAmount || '0') : undefined,
-      transferLedgerId: formData.paymentType === 'TRANSFER_RETURN' ? formData.transferLedgerId : undefined,
+      transferLedgerId: undefined,
     }
 
     if (editingPaymentId) {
@@ -758,7 +733,6 @@ export function PaymentForm({
         paymentType: 'REGULAR',
         loanId: '',
         interestAmount: '0',
-        transferLedgerId: '',
       })
     } else {
       // Keep category and subcategory for faster repeat entries
@@ -775,7 +749,6 @@ export function PaymentForm({
         paymentType: 'REGULAR',
         loanId: '',
         interestAmount: '0',
-        transferLedgerId: '',
       }))
     }
     setErrors({ payee: '', categoryId: '', amount: '', paymentDate: '' })
@@ -797,10 +770,9 @@ export function PaymentForm({
       receiptServiceProvider: payment.receiptServiceProvider || '',
       receiptReason: payment.receiptReason || '',
       isFullPayment: payment.isFullPayment ?? true,
-      paymentType: (payment.paymentType as 'REGULAR' | 'LOAN_REPAYMENT' | 'TRANSFER_RETURN') || 'REGULAR',
+      paymentType: (payment.paymentType as 'REGULAR' | 'LOAN_REPAYMENT') || 'REGULAR',
       loanId: payment.loanId || '',
       interestAmount: payment.interestAmount?.toString() || '0',
-      transferLedgerId: payment.transferLedgerId || '',
     })
     setEditingPaymentId(payment.id)
     if (payment.receiptNumber || payment.receiptServiceProvider || payment.receiptReason) {
@@ -880,7 +852,6 @@ export function PaymentForm({
         paymentType: p.paymentType || 'REGULAR',
         loanId: p.loanId || null,
         interestAmount: p.interestAmount ?? null,
-        transferLedgerId: p.transferLedgerId || null,
         status: 'SUBMITTED'
       }))
 
@@ -1380,19 +1351,10 @@ export function PaymentForm({
                 <input
                   type="radio"
                   checked={formData.paymentType === 'LOAN_REPAYMENT'}
-                  onChange={() => setFormData({ ...formData, paymentType: 'LOAN_REPAYMENT', transferLedgerId: '' })}
+                  onChange={() => setFormData({ ...formData, paymentType: 'LOAN_REPAYMENT' })}
                   className="mr-2"
                 />
                 <span className="text-sm">Loan Repayment</span>
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  checked={formData.paymentType === 'TRANSFER_RETURN'}
-                  onChange={() => setFormData({ ...formData, paymentType: 'TRANSFER_RETURN', loanId: '', interestAmount: '0' })}
-                  className="mr-2"
-                />
-                <span className="text-sm">Transfer Return</span>
               </label>
             </div>
             {formData.paymentType === 'LOAN_REPAYMENT' && (
@@ -1443,41 +1405,6 @@ export function PaymentForm({
               </div>
             )}
           </div>
-
-          {/* Transfer Return UI */}
-          {formData.paymentType === 'TRANSFER_RETURN' && (
-            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Select Transfer to Return <span className="text-red-500">*</span>
-              </label>
-              {loadingTransfers ? (
-                <div className="text-sm text-gray-500 dark:text-gray-400">Loading transfers...</div>
-              ) : transfers.length === 0 ? (
-                <div className="text-sm text-amber-600 dark:text-amber-400">No outstanding transfers found for this account</div>
-              ) : (
-                <select
-                  value={formData.transferLedgerId}
-                  onChange={(e) => setFormData({ ...formData, transferLedgerId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select a transfer...</option>
-                  {transfers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.fromBusinessName} — ${t.outstandingAmount.toFixed(2)} outstanding (of ${t.originalAmount.toFixed(2)})
-                    </option>
-                  ))}
-                </select>
-              )}
-              {formData.transferLedgerId && (() => {
-                const selected = transfers.find(t => t.id === formData.transferLedgerId)
-                return selected ? (
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Max returnable: ${selected.outstandingAmount.toFixed(2)}
-                  </p>
-                ) : null
-              })()}
-            </div>
-          )}
 
           {/* Receipt Section (Collapsible) */}
           <div>

@@ -355,6 +355,23 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </>
                         )}
 
+                        {/* Expense Reports Hub */}
+                        {(isAdmin || hasPermission('canViewExpenseReports')) && (
+                          <>
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                            <button
+                              className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full text-left"
+                              onClick={() => {
+                                closeBusinessMenu()
+                                router.push('/expense-accounts/reports')
+                              }}
+                            >
+                              <span>📊</span>
+                              <span>Expense Reports Hub</span>
+                            </button>
+                          </>
+                        )}
+
                         {/* General Expense Account - requires financial data access */}
                         {(isAdmin || hasPermission('canAccessFinancialData')) && hasPermission('canAccessExpenseAccount') && (
                           <>

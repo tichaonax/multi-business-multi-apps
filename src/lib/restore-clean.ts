@@ -156,10 +156,15 @@ const RESTORE_ORDER = [
   'customerLaybys',
   'customerLaybyPayments',
 
-  // Expense accounts
+  // Expense accounts (order matters: grants/lenders/loans before deposits; ledger before payments)
   'expenseAccounts',
-  'expenseAccountDeposits',
-  'expenseAccountPayments',
+  'expenseAccountGrants',       // depends on expenseAccounts + users
+  'personalDepositSources',     // no FK dependencies (reference table)
+  'expenseAccountLenders',      // no FK dependencies (reference table)
+  'expenseAccountLoans',        // depends on expenseAccounts + expenseAccountLenders
+  'expenseAccountDeposits',     // depends on expenseAccounts + personalDepositSources + expenseAccountLoans
+  'businessTransferLedger',     // depends on expenseAccounts
+  'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger
 
   // Payroll
   'payrollAccounts',
@@ -243,6 +248,8 @@ const RESTORE_ORDER = [
 
   // Miscellaneous
   'supplierProducts',
+  'inventoryTransfers',       // depends on businesses + employees
+  'inventoryTransferItems',   // depends on inventoryTransfers + productVariants
   'interBusinessLoans',
   'loanTransactions',
   'receiptSequences'
@@ -270,6 +277,12 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Account tables with unique accountNumber
   'payrollAccounts': 'accountNumber',
   'expenseAccounts': 'accountNumber',
+
+  // Loan unique constraint
+  'expenseAccountLoans': 'loanNumber',
+
+  // Expense account grants (composite unique)
+  'expenseAccountGrants': { fields: ['expenseAccountId', 'userId'] },
 
   // Type/lookup tables with unique name
   'projectTypes': 'name',

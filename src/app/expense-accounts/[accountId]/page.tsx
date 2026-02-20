@@ -15,6 +15,7 @@ import { QuickPaymentModal } from '@/components/expense-account/quick-payment-mo
 import { QuickDepositModal } from '@/components/expense-account/quick-deposit-modal'
 import { AccountPermissionsTab } from '@/components/expense-account/account-permissions-tab'
 import { LoansTab } from '@/components/expense-account/loans-tab'
+import { ReturnTransferModal } from '@/components/expense-account/return-transfer-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -50,6 +51,7 @@ export default function ExpenseAccountDetailPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
+  const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
@@ -421,9 +423,18 @@ export default function ExpenseAccountDetailPage() {
             {/* Payments Tab */}
             {activeTab === 'payments' && canMakeExpensePayments && (
               <div>
-                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
-                  Create Payments
-                </h4>
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    Create Payments
+                  </h4>
+                  <button
+                    onClick={() => setShowReturnTransferModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+                  >
+                    <span>🔄</span>
+                    Return Transfer
+                  </button>
+                </div>
                 <PaymentForm
                   accountId={accountId}
                   businessId={account.businessId || currentBusiness?.id}
@@ -508,6 +519,16 @@ export default function ExpenseAccountDetailPage() {
           canChangeCategory={canChangeCategory}
           accountType={account.accountType}
           defaultCategoryBusinessType={currentBusiness?.businessType}
+        />
+      )}
+
+      {/* Return Transfer Modal */}
+      {showReturnTransferModal && account && (
+        <ReturnTransferModal
+          accountId={accountId}
+          currentBalance={Number(account.balance)}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => setShowReturnTransferModal(false)}
         />
       )}
     </ContentLayout>

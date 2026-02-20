@@ -496,8 +496,21 @@ export async function createCleanBackup(
   // These don't have isDemo flag, so back up everything
   businessData.expenseAccounts = await prisma.expenseAccounts.findMany()
 
+  // Grants (access control per expense account)
+  businessData.expenseAccountGrants = await prisma.expenseAccountGrants.findMany()
+
+  // Personal deposit sources (reference table for personal expense accounts)
+  businessData.personalDepositSources = await prisma.personalDepositSources.findMany()
+
+  // Lenders and loans
+  businessData.expenseAccountLenders = await prisma.expenseAccountLenders.findMany()
+  businessData.expenseAccountLoans = await prisma.expenseAccountLoans.findMany()
+
   // Include ALL deposits (including generic ones with sourceBusinessId=null)
   businessData.expenseAccountDeposits = await prisma.expenseAccountDeposits.findMany()
+
+  // Business transfer ledger (cross-business transfers, must come before payments)
+  businessData.businessTransferLedger = await prisma.businessTransferLedger.findMany()
 
   // Include ALL payments (including generic ones with payeeBusinessId=null)
   businessData.expenseAccountPayments = await prisma.expenseAccountPayments.findMany()
@@ -718,6 +731,26 @@ export async function createCleanBackup(
 
   // 15. Supplier products
   businessData.supplierProducts = await prisma.supplierProducts.findMany()
+
+  // Inventory transfers (inter-business stock movements)
+  businessData.inventoryTransfers = await prisma.inventoryTransfers.findMany({
+    where: {
+      OR: [
+        { sourceBusinessId: { in: businessIds } },
+        { targetBusinessId: { in: businessIds } }
+      ]
+    }
+  })
+  businessData.inventoryTransferItems = await prisma.inventoryTransferItems.findMany({
+    where: {
+      transfer: {
+        OR: [
+          { sourceBusinessId: { in: businessIds } },
+          { targetBusinessId: { in: businessIds } }
+        ]
+      }
+    }
+  })
 
   // 16. Persons
   businessData.persons = await prisma.persons.findMany()
