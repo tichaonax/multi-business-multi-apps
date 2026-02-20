@@ -440,6 +440,26 @@ export function MobileSidebar() {
                 💬 Team Chat
               </Link>
 
+              {/* Receipt History */}
+              <Link
+                href={`/universal/receipts${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
+                className="block px-4 py-2.5 rounded hover:bg-gray-700"
+                onClick={() => setIsOpen(false)}
+              >
+                🧾 Receipt History
+              </Link>
+
+              {/* Suppliers */}
+              {(isAdmin || hasBusinessPermission('canViewSuppliers') || hasBusinessPermission('canCreateSuppliers') || hasBusinessPermission('canEditSuppliers')) && (
+                <Link
+                  href="/business/suppliers"
+                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
+                  onClick={() => setIsOpen(false)}
+                >
+                  🚚 Suppliers
+                </Link>
+              )}
+
               {/* Administration */}
               {(isAdmin || hasBusinessPermission('canManageBusinessUsers') || hasBusinessPermission('canManageBusinessSettings')) && (
                 <>

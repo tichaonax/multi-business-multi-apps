@@ -78,6 +78,10 @@ export function PayrollExportPreviewModal({
       const response = await fetch(`/api/payroll/periods/${periodId}`)
       if (response.ok) {
         const data = await response.json()
+        // Normalize snake_case Prisma relation to camelCase expected by this modal
+        if (data.payroll_entries && !data.payrollEntries) {
+          data.payrollEntries = data.payroll_entries
+        }
         setPeriod(data)
       }
     } catch (error) {
@@ -96,29 +100,24 @@ export function PayrollExportPreviewModal({
     const uniqueBenefitsMap = new Map<string, { benefitTypeId: string; benefitName: string }>()
 
     period.payrollEntries.forEach(entry => {
-      // mergedBenefits from server (preferred) - only consider active merged benefits
-      entry.mergedBenefits?.forEach((mb: any) => {
-        if (!mb) return
-        if (mb.isActive === false) return
-        const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
-        const key = normalizeName(name)
-        if (!key) return
-        if (!uniqueBenefitsMap.has(key)) {
-          uniqueBenefitsMap.set(key, { benefitTypeId: String(mb.benefitType?.id || mb.benefitTypeId || ''), benefitName: name })
-        }
-      })
+      // mergedBenefits from server already has month-restriction applied — use exclusively
+      // when present so month-restricted benefits (e.g. Annual Bonus) don't reappear via fallbacks.
+      const hasMerged = Array.isArray(entry.mergedBenefits) && entry.mergedBenefits.length > 0
+      if (hasMerged) {
+        entry.mergedBenefits!.forEach((mb: any) => {
+          if (!mb) return
+          if (mb.isActive === false) return
+          const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
+          const key = normalizeName(name)
+          if (!key) return
+          if (!uniqueBenefitsMap.has(key)) {
+            uniqueBenefitsMap.set(key, { benefitTypeId: String(mb.benefitType?.id || mb.benefitTypeId || ''), benefitName: name })
+          }
+        })
+        return // skip fallbacks — server data is authoritative
+      }
 
-      // contract pdfGenerationData fallback
-      const contractBenefits = entry.contract?.pdfGenerationData?.benefits || []
-      contractBenefits.forEach((cb: any) => {
-        const name = cb.name || ''
-        const key = normalizeName(name)
-        if (!key) return
-        if (!uniqueBenefitsMap.has(key)) {
-          uniqueBenefitsMap.set(key, { benefitTypeId: String(cb.benefitTypeId || cb.name || ''), benefitName: name })
-        }
-      })
-
+      // Fallbacks only when server did not provide mergedBenefits (older API responses)
       // persisted payroll entry benefits
       entry.payrollEntryBenefits?.forEach(benefit => {
         if (!benefit.isActive) return

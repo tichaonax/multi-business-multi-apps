@@ -10,6 +10,7 @@ import { ProtectedRoute } from '@/components/auth/protected-route'
 import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { AccountBalanceCard } from '@/components/payroll/account-balance-card'
+import { EmployeeLoanPanel } from '@/components/payroll/employee-loan-panel'
 import { useAlert } from '@/components/ui/confirm-modal'
 
 export default function PayrollAccountPage() {
@@ -243,6 +244,11 @@ function PayrollAccountContent() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Employee Loans */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <EmployeeLoanPanel canManage={true} />
             </div>
 
             {/* Help Section */}

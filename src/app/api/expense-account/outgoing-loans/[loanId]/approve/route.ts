@@ -6,6 +6,7 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 /**
  * POST /api/expense-account/outgoing-loans/[loanId]/approve
  * Manager/admin approves an employee loan — moves PENDING_APPROVAL → PENDING_CONTRACT
+ * For EMPLOYEE loans sourced from payroll account: checks payroll balance first
  */
 export async function POST(
   request: NextRequest,
@@ -22,11 +23,35 @@ export async function POST(
 
     const loan = await prisma.accountOutgoingLoans.findUnique({
       where: { id: params.loanId },
+      include: {
+        payrollAccount: { select: { id: true, balance: true } },
+        recipientEmployee: { select: { id: true, phone: true } },
+      },
     })
 
     if (!loan) return NextResponse.json({ error: 'Loan not found' }, { status: 404 })
     if (loan.status !== 'PENDING_APPROVAL') {
       return NextResponse.json({ error: `Cannot approve loan in status: ${loan.status}` }, { status: 400 })
+    }
+
+    // Require borrower phone number on file before approval
+    const borrowerPhone = (loan as any).recipientEmployee?.phone
+    if (!borrowerPhone) {
+      return NextResponse.json({
+        error: 'Cannot approve — borrower has no phone number on file. Update the employee record first.',
+      }, { status: 400 })
+    }
+
+    // For EMPLOYEE loans sourced from payroll account: check payroll balance
+    if (loan.payrollAccountId && loan.payrollAccount) {
+      const payrollBalance = Number(loan.payrollAccount.balance)
+      const loanAmount = Number(loan.principalAmount)
+      if (payrollBalance < loanAmount) {
+        const shortBy = (loanAmount - payrollBalance).toFixed(2)
+        return NextResponse.json({
+          error: `Insufficient payroll balance — fund payroll first (short by $${shortBy})`,
+        }, { status: 400 })
+      }
     }
 
     // Find the approver's employee record if they have one

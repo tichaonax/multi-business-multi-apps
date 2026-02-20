@@ -55,6 +55,9 @@ model BenefitTypes {
   isActive               Boolean                @default(true)
   isPercentage           Boolean                @default(false)
   updatedAt              DateTime               @default(now())
+  /// If set (1-12), this benefit is only paid in that specific calendar month.
+  /// e.g. 11 = November only (Annual Bonus). Null = paid every month.
+  paymentMonth           Int?
   contract_benefits      ContractBenefits[]
   employee_benefits      EmployeeBenefits[]
   payroll_entry_benefits PayrollEntryBenefits[]
@@ -1455,11 +1458,12 @@ model ExpenseAccountLoans {
   @@map("expense_account_loans")
 }
 
-// Loans disbursed FROM expense accounts TO recipients (person, business, or employee)
+// Loans disbursed FROM expense accounts (PERSON/BUSINESS) or payroll account (EMPLOYEE) TO recipients
 model AccountOutgoingLoans {
   id                     String    @id @default(uuid())
   loanNumber             String    @unique                // auto-generated, e.g. "OL-2026-001"
-  expenseAccountId       String
+  expenseAccountId       String?                         // null for EMPLOYEE loans (sourced from payroll account)
+  payrollAccountId       String?                         // set for EMPLOYEE loans only
   loanType               String                          // "PERSON" | "BUSINESS" | "EMPLOYEE"
   recipientPersonId      String?
   recipientBusinessId    String?
@@ -1486,16 +1490,18 @@ model AccountOutgoingLoans {
   createdBy              String
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
-  expenseAccount         ExpenseAccounts  @relation("OutgoingLoans", fields: [expenseAccountId], references: [id], onDelete: Cascade)
-  recipientPerson        Persons?         @relation("OutgoingLoanPerson", fields: [recipientPersonId], references: [id])
-  recipientBusiness      Businesses?      @relation("OutgoingLoanBusiness", fields: [recipientBusinessId], references: [id])
-  recipientEmployee      Employees?       @relation("OutgoingLoanEmployee", fields: [recipientEmployeeId], references: [id])
-  approvedByEmployee     Employees?       @relation("OutgoingLoanApprover", fields: [approvedByEmployeeId], references: [id])
-  contractSignedByUser   Users?           @relation("OutgoingLoanContractSigner", fields: [contractSignedByUserId], references: [id])
-  creator                Users            @relation("OutgoingLoanCreator", fields: [createdBy], references: [id])
+  expenseAccount         ExpenseAccounts?  @relation("OutgoingLoans", fields: [expenseAccountId], references: [id], onDelete: Cascade)
+  payrollAccount         PayrollAccounts?  @relation("OutgoingLoanPayrollAccount", fields: [payrollAccountId], references: [id])
+  recipientPerson        Persons?          @relation("OutgoingLoanPerson", fields: [recipientPersonId], references: [id])
+  recipientBusiness      Businesses?       @relation("OutgoingLoanBusiness", fields: [recipientBusinessId], references: [id])
+  recipientEmployee      Employees?        @relation("OutgoingLoanEmployee", fields: [recipientEmployeeId], references: [id])
+  approvedByEmployee     Employees?        @relation("OutgoingLoanApprover", fields: [approvedByEmployeeId], references: [id])
+  contractSignedByUser   Users?            @relation("OutgoingLoanContractSigner", fields: [contractSignedByUserId], references: [id])
+  creator                Users             @relation("OutgoingLoanCreator", fields: [createdBy], references: [id])
   repayments             AccountOutgoingLoanPayments[]
 
   @@index([expenseAccountId])
+  @@index([payrollAccountId])
   @@index([recipientEmployeeId])
   @@index([status])
   @@map("account_outgoing_loans")
@@ -2138,6 +2144,7 @@ model PayrollAccounts {
   createdBy     String
   deposits      PayrollAccountDeposits[]
   payments      PayrollAccountPayments[]
+  outgoing_loans AccountOutgoingLoans[]  @relation("OutgoingLoanPayrollAccount")
   businesses    Businesses?              @relation(fields: [businessId], references: [id])
   users         Users                    @relation(fields: [createdBy], references: [id])
 

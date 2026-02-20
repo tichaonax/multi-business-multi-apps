@@ -80,19 +80,7 @@ export async function generatePayrollExcel(
       }
     })
 
-    // Fallback to contract benefits if merged not present
-    const contractBenefits = (entry as any).contract?.pdfGenerationData?.benefits || []
-    contractBenefits.forEach((cb: any) => {
-      const name = cb.name || ''
-      const key = normalizeName(name)
-      if (!key) return
-      if (!uniqueBenefitsMap.has(key)) {
-        const benefitId = cb.benefitTypeId || cb.name
-        uniqueBenefitsMap.set(key, { id: String(benefitId), name })
-      }
-    })
-
-    // Finally include any manual payrollEntryBenefits that aren't already captured
+    // Include any manual payrollEntryBenefits that aren't already captured
     entry.payrollEntryBenefits?.forEach((benefit: any) => {
       if (!benefit.isActive) return
       const name = benefit.benefitName || ''
@@ -346,8 +334,6 @@ export async function generatePayrollExcel(
       const merged = (entry as any).mergedBenefits || []
       if (Array.isArray(merged) && merged.length > 0) return merged.filter((mb: any) => mb.isActive !== false).reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
       if (Array.isArray(entry.payrollEntryBenefits) && entry.payrollEntryBenefits.length > 0) return entry.payrollEntryBenefits.filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
-      const contractBenefits = (entry as any).contract?.pdfGenerationData?.benefits || []
-      if (Array.isArray(contractBenefits) && contractBenefits.length > 0) return contractBenefits.reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
       return 0
     }
 
@@ -474,16 +460,12 @@ export async function generatePayrollExcel(
       const normalizedKey = normalizeName(uniqueBenefit.benefitName)
       const mergedVal = mb.find((m: any) => normalizeName(m?.benefit_types?.name || m?.benefitName || m?.key || m?.name || '') === normalizedKey && m?.isActive !== false)
 
-      // Fallback to contract
-      const contractBenefits = (entry as any).contract?.pdfGenerationData?.benefits || []
-      const contractBenefit = contractBenefits.find((cb: any) => normalizeName(cb.name || '') === normalizedKey)
-
-    // Manual entry override
+      // Manual entry override
       const manualOverride = entry.payrollEntryBenefits?.find((pb: any) => normalizeName(pb.benefitName || '') === normalizedKey && pb.isActive)
 
       const deactivated = entry.payrollEntryBenefits?.find((pb: any) => normalizeName(pb.benefitName || '') === normalizedKey && pb.isActive === false)
 
-      const amount = deactivated ? null : (mergedVal?.amount ?? manualOverride?.amount ?? contractBenefit?.amount ?? 0)
+      const amount = deactivated ? null : (mergedVal?.amount ?? manualOverride?.amount ?? 0)
 
       if (typeof amount === 'number') benefitsSum += Number(amount || 0)
       rowData.push(typeof amount === 'number' ? amount : '')

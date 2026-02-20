@@ -23,11 +23,33 @@ export async function GET(
       return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
     }
 
-    const loans = await prisma.expenseAccountLoans.findMany({
-      where: { expenseAccountId: accountId },
-      include: { lender: true },
-      orderBy: { createdAt: 'desc' },
+    // Fetch account's businessId so we can find loans received by this business
+    const account = await prisma.expenseAccounts.findUnique({
+      where: { id: accountId },
+      select: { businessId: true },
     })
+
+    const [loans, receivedOutgoingLoans] = await Promise.all([
+      prisma.expenseAccountLoans.findMany({
+        where: { expenseAccountId: accountId },
+        include: { lender: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      // Loans disbursed TO this business from any expense account
+      account?.businessId
+        ? prisma.accountOutgoingLoans.findMany({
+            where: { recipientBusinessId: account.businessId },
+            include: {
+              expenseAccount: { select: { accountName: true, accountNumber: true } },
+              repayments: {
+                orderBy: { paymentDate: 'asc' },
+                select: { id: true, amount: true, paymentDate: true, paymentMethod: true, notes: true },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : Promise.resolve([]),
+    ])
 
     // Fetch all repayment payments for this account (for totals + history)
     const repayments = await prisma.expenseAccountPayments.findMany({
@@ -58,7 +80,7 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: {
-        loans: loans.map(loan => ({
+        loans: loans.map((loan: any) => ({
           id: loan.id,
           loanNumber: loan.loanNumber,
           principalAmount: Number(loan.principalAmount),
@@ -72,6 +94,25 @@ export async function GET(
           notes: loan.notes,
           lender: { id: loan.lender.id, name: loan.lender.name, lenderType: loan.lender.lenderType },
           createdAt: loan.createdAt.toISOString(),
+        })),
+        receivedLoans: receivedOutgoingLoans.map((loan: any) => ({
+          id: loan.id,
+          loanNumber: loan.loanNumber,
+          principalAmount: Number(loan.principalAmount),
+          remainingBalance: Number(loan.remainingBalance),
+          disbursementDate: loan.disbursementDate.toISOString(),
+          dueDate: loan.dueDate?.toISOString() || null,
+          status: loan.status,
+          purpose: loan.purpose || null,
+          lenderAccountName: loan.expenseAccount?.accountName || null,
+          lenderAccountNumber: loan.expenseAccount?.accountNumber || null,
+          repayments: (loan.repayments ?? []).map((r: any) => ({
+            id: r.id,
+            amount: Number(r.amount),
+            paymentDate: r.paymentDate.toISOString(),
+            paymentMethod: r.paymentMethod,
+            notes: r.notes || null,
+          })),
         })),
       },
     })

@@ -3,10 +3,19 @@
 import { useState, useEffect } from 'react'
 import { useAlert } from '@/components/ui/confirm-modal'
 
+type SourceType = 'FROM_EXPENSE_ACCOUNT' | 'FROM_BUSINESS_ACCOUNT'
+
 interface Business {
   id: string
   name: string
   type: string
+  balance: number
+}
+
+interface ExpenseAccount {
+  id: string
+  accountName: string
+  accountNumber: string
   balance: number
 }
 
@@ -16,47 +25,74 @@ interface DepositFormProps {
 
 export function DepositForm({ onSuccess }: DepositFormProps) {
   const customAlert = useAlert()
+  const [sourceType, setSourceType] = useState<SourceType>('FROM_EXPENSE_ACCOUNT')
   const [businesses, setBusinesses] = useState<Business[]>([])
-  const [loadingBusinesses, setLoadingBusinesses] = useState(true)
+  const [expenseAccounts, setExpenseAccounts] = useState<ExpenseAccount[]>([])
+  const [loadingBusinesses, setLoadingBusinesses] = useState(false)
+  const [loadingExpenseAccounts, setLoadingExpenseAccounts] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
     sourceBusinessId: '',
+    sourceExpenseAccountId: '',
     amount: '',
-    transactionType: 'MANUAL_TRANSFER' as 'MANUAL_TRANSFER' | 'PAYROLL_EXPENSE',
     customNote: '',
   })
 
   const [errors, setErrors] = useState({
-    sourceBusinessId: '',
+    source: '',
     amount: '',
   })
 
+  // Load expense accounts on mount (default tab)
   useEffect(() => {
-    fetchBusinesses()
+    fetchExpenseAccounts()
   }, [])
 
-  const fetchBusinesses = async () => {
+  const fetchExpenseAccounts = async () => {
+    if (expenseAccounts.length > 0) return
+    setLoadingExpenseAccounts(true)
     try {
-      const response = await fetch('/api/businesses', {
-        credentials: 'include',
-      })
-
+      const response = await fetch('/api/expense-account', { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
-        // Filter businesses with accounts that have balance
+        const list: any[] = data.data?.accounts || []
+        setExpenseAccounts(
+          list
+            .filter((a) => (a.balance || 0) > 0)
+            .map((a) => ({
+              id: a.id,
+              accountName: a.accountName,
+              accountNumber: a.accountNumber,
+              balance: a.balance || 0,
+            }))
+        )
+      }
+    } catch (error) {
+      console.error('Error fetching expense accounts:', error)
+    } finally {
+      setLoadingExpenseAccounts(false)
+    }
+  }
+
+  const fetchBusinesses = async () => {
+    if (businesses.length > 0) return
+    setLoadingBusinesses(true)
+    try {
+      const response = await fetch('/api/businesses', { credentials: 'include' })
+      if (response.ok) {
+        const data = await response.json()
         const businessList = data.businesses || []
-        const businessesWithAccounts = businessList.filter((b: any) => b.business_accounts)
-
-        // Transform to expected format with balance
-        const transformedBusinesses = businessesWithAccounts.map((b: any) => ({
-          id: b.id,
-          name: b.name,
-          type: b.type,
-          balance: b.business_accounts?.balance || 0
-        }))
-
-        setBusinesses(transformedBusinesses)
+        setBusinesses(
+          businessList
+            .filter((b: any) => b.business_accounts && (b.business_accounts?.balance || 0) > 0)
+            .map((b: any) => ({
+              id: b.id,
+              name: b.name,
+              type: b.type,
+              balance: b.business_accounts?.balance || 0,
+            }))
+        )
       }
     } catch (error) {
       console.error('Error fetching businesses:', error)
@@ -65,28 +101,44 @@ export function DepositForm({ onSuccess }: DepositFormProps) {
     }
   }
 
-  const selectedBusiness = businesses.find(b => b.id === formData.sourceBusinessId)
+  const handleSourceTypeChange = (type: SourceType) => {
+    setSourceType(type)
+    setErrors({ source: '', amount: '' })
+    if (type === 'FROM_BUSINESS_ACCOUNT') fetchBusinesses()
+    if (type === 'FROM_EXPENSE_ACCOUNT') fetchExpenseAccounts()
+  }
+
+  const selectedBusiness = businesses.find((b) => b.id === formData.sourceBusinessId)
+  const selectedExpenseAccount = expenseAccounts.find((a) => a.id === formData.sourceExpenseAccountId)
+
+  const selectedName =
+    sourceType === 'FROM_EXPENSE_ACCOUNT'
+      ? selectedExpenseAccount?.accountName
+      : selectedBusiness?.name
+
+  const selectedBalance =
+    sourceType === 'FROM_EXPENSE_ACCOUNT'
+      ? selectedExpenseAccount?.balance ?? null
+      : selectedBusiness?.balance ?? null
 
   const generateAutoNote = () => {
-    if (!selectedBusiness) return ''
-
-    const noteType = formData.transactionType === 'PAYROLL_EXPENSE'
-      ? 'payroll expense'
-      : 'manual transfer'
-
-    return `Deposit from ${selectedBusiness.name} ${noteType}`
+    if (!selectedName) return ''
+    if (sourceType === 'FROM_EXPENSE_ACCOUNT') {
+      return `💵 Payroll funding from ${selectedName} (${selectedExpenseAccount?.accountNumber})`
+    }
+    return `💵 Payroll funding from ${selectedName}`
   }
 
   const displayNote = formData.customNote.trim() || generateAutoNote()
 
   const validateForm = () => {
-    const newErrors = {
-      sourceBusinessId: '',
-      amount: '',
-    }
+    const newErrors = { source: '', amount: '' }
 
-    if (!formData.sourceBusinessId) {
-      newErrors.sourceBusinessId = 'Please select a business'
+    if (sourceType === 'FROM_EXPENSE_ACCOUNT' && !formData.sourceExpenseAccountId) {
+      newErrors.source = 'Please select an expense account'
+    }
+    if (sourceType === 'FROM_BUSINESS_ACCOUNT' && !formData.sourceBusinessId) {
+      newErrors.source = 'Please select a business'
     }
 
     const amount = parseFloat(formData.amount)
@@ -96,36 +148,38 @@ export function DepositForm({ onSuccess }: DepositFormProps) {
       newErrors.amount = 'Amount must be greater than 0'
     } else if (amount > 999999999.99) {
       newErrors.amount = 'Amount exceeds maximum allowed value'
-    } else if (selectedBusiness && amount > selectedBusiness.balance) {
-      newErrors.amount = `Insufficient balance. Available: $${selectedBusiness.balance.toFixed(2)}`
+    } else if (selectedBalance !== null && amount > selectedBalance) {
+      newErrors.amount = `Insufficient balance. Available: ${formatCurrency(selectedBalance)}`
     }
 
     setErrors(newErrors)
-    return !newErrors.sourceBusinessId && !newErrors.amount
+    return !newErrors.source && !newErrors.amount
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!validateForm()) {
-      return
-    }
-
+    if (!validateForm()) return
     setSubmitting(true)
 
     try {
+      const body: any = {
+        amount: parseFloat(formData.amount),
+        customNote: formData.customNote.trim() || undefined,
+      }
+
+      if (sourceType === 'FROM_EXPENSE_ACCOUNT') {
+        body.sourceExpenseAccountId = formData.sourceExpenseAccountId
+        body.transactionType = 'PAYROLL_FUNDING'
+      } else {
+        body.sourceBusinessId = formData.sourceBusinessId
+        body.transactionType = 'MANUAL_TRANSFER'
+      }
+
       const response = await fetch('/api/payroll/account/deposits', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          sourceBusinessId: formData.sourceBusinessId,
-          amount: parseFloat(formData.amount),
-          transactionType: formData.transactionType,
-          customNote: formData.customNote.trim() || undefined,
-        }),
+        body: JSON.stringify(body),
       })
 
       const data = await response.json()
@@ -133,94 +187,132 @@ export function DepositForm({ onSuccess }: DepositFormProps) {
       if (response.ok) {
         customAlert({
           title: 'Success',
-          message: `Deposit of $${parseFloat(formData.amount).toFixed(2)} created successfully`,
-          type: 'success',
+          description: `Deposit of ${formatCurrency(parseFloat(formData.amount))} created successfully`,
         })
-
-        // Reset form
         setFormData({
           sourceBusinessId: '',
+          sourceExpenseAccountId: '',
           amount: '',
-          transactionType: 'MANUAL_TRANSFER',
           customNote: '',
         })
-
-        if (onSuccess) {
-          onSuccess()
-        }
+        // Refresh expense accounts list to show updated balance
+        setExpenseAccounts([])
+        if (sourceType === 'FROM_EXPENSE_ACCOUNT') fetchExpenseAccounts()
+        if (onSuccess) onSuccess()
       } else {
-        customAlert({
-          title: 'Error',
-          message: data.error || 'Failed to create deposit',
-          type: 'error',
-        })
+        customAlert({ title: 'Error', description: data.error || 'Failed to create deposit' })
       }
     } catch (error) {
       console.error('Error creating deposit:', error)
-      customAlert({
-        title: 'Error',
-        message: 'An error occurred while creating the deposit',
-        type: 'error',
-      })
+      customAlert({ title: 'Error', description: 'An error occurred while creating the deposit' })
     } finally {
       setSubmitting(false)
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(amount)
+
+  const isLoading = sourceType === 'FROM_EXPENSE_ACCOUNT' ? loadingExpenseAccounts : loadingBusinesses
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Business Selection */}
+      {/* Source Type Toggle */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Source Business <span className="text-red-500">*</span>
+          Deposit Source
         </label>
-        {loadingBusinesses ? (
-          <div className="animate-pulse h-10 bg-gray-200 dark:bg-gray-600 rounded"></div>
-        ) : (
-          <select
-            value={formData.sourceBusinessId}
-            onChange={(e) => {
-              setFormData({ ...formData, sourceBusinessId: e.target.value })
-              setErrors({ ...errors, sourceBusinessId: '' })
-            }}
-            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.sourceBusinessId ? 'border-red-500' : 'border-gray-300'
-            }`}
-          >
-            <option value="">Select a business...</option>
-            {businesses.map((business) => (
-              <option key={business.id} value={business.id}>
-                {business.name} ({business.type}) - Balance: {formatCurrency(business.balance)}
-              </option>
-            ))}
-          </select>
-        )}
-        {errors.sourceBusinessId && (
-          <p className="mt-1 text-sm text-red-500">{errors.sourceBusinessId}</p>
-        )}
+        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+          {([
+            { value: 'FROM_EXPENSE_ACCOUNT' as SourceType, label: '💼 From Expense Account' },
+            { value: 'FROM_BUSINESS_ACCOUNT' as SourceType, label: '🏦 From Business Account' },
+          ]).map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => handleSourceTypeChange(value)}
+              className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${
+                sourceType === value
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Business Balance Display */}
-      {selectedBusiness && (
+      {/* Expense Account Dropdown */}
+      {sourceType === 'FROM_EXPENSE_ACCOUNT' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Expense Account <span className="text-red-500">*</span>
+          </label>
+          {loadingExpenseAccounts ? (
+            <div className="animate-pulse h-10 bg-gray-200 dark:bg-gray-600 rounded"></div>
+          ) : (
+            <select
+              value={formData.sourceExpenseAccountId}
+              onChange={(e) => {
+                setFormData({ ...formData, sourceExpenseAccountId: e.target.value })
+                setErrors({ ...errors, source: '' })
+              }}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                errors.source ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}
+            >
+              <option value="">Select an expense account...</option>
+              {expenseAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.accountName} ({account.accountNumber}) — Balance: {formatCurrency(account.balance)}
+                </option>
+              ))}
+            </select>
+          )}
+          {errors.source && <p className="mt-1 text-sm text-red-500">{errors.source}</p>}
+        </div>
+      )}
+
+      {/* Business Account Dropdown */}
+      {sourceType === 'FROM_BUSINESS_ACCOUNT' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Source Business <span className="text-red-500">*</span>
+          </label>
+          {loadingBusinesses ? (
+            <div className="animate-pulse h-10 bg-gray-200 dark:bg-gray-600 rounded"></div>
+          ) : (
+            <select
+              value={formData.sourceBusinessId}
+              onChange={(e) => {
+                setFormData({ ...formData, sourceBusinessId: e.target.value })
+                setErrors({ ...errors, source: '' })
+              }}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                errors.source ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}
+            >
+              <option value="">Select a business...</option>
+              {businesses.map((business) => (
+                <option key={business.id} value={business.id}>
+                  {business.name} ({business.type}) — Balance: {formatCurrency(business.balance)}
+                </option>
+              ))}
+            </select>
+          )}
+          {errors.source && <p className="mt-1 text-sm text-red-500">{errors.source}</p>}
+        </div>
+      )}
+
+      {/* Selected Source Balance Display */}
+      {selectedName && selectedBalance !== null && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-blue-800 font-medium">{selectedBusiness.name}</p>
-              <p className="text-xs text-blue-600">Business Type: {selectedBusiness.type}</p>
-            </div>
+            <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">{selectedName}</p>
             <div className="text-right">
-              <p className="text-xs text-blue-600">Available Balance</p>
-              <p className="text-lg font-bold text-blue-900">
-                {formatCurrency(selectedBusiness.balance)}
-              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400">Available Balance</p>
+              <p className="text-lg font-bold text-blue-900 dark:text-blue-100">{formatCurrency(selectedBalance)}</p>
             </div>
           </div>
         </div>
@@ -242,52 +334,22 @@ export function DepositForm({ onSuccess }: DepositFormProps) {
               setFormData({ ...formData, amount: e.target.value })
               setErrors({ ...errors, amount: '' })
             }}
-            className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.amount ? 'border-red-500' : 'border-gray-300'
+            className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
+              errors.amount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
             placeholder="0.00"
           />
         </div>
-        {errors.amount && (
-          <p className="mt-1 text-sm text-red-500">{errors.amount}</p>
-        )}
-        {selectedBusiness && formData.amount && !errors.amount && (
+        {errors.amount && <p className="mt-1 text-sm text-red-500">{errors.amount}</p>}
+        {selectedBalance !== null && formData.amount && !errors.amount && (
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Remaining balance after deposit: {formatCurrency(selectedBusiness.balance - parseFloat(formData.amount || '0'))}
+            Remaining balance after deposit:{' '}
+            {formatCurrency(selectedBalance - parseFloat(formData.amount || '0'))}
           </p>
         )}
       </div>
 
-      {/* Transaction Type */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Transaction Type
-        </label>
-        <div className="space-y-2">
-          <label className="flex items-center">
-            <input
-              type="radio"
-              value="MANUAL_TRANSFER"
-              checked={formData.transactionType === 'MANUAL_TRANSFER'}
-              onChange={(e) => setFormData({ ...formData, transactionType: e.target.value as any })}
-              className="mr-2"
-            />
-            <span className="text-sm">Manual Transfer</span>
-          </label>
-          <label className="flex items-center">
-            <input
-              type="radio"
-              value="PAYROLL_EXPENSE"
-              checked={formData.transactionType === 'PAYROLL_EXPENSE'}
-              onChange={(e) => setFormData({ ...formData, transactionType: e.target.value as any })}
-              className="mr-2"
-            />
-            <span className="text-sm">Payroll Expense</span>
-          </label>
-        </div>
-      </div>
-
-      {/* Custom Note (Optional) */}
+      {/* Custom Note */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Custom Note (Optional)
@@ -295,15 +357,15 @@ export function DepositForm({ onSuccess }: DepositFormProps) {
         <textarea
           value={formData.customNote}
           onChange={(e) => setFormData({ ...formData, customNote: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           rows={2}
           placeholder="Leave empty to use auto-generated note"
         />
       </div>
 
-      {/* Auto-Generated Note Preview */}
+      {/* Note Preview */}
       {displayNote && (
-        <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
           <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Transaction Note:</p>
           <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">{displayNote}</p>
         </div>
@@ -316,19 +378,19 @@ export function DepositForm({ onSuccess }: DepositFormProps) {
           onClick={() => {
             setFormData({
               sourceBusinessId: '',
+              sourceExpenseAccountId: '',
               amount: '',
-              transactionType: 'MANUAL_TRANSFER',
               customNote: '',
             })
-            setErrors({ sourceBusinessId: '', amount: '' })
+            setErrors({ source: '', amount: '' })
           }}
-          className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700"
+          className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
         >
           Reset
         </button>
         <button
           type="submit"
-          disabled={submitting || loadingBusinesses}
+          disabled={submitting || isLoading}
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? 'Creating...' : 'Create Deposit'}

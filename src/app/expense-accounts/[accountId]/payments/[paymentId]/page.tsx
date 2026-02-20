@@ -97,6 +97,19 @@ export default function ExpensePaymentDetailPage() {
     payment.payeeBusiness?.name ||
     'Unknown'
 
+  const getCategoryLabel = (): string => {
+    if (payment.category) {
+      return [payment.category.emoji, payment.category.name].filter(Boolean).join(' ')
+    }
+    switch (payment.paymentType) {
+      case 'LOAN_DISBURSEMENT': return '🤝 Loan Disbursement'
+      case 'LOAN_REPAYMENT': return '🏦 Loan Repayment'
+      case 'PAYROLL_FUNDING': return '💵 Payroll Funding'
+      case 'TRANSFER_RETURN': return '🔄 Transfer Return'
+      default: return '—'
+    }
+  }
+
   const getPayeeRoute = () => {
     if (payment.payeeEmployee) return `/employees/${payment.payeeEmployee.id}`
     if (payment.payeeBusiness) return `/business/suppliers/${payment.payeeBusiness.id}`
@@ -232,7 +245,7 @@ export default function ExpensePaymentDetailPage() {
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div className="text-sm text-secondary">Category</div>
-                <div className="font-medium">{payment.category?.name || '—'}</div>
+                <div className="font-medium">{getCategoryLabel()}</div>
               </div>
               <div>
                 <div className="text-sm text-secondary">Subcategory</div>

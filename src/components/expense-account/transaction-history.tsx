@@ -311,10 +311,20 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                         {transaction.category ? (
                           <span>{transaction.category.emoji} {transaction.category.name}</span>
+                        ) : transaction.paymentType === 'LOAN_DISBURSEMENT' ? (
+                          <span className="text-green-700 dark:text-green-400">🤝 Loan Disbursement</span>
                         ) : transaction.paymentType === 'LOAN_REPAYMENT' ? (
                           <span className="text-blue-600 dark:text-blue-400">🏦 Loan Repayment</span>
+                        ) : transaction.paymentType === 'PAYROLL_FUNDING' ? (
+                          <span className="text-emerald-600 dark:text-emerald-400">💵 Payroll Funding</span>
                         ) : transaction.paymentType === 'TRANSFER_RETURN' ? (
                           <span className="text-purple-600 dark:text-purple-400">🔄 Transfer Return</span>
+                        ) : transaction.sourceType === 'LOAN_REPAYMENT' ? (
+                          <span className="text-blue-600 dark:text-blue-400">🤝 Loan Repayment</span>
+                        ) : transaction.sourceType === 'LOAN_RECEIVED' ? (
+                          <span className="text-green-700 dark:text-green-400">🤝 Loan Received</span>
+                        ) : transaction.sourceType === 'PAYROLL_FUNDING' ? (
+                          <span className="text-emerald-600 dark:text-emerald-400">💵 Payroll Funding</span>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500">—</span>
                         )}

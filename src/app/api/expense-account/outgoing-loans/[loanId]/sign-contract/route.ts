@@ -31,6 +31,7 @@ export async function POST(
       where: { id: params.loanId },
       include: {
         expenseAccount: { select: { id: true, balance: true, accountName: true } },
+        payrollAccount: { select: { id: true, balance: true } },
         recipientEmployee: { select: { id: true, fullName: true, employeeNumber: true } },
       },
     })
@@ -41,16 +42,29 @@ export async function POST(
     }
 
     const amount = Number(loan.principalAmount)
-    if (Number(loan.expenseAccount.balance) < amount) {
-      return NextResponse.json({
-        error: `Insufficient account balance. Available: $${Number(loan.expenseAccount.balance).toFixed(2)}`,
-      }, { status: 400 })
+    const isPayrollLoan = !!loan.payrollAccountId
+
+    // Balance check depends on loan source
+    if (isPayrollLoan) {
+      if (!loan.payrollAccount || Number(loan.payrollAccount.balance) < amount) {
+        const available = loan.payrollAccount ? Number(loan.payrollAccount.balance) : 0
+        return NextResponse.json({
+          error: `Insufficient payroll balance. Available: $${available.toFixed(2)}`,
+        }, { status: 400 })
+      }
+    } else {
+      if (!loan.expenseAccount || Number(loan.expenseAccount.balance) < amount) {
+        const available = loan.expenseAccount ? Number(loan.expenseAccount.balance) : 0
+        return NextResponse.json({
+          error: `Insufficient account balance. Available: $${available.toFixed(2)}`,
+        }, { status: 400 })
+      }
     }
 
     // Build contract terms snapshot
     const contractTerms = {
       loanNumber: loan.loanNumber,
-      lenderAccountName: loan.expenseAccount.accountName,
+      lenderAccountName: isPayrollLoan ? 'Payroll Account' : loan.expenseAccount?.accountName ?? 'Unknown',
       borrowerName: loan.recipientEmployee?.fullName ?? 'Unknown',
       borrowerEmployeeNumber: loan.recipientEmployee?.employeeNumber ?? null,
       principalAmount: amount,
@@ -65,30 +79,54 @@ export async function POST(
     }
 
     await prisma.$transaction(async (tx: any) => {
-      // Create disbursement payment (deducts from account balance)
-      const payment = await tx.expenseAccountPayments.create({
-        data: {
-          expenseAccountId: loan.expenseAccountId,
-          payeeType: 'EMPLOYEE',
-          payeeEmployeeId: loan.recipientEmployeeId,
-          amount,
-          paymentDate: loan.disbursementDate,
-          notes: `🤝 Loan disbursement — ${loan.purpose ?? 'Employee loan'}`,
-          isFullPayment: true,
-          status: 'SUBMITTED',
-          paymentType: 'LOAN_DISBURSEMENT',
-          outgoingLoanId: loan.id,
-          createdBy: user.id,
-        },
-      })
+      let disbursementPaymentId: string | null = null
 
-      // Deduct from account balance
-      await tx.expenseAccounts.update({
-        where: { id: loan.expenseAccountId },
-        data: { balance: { decrement: amount } },
-      })
+      if (isPayrollLoan) {
+        // Payroll-sourced loan: create PayrollAccountPayments + debit payroll account
+        const payrollPayment = await tx.payrollAccountPayments.create({
+          data: {
+            payrollAccountId: loan.payrollAccountId!,
+            employeeId: loan.recipientEmployeeId!,
+            amount,
+            paymentDate: loan.disbursementDate,
+            paymentType: 'LOAN_DISBURSEMENT',
+            status: 'COMPLETED',
+            createdBy: user.id,
+          },
+        })
+        disbursementPaymentId = payrollPayment.id
 
-      // Update loan: activate + store contract terms + link disbursement
+        // Debit payroll account balance
+        await tx.payrollAccounts.update({
+          where: { id: loan.payrollAccountId! },
+          data: { balance: { decrement: amount }, updatedAt: new Date() },
+        })
+      } else {
+        // Expense account loan: create ExpenseAccountPayments + debit expense account
+        const payment = await tx.expenseAccountPayments.create({
+          data: {
+            expenseAccountId: loan.expenseAccountId!,
+            payeeType: 'EMPLOYEE',
+            payeeEmployeeId: loan.recipientEmployeeId,
+            amount,
+            paymentDate: loan.disbursementDate,
+            notes: `🤝 Loan disbursement — ${loan.purpose ?? 'Employee loan'}`,
+            isFullPayment: true,
+            status: 'SUBMITTED',
+            paymentType: 'LOAN_DISBURSEMENT',
+            outgoingLoanId: loan.id,
+            createdBy: user.id,
+          },
+        })
+        disbursementPaymentId = payment.id
+
+        await tx.expenseAccounts.update({
+          where: { id: loan.expenseAccountId! },
+          data: { balance: { decrement: amount } },
+        })
+      }
+
+      // Update loan: activate + store contract terms
       await tx.accountOutgoingLoans.update({
         where: { id: params.loanId },
         data: {
@@ -97,7 +135,7 @@ export async function POST(
           contractSignedAt: new Date(),
           contractSignedByUserId: user.id,
           contractTerms,
-          disbursementPaymentId: payment.id,
+          disbursementPaymentId,
         },
       })
     })

@@ -24,6 +24,7 @@ interface OutgoingLoansPanelProps {
   accountId: string
   canManage: boolean
   onApprove?: (loanId: string) => void
+  onRepaymentSuccess?: () => void
   refreshKey?: number
 }
 
@@ -37,22 +38,29 @@ function statusBadge(status: string) {
 
 const TYPE_ICON: Record<string, string> = { PERSON: '👤', BUSINESS: '🏢', EMPLOYEE: '👷' }
 
-export function OutgoingLoansPanel({ accountId, canManage, onApprove, refreshKey }: OutgoingLoansPanelProps) {
+export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymentSuccess, refreshKey }: OutgoingLoansPanelProps) {
   const toast = useToastContext()
   const [loans, setLoans] = useState<OutgoingLoan[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [repaymentModal, setRepaymentModal] = useState<OutgoingLoan | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
 
   const loadLoans = async () => {
     setLoading(true)
+    setFetchError(null)
     try {
       const res = await fetch(`/api/expense-account/${accountId}/outgoing-loans`, { credentials: 'include' })
       if (res.ok) {
         const data = await res.json()
         setLoans(data.data?.loans ?? [])
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setFetchError(data.error ?? `Error ${res.status}`)
       }
-    } catch { /* ignore */ }
+    } catch {
+      setFetchError('Network error — could not load loans')
+    }
     setLoading(false)
   }
 
@@ -88,6 +96,14 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, refreshKey
 
   if (loading) {
     return <p className="text-sm text-gray-500 dark:text-gray-400 py-2">Loading outgoing loans...</p>
+  }
+
+  if (fetchError) {
+    return (
+      <p className="text-sm text-red-600 dark:text-red-400 py-2 text-center">
+        Failed to load loans: {fetchError}
+      </p>
+    )
   }
 
   if (loans.length === 0) {
@@ -158,7 +174,7 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, refreshKey
           loanNumber={repaymentModal.loanNumber}
           recipientName={repaymentModal.recipientName}
           remainingBalance={repaymentModal.remainingBalance}
-          onSuccess={loadLoans}
+          onSuccess={() => { loadLoans(); onRepaymentSuccess?.() }}
           onClose={() => setRepaymentModal(null)}
         />
       )}

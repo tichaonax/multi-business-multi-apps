@@ -12,6 +12,7 @@ import { PayrollEntryForm } from '@/components/payroll/payroll-entry-form'
 import { PayrollEntryDetailModal } from '@/components/payroll/payroll-entry-detail-modal'
 import { PayrollExportPreviewModal } from '@/components/payroll/payroll-export-preview-modal'
 import { BatchPaymentModal } from '@/components/payroll/batch-payment-modal'
+import { FundPayrollFromAccountsModal } from '@/components/payroll/fund-payroll-from-accounts-modal'
 import { getUserRoleInBusiness, canDeletePayroll } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
@@ -114,9 +115,14 @@ export default function PayrollPeriodDetailPage() {
     message: string
   } | null>(null)
   const [syncingBenefits, setSyncingBenefits] = useState(false)
+  const [loanSyncNeeded, setLoanSyncNeeded] = useState(false)
+  const [syncingLoans, setSyncingLoans] = useState(false)
+
   const [addingAllEmployees, setAddingAllEmployees] = useState(false)
   const [availableEmployeesCount, setAvailableEmployeesCount] = useState<number | null>(null)
   const [showProcessPayments, setShowProcessPayments] = useState(false)
+  const [showFundPayrollModal, setShowFundPayrollModal] = useState(false)
+  const [payrollAccountBalance, setPayrollAccountBalance] = useState<number | null>(null)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -135,6 +141,17 @@ export default function PayrollPeriodDetailPage() {
       loadAvailableEmployeesCount()
     }
   }, [period?.businesses?.id])
+
+  useEffect(() => {
+    if (period?.status === 'review') {
+      fetch('/api/payroll/account', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.data?.balance != null) setPayrollAccountBalance(Number(d.data.balance))
+        })
+        .catch(() => {})
+    }
+  }, [period?.status])
 
   const loadPeriod = async () => {
     try {
@@ -171,11 +188,37 @@ export default function PayrollPeriodDetailPage() {
         } catch (e) { /* ignore */ }
         // Loaded period data; UI will consume server-provided mergedBenefits and totals.
         setPeriod(data)
+        // Auto-sync loan deductions silently on every load for non-approved periods
+        if (!['approved', 'exported', 'closed'].includes(data.status)) {
+          autoSyncLoans(periodId as string)
+        }
       }
     } catch (error) {
       console.error('Failed to load payroll period:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const autoSyncLoans = async (id: string) => {
+    try {
+      const res = await fetch(`/api/payroll/periods/${id}/sync-loan-deductions`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        // If DB entries were updated, reload so displayed values reflect the changes
+        if (data.updated > 0) {
+          const refreshRes = await fetch(`/api/payroll/periods/${id}`)
+          if (refreshRes.ok) {
+            const refreshed = await refreshRes.json()
+            if (refreshed.payroll_entries && !refreshed.payrollEntries) {
+              refreshed.payrollEntries = refreshed.payroll_entries
+            }
+            setPeriod(refreshed)
+          }
+        }
+      }
+    } catch {
+      // Non-critical — silently ignore
     }
   }
 
@@ -438,81 +481,38 @@ export default function PayrollPeriodDetailPage() {
     setTimeout(() => setNotification(null), 5000)
   }
 
-  // Get unique benefits from contract data (only show columns with at least one non-zero value)
+  // Get unique benefit columns from server-provided mergedBenefits (authoritative, already month-filtered).
+  // Falls back to persisted payrollEntryBenefits for manually added benefits.
+  // Does NOT read raw contract pdfGenerationData — the server handles month filtering there.
   const getUniqueBenefits = () => {
     if (!period) return []
     const uniqueBenefitsMap = new Map<string, { id: string, name: string }>()
 
-
     period.payroll_entries.forEach(entry => {
-      // Prefer server-merged benefits when present
-      const merged = entry.mergedBenefits || []
-      const contractBenefits = entry.contract?.pdfGenerationData?.benefits || []
-      const entryBenefits = entry.payroll_entry_benefits || []
+      const merged: any[] = (entry as any).mergedBenefits || []
+      const entryBenefits: any[] = entry.payroll_entry_benefits || []
 
-      // Use mergedBenefits to decide columns (they represent the effective, merged view)
-      // Prefer server-provided merged benefits even when amount is zero so preview and
-      // export remain consistent with server authority.
+      // Primary source: server-computed mergedBenefits (already month-filtered, percentage-resolved)
       merged.forEach((mb: any) => {
-        if (!mb) return
-        if (mb.isActive === false) return
+        if (!mb || mb.isActive === false) return
         const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
         if (!name) return
         const benefitId = String(mb.benefitType?.id || mb.benefitTypeId || name)
         if (!uniqueBenefitsMap.has(benefitId)) uniqueBenefitsMap.set(benefitId, { id: benefitId, name })
       })
 
-      // Regardless of mergedBenefits presence, include contract-inferred benefits and persisted payroll_entry_benefits
-      // mergedBenefits represent an authoritative merged view but might not list all contract benefits (or may be empty for some entries).
-      // We therefore union merged, contract and persisted manual benefits, preferring merged amounts and honoring persisted overrides.
-      const unioned: Map<string, { id: string, name: string }> = new Map()
-
-      // Start from merged (authoritative) when present
-      if (Array.isArray(merged) && merged.length > 0) {
-        merged.forEach((mb: any) => {
-          if (!mb) return
-          if (mb.isActive === false) return
-          const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
-          const amount = Number(mb.amount || 0)
-          if (amount <= 0) return
-          const benefitId = String(mb.benefitType?.id || mb.benefitTypeId || name)
-          unioned.set(benefitId, { id: benefitId, name })
-        })
-      }
-
-      // Ensure contract-inferred benefits are included (they may be missing from merged for some entries)
-      contractBenefits.forEach((cb: any) => {
-        const contractAmount = Number(cb.amount || 0)
-        // Check for any override (active or inactive)
-        const override = entry.payroll_entry_benefits?.find((pb: any) => (pb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) || pb.benefitName === cb.name)
-        if (override && override.isActive === false) return
-        let effectiveAmount = contractAmount
-        if (override && override.isActive === true) effectiveAmount = Number(override.amount || 0)
-        if (effectiveAmount > 0) {
-          const benefitId = String(cb.benefitTypeId || cb.name)
-          if (!unioned.has(benefitId)) unioned.set(benefitId, { id: benefitId, name: cb.name })
-        }
-      })
-
-      // Include any manual persisted payroll_entry_benefits not covered above
-      entry.payroll_entry_benefits?.forEach((benefit: any) => {
+      // Secondary: persisted entry benefits (manually added via UI)
+      entryBenefits.forEach((benefit: any) => {
         if (!benefit.isActive) return
-        const amount = Number(benefit.amount || 0)
-        if (amount <= 0) return
+        if (Number(benefit.amount || 0) <= 0) return
         const benefitId = String(benefit.benefitTypeId || benefit.benefitName)
-        if (!unioned.has(benefitId)) unioned.set(benefitId, { id: benefitId, name: benefit.benefitName })
+        if (!uniqueBenefitsMap.has(benefitId)) uniqueBenefitsMap.set(benefitId, { id: benefitId, name: benefit.benefitName })
       })
-
-      // Merge unioned into uniqueBenefitsMap
-      unioned.forEach((v, k) => uniqueBenefitsMap.set(k, v))
     })
 
-    const result = Array.from(uniqueBenefitsMap.values())
+    return Array.from(uniqueBenefitsMap.values())
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(b => ({ benefitTypeId: b.id, benefitName: b.name }))
-
-  // Final unique benefits for columns computed from server mergedBenefits and contract/manual fallbacks.
-    return result
   }
 
   // Memoize unique benefits so we don't recalculate on every render
@@ -689,51 +689,21 @@ export default function PayrollPeriodDetailPage() {
   }
 
   const computeEntryTotals = (entry: PayrollEntry) => {
+    // Always compute gross from components so the result is consistent regardless of
+    // whether entry.grossPay was saved before or after benefits were applied.
+    // (After a modal edit, grossPay in DB may exclude contract benefits because
+    //  computeTotalsForEntry only reads payrollEntryBenefits; benefitsTotal from
+    //  the original server load is preserved via totalBenefitsAmount.)
     const benefitsTotal = resolveBenefitsTotal(entry)
-
-    const storedGross = Number(entry.grossPay || 0)
-    const storedNet = Number(entry.netPay || 0)
-    if (storedGross && storedNet) {
-      // Prefer persisted totals on the entry - server already has absence subtracted
-      // Build derived adjustments excluding explicit 'absence' adjustments so list matches modal
-      const fallbackDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
-      let derivedAdjDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
-      try {
-        const adjustmentsList = (entry as any).payrollAdjustments || []
-        if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
-          const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
-            try {
-              const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
-              if (rawType === 'absence') return s
-              const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
-              const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
-              return s + (!isAdd ? Math.abs(amt) : 0)
-            } catch (e) { return s }
-          }, 0)
-          derivedAdjDeductions = derivedDeductions
-        }
-      } catch (e) {
-        // ignore and use server-provided adjustmentsAsDeductions when present
-      }
-      const derivedTotal = fallbackDeductions + derivedAdjDeductions
-      // Prefer the derived total (which excludes absence) for list display so it matches modal
-      const totalDeductions = derivedTotal
-
-      // Server-provided gross already has absence subtracted - don't subtract again
-      const adjustedGross = Number(storedGross)
-      const adjustedNet = Number(adjustedGross)
-
-      return { benefitsTotal, grossInclBenefits: adjustedGross, netInclBenefits: adjustedNet, totalDeductions }
-    }
-
     const baseSalary = Number(entry.baseSalary || 0)
     const commission = Number(entry.commission || 0)
     const overtime = computeOvertimeForEntry(entry)
-    // Prefer server-provided aggregated fields, but derive from payrollAdjustments when missing
+
+    // Prefer server-provided aggregated additions/deductions, derive from payrollAdjustments when missing
     let additions = Number((entry as any).adjustmentsTotal || 0)
     let adjAsDeductions = Number((entry as any).adjustmentsAsDeductions || 0)
+    const adjustmentsList = (entry as any).payrollAdjustments || []
     if ((!additions || additions === 0) || (!adjAsDeductions || adjAsDeductions === 0)) {
-      const adjustmentsList = (entry as any).payrollAdjustments || []
       if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
         const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
           const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
@@ -754,17 +724,13 @@ export default function PayrollPeriodDetailPage() {
       }
     }
 
-    // No further action here; we'll compute absence and subtract it from gross below.
-
-    // Add positive adjustments to gross; negative adjustments are treated as deductions applied after taxes
     const absenceDeduction = resolveAbsenceDeduction(entry)
-    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - (absenceDeduction || 0)
+    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
 
-    // Build derived totalDeductions excluding absence (so list matches modal)
     const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
     const totalDeductions = derivedTotalDeductions
-
-    const netInclBenefits = grossInclBenefits - totalDeductions
+    // Deductions are shown separately — applied by third-party payroll processor after gross
+    const netInclBenefits = grossInclBenefits
 
     return { benefitsTotal, grossInclBenefits, netInclBenefits, totalDeductions }
   }
@@ -950,14 +916,29 @@ export default function PayrollPeriodDetailPage() {
               Preview Export
             </button>
           )}
-          {canApprove && period.status === 'review' && (
-            <button
-              onClick={handleApprove}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
-            >
-              Approve
-            </button>
-          )}
+          {canApprove && period.status === 'review' && (() => {
+            const totalNeeded = Number(period.totalNetPay || 0)
+            const balance = payrollAccountBalance ?? 0
+            const insufficientFunds = payrollAccountBalance !== null && balance < totalNeeded
+            return (
+              <>
+                <button
+                  onClick={() => setShowFundPayrollModal(true)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                >
+                  💵 Fund Payroll
+                </button>
+                <button
+                  onClick={handleApprove}
+                  disabled={insufficientFunds}
+                  title={insufficientFunds ? `Insufficient payroll account balance — need $${totalNeeded.toFixed(2)}, have $${balance.toFixed(2)}. Use Fund Payroll to top up.` : undefined}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${insufficientFunds ? 'bg-green-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                >
+                  Approve
+                </button>
+              </>
+            )
+          })()}
           {canExport && period.status === 'approved' && (
             <>
               <button
@@ -1097,6 +1078,27 @@ export default function PayrollPeriodDetailPage() {
         </div>
       )}
 
+      {/* Payroll balance warning for review status */}
+      {period.status === 'review' && payrollAccountBalance !== null && payrollAccountBalance < period.totalNetPay && (
+        <div className="mb-4 p-4 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-semibold text-amber-800 dark:text-amber-200">Insufficient Payroll Account Balance</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
+                Payroll requires <strong>{formatCurrency(period.totalNetPay)}</strong> but payroll account only has <strong>{formatCurrency(payrollAccountBalance)}</strong>{' '}
+                (short by <strong>{formatCurrency(period.totalNetPay - payrollAccountBalance)}</strong>). Fund the payroll account before approving.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowFundPayrollModal(true)}
+              className="flex-shrink-0 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md"
+            >
+              💵 Fund Payroll
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Benefit load error / sync helper */}
       {period?.benefitLoadError && (
         <div className="mb-4 p-4 rounded-md bg-red-50 text-red-800 border border-red-200">
@@ -1164,7 +1166,7 @@ export default function PayrollPeriodDetailPage() {
         </div>
       )}
 
-      {/* Period Summary - Use API-provided stored values to match preview exactly */}
+      {/* Period Summary - use same computeEntryTotals as table rows so cards always match */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="card">
           <p className="text-sm text-secondary">Employees</p>
@@ -1173,26 +1175,28 @@ export default function PayrollPeriodDetailPage() {
         <div className="card">
           <p className="text-sm text-secondary">Gross Pay</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + Number(e.grossPay || 0), 0))}
+            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + computeEntryTotals(e).grossInclBenefits, 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Deductions</p>
           <p className="text-2xl font-bold text-primary">
-            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + Number(e.totalDeductions || 0), 0))}
+            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + computeEntryTotals(e).totalDeductions, 0))}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-secondary">Net Gross</p>
           <p className="text-2xl font-bold text-green-600">
-            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + Number(e.netPay || 0), 0))}
+            {formatCurrency(period.payroll_entries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0))}
           </p>
         </div>
       </div>
 
       {/* Entries Table */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-primary mb-4">Payroll Entries</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-primary">Payroll Entries</h3>
+        </div>
         {period.payroll_entries.length === 0 ? (
           <p className="text-secondary text-center py-12">No employees added to this payroll period yet</p>
         ) : (
@@ -1431,6 +1435,23 @@ export default function PayrollPeriodDetailPage() {
           loadPeriod()
         }}
       />
+
+      {/* Fund Payroll From Accounts Modal */}
+      {showFundPayrollModal && (
+        <FundPayrollFromAccountsModal
+          totalRequired={period.totalNetPay}
+          currentPayrollBalance={payrollAccountBalance ?? 0}
+          onSuccess={() => {
+            setShowFundPayrollModal(false)
+            // Refresh balance
+            fetch('/api/payroll/account', { credentials: 'include' })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (d?.data?.balance != null) setPayrollAccountBalance(Number(d.data.balance)) })
+              .catch(() => {})
+          }}
+          onClose={() => setShowFundPayrollModal(false)}
+        />
+      )}
     </ContentLayout>
   )
 }

@@ -65,7 +65,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       type,
       defaultAmount,
       isPercentage,
-      isActive
+      isActive,
+      paymentMonth
     } = data
 
     // Validation
@@ -119,7 +120,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         type,
         defaultAmount: defaultAmount ? parseFloat(defaultAmount) : null,
         isPercentage: isPercentage || false,
-        isActive: isActive !== undefined ? isActive : existingBenefitType.isActive
+        isActive: isActive !== undefined ? isActive : existingBenefitType.isActive,
+        paymentMonth: paymentMonth !== undefined ? (paymentMonth === null ? null : Number(paymentMonth)) : (existingBenefitType as any).paymentMonth
       },
       include: {
         _count: {

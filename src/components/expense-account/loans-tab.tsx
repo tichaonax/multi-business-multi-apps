@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatDate } from '@/lib/date-format'
+import { RecordRepaymentModal } from './record-repayment-modal'
 
 interface LoanRepayment {
   amount: number
@@ -23,6 +24,28 @@ interface Loan {
   notes: string | null
   lender: { id: string; name: string; lenderType: string }
   createdAt: string
+}
+
+interface ReceivedLoanRepayment {
+  id: string
+  amount: number
+  paymentDate: string
+  paymentMethod: string
+  notes: string | null
+}
+
+interface ReceivedLoan {
+  id: string
+  loanNumber: string
+  principalAmount: number
+  remainingBalance: number
+  disbursementDate: string
+  dueDate: string | null
+  status: string
+  purpose: string | null
+  lenderAccountName: string | null
+  lenderAccountNumber: string | null
+  repayments: ReceivedLoanRepayment[]
 }
 
 interface LoansTabProps {
@@ -53,11 +76,18 @@ function statusBadge(status: string) {
 
 export function LoansTab({ accountId }: LoansTabProps) {
   const [loans, setLoans] = useState<Loan[]>([])
+  const [receivedLoans, setReceivedLoans] = useState<ReceivedLoan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Payment history modal
   const [historyLoan, setHistoryLoan] = useState<Loan | null>(null)
+
+  // Repayment modal for received loans
+  const [repayingLoan, setRepayingLoan] = useState<ReceivedLoan | null>(null)
+
+  // History modal for received loans
+  const [historyReceivedLoan, setHistoryReceivedLoan] = useState<ReceivedLoan | null>(null)
 
   // Payment modal state
   const [payingLoan, setPayingLoan] = useState<Loan | null>(null)
@@ -79,6 +109,7 @@ export function LoansTab({ accountId }: LoansTabProps) {
       if (!res.ok) throw new Error('Failed to load loans')
       const data = await res.json()
       setLoans(data.data?.loans || [])
+      setReceivedLoans(data.data?.receivedLoans || [])
     } catch (e) {
       setError('Failed to load loans')
     } finally {
@@ -159,7 +190,7 @@ export function LoansTab({ accountId }: LoansTabProps) {
     )
   }
 
-  if (loans.length === 0) {
+  if (loans.length === 0 && receivedLoans.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-4xl mb-3">🏦</p>
@@ -173,9 +204,11 @@ export function LoansTab({ accountId }: LoansTabProps) {
 
   const active = loans.filter(l => l.status === 'ACTIVE' || l.status === 'OVERDUE')
   const paidOff = loans.filter(l => l.status === 'PAID_OFF')
+  const activeReceived = receivedLoans.filter(l => !['PAID_OFF', 'WRITTEN_OFF'].includes(l.status))
 
   return (
     <div className="space-y-6">
+      {loans.length > 0 && (<>
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-center">
@@ -280,6 +313,150 @@ export function LoansTab({ accountId }: LoansTabProps) {
               <span className="text-gray-700 dark:text-gray-300">{loan.notes}</span>
             </div>
           ))}
+        </div>
+      )}
+      </>)}
+
+      {/* Loans Received (this business was the borrower) */}
+      {receivedLoans.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">🤝 Loans Received</h3>
+            {activeReceived.length > 0 && (
+              <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                {formatCurrency(activeReceived.reduce((s, l) => s + l.remainingBalance, 0))} outstanding
+              </span>
+            )}
+          </div>
+          <div className="space-y-2">
+            {receivedLoans.map(loan => (
+              <div
+                key={loan.id}
+                className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/40 rounded-lg cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors"
+                onClick={() => setHistoryReceivedLoan(loan)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs text-gray-500 dark:text-gray-400">#{loan.loanNumber}</span>
+                    {statusBadge(loan.status)}
+                    {loan.lenderAccountName && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">from {loan.lenderAccountName}</span>
+                    )}
+                  </div>
+                  <div className="text-sm mt-1">
+                    <span className="text-gray-700 dark:text-gray-300">Principal: <strong>{formatCurrency(loan.principalAmount)}</strong></span>
+                    {loan.remainingBalance < loan.principalAmount && (
+                      <span className="text-amber-700 dark:text-amber-400 ml-2">· Remaining: <strong>{formatCurrency(loan.remainingBalance)}</strong></span>
+                    )}
+                  </div>
+                  {loan.purpose && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{loan.purpose}</p>}
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                    Received: {formatDate(loan.disbursementDate)}
+                    {loan.dueDate && ` · Due: ${formatDate(loan.dueDate)}`}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                  {loan.status === 'ACTIVE' && (
+                    <button
+                      onClick={() => setRepayingLoan(loan)}
+                      className="px-3 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 transition-colors"
+                    >
+                      💰 Repay
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Repayment modal for received loans */}
+      {repayingLoan && (
+        <RecordRepaymentModal
+          loanId={repayingLoan.id}
+          loanNumber={repayingLoan.loanNumber}
+          recipientName="This account"
+          remainingBalance={repayingLoan.remainingBalance}
+          onSuccess={() => { setRepayingLoan(null); loadLoans() }}
+          onClose={() => setRepayingLoan(null)}
+        />
+      )}
+
+      {/* Loan History Modal — for received loans (borrower view) */}
+      {historyReceivedLoan && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <h3 className="font-semibold text-primary">Loan History</h3>
+                <p className="text-xs text-secondary mt-0.5">
+                  #{historyReceivedLoan.loanNumber}
+                  {historyReceivedLoan.lenderAccountName && ` — from ${historyReceivedLoan.lenderAccountName}`}
+                </p>
+              </div>
+              <button onClick={() => setHistoryReceivedLoan(null)} className="text-secondary hover:text-primary text-xl leading-none">&times;</button>
+            </div>
+
+            <div className="divide-y divide-border max-h-96 overflow-y-auto">
+              {/* Initial disbursement row */}
+              <div className="px-5 py-3 flex items-center justify-between bg-green-50 dark:bg-green-900/10">
+                <div>
+                  <div className="text-sm font-medium text-green-700 dark:text-green-400">📥 Loan Disbursed</div>
+                  <div className="text-xs text-secondary mt-0.5">{formatDate(historyReceivedLoan.disbursementDate)}</div>
+                  {historyReceivedLoan.purpose && (
+                    <div className="text-xs text-secondary mt-0.5">{historyReceivedLoan.purpose}</div>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold text-green-700 dark:text-green-400">
+                    +{formatCurrency(historyReceivedLoan.principalAmount)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Repayments */}
+              {historyReceivedLoan.repayments.length === 0 ? (
+                <p className="text-sm text-secondary text-center py-6">No repayments recorded yet.</p>
+              ) : (
+                historyReceivedLoan.repayments.map((r) => (
+                  <div key={r.id} className="px-5 py-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-red-600 dark:text-red-400">💸 Repayment</div>
+                      <div className="text-xs text-secondary mt-0.5">{formatDate(r.paymentDate)}</div>
+                      {r.notes && <div className="text-xs text-secondary mt-0.5">{r.notes}</div>}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-red-600 dark:text-red-400">
+                        -{formatCurrency(r.amount)}
+                      </div>
+                      <div className="text-xs text-secondary capitalize">{r.paymentMethod.toLowerCase().replace('_', ' ')}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Summary footer */}
+            <div className="px-5 py-3 border-t border-border grid grid-cols-3 gap-3 text-sm bg-gray-50 dark:bg-gray-700/50">
+              <div>
+                <p className="text-xs text-secondary">Principal</p>
+                <p className="font-semibold text-primary">{formatCurrency(historyReceivedLoan.principalAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-secondary">Repaid</p>
+                <p className="font-semibold text-green-600 dark:text-green-400">
+                  {formatCurrency(historyReceivedLoan.principalAmount - historyReceivedLoan.remainingBalance)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-secondary">Remaining</p>
+                <p className={`font-semibold ${historyReceivedLoan.remainingBalance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                  {formatCurrency(historyReceivedLoan.remainingBalance)}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

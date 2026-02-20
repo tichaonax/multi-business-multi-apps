@@ -112,6 +112,7 @@ export async function GET(
           category: payment.category,
           subcategory: payment.subcategory,
           amount: Number(payment.amount),
+          paymentType: payment.paymentType,
           paymentDate: payment.paymentDate.toISOString(),
           notes: payment.notes,
           receiptNumber: payment.receiptNumber,

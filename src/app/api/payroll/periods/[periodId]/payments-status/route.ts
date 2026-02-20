@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 
+interface RouteParams {
+  params: Promise<{ periodId: string }>
+}
+
 /**
  * GET /api/payroll/periods/[periodId]/payments-status
  * Get payroll entries with payment status information
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { periodId: string } }
+  { params }: RouteParams
 ) {
   try {
     const user = await getServerUser()
@@ -16,12 +20,12 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { periodId } = params
+    const { periodId } = await params
 
-    // Fetch payroll period to verify access
+    // Fetch payroll period to verify access and get date range for payment lookup
     const period = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
-      select: { id: true, businessId: true },
+      select: { id: true, businessId: true, periodStart: true, periodEnd: true },
     })
 
     if (!period) {
@@ -31,9 +35,7 @@ export async function GET(
       )
     }
 
-    // TODO: Add permission check for viewing payroll
-
-    // Fetch all payroll entries for this period with payment info
+    // Fetch all payroll entries for this period
     const entries = await prisma.payrollEntries.findMany({
       where: { payrollPeriodId: periodId },
       select: {
@@ -49,37 +51,39 @@ export async function GET(
       orderBy: { employeeName: 'asc' },
     })
 
-    // Fetch payment information for these entries
-    const entryIds = entries.map((e) => e.id)
-    const payments = await prisma.payrollPayments.findMany({
-      where: {
-        payrollEntryId: { in: entryIds },
-        isAdvance: false, // Only regular payments, not advances
-      },
-      select: {
-        id: true,
-        payrollEntryId: true,
-        amount: true,
-        status: true,
-        paymentDate: true,
-        users_created: {
+    // Fetch payment information by employeeId (PayrollAccountPayments links by employee, not entry)
+    const employeeIds = entries.map((e) => e.employeeId).filter(Boolean) as string[]
+    const payments = employeeIds.length > 0
+      ? await prisma.payrollAccountPayments.findMany({
+          where: {
+            employeeId: { in: employeeIds },
+            isAdvance: false,
+          },
           select: {
             id: true,
-            name: true,
-            email: true,
+            employeeId: true,
+            amount: true,
+            status: true,
+            paymentDate: true,
+            users_created: {
+              select: { id: true, name: true, email: true },
+            },
           },
-        },
-      },
-    })
+          orderBy: { paymentDate: 'desc' },
+        })
+      : []
 
-    // Create a map of entry ID to payment
-    const paymentMap = new Map(
-      payments.map((p) => [p.payrollEntryId, p])
-    )
+    // Map most recent payment per employee
+    const paymentByEmployee = new Map<string, (typeof payments)[0]>()
+    for (const p of payments) {
+      if (!paymentByEmployee.has(p.employeeId)) {
+        paymentByEmployee.set(p.employeeId, p)
+      }
+    }
 
     // Combine entries with payment information
     const result = entries.map((entry) => {
-      const payment = paymentMap.get(entry.id)
+      const payment = entry.employeeId ? paymentByEmployee.get(entry.employeeId) : undefined
       return {
         id: entry.id,
         employeeId: entry.employeeId,

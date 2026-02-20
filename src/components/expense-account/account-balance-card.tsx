@@ -7,12 +7,16 @@ interface AccountBalanceCardProps {
   accountData: any
   onRefresh?: () => void
   canViewExpenseReports?: boolean
+  canEditThreshold?: boolean
 }
 
-export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseReports = false }: AccountBalanceCardProps) {
+export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseReports = false, canEditThreshold = false }: AccountBalanceCardProps) {
   const customAlert = useAlert()
   const [balanceSummary, setBalanceSummary] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [editingThreshold, setEditingThreshold] = useState(false)
+  const [thresholdInput, setThresholdInput] = useState('')
+  const [savingThreshold, setSavingThreshold] = useState(false)
 
   useEffect(() => {
     if (accountData?.id) {
@@ -37,6 +41,34 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
       console.error('Error fetching balance summary:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveThreshold = async () => {
+    const value = parseFloat(thresholdInput)
+    if (isNaN(value) || value < 0) {
+      customAlert({ title: 'Invalid value', description: 'Threshold must be a non-negative number.' })
+      return
+    }
+    setSavingThreshold(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ lowBalanceThreshold: value }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        customAlert({ title: 'Error', description: data.error || 'Failed to update threshold.' })
+      } else {
+        setEditingThreshold(false)
+        if (onRefresh) onRefresh()
+      }
+    } catch {
+      customAlert({ title: 'Error', description: 'Network error. Please try again.' })
+    } finally {
+      setSavingThreshold(false)
     }
   }
 
@@ -69,7 +101,7 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
   const cardGradient = isCriticalBalance
     ? 'from-red-500 to-red-600'
     : isLowBalance
-    ? 'from-yellow-500 to-yellow-600'
+    ? 'from-amber-700 to-amber-800'
     : accountData.isSibling
     ? 'from-purple-600 to-purple-700'
     : 'from-green-600 to-green-700'
@@ -202,9 +234,43 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
           </span>
         </div>
         <div className="flex items-center space-x-2">
-          <span className="text-xs opacity-75">
-            Threshold: {formatCurrency(threshold)}
-          </span>
+          {editingThreshold ? (
+            <div className="flex items-center gap-1">
+              <span className="text-xs opacity-75">$</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={thresholdInput}
+                onChange={(e) => setThresholdInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveThreshold(); if (e.key === 'Escape') setEditingThreshold(false) }}
+                autoFocus
+                className="w-20 px-1 py-0.5 text-xs rounded bg-white/20 border border-white/40 text-white placeholder-white/50 focus:outline-none"
+              />
+              <button
+                onClick={handleSaveThreshold}
+                disabled={savingThreshold}
+                className="text-xs px-1.5 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors disabled:opacity-50"
+                title="Save"
+              >✓</button>
+              <button
+                onClick={() => setEditingThreshold(false)}
+                className="text-xs px-1.5 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors"
+                title="Cancel"
+              >✕</button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <span className="text-xs opacity-75">Alert: {formatCurrency(threshold)}</span>
+              {canEditThreshold && (
+                <button
+                  onClick={() => { setThresholdInput(String(threshold)); setEditingThreshold(true) }}
+                  className="text-xs opacity-60 hover:opacity-100 transition-opacity"
+                  title="Edit balance alert threshold"
+                >✏️</button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

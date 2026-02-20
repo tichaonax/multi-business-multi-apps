@@ -17,6 +17,7 @@ import { AccountPermissionsTab } from '@/components/expense-account/account-perm
 import { LoansTab } from '@/components/expense-account/loans-tab'
 import { ReturnTransferModal } from '@/components/expense-account/return-transfer-modal'
 import { LendMoneyModal } from '@/components/expense-account/lend-money-modal'
+import { FundPayrollModal } from '@/components/expense-account/fund-payroll-modal'
 import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-panel'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
@@ -55,6 +56,7 @@ export default function ExpenseAccountDetailPage() {
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
   const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
   const [showLendMoneyModal, setShowLendMoneyModal] = useState(false)
+  const [showFundPayrollModal, setShowFundPayrollModal] = useState(false)
   const [loansRefreshKey, setLoansRefreshKey] = useState(0)
 
   // Permissions from business context (properly fetched from API)
@@ -254,6 +256,7 @@ export default function ExpenseAccountDetailPage() {
           accountData={account}
           onRefresh={handleRefresh}
           canViewExpenseReports={canViewExpenseReports}
+          canEditThreshold={canChangeCategory}
         />
 
         {/* Tabs */}
@@ -318,6 +321,19 @@ export default function ExpenseAccountDetailPage() {
               >
                 Loans
               </button>
+
+              {canManageLending && (
+                <button
+                  onClick={() => setActiveTab('lent-out')}
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === 'lent-out'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                  }`}
+                >
+                  Lent Out
+                </button>
+              )}
 
               {isSystemAdmin && (
                 <button
@@ -433,13 +449,13 @@ export default function ExpenseAccountDetailPage() {
                     Create Payments
                   </h4>
                   <div className="flex items-center gap-2">
-                    {canManageLending && (
+                    {canMakeExpensePayments && (
                       <button
-                        onClick={() => setShowLendMoneyModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                        onClick={() => setShowFundPayrollModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
                       >
-                        <span>🤝</span>
-                        Lend Money
+                        <span>💵</span>
+                        Fund Payroll
                       </button>
                     )}
                     <button
@@ -468,15 +484,6 @@ export default function ExpenseAccountDetailPage() {
                   }}
                 />
 
-                {/* Outgoing Loans Panel */}
-                <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">🤝 Outgoing Loans</h5>
-                  <OutgoingLoansPanel
-                    accountId={accountId}
-                    canManage={canManageLending}
-                    refreshKey={loansRefreshKey}
-                  />
-                </div>
               </div>
             )}
 
@@ -497,6 +504,30 @@ export default function ExpenseAccountDetailPage() {
                   Loans
                 </h4>
                 <LoansTab accountId={accountId} />
+              </div>
+            )}
+
+            {/* Lent Out Tab */}
+            {activeTab === 'lent-out' && canManageLending && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    🤝 Lent Out
+                  </h4>
+                  <button
+                    onClick={() => setShowLendMoneyModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                  >
+                    <span>🤝</span>
+                    Lend Money
+                  </button>
+                </div>
+                <OutgoingLoansPanel
+                  accountId={accountId}
+                  canManage={canManageLending}
+                  refreshKey={loansRefreshKey}
+                  onRepaymentSuccess={loadAccount}
+                />
               </div>
             )}
 
@@ -564,11 +595,26 @@ export default function ExpenseAccountDetailPage() {
           accountId={accountId}
           accountName={account.accountName}
           accountBalance={Number(account.balance)}
+          currentBusinessId={account.businessId}
           onSuccess={() => {
             loadAccount()
             setLoansRefreshKey(k => k + 1)
           }}
           onClose={() => setShowLendMoneyModal(false)}
+        />
+      )}
+
+      {/* Fund Payroll Modal */}
+      {showFundPayrollModal && account && (
+        <FundPayrollModal
+          accountId={accountId}
+          accountName={account.accountName}
+          accountBalance={Number(account.balance)}
+          onSuccess={() => {
+            loadAccount()
+            setShowFundPayrollModal(false)
+          }}
+          onClose={() => setShowFundPayrollModal(false)}
         />
       )}
     </ContentLayout>

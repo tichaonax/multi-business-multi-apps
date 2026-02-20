@@ -95,71 +95,103 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
 }
 
 // Compute gross/net for an entry by recomputing using components and combined benefits
-export async function computeTotalsForEntry(entryId: string) {
+// periodMonth: if provided, month-restricted benefits (e.g. Annual Bonus) are filtered from contract data
+export async function computeTotalsForEntry(entryId: string, periodMonth?: number) {
     const entry = await prisma.payrollEntries.findUnique({
         where: { id: entryId },
-        include: { employees: true }
+        include: {
+            employees: true,
+            // Load period month so we can apply month-restriction filtering on pdfGenerationData benefits
+            payroll_periods: { select: { month: true } }
+        }
     })
 
     if (!entry) return { grossPay: 0, netPay: 0, benefitsTotal: 0 }
 
+    // Resolve period month: prefer caller-supplied value, then from the period relation
+    const resolvedPeriodMonth = periodMonth ?? (entry as any).payroll_periods?.month ?? null
+
     // Start with persisted/manual benefits
     const { combined, benefitsTotal: persistedBenefitsTotal } = await computeCombinedBenefitsForEntry(entry)
 
-    // Attempt to include contract-level benefits and baseSalary when the entry does not
-    // have them persisted. This keeps computeTotalsForEntry authoritative and consistent
-    // with the period-level merging logic (persisted overrides win over contract values).
+    // Fetch contract — used for baseSalary/hourlyRate fallbacks AND as a benefits fallback
+    // when no benefits have been persisted to payrollEntryBenefits yet (entries created before
+    // the bulk-creation fix). In that case we read pdfGenerationData.benefits with month filtering.
     let contract: any = null
     try {
         const empId = (entry as any).employees?.id || (entry as any).employeeId
         if (empId) {
-            contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
+            // Prefer the contractId stored on the entry (exact match); fall back to latest contract
+            const contractId = (entry as any).contractId
+            if (contractId) {
+                contract = await prisma.employeeContracts.findUnique({ where: { id: contractId } })
+            }
+            if (!contract) {
+                contract = await prisma.employeeContracts.findFirst({ where: { employeeId: empId }, orderBy: { startDate: 'desc' } })
+            }
         }
     } catch (err) {
         contract = null
     }
 
-    // Build contract-derived benefits (if any)
-    const contractBenefits: any[] = []
-    if (contract && contract.pdfGenerationData && Array.isArray(contract.pdfGenerationData.benefits)) {
-        for (const cb of contract.pdfGenerationData.benefits) {
-            const amount = Number(cb.amount || 0)
-            if (!amount || amount === 0) continue
-            contractBenefits.push({
-                benefitTypeId: cb.benefitTypeId || null,
-                benefitName: cb.name || cb.benefit_types?.name || '',
-                amount,
-                source: 'contract'
-            })
-        }
-    }
-
-    // Merge contract benefits with persisted combined (persisted wins)
-    const normalize = (s?: string | null) => {
-        if (!s) return ''
-        try { return String(s).normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase() } catch (e) { return String(s).trim().replace(/\s+/g, ' ').toLowerCase() }
-    }
-    const mergedByKey = new Map<string, any>()
-    const keyFor = (x: any) => String(x.benefitTypeId || normalize(x.benefitName || x.name || ''))
-
-    for (const cb of contractBenefits) {
-        const k = keyFor(cb)
-        mergedByKey.set(k, { ...cb, isActive: true })
-    }
-
-    for (const pb of combined) {
-        const k = keyFor(pb) || String(pb.id || Math.random())
-        mergedByKey.set(k, {
+    // Build mergedBenefits: prefer persisted payrollEntryBenefits (combined).
+    // When none exist (entries created before the benefit-persistence fix), fall back to
+    // contract pdfGenerationData.benefits — applying the same month-restriction filter
+    // used by the period GET route so Annual Bonus etc. are correctly excluded.
+    let mergedBenefits: any[]
+    if (combined.length > 0) {
+        mergedBenefits = combined.map(pb => ({
             id: pb.id,
             benefitTypeId: pb.benefitTypeId || null,
             benefitName: pb.benefitName || pb.name || '',
             amount: Number(pb.amount || 0),
             isActive: pb.isActive !== false,
             source: pb.source || 'manual'
-        })
+        }))
+    } else {
+        // No persisted benefits — read from contract pdfGenerationData with month filtering
+        const pdfBenefits: any[] = (contract as any)?.pdfGenerationData?.benefits || []
+        if (pdfBenefits.length > 0) {
+            // Load month-restricted benefit types once for filtering
+            let paymentMonthMap = new Map<string, number>()
+            let paymentMonthByName = new Map<string, number>()
+            try {
+                const monthRestricted = await prisma.benefitTypes.findMany({
+                    where: { paymentMonth: { not: null } },
+                    select: { id: true, name: true, paymentMonth: true }
+                })
+                paymentMonthMap = new Map(monthRestricted.map((b: any) => [b.id, b.paymentMonth as number]))
+                paymentMonthByName = new Map(monthRestricted.map((b: any) => [String(b.name || '').toLowerCase().trim(), b.paymentMonth as number]))
+            } catch (_) { /* ignore — no filtering applied */ }
+
+            const entryBaseSalary = Number((entry as any).baseSalary ?? 0)
+            const fromPdf: any[] = []
+            for (const b of pdfBenefits) {
+                const rawAmount = Number(b.amount || 0)
+                if (!rawAmount) continue
+                // Apply paymentMonth filter
+                const nameLower = String(b.name || '').toLowerCase().trim()
+                const restrictedMonth = b.benefitTypeId
+                    ? (paymentMonthMap.get(b.benefitTypeId) ?? paymentMonthByName.get(nameLower))
+                    : paymentMonthByName.get(nameLower)
+                if (restrictedMonth && resolvedPeriodMonth && restrictedMonth !== resolvedPeriodMonth) continue
+                const amount = b.isPercentage === true
+                    ? Math.round((rawAmount / 100) * entryBaseSalary * 100) / 100
+                    : rawAmount
+                fromPdf.push({
+                    benefitTypeId: b.benefitTypeId || null,
+                    benefitName: b.name || 'Unknown Benefit',
+                    amount,
+                    isActive: true,
+                    source: 'contract'
+                })
+            }
+            mergedBenefits = fromPdf
+        } else {
+            mergedBenefits = []
+        }
     }
 
-    const mergedBenefits = Array.from(mergedByKey.values())
     const benefitsTotal = mergedBenefits.filter(b => b.isActive !== false).reduce((s, b) => s + Number(b.amount || 0), 0)
 
     // Determine base salary to use: prefer entry.baseSalary, then contract.baseSalary, then pdfGenerationData.basicSalary

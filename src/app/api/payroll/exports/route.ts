@@ -391,8 +391,8 @@ export async function POST(req: NextRequest) {
 
       const cumulative = empId ? (cumulativeByEmployee[empId] || { cumulativeSickDays: 0, cumulativeLeaveDays: 0, cumulativeAbsenceDays: 0 }) : { cumulativeSickDays: 0, cumulativeLeaveDays: 0, cumulativeAbsenceDays: 0 }
 
-      // Use helper to compute merged benefits and totals
-      const totals = await computeTotalsForEntry((entry as any).id)
+      // Use helper to compute merged benefits and totals (pass period month for month-restriction filtering)
+      const totals = await computeTotalsForEntry((entry as any).id, period.month)
 
       const _pbId = empId ? employeePrimaryBusinessIdMap[empId] : null
       let _pb = _pbId ? businessById[_pbId] : null

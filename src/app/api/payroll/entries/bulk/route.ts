@@ -30,12 +30,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
     }
 
+    // For umbrella businesses, also include employees from all child businesses
+    const isUmbrella = (period.businesses as any)?.isUmbrellaBusiness === true
+    let allBusinessIds = [businessId]
+    if (isUmbrella) {
+      const childBusinesses = await prisma.businesses.findMany({
+        where: { umbrellaBusinessId: businessId },
+        select: { id: true },
+      })
+      allBusinessIds = [businessId, ...childBusinesses.map((b: any) => b.id)]
+    }
+
     // Get all active employees for this business (minimal fields).
     // Also include employees who were terminated within the payroll period
     // because they should receive a final paycheck for that period.
     const employees = await prisma.employees.findMany({
       where: {
-        primaryBusinessId: businessId,
+        primaryBusinessId: { in: allBusinessIds },
         OR: [
           { isActive: true },
           {
@@ -48,6 +59,7 @@ export async function POST(request: NextRequest) {
       },
       select: {
         id: true,
+        primaryBusinessId: true,
         employeeNumber: true,
         fullName: true,
         nationalId: true,
@@ -79,6 +91,30 @@ export async function POST(request: NextRequest) {
 
     console.log(`Bulk add: Processing ${newEmployees.length} employees for payroll entries`)
 
+    // Pre-fetch month-restricted benefit types so we can filter them at creation time.
+    // e.g. Annual Bonus (paymentMonth=11) should only appear in November payroll.
+    const monthRestrictedTypes = await prisma.benefitTypes.findMany({
+      where: { paymentMonth: { not: null } },
+      select: { id: true, name: true, paymentMonth: true },
+    })
+    const paymentMonthMap = new Map(monthRestrictedTypes.map((b: any) => [b.id, b.paymentMonth as number]))
+    // Also build a name-based map as fallback for benefits without benefitTypeId in pdfGenerationData
+    const paymentMonthByName = new Map(monthRestrictedTypes.map((b: any) => [String(b.name || '').toLowerCase().trim(), b.paymentMonth as number]))
+
+    // Fetch active payroll-deduction loans for all new employees in one query
+    const newEmployeeIds = newEmployees.map(e => e.id)
+    const activeLoans = await prisma.accountOutgoingLoans.findMany({
+      where: {
+        recipientEmployeeId: { in: newEmployeeIds },
+        status: 'ACTIVE',
+        paymentType: 'PAYROLL_DEDUCTION',
+      },
+      select: { recipientEmployeeId: true, monthlyInstallment: true },
+    })
+    const loanDeductionMap = new Map(
+      activeLoans.map((l: any) => [l.recipientEmployeeId, Number(l.monthlyInstallment ?? 0)])
+    )
+
     // Create payroll entries using the new contract selection logic
     // This automatically handles: multiple contracts per employee, proration, signed contracts only, etc.
     const entries: any[] = []
@@ -94,7 +130,7 @@ export async function POST(request: NextRequest) {
         period.periodStart,
         period.periodEnd,
         employee.terminationDate,
-        businessId
+        employee.primaryBusinessId ?? businessId
       )
 
       if (contractEntries.length === 0) {
@@ -110,28 +146,40 @@ export async function POST(request: NextRequest) {
       for (const contractEntry of contractEntries) {
         const { contract, effectiveStartDate, effectiveEndDate, workDays, proratedBaseSalary, isProrated } = contractEntry
 
-        // Calculate benefits total and deductions from contract benefits
+        // Calculate benefits total and deductions from contract benefits.
+        // Benefits may be stored in contract_benefits (relation) OR pdfGenerationData.benefits (JSON).
+        // Use whichever has data. Apply paymentMonth restriction to exclude time-limited benefits
+        // (e.g. Annual Bonus only applies in November → paymentMonth=11).
         let benefitsTotal = 0
         let totalDeductions = 0
         const entryId = `PE-${nanoid(12)}`
 
-        for (const benefit of contract.contract_benefits || []) {
-          const amount = Number(
-            benefit.amount ?? benefit.benefit_types?.defaultAmount ?? 0
-          )
+        // Helper: process a single benefit into totals + benefitRecords.
+        // rawAmount: the stored value (may be a percentage rate if isPercentage=true)
+        // isPercentage: if true, actual amount = rawAmount% × proratedBaseSalary
+        const processBenefit = (benefitTypeId: string | null, benefitName: string, benefitType: string, rawAmount: number, isPercentage: boolean) => {
+          if (!rawAmount || rawAmount === 0) return
+          // Apply month restriction (e.g. Annual Bonus → paymentMonth=11 → skip outside November)
+          // Check by benefitTypeId first, then fall back to name-based lookup
+          const restrictedMonth = benefitTypeId
+            ? (paymentMonthMap.get(benefitTypeId) ?? paymentMonthByName.get(String(benefitName || '').toLowerCase().trim()))
+            : paymentMonthByName.get(String(benefitName || '').toLowerCase().trim())
+          if (restrictedMonth && restrictedMonth !== period.month) return
 
-          if (benefit.benefit_types?.type === 'deduction') {
+          // Compute actual dollar amount
+          const amount = isPercentage
+            ? Math.round((rawAmount / 100) * proratedBaseSalary * 100) / 100
+            : rawAmount
+
+          if (benefitType === 'deduction') {
             totalDeductions += amount
-          } else if (benefit.benefit_types?.type === 'benefit' || benefit.benefit_types?.type === 'allowance') {
-            // Add to benefits
+          } else {
             benefitsTotal += amount
-
-            // Create benefit record
             benefitRecords.push({
               id: `PEB-${nanoid(12)}`,
               payrollEntryId: entryId,
-              benefitTypeId: benefit.benefitTypeId,
-              benefitName: benefit.benefit_types?.name || 'Unknown Benefit',
+              benefitTypeId,
+              benefitName: benefitName || 'Unknown Benefit',
               amount,
               isActive: true,
               source: 'contract',
@@ -141,9 +189,40 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        const contractBenefits = contract.contract_benefits || []
+        if (contractBenefits.length > 0) {
+          // Use relation data (contract_benefits table)
+          for (const benefit of contractBenefits) {
+            const rawAmount = Number(benefit.amount ?? benefit.benefit_types?.defaultAmount ?? 0)
+            const isPercentage = benefit.benefit_types?.isPercentage === true || benefit.isPercentage === true
+            processBenefit(
+              benefit.benefitTypeId,
+              benefit.benefit_types?.name || 'Unknown Benefit',
+              benefit.benefit_types?.type || 'benefit',
+              rawAmount,
+              isPercentage
+            )
+          }
+        } else {
+          // Fall back to pdfGenerationData.benefits (JSON snapshot on contract record)
+          const pdfBenefits: any[] = (contract as any).pdfGenerationData?.benefits || []
+          for (const b of pdfBenefits) {
+            const rawAmount = Number(b.amount || 0)
+            const isPercentage = b.isPercentage === true
+            processBenefit(
+              b.benefitTypeId || null,
+              b.name || 'Unknown Benefit',
+              b.type || 'benefit',
+              rawAmount,
+              isPercentage
+            )
+          }
+        }
+
         // Calculate gross pay including benefits
         const grossPay = proratedBaseSalary + benefitsTotal
-        const netPay = grossPay - totalDeductions
+        const loanDeduction = loanDeductionMap.get(employee.id) ?? 0
+        const netPay = grossPay - totalDeductions - loanDeduction
 
         // Diagnostics: record if DOB missing or baseSalary is zero
         if (!employee.dateOfBirth) {
@@ -180,9 +259,9 @@ export async function POST(request: NextRequest) {
           benefitsTotal,
           grossPay,
           advanceDeductions: 0,
-          loanDeductions: 0,
+          loanDeductions: loanDeduction,
           miscDeductions: 0,
-          totalDeductions,
+          totalDeductions: totalDeductions + loanDeduction,
           netPay,
           contractId: contract.id,
           contractNumber: contract.contractNumber,

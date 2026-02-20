@@ -9,6 +9,18 @@ import { QuickDepositModal } from './quick-deposit-modal'
 import { QuickPaymentModal } from './quick-payment-modal'
 import type { OnSuccessArg } from '@/types/ui'
 
+interface RecentTx {
+  id: string
+  type: 'DEPOSIT' | 'PAYMENT'
+  amount: number
+  date: string
+  description: string
+  paymentType?: string
+  categoryName?: string | null
+  categoryEmoji?: string | null
+  sourceType?: string
+}
+
 interface ExpenseAccount {
   id: string
   accountNumber: string
@@ -29,6 +41,8 @@ interface ExpenseAccount {
   isSibling: boolean
   canMerge: boolean
   accountType?: string
+  recentDeposits?: RecentTx[]
+  recentPayments?: RecentTx[]
   creator?: {
     name: string
     email: string
@@ -118,6 +132,28 @@ export function AccountList({
       normal: 'text-green-600 dark:text-green-400',
     }
     return colors[status] || 'text-gray-600'
+  }
+
+  const getTxCategoryLabel = (tx: RecentTx): string | null => {
+    if (tx.type === 'PAYMENT') {
+      if (tx.categoryName) return `${tx.categoryEmoji ?? ''} ${tx.categoryName}`.trim()
+      switch (tx.paymentType) {
+        case 'LOAN_DISBURSEMENT': return '🤝 Loan Disbursement'
+        case 'LOAN_REPAYMENT': return '🏦 Loan Repayment'
+        case 'PAYROLL_FUNDING': return '💵 Payroll Funding'
+        case 'TRANSFER_RETURN': return '🔄 Transfer Return'
+        default: return null
+      }
+    } else {
+      switch (tx.sourceType) {
+        case 'LOAN_REPAYMENT': return '🤝 Loan Repayment'
+        case 'LOAN_RECEIVED': return '🤝 Loan Received'
+        case 'PAYROLL_FUNDING': return '💵 Payroll Funding'
+        case 'R710_TOKEN_SALE': return '📶 R710 WiFi'
+        case 'WIFI_TOKEN_SALE': return '📡 WiFi'
+        default: return null
+      }
+    }
   }
 
   const getBalanceIndicator = (status: string) => {
@@ -446,7 +482,7 @@ export function AccountList({
                   </div>
 
                   {/* Right: Stats panel */}
-                  <div className="grid grid-cols-3 md:flex md:flex-col md:items-end gap-2 md:min-w-[180px] p-2 sm:p-3 rounded-md bg-white/5 dark:bg-gray-900/30 border border-gray-200/5">
+                  <div className="grid grid-cols-3 md:flex md:flex-col md:items-end gap-2 md:min-w-[160px] p-2 sm:p-3 rounded-md bg-white/5 dark:bg-gray-900/30 border border-gray-200/5">
                     <div>
                       <div className="text-xs text-secondary">Deposits</div>
                       <div className="font-semibold text-sm text-green-600 dark:text-green-400">{formatCurrency(Number(account.depositsTotal ?? 0))}</div>
@@ -502,6 +538,53 @@ export function AccountList({
                     </div>
                   </div>
                 </div>
+
+                {/* Recent Activity mini list */}
+                {(() => {
+                  const combined: RecentTx[] = [
+                    ...(account.recentDeposits ?? []),
+                    ...(account.recentPayments ?? []),
+                  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  if (combined.length === 0) return null
+                  return (
+                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                      <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Recent Activity</p>
+                      <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        {combined.map(tx => {
+                          const isDeposit = tx.type === 'DEPOSIT'
+                          const categoryLabel = getTxCategoryLabel(tx)
+                          return (
+                            <div
+                              key={tx.id}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const path = isDeposit
+                                  ? `/expense-accounts/${account.id}/deposits/${tx.id}`
+                                  : `/expense-accounts/${account.id}/payments/${tx.id}`
+                                window.location.href = path
+                              }}
+                              className="flex items-center gap-2 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700/40 px-1 rounded cursor-pointer transition-colors"
+                            >
+                              <span className="text-gray-400 whitespace-nowrap w-[72px] flex-shrink-0">
+                                {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                              <span className={`px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${isDeposit ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}`}>
+                                {isDeposit ? '📥' : '📤'}<span className="hidden sm:inline ml-1">{isDeposit ? 'Deposit' : 'Payment'}</span>
+                              </span>
+                              <span className="text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">{tx.description}</span>
+                              {categoryLabel && (
+                                <span className="hidden lg:inline text-gray-400 dark:text-gray-500 text-xs truncate max-w-[140px] flex-shrink-0">{categoryLabel}</span>
+                              )}
+                              <span className={`font-semibold whitespace-nowrap flex-shrink-0 ${isDeposit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {isDeposit ? '+' : '-'}{formatCurrency(tx.amount)}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
