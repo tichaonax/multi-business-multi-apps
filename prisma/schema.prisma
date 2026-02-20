@@ -1203,6 +1203,7 @@ model Employees {
   meal_program_transactions_sold                                            MealProgramTransactions[]     @relation("MealProgramSoldByEmployee")
   outgoing_loans_as_recipient                                               AccountOutgoingLoans[]        @relation("OutgoingLoanEmployee")
   outgoing_loans_approved                                                   AccountOutgoingLoans[]        @relation("OutgoingLoanApprover")
+  payroll_slips                                                             PayrollSlips[]
 
   @@map("employees")
 }
@@ -2050,6 +2051,7 @@ model PayrollEntries {
   users                   Users?                 @relation(fields: [processedBy], references: [id])
   payroll_entry_benefits        PayrollEntryBenefits[]
   outgoing_loan_repayments      AccountOutgoingLoanPayments[] @relation("OutgoingLoanPayrollEntry")
+  payroll_slip                  PayrollSlips?
 
   @@index([contractId])
   @@index([employeeId])
@@ -2127,10 +2129,65 @@ model PayrollPeriods {
   businesses                              Businesses       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   users_payroll_periods_createdByTousers  Users?           @relation("payroll_periods_createdByTousers", fields: [createdBy], references: [id])
 
+  payroll_slips   PayrollSlips[]
+
   @@unique([businessId, year, month])
   @@index([businessId])
   @@index([year, month])
   @@map("payroll_periods")
+}
+
+model PayrollSlips {
+  id                String   @id @default(uuid())
+  payrollPeriodId   String
+  payrollEntryId    String   @unique
+  employeeId        String
+
+  normalHours       Decimal? @db.Decimal(8, 2)
+  leaveDaysDue      Decimal? @db.Decimal(8, 2)
+  payPoint          String?
+  costCode          String?
+
+  totalEarnings     Decimal? @db.Decimal(12, 2)
+
+  payeTax           Decimal? @db.Decimal(12, 2)
+  aidsLevy          Decimal? @db.Decimal(12, 2)
+  nssaEmployee      Decimal? @db.Decimal(12, 2)
+  necEmployee       Decimal? @db.Decimal(12, 2)
+  netPayRound       Decimal? @db.Decimal(12, 2)
+
+  loanDeductions    Decimal? @db.Decimal(12, 2)
+  advanceDeductions Decimal? @db.Decimal(12, 2)
+  miscDeductions    Decimal? @db.Decimal(12, 2)
+  otherDeductions   Json?
+
+  totalDeductions   Decimal? @db.Decimal(12, 2)
+
+  wcif              Decimal? @db.Decimal(12, 2)
+  necCompanyContrib Decimal? @db.Decimal(12, 2)
+  otherContributions Json?
+
+  nettPay           Decimal? @db.Decimal(12, 2)
+
+  status            String   @default("PENDING")
+  capturedAt        DateTime?
+  capturedBy        String?
+  distributedAt     DateTime?
+  distributedBy     String?
+
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now())
+
+  payroll_periods          PayrollPeriods  @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+  payroll_entries          PayrollEntries  @relation(fields: [payrollEntryId], references: [id], onDelete: Cascade)
+  employees                Employees       @relation(fields: [employeeId], references: [id])
+  users_captured_by        Users?          @relation("PayrollSlipCapturedBy", fields: [capturedBy], references: [id])
+  users_distributed_by     Users?          @relation("PayrollSlipDistributedBy", fields: [distributedBy], references: [id])
+
+  @@index([payrollPeriodId])
+  @@index([employeeId])
+  @@map("payroll_slips")
 }
 
 model PayrollAccounts {
@@ -2779,6 +2836,8 @@ model Users {
   outgoing_loans_created                                         AccountOutgoingLoans[]      @relation("OutgoingLoanCreator")
   outgoing_loans_contracts_signed                                AccountOutgoingLoans[]      @relation("OutgoingLoanContractSigner")
   outgoing_loan_payments_recorded                                AccountOutgoingLoanPayments[] @relation("OutgoingLoanPaymentRecorder")
+  payroll_slips_captured                                         PayrollSlips[]              @relation("PayrollSlipCapturedBy")
+  payroll_slips_distributed                                      PayrollSlips[]              @relation("PayrollSlipDistributedBy")
 
   @@map("users")
 }

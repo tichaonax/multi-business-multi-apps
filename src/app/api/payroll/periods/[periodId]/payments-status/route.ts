@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { computeTotalsForEntry } from '@/lib/payroll/helpers'
 
 interface RouteParams {
   params: Promise<{ periodId: string }>
@@ -8,7 +9,13 @@ interface RouteParams {
 
 /**
  * GET /api/payroll/periods/[periodId]/payments-status
- * Get payroll entries with payment status information
+ * Returns payroll entries with correct gross pay and payslip nettPay when captured.
+ *
+ * Gross pay is computed via computeTotalsForEntry (same logic as the period page table)
+ * so it matches what's displayed on screen and what was exported to the 3rd party.
+ *
+ * When payslips are captured, nettPay (actual take-home after all deductions) is used
+ * as the disbursement amount.
  */
 export async function GET(
   request: NextRequest,
@@ -22,10 +29,9 @@ export async function GET(
 
     const { periodId } = await params
 
-    // Fetch payroll period to verify access and get date range for payment lookup
     const period = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
-      select: { id: true, businessId: true, periodStart: true, periodEnd: true },
+      select: { id: true, businessId: true, month: true },
     })
 
     if (!period) {
@@ -35,7 +41,7 @@ export async function GET(
       )
     }
 
-    // Fetch all payroll entries for this period
+    // Fetch entries including their captured payslip
     const entries = await prisma.payrollEntries.findMany({
       where: { payrollPeriodId: periodId },
       select: {
@@ -44,14 +50,19 @@ export async function GET(
         employeeNumber: true,
         employeeName: true,
         nationalId: true,
-        netPay: true,
-        grossPay: true,
-        totalDeductions: true,
+        payroll_slip: {
+          select: {
+            id: true,
+            totalEarnings: true,
+            nettPay: true,
+            status: true,
+          },
+        },
       },
       orderBy: { employeeName: 'asc' },
     })
 
-    // Fetch payment information by employeeId (PayrollAccountPayments links by employee, not entry)
+    // Fetch payment records linked by employeeId
     const employeeIds = entries.map((e) => e.employeeId).filter(Boolean) as string[]
     const payments = employeeIds.length > 0
       ? await prisma.payrollAccountPayments.findMany({
@@ -73,7 +84,7 @@ export async function GET(
         })
       : []
 
-    // Map most recent payment per employee
+    // Most recent payment per employee
     const paymentByEmployee = new Map<string, (typeof payments)[0]>()
     for (const p of payments) {
       if (!paymentByEmployee.has(p.employeeId)) {
@@ -81,18 +92,33 @@ export async function GET(
       }
     }
 
-    // Combine entries with payment information
-    const result = entries.map((entry) => {
+    const slipsCaptured = entries.filter(
+      (e) => e.payroll_slip && ['CAPTURED', 'DISTRIBUTED'].includes(e.payroll_slip.status)
+    ).length
+
+    // Build result — compute correct grossPay per entry (same as period page display)
+    const result = await Promise.all(entries.map(async (entry) => {
       const payment = entry.employeeId ? paymentByEmployee.get(entry.employeeId) : undefined
+      const slip = entry.payroll_slip
+      const slipCaptured = slip ? ['CAPTURED', 'DISTRIBUTED'].includes(slip.status) : false
+
+      // Compute correct gross using the same helper as the period page
+      // This ensures the figure matches what was exported to the 3rd party
+      const { grossPay } = await computeTotalsForEntry(entry.id, period.month)
+
       return {
         id: entry.id,
         employeeId: entry.employeeId,
         employeeNumber: entry.employeeNumber,
         employeeName: entry.employeeName,
         nationalId: entry.nationalId,
-        netPay: Number(entry.netPay || 0),
-        grossPay: Number(entry.grossPay || 0),
-        totalDeductions: Number(entry.totalDeductions || 0),
+        // Correct gross pay matching the exported spreadsheet
+        grossPay,
+        // totalEarnings from captured payslip — use this as the payment amount when captured
+        slipTotalEarnings: slipCaptured && slip?.totalEarnings != null ? Number(slip.totalEarnings) : null,
+        // nettPay from captured payslip — actual take-home after all statutory deductions
+        nettPay: slipCaptured && slip?.nettPay != null ? Number(slip.nettPay) : null,
+        slipCaptured,
         payment: payment
           ? {
               id: payment.id,
@@ -103,11 +129,13 @@ export async function GET(
             }
           : undefined,
       }
-    })
+    }))
 
     return NextResponse.json({
       success: true,
       entries: result,
+      slipsCaptured,
+      totalEntries: entries.length,
     })
   } catch (error) {
     console.error('Error fetching payroll entries with payment status:', error)

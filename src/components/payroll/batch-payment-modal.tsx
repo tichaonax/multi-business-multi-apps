@@ -9,9 +9,13 @@ interface PayrollEntry {
   employeeNumber: string
   employeeName: string
   nationalId: string
-  netPay: number
   grossPay: number
   totalDeductions: number
+  // slipTotalEarnings — use as payment amount when payslip is captured
+  slipTotalEarnings: number | null
+  // nettPay from captured payslip — actual take-home after all statutory deductions
+  nettPay: number | null
+  slipCaptured: boolean
   // Payment info if already paid
   payment?: {
     id: string
@@ -49,6 +53,8 @@ export function BatchPaymentModal({
   const [processedPaymentIds, setProcessedPaymentIds] = useState<string[]>([])
   const [showVoucherOptions, setShowVoucherOptions] = useState(false)
   const [generatingVouchers, setGeneratingVouchers] = useState(false)
+  const [slipsCaptured, setSlipsCaptured] = useState(0)
+  const [totalEntries, setTotalEntries] = useState(0)
 
   useEffect(() => {
     if (isOpen && periodId) {
@@ -68,12 +74,16 @@ export function BatchPaymentModal({
         const data = await response.json()
         const entriesList = data.entries || []
         setEntries(entriesList)
+        setSlipsCaptured(data.slipsCaptured ?? 0)
+        setTotalEntries(data.totalEntries ?? entriesList.length)
 
-        // Initialize payment amounts with netPay
+        // Initialize payment amounts from captured payslip totalEarnings when available
         const amounts: Record<string, number> = {}
         entriesList.forEach((entry: PayrollEntry) => {
           if (!entry.payment) {
-            amounts[entry.id] = Number(entry.netPay || 0)
+            // Use totalEarnings from captured payslip as the authoritative payment amount.
+            // Fall back to grossPay (computed) only when payslips haven't been captured yet.
+            amounts[entry.id] = entry.slipTotalEarnings != null ? entry.slipTotalEarnings : entry.grossPay
           }
         })
         setPaymentAmounts(amounts)
@@ -391,6 +401,19 @@ export function BatchPaymentModal({
                 </div>
               )}
 
+              {/* Warning when payslips not yet captured */}
+              {slipsCaptured < totalEntries && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    ⚠ Payslips not fully captured ({slipsCaptured}/{totalEntries} captured)
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    The amounts shown are from the exported payroll (gross pay) and do not reflect statutory deductions (PAYE, NSSA, etc.).
+                    Use <strong>📋 Capture Payslips</strong> first to enter the correct Nett Pay from the physical payslips before processing payments.
+                  </p>
+                </div>
+              )}
+
               {/* Summary */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
@@ -457,9 +480,11 @@ export function BatchPaymentModal({
                                 </div>
                               </div>
                               <div className="text-right">
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Net Pay</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  {entry.slipCaptured ? 'Total Earnings (from payslip)' : 'Gross Pay ⚠'}
+                                </p>
                                 <p className="text-lg font-bold text-green-600 dark:text-green-400">
-                                  {formatCurrency(entry.netPay)}
+                                  {formatCurrency(entry.slipTotalEarnings != null ? entry.slipTotalEarnings : entry.grossPay)}
                                 </p>
                               </div>
                             </div>
@@ -544,6 +569,13 @@ export function BatchPaymentModal({
                                 {entry.payment && formatCurrency(entry.payment.amount)}
                               </span>
                             </div>
+                            {/* Mismatch: paid amount differs from captured payslip Total Earnings */}
+                            {entry.slipCaptured && entry.slipTotalEarnings != null && entry.payment &&
+                              Math.abs(entry.payment.amount - entry.slipTotalEarnings) > 0.01 && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                ⚠ Payslip Total Earnings: {formatCurrency(entry.slipTotalEarnings)}
+                              </p>
+                            )}
                             <p className="text-xs text-gray-600 dark:text-gray-400">
                               Paid on {entry.payment && formatDate(entry.payment.paymentDate)}
                             </p>

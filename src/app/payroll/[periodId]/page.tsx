@@ -13,6 +13,8 @@ import { PayrollEntryDetailModal } from '@/components/payroll/payroll-entry-deta
 import { PayrollExportPreviewModal } from '@/components/payroll/payroll-export-preview-modal'
 import { BatchPaymentModal } from '@/components/payroll/batch-payment-modal'
 import { FundPayrollFromAccountsModal } from '@/components/payroll/fund-payroll-from-accounts-modal'
+import { PayslipCaptureModal } from '@/components/payroll/payslip-capture-modal'
+import { PayrollReportsPanel } from '@/components/payroll/payroll-reports-panel'
 import { getUserRoleInBusiness, canDeletePayroll } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
@@ -121,6 +123,7 @@ export default function PayrollPeriodDetailPage() {
   const [addingAllEmployees, setAddingAllEmployees] = useState(false)
   const [availableEmployeesCount, setAvailableEmployeesCount] = useState<number | null>(null)
   const [showProcessPayments, setShowProcessPayments] = useState(false)
+  const [showCapturePayslips, setShowCapturePayslips] = useState(false)
   const [showFundPayrollModal, setShowFundPayrollModal] = useState(false)
   const [payrollAccountBalance, setPayrollAccountBalance] = useState<number | null>(null)
 
@@ -1050,6 +1053,12 @@ export default function PayrollPeriodDetailPage() {
                 💸 Process Payments
               </button>
               <button
+                onClick={() => setShowCapturePayslips(true)}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+              >
+                📋 Capture Payslips
+              </button>
+              <button
                 onClick={() => router.push('/payroll/account/payments/advance')}
                 className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700"
               >
@@ -1362,6 +1371,16 @@ export default function PayrollPeriodDetailPage() {
         )}
       </div>
 
+      {/* Reports Panel — shown for exported/closed periods */}
+      {['exported', 'closed'].includes(period.status) && (
+        <div className="mt-6">
+          <PayrollReportsPanel
+            periodId={periodId}
+            periodName={`${getMonthName(period.month)} ${period.year} Payroll`}
+          />
+        </div>
+      )}
+
       {/* Entry Detail Modal */}
       {selectedEntryId && (
         <PayrollEntryDetailModal
@@ -1435,6 +1454,17 @@ export default function PayrollPeriodDetailPage() {
           loadPeriod()
         }}
       />
+
+      {/* Payslip Capture Modal */}
+      {showCapturePayslips && (
+        <PayslipCaptureModal
+          isOpen={showCapturePayslips}
+          onClose={() => setShowCapturePayslips(false)}
+          periodId={periodId}
+          periodName={`${getMonthName(period.month)} ${period.year} Payroll`}
+          onSuccess={() => loadPeriod()}
+        />
+      )}
 
       {/* Fund Payroll From Accounts Modal */}
       {showFundPayrollModal && (
