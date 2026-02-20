@@ -931,6 +931,21 @@ export function Sidebar() {
           </>
         )}
 
+        {/* Only show Finance & Operations section if the user has at least one item inside */}
+        {(() => {
+          const hasFinanceOpsItems =
+            hasPermission('canAccessPersonalFinance') ||
+            hasPermission('canAccessVehicles') || hasPermission('canLogDriverTrips') || hasPermission('canLogDriverMaintenance') ||
+            hasPermission('canManagePersonalContractors') ||
+            hasPermission('canManageEmployees') || hasPermission('canEditEmployees') || hasPermission('canManageBusinessUsers') ||
+            isSystemAdmin(currentUser) || hasPermission('canAccessPayroll') || hasPermission('canAccessPayrollAccount') ||
+            hasPermission('canViewExpenseReports') ||
+            (hasPermission('canAccessExpenseAccount') && grantedAccounts.length > 0) ||
+            hasPermission('canViewPayees') ||
+            hasPermission('canSetupPortalIntegration') ||
+            hasPermission('canAccessFinancialData')
+          if (!hasFinanceOpsItems) return null
+          return (
         <button
           type="button"
           onClick={() => setFinanceOpsSectionExpanded(prev => !prev)}
@@ -939,6 +954,8 @@ export function Sidebar() {
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Finance &amp; Operations</h3>
           <span className="text-gray-400 text-xs">{financeOpsSectionExpanded ? '▼' : '▶'}</span>
         </button>
+          )
+        })()}
 
         {financeOpsSectionExpanded && (<>
         {/* Business and Personal Finances - User-level permissions (business-agnostic) */}
@@ -1071,8 +1088,8 @@ export function Sidebar() {
           </>
         )}
 
-        {/* Expense Accounts - Only for users with expense account permissions */}
-        {hasPermission('canAccessExpenseAccount') && (
+        {/* Expense Accounts - Only for managers/admins who can view reports */}
+        {hasPermission('canViewExpenseReports') && (
           <>
             <Link
               href="/expense-accounts"
@@ -1095,7 +1112,7 @@ export function Sidebar() {
                   </Link>
                 )}
 
-                {hasPermission('canAccessExpenseAccount') && (
+                {hasPermission('canViewExpenseReports') && (
                   <Link
                     href="/expense-accounts/lenders"
                     className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
@@ -1161,25 +1178,26 @@ export function Sidebar() {
               </div>
             )}
 
-            {/* Cross-business granted accounts — always visible once loaded */}
-            {grantedAccounts.length > 0 && (
-              <div className="ml-8 space-y-1 mt-1">
-                <p className="text-xs text-gray-500 px-3 py-1 uppercase tracking-wide">Other Accounts</p>
-                {grantedAccounts.map(acct => (
-                  <Link
-                    key={acct.id}
-                    href={`/expense-accounts/${acct.id}`}
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center justify-between"
-                  >
-                    <span className="truncate">{acct.accountName}</span>
-                    {acct.permissionLevel === 'VIEW' && (
-                      <span className="ml-1 text-xs text-gray-500 flex-shrink-0">view</span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
           </>
+        )}
+
+        {/* Cross-business granted accounts — visible to anyone with expense account access */}
+        {hasPermission('canAccessExpenseAccount') && grantedAccounts.length > 0 && (
+          <div className="ml-8 space-y-1 mt-1">
+            <p className="text-xs text-gray-500 px-3 py-1 uppercase tracking-wide">My Accounts</p>
+            {grantedAccounts.map(acct => (
+              <Link
+                key={acct.id}
+                href={`/expense-accounts/${acct.id}`}
+                className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center justify-between"
+              >
+                <span className="truncate">{acct.accountName}</span>
+                {acct.permissionLevel === 'VIEW' && (
+                  <span className="ml-1 text-xs text-gray-500 flex-shrink-0">view</span>
+                )}
+              </Link>
+            ))}
+          </div>
         )}
 
         {/* Payee Management - Only for users with payee permissions */}

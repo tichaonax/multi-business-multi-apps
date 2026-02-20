@@ -52,6 +52,13 @@ const REPORT_CARDS = [
     description: 'Cross-business transfers and outstanding return amounts — track what has not been returned.',
     color: 'red',
   },
+  {
+    href: '/expense-accounts/reports/lending',
+    emoji: '🤝',
+    title: 'Lending Portfolio',
+    description: 'All outgoing loans from expense accounts — person, business, and employee loans with outstanding balances.',
+    color: 'indigo',
+  },
 ]
 
 const COLOR_MAP: Record<string, string> = {
@@ -61,12 +68,13 @@ const COLOR_MAP: Record<string, string> = {
   green: 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800 text-green-600 dark:text-green-400',
   teal: 'bg-teal-50 dark:bg-teal-900/10 border-teal-200 dark:border-teal-800 text-teal-600 dark:text-teal-400',
   red: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400',
+  indigo: 'bg-indigo-50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400',
 }
 
 export default function ExpenseReportsHubPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [stats, setStats] = useState({ totalBalance: 0, outstandingTransfers: 0, activeLoans: 0, loadingStats: true })
+  const [stats, setStats] = useState({ totalBalance: 0, outstandingTransfers: 0, activeLoans: 0, activeLendingLoans: 0, loadingStats: true })
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -87,15 +95,17 @@ export default function ExpenseReportsHubPage() {
 
   const loadQuickStats = async () => {
     try {
-      const [accountsRes, transfersRes, loansRes] = await Promise.all([
+      const [accountsRes, transfersRes, loansRes, lendingRes] = await Promise.all([
         fetch('/api/expense-account', { credentials: 'include' }),
         fetch('/api/expense-account/transfers', { credentials: 'include' }),
         fetch('/api/expense-account/reports/loans?status=ACTIVE', { credentials: 'include' }),
+        fetch('/api/expense-account/outgoing-loans?status=ACTIVE', { credentials: 'include' }),
       ])
 
       let totalBalance = 0
       let outstandingTransfers = 0
       let activeLoans = 0
+      let activeLendingLoans = 0
 
       if (accountsRes.ok) {
         const data = await accountsRes.json()
@@ -113,7 +123,12 @@ export default function ExpenseReportsHubPage() {
         activeLoans = data.data?.systemTotals?.activeCount || 0
       }
 
-      setStats({ totalBalance, outstandingTransfers, activeLoans, loadingStats: false })
+      if (lendingRes.ok) {
+        const data = await lendingRes.json()
+        activeLendingLoans = data.data?.summary?.activeCount || 0
+      }
+
+      setStats({ totalBalance, outstandingTransfers, activeLoans, activeLendingLoans, loadingStats: false })
     } catch (e) {
       console.error('Error loading quick stats:', e)
       setStats(prev => ({ ...prev, loadingStats: false }))
@@ -145,7 +160,7 @@ export default function ExpenseReportsHubPage() {
         </Link>
 
         {/* Quick Stats Banner */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 border-l-4 border-blue-500">
             <p className="text-sm text-gray-500 dark:text-gray-400">Total Balance (All Accounts)</p>
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
@@ -159,9 +174,15 @@ export default function ExpenseReportsHubPage() {
             </p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 border-l-4 border-amber-500">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Active Loans</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Active Incoming Loans</p>
             <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
               {stats.loadingStats ? '—' : stats.activeLoans}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 border-l-4 border-indigo-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Active Lending Loans</p>
+            <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+              {stats.loadingStats ? '—' : stats.activeLendingLoans}
             </p>
           </div>
         </div>

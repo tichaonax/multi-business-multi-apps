@@ -16,6 +16,8 @@ import { QuickDepositModal } from '@/components/expense-account/quick-deposit-mo
 import { AccountPermissionsTab } from '@/components/expense-account/account-permissions-tab'
 import { LoansTab } from '@/components/expense-account/loans-tab'
 import { ReturnTransferModal } from '@/components/expense-account/return-transfer-modal'
+import { LendMoneyModal } from '@/components/expense-account/lend-money-modal'
+import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-panel'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -52,6 +54,8 @@ export default function ExpenseAccountDetailPage() {
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
   const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
+  const [showLendMoneyModal, setShowLendMoneyModal] = useState(false)
+  const [loansRefreshKey, setLoansRefreshKey] = useState(0)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
@@ -59,6 +63,7 @@ export default function ExpenseAccountDetailPage() {
   const canMakeExpenseDeposits = hasPermission('canMakeExpenseDeposits')
   const canMakeExpensePayments = hasPermission('canMakeExpensePayments')
   const canViewExpenseReports = hasPermission('canViewExpenseReports')
+  const canManageLending = isSystemAdmin || hasPermission('canManageLending')
   const canChangeCategory = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
   const canCreatePayees = canChangeCategory // Only owners, managers, and admins can create payees
 
@@ -427,13 +432,24 @@ export default function ExpenseAccountDetailPage() {
                   <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
                     Create Payments
                   </h4>
-                  <button
-                    onClick={() => setShowReturnTransferModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
-                  >
-                    <span>🔄</span>
-                    Return Transfer
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {canManageLending && (
+                      <button
+                        onClick={() => setShowLendMoneyModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                      >
+                        <span>🤝</span>
+                        Lend Money
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowReturnTransferModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+                    >
+                      <span>🔄</span>
+                      Return Transfer
+                    </button>
+                  </div>
                 </div>
                 <PaymentForm
                   accountId={accountId}
@@ -451,6 +467,16 @@ export default function ExpenseAccountDetailPage() {
                     parentAccountId: account.parentAccountId
                   }}
                 />
+
+                {/* Outgoing Loans Panel */}
+                <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">🤝 Outgoing Loans</h5>
+                  <OutgoingLoansPanel
+                    accountId={accountId}
+                    canManage={canManageLending}
+                    refreshKey={loansRefreshKey}
+                  />
+                </div>
               </div>
             )}
 
@@ -529,6 +555,20 @@ export default function ExpenseAccountDetailPage() {
           currentBalance={Number(account.balance)}
           onSuccess={handlePaymentSuccess}
           onClose={() => setShowReturnTransferModal(false)}
+        />
+      )}
+
+      {/* Lend Money Modal */}
+      {showLendMoneyModal && account && (
+        <LendMoneyModal
+          accountId={accountId}
+          accountName={account.accountName}
+          accountBalance={Number(account.balance)}
+          onSuccess={() => {
+            loadAccount()
+            setLoansRefreshKey(k => k + 1)
+          }}
+          onClose={() => setShowLendMoneyModal(false)}
         />
       )}
     </ContentLayout>

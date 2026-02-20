@@ -251,9 +251,23 @@ export async function POST(req: NextRequest) {
     let advanceDeductions = new Decimal(0)
     const advanceBreakdown: any[] = []
 
+    // Auto-populate loan deductions from active outgoing loan (payroll deduction type)
+    let loanDeductions = new Decimal(0)
+    const activeLoan = await prisma.accountOutgoingLoans.findFirst({
+      where: {
+        recipientEmployeeId: employeeId,
+        status: 'ACTIVE',
+        paymentType: 'PAYROLL_DEDUCTION',
+      },
+      select: { monthlyInstallment: true },
+    })
+    if (activeLoan?.monthlyInstallment) {
+      loanDeductions = new Decimal(activeLoan.monthlyInstallment)
+    }
+
     // Calculate totals
     const grossPay = baseSalary.add(commissionAmount).add(benefitsTotal)
-    const totalDeductions = advanceDeductions
+    const totalDeductions = advanceDeductions.add(loanDeductions)
     const netPay = grossPay.sub(totalDeductions)
 
     // Create entry with contract tracking fields
@@ -279,6 +293,7 @@ export async function POST(req: NextRequest) {
         benefitsBreakdown: benefitsBreakdown,
         advanceDeductions: advanceDeductions.toNumber(),
         advanceBreakdown: advanceBreakdown,
+        loanDeductions: loanDeductions.toNumber(),
         grossPay: grossPay.toNumber(),
         totalDeductions: totalDeductions.toNumber(),
         netPay: netPay.toNumber(),

@@ -201,6 +201,7 @@ export interface CoreBusinessPermissions {
   canCreateSiblingAccounts: boolean;
   canEnterHistoricalData: boolean;
   canMergeSiblingAccounts: boolean;
+  canManageLending: boolean;           // Create, approve, and manage outgoing loans from expense accounts
 
   // Supplier Management
   canViewSuppliers: boolean;
@@ -1050,6 +1051,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canCreateSiblingAccounts', label: 'Create Sibling Accounts' },
       { key: 'canEnterHistoricalData', label: 'Enter Historical Data' },
       { key: 'canMergeSiblingAccounts', label: 'Merge Sibling Accounts' },
+      { key: 'canManageLending', label: 'Manage Lending (Outgoing Loans)' },
     ]
   },
   // Payee Management
@@ -1284,6 +1286,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canCreateSiblingAccounts: true,
   canEnterHistoricalData: true,
   canMergeSiblingAccounts: true,
+  canManageLending: true,
 
   // Supplier Management - Full access
   canViewSuppliers: true,
@@ -1419,6 +1422,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canCreateSiblingAccounts: false,  // ❌ Admin only
   canEnterHistoricalData: false,    // ❌ Admin only
   canMergeSiblingAccounts: false,   // ❌ Admin only
+  canManageLending: true,           // ✅ Managers can approve and manage loans
 
   // Supplier Management - Manager access
   canViewSuppliers: true,
@@ -1554,6 +1558,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canCreateSiblingAccounts: false,
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
+  canManageLending: false,
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1674,12 +1679,12 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewPayrollHistory: true,
   canExportPayrollPayments: false,
 
-  // Expense Account Management - View only
-  canAccessExpenseAccount: true,
+  // Expense Account Management - No access (sensitive financial data)
+  canAccessExpenseAccount: false,
   canCreateExpenseAccount: false,
   canMakeExpenseDeposits: false,
   canMakeExpensePayments: false,
-  canViewExpenseReports: true,
+  canViewExpenseReports: false,
   canCreateIndividualPayees: false,
   canDeleteExpenseAccounts: false,
   canAdjustExpensePayments: false,
@@ -1687,6 +1692,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canCreateSiblingAccounts: false,
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
+  canManageLending: false,
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1810,19 +1816,20 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canViewPayrollHistory: false,
   canExportPayrollPayments: false,
 
-  // Expense Account Management - Can record expenses but NOT deposit
-  canAccessExpenseAccount: true,   // ✅ Can access expense accounts
+  // Expense Account Management - Can record expenses but cannot view financial nav/reports
+  canAccessExpenseAccount: true,   // ✅ Can access expense accounts (record expenses via POS)
   canCreateExpenseAccount: false,
-  canMakeExpenseDeposits: false,   // ❌ Cannot deposit money
-  canMakeExpensePayments: true,    // ✅ Can record expenses
-  canViewExpenseReports: true,     // ✅ Can view expense reports
-  canCreateIndividualPayees: false, // ❌ Cannot create payees (business-owner/manager only)
+  canMakeExpenseDeposits: false,
+  canMakeExpensePayments: true,    // ✅ Can record expense payments
+  canViewExpenseReports: false,    // ❌ No reports — hides Finance & Operations sidebar nav
+  canCreateIndividualPayees: true, // ✅ Can create payees for expense recording
   canDeleteExpenseAccounts: false,
   canAdjustExpensePayments: false,
   canEditExpenseTransactions: false,
   canCreateSiblingAccounts: false,
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
+  canManageLending: false,
 
   // Supplier Management - View only (for ingredient info)
   canViewSuppliers: true,
@@ -1959,6 +1966,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canCreateSiblingAccounts: false,
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
+  canManageLending: false,
 
   // Supplier Management - No access
   canViewSuppliers: false,
@@ -2092,6 +2100,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canCreateSiblingAccounts: true,
   canEnterHistoricalData: true,
   canMergeSiblingAccounts: true,
+  canManageLending: true,
 
   // Supplier Management - Full access
   canViewSuppliers: true,
