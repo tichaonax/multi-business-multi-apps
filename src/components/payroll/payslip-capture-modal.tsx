@@ -122,6 +122,8 @@ export function PayslipCaptureModal({
   const [distributing, setDistributing] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [viewSlip, setViewSlip] = useState<PayslipRow | null>(null)
+  const [zimraRefreshTick, setZimraRefreshTick] = useState(0)
+  const [levyRate, setLevyRate] = useState(0.03)
 
   const initSlips = useCallback(async () => {
     await fetch(`/api/payroll/periods/${periodId}/slips/init`, { method: 'POST' })
@@ -166,16 +168,17 @@ export function PayslipCaptureModal({
     if (isOpen) {
       loadSlips()
       setSelectedIds(new Set())
+      setZimraRefreshTick((t) => t + 1)
     }
   }, [isOpen, loadSlips])
 
   function updateField(slipId: string, field: keyof EditRow, value: string) {
     setEditRows((prev) => {
       const row = { ...prev[slipId], [field]: value }
-      // Auto-calc Aids Levy as 3% of PAYE when PAYE changes
+      // Auto-calc Aids Levy from current levyRate when PAYE changes
       if (field === 'payeTax') {
         const paye = n(value) || 0
-        row.aidsLevy = (paye * 0.03).toFixed(2)
+        row.aidsLevy = (paye * levyRate).toFixed(2)
       }
       return { ...prev, [slipId]: row }
     })
@@ -228,6 +231,7 @@ export function PayslipCaptureModal({
       if (data.success) {
         await customAlert({ title: 'Saved', description: `${data.updated} payslip(s) saved successfully.` })
         await loadSlips()
+        setZimraRefreshTick((t) => t + 1)
         onSuccess?.()
       } else {
         await customAlert({ title: 'Error', description: data.error || 'Failed to save' })
@@ -519,6 +523,9 @@ export function PayslipCaptureModal({
           <span><span className="inline-block w-3 h-3 bg-purple-200 dark:bg-purple-700 rounded mr-1"></span>Employer contributions</span>
           <span className="text-amber-600 dark:text-amber-400">⚠ = mismatch with our records</span>
         </div>
+
+        {/* ZIMRA P2 Remittance Panel */}
+        <ZimraRemittancePanel periodId={periodId} refreshKey={zimraRefreshTick} onLevyRateLoaded={setLevyRate} />
       </div>
 
       {/* Individual slip view */}
@@ -617,6 +624,378 @@ function PayslipViewInline({ slip, onClose }: { slip: PayslipRow; onClose: () =>
             <span>Leave Days Due: <strong>{fmt(slip.leaveDaysDue) || '—'}</strong></span>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ZIMRA P2 Remittance Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ZimraRemittance {
+  id: string
+  status: string
+  levyRate: number
+  manualOverride: boolean
+  totalRemuneration: number
+  employeeCount: number
+  grossPaye: number
+  aidsLevy: number
+  totalTaxDue: number
+  levyProcessedAt: string | null
+  levyProcessedBy: string | null
+  submittedAt: string | null
+  submittedBy: string | null
+  paymentReference: string | null
+  notes: string | null
+}
+
+function ZimraRemittancePanel({
+  periodId,
+  refreshKey,
+  onLevyRateLoaded,
+}: {
+  periodId: string
+  refreshKey: number
+  onLevyRateLoaded: (rate: number) => void
+}) {
+  const customAlert = useAlert()
+  const [remittance, setRemittance] = useState<ZimraRemittance | null>(null)
+  const [capturedSlips, setCapturedSlips] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [processing, setProcessing] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [showSubmitForm, setShowSubmitForm] = useState(false)
+  const [paymentReference, setPaymentReference] = useState('')
+
+  // Editable P2 figures (PENDING only)
+  const [editLevyRate, setEditLevyRate] = useState('')   // stored as % string e.g. "3"
+  const [editGrossPaye, setEditGrossPaye] = useState('')
+  const [editAidsLevy, setEditAidsLevy] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const loadRemittance = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/payroll/periods/${periodId}/zimra`)
+      const data = await res.json()
+      if (data.success) {
+        const r: ZimraRemittance = data.remittance
+        setRemittance(r)
+        setCapturedSlips(data.capturedSlips ?? 0)
+        // Seed editable fields from loaded data
+        setEditLevyRate((r.levyRate * 100).toFixed(2).replace(/\.?0+$/, ''))
+        setEditGrossPaye(r.grossPaye.toFixed(2))
+        setEditAidsLevy(r.aidsLevy.toFixed(2))
+        // Notify parent so per-row auto-fill uses the correct rate
+        onLevyRateLoaded(r.levyRate)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [periodId, onLevyRateLoaded])
+
+  useEffect(() => { loadRemittance() }, [loadRemittance, refreshKey])
+
+  // When levy rate input changes, auto-recalc AIDS levy from Gross PAYE
+  function handleLevyRateChange(val: string) {
+    setEditLevyRate(val)
+    const rate = parseFloat(val) / 100
+    if (!isNaN(rate)) {
+      const gp = parseFloat(editGrossPaye) || 0
+      setEditAidsLevy((gp * rate).toFixed(2))
+    }
+  }
+
+  // When Gross PAYE changes, auto-recalc AIDS levy
+  function handleGrossPayeChange(val: string) {
+    setEditGrossPaye(val)
+    const rate = parseFloat(editLevyRate) / 100
+    if (!isNaN(rate)) {
+      const gp = parseFloat(val) || 0
+      setEditAidsLevy((gp * rate).toFixed(2))
+    }
+  }
+
+  async function saveOverrides() {
+    setSaving(true)
+    try {
+      const rate = parseFloat(editLevyRate) / 100
+      const gp = parseFloat(editGrossPaye)
+      const al = parseFloat(editAidsLevy)
+      const hasManualFigures = remittance && (
+        Math.abs(gp - remittance.grossPaye) > 0.005 ||
+        Math.abs(al - remittance.aidsLevy) > 0.005
+      )
+      const body: Record<string, unknown> = { levyRate: isNaN(rate) ? undefined : rate }
+      if (hasManualFigures) {
+        body.grossPaye = isNaN(gp) ? undefined : gp
+        body.aidsLevy  = isNaN(al) ? undefined : al
+      }
+      const res = await fetch(`/api/payroll/periods/${periodId}/zimra`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setRemittance(data.remittance)
+        if (!isNaN(rate)) onLevyRateLoaded(rate)
+      } else {
+        await customAlert({ title: 'Error', description: data.error || 'Failed to save' })
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function resetToAutoCalc() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/payroll/periods/${periodId}/zimra`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetOverride: true }),
+      })
+      const data = await res.json()
+      if (data.success) await loadRemittance()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleProcessLevy() {
+    setProcessing(true)
+    try {
+      const res = await fetch(`/api/payroll/periods/${periodId}/zimra/process-levy`, { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        await customAlert({ title: 'AIDS Levy Processed', description: data.message })
+        await loadRemittance()
+      } else {
+        await customAlert({ title: 'Error', description: data.error || 'Failed to process levy' })
+      }
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/payroll/periods/${periodId}/zimra/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentReference: paymentReference.trim() || undefined }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        await customAlert({ title: 'Submitted', description: 'ZIMRA P2 submission recorded.' })
+        setShowSubmitForm(false)
+        setPaymentReference('')
+        await loadRemittance()
+      } else {
+        await customAlert({ title: 'Error', description: data.error || 'Failed to record submission' })
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (capturedSlips === 0 && !remittance) return null
+
+  const statusBadgeClass: Record<string, string> = {
+    PENDING: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    LEVY_PROCESSED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    SUBMITTED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  }
+
+  const isPending = remittance?.status === 'PENDING'
+  const totalTaxDue = (parseFloat(editGrossPaye) || 0) + (parseFloat(editAidsLevy) || 0)
+
+  return (
+    <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4">
+      <div className="bg-gray-50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">ZIMRA P2 — PAYE Remittance</h3>
+            {remittance && (
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClass[remittance.status] || ''}`}>
+                {remittance.status.replace('_', ' ')}
+              </span>
+            )}
+            {remittance?.manualOverride && isPending && (
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                overridden
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {remittance?.manualOverride && isPending && (
+              <button
+                onClick={resetToAutoCalc}
+                disabled={saving}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                ↺ Recalculate from slips
+              </button>
+            )}
+            {loading && <span className="text-xs text-gray-400 dark:text-gray-500">Refreshing…</span>}
+          </div>
+        </div>
+
+        {remittance ? (
+          <>
+            {/* P2 figures */}
+            <div className="grid grid-cols-5 gap-3 mb-3 text-xs">
+              {/* Total Remuneration — read only */}
+              <div className="text-center">
+                <div className="text-gray-500 dark:text-gray-400 mb-1">Total Remuneration</div>
+                <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                  ${remittance.totalRemuneration.toFixed(2)}
+                </div>
+              </div>
+              {/* No. of Employees — read only */}
+              <div className="text-center">
+                <div className="text-gray-500 dark:text-gray-400 mb-1">No. of Employees</div>
+                <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                  {remittance.employeeCount}
+                </div>
+              </div>
+              {/* Gross PAYE — editable when PENDING */}
+              <div className="text-center">
+                <div className="text-gray-500 dark:text-gray-400 mb-1">Gross PAYE</div>
+                {isPending ? (
+                  <input
+                    type="text" inputMode="decimal"
+                    value={editGrossPaye}
+                    onChange={(e) => handleGrossPayeChange(e.target.value)}
+                    onBlur={saveOverrides}
+                    className="w-full text-center text-sm font-semibold border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  />
+                ) : (
+                  <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                    ${remittance.grossPaye.toFixed(2)}
+                  </div>
+                )}
+                <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">from employees</div>
+              </div>
+              {/* AIDS Levy — editable when PENDING, with editable rate */}
+              <div className="text-center border-l border-orange-300 dark:border-orange-700 pl-3">
+                <div className="text-orange-600 dark:text-orange-400 mb-1 flex items-center justify-center gap-1">
+                  AIDS Levy
+                  {isPending ? (
+                    <span className="inline-flex items-center gap-0.5">
+                      (<input
+                        type="text" inputMode="decimal"
+                        value={editLevyRate}
+                        onChange={(e) => handleLevyRateChange(e.target.value)}
+                        onBlur={saveOverrides}
+                        className="w-8 text-center text-[10px] border border-orange-300 dark:border-orange-600 rounded px-0.5 bg-white dark:bg-gray-700 text-orange-700 dark:text-orange-300"
+                      />%)
+                    </span>
+                  ) : (
+                    <span>({(remittance.levyRate * 100).toFixed(2).replace(/\.?0+$/, '')}%)</span>
+                  )}
+                </div>
+                {isPending ? (
+                  <input
+                    type="text" inputMode="decimal"
+                    value={editAidsLevy}
+                    onChange={(e) => setEditAidsLevy(e.target.value)}
+                    onBlur={saveOverrides}
+                    className="w-full text-center text-sm font-semibold border border-orange-300 dark:border-orange-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-orange-700 dark:text-orange-300"
+                  />
+                ) : (
+                  <div className="font-semibold text-orange-700 dark:text-orange-300 text-sm">
+                    ${remittance.aidsLevy.toFixed(2)}
+                  </div>
+                )}
+                <div className="text-[10px] text-orange-500 dark:text-orange-400 mt-0.5">employer cost</div>
+              </div>
+              {/* Total Tax Due — auto-calc */}
+              <div className="text-center bg-blue-50 dark:bg-blue-900/20 rounded px-2">
+                <div className="text-blue-600 dark:text-blue-400 mb-1">Total Tax Due</div>
+                <div className="font-bold text-blue-800 dark:text-blue-200 text-base">
+                  ${(isPending ? totalTaxDue : remittance.totalTaxDue).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5">pay to ZIMRA</div>
+              </div>
+            </div>
+
+            {saving && <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Saving…</p>}
+
+            {/* Action area */}
+            {isPending && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={handleProcessLevy}
+                  disabled={processing || capturedSlips === 0}
+                  className="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 font-medium"
+                >
+                  {processing ? 'Processing…' : `💸 Process AIDS Levy ($${(isPending ? parseFloat(editAidsLevy) || 0 : remittance.aidsLevy).toFixed(2)}) from Payroll Account`}
+                </button>
+                {capturedSlips === 0 && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400">Capture payslips first</span>
+                )}
+              </div>
+            )}
+
+            {remittance.status === 'LEVY_PROCESSED' && (
+              <div className="space-y-2">
+                <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+                  ✓ AIDS Levy of ${remittance.aidsLevy.toFixed(2)} debited from payroll account
+                  {remittance.levyProcessedAt && ` on ${new Date(remittance.levyProcessedAt).toLocaleDateString()}`}
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Pay <strong>${remittance.totalTaxDue.toFixed(2)}</strong> to ZIMRA externally, then record the submission below.
+                </p>
+                {!showSubmitForm ? (
+                  <button
+                    onClick={() => setShowSubmitForm(true)}
+                    className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                  >
+                    ✓ Mark as Submitted to ZIMRA
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="text"
+                      placeholder="ZIMRA receipt / reference number (optional)"
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 w-64 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    />
+                    <button
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+                    >
+                      {submitting ? 'Saving…' : 'Confirm'}
+                    </button>
+                    <button
+                      onClick={() => setShowSubmitForm(false)}
+                      className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {remittance.status === 'SUBMITTED' && (
+              <p className="text-xs text-green-700 dark:text-green-400 font-medium">
+                ✓ Submitted to ZIMRA on {remittance.submittedAt ? new Date(remittance.submittedAt).toLocaleDateString() : '—'}
+                {remittance.paymentReference && ` — Ref: ${remittance.paymentReference}`}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-gray-400 dark:text-gray-500">Loading ZIMRA summary…</p>
+        )}
       </div>
     </div>
   )

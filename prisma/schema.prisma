@@ -2129,7 +2129,8 @@ model PayrollPeriods {
   businesses                              Businesses       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   users_payroll_periods_createdByTousers  Users?           @relation("payroll_periods_createdByTousers", fields: [createdBy], references: [id])
 
-  payroll_slips   PayrollSlips[]
+  payroll_slips               PayrollSlips[]
+  payroll_zimra_remittances   PayrollZimraRemittances[]
 
   @@unique([businessId, year, month])
   @@index([businessId])
@@ -2188,6 +2189,47 @@ model PayrollSlips {
   @@index([payrollPeriodId])
   @@index([employeeId])
   @@map("payroll_slips")
+}
+
+model PayrollZimraRemittances {
+  id                String    @id @default(uuid())
+  payrollPeriodId   String    @unique
+
+  // P2 Part B figures — auto-summed from captured payslips, overridable
+  totalRemuneration Decimal   @db.Decimal(12, 2)
+  employeeCount     Int
+  grossPaye         Decimal   @db.Decimal(12, 2)  // sum of employees' payeTax
+  aidsLevy          Decimal   @db.Decimal(12, 2)  // employer cost (levyRate % of grossPaye)
+  totalTaxDue       Decimal   @db.Decimal(12, 2)  // grossPaye + aidsLevy
+
+  // AIDS levy rate — defaults to previous period's rate (fallback 0.03)
+  levyRate          Decimal   @default(0.03) @db.Decimal(5, 4)
+  // When true, figures were manually overridden — GET will not recalculate from slips
+  manualOverride    Boolean   @default(false)
+
+  // PENDING        = payslips not fully captured yet
+  // LEVY_PROCESSED = AIDS levy debited from payroll account
+  // SUBMITTED      = P2 form submitted to ZIMRA and full amount paid
+  status            String    @default("PENDING")
+
+  // AIDS levy processing — debit from payroll account
+  levyProcessedAt   DateTime?
+  levyProcessedBy   String?
+
+  // ZIMRA submission record
+  submittedAt       DateTime?
+  submittedBy       String?
+  paymentReference  String?
+
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now())
+
+  payroll_periods         PayrollPeriods @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+  users_levy_processed    Users?         @relation("ZimraLevyProcessedBy", fields: [levyProcessedBy], references: [id])
+  users_submitted         Users?         @relation("ZimraSubmittedBy", fields: [submittedBy], references: [id])
+
+  @@map("payroll_zimra_remittances")
 }
 
 model PayrollAccounts {
@@ -2838,6 +2880,8 @@ model Users {
   outgoing_loan_payments_recorded                                AccountOutgoingLoanPayments[] @relation("OutgoingLoanPaymentRecorder")
   payroll_slips_captured                                         PayrollSlips[]              @relation("PayrollSlipCapturedBy")
   payroll_slips_distributed                                      PayrollSlips[]              @relation("PayrollSlipDistributedBy")
+  zimra_levy_processed                                           PayrollZimraRemittances[]   @relation("ZimraLevyProcessedBy")
+  zimra_submitted                                                PayrollZimraRemittances[]   @relation("ZimraSubmittedBy")
 
   @@map("users")
 }
