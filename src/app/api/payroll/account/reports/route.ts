@@ -76,7 +76,10 @@ export async function GET(request: NextRequest) {
         where.paymentDate.gte = new Date(startDate)
       }
       if (endDate) {
-        where.paymentDate.lte = new Date(endDate)
+        // Use start of next day so the full endDate day is included
+        const end = new Date(endDate)
+        end.setDate(end.getDate() + 1)
+        where.paymentDate.lt = end
       }
     }
 
@@ -131,16 +134,13 @@ export async function GET(request: NextRequest) {
       employeeName: p.employees.fullName || `${p.employees.firstName} ${p.employees.lastName}`,
       employeeNationalId: p.employees.nationalId,
       amount: Number(p.amount),
-      originalAmount: p.originalAmount ? Number(p.originalAmount) : null,
-      adjustmentNote: p.adjustmentNote,
+      netAmount: p.netAmount != null ? Number(p.netAmount) : null,
+      notes: p.notes,
       paymentType: p.paymentType,
       paymentDate: p.paymentDate,
-      paymentSchedule: p.paymentSchedule,
       status: p.status,
       isAdvance: p.isAdvance,
       isLocked: p.isLocked,
-      commissionAmount: p.commissionAmount ? Number(p.commissionAmount) : null,
-      deductions: p.deductions,
       createdBy: p.users_created?.name || 'Unknown',
       signedBy: p.users_signed?.name || null,
       signedAt: p.signedAt,
@@ -153,7 +153,6 @@ export async function GET(request: NextRequest) {
     const summary = {
       totalPayments: reportData.length,
       totalAmount: reportData.reduce((sum, p) => sum + p.amount, 0),
-      totalCommission: reportData.reduce((sum, p) => sum + (p.commissionAmount || 0), 0),
       byStatus: {} as any,
       byPaymentType: {} as any,
       advancePayments: reportData.filter((p) => p.isAdvance).length,
@@ -229,12 +228,12 @@ export async function GET(request: NextRequest) {
           'Employee Number',
           'Employee Name',
           'National ID',
-          'Amount',
+          'Gross Amount',
+          'Net Amount',
           'Payment Type',
           'Payment Date',
           'Status',
-          'Is Advance',
-          'Commission',
+          'Notes',
           'Created By',
           'Signed By',
           'Completed By',
@@ -250,11 +249,11 @@ export async function GET(request: NextRequest) {
             `"${p.employeeName}"`,
             p.employeeNationalId,
             p.amount.toFixed(2),
+            p.netAmount != null ? p.netAmount.toFixed(2) : '',
             paymentTypeLabel(p.paymentType),
             new Date(p.paymentDate).toISOString().split('T')[0],
             p.status,
-            p.isAdvance ? 'Yes' : 'No',
-            p.commissionAmount ? p.commissionAmount.toFixed(2) : '0.00',
+            p.notes ? `"${p.notes}"` : '',
             `"${p.createdBy}"`,
             p.signedBy ? `"${p.signedBy}"` : '',
             p.completedBy ? `"${p.completedBy}"` : '',

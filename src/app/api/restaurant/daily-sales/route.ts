@@ -51,6 +51,7 @@ const ORDER_INCLUDE = {
           business_products: {
             select: {
               categoryId: true,
+              name: true,
               business_categories: {
                 select: {
                   id: true,
@@ -211,7 +212,7 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    let attrProductCategories: Record<string, string> = {}
+    let attrProductCategories: Record<string, { categoryId: string; categoryName: string }> = {}
     if (attrProductIds.size > 0) {
       const prods = await prisma.businessProducts.findMany({
         where: { id: { in: Array.from(attrProductIds) } },
@@ -219,7 +220,10 @@ export async function GET(request: NextRequest) {
       })
       prods.forEach((p: any) => {
         if (p.business_categories) {
-          attrProductCategories[p.id] = p.business_categories.name
+          attrProductCategories[p.id] = {
+            categoryId: p.business_categories.id,
+            categoryName: p.business_categories.name,
+          }
           // Also store by categoryId for lookup
           fallbackCategories[p.business_categories.id] = p.business_categories.name
         }
@@ -246,8 +250,8 @@ export async function GET(request: NextRequest) {
         if (!categoryId) {
           const pid = (item.attributes as any)?.productId
           if (pid && attrProductCategories[pid]) {
-            categoryName = attrProductCategories[pid]
-            categoryId = pid + '-cat'
+            categoryName = attrProductCategories[pid].categoryName
+            categoryId = attrProductCategories[pid].categoryId
           }
         }
 
@@ -273,6 +277,23 @@ export async function GET(request: NextRequest) {
 
         categoryBreakdown[categoryId].itemCount += item.quantity
         categoryBreakdown[categoryId].totalSales += Number(item.totalPrice || 0)
+      })
+    })
+
+    // Group by individual item name for top items breakdown
+    const topItemsBreakdown: Record<string, { name: string; quantity: number; totalSales: number }> = {}
+    regularOrders.forEach((order: any) => {
+      order.business_order_items.forEach((item: any) => {
+        const itemName =
+          (item.attributes as any)?.productName ||
+          item.product_variants?.name ||
+          item.product_variants?.business_products?.name ||
+          'Unknown Item'
+        if (!topItemsBreakdown[itemName]) {
+          topItemsBreakdown[itemName] = { name: itemName, quantity: 0, totalSales: 0 }
+        }
+        topItemsBreakdown[itemName].quantity += item.quantity
+        topItemsBreakdown[itemName].totalSales += Number(item.totalPrice || 0)
       })
     })
 
@@ -326,6 +347,9 @@ export async function GET(request: NextRequest) {
           (a, b) => b.sales - a.sales
         ),
         categoryBreakdown: Object.values(categoryBreakdown).sort(
+          (a, b) => b.totalSales - a.totalSales
+        ),
+        topItems: Object.values(topItemsBreakdown).sort(
           (a, b) => b.totalSales - a.totalSales
         ),
       },

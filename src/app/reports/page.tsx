@@ -115,6 +115,33 @@ export default function ReportsPage() {
             <p className="text-sm text-gray-500">Last 30 days</p>
           </div>
         </div>
+
+        {/* Report Hubs */}
+        <div className="mt-6">
+          <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">Report Hubs</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a href="/expense-accounts/reports"
+              className="block bg-white dark:bg-gray-800 rounded-lg shadow p-5 border-l-4 border-blue-500 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">💳</span>
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100">Expense Account Reports</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Accounts overview, loans, transfers, lending and spending trends.</p>
+                </div>
+              </div>
+            </a>
+            <a href="/payroll/account/reports"
+              className="block bg-white dark:bg-gray-800 rounded-lg shadow p-5 border-l-4 border-teal-500 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">💼</span>
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100">Payroll Reports</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Payment register, per-employee totals, payment type breakdown, and monthly trends.</p>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
       </ContentLayout>
     </ProtectedRoute>
   )

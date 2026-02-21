@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     if (startDate || endDate) {
       where.paymentDate = {}
       if (startDate) where.paymentDate.gte = new Date(startDate)
-      if (endDate) where.paymentDate.lte = new Date(endDate)
+      if (endDate) { const end = new Date(endDate); end.setDate(end.getDate() + 1); where.paymentDate.lt = end }
     }
 
     const payments = await prisma.expenseAccountPayments.findMany({

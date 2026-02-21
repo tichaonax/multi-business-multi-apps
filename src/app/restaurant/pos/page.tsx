@@ -88,6 +88,7 @@ export default function RestaurantPOS() {
   const [printerId, setPrinterId] = useState<string | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
+  const [yesterdaySales, setYesterdaySales] = useState<any>(null)
   const [showDailySales, setShowDailySales] = useState(false)
   const [recentTransactions, setRecentTransactions] = useState<any[]>([])
   const [showRecentTransactions, setShowRecentTransactions] = useState(false)
@@ -1108,24 +1109,36 @@ export default function RestaurantPOS() {
     }
   }
 
-  // Load daily sales summary
+  // Load daily sales summary (today + yesterday for comparison)
   const loadDailySales = async () => {
     if (!currentBusinessId) return
 
     try {
-      const response = await fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
-      if (response.ok) {
-        const data = await response.json()
+      const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const yStr = yesterday.toISOString().split('T')[0]
+
+      const [todayRes, yRes] = await Promise.all([
+        fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}`),
+        fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}&date=${yStr}`)
+      ])
+      if (todayRes.ok) {
+        const data = await todayRes.json()
         setDailySales(data.data)
+      }
+      if (yRes.ok) {
+        const yData = await yRes.json()
+        setYesterdaySales(yData.data)
       }
     } catch (error) {
       console.error('Failed to load daily sales:', error)
     }
   }
 
-  // Load last 5 transactions for quick view
+  // Load last 5 transactions for today only
   const loadRecentTransactions = async () => {
-    if (!currentBusinessId || loadingRecent) return
+    if (!currentBusinessId) return
     setLoadingRecent(true)
     try {
       const params = new URLSearchParams({
@@ -1133,12 +1146,15 @@ export default function RestaurantPOS() {
         includeItems: 'true',
         limit: '5',
         page: '1',
+        dateRange: 'today',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       })
       const response = await fetch(`/api/universal/orders?${params}`)
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          setRecentTransactions(data.data || [])
+          const txns = data.data || []
+          setRecentTransactions(txns)
         }
       }
     } catch (error) {
@@ -1161,8 +1177,9 @@ export default function RestaurantPOS() {
     if (!currentBusinessId || !isRestaurantBusiness) return
 
     const interval = setInterval(async () => {
-      // Refresh daily sales summary
+      // Refresh daily sales summary and recent transactions together
       loadDailySales()
+      loadRecentTransactions()
 
       // Lightweight refresh of product sold-today counts (without reloading full product list)
       try {
@@ -1761,12 +1778,32 @@ export default function RestaurantPOS() {
                     <div className="text-xl font-bold text-green-600 dark:text-green-400">
                       ${dailySales.summary.totalSales.toFixed(2)}
                     </div>
+                    {yesterdaySales && (() => {
+                      const yVal = yesterdaySales.summary?.totalSales ?? 0
+                      const diff = dailySales.summary.totalSales - yVal
+                      const pct = yVal > 0 ? (diff / yVal) * 100 : null
+                      return (
+                        <div className={`text-xs mt-0.5 ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {diff >= 0 ? '↑' : '↓'} vs yesterday ${yVal.toFixed(2)}
+                          {pct !== null && ` (${Math.abs(pct).toFixed(0)}%)`}
+                        </div>
+                      )
+                    })()}
                   </div>
                   <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Orders</div>
                     <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
                       {dailySales.summary.totalOrders}
                     </div>
+                    {yesterdaySales && (() => {
+                      const yOrders = yesterdaySales.summary?.totalOrders ?? 0
+                      const diff = dailySales.summary.totalOrders - yOrders
+                      return (
+                        <div className={`text-xs mt-0.5 ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)} vs yesterday ({yOrders})
+                        </div>
+                      )
+                    })()}
                   </div>
                   <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Avg Order</div>
@@ -1943,15 +1980,18 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
-                    {/* Top Categories */}
-                    {dailySales.categoryBreakdown && dailySales.categoryBreakdown.length > 0 && (
+                    {/* Top Items */}
+                    {dailySales.topItems && dailySales.topItems.length > 0 && (
                       <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Top Categories</h3>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Top Items</h3>
                         <div className="space-y-1">
-                          {dailySales.categoryBreakdown.slice(0, 5).map((cat: any) => (
-                            <div key={cat.name} className="flex justify-between items-center text-sm">
-                              <span className="text-gray-700 dark:text-gray-300">{cat.name}</span>
-                              <span className="font-semibold text-primary">${cat.totalSales.toFixed(2)}</span>
+                          {dailySales.topItems.slice(0, 5).map((item: any) => (
+                            <div key={item.name} className="flex justify-between items-center text-sm">
+                              <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
+                              <div className="text-right">
+                                <span className="font-semibold text-primary">${item.totalSales.toFixed(2)}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">×{item.quantity}</span>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1971,6 +2011,172 @@ export default function RestaurantPOS() {
                 )}
               </div>
             )}
+
+            {/* POS User Widget — Last order banner + collapsible recent orders */}
+            {recentTransactions.length > 0 && !isAdmin && !hasPermission('canAccessFinancialData') && !hasPermission('canViewWifiReports') && (() => {
+              const lastOrder = recentTransactions[0]
+              const lastItems = lastOrder?.business_order_items || []
+              return (
+                <>
+                  {/* ── Always-visible Last Order banner ── */}
+                  <div className="card bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                    {/* Header */}
+                    <div className={`px-4 py-3 flex items-center justify-between ${
+                      lastOrder.status === 'COMPLETED'
+                        ? 'bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-700'
+                        : lastOrder.status === 'REFUNDED'
+                          ? 'bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-700'
+                          : 'bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-700'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">Last Order</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">#{lastOrder.orderNumber}</span>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                          lastOrder.status === 'COMPLETED'
+                            ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
+                            : lastOrder.status === 'REFUNDED'
+                              ? 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200'
+                              : 'bg-yellow-200 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200'
+                        }`}>{lastOrder.status}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {new Date(lastOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {lastOrder.paymentMethod && <span className="ml-2">{lastOrder.paymentMethod}</span>}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Items */}
+                    <div className="px-4 py-3 space-y-1.5">
+                      {lastItems.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-2">No item details</p>
+                      ) : lastItems.map((item: any, idx: number) => {
+                        const name = item.product_variants?.business_products?.name
+                          || item.attributes?.productName
+                          || item.notes
+                          || 'Item'
+                        return (
+                          <div key={item.id || idx} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                              <span className="text-xs text-gray-400 w-5 text-right">{item.quantity}×</span>
+                              <span>{name}</span>
+                            </div>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              ${Number(item.totalPrice || 0).toFixed(2)}
+                            </span>
+                          </div>
+                        )
+                      })}
+
+                      {(Number(lastOrder.discountAmount) > 0 || Number(lastOrder.taxAmount) > 0) && (
+                        <div className="border-t border-gray-100 dark:border-gray-700 pt-1 mt-1 space-y-1">
+                          {Number(lastOrder.discountAmount) > 0 && (
+                            <div className="flex justify-between text-xs text-red-500">
+                              <span>Discount</span>
+                              <span>-${Number(lastOrder.discountAmount).toFixed(2)}</span>
+                            </div>
+                          )}
+                          {Number(lastOrder.taxAmount) > 0 && (
+                            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                              <span>Tax</span>
+                              <span>${Number(lastOrder.taxAmount).toFixed(2)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="border-t border-gray-200 dark:border-gray-600 pt-2 mt-1 flex justify-between text-sm font-bold text-gray-900 dark:text-white">
+                        <span>Total</span>
+                        <span>${Number(lastOrder.totalAmount || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Collapsible Recent Orders (last 5) ── */}
+                  <div className="card bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                    <button
+                      onClick={() => setShowRecentTransactions(v => !v)}
+                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    >
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">📋 Recent Orders</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{recentTransactions.length} orders</span>
+                        <span className={`text-xs text-gray-400 transition-transform duration-200 ${showRecentTransactions ? 'rotate-180' : ''}`}>▼</span>
+                      </div>
+                    </button>
+
+                    {showRecentTransactions && (
+                      <div className="divide-y divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
+                        {recentTransactions.map((order: any, index: number) => {
+                          const isExpanded = expandedOrderId === order.id
+                          const items = order.business_order_items || []
+                          return (
+                            <div key={order.id}>
+                              <button
+                                onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                                className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
+                                    <span className="text-sm font-medium text-gray-900 dark:text-white">#{order.orderNumber}</span>
+                                    <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${
+                                      order.status === 'COMPLETED'
+                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                        : order.status === 'REFUNDED'
+                                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                    }`}>{order.status}</span>
+                                    {index === 0 && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">latest</span>}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 pl-5">
+                                    {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {order.paymentMethod && <span className="ml-2">{order.paymentMethod}</span>}
+                                    {items.length > 0 && <span className="ml-2">{items.length} item{items.length > 1 ? 's' : ''}</span>}
+                                  </div>
+                                </div>
+                                <div className="text-sm font-bold text-green-600 dark:text-green-400 whitespace-nowrap">
+                                  ${Number(order.totalAmount || 0).toFixed(2)}
+                                </div>
+                              </button>
+
+                              {isExpanded && items.length > 0 && (
+                                <div className="px-4 pb-3 pl-9">
+                                  <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2 space-y-1">
+                                    {items.map((item: any, idx: number) => {
+                                      const name = item.product_variants?.business_products?.name
+                                        || item.attributes?.productName
+                                        || item.notes
+                                        || 'Item'
+                                      return (
+                                        <div key={item.id || idx} className="flex items-center justify-between text-xs">
+                                          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                                            <span className="text-gray-400">{item.quantity}×</span>
+                                            <span>{name}</span>
+                                          </div>
+                                          <span className="font-medium text-gray-900 dark:text-white">
+                                            ${Number(item.totalPrice || 0).toFixed(2)}
+                                          </span>
+                                        </div>
+                                      )
+                                    })}
+                                    <div className="border-t border-gray-200 dark:border-gray-600 pt-1 mt-1 flex justify-between text-xs font-bold text-gray-900 dark:text-white">
+                                      <span>Total</span>
+                                      <span>${Number(order.totalAmount || 0).toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
 
             {/* Manual Entry Mode */}
             {posMode === 'manual' && currentBusinessId && (

@@ -31,17 +31,16 @@ export async function GET(request: NextRequest) {
     if (startDate || endDate) {
       where.paymentDate = {}
       if (startDate) where.paymentDate.gte = new Date(startDate)
-      if (endDate) where.paymentDate.lte = new Date(endDate)
+      if (endDate) {
+        // Use start of next day so the full endDate day is included
+        const end = new Date(endDate)
+        end.setDate(end.getDate() + 1)
+        where.paymentDate.lt = end
+      }
     }
 
     const payments = await prisma.expenseAccountPayments.findMany({
       where,
-      include: {
-        payeeUser: { select: { id: true, name: true } },
-        payeeEmployee: { select: { id: true, fullName: true } },
-        payeePerson: { select: { id: true, fullName: true } },
-        payeeBusiness: { select: { id: true, name: true } },
-      },
       select: {
         id: true,
         amount: true,

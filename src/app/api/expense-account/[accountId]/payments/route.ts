@@ -107,7 +107,9 @@ export async function GET(
         where.paymentDate.gte = new Date(startDate)
       }
       if (endDate) {
-        where.paymentDate.lte = new Date(endDate)
+        const end = new Date(endDate)
+        end.setDate(end.getDate() + 1)
+        where.paymentDate.lt = end
       }
     }
 

@@ -127,7 +127,7 @@ function PayrollAccountContent() {
             {/* Quick Actions */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4">⚡ Quick Actions</h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <button
                   onClick={() => router.push('/payroll/account/deposits')}
                   className="flex flex-col items-center justify-center p-4 border-2 border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 dark:bg-blue-900/20 hover:border-blue-400 transition-colors"
@@ -159,9 +159,18 @@ function PayrollAccountContent() {
                   onClick={() => router.push('/payroll/account/payments/history')}
                   className="flex flex-col items-center justify-center p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 hover:border-gray-400 transition-colors"
                 >
-                  <span className="text-3xl mb-2">📊</span>
+                  <span className="text-3xl mb-2">📜</span>
                   <span className="font-medium text-gray-700 dark:text-gray-300">View History</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Payments & reports</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Payment records</span>
+                </button>
+
+                <button
+                  onClick={() => router.push('/payroll/account/reports')}
+                  className="flex flex-col items-center justify-center p-4 border-2 border-teal-200 dark:border-teal-800 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-900/30 dark:bg-teal-900/20 hover:border-teal-400 transition-colors"
+                >
+                  <span className="text-3xl mb-2">📊</span>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Reports</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Analytics & exports</span>
                 </button>
               </div>
             </div>
