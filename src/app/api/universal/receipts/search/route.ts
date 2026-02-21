@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
         customerId: true,
         employeeId: true,
         totalAmount: true,
+        discountAmount: true,
         businessType: true,
         paymentMethod: true,
         status: true,
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
         business_customers: {
           select: {
             name: true,
+            phone: true,
           },
         },
         employees: {
@@ -105,10 +107,14 @@ export async function GET(request: NextRequest) {
         orderNumber: order.orderNumber,
         customerId: order.customerId,
         customerName: order.business_customers?.name || 'Walk-in Customer',
+        customerPhone: order.business_customers?.phone || null,
         salespersonName: order.employees?.fullName
+          || (order.attributes as any)?.employeeName
           || (order.attributes as any)?.soldByName
           || null,
         totalAmount: order.totalAmount,
+        discountAmount: Number(order.discountAmount || 0),
+        rewardCouponCode: (order.attributes as any)?.rewardCouponCode || null,
         businessType: order.businessType,
         paymentMethod: order.paymentMethod,
         status: order.status,

@@ -131,9 +131,12 @@ export async function GET(
         businessType: order.businessType,
         totalAmount: order.totalAmount,
         customerName: order.business_customers?.name || null,
-        employeeName: order.employees?.fullName || null,
+        employeeName: order.employees?.fullName || (order.attributes as any)?.employeeName || null,
+        customerPhone: order.business_customers?.phone || null,
         paymentMethod: order.paymentMethod || null,
         paymentStatus: order.paymentStatus || null,
+        discountAmount: parseFloat(order.discountAmount.toString()),
+        rewardCouponCode: (order.attributes as any)?.rewardCouponCode || null,
         createdAt: order.createdAt,
         reprintHistory: order.reprint_logs.map(log => ({
           id: log.id,

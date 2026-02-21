@@ -16,8 +16,11 @@ interface ReceiptListItem {
   orderNumber: string
   customerId: string | null
   customerName: string
+  customerPhone: string | null
   salespersonName: string | null
   totalAmount: number
+  discountAmount: number
+  rewardCouponCode: string | null
   businessType: string
   paymentMethod: string | null
   status: string
@@ -410,13 +413,22 @@ function ReceiptHistoryPageContent() {
                       {receipt.orderNumber}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {receipt.customerName}
+                      <div>{receipt.customerName}</div>
+                      {receipt.customerPhone && receipt.customerName !== 'Walk-in Customer' && (
+                        <div className="text-xs text-gray-400 dark:text-gray-500">{receipt.customerPhone}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {receipt.salespersonName || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
-                      {formatCurrency(receipt.totalAmount)}
+                      <div>{formatCurrency(receipt.totalAmount)}</div>
+                      {receipt.rewardCouponCode && (
+                        <div className="text-xs text-green-600 dark:text-green-400 font-normal">🎁 {receipt.rewardCouponCode}</div>
+                      )}
+                      {!receipt.rewardCouponCode && receipt.discountAmount > 0 && (
+                        <div className="text-xs text-green-600 dark:text-green-400 font-normal">-{formatCurrency(receipt.discountAmount)} discount</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {formatDate(receipt.createdAt)}

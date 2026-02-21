@@ -178,6 +178,22 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                         <dt className="text-xs text-gray-500 dark:text-gray-400">Customer</dt>
                         <dd className="mt-1 text-sm text-gray-900 dark:text-white">
                           {order.customerName}
+                          {order.customerPhone && (
+                            <span className="ml-2 text-gray-500 dark:text-gray-400 text-xs">{order.customerPhone}</span>
+                          )}
+                        </dd>
+                      </div>
+                    )}
+                    {order.rewardCouponCode && (
+                      <div>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Reward / Coupon Used</dt>
+                        <dd className="mt-1 text-sm font-mono text-green-700 dark:text-green-400">
+                          🎁 {order.rewardCouponCode}
+                          {order.discountAmount > 0 && (
+                            <span className="ml-2 font-sans font-normal text-gray-500 dark:text-gray-400">
+                              (-{formatCurrency(order.discountAmount)})
+                            </span>
+                          )}
                         </dd>
                       </div>
                     )}

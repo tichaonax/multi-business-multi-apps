@@ -1136,6 +1136,17 @@ export async function POST(req: NextRequest) {
             data: { status: 'REDEEMED', redeemedAt: new Date(), redeemedOrderId: newOrder.id }
           })
 
+          // Store rewardCouponCode in order attributes for receipt history tracing
+          await prisma.businessOrders.update({
+            where: { id: newOrder.id },
+            data: {
+              attributes: {
+                ...(newOrder.attributes as any || {}),
+                rewardCouponCode: reward.couponCode
+              }
+            }
+          })
+
           // Free WiFi token (R710) — generate on-the-fly, same as R710 WiFi Sales direct sale flow
           if (reward.wifiTokenConfigId) {
             try {
