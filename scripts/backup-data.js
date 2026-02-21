@@ -12,19 +12,29 @@ async function backupData() {
       timestamp: new Date().toISOString(),
       users: await prisma.users.findMany(),
       businesses: await prisma.businesses.findMany(),
-      businessMemberships: await prisma.businessMembership.findMany(),
-      permissionTemplates: await prisma.permissionTemplate.findMany(),
-      constructionProjects: await prisma.constructionProject.findMany(),
-      constructionExpenses: await prisma.constructionExpense.findMany(),
-      contractors: await prisma.contractor.findMany(),
-      projectPayments: await prisma.projectPayment.findMany(),
-      personalExpenses: await prisma.personalExpense.findMany(),
-      expenseCategories: await prisma.expenseCategory.findMany(),
-      personalBudgets: await prisma.personalBudget.findMany(),
-      fundSources: await prisma.fundSource.findMany(),
-      menuItems: await prisma.menuItem.findMany(),
-      orders: await prisma.order.findMany(),
-      orderItems: await prisma.orderItem.findMany(),
+      businessMemberships: await prisma.businessMemberships.findMany(),
+      permissionTemplates: await prisma.permissionTemplates.findMany(),
+      constructionProjects: await prisma.constructionProjects.findMany(),
+      constructionExpenses: await prisma.constructionExpenses.findMany(),
+      personalExpenses: await prisma.personalExpenses.findMany(),
+      expenseCategories: await prisma.expenseCategories.findMany(),
+      personalBudgets: await prisma.personalBudgets.findMany(),
+      fundSources: await prisma.fundSources.findMany(),
+      menuItems: await prisma.menuItems.findMany(),
+      orders: await prisma.orders.findMany(),
+      orderItems: await prisma.orderItems.findMany(),
+
+      // Expense account loans & transfers
+      expenseAccountLenders: await prisma.expenseAccountLenders.findMany(),
+      expenseAccountLoans: await prisma.expenseAccountLoans.findMany(),
+      businessTransferLedger: await prisma.businessTransferLedger.findMany(),
+      accountOutgoingLoans: await prisma.accountOutgoingLoans.findMany(),
+      accountOutgoingLoanPayments: await prisma.accountOutgoingLoanPayments.findMany(),
+
+      // Payroll additions
+      payrollSlips: await prisma.payrollSlips.findMany(),
+      payrollZimraRemittances: await prisma.payrollZimraRemittances.findMany(),
+      payrollPaymentVouchers: await prisma.payrollPaymentVouchers.findMany(),
     }
 
     const backupDir = path.join(__dirname, '..', 'backups')

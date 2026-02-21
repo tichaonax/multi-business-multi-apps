@@ -30,6 +30,7 @@ const RESTORE_ORDER = [
   'expenseDomains',
   'expenseCategories',
   'expenseSubcategories',
+  'expenseAccountLenders',  // Loan lender reference data (no external FKs)
 
   // Users and authentication
   'users',
@@ -108,6 +109,9 @@ const RESTORE_ORDER = [
   'expenseAccounts',
   'expenseAccountDeposits',
   'expenseAccountPayments',
+  'expenseAccountLoans',          // Depends on expenseAccounts + expenseAccountLenders
+  'businessTransferLedger',       // Depends on expenseAccounts + businesses
+  'accountOutgoingLoans',         // Depends on expenseAccounts, persons, employees, businesses
 
   // Meal program (depends on businesses, employees, persons, expenseAccounts, businessOrders)
   'mealProgramParticipants',
@@ -123,6 +127,10 @@ const RESTORE_ORDER = [
   'payrollEntryBenefits',
   'payrollExports',
   'payrollAdjustments',
+  'payrollSlips',                  // Depends on payrollEntries
+  'payrollZimraRemittances',       // Depends on payrollPeriods
+  'payrollPaymentVouchers',        // Depends on payrollAccountPayments + payrollEntries
+  'accountOutgoingLoanPayments',   // Depends on accountOutgoingLoans + payrollEntries
 
   // Personal finance
   'fundSources',
