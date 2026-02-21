@@ -4,6 +4,8 @@ const nextConfig = {
   // Enable instrumentation hook for background services
   experimental: {
     // instrumentationHook is now enabled by default
+    // Reduces webpack in-memory cache size during dev — prevents OOM after long sessions
+    webpackMemoryOptimizations: true,
   },
   eslint: {
     // Disable ESLint during builds
