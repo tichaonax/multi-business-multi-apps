@@ -534,6 +534,39 @@ export async function POST(
           )
         }
       }
+
+      // Validate vehicle expense metadata if provided (optional — for vehicle expense queue items)
+      if (payment.vehicleExpense) {
+        const { vehicleId, expenseType } = payment.vehicleExpense
+        if (!vehicleId) {
+          return NextResponse.json(
+            { error: `Payment ${paymentIndex}: vehicleExpense.vehicleId is required`, index: i },
+            { status: 400 }
+          )
+        }
+        if (!expenseType) {
+          return NextResponse.json(
+            { error: `Payment ${paymentIndex}: vehicleExpense.expenseType is required`, index: i },
+            { status: 400 }
+          )
+        }
+        const vehicle = await prisma.vehicles.findUnique({
+          where: { id: vehicleId },
+          select: { id: true, isActive: true },
+        })
+        if (!vehicle) {
+          return NextResponse.json(
+            { error: `Payment ${paymentIndex}: Vehicle not found`, index: i },
+            { status: 404 }
+          )
+        }
+        if (!vehicle.isActive) {
+          return NextResponse.json(
+            { error: `Payment ${paymentIndex}: Vehicle is not active`, index: i },
+            { status: 400 }
+          )
+        }
+      }
     }
 
     // Calculate total payment amount (only for SUBMITTED status)
@@ -682,6 +715,27 @@ export async function POST(
         }
 
         createdPayments.push(newPayment)
+
+        // If vehicle expense metadata is present, create a linked VehicleExpense record
+        // in the same transaction so both records succeed or both roll back.
+        if (payment.vehicleExpense) {
+          const ve = payment.vehicleExpense
+          await tx.vehicleExpenses.create({
+            data: {
+              vehicleId: ve.vehicleId,
+              expenseType: ve.expenseType,
+              amount: Number(payment.amount),
+              expenseDate: paymentDate,
+              isBusinessDeductible: false,
+              description: payment.notes?.trim() || null,
+              fuelQuantity: ve.fuelQuantity != null ? Number(ve.fuelQuantity) : null,
+              fuelType: ve.fuelType || null,
+              mileageAtExpense: ve.mileageAtExpense != null ? Number(ve.mileageAtExpense) : null,
+              createdBy: user.id,
+              updatedAt: new Date(),
+            },
+          })
+        }
       }
 
       // Update expense account balance (only submitted payments affect balance)

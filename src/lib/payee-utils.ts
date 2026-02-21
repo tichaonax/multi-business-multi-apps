@@ -1,10 +1,8 @@
-import { PrismaClient } from '@prisma/client'
 import type { PayeeType, GroupedPayees, AnyPayee, CreateIndividualPayeeInput } from '@/types/payee'
+import { prisma } from '@/lib/prisma'
 
 type ExtendedPayeeType = PayeeType | 'SUPPLIER'
 import { formatPayeeDisplayName } from '@/types/payee'
-
-const prisma = new PrismaClient()
 
 /**
  * Get all available payees grouped by type

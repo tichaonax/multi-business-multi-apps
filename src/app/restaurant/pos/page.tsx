@@ -1862,16 +1862,23 @@ export default function RestaurantPOS() {
                                   className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
                                 >
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-xs text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
-                                      <span className="text-sm font-medium text-gray-900 dark:text-white">#{order.orderNumber}</span>
-                                      <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className={`flex-shrink-0 text-xs text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
+                                      <span className="flex-shrink-0 text-sm font-medium text-gray-900 dark:text-white">#{order.orderNumber}</span>
+                                      <span className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded ${
                                         order.status === 'COMPLETED'
                                           ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                           : order.status === 'REFUNDED'
                                             ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                             : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                                       }`}>{order.status}</span>
+                                      {!isExpanded && items.length > 0 && (() => {
+                                        const fi = items[0]
+                                        const fn = fi?.product_variants?.business_products?.name || fi?.attributes?.productName || fi?.notes
+                                        return fn ? (
+                                          <span className="text-xs text-gray-400 dark:text-gray-500 truncate">· {fi.quantity}× {fn}</span>
+                                        ) : null
+                                      })()}
                                     </div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 pl-5">
                                       {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -2118,17 +2125,24 @@ export default function RestaurantPOS() {
                                 className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
                               >
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-xs text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
-                                    <span className="text-sm font-medium text-gray-900 dark:text-white">#{order.orderNumber}</span>
-                                    <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className={`flex-shrink-0 text-xs text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
+                                    <span className="flex-shrink-0 text-sm font-medium text-gray-900 dark:text-white">#{order.orderNumber}</span>
+                                    <span className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded ${
                                       order.status === 'COMPLETED'
                                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                         : order.status === 'REFUNDED'
                                           ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                           : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                                     }`}>{order.status}</span>
-                                    {index === 0 && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">latest</span>}
+                                    {index === 0 && <span className="flex-shrink-0 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">latest</span>}
+                                    {!isExpanded && items.length > 0 && (() => {
+                                      const fi = items[0]
+                                      const fn = fi?.product_variants?.business_products?.name || fi?.attributes?.productName || fi?.notes
+                                      return fn ? (
+                                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate">· {fi.quantity}× {fn}</span>
+                                      ) : null
+                                    })()}
                                   </div>
                                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 pl-5">
                                     {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

@@ -852,7 +852,9 @@ export function PaymentForm({
         paymentType: p.paymentType || 'REGULAR',
         loanId: p.loanId || null,
         interestAmount: p.interestAmount ?? null,
-        status: 'SUBMITTED'
+        status: 'SUBMITTED',
+        // Forward vehicle expense metadata if present (added by VehicleExpenseModal)
+        vehicleExpense: (p as any).vehicleExpense || undefined,
       }))
 
       const response = await fetch(`/api/expense-account/${accountId}/payments`, {

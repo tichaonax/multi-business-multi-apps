@@ -19,6 +19,8 @@ import { ReturnTransferModal } from '@/components/expense-account/return-transfe
 import { LendMoneyModal } from '@/components/expense-account/lend-money-modal'
 import { FundPayrollModal } from '@/components/expense-account/fund-payroll-modal'
 import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-panel'
+import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-payment-modal'
+import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -57,6 +59,8 @@ export default function ExpenseAccountDetailPage() {
   const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
   const [showLendMoneyModal, setShowLendMoneyModal] = useState(false)
   const [showFundPayrollModal, setShowFundPayrollModal] = useState(false)
+  const [showSmartQuickPayModal, setShowSmartQuickPayModal] = useState(false)
+  const [showVehicleExpenseModal, setShowVehicleExpenseModal] = useState(false)
   const [loansRefreshKey, setLoansRefreshKey] = useState(0)
 
   // Permissions from business context (properly fetched from API)
@@ -238,6 +242,22 @@ export default function ExpenseAccountDetailPage() {
                 className="px-3 py-1.5 sm:px-4 sm:py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-xs sm:text-sm font-medium"
               >
                 Quick Payment
+              </button>
+            )}
+            {canMakeExpensePayments && (
+              <button
+                onClick={() => setShowSmartQuickPayModal(true)}
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs sm:text-sm font-medium"
+              >
+                ⚡ Daily Expenses
+              </button>
+            )}
+            {canMakeExpensePayments && (
+              <button
+                onClick={() => setShowVehicleExpenseModal(true)}
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 text-xs sm:text-sm font-medium"
+              >
+                🚗 Vehicle Expenses
               </button>
             )}
             {canViewExpenseReports && (
@@ -615,6 +635,36 @@ export default function ExpenseAccountDetailPage() {
             setShowFundPayrollModal(false)
           }}
           onClose={() => setShowFundPayrollModal(false)}
+        />
+      )}
+
+      {/* Smart Daily Expenses Modal — adds to queue, switches to Payments tab */}
+      {account && (
+        <SmartQuickPaymentModal
+          isOpen={showSmartQuickPayModal}
+          onClose={() => setShowSmartQuickPayModal(false)}
+          accountId={accountId}
+          accountBalance={Number(account.balance)}
+          defaultCategoryBusinessType={currentBusiness?.businessType}
+          businessId={account.businessId || currentBusiness?.id}
+          onSuccess={() => {
+            setShowSmartQuickPayModal(false)
+            setActiveTab('payments')
+          }}
+        />
+      )}
+
+      {/* Vehicle Expenses Modal — adds to queue, switches to Payments tab */}
+      {account && (
+        <VehicleExpenseModal
+          isOpen={showVehicleExpenseModal}
+          onClose={() => setShowVehicleExpenseModal(false)}
+          accountId={accountId}
+          accountBalance={Number(account.balance)}
+          onSuccess={() => {
+            setShowVehicleExpenseModal(false)
+            setActiveTab('payments')
+          }}
         />
       )}
     </ContentLayout>

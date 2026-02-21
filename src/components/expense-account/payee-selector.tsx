@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface Payee {
   id: string
@@ -39,6 +39,8 @@ export function PayeeSelector({
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   // Load payees on mount and when refreshTrigger changes
   useEffect(() => {
@@ -155,8 +157,17 @@ export function PayeeSelector({
       {/* Selected Value Display / Trigger */}
       <div className="flex items-center gap-1">
         <button
+          ref={buttonRef}
           type="button"
-          onClick={() => !disabled && setIsOpen(!isOpen)}
+          onClick={() => {
+            if (!disabled) {
+              if (!isOpen && buttonRef.current) {
+                const rect = buttonRef.current.getBoundingClientRect()
+                setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+              }
+              setIsOpen(!isOpen)
+            }
+          }}
           disabled={disabled}
           className={`flex-1 px-3 py-2 text-left border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
             error ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
@@ -190,9 +201,12 @@ export function PayeeSelector({
         )}
       </div>
 
-      {/* Dropdown Panel */}
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-96 overflow-hidden">
+      {/* Dropdown Panel — fixed positioning so it isn't clipped by overflow-y-auto parents */}
+      {isOpen && dropdownPos && (
+        <div
+          style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, zIndex: 9999 }}
+          className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-96 overflow-hidden"
+        >
           {/* Search Input */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700">
             <input
@@ -395,7 +409,8 @@ export function PayeeSelector({
       {/* Click outside to close */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0"
+          style={{ zIndex: 9998 }}
           onClick={() => setIsOpen(false)}
         />
       )}
