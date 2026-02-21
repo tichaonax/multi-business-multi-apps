@@ -22,10 +22,7 @@ const CreateCustomerSchema = z.object({
   gender: z.preprocess(emptyStringToUndefined, z.string().optional()),
   primaryEmail: z.preprocess(emptyStringToUndefined, z.string().email('Invalid email format').optional()),
   // Phone validation only applies if value is provided (not empty)
-  primaryPhone: z.preprocess(
-    emptyStringToUndefined,
-    z.string().regex(phoneRegex, 'Invalid phone number format').optional()
-  ),
+  primaryPhone: z.string().min(1, 'Phone number is required').regex(phoneRegex, 'Invalid phone number format'),
   alternatePhone: z.preprocess(
     emptyStringToUndefined,
     z.string().regex(phoneRegex, 'Invalid phone number format').optional()

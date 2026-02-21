@@ -927,6 +927,25 @@ export function Sidebar() {
                 </div>
               </>
             )}
+
+            {/* Coupon Management — shown for any business type with coupons enabled */}
+            {currentBusiness.couponsEnabled && (isSystemAdmin(currentUser) || hasPermission('canManageCoupons')) && (
+              <Link href={`/${currentBusiness.businessType}/coupons`} className={getLinkClasses(`/${currentBusiness.businessType}/coupons`)}>
+                <span className="text-lg">🏷️</span>
+                <span>Coupon Management</span>
+              </Link>
+            )}
+
+            {/* Customer Promos — shown for any business type with promos enabled */}
+            {currentBusiness.promosEnabled && currentBusinessId && (isSystemAdmin(currentUser) || hasPermission('canManageCoupons')) && (
+              <Link
+                href={`/universal/promos?businessId=${currentBusinessId}`}
+                className={getLinkClasses('/universal/promos')}
+              >
+                <span className="text-lg">🎁</span>
+                <span>Customer Promos</span>
+              </Link>
+            )}
             </>)}
           </>
         )}
@@ -1275,15 +1294,8 @@ export function Sidebar() {
           <span>Receipt History</span>
         </Link>
 
-        {/* Coupon Management - Available for any business with coupons enabled */}
-        {currentBusiness && currentBusiness.couponsEnabled && (isSystemAdmin(currentUser) || hasPermission('canManageCoupons')) && (
-          <Link href="/clothing/coupons" className={getLinkClasses('/clothing/coupons')}>
-            <span className="text-lg">🏷️</span>
-            <span>Coupon Management</span>
-          </Link>
-        )}
 
-        {/* Business Categories - Cross-business functionality */}
+{/* Business Categories - Cross-business functionality */}
         {(hasPermission('canCreateBusinessCategories') ||
           hasPermission('canEditBusinessCategories') ||
           hasPermission('canDeleteBusinessCategories')) && (

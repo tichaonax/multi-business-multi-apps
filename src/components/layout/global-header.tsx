@@ -153,7 +153,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
     // Coupon management link - only if business has coupons enabled
     const couponLinks: MenuLink[] = currentBusiness?.couponsEnabled
-      ? [{ href: '/clothing/coupons', icon: '🏷️', label: 'Coupons', permissions: ['canManageCoupons'] }]
+      ? [{ href: `/${businessType}/coupons`, icon: '🏷️', label: 'Coupons', permissions: ['canManageCoupons'] }]
       : []
 
     const allLinks = [

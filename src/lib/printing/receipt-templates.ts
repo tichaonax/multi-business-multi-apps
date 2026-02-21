@@ -437,7 +437,14 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
       receipt += centerText(stripEmojis(data.footerMessage)) + LF;
     }
     // receipt += LF;
-    receipt += centerText('Thank you for your business!') + LF;
+    if (data.customerName) {
+      receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
+      if (data.customerPhone) {
+        receipt += centerText(data.customerPhone) + LF;
+      }
+    } else {
+      receipt += centerText('Thank you for your business!') + LF;
+    }
     receipt += centerText('Please come again!') + LF;
   }
 
@@ -695,7 +702,12 @@ function generateHardwareReceipt(data: ReceiptData): string {
   if (data.umbrellaPhone) {
     receipt += centerText(data.umbrellaPhone) + LF;
   }
-  receipt += centerText('Thank you for your business!') + LF;
+  if (data.customerName) {
+    receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
+    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+  } else {
+    receipt += centerText('Thank you for your business!') + LF;
+  }
   receipt += centerText('Pro contractors welcome!') + LF;
 
   // Cut paper
@@ -802,7 +814,12 @@ function generateConstructionReceipt(data: ReceiptData): string {
   if (data.umbrellaPhone) {
     receipt += centerText(data.umbrellaPhone) + LF;
   }
-  receipt += centerText('Thank you for your business!') + LF;
+  if (data.customerName) {
+    receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
+    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+  } else {
+    receipt += centerText('Thank you for your business!') + LF;
+  }
 
   // Cut paper
   receipt += CUT;
@@ -923,7 +940,12 @@ function generateVehiclesReceipt(data: ReceiptData): string {
   if (data.umbrellaPhone) {
     receipt += centerText(data.umbrellaPhone) + LF;
   }
-  receipt += centerText('Thank you for your business!') + LF;
+  if (data.customerName) {
+    receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
+    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+  } else {
+    receipt += centerText('Thank you for your business!') + LF;
+  }
   receipt += centerText('Drive safe!') + LF;
 
   // Cut paper
@@ -1022,7 +1044,12 @@ function generateConsultingReceipt(data: ReceiptData): string {
   if (data.umbrellaPhone) {
     receipt += centerText(data.umbrellaPhone) + LF;
   }
-  receipt += centerText('Thank you for your business!') + LF;
+  if (data.customerName) {
+    receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
+    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+  } else {
+    receipt += centerText('Thank you for your business!') + LF;
+  }
 
   // Cut paper
   receipt += CUT;
@@ -1119,7 +1146,13 @@ function generateRetailReceipt(data: ReceiptData): string {
   if (data.umbrellaPhone) {
     receipt += centerText(data.umbrellaPhone) + LF;
   }
-  receipt += centerText('Thank you for shopping!') + LF + LF;
+  if (data.customerName) {
+    receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
+    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+  } else {
+    receipt += centerText('Thank you for shopping!') + LF;
+  }
+  receipt += LF;
 
   // Cut paper
   receipt += CUT;
@@ -1249,7 +1282,12 @@ function generateGenericReceipt(data: ReceiptData): string {
   if (data.umbrellaPhone) {
     receipt += centerText(data.umbrellaPhone) + LF;
   }
-  receipt += centerText(data.footerMessage || 'Thank you!') + LF;
+  if (data.customerName) {
+    receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
+    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+  } else {
+    receipt += centerText(data.footerMessage || 'Thank you!') + LF;
+  }
 
   // Cut paper
   receipt += CUT;

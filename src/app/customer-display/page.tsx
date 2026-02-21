@@ -128,6 +128,9 @@ function CustomerDisplayContent() {
   // Page context tracking
   const [pageContext, setPageContext] = useState<'pos' | 'marketing'>('marketing')
 
+  // Reward pending state
+  const [rewardPending, setRewardPending] = useState<{ amount: number } | null>(null)
+
   // Display mode: 'marketing' when cart is empty OR not in POS, 'cart' when in POS with items
   const [displayMode, setDisplayMode] = useState<'cart' | 'marketing'>('marketing')
 
@@ -194,6 +197,12 @@ function CustomerDisplayContent() {
         console.log('🛒 [CustomerDisplay] Current pageContext:', pageContext)
         console.log('🛒 [CustomerDisplay] Will show cart?', pageContext === 'pos' && newCart.items.length > 0)
         setCart(newCart)
+        // Update reward pending from CART_STATE
+        if (message.payload.rewardPending && message.payload.rewardAmount) {
+          setRewardPending({ amount: message.payload.rewardAmount })
+        } else if (message.payload.rewardPending === false) {
+          setRewardPending(null)
+        }
         break
 
       case 'ADD_ITEM':
@@ -263,6 +272,7 @@ function CustomerDisplayContent() {
           tax: 0,
           total: 0
         })
+        setRewardPending(null)
         break
 
       case 'SET_GREETING':
@@ -603,8 +613,15 @@ function CustomerDisplayContent() {
             )}
           </div>
 
+          {/* Reward Pending Banner */}
+          {rewardPending && (
+            <div className="text-center mt-2 py-1 px-4 bg-yellow-400 text-yellow-900 rounded-full inline-block mx-auto font-bold text-lg animate-pulse">
+              🎁 You have a ${rewardPending.amount.toFixed(2)} reward waiting — ask your cashier!
+            </div>
+          )}
+
           {/* Custom Message */}
-          {customMessage && (
+          {!rewardPending && customMessage && (
             <div className="text-center mt-2 text-sm opacity-90">
               <p>{customMessage}</p>
             </div>

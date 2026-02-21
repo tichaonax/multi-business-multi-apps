@@ -216,7 +216,16 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
 
       {showFooter && (
         <div className="text-center text-[10px] border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2 mt-2">
-          <div className="mb-1">Thank you for your business!</div>
+          {data.customerName ? (
+            <>
+              <div className="font-bold mb-0.5">Thank you, {data.customerName}!</div>
+              {data.customerPhone && (
+                <div className="text-[9px] text-gray-500 mb-1">{data.customerPhone}</div>
+              )}
+            </>
+          ) : (
+            <div className="mb-1">Thank you for your business!</div>
+          )}
           <div>Please come again</div>
         </div>
       )}

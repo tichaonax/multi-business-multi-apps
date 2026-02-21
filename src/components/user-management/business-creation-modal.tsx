@@ -20,6 +20,7 @@ interface BusinessCreationModalProps {
     phone?: string
     ecocashEnabled?: boolean
     couponsEnabled?: boolean
+    promosEnabled?: boolean
     receiptReturnPolicy?: string
     taxEnabled?: boolean
     taxIncludedInPrice?: boolean
@@ -57,6 +58,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     phone: initial?.phone || '',
     ecocashEnabled: initial?.ecocashEnabled !== undefined ? initial.ecocashEnabled : false,
     couponsEnabled: initial?.couponsEnabled !== undefined ? initial.couponsEnabled : false,
+    promosEnabled: initial?.promosEnabled !== undefined ? initial.promosEnabled : false,
     receiptReturnPolicy: initial?.receiptReturnPolicy || 'All sales are final, returns not accepted',
     taxEnabled: initial?.taxEnabled !== undefined ? initial.taxEnabled : false,
     taxIncludedInPrice: initial?.taxIncludedInPrice !== undefined ? initial.taxIncludedInPrice : true,
@@ -229,6 +231,23 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                     id="couponsEnabled"
                     checked={formData.couponsEnabled}
                     onChange={(e) => setFormData({ ...formData, couponsEnabled: e.target.checked })}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                  <div className="flex-1">
+                    <label htmlFor="promosEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                      Enable Customer Promos
+                    </label>
+                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                      Allow spend-based campaign rewards
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="promosEnabled"
+                    checked={formData.promosEnabled}
+                    onChange={(e) => setFormData({ ...formData, promosEnabled: e.target.checked })}
                     className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
                   />
                 </div>

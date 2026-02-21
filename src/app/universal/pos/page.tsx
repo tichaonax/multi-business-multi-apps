@@ -16,6 +16,8 @@ import { useProductLoader } from './hooks/useProductLoader'
 import { usePaymentProcessor } from './hooks/usePaymentProcessor'
 import { useWiFiTokenSync } from './hooks/useWiFiTokenSync'
 import { useCoupon } from './hooks/useCoupon'
+import { useCustomerRewards } from './hooks/useCustomerRewards'
+import type { CustomerReward } from './hooks/useCustomerRewards'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { getBusinessTypeConfig, getSupportedBusinessTypes } from './config/business-type-config'
 import { toast } from 'sonner'
@@ -76,6 +78,83 @@ export default function UniversalPOS() {
     clearError: clearCouponError
   } = useCoupon(currentBusinessId || undefined)
 
+  // Customer + reward state
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; customerType: string } | null>(null)
+  const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
+  const autoAppliedForRef = useRef<string | null>(null)
+  const { rewards: customerRewards, usedRewards: customerUsedRewards, refetch: refetchRewards } = useCustomerRewards(
+    selectedCustomer?.id ?? null,
+    currentBusinessId ?? null
+  )
+
+  const handleSelectCustomer = (customer: { id: string; customerNumber: string; name: string; email?: string; phone?: string; customerType: string } | null) => {
+    setSelectedCustomer(customer)
+    autoAppliedForRef.current = null  // reset so new customer's reward auto-applies
+    // Clear applied reward if customer changes
+    if (appliedReward) {
+      if (appliedReward.rewardProduct) removeFromCart(`reward_item_${appliedReward.id}`)
+      if (appliedReward.wifiConfig) removeFromCart(`r710_reward_wifi_${appliedReward.id}`)
+      setAppliedReward(null)
+      setDiscount(appliedCoupon ? appliedCoupon.discountAmount : 0)
+    }
+  }
+
+  const handleApplyReward = (reward: CustomerReward) => {
+    if (appliedCoupon) {
+      toast.error('Cannot combine a reward with a coupon — remove the coupon first')
+      return
+    }
+    setAppliedReward(reward)
+    if (Number(reward.rewardAmount) > 0) {
+      setDiscount(Number(reward.rewardAmount))
+    }
+    if (reward.rewardProduct) {
+      addToCart({
+        id: `reward_item_${reward.id}`,
+        name: `${reward.rewardProduct.name} (Free Reward)`,
+        quantity: 1,
+        unitPrice: 0,
+        productId: reward.rewardProductId!,
+      })
+    }
+    if (reward.wifiConfig) {
+      addToCart({
+        id: `r710_reward_wifi_${reward.id}`,
+        name: `${reward.wifiConfig.name} WiFi (Free Reward)`,
+        quantity: 1,
+        unitPrice: 0,
+        isWiFiToken: true,
+        isR710Token: true,
+        tokenConfigId: reward.wifiTokenConfigId!,
+        packageName: reward.wifiConfig.name,
+        duration: reward.wifiConfig.durationValue,
+        durationUnit: reward.wifiConfig.durationUnit.split('_')[0],
+      })
+    }
+  }
+
+  const handleRemoveReward = () => {
+    if (appliedReward) {
+      if (Number(appliedReward.rewardAmount) > 0) {
+        setDiscount(appliedCoupon ? appliedCoupon.discountAmount : 0)
+      }
+      if (appliedReward.rewardProduct) removeFromCart(`reward_item_${appliedReward.id}`)
+      if (appliedReward.wifiConfig) removeFromCart(`r710_reward_wifi_${appliedReward.id}`)
+    }
+    setAppliedReward(null)
+  }
+
+  // Auto-apply first available reward when customer rewards load
+  useEffect(() => {
+    if (!selectedCustomer || appliedReward || customerRewards.length === 0) return
+    if (autoAppliedForRef.current === selectedCustomer.id) return
+    if (appliedCoupon) return // Cannot combine coupon + reward
+    autoAppliedForRef.current = selectedCustomer.id
+    handleApplyReward(customerRewards[0])
+    toast.success(`Reward applied: ${customerRewards[0].couponCode}`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerRewards])
+
   // Sync discount when a coupon is loaded from localStorage (e.g. applied in mini-cart)
   useEffect(() => {
     if (appliedCoupon) {
@@ -96,12 +175,61 @@ export default function UniversalPOS() {
       : null,
     {
       autoPrint: false, // Don't auto-print - show preview modal instead
-      onSuccess: (orderId, receiptData) => {
+      onSuccess: async (orderId, receiptData) => {
         console.log('✅ Order completed:', orderId)
+
+        // Redeem the applied reward now that we have the orderId
+        const rewardToRedeem = appliedReward
+        const customerForReward = selectedCustomer
+
         clearCart()
         globalCart.clearCart()
         removeCoupon()
         reloadProducts()
+
+        // Reset customer reward state
+        setAppliedReward(null)
+
+        if (rewardToRedeem && customerForReward) {
+          try {
+            await fetch('/api/customer-rewards/redeem', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rewardId: rewardToRedeem.id, customerId: customerForReward.id, orderId })
+            })
+          } catch {
+            // Non-critical — order already completed
+          }
+        }
+
+        // Post-checkout: run campaign eligibility check if customer attached
+        if (customerForReward && currentBusinessId) {
+          try {
+            const runRes = await fetch(`/api/business/${currentBusinessId}/promo-campaigns/run`, { method: 'POST' })
+            const runData = await runRes.json()
+            if (runData.success && runData.data.newRewardsCount > 0) {
+              toast.success(`${customerForReward.name} earned a new reward!`, { duration: 5000 })
+              // Fetch the earned reward code to print on receipt
+              try {
+                const rewardRes = await fetch(`/api/customers/${customerForReward.id}/rewards?businessId=${currentBusinessId}`)
+                const rewardData = await rewardRes.json()
+                if (rewardData.success && rewardData.data.length > 0) {
+                  const earned = rewardData.data[0]
+                  const expiryDate = new Date(earned.expiresAt).toLocaleDateString()
+                  const rewardLabel = earned.rewardType === 'CREDIT'
+                    ? `$${Number(earned.rewardAmount).toFixed(2)} credit`
+                    : 'Free WiFi'
+                  const earnedMsg = `NEW REWARD EARNED: ${rewardLabel}! Code: ${earned.couponCode} (valid until ${expiryDate})`
+                  receiptData.footerMessage = `${earnedMsg}\n${receiptData.footerMessage || 'Thank you for your business!'}`
+                }
+              } catch { /* non-critical */ }
+              refetchRewards()
+            }
+          } catch {
+            // Non-critical
+          }
+        }
+
         // Show receipt preview modal
         setPendingReceiptData(receiptData)
         setShowReceiptPreview(true)
@@ -240,6 +368,11 @@ export default function UniversalPOS() {
 
   // Handle coupon apply with manager approval for >$5
   const handleApplyCoupon = async (input: string, customerPhone: string) => {
+    // Mutual exclusion: remove active reward before applying coupon
+    if (appliedReward) {
+      handleRemoveReward()
+      toast.info('Reward removed — a coupon and reward cannot be combined')
+    }
     const coupon = await applyCoupon(input, customerPhone)
     if (coupon) {
       // Manager approval for coupons requiring approval (>$5)
@@ -273,9 +406,9 @@ export default function UniversalPOS() {
     await processCheckout(cart, totals, {
       paymentMethod,
       amountPaid,
-      customerName: undefined,
-      customerPhone: undefined,
-      customerEmail: undefined,
+      customerId: selectedCustomer?.id ?? null,
+      customerName: selectedCustomer?.name,
+      customerPhone: selectedCustomer?.phone ?? undefined,
       notes: undefined,
       attributes: {
         ...(appliedCoupon ? {
@@ -283,6 +416,11 @@ export default function UniversalPOS() {
           couponCode: appliedCoupon.code,
           couponDiscount: appliedCoupon.discountAmount,
           couponCustomerPhone: appliedCoupon.customerPhone
+        } : {}),
+        ...(appliedReward ? {
+          rewardId: appliedReward.id,
+          rewardCode: appliedReward.couponCode,
+          rewardDiscount: Number(appliedReward.rewardAmount)
         } : {})
       }
     })
@@ -316,6 +454,13 @@ export default function UniversalPOS() {
             onRemoveCoupon: handleRemoveCoupon,
             onClearCouponError: clearCouponError
           } : {})}
+          selectedCustomer={selectedCustomer}
+          customerRewards={customerRewards}
+          customerUsedRewards={customerUsedRewards}
+          appliedReward={appliedReward}
+          onSelectCustomer={handleSelectCustomer}
+          onApplyReward={handleApplyReward}
+          onRemoveReward={handleRemoveReward}
         />
 
         {/* Receipt Preview Modal - same pattern as restaurant POS */}

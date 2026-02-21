@@ -46,6 +46,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('couponsEnabled')) {
       updateData.couponsEnabled = !!payload.couponsEnabled
     }
+    if (payload.hasOwnProperty('promosEnabled')) {
+      updateData.promosEnabled = !!payload.promosEnabled
+    }
 
     // Receipt configuration fields
     if (payload.hasOwnProperty('receiptReturnPolicy')) {

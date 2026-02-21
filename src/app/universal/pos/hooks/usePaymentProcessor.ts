@@ -24,6 +24,7 @@ export interface PaymentProcessorOptions {
 export interface CheckoutData {
   paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty'
   amountPaid?: number
+  customerId?: string | null
   customerName?: string
   customerPhone?: string
   customerEmail?: string
@@ -157,6 +158,7 @@ export function usePaymentProcessor(
           paymentStatus: 'PAID',
           orderType: 'SALE',
           employeeId: session?.user?.id,
+          customerId: checkoutData.customerId || null,
           customerName: checkoutData.customerName,
           customerPhone: checkoutData.customerPhone,
           customerEmail: checkoutData.customerEmail,
@@ -204,7 +206,8 @@ export function usePaymentProcessor(
             paymentMethod: checkoutData.paymentMethod.toUpperCase(),
             paymentStatus: result.data.paymentStatus,
             customerName: checkoutData.customerName,
-            employeeName: session?.user?.name,
+            customerPhone: checkoutData.customerPhone,
+            employeeName: session?.user?.name ?? undefined,
             employeeId: session?.user?.id,
             notes: checkoutData.notes,
             items: cart.map((item) => ({

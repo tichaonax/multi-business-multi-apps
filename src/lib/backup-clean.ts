@@ -38,6 +38,9 @@ export interface BackupMetadata {
     includeDemoData: boolean
   }
 
+  // List of actual business IDs captured in this backup (used for scoped validation)
+  backedUpBusinessIds?: string[]
+
   // Statistics
   stats: {
     totalRecords: number
@@ -473,6 +476,15 @@ export async function createCleanBackup(
         }
       }
     })
+
+    // 30. Promo Campaigns and Customer Rewards
+    businessData.promoCampaigns = await prisma.promoCampaigns.findMany({
+      where: { businessId: { in: businessIds } }
+    })
+
+    businessData.customerRewards = await prisma.customerRewards.findMany({
+      where: { businessId: { in: businessIds } }
+    })
   }
 
   // 7. Inventory system
@@ -627,9 +639,13 @@ export async function createCleanBackup(
   businessData.stageContractorAssignments = await prisma.stageContractorAssignments.findMany()
 
   // 12. Vehicle fleet management
+  // Include vehicles with null businessId (shared/unassigned vehicles) alongside business-specific ones
   businessData.vehicles = await prisma.vehicles.findMany({
     where: {
-      businessId: { in: businessIds }
+      OR: [
+        { businessId: { in: businessIds } },
+        { businessId: null }
+      ]
     }
   })
 
@@ -905,19 +921,22 @@ export async function createCleanBackup(
   })
 
   // 27. Payroll Account Transactions - NEW
+  // Include deposits/payments for both business-specific and global (null businessId) payroll accounts
   businessData.payrollAccountDeposits = await prisma.payrollAccountDeposits.findMany({
     where: {
-      payroll_accounts: {
-        businessId: { in: businessIds }
-      }
+      OR: [
+        { payroll_accounts: { businessId: { in: businessIds } } },
+        { payroll_accounts: { businessId: null } }
+      ]
     }
   })
 
   businessData.payrollAccountPayments = await prisma.payrollAccountPayments.findMany({
     where: {
-      payroll_accounts: {
-        businessId: { in: businessIds }
-      }
+      OR: [
+        { payroll_accounts: { businessId: { in: businessIds } } },
+        { payroll_accounts: { businessId: null } }
+      ]
     }
   })
 
@@ -982,6 +1001,7 @@ export async function createCleanBackup(
       businessId,
       includeDemoData
     },
+    backedUpBusinessIds: businessIds,
     stats: {
       totalRecords,
       totalTables: countTables(businessData) + (deviceData ? countTables(deviceData) : 0),

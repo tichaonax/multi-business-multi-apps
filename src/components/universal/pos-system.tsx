@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { Gift, X, Tag } from 'lucide-react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useBusinessContext, useBusinessFeatures } from './business-context'
 import { useAlert } from '@/components/ui/confirm-modal'
@@ -8,6 +9,8 @@ import { UniversalProduct } from './product-card'
 import { BarcodeScanner } from './barcode-scanner'
 import { ReceiptPreview } from '@/components/printing/receipt-preview'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
+import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
@@ -63,6 +66,13 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
   }>({ name: '' })
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [discountAmount, setDiscountAmount] = useState(0)
+  const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
+  const [skipRewardThisTime, setSkipRewardThisTime] = useState(false)
+  const autoAppliedForRef = useRef<string | null>(null)
+  const { rewards: customerRewards, usedRewards: customerUsedRewards } = useCustomerRewards(
+    selectedCustomer?.id ?? null,
+    businessId ?? null
+  )
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
   const [cashTendered, setCashTendered] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -125,6 +135,14 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
     }
   }, [cart, businessId, cartLoaded])
 
+  // Auto-apply first available reward when customer is selected
+  useEffect(() => {
+    if (!selectedCustomer || appliedReward || customerRewards.length === 0) return
+    if (autoAppliedForRef.current === selectedCustomer.id) return
+    autoAppliedForRef.current = selectedCustomer.id
+    setAppliedReward(customerRewards[0])
+  }, [customerRewards, selectedCustomer, appliedReward])
+
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {
     if (!terminalId) return // Skip if no terminal ID
@@ -159,7 +177,9 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
       })),
       subtotal,
       tax: taxAmount,
-      total
+      total,
+      rewardPending: !!appliedReward && !skipRewardThisTime,
+      rewardAmount: (appliedReward && !skipRewardThisTime) ? Number(appliedReward.rewardAmount) : undefined
     })
   }
 
@@ -171,17 +191,18 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
   const taxRate = config?.taxRate ?? 0
 
   // Calculate tax and total based on config
+  const rewardCredit = (appliedReward && !skipRewardThisTime) ? Math.min(Number(appliedReward.rewardAmount), subtotal) : 0
   let taxAmount: number
   let totalAmount: number
 
   if (taxIncludedInPrice) {
     // Tax is embedded in prices
     taxAmount = subtotal * (taxRate / (100 + taxRate))
-    totalAmount = subtotal - discountAmount
+    totalAmount = Math.max(0, subtotal - discountAmount - rewardCredit)
   } else {
     // Tax not included - add to subtotal
     taxAmount = subtotal * (taxRate / 100)
-    totalAmount = subtotal + taxAmount - discountAmount
+    totalAmount = Math.max(0, subtotal + taxAmount - discountAmount - rewardCredit)
   }
 
   const addToCart = (product: UniversalProduct, variantId?: string, quantity = 1, scannedBarcode?: { code: string; type: string; isPrimary: boolean; isUniversal: boolean; label?: string }) => {
@@ -268,6 +289,9 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
     setSelectedCustomer(null)
     setCustomerInfo({ name: '' })
     setDiscountAmount(0)
+    setAppliedReward(null)
+    setSkipRewardThisTime(false)
+    autoAppliedForRef.current = null
     setError(null)
 
     // Send CLEAR_CART to customer display
@@ -393,8 +417,9 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
         employeeId,
         orderType: businessFeatures.isRestaurant() ? 'SERVICE' : 'SALE',
         paymentMethod,
-        discountAmount,
+        discountAmount: discountAmount + rewardCredit,
         taxAmount,
+        rewardId: (appliedReward && !skipRewardThisTime) ? appliedReward.id : undefined,
         businessType: config?.businessType || 'retail',
         attributes: {
           posOrder: true,
@@ -445,7 +470,8 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           })),
           subtotal,
           tax: taxAmount,
-          discount: discountAmount,
+          discount: discountAmount + rewardCredit,
+          discountLabel: rewardCredit > 0 ? `Reward (${appliedReward!.couponCode})` : undefined,
           total: totalAmount,
           paymentMethod,
           cashTendered: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
@@ -542,10 +568,95 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
             <CustomerLookup
               businessId={businessId}
               selectedCustomer={selectedCustomer}
-              onSelectCustomer={(customer) => setSelectedCustomer(customer)}
+              onSelectCustomer={(customer) => {
+                setSelectedCustomer(customer)
+                setAppliedReward(null)
+                setSkipRewardThisTime(false)
+                autoAppliedForRef.current = null
+              }}
               onCreateCustomer={() => setShowAddCustomerModal(true)}
               allowWalkIn={true}
             />
+
+            {/* Applied Reward Banner */}
+            {appliedReward && (
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    <div>
+                      <div className="text-sm font-medium text-green-800 dark:text-green-300">
+                        {Number(appliedReward.rewardAmount) > 0
+                          ? `$${Number(appliedReward.rewardAmount).toFixed(2)} credit`
+                          : 'Reward'} available
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-500 font-mono">{appliedReward.couponCode}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => setAppliedReward(null)} className="text-green-500 hover:text-green-700 dark:hover:text-green-300">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer px-1">
+                  <input
+                    type="checkbox"
+                    checked={skipRewardThisTime}
+                    onChange={e => setSkipRewardThisTime(e.target.checked)}
+                    className="rounded w-3.5 h-3.5"
+                  />
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Don&apos;t apply reward this time</span>
+                </label>
+              </div>
+            )}
+
+            {/* Available Rewards */}
+            {selectedCustomer && !appliedReward && customerRewards.length > 0 && (
+              <div className="space-y-1 mt-2">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Available Rewards</p>
+                {customerRewards.map(r => (
+                  <div key={r.id} className="flex items-center justify-between bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-3.5 h-3.5 text-amber-600" />
+                      <div>
+                        <div className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                          {Number(r.rewardAmount) > 0 ? `$${Number(r.rewardAmount).toFixed(2)} Credit` : 'Reward'} — {r.promo_campaigns.name}
+                        </div>
+                        <div className="text-xs text-amber-600 dark:text-amber-500 font-mono">{r.couponCode}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setAppliedReward(r)}
+                      className="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Used Rewards */}
+            {selectedCustomer && !appliedReward && customerRewards.length === 0 && customerUsedRewards.length > 0 && (
+              <div className="space-y-1 mt-2">
+                {customerUsedRewards.map(r => (
+                  <div key={r.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
+                    <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {r.promo_campaigns.name} —{' '}
+                        {r.status === 'REDEEMED' ? 'Reward already used' :
+                         r.status === 'DEACTIVATED' ? 'Reward deactivated' : 'Reward expired'}
+                      </div>
+                      {r.redeemedAt && (
+                        <div className="text-[10px] text-gray-400 dark:text-gray-500">
+                          Redeemed {new Date(r.redeemedAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Barcode Scanner */}          <BarcodeScanner            onProductScanned={(product, variantId, scannedBarcode) => addToCart(product, variantId, 1, scannedBarcode)}            businessId={businessId}            showScanner={showBarcodeScanner}            onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}          />
@@ -627,6 +738,13 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                       :
                     </span>
                     <span className="font-semibold">{formatCurrency(taxAmount)}</span>
+                  </div>
+                )}
+
+                {rewardCredit > 0 && (
+                  <div className="flex justify-between text-green-700 dark:text-green-400">
+                    <span className="font-medium flex items-center gap-1"><Gift className="w-3.5 h-3.5" /> Reward Credit:</span>
+                    <span className="font-semibold">-{formatCurrency(rewardCredit)}</span>
                   </div>
                 )}
 

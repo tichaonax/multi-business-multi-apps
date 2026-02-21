@@ -1,0 +1,1 @@
+ALTER TYPE "RewardStatus" ADD VALUE 'DEACTIVATED';

@@ -39,6 +39,7 @@ interface OrderData {
   paymentMethod?: string
   paymentStatus: string
   customerName?: string
+  customerPhone?: string
   customerInfo?: any
   employeeName?: string
   employeeId?: string
@@ -190,7 +191,11 @@ export function buildReceiptData(
     subtotal: order.subtotal,
     tax: order.taxAmount,
     discount: order.discountAmount,
-    discountLabel: order.attributes?.couponCode
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    discountLabel: order.attributes?.rewardCode
+      ? `Reward (${order.attributes.rewardCode})`
+      : order.attributes?.couponCode
       ? `Coupon (${order.attributes.couponCode})`
       : undefined,
     total: order.totalAmount,

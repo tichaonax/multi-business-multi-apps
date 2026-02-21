@@ -21,6 +21,8 @@ import { usePrintPreferences } from '@/hooks/use-print-preferences'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
+import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 import { useToastContext } from '@/components/ui/toast'
@@ -107,6 +109,9 @@ function GroceryPOSContent() {
     phone?: string
     customerType: string
   } | null>(null)
+  const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
+  const [skipRewardThisTime, setSkipRewardThisTime] = useState(false)
+  const autoAppliedForRef = useRef<string | null>(null)
 
   // WiFi integration states
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
@@ -140,6 +145,12 @@ function GroceryPOSContent() {
     loading: businessLoading,
     hasPermission
   } = useBusinessPermissionsContext()
+
+  // Customer rewards hook — must be after currentBusinessId is available
+  const { rewards: customerRewards, usedRewards: customerUsedRewards } = useCustomerRewards(
+    selectedCustomer?.id ?? null,
+    currentBusinessId ?? null
+  )
 
   // Toast context for notifications
   const toast = useToastContext()
@@ -236,6 +247,16 @@ function GroceryPOSContent() {
     }
   }, [cart, currentBusinessId, cartLoaded])
 
+  // Auto-apply first available reward when customer rewards load
+  useEffect(() => {
+    if (!selectedCustomer || appliedReward || customerRewards.length === 0) return
+    if (autoAppliedForRef.current === selectedCustomer.id) return
+    autoAppliedForRef.current = selectedCustomer.id
+    setAppliedReward(customerRewards[0])
+    toast.push(`Reward applied: ${customerRewards[0].couponCode}`, { type: 'success' })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerRewards])
+
   // Sync POS cart to global cart to keep mini cart in sync
   useEffect(() => {
     if (!currentBusinessId || !cartLoaded) return
@@ -295,7 +316,9 @@ function GroceryPOSContent() {
       })),
       subtotal,
       tax,
-      total
+      total,
+      rewardPending: !!appliedReward && !skipRewardThisTime,
+      rewardAmount: (appliedReward && !skipRewardThisTime) ? Number(appliedReward.rewardAmount) : undefined
     }
 
     console.log('[Grocery POS] Sending CART_STATE:', cartMessage)
@@ -1112,8 +1135,10 @@ function GroceryPOSContent() {
 
     const snapEligibleAmount = cart.filter(item => item.snapEligible).reduce((sum, item) => sum + item.subtotal, 0)
     const loyaltyPoints = cart.reduce((sum, item) => sum + (item.loyaltyPoints || 0) * Math.ceil(item.quantity), 0)
+    const rewardCredit = (appliedReward && !skipRewardThisTime) ? Math.min(Number(appliedReward.rewardAmount), total) : 0
+    const finalTotal = Math.max(0, total - rewardCredit)
 
-    return { subtotal, tax, total, snapEligibleAmount, loyaltyPoints }
+    return { subtotal, tax, total: finalTotal, rewardCredit, snapEligibleAmount, loyaltyPoints }
   }
 
   const handlePayment = async () => {
@@ -1157,8 +1182,9 @@ function GroceryPOSContent() {
         customerId: selectedCustomer?.id || null,
         orderType: 'SALE',
         paymentMethod: paymentMethod.toUpperCase(),
-        discountAmount: 0,
+        discountAmount: totals.rewardCredit || 0,
         taxAmount: totals.tax,
+        rewardId: (appliedReward && !skipRewardThisTime) ? appliedReward.id : undefined,
         attributes: {
           paymentMethod: paymentMethod,
           loyaltyPointsEarned: totals.loyaltyPoints,
@@ -1244,6 +1270,9 @@ function GroceryPOSContent() {
         })
         setCustomer(null)
         setSelectedCustomer(null)
+        setAppliedReward(null)
+        setSkipRewardThisTime(false)
+        autoAppliedForRef.current = null
         setShowCashTenderModal(false)
         setCashTendered('')
 
@@ -1298,7 +1327,8 @@ function GroceryPOSContent() {
       })),
       subtotal: order.total,
       tax: 0,
-      discount: 0,
+      discount: Number(order.discountAmount) > 0 ? Number(order.discountAmount) : undefined,
+      discountLabel: Number(order.discountAmount) > 0 ? 'Reward Applied' : undefined,
       total: order.total,
       paymentMethod: order.paymentMethod?.toLowerCase() || 'cash',
       amountPaid: order.amountReceived || order.total,
@@ -2245,10 +2275,58 @@ function GroceryPOSContent() {
             <CustomerLookup
               businessId={currentBusinessId || ''}
               selectedCustomer={selectedCustomer}
-              onSelectCustomer={setSelectedCustomer}
+              onSelectCustomer={(c) => {
+                setSelectedCustomer(c)
+                setAppliedReward(null)
+                setSkipRewardThisTime(false)
+                autoAppliedForRef.current = null
+              }}
               onCreateCustomer={() => setShowAddCustomerModal(true)}
               allowWalkIn={true}
             />
+
+            {/* Applied Reward */}
+            {appliedReward && (
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+                  <div className="text-xs">
+                    <div className="font-medium text-green-800 dark:text-green-300">
+                      🎁 {[
+                        Number(appliedReward.rewardAmount) > 0 && `$${Number(appliedReward.rewardAmount).toFixed(2)} credit`,
+                        appliedReward.rewardProduct && `Free ${appliedReward.rewardProduct.name}`,
+                        appliedReward.wifiConfig && `Free WiFi (${appliedReward.wifiConfig.name})`
+                      ].filter(Boolean).join(' + ') || 'Reward'} available
+                    </div>
+                    <div className="text-green-600 dark:text-green-500 font-mono">{appliedReward.couponCode}</div>
+                  </div>
+                  <button onClick={() => setAppliedReward(null)} className="text-green-500 hover:text-green-700 ml-2 text-xs">✕</button>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer px-1">
+                  <input
+                    type="checkbox"
+                    checked={skipRewardThisTime}
+                    onChange={e => setSkipRewardThisTime(e.target.checked)}
+                    className="rounded w-3.5 h-3.5"
+                  />
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Don&apos;t apply reward this time</span>
+                </label>
+              </div>
+            )}
+
+            {/* Used Rewards — no active reward but recently used */}
+            {selectedCustomer && !appliedReward && customerRewards.length === 0 && customerUsedRewards.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {customerUsedRewards.map(r => (
+                  <div key={r.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 flex-1">
+                      <span className="font-medium">{r.promo_campaigns.name}</span> —{' '}
+                      {r.status === 'REDEEMED' ? 'Reward already used' : r.status === 'DEACTIVATED' ? 'Reward deactivated' : 'Reward expired'}
+                      {r.redeemedAt && ` on ${new Date(r.redeemedAt).toLocaleDateString()}`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Show additional loyalty/SNAP info if available from full customer data */}
             {customer && selectedCustomer && customer.id === selectedCustomer.id && (

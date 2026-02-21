@@ -147,9 +147,10 @@ model BusinessCustomers {
   attributes      Json?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime
-  businesses      Businesses       @relation(fields: [businessId], references: [id])
-  business_orders BusinessOrders[]
-  customer_laybys CustomerLayby[]
+  businesses       Businesses        @relation(fields: [businessId], references: [id])
+  business_orders  BusinessOrders[]
+  customer_laybys  CustomerLayby[]
+  customer_rewards CustomerRewards[]
 
   @@unique([businessId, customerNumber])
   @@map("business_customers")
@@ -222,6 +223,7 @@ model BusinessOrders {
   reprint_logs             ReprintLog[]
   coupon_usages            CouponUsages[]
   meal_program_transaction MealProgramTransactions?
+  customer_rewards         CustomerRewards[]        @relation("RedeemedReward")
 
   @@unique([businessId, orderNumber])
   @@index([orderNumber])
@@ -409,6 +411,7 @@ model Businesses {
   phone                                                                    String?
   ecocashEnabled                                                           Boolean                       @default(false)
   couponsEnabled                                                           Boolean                       @default(false)
+  promosEnabled                                                            Boolean                       @default(false)
   receiptReturnPolicy                                                      String?
   taxEnabled                                                               Boolean                       @default(false)
   taxIncludedInPrice                                                       Boolean                       @default(true)
@@ -437,6 +440,8 @@ model Businesses {
   customer_display_ads                                                     CustomerDisplayAd[]
   customer_display_sessions                                                CustomerDisplaySession[]
   customer_laybys                                                          CustomerLayby[]
+  customer_rewards                                                         CustomerRewards[]
+  promo_campaigns                                                          PromoCampaigns[]
   pos_terminal_configs                                                     PosTerminalConfig[]
   device_connection_history                                                DeviceConnectionHistory[]
   device_registry_first_seen                                               DeviceRegistry[]              @relation("DeviceFirstSeenBusiness")
@@ -4006,6 +4011,18 @@ enum CustomerType {
   VIP
 }
 
+enum PromoRewardType {
+  CREDIT
+  FREE_WIFI
+}
+
+enum RewardStatus {
+  ISSUED
+  REDEEMED
+  EXPIRED
+  DEACTIVATED
+}
+
 enum DriveType {
   LEFT_HAND
   RIGHT_HAND
@@ -4304,6 +4321,58 @@ model CouponUsages {
 
   @@unique([couponId, customerPhone])
   @@map("coupon_usages")
+}
+
+model PromoCampaigns {
+  id                String            @id @default(uuid())
+  businessId        String
+  name              String
+  description       String?
+  isActive          Boolean           @default(true)
+  spendThreshold    Decimal           @db.Decimal(10, 2)
+  rewardType        PromoRewardType
+  rewardAmount      Decimal           @db.Decimal(10, 2)
+  rewardProductId   String?           // BusinessProducts.id — free item added to cart
+  wifiTokenConfigId String?           // TokenConfigurations.id — free WiFi token
+  rewardValidDays   Int               @default(30)
+  createdBy         String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  businesses        Businesses        @relation(fields: [businessId], references: [id])
+  customer_rewards  CustomerRewards[]
+
+  @@index([businessId, isActive])
+  @@map("promo_campaigns")
+}
+
+model CustomerRewards {
+  id                String          @id @default(uuid())
+  businessId        String
+  customerId        String
+  campaignId        String
+  rewardType        PromoRewardType
+  rewardAmount      Decimal         @db.Decimal(10, 2)
+  rewardProductId   String?         // copied from campaign at issue time
+  wifiTokenConfigId String?         // copied from campaign at issue time
+  periodSpend       Decimal?        @db.Decimal(10, 2)
+  couponCode        String          @unique
+  status            RewardStatus    @default(ISSUED)
+  periodYear        Int
+  periodMonth       Int
+  issuedAt          DateTime        @default(now())
+  expiresAt         DateTime
+  redeemedAt        DateTime?
+  redeemedOrderId   String?
+  createdAt         DateTime        @default(now())
+  businesses         Businesses        @relation(fields: [businessId], references: [id])
+  business_customers BusinessCustomers @relation(fields: [customerId], references: [id])
+  promo_campaigns    PromoCampaigns    @relation(fields: [campaignId], references: [id])
+  redeemed_order     BusinessOrders?   @relation("RedeemedReward", fields: [redeemedOrderId], references: [id])
+
+  @@unique([customerId, campaignId, periodYear, periodMonth])
+  @@index([customerId, status])
+  @@index([businessId, status])
+  @@map("customer_rewards")
 }
 
 model InventoryTransfers {

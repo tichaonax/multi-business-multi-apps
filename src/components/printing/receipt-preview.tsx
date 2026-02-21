@@ -191,7 +191,7 @@ export function ReceiptPreview({
 
                 {receiptData.discount && receiptData.discount > 0 && (
                   <div className="flex justify-between text-green-600 dark:text-green-400">
-                    <span>Discount:</span>
+                    <span>{receiptData.discountLabel || 'Discount'}:</span>
                     <span>-{formatCurrency(receiptData.discount)}</span>
                   </div>
                 )}

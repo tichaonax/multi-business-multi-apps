@@ -63,26 +63,47 @@ export function countBackupRecords(backupData: any): Record<string, number> {
 }
 
 /**
- * Count records in database after restore
+ * Count records in database after restore.
+ * When backedUpBusinessIds is provided, attempts to scope counts by businessId
+ * so that records from other businesses don't create false mismatches.
  */
 export async function countDatabaseRecords(
   prisma: AnyPrismaClient,
-  tableNames: string[]
+  tableNames: string[],
+  backedUpBusinessIds?: string[]
 ): Promise<Record<string, number>> {
   const counts: Record<string, number> = {}
 
   for (const tableName of tableNames) {
     try {
-      // Find the Prisma model name
       const modelName = findPrismaModelName(prisma, tableName)
       const model = prisma[modelName]
 
       if (model && typeof model.count === 'function') {
-        const count = await model.count()
+        let count: number | null = null
+
+        // If we have backed-up business IDs, try a scoped count (business-specific OR null businessId)
+        // This mirrors what the backup captures: records belonging to those businesses + shared records (null businessId)
+        if (backedUpBusinessIds && backedUpBusinessIds.length > 0) {
+          try {
+            count = await model.count({
+              where: { OR: [{ businessId: { in: backedUpBusinessIds } }, { businessId: null }] }
+            })
+          } catch {
+            // Table doesn't have a businessId field — fall through to global count
+            count = null
+          }
+        }
+
+        // Fall back to global count if scoped count wasn't possible
+        if (count === null) {
+          count = await model.count()
+        }
+
         counts[tableName] = count
       } else {
         console.warn(`[validation] Model ${modelName} not found or doesn't support count`)
-        counts[tableName] = -1 // -1 indicates unable to count
+        counts[tableName] = -1
       }
     } catch (error) {
       console.error(`[validation] Error counting ${tableName}:`, error)
@@ -148,8 +169,9 @@ export async function validateBackupRestore(
 
   console.log(`[validation] Found ${tableNames.length} tables in backup`)
 
-  // Count records in database
-  const dbCounts = await countDatabaseRecords(prisma, tableNames)
+  // Count records in database (scoped to backed-up businesses when available)
+  const backedUpBusinessIds: string[] | undefined = backupData.metadata?.backedUpBusinessIds
+  const dbCounts = await countDatabaseRecords(prisma, tableNames, backedUpBusinessIds)
 
   // Compare and build results
   const results: ValidationResult[] = []

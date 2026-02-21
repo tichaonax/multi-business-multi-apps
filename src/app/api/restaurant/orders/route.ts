@@ -7,6 +7,7 @@ import { R710SessionManager } from '@/lib/r710-session-manager'
 import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 import { decrypt } from '@/lib/encryption'
+import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
 
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
@@ -279,7 +280,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey } = await req.json()
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId } = await req.json()
 
     // If client provided an idempotencyKey, and we've already processed it, return stored result
     if (idempotencyKey && typeof idempotencyKey === 'string') {
@@ -387,12 +388,13 @@ export async function POST(req: NextRequest) {
           businessId: businessId,
           orderNumber,
           employeeId: employeeId, // Can be null if user is not an employee
+          customerId: customerId || null,
           createdBy: user.id,
           orderType: 'SALE',
           status: 'COMPLETED',
           subtotal: total,
           taxAmount: 0,
-          discountAmount: 0,
+          discountAmount: reqDiscountAmount,
           totalAmount: total,
           paymentStatus: paymentStatus,
           paymentMethod: paymentMethod,
@@ -420,12 +422,13 @@ export async function POST(req: NextRequest) {
             businessId: businessId,
             orderNumber,
             employeeId: employeeId,
+            customerId: customerId || null,
             createdBy: user.id,
             orderType: 'SALE',
             status: 'COMPLETED',
             subtotal: total,
             taxAmount: 0,
-            discountAmount: 0,
+            discountAmount: reqDiscountAmount,
             totalAmount: total,
             paymentStatus: paymentStatus,
             paymentMethod: paymentMethod,
@@ -1118,6 +1121,83 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Handle reward redemption (mark as REDEEMED, generate free WiFi token, add free product item)
+    let rewardFreeItem: { name: string; price: number; quantity: number } | null = null
+    if (rewardId) {
+      try {
+        const reward = await prisma.customerRewards.findUnique({
+          where: { id: rewardId },
+          select: { id: true, status: true, rewardType: true, rewardAmount: true, rewardProductId: true, wifiTokenConfigId: true, couponCode: true }
+        })
+        if (reward && reward.status === 'ISSUED') {
+          // Mark reward as REDEEMED
+          await prisma.customerRewards.update({
+            where: { id: rewardId },
+            data: { status: 'REDEEMED', redeemedAt: new Date(), redeemedOrderId: newOrder.id }
+          })
+
+          // Free WiFi token (R710) — generate on-the-fly, same as R710 WiFi Sales direct sale flow
+          if (reward.wifiTokenConfigId) {
+            try {
+              const tokenResult = await generateAndSellR710Token({
+                businessId,
+                tokenConfigId: reward.wifiTokenConfigId,
+                saleAmount: 0, // Free reward
+                paymentMethod,
+                soldBy: user.id,
+                saleChannel: 'POS'
+              })
+              generatedR710Tokens.push({
+                itemName: 'Free WiFi (Reward)',
+                password: tokenResult.token.password,
+                packageName: tokenResult.token.tokenConfig.name || 'Reward WiFi',
+                durationValue: tokenResult.token.tokenConfig.durationValue || 0,
+                durationUnit: tokenResult.token.tokenConfig.durationUnit || 'hour_Hours',
+                expiresAt: tokenResult.token.expiresAt,
+                ssid: tokenResult.wlanSsid,
+                success: true
+              })
+            } catch (wifiErr) {
+              console.warn('Free WiFi token generation failed (non-critical):', wifiErr)
+            }
+          }
+
+          // Free product if campaign has rewardProductId
+          if (reward.rewardProductId) {
+            try {
+              const freeProduct = await prisma.businessProducts.findUnique({
+                where: { id: reward.rewardProductId },
+                select: { id: true, name: true, sku: true }
+              })
+              if (freeProduct) {
+                await prisma.businessOrderItems.create({
+                  data: {
+                    orderId: newOrder.id,
+                    productVariantId: null,
+                    quantity: 1,
+                    unitPrice: 0,
+                    discountAmount: 0,
+                    totalPrice: 0,
+                    attributes: {
+                      productId: freeProduct.id,
+                      productName: freeProduct.name,
+                      category: 'promo-free-item',
+                      rewardCouponCode: reward.couponCode
+                    }
+                  }
+                })
+                rewardFreeItem = { name: `${freeProduct.name} (Free Reward)`, price: 0, quantity: 1 }
+              }
+            } catch (productErr) {
+              console.warn('Free product item creation failed (non-critical):', productErr)
+            }
+          }
+        }
+      } catch (rewardErr) {
+        console.warn('Reward redemption failed (non-critical):', rewardErr)
+      }
+    }
+
     // Record audit entry for order creation
     try {
       await auditCreate({ userId: user.id }, 'Business', newOrder.id, {
@@ -1181,9 +1261,11 @@ export async function POST(req: NextRequest) {
 
     const responsePayload = {
       ...newOrder,
+      discountAmount: reqDiscountAmount,
       inventoryUpdates,
       wifiTokens: generatedESP32Tokens,
       r710Tokens: generatedR710Tokens,
+      rewardFreeItem,  // Free product from reward (if any)
       businessInfo, // Include business details for receipt
       message: inventoryUpdates.some(u => !u.success) || generatedESP32Tokens.some(t => !t.success) || generatedR710Tokens.some(t => !t.success)
         ? 'Order created with some warnings'

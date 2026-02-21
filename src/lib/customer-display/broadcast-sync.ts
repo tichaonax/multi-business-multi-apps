@@ -45,6 +45,9 @@ export interface CartMessage {
     businessPhone?: string
     customMessage?: string
     pageContext?: 'pos' | 'marketing' // Track which page user is on
+    // Reward fields
+    rewardPending?: boolean
+    rewardAmount?: number
     // Payment fields
     amountTendered?: number
     changeDue?: number

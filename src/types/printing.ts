@@ -214,6 +214,10 @@ export interface ReceiptData {
   // Umbrella/umbrella business-level phone number (optional)
   umbrellaPhone?: string;
 
+  // Customer info (when order is linked to a customer)
+  customerName?: string;
+  customerPhone?: string;
+
   // Meal Program metadata (restaurant only)
   mealProgram?: {
     participantName: string;

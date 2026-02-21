@@ -2485,6 +2485,7 @@ export interface BusinessMembership {
   address?: string; // Business address for receipts
   phone?: string; // Business phone for receipts
   couponsEnabled?: boolean; // Whether coupons are enabled for this business
+  promosEnabled?: boolean; // Whether campaign promos are enabled for this business
   defaultPage?: string | null; // Default landing page for business
   expenseAccounts?: { id: string; accountName: string }[]; // Linked expense accounts for quick navigation
   joinedAt: Date;

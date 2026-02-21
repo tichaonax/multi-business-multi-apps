@@ -33,6 +33,10 @@ import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
 import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 import { CloseBooksBanner } from '@/components/pos/close-books-banner'
 import { MealProgramPanel } from '@/components/restaurant/meal-program/MealProgramPanel'
+import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
+import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
+import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 
 interface MenuItem {
   id: string
@@ -68,6 +72,11 @@ export default function RestaurantPOS() {
   // Ref-based guard to prevent duplicate print calls (more reliable than state)
   const printInFlightRef = useRef(false)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; customerType: string } | null>(null)
+  const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
+  const [skipRewardThisTime, setSkipRewardThisTime] = useState(false)
+  const autoAppliedForRef = useRef<string | null>(null)
+  const [showQuickRegister, setShowQuickRegister] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
@@ -114,6 +123,12 @@ export default function RestaurantPOS() {
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
   const isAdmin = sessionUser?.role === 'admin'
+
+  // Customer rewards hook — must be after currentBusinessId is available
+  const { rewards: customerRewards, usedRewards: customerUsedRewards } = useCustomerRewards(
+    selectedCustomer?.id ?? null,
+    currentBusinessId ?? null
+  )
 
   // Toast context (hook) must be called unconditionally to preserve hooks order
   const toast = useToastContext()
@@ -180,6 +195,16 @@ export default function RestaurantPOS() {
       console.error('Failed to save cart to localStorage:', error)
     }
   }, [cart, currentBusinessId, cartLoaded])
+
+  // Auto-apply first available reward when customer rewards load
+  useEffect(() => {
+    if (!selectedCustomer || appliedReward || customerRewards.length === 0) return
+    if (autoAppliedForRef.current === selectedCustomer.id) return
+    autoAppliedForRef.current = selectedCustomer.id
+    setAppliedReward(customerRewards[0])
+    toast.push(`Reward applied: ${customerRewards[0].couponCode}`, { type: 'success' })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerRewards])
 
   // Sync POS cart to global cart to keep mini cart in sync
   useEffect(() => {
@@ -335,7 +360,9 @@ export default function RestaurantPOS() {
       })),
       subtotal,
       tax,
-      total
+      total,
+      rewardPending: !!appliedReward && !skipRewardThisTime,
+      rewardAmount: (appliedReward && !skipRewardThisTime) ? Number(appliedReward.rewardAmount) : undefined
     }
 
     console.log('[POS] Sending CART_STATE:', {
@@ -1098,7 +1125,13 @@ export default function RestaurantPOS() {
         console.log('📶 [Restaurant] Mapped R710 token:', mapped)
         return mapped
       }),
-      footerMessage: 'Thank you for dining with us!',
+      discount: Number(order.discountAmount) > 0 ? Number(order.discountAmount) : undefined,
+      discountLabel: Number(order.discountAmount) > 0
+        ? (order.rewardCouponCode ? `Reward (${order.rewardCouponCode})` : 'Reward Applied')
+        : undefined,
+      footerMessage: order.footerMessage || 'Thank you for dining with us!',
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
       mealProgram: order.attributes?.mealProgram
         ? {
             participantName: order.attributes.participantName || '',
@@ -1437,7 +1470,9 @@ export default function RestaurantPOS() {
     })
   }
 
-  const total = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
+  const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
+  const rewardCredit = (appliedReward && !skipRewardThisTime) ? Math.min(Number(appliedReward.rewardAmount), subtotal) : 0
+  const total = Math.max(0, subtotal - rewardCredit)
 
   // Manual cart helpers
   const addToManualCart = (item: ManualCartItem) => {
@@ -1562,10 +1597,13 @@ export default function RestaurantPOS() {
       const requestBody = {
         items: cart,
         total,
+        discountAmount: rewardCredit,
+        rewardId: (appliedReward && !skipRewardThisTime) ? appliedReward.id : undefined,
         businessId: businessId,
         paymentMethod: paymentMethod,
         amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
-        idempotencyKey
+        idempotencyKey,
+        customerId: selectedCustomer?.id || null
       }
       console.log('Request body:', requestBody)
 
@@ -1588,18 +1626,59 @@ export default function RestaurantPOS() {
         console.log('🏢 [Business Info]:', result.businessInfo)
 
         // Store completed order with all details for receipt
-        const orderForReceipt = {
+        // Build items array — include free reward product if API returned one
+        const receiptItems: CartItem[] = [...cart]
+        if (result.rewardFreeItem) {
+          receiptItems.push({ ...result.rewardFreeItem, id: 'reward-free', category: 'promo' })
+        }
+
+        const orderForReceipt: {
+          orderNumber: any; items: any[]; subtotal: number; total: number;
+          discountAmount?: number; rewardCouponCode?: string;
+          paymentMethod: string; amountReceived: number; change: number; date: string;
+          wifiTokens: any; r710Tokens: any; businessInfo: any; footerMessage?: string;
+          customerName?: string; customerPhone?: string
+        } = {
           orderNumber: result.orderNumber,
-          items: cart,
-          subtotal: total,
+          items: receiptItems,
+          subtotal: total + rewardCredit, // show pre-discount subtotal
           total: total,
+          discountAmount: rewardCredit > 0 ? rewardCredit : undefined,
+          rewardCouponCode: (appliedReward && !skipRewardThisTime) ? appliedReward.couponCode : undefined,
           paymentMethod: paymentMethod,
           amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
           change: paymentMethod === 'CASH' ? parseFloat(amountReceived) - total : 0,
           date: formatDateTime(new Date()),
           wifiTokens: result.wifiTokens || [], // ESP32 tokens
           r710Tokens: result.r710Tokens || [],  // R710 tokens
-          businessInfo: result.businessInfo     // Business details (address, phone)
+          businessInfo: result.businessInfo,    // Business details (address, phone)
+          customerName: selectedCustomer?.name,
+          customerPhone: selectedCustomer?.phone
+        }
+
+        // Post-checkout: run campaign eligibility for attached customer
+        const customerForReward = selectedCustomer
+        if (customerForReward && businessId) {
+          try {
+            const runRes = await fetch(`/api/business/${businessId}/promo-campaigns/run`, { method: 'POST' })
+            const runData = await runRes.json()
+            if (runData.success && runData.data.newRewardsCount > 0) {
+              toast.push(`${customerForReward.name} earned a new reward!`, { type: 'success', duration: 5000 })
+              // Fetch earned reward code to print on receipt
+              try {
+                const rewardRes = await fetch(`/api/customers/${customerForReward.id}/rewards?businessId=${businessId}`)
+                const rewardData = await rewardRes.json()
+                if (rewardData.success && rewardData.data.length > 0) {
+                  const earned = rewardData.data[0]
+                  const expiryDate = new Date(earned.expiresAt).toLocaleDateString()
+                  const rewardLabel = earned.rewardType === 'CREDIT'
+                    ? `$${Number(earned.rewardAmount).toFixed(2)} credit`
+                    : 'Free WiFi'
+                  orderForReceipt.footerMessage = `NEW REWARD EARNED: ${rewardLabel}! Code: ${earned.couponCode} (valid until ${expiryDate})\nThank you for dining with us!`
+                }
+              } catch { /* non-critical */ }
+            }
+          } catch { /* non-critical */ }
         }
 
         setCompletedOrder(orderForReceipt)
@@ -1620,6 +1699,13 @@ export default function RestaurantPOS() {
         // Clear cart on POS and global cart
         setCart([])
         clearGlobalCart()
+
+        // Reset customer for next sale
+        setSelectedCustomer(null)
+        setAppliedReward(null)
+        setSkipRewardThisTime(false)
+        autoAppliedForRef.current = null
+        setShowQuickRegister(false)
 
         // Reset payment fields
         setPaymentMethod('CASH')
@@ -2528,8 +2614,77 @@ export default function RestaurantPOS() {
           {/* Live Order Summary (right panel) */}
           {posMode === 'live' && (
           <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
-            <h2 className="text-xl font-bold text-primary mb-4">Order Summary</h2>
-            
+            <h2 className="text-xl font-bold text-primary mb-3">Order Summary</h2>
+
+            {/* Customer Section */}
+            {currentBusinessId && (
+              <div className="mb-4 space-y-2">
+                {showQuickRegister ? (
+                  <CustomerQuickRegister
+                    businessId={currentBusinessId}
+                    onCreated={(c) => { setSelectedCustomer(c); setShowQuickRegister(false) }}
+                    onCancel={() => setShowQuickRegister(false)}
+                  />
+                ) : (
+                  <CustomerLookup
+                    businessId={currentBusinessId}
+                    selectedCustomer={selectedCustomer}
+                    onSelectCustomer={(c) => {
+                      setSelectedCustomer(c)
+                      setAppliedReward(null)
+                      setSkipRewardThisTime(false)
+                      autoAppliedForRef.current = null
+                    }}
+                    onCreateCustomer={() => setShowQuickRegister(true)}
+                    allowWalkIn={false}
+                  />
+                )}
+
+                {/* Applied Reward */}
+                {appliedReward && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+                      <div className="text-xs">
+                        <div className="font-medium text-green-800 dark:text-green-300">
+                          🎁 {[
+                            Number(appliedReward.rewardAmount) > 0 && `$${Number(appliedReward.rewardAmount).toFixed(2)} credit`,
+                            appliedReward.rewardProduct && `Free ${appliedReward.rewardProduct.name}`,
+                            appliedReward.wifiConfig && `Free WiFi (${appliedReward.wifiConfig.name})`
+                          ].filter(Boolean).join(' + ') || 'Reward'} available
+                        </div>
+                        <div className="text-green-600 dark:text-green-500 font-mono">{appliedReward.couponCode}</div>
+                      </div>
+                      <button onClick={() => setAppliedReward(null)} className="text-green-500 hover:text-green-700 ml-2 text-xs">✕</button>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer px-1">
+                      <input
+                        type="checkbox"
+                        checked={skipRewardThisTime}
+                        onChange={e => setSkipRewardThisTime(e.target.checked)}
+                        className="rounded w-3.5 h-3.5"
+                      />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Don&apos;t apply reward this time</span>
+                    </label>
+                  </div>
+                )}
+
+                {/* Used Rewards — no active reward but has used ones recently */}
+                {selectedCustomer && !appliedReward && customerRewards.length === 0 && customerUsedRewards.length > 0 && (
+                  <div className="space-y-1">
+                    {customerUsedRewards.map(r => (
+                      <div key={r.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 flex-1">
+                          <span className="font-medium">{r.promo_campaigns.name}</span> —{' '}
+                          {r.status === 'REDEEMED' ? 'Reward already used' : r.status === 'DEACTIVATED' ? 'Reward deactivated' : 'Reward expired'}
+                          {r.redeemedAt && ` on ${new Date(r.redeemedAt).toLocaleDateString()}`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
               {cart.map(item => (
                 <div key={item.id} className="border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0">
@@ -2603,6 +2758,10 @@ export default function RestaurantPOS() {
                 onClick={() => {
                   setCart([])
                   clearGlobalCart()
+                  setSelectedCustomer(null)
+                  setAppliedReward(null)
+                  setSkipRewardThisTime(false)
+                  autoAppliedForRef.current = null
                 }}
                 disabled={cart.length === 0}
                 className="w-full py-3 sm:py-2 mt-2 bg-gray-500 dark:bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
@@ -2929,6 +3088,18 @@ export default function RestaurantPOS() {
                         </div>
                       )}
                     </div>
+                  )}
+                  {completedOrder.discountAmount && Number(completedOrder.discountAmount) > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+                        <span className="text-gray-900 dark:text-gray-100">${Number(completedOrder.subtotal).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-green-700 dark:text-green-400 mb-1">
+                        <span>🎁 Reward Applied:</span>
+                        <span>-${Number(completedOrder.discountAmount).toFixed(2)}</span>
+                      </div>
+                    </>
                   )}
                   <div className="flex justify-between text-lg font-bold">
                     <span className="text-gray-700 dark:text-gray-300">Total:</span>

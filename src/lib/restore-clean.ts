@@ -156,6 +156,10 @@ const RESTORE_ORDER = [
   'customerLaybys',
   'customerLaybyPayments',
 
+  // Promo Campaigns and Customer Rewards
+  'promoCampaigns',   // Depends on businesses
+  'customerRewards',  // Depends on businesses, businessCustomers, promoCampaigns, businessOrders
+
   // Expense accounts (order matters: grants/lenders/loans before deposits; ledger before payments)
   'expenseAccounts',
   'expenseAccountGrants',       // depends on expenseAccounts + users
@@ -294,7 +298,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'jobTitles': 'title',
 
   // Composite unique constraints
-  'businessOrders': { fields: ['businessId', 'orderNumber'] }
+  'businessOrders': { fields: ['businessId', 'orderNumber'] },
+
+  // Promo system unique constraints
+  'customerRewards': 'couponCode'
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)

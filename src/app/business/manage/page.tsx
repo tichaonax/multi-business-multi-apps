@@ -47,6 +47,7 @@ function BusinessManagePageContent() {
     phone?: string
     ecocashEnabled?: boolean
     couponsEnabled?: boolean
+    promosEnabled?: boolean
     receiptReturnPolicy?: string
     taxEnabled?: boolean
     taxIncludedInPrice?: boolean
@@ -385,6 +386,7 @@ function BusinessManagePageContent() {
                               phone: biz?.phone || '',
                               ecocashEnabled: biz?.ecocashEnabled !== undefined ? biz.ecocashEnabled : false,
                               couponsEnabled: biz?.couponsEnabled !== undefined ? biz.couponsEnabled : false,
+                              promosEnabled: biz?.promosEnabled !== undefined ? biz.promosEnabled : false,
                               receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',
                               taxEnabled: biz?.taxEnabled !== undefined ? biz.taxEnabled : false,
                               taxIncludedInPrice: biz?.taxIncludedInPrice !== undefined ? biz.taxIncludedInPrice : true,
