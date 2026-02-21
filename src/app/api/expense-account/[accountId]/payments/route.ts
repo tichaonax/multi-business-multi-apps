@@ -260,7 +260,7 @@ export async function POST(
     // Check if expense account exists and is active
     const account = await prisma.expenseAccounts.findUnique({
       where: { id: accountId },
-      select: { id: true, accountName: true, isActive: true, balance: true },
+      select: { id: true, accountName: true, isActive: true, balance: true, businessId: true },
     })
 
     if (!account) {
@@ -550,6 +550,26 @@ export async function POST(
             { status: 400 }
           )
         }
+
+        // Normalise legacy values that may still be in client-side queues
+        const expenseTypeNormMap: Record<string, string> = {
+          REPAIR: 'MAINTENANCE',
+          REPAIRS: 'MAINTENANCE',
+          REGISTRATION: 'OTHER',
+          TOLLS: 'TOLL',
+        }
+        if (expenseTypeNormMap[expenseType]) {
+          payment.vehicleExpense.expenseType = expenseTypeNormMap[expenseType]
+        }
+
+        const validExpenseTypes = ['FUEL', 'TOLL', 'PARKING', 'MAINTENANCE', 'INSURANCE', 'OTHER', 'FOOD', 'TIRE', 'OIL']
+        if (!validExpenseTypes.includes(payment.vehicleExpense.expenseType)) {
+          return NextResponse.json(
+            { error: `Payment ${paymentIndex}: Invalid vehicleExpense.expenseType "${payment.vehicleExpense.expenseType}". Valid values: ${validExpenseTypes.join(', ')}`, index: i },
+            { status: 400 }
+          )
+        }
+
         const vehicle = await prisma.vehicles.findUnique({
           where: { id: vehicleId },
           select: { id: true, isActive: true },
@@ -723,10 +743,11 @@ export async function POST(
           await tx.vehicleExpenses.create({
             data: {
               vehicleId: ve.vehicleId,
+              businessId: account.businessId || null,
               expenseType: ve.expenseType,
               amount: Number(payment.amount),
               expenseDate: paymentDate,
-              isBusinessDeductible: false,
+              isBusinessDeductible: true,
               description: payment.notes?.trim() || null,
               fuelQuantity: ve.fuelQuantity != null ? Number(ve.fuelQuantity) : null,
               fuelType: ve.fuelType || null,

@@ -9,11 +9,11 @@ import { useToastContext } from '@/components/ui/toast'
 
 const EXPENSE_TYPES = [
   { value: 'FUEL', label: 'Fuel / Petrol' },
-  { value: 'MAINTENANCE', label: 'Maintenance' },
-  { value: 'REPAIR', label: 'Repairs' },
+  { value: 'MAINTENANCE', label: 'Maintenance / Repairs' },
+  { value: 'OIL', label: 'Oil Change' },
+  { value: 'TIRE', label: 'Tires' },
   { value: 'INSURANCE', label: 'Insurance' },
-  { value: 'REGISTRATION', label: 'Registration' },
-  { value: 'TOLLS', label: 'Tolls' },
+  { value: 'TOLL', label: 'Tolls' },
   { value: 'PARKING', label: 'Parking' },
   { value: 'OTHER', label: 'Other' },
 ] as const
