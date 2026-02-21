@@ -57,9 +57,11 @@ export function PaymentBatchList({
       USER: { label: 'User', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
       EMPLOYEE: { label: 'Employee', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
       PERSON: { label: 'Individual', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
-      BUSINESS: { label: 'Business', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' }
+      BUSINESS: { label: 'Business', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
+      SUPPLIER: { label: 'Supplier', className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
+      NONE: { label: 'Vehicle Expense', className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
     }
-    return badges[type] || { label: type, className: 'bg-gray-100 text-gray-800' }
+    return badges[type] || { label: type, className: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }
   }
 
   // Calculate running balance after each payment

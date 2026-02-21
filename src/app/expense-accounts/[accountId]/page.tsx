@@ -62,6 +62,7 @@ export default function ExpenseAccountDetailPage() {
   const [showSmartQuickPayModal, setShowSmartQuickPayModal] = useState(false)
   const [showVehicleExpenseModal, setShowVehicleExpenseModal] = useState(false)
   const [loansRefreshKey, setLoansRefreshKey] = useState(0)
+  const [batchRefreshKey, setBatchRefreshKey] = useState(0)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
@@ -496,6 +497,7 @@ export default function ExpenseAccountDetailPage() {
                   canCreatePayees={canCreatePayees}
                   accountType={account.accountType}
                   defaultCategoryBusinessType={currentBusiness?.businessType}
+                  batchRefreshKey={batchRefreshKey}
                   accountInfo={{
                     accountName: account.accountName,
                     isSibling: account.isSibling,
@@ -661,8 +663,10 @@ export default function ExpenseAccountDetailPage() {
           onClose={() => setShowVehicleExpenseModal(false)}
           accountId={accountId}
           accountBalance={Number(account.balance)}
+          canManageVehicles={isSystemAdmin || isBusinessOwner || hasPermission('canManageVehicles')}
           onSuccess={() => {
             setShowVehicleExpenseModal(false)
+            setBatchRefreshKey(k => k + 1)
             setActiveTab('payments')
           }}
         />

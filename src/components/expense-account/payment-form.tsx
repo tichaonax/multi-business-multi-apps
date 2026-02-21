@@ -281,6 +281,7 @@ interface PaymentFormProps {
     siblingNumber: number | null
     parentAccountId: string | null
   }
+  batchRefreshKey?: number
 }
 
 function getDefaultDomainName(businessType: string): string {
@@ -304,7 +305,8 @@ export function PaymentForm({
   canCreatePayees = false,
   accountType = 'GENERAL',
   defaultCategoryBusinessType,
-  accountInfo
+  accountInfo,
+  batchRefreshKey = 0,
 }: PaymentFormProps) {
   const isPersonalAccount = accountType === 'PERSONAL'
   const customAlert = useAlert()
@@ -383,7 +385,7 @@ export function PaymentForm({
     }
   }, [personalDomainId])
 
-  // Load batch from sessionStorage
+  // Load batch from sessionStorage — re-runs when batchRefreshKey changes (e.g. vehicle expense added)
   useEffect(() => {
     const saved = sessionStorage.getItem(`expense-batch-${accountId}`)
     if (saved) {
@@ -394,7 +396,7 @@ export function PaymentForm({
         console.error('Failed to load batch from sessionStorage:', e)
       }
     }
-  }, [accountId])
+  }, [accountId, batchRefreshKey])
 
   // Save batch to sessionStorage
   useEffect(() => {
