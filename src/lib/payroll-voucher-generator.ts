@@ -37,21 +37,23 @@ export interface VoucherData {
   voucherNumber: string
   employeeNumber: string
   employeeName: string
-  employeeNationalId: string
+  employeeNationalId: string | null
+  employeePhone?: string | null
+  /** Gross pay — used for payroll account debit */
   amount: number
+  /** Net pay — what the employee actually receives after deductions */
+  netAmount?: number | null
   paymentDate: Date
   issuedAt: Date
   paymentType: string
-  paymentSchedule?: string
-  deductions?: any
-  commissionAmount?: number
   notes?: string
   regenerationCount: number
   lastRegeneratedAt?: Date
 
-  // Company details
-  companyName?: string
-  companyAddress?: string
+  // Business details
+  businessName?: string | null
+  businessAddress?: string | null
+  businessPhone?: string | null
 
   // Sign section
   signatureData?: string
@@ -64,7 +66,7 @@ export interface VoucherData {
 export async function createPaymentVoucher(
   paymentId: string
 ): Promise<VoucherData> {
-  // Get payment details with employee information
+  // Get payment details with employee and business information
   const payment = await prisma.payrollAccountPayments.findUnique({
     where: { id: paymentId },
     include: {
@@ -75,6 +77,17 @@ export async function createPaymentVoucher(
           lastName: true,
           fullName: true,
           nationalId: true,
+          phone: true,
+          businesses: {
+            select: {
+              name: true,
+              address: true,
+              phone: true,
+              umbrellaBusinessName: true,
+              umbrellaBusinessAddress: true,
+              umbrellaBusinessPhone: true,
+            },
+          },
         },
       },
     },
@@ -84,30 +97,38 @@ export async function createPaymentVoucher(
     throw new Error('Payment not found')
   }
 
+  // Build business details with fallback chain (same as loan contract)
+  const biz = payment.employees.businesses
+  const businessName = biz?.name || null
+  const businessAddress = biz?.address || biz?.umbrellaBusinessAddress || null
+  const businessPhone = biz?.phone || biz?.umbrellaBusinessPhone || null
+
   // Check if voucher already exists
   const existingVoucher = await prisma.payrollPaymentVouchers.findFirst({
     where: { paymentId },
   })
 
   if (existingVoucher) {
-    // Return existing voucher data
+    // Return existing voucher data enriched with live business/employee details
     return {
       voucherNumber: existingVoucher.voucherNumber,
       employeeNumber: existingVoucher.employeeNumber,
       employeeName: existingVoucher.employeeName,
       employeeNationalId: existingVoucher.employeeNationalId,
+      employeePhone: payment.employees.phone || null,
       amount: Number(existingVoucher.amount),
+      netAmount: payment.netAmount != null ? Number(payment.netAmount) : null,
       paymentDate: existingVoucher.paymentDate,
       issuedAt: existingVoucher.issuedAt,
       paymentType: payment.paymentType,
-      paymentSchedule: payment.paymentSchedule || undefined,
-      deductions: payment.deductions || undefined,
-      commissionAmount: payment.commissionAmount ? Number(payment.commissionAmount) : undefined,
       notes: existingVoucher.notes || undefined,
       regenerationCount: existingVoucher.regenerationCount,
       lastRegeneratedAt: existingVoucher.lastRegeneratedAt || undefined,
       signatureData: existingVoucher.signatureData || undefined,
       signedAt: existingVoucher.signedAt || undefined,
+      businessName,
+      businessAddress,
+      businessPhone,
     }
   }
 
@@ -134,14 +155,16 @@ export async function createPaymentVoucher(
     employeeNumber: voucher.employeeNumber,
     employeeName: voucher.employeeName,
     employeeNationalId: voucher.employeeNationalId,
+    employeePhone: payment.employees.phone || null,
     amount: Number(voucher.amount),
+    netAmount: payment.netAmount != null ? Number(payment.netAmount) : null,
     paymentDate: voucher.paymentDate,
     issuedAt: voucher.issuedAt,
     paymentType: payment.paymentType,
-    paymentSchedule: payment.paymentSchedule || undefined,
-    deductions: payment.deductions || undefined,
-    commissionAmount: payment.commissionAmount ? Number(payment.commissionAmount) : undefined,
     regenerationCount: 0,
+    businessName,
+    businessAddress,
+    businessPhone,
   }
 }
 
@@ -164,6 +187,16 @@ export async function regenerateVoucher(
               lastName: true,
               fullName: true,
               nationalId: true,
+              phone: true,
+              businesses: {
+                select: {
+                  name: true,
+                  address: true,
+                  phone: true,
+                  umbrellaBusinessAddress: true,
+                  umbrellaBusinessPhone: true,
+                },
+              },
             },
           },
         },
@@ -185,24 +218,26 @@ export async function regenerateVoucher(
   })
 
   const payment = voucher.payroll_payments
-
+  const biz = payment.employees.businesses
   return {
     voucherNumber: updatedVoucher.voucherNumber,
     employeeNumber: updatedVoucher.employeeNumber,
     employeeName: updatedVoucher.employeeName,
     employeeNationalId: updatedVoucher.employeeNationalId,
+    employeePhone: payment.employees.phone || null,
     amount: Number(updatedVoucher.amount),
+    netAmount: payment.netAmount != null ? Number(payment.netAmount) : null,
     paymentDate: updatedVoucher.paymentDate,
     issuedAt: updatedVoucher.issuedAt,
     paymentType: payment.paymentType,
-    paymentSchedule: payment.paymentSchedule || undefined,
-    deductions: payment.deductions || undefined,
-    commissionAmount: payment.commissionAmount ? Number(payment.commissionAmount) : undefined,
     notes: updatedVoucher.notes || undefined,
     regenerationCount: updatedVoucher.regenerationCount,
     lastRegeneratedAt: updatedVoucher.lastRegeneratedAt || undefined,
     signatureData: updatedVoucher.signatureData || undefined,
     signedAt: updatedVoucher.signedAt || undefined,
+    businessName: biz?.name || null,
+    businessAddress: biz?.address || biz?.umbrellaBusinessAddress || null,
+    businessPhone: biz?.phone || biz?.umbrellaBusinessPhone || null,
   }
 }
 
@@ -224,6 +259,16 @@ export async function getVoucherByPaymentId(
               lastName: true,
               fullName: true,
               nationalId: true,
+              phone: true,
+              businesses: {
+                select: {
+                  name: true,
+                  address: true,
+                  phone: true,
+                  umbrellaBusinessAddress: true,
+                  umbrellaBusinessPhone: true,
+                },
+              },
             },
           },
         },
@@ -236,24 +281,26 @@ export async function getVoucherByPaymentId(
   }
 
   const payment = voucher.payroll_payments
-
+  const biz = payment.employees.businesses
   return {
     voucherNumber: voucher.voucherNumber,
     employeeNumber: voucher.employeeNumber,
     employeeName: voucher.employeeName,
     employeeNationalId: voucher.employeeNationalId,
+    employeePhone: payment.employees.phone || null,
     amount: Number(voucher.amount),
+    netAmount: payment.netAmount != null ? Number(payment.netAmount) : null,
     paymentDate: voucher.paymentDate,
     issuedAt: voucher.issuedAt,
     paymentType: payment.paymentType,
-    paymentSchedule: payment.paymentSchedule || undefined,
-    deductions: payment.deductions || undefined,
-    commissionAmount: payment.commissionAmount ? Number(payment.commissionAmount) : undefined,
     notes: voucher.notes || undefined,
     regenerationCount: voucher.regenerationCount,
     lastRegeneratedAt: voucher.lastRegeneratedAt || undefined,
     signatureData: voucher.signatureData || undefined,
     signedAt: voucher.signedAt || undefined,
+    businessName: biz?.name || null,
+    businessAddress: biz?.address || biz?.umbrellaBusinessAddress || null,
+    businessPhone: biz?.phone || biz?.umbrellaBusinessPhone || null,
   }
 }
 
@@ -275,6 +322,16 @@ export async function getVoucherByNumber(
               lastName: true,
               fullName: true,
               nationalId: true,
+              phone: true,
+              businesses: {
+                select: {
+                  name: true,
+                  address: true,
+                  phone: true,
+                  umbrellaBusinessAddress: true,
+                  umbrellaBusinessPhone: true,
+                },
+              },
             },
           },
         },
@@ -287,24 +344,26 @@ export async function getVoucherByNumber(
   }
 
   const payment = voucher.payroll_payments
-
+  const biz = payment.employees.businesses
   return {
     voucherNumber: voucher.voucherNumber,
     employeeNumber: voucher.employeeNumber,
     employeeName: voucher.employeeName,
     employeeNationalId: voucher.employeeNationalId,
+    employeePhone: payment.employees.phone || null,
     amount: Number(voucher.amount),
+    netAmount: payment.netAmount != null ? Number(payment.netAmount) : null,
     paymentDate: voucher.paymentDate,
     issuedAt: voucher.issuedAt,
     paymentType: payment.paymentType,
-    paymentSchedule: payment.paymentSchedule || undefined,
-    deductions: payment.deductions || undefined,
-    commissionAmount: payment.commissionAmount ? Number(payment.commissionAmount) : undefined,
     notes: voucher.notes || undefined,
     regenerationCount: voucher.regenerationCount,
     lastRegeneratedAt: voucher.lastRegeneratedAt || undefined,
     signatureData: voucher.signatureData || undefined,
     signedAt: voucher.signedAt || undefined,
+    businessName: biz?.name || null,
+    businessAddress: biz?.address || biz?.umbrellaBusinessAddress || null,
+    businessPhone: biz?.phone || biz?.umbrellaBusinessPhone || null,
   }
 }
 
@@ -359,6 +418,9 @@ export function formatVoucherDate(date: Date): string {
  * Generate printable HTML voucher
  */
 export function generateVoucherHTML(data: VoucherData): string {
+  const netPay = data.netAmount != null ? data.netAmount : data.amount
+  const hasBreakdown = data.netAmount != null && data.netAmount !== data.amount
+
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -367,151 +429,47 @@ export function generateVoucherHTML(data: VoucherData): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payment Voucher - ${data.employeeNumber} - ${data.employeeName} - ${data.voucherNumber}</title>
   <style>
-    @page {
-      size: A4;
-      margin: 20mm;
-    }
+    @page { size: A4; margin: 20mm; }
+    @media print { body { margin: 0; padding: 0; } .no-print { display: none; } }
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .voucher-container { border: 2px solid #333; padding: 30px; background: white; }
 
-    @media print {
-      body {
-        margin: 0;
-        padding: 0;
-      }
-      .no-print {
-        display: none;
-      }
-    }
+    /* Business header */
+    .business-header { text-align: center; margin-bottom: 16px; }
+    .business-name { font-size: 22px; font-weight: bold; color: #1e3a5f; margin: 0; }
+    .business-meta { font-size: 13px; color: #555; margin-top: 4px; }
 
-    body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
+    /* Voucher title */
+    .voucher-header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid #333; padding-bottom: 16px; border-top: 1px solid #ccc; padding-top: 16px; }
+    .voucher-header h1 { margin: 0; font-size: 22px; color: #2563eb; }
+    .voucher-number { font-size: 15px; font-weight: bold; margin-top: 6px; color: #666; }
 
-    .voucher-container {
-      border: 2px solid #333;
-      padding: 30px;
-      background: white;
-    }
+    /* Info rows */
+    .voucher-body { margin: 20px 0; }
+    .section-title { font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin: 18px 0 6px; }
+    .info-row { display: flex; justify-content: space-between; margin: 8px 0; padding: 8px 12px; background: #f9fafb; border-left: 3px solid #2563eb; }
+    .info-label { font-weight: bold; color: #555; min-width: 180px; font-size: 14px; }
+    .info-value { flex: 1; text-align: right; color: #333; font-size: 14px; }
 
-    .voucher-header {
-      text-align: center;
-      margin-bottom: 30px;
-      border-bottom: 2px solid #333;
-      padding-bottom: 20px;
-    }
+    /* Net pay box — prominent */
+    .net-pay-box { margin: 24px 0 8px; padding: 20px; background: #eff6ff; border: 2px solid #2563eb; text-align: center; }
+    .net-pay-label { font-size: 13px; color: #2563eb; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .net-pay-amount { font-size: 36px; font-weight: bold; color: #1d4ed8; }
 
-    .voucher-header h1 {
-      margin: 0;
-      font-size: 28px;
-      color: #2563eb;
-    }
+    /* Gross reference row */
+    .gross-ref { display: flex; justify-content: space-between; padding: 6px 12px; background: #f3f4f6; border-left: 3px solid #9ca3af; margin-bottom: 16px; font-size: 13px; color: #6b7280; }
 
-    .voucher-number {
-      font-size: 18px;
-      font-weight: bold;
-      margin-top: 10px;
-      color: #666;
-    }
+    /* Signature */
+    .signature-section { margin-top: 48px; padding-top: 24px; border-top: 2px solid #e5e7eb; }
+    .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; }
+    .sig-block .sig-line { border-bottom: 2px solid #333; margin-bottom: 6px; height: 40px; }
+    .sig-label { font-size: 13px; color: #666; }
 
-    .voucher-body {
-      margin: 30px 0;
-    }
-
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      margin: 15px 0;
-      padding: 10px;
-      background: #f9fafb;
-      border-left: 4px solid #2563eb;
-    }
-
-    .info-label {
-      font-weight: bold;
-      color: #666;
-      min-width: 180px;
-    }
-
-    .info-value {
-      flex: 1;
-      text-align: right;
-      color: #333;
-    }
-
-    .amount-section {
-      margin: 30px 0;
-      padding: 20px;
-      background: #eff6ff;
-      border: 2px solid #2563eb;
-      text-align: center;
-    }
-
-    .amount-label {
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 10px;
-    }
-
-    .amount-value {
-      font-size: 32px;
-      font-weight: bold;
-      color: #2563eb;
-    }
-
-    .signature-section {
-      margin-top: 60px;
-      padding-top: 30px;
-      border-top: 2px solid #e5e7eb;
-    }
-
-    .signature-line {
-      margin: 40px 0 10px 0;
-      border-bottom: 2px solid #333;
-      width: 300px;
-    }
-
-    .signature-label {
-      font-size: 14px;
-      color: #666;
-      margin-top: 5px;
-    }
-
-    .voucher-footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #e5e7eb;
-      font-size: 12px;
-      color: #999;
-      text-align: center;
-    }
-
-    .regeneration-notice {
-      margin-top: 20px;
-      padding: 10px;
-      background: #fef3c7;
-      border-left: 4px solid #f59e0b;
-      font-size: 12px;
-      color: #92400e;
-    }
-
-    .print-button {
-      margin: 20px 0;
-      padding: 12px 24px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    .print-button:hover {
-      background: #1d4ed8;
-    }
+    /* Footer */
+    .regeneration-notice { margin-top: 16px; padding: 8px 12px; background: #fef3c7; border-left: 4px solid #f59e0b; font-size: 12px; color: #92400e; }
+    .voucher-footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #aaa; text-align: center; }
+    .print-button { margin: 16px 0; padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; }
+    .print-button:hover { background: #1d4ed8; }
   </style>
 </head>
 <body>
@@ -520,87 +478,99 @@ export function generateVoucherHTML(data: VoucherData): string {
   </div>
 
   <div class="voucher-container">
+
+    ${data.businessName ? `
+    <div class="business-header">
+      <div class="business-name">${data.businessName}</div>
+      <div class="business-meta">
+        ${data.businessAddress ? `${data.businessAddress}` : ''}
+        ${data.businessAddress && data.businessPhone ? ' &nbsp;|&nbsp; ' : ''}
+        ${data.businessPhone ? `Tel: ${data.businessPhone}` : ''}
+      </div>
+    </div>
+    ` : ''}
+
     <div class="voucher-header">
-      <h1>💰 PAYROLL PAYMENT VOUCHER</h1>
+      <h1>PAYROLL PAYMENT VOUCHER</h1>
       <div class="voucher-number">Voucher #: ${data.voucherNumber}</div>
     </div>
 
     <div class="voucher-body">
+      <div class="section-title">Employee Details</div>
+
       <div class="info-row">
-        <span class="info-label">Employee Name:</span>
+        <span class="info-label">Employee Name</span>
         <span class="info-value">${data.employeeName}</span>
       </div>
-
       <div class="info-row">
-        <span class="info-label">Employee Number:</span>
+        <span class="info-label">Employee Number</span>
         <span class="info-value">${data.employeeNumber}</span>
       </div>
-
       <div class="info-row">
-        <span class="info-label">National ID:</span>
-        <span class="info-value">${data.employeeNationalId}</span>
+        <span class="info-label">National ID</span>
+        <span class="info-value">${data.employeeNationalId || '—'}</span>
       </div>
+      ${data.employeePhone ? `
+      <div class="info-row">
+        <span class="info-label">Phone</span>
+        <span class="info-value">${data.employeePhone}</span>
+      </div>
+      ` : ''}
+
+      <div class="section-title">Payment Details</div>
 
       <div class="info-row">
-        <span class="info-label">Payment Date:</span>
+        <span class="info-label">Payment Date</span>
         <span class="info-value">${formatVoucherDate(data.paymentDate)}</span>
       </div>
-
       <div class="info-row">
-        <span class="info-label">Payment Type:</span>
+        <span class="info-label">Payment Type</span>
         <span class="info-value">${data.paymentType.replace(/_/g, ' ')}</span>
       </div>
-
-      ${data.paymentSchedule ? `
-      <div class="info-row">
-        <span class="info-label">Payment Schedule:</span>
-        <span class="info-value">${data.paymentSchedule}</span>
-      </div>
-      ` : ''}
-
-      ${data.commissionAmount ? `
-      <div class="info-row">
-        <span class="info-label">Commission Amount:</span>
-        <span class="info-value">${formatVoucherAmount(data.commissionAmount)}</span>
-      </div>
-      ` : ''}
-
-      <div class="amount-section">
-        <div class="amount-label">TOTAL PAYMENT AMOUNT</div>
-        <div class="amount-value">${formatVoucherAmount(data.amount)}</div>
-      </div>
-
       ${data.notes ? `
       <div class="info-row">
-        <span class="info-label">Notes:</span>
+        <span class="info-label">Notes</span>
         <span class="info-value">${data.notes}</span>
+      </div>
+      ` : ''}
+
+      <div class="net-pay-box">
+        <div class="net-pay-label">Amount Payable to Employee</div>
+        <div class="net-pay-amount">${formatVoucherAmount(netPay)}</div>
+      </div>
+
+      ${hasBreakdown ? `
+      <div class="gross-ref">
+        <span>Gross Pay (before deductions)</span>
+        <span>${formatVoucherAmount(data.amount)}</span>
       </div>
       ` : ''}
     </div>
 
     <div class="signature-section">
-      <p><strong>Employee Acknowledgment:</strong></p>
-      <p>I hereby acknowledge receipt of the above payment amount.</p>
+      <p style="margin:0 0 4px;"><strong>Employee Acknowledgment</strong></p>
+      <p style="margin:0;font-size:14px;color:#555;">I hereby acknowledge receipt of the above payment amount of <strong>${formatVoucherAmount(netPay)}</strong>.</p>
 
-      <div class="signature-line"></div>
-      <div class="signature-label">Employee Signature</div>
-
-      <div style="margin-top: 30px;">
-        <div class="signature-line"></div>
-        <div class="signature-label">Date</div>
+      <div class="sig-grid">
+        <div class="sig-block">
+          <div class="sig-line"></div>
+          <div class="sig-label">Employee Signature</div>
+        </div>
+        <div class="sig-block">
+          <div class="sig-line"></div>
+          <div class="sig-label">Date</div>
+        </div>
       </div>
     </div>
 
     ${data.regenerationCount > 0 ? `
     <div class="regeneration-notice">
-      ⚠️ This voucher has been regenerated ${data.regenerationCount} time(s).
-      Last regenerated: ${data.lastRegeneratedAt ? formatVoucherDate(data.lastRegeneratedAt) : 'N/A'}
+      ⚠️ Reprinted ${data.regenerationCount} time(s). Last: ${data.lastRegeneratedAt ? formatVoucherDate(data.lastRegeneratedAt) : 'N/A'}
     </div>
     ` : ''}
 
     <div class="voucher-footer">
-      <p>Issued: ${formatVoucherDate(data.issuedAt)}</p>
-      <p>This is an official payroll payment voucher. Please retain for your records.</p>
+      <p>Issued: ${formatVoucherDate(data.issuedAt)} &nbsp;|&nbsp; This is an official payroll payment voucher. Please retain for your records.</p>
     </div>
   </div>
 </body>

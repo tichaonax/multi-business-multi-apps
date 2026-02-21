@@ -23,6 +23,7 @@ interface Payment {
     nationalId: string
   }
   amount: number
+  netAmount: number | null
   paymentType: string
   status: string
   isAdvance: boolean
@@ -423,32 +424,24 @@ function PaymentHistoryContent() {
 
   const getPaymentTypeLabel = (type: string) => {
     switch (type) {
-      case 'REGULAR_SALARY':
-        return 'Regular Salary'
-      case 'ADVANCE':
-        return 'Salary Advance'
-      case 'BONUS':
-        return 'Bonus'
-      case 'COMMISSION':
-        return 'Commission'
-      default:
-        return type
+      case 'SALARY': return 'Salary Payment'
+      case 'LOAN_DISBURSEMENT': return 'Loan Disbursement'
+      case 'ADVANCE': return 'Salary Advance'
+      case 'BONUS': return 'Bonus Payment'
+      case 'COMMISSION': return 'Commission Payment'
+      default: return type
     }
   }
 
   const getPaymentTypeBadge = (type: string) => {
     const baseClasses = 'px-2 py-1 text-xs rounded-full font-medium'
     switch (type) {
-      case 'REGULAR_SALARY':
-        return `${baseClasses} bg-blue-100 text-blue-800`
-      case 'ADVANCE':
-        return `${baseClasses} bg-orange-100 text-orange-800`
-      case 'BONUS':
-        return `${baseClasses} bg-green-100 text-green-800`
-      case 'COMMISSION':
-        return `${baseClasses} bg-purple-100 text-purple-800`
-      default:
-        return `${baseClasses} bg-gray-100 text-gray-800`
+      case 'SALARY': return `${baseClasses} bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`
+      case 'LOAN_DISBURSEMENT': return `${baseClasses} bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300`
+      case 'ADVANCE': return `${baseClasses} bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300`
+      case 'BONUS': return `${baseClasses} bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300`
+      case 'COMMISSION': return `${baseClasses} bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300`
+      default: return `${baseClasses} bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300`
     }
   }
 
@@ -558,10 +551,11 @@ function PaymentHistoryContent() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">All Types</option>
-                    <option value="REGULAR_SALARY">Regular Salary</option>
+                    <option value="SALARY">Salary Payment</option>
+                    <option value="LOAN_DISBURSEMENT">Loan Disbursement</option>
                     <option value="ADVANCE">Salary Advance</option>
-                    <option value="BONUS">Bonus</option>
-                    <option value="COMMISSION">Commission</option>
+                    <option value="BONUS">Bonus Payment</option>
+                    <option value="COMMISSION">Commission Payment</option>
                   </select>
                 </div>
 
@@ -688,8 +682,11 @@ function PaymentHistoryContent() {
                             </td>
                             <td className="px-4 py-3 text-sm">
                               <p className="font-semibold text-gray-900 dark:text-gray-100">
-                                {formatCurrency(payment.amount)}
+                                {formatCurrency(payment.netAmount ?? payment.amount)}
                               </p>
+                              {payment.netAmount != null && payment.netAmount !== payment.amount && (
+                                <p className="text-xs text-gray-400">Gross: {formatCurrency(payment.amount)}</p>
+                              )}
                               {payment.isAdvance && (
                                 <p className="text-xs text-orange-600 font-medium">Advance</p>
                               )}
@@ -775,9 +772,14 @@ function PaymentHistoryContent() {
                               {payment.employee.employeeNumber}
                             </p>
                           </div>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                            {formatCurrency(payment.amount)}
-                          </p>
+                          <div className="text-right">
+                            <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                              {formatCurrency(payment.netAmount ?? payment.amount)}
+                            </p>
+                            {payment.netAmount != null && payment.netAmount !== payment.amount && (
+                              <p className="text-xs text-gray-400">Gross: {formatCurrency(payment.amount)}</p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center flex-wrap gap-2">

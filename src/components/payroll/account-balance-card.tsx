@@ -6,12 +6,16 @@ import { useAlert } from '@/components/ui/confirm-modal'
 interface AccountBalanceCardProps {
   accountData: any
   onRefresh?: () => void
+  canEditThreshold?: boolean
 }
 
-export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCardProps) {
+export function AccountBalanceCard({ accountData, onRefresh, canEditThreshold = false }: AccountBalanceCardProps) {
   const customAlert = useAlert()
   const [balanceSummary, setBalanceSummary] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [editingThreshold, setEditingThreshold] = useState(false)
+  const [thresholdInput, setThresholdInput] = useState('')
+  const [savingThreshold, setSavingThreshold] = useState(false)
 
   useEffect(() => {
     if (accountData?.id) {
@@ -21,13 +25,9 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
 
   const fetchBalanceSummary = async () => {
     if (!accountData?.id) return
-
     setLoading(true)
     try {
-      const response = await fetch('/api/payroll/account/balance', {
-        credentials: 'include',
-      })
-
+      const response = await fetch('/api/payroll/account/balance', { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
         setBalanceSummary(data.data)
@@ -36,6 +36,34 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
       console.error('Error fetching balance summary:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveThreshold = async () => {
+    const value = parseFloat(thresholdInput)
+    if (isNaN(value) || value < 0) {
+      customAlert({ title: 'Invalid value', description: 'Threshold must be a non-negative number.' })
+      return
+    }
+    setSavingThreshold(true)
+    try {
+      const res = await fetch('/api/payroll/account', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ lowBalanceThreshold: value }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        customAlert({ title: 'Error', description: data.error || 'Failed to update threshold.' })
+      } else {
+        setEditingThreshold(false)
+        if (onRefresh) onRefresh()
+      }
+    } catch {
+      customAlert({ title: 'Error', description: 'Network error. Please try again.' })
+    } finally {
+      setSavingThreshold(false)
     }
   }
 
@@ -56,8 +84,11 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
   }
 
   const balance = Number(accountData.balance || 0)
-  const isLowBalance = balance < 1000
-  const isCriticalBalance = balance < 500
+  const threshold = Number(accountData.lowBalanceThreshold ?? 500)
+  const criticalThreshold = threshold * 0.5
+
+  const isCriticalBalance = balance < criticalThreshold
+  const isLowBalance = balance < threshold && !isCriticalBalance
 
   return (
     <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
@@ -72,7 +103,7 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
             if (onRefresh) onRefresh()
           }}
           disabled={loading}
-          className="p-2 hover:bg-white dark:bg-gray-800/20 rounded-lg transition-colors disabled:opacity-50"
+          className="p-2 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50"
           title="Refresh balance"
         >
           <svg
@@ -97,7 +128,7 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
         <p className="text-4xl font-bold">{formatCurrency(balance)}</p>
       </div>
 
-      {/* Balance Alert */}
+      {/* Balance Alerts */}
       {isCriticalBalance && (
         <div className="bg-red-500/10 border border-red-300/50 rounded-lg p-3 mb-4">
           <div className="flex items-start space-x-2">
@@ -105,23 +136,73 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
             <div className="flex-1">
               <p className="font-semibold text-sm">Critical Balance Alert</p>
               <p className="text-xs opacity-90">
-                Balance is below $500. Please make a deposit soon to avoid payment delays.
+                Balance is below {formatCurrency(criticalThreshold)}. Please make a deposit soon to avoid payment delays.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {isLowBalance && !isCriticalBalance && (
+      {isLowBalance && (
         <div className="bg-yellow-500/10 border border-yellow-300/50 rounded-lg p-3 mb-4">
           <div className="flex items-start space-x-2">
             <span className="text-xl">⚡</span>
             <div className="flex-1">
               <p className="font-semibold text-sm">Low Balance Warning</p>
               <p className="text-xs opacity-90">
-                Balance is below $1,000. Consider making a deposit.
+                Balance is below {formatCurrency(threshold)}. Consider making a deposit.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert Threshold Setting */}
+      {canEditThreshold && (
+        <div className="bg-white/10 rounded-lg p-3 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs opacity-75">Low Balance Alert Threshold</p>
+              {!editingThreshold ? (
+                <p className="text-sm font-medium">{formatCurrency(threshold)}</p>
+              ) : (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm opacity-75">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={thresholdInput}
+                    onChange={(e) => setThresholdInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveThreshold(); if (e.key === 'Escape') setEditingThreshold(false) }}
+                    className="w-28 text-sm bg-white/20 border border-white/40 rounded px-2 py-0.5 text-white placeholder-white/50 focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveThreshold}
+                    disabled={savingThreshold}
+                    className="text-xs bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded disabled:opacity-50"
+                  >
+                    {savingThreshold ? '…' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => setEditingThreshold(false)}
+                    className="text-xs opacity-75 hover:opacity-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <p className="text-[10px] opacity-60 mt-0.5">Critical alert at {formatCurrency(criticalThreshold)}</p>
+            </div>
+            {!editingThreshold && (
+              <button
+                onClick={() => { setThresholdInput(String(threshold)); setEditingThreshold(true) }}
+                className="text-xs opacity-75 hover:opacity-100 underline"
+              >
+                Edit
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -129,53 +210,38 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
       {/* Balance Summary Grid */}
       {balanceSummary && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white dark:bg-gray-800/10 rounded-lg p-3">
+          <div className="bg-white/10 rounded-lg p-3">
             <p className="text-xs opacity-75 mb-1">Total Deposits</p>
-            <p className="text-lg font-semibold">
-              {formatCurrency(balanceSummary.totalDeposits || 0)}
-            </p>
-            <p className="text-xs opacity-75">
-              {balanceSummary.depositsCount || 0} deposits
-            </p>
+            <p className="text-lg font-semibold">{formatCurrency(balanceSummary.totalDeposits || 0)}</p>
+            <p className="text-xs opacity-75">{balanceSummary.depositsCount || 0} deposits</p>
           </div>
 
-          <div className="bg-white dark:bg-gray-800/10 rounded-lg p-3">
+          <div className="bg-white/10 rounded-lg p-3">
             <p className="text-xs opacity-75 mb-1">Total Payments</p>
-            <p className="text-lg font-semibold">
-              {formatCurrency(balanceSummary.totalPayments || 0)}
-            </p>
-            <p className="text-xs opacity-75">
-              {balanceSummary.paymentsCount || 0} payments
-            </p>
+            <p className="text-lg font-semibold">{formatCurrency(balanceSummary.totalPayments || 0)}</p>
+            <p className="text-xs opacity-75">{balanceSummary.paymentsCount || 0} payments</p>
           </div>
 
           {balanceSummary.depositsThisPeriod !== undefined && (
-            <div className="bg-white dark:bg-gray-800/10 rounded-lg p-3">
+            <div className="bg-white/10 rounded-lg p-3">
               <p className="text-xs opacity-75 mb-1">Deposits (30 days)</p>
-              <p className="text-lg font-semibold">
-                {formatCurrency(balanceSummary.depositsThisPeriod || 0)}
-              </p>
+              <p className="text-lg font-semibold">{formatCurrency(balanceSummary.depositsThisPeriod || 0)}</p>
             </div>
           )}
 
           {balanceSummary.paymentsThisPeriod !== undefined && (
-            <div className="bg-white dark:bg-gray-800/10 rounded-lg p-3">
+            <div className="bg-white/10 rounded-lg p-3">
               <p className="text-xs opacity-75 mb-1">Payments (30 days)</p>
-              <p className="text-lg font-semibold">
-                {formatCurrency(balanceSummary.paymentsThisPeriod || 0)}
-              </p>
+              <p className="text-lg font-semibold">{formatCurrency(balanceSummary.paymentsThisPeriod || 0)}</p>
             </div>
           )}
 
-          {balanceSummary.pendingPaymentsCount !== undefined &&
-           balanceSummary.pendingPaymentsCount > 0 && (
+          {balanceSummary.pendingPaymentsCount > 0 && (
             <div className="col-span-2 bg-yellow-500/10 border border-yellow-300/30 rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs opacity-75 mb-1">Pending Payments</p>
-                  <p className="text-lg font-semibold">
-                    {balanceSummary.pendingPaymentsCount} payments pending
-                  </p>
+                  <p className="text-lg font-semibold">{balanceSummary.pendingPaymentsCount} payments pending</p>
                 </div>
                 <span className="text-2xl">⏳</span>
               </div>
@@ -193,11 +259,9 @@ export function AccountBalanceCard({ accountData, onRefresh }: AccountBalanceCar
           </span>
         </div>
         {balanceSummary?.isBalanced !== undefined && (
-          <div className="flex items-center space-x-2">
-            <span className="text-xs opacity-75">
-              Balance: {balanceSummary.isBalanced ? '✓ Accurate' : '⚠️ Needs reconciliation'}
-            </span>
-          </div>
+          <span className="text-xs opacity-75">
+            Balance: {balanceSummary.isBalanced ? '✓ Accurate' : '⚠️ Needs reconciliation'}
+          </span>
         )}
       </div>
     </div>

@@ -27,7 +27,7 @@ export async function POST(
     // TODO: Add permission check for canCompletePayments
 
     // Get existing payment
-    const existingPayment = await prisma.payrollPayments.findUnique({
+    const existingPayment = await prisma.payrollAccountPayments.findUnique({
       where: { id: paymentId },
       include: {
         employees: {
@@ -73,7 +73,7 @@ export async function POST(
     }
 
     // Sign the payment
-    const signedPayment = await prisma.payrollPayments.update({
+    const signedPayment = await prisma.payrollAccountPayments.update({
       where: { id: paymentId },
       data: {
         isLocked: true,

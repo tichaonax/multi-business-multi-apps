@@ -30,7 +30,7 @@ export async function GET(
     // TODO: Add permission check for canIssuePaymentVouchers or canViewPayrollHistory
 
     // Get payment to verify it exists
-    const payment = await prisma.payrollPayments.findUnique({
+    const payment = await prisma.payrollAccountPayments.findUnique({
       where: { id: paymentId },
     })
 
@@ -110,7 +110,7 @@ export async function POST(
     // TODO: Add permission check for canIssuePaymentVouchers
 
     // Get payment to verify it exists
-    const payment = await prisma.payrollPayments.findUnique({
+    const payment = await prisma.payrollAccountPayments.findUnique({
       where: { id: paymentId },
     })
 

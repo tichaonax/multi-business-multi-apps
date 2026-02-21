@@ -69,6 +69,8 @@ export async function GET(
           where: {
             employeeId: { in: employeeIds },
             isAdvance: false,
+            // Exclude loan disbursements — they are not salary payments
+            paymentType: { not: 'LOAN_DISBURSEMENT' },
           },
           select: {
             id: true,

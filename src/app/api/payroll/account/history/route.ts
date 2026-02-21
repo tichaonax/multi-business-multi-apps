@@ -3,6 +3,17 @@ import { prisma } from '@/lib/prisma'
 import { getGlobalPayrollAccount } from '@/lib/payroll-account-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
+function paymentTypeLabel(type: string): string {
+  switch (type) {
+    case 'SALARY': return 'Salary Payment'
+    case 'LOAN_DISBURSEMENT': return 'Loan Disbursement'
+    case 'ADVANCE': return 'Salary Advance'
+    case 'BONUS': return 'Bonus Payment'
+    case 'COMMISSION': return 'Commission Payment'
+    default: return 'Payment'
+  }
+}
+
 /**
  * GET /api/payroll/account/history
  * Get combined transaction history (deposits + payments)
@@ -121,7 +132,7 @@ export async function GET(request: NextRequest) {
         type: 'PAYMENT',
         amount: -Number(payment.amount), // Negative for payments (debit)
         date: payment.paymentDate,
-        description: `Payment to ${payment.employees.fullName || `${payment.employees.firstName} ${payment.employees.lastName}`}`,
+        description: `${paymentTypeLabel(payment.paymentType)} — ${payment.employees.fullName || `${payment.employees.firstName} ${payment.employees.lastName}`}`,
         paymentType: payment.paymentType,
         status: payment.status,
         employee: {
@@ -167,7 +178,7 @@ export async function GET(request: NextRequest) {
         _sum: { amount: true },
       })
 
-      const paymentsBeforeSum = await prisma.payrollPayments.aggregate({
+      const paymentsBeforeSum = await prisma.payrollAccountPayments.aggregate({
         where: {
           payrollAccountId: payrollAccount.id,
           paymentDate: { lt: paginatedTransactions[0]?.date || new Date() },

@@ -58,7 +58,9 @@ export function EmployeePaymentRow({
   return (
     <div
       className={`border rounded-lg p-4 transition-all ${
-        isSelected ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200'
+        isSelected
+          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700'
+          : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600'
       } ${disabled ? 'opacity-50' : ''}`}
     >
       <div className="flex items-start space-x-4">
@@ -117,8 +119,8 @@ export function EmployeePaymentRow({
                   disabled={disabled}
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
                     showNoteInput || note
-                      ? 'bg-blue-100 border-blue-300 text-blue-700'
-                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
+                      : 'bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                   title={showNoteInput ? 'Hide note' : 'Add note'}
                 >

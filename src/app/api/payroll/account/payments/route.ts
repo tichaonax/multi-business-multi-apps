@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 
     // Get payments with pagination
     const [payments, totalCount] = await Promise.all([
-      prisma.payrollPayments.findMany({
+      prisma.payrollAccountPayments.findMany({
         where,
         include: {
           employees: {
@@ -100,32 +100,12 @@ export async function GET(request: NextRequest) {
           users_created: {
             select: { id: true, name: true, email: true },
           },
-          users_signed: {
-            select: { id: true, name: true, email: true },
-          },
-          users_completed: {
-            select: { id: true, name: true, email: true },
-          },
-          payroll_entries: {
-            select: {
-              id: true,
-              netPay: true,
-              payrollPeriodId: true,
-            },
-          },
-          payment_vouchers: {
-            select: {
-              id: true,
-              voucherNumber: true,
-              issuedAt: true,
-            },
-          },
         },
         orderBy: { paymentDate: 'desc' },
         take: limit,
         skip: offset,
       }),
-      prisma.payrollPayments.count({ where }),
+      prisma.payrollAccountPayments.count({ where }),
     ])
 
     return NextResponse.json({
@@ -143,25 +123,14 @@ export async function GET(request: NextRequest) {
             nationalId: p.employees.nationalId,
           },
           amount: Number(p.amount),
-          originalAmount: p.originalAmount ? Number(p.originalAmount) : null,
-          adjustmentNote: p.adjustmentNote,
+          netAmount: p.netAmount != null ? Number(p.netAmount) : null,
+          notes: p.notes,
           paymentType: p.paymentType,
           paymentDate: p.paymentDate,
-          paymentSchedule: p.paymentSchedule,
           status: p.status,
           isAdvance: p.isAdvance,
           isLocked: p.isLocked,
-          deductions: p.deductions,
-          commissionAmount: p.commissionAmount ? Number(p.commissionAmount) : null,
           createdBy: p.users_created,
-          signedBy: p.users_signed,
-          signedAt: p.signedAt,
-          completedBy: p.users_completed,
-          completedAt: p.completedAt,
-          payrollEntry: p.payroll_entries,
-          hasVoucher: p.payment_vouchers.length > 0,
-          voucherNumber: p.payment_vouchers[0]?.voucherNumber,
-          voucherIssuedAt: p.payment_vouchers[0]?.issuedAt,
           createdAt: p.createdAt,
         })),
         pagination: {
@@ -256,13 +225,6 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check if adjustment note is provided when amount is adjusted
-      if (payment.originalAmount && !payment.adjustmentNote) {
-        return NextResponse.json(
-          { error: 'Adjustment note is required when amount is adjusted' },
-          { status: 400 }
-        )
-      }
     }
 
     // Calculate total payment amount
@@ -304,23 +266,15 @@ export async function POST(request: NextRequest) {
         }
 
         // Create payment
-        const newPayment = await tx.payrollPayments.create({
+        const newPayment = await tx.payrollAccountPayments.create({
           data: {
             payrollAccountId: payrollAccount.id,
             employeeId: payment.employeeId,
             payrollEntryId: payment.payrollEntryId || null,
             amount: Number(payment.amount),
-            originalAmount: payment.originalAmount
-              ? Number(payment.originalAmount)
-              : null,
-            adjustmentNote: payment.adjustmentNote || null,
+            notes: payment.adjustmentNote || payment.notes || null,
             paymentType: payment.paymentType,
-            paymentSchedule: payment.paymentSchedule || null,
             isAdvance: payment.isAdvance || false,
-            deductions: payment.deductions || null,
-            commissionAmount: payment.commissionAmount
-              ? Number(payment.commissionAmount)
-              : null,
             status: 'PENDING',
             createdBy: user.id,
           },

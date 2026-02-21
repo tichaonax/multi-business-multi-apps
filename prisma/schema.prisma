@@ -2233,11 +2233,12 @@ model PayrollZimraRemittances {
 }
 
 model PayrollAccounts {
-  id            String                   @id @default(uuid())
-  businessId    String?                  @unique
-  accountNumber String                   @unique
-  balance       Decimal                  @default(0) @db.Decimal(12, 2)
-  isActive      Boolean                  @default(true)
+  id                  String                   @id @default(uuid())
+  businessId          String?                  @unique
+  accountNumber       String                   @unique
+  balance             Decimal                  @default(0) @db.Decimal(12, 2)
+  lowBalanceThreshold Decimal                  @default(500) @db.Decimal(12, 2)
+  isActive            Boolean                  @default(true)
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @default(now())
   createdBy     String
@@ -2276,23 +2277,56 @@ model PayrollAccountPayments {
   id               String          @id @default(uuid())
   payrollAccountId String
   employeeId       String
+  payrollEntryId   String?         // FK to payroll_entries — set for salary payments
   amount           Decimal         @db.Decimal(12, 2)
   paymentDate      DateTime        @default(now())
   paymentType      String
   status           String          @default("PENDING")
   isAdvance        Boolean         @default(false)
   isLocked         Boolean         @default(false)
+  notes            String?
+  netAmount        Decimal?        @db.Decimal(12, 2)
+  signedBy         String?
+  signedAt         DateTime?
+  completedBy      String?
+  completedAt      DateTime?
+  updatedAt        DateTime        @default(now())
   createdBy        String
   createdAt        DateTime        @default(now())
   users_created    Users           @relation("payroll_account_payments_created", fields: [createdBy], references: [id])
+  users_signed     Users?          @relation("payroll_account_payments_signed", fields: [signedBy], references: [id])
+  users_completed  Users?          @relation("payroll_account_payments_completed", fields: [completedBy], references: [id])
   employees        Employees       @relation(fields: [employeeId], references: [id])
   payroll_accounts PayrollAccounts @relation(fields: [payrollAccountId], references: [id])
+  payment_vouchers PayrollPaymentVouchers[]
 
   @@index([payrollAccountId])
   @@index([employeeId])
+  @@index([payrollEntryId])
   @@index([paymentDate])
   @@index([status])
   @@map("payroll_account_payments")
+}
+
+model PayrollPaymentVouchers {
+  id                 String                 @id @default(uuid())
+  paymentId          String
+  voucherNumber      String                 @unique
+  employeeNumber     String
+  employeeName       String
+  employeeNationalId String?
+  amount             Decimal                @db.Decimal(12, 2)
+  paymentDate        DateTime
+  issuedAt           DateTime               @default(now())
+  notes              String?
+  signatureData      String?
+  signedAt           DateTime?
+  regenerationCount  Int                    @default(0)
+  lastRegeneratedAt  DateTime?
+  payroll_payments   PayrollAccountPayments @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("payroll_payment_vouchers")
 }
 
 model PermissionTemplates {
@@ -2840,6 +2874,8 @@ model Users {
   orders                                                          Orders[]
   payroll_account_deposits                                        PayrollAccountDeposits[]
   payroll_account_payments_created                                PayrollAccountPayments[]    @relation("payroll_account_payments_created")
+  payroll_account_payments_signed                                 PayrollAccountPayments[]    @relation("payroll_account_payments_signed")
+  payroll_account_payments_completed                              PayrollAccountPayments[]    @relation("payroll_account_payments_completed")
   payroll_accounts                                                PayrollAccounts[]
   payroll_adjustments_payroll_adjustments_approvedByTousers       PayrollAdjustments[]        @relation("payroll_adjustments_approvedByTousers")
   payroll_adjustments_payroll_adjustments_createdByTousers        PayrollAdjustments[]        @relation("payroll_adjustments_createdByTousers")

@@ -284,8 +284,8 @@ function BatchPaymentsContent() {
             {/* Account Balance Warning */}
             <div className={`rounded-lg p-4 ${
               accountBalance < 1000
-                ? 'bg-red-50 border border-red-200'
-                : 'bg-blue-50 border border-blue-200'
+                ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700'
+                : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700'
             }`}>
               <div className="flex items-center justify-between">
                 <div>

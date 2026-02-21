@@ -121,7 +121,7 @@ function PayrollAccountContent() {
                 </div>
               </div>
             ) : (
-              <AccountBalanceCard accountData={accountData} onRefresh={fetchAccountData} />
+              <AccountBalanceCard accountData={accountData} onRefresh={fetchAccountData} canEditThreshold={session?.user?.role === 'admin'} />
             )}
 
             {/* Quick Actions */}

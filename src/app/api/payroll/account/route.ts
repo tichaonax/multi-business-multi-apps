@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
         id: payrollAccount.id,
         accountNumber: payrollAccount.accountNumber,
         balance: Number(payrollAccount.balance),
+        lowBalanceThreshold: Number(payrollAccount.lowBalanceThreshold),
         isActive: payrollAccount.isActive,
         createdAt: payrollAccount.createdAt,
         createdBy: {
@@ -180,5 +181,53 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to create payroll account' },
       { status: 500 }
     )
+  }
+}
+
+/**
+ * PATCH /api/payroll/account
+ * Update payroll account settings (admin only).
+ * Body: { lowBalanceThreshold: number }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const user = await getServerUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (user.role !== 'admin') {
+      return NextResponse.json({ error: 'Only administrators can update payroll account settings' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { lowBalanceThreshold } = body
+
+    if (lowBalanceThreshold !== undefined) {
+      const value = Number(lowBalanceThreshold)
+      if (isNaN(value) || value < 0) {
+        return NextResponse.json({ error: 'Threshold must be a non-negative number' }, { status: 400 })
+      }
+    }
+
+    const account = await getGlobalPayrollAccount()
+    if (!account) {
+      return NextResponse.json({ error: 'Payroll account not found' }, { status: 404 })
+    }
+
+    const updated = await prisma.payrollAccounts.update({
+      where: { id: account.id },
+      data: {
+        ...(lowBalanceThreshold !== undefined && { lowBalanceThreshold: Number(lowBalanceThreshold) }),
+        updatedAt: new Date(),
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: { lowBalanceThreshold: Number(updated.lowBalanceThreshold) },
+    })
+  } catch (error) {
+    console.error('Error updating payroll account:', error)
+    return NextResponse.json({ error: 'Failed to update payroll account' }, { status: 500 })
   }
 }

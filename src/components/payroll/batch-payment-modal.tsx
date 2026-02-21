@@ -48,8 +48,6 @@ export function BatchPaymentModal({
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set())
-  const [paymentAmounts, setPaymentAmounts] = useState<Record<string, number>>({})
-  const [paymentNotes, setPaymentNotes] = useState<Record<string, string>>({})
   const [processedPaymentIds, setProcessedPaymentIds] = useState<string[]>([])
   const [showVoucherOptions, setShowVoucherOptions] = useState(false)
   const [generatingVouchers, setGeneratingVouchers] = useState(false)
@@ -76,17 +74,6 @@ export function BatchPaymentModal({
         setEntries(entriesList)
         setSlipsCaptured(data.slipsCaptured ?? 0)
         setTotalEntries(data.totalEntries ?? entriesList.length)
-
-        // Initialize payment amounts from captured payslip totalEarnings when available
-        const amounts: Record<string, number> = {}
-        entriesList.forEach((entry: PayrollEntry) => {
-          if (!entry.payment) {
-            // Use totalEarnings from captured payslip as the authoritative payment amount.
-            // Fall back to grossPay (computed) only when payslips haven't been captured yet.
-            amounts[entry.id] = entry.slipTotalEarnings != null ? entry.slipTotalEarnings : entry.grossPay
-          }
-        })
-        setPaymentAmounts(amounts)
       } else {
         const error = await response.json()
         customAlert({
@@ -126,14 +113,6 @@ export function BatchPaymentModal({
       // Select all eligible
       setSelectedEntries(new Set(eligibleEntries.map((e) => e.id)))
     }
-  }
-
-  const handleAmountChange = (entryId: string, amount: number) => {
-    setPaymentAmounts((prev) => ({ ...prev, [entryId]: amount }))
-  }
-
-  const handleNoteChange = (entryId: string, note: string) => {
-    setPaymentNotes((prev) => ({ ...prev, [entryId]: note }))
   }
 
   const handleGenerateCombinedVouchers = async () => {
@@ -201,32 +180,17 @@ export function BatchPaymentModal({
       return
     }
 
-    // Validate amounts
-    const invalidAmounts = Array.from(selectedEntries).filter((id) => {
-      const amount = paymentAmounts[id]
-      return !amount || amount <= 0
-    })
-
-    if (invalidAmounts.length > 0) {
-      customAlert({
-        title: 'Invalid Amounts',
-        message: 'All selected employees must have a payment amount greater than 0',
-        type: 'error',
-      })
-      return
-    }
-
     setSubmitting(true)
 
     try {
-      // Prepare payment data
+      // Prepare payment data — amounts are locked to slipTotalEarnings from captured payslip
       const payments = Array.from(selectedEntries).map((entryId) => {
         const entry = entries.find((e) => e.id === entryId)
         return {
           payrollEntryId: entryId,
           employeeId: entry?.employeeId,
-          amount: paymentAmounts[entryId],
-          adjustmentNote: paymentNotes[entryId] || undefined,
+          amount: entry?.slipTotalEarnings ?? entry?.grossPay ?? 0,
+          netAmount: entry?.nettPay ?? null,
         }
       })
 
@@ -252,7 +216,6 @@ export function BatchPaymentModal({
 
         // Reset selections
         setSelectedEntries(new Set())
-        setPaymentNotes({})
 
         if (onSuccess) {
           onSuccess()
@@ -309,12 +272,13 @@ export function BatchPaymentModal({
     )
   }
 
-  const eligibleEntries = entries.filter((e) => !e.payment)
+  const eligibleEntries = entries.filter((e) => !e.payment && e.slipCaptured)
+  const awaitingEntries = entries.filter((e) => !e.payment && !e.slipCaptured)
   const paidEntries = entries.filter((e) => e.payment)
-  const totalSelectedAmount = Array.from(selectedEntries).reduce(
-    (sum, id) => sum + (paymentAmounts[id] || 0),
-    0
-  )
+  const totalSelectedAmount = Array.from(selectedEntries).reduce((sum, id) => {
+    const entry = entries.find((e) => e.id === id)
+    return sum + (entry?.slipTotalEarnings ?? entry?.grossPay ?? 0)
+  }, 0)
 
   if (!isOpen) return null
 
@@ -480,53 +444,65 @@ export function BatchPaymentModal({
                                 </div>
                               </div>
                               <div className="text-right">
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                  {entry.slipCaptured ? 'Total Earnings (from payslip)' : 'Gross Pay ⚠'}
-                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Earnings (from payslip)</p>
                                 <p className="text-lg font-bold text-green-600 dark:text-green-400">
-                                  {formatCurrency(entry.slipTotalEarnings != null ? entry.slipTotalEarnings : entry.grossPay)}
+                                  {formatCurrency(entry.slipTotalEarnings ?? entry.grossPay)}
                                 </p>
                               </div>
                             </div>
 
-                            {/* Payment Details - Show when selected */}
+                            {/* Payment breakdown - read-only, shown when selected */}
                             {selectedEntries.has(entry.id) && (
-                              <div className="mt-3 space-y-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                                <div className="grid grid-cols-2 gap-4">
+                              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                <div className="flex items-center gap-6 text-sm">
                                   <div>
-                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                      Payment Amount
-                                    </label>
-                                    <div className="relative">
-                                      <span className="absolute left-3 top-2 text-gray-500 dark:text-gray-400">$</span>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={paymentAmounts[entry.id] || ''}
-                                        onChange={(e) => handleAmountChange(entry.id, e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                                        className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100"
-                                        placeholder="0.00"
-                                      />
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Net Pay (to employee)</p>
+                                    <p className="font-bold text-green-600 dark:text-green-400">
+                                      {formatCurrency(entry.nettPay ?? entry.slipTotalEarnings ?? 0)}
+                                    </p>
+                                  </div>
+                                  {entry.nettPay != null && entry.slipTotalEarnings != null && entry.nettPay !== entry.slipTotalEarnings && (
+                                    <div>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">Gross (payroll debit)</p>
+                                      <p className="text-gray-700 dark:text-gray-300">{formatCurrency(entry.slipTotalEarnings)}</p>
                                     </div>
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                      Adjustment Note (optional)
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={paymentNotes[entry.id] || ''}
-                                      onChange={(e) => handleNoteChange(entry.id, e.target.value)}
-                                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100"
-                                      placeholder="Reason for adjustment"
-                                    />
-                                  </div>
+                                  )}
+                                  <p className="text-xs text-gray-400 italic">Amounts are locked from captured payslip</p>
                                 </div>
                               </div>
                             )}
                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Awaiting Payslip */}
+              {awaitingEntries.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                    Awaiting Payslip ({awaitingEntries.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {awaitingEntries.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="border border-amber-200 dark:border-amber-700 rounded-lg p-4 bg-amber-50 dark:bg-amber-900/10 opacity-70"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-gray-100">{entry.employeeName}</h4>
+                            <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              <span>ID: {entry.employeeNumber}</span>
+                              <span>•</span>
+                              <span>NID: {entry.nationalId}</span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                            ⚠ Capture payslip first
+                          </p>
                         </div>
                       </div>
                     ))}

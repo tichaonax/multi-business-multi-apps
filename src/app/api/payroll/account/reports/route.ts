@@ -3,6 +3,17 @@ import { prisma } from '@/lib/prisma'
 import { getGlobalPayrollAccount } from '@/lib/payroll-account-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
+function paymentTypeLabel(type: string): string {
+  switch (type) {
+    case 'SALARY': return 'Salary Payment'
+    case 'LOAN_DISBURSEMENT': return 'Loan Disbursement'
+    case 'ADVANCE': return 'Salary Advance'
+    case 'BONUS': return 'Bonus Payment'
+    case 'COMMISSION': return 'Commission Payment'
+    default: return type
+  }
+}
+
 /**
  * GET /api/payroll/account/reports
  * Generate payroll payment reports with comprehensive filtering
@@ -82,7 +93,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch payments
-    const payments = await prisma.payrollPayments.findMany({
+    const payments = await prisma.payrollAccountPayments.findMany({
       where,
       include: {
         employees: {
@@ -110,7 +121,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Get total count
-    const totalCount = await prisma.payrollPayments.count({ where })
+    const totalCount = await prisma.payrollAccountPayments.count({ where })
 
     // Transform payments to report format
     const reportData = payments.map((p) => ({
@@ -239,7 +250,7 @@ export async function GET(request: NextRequest) {
             `"${p.employeeName}"`,
             p.employeeNationalId,
             p.amount.toFixed(2),
-            p.paymentType,
+            paymentTypeLabel(p.paymentType),
             new Date(p.paymentDate).toISOString().split('T')[0],
             p.status,
             p.isAdvance ? 'Yes' : 'No',

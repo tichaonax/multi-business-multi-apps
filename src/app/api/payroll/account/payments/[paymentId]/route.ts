@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { validatePaymentAmount, updatePayrollAccountBalance } from '@/lib/payroll-account-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
@@ -22,7 +23,7 @@ export async function GET(
     // TODO: Add permission check for canViewPayrollHistory
 
     // Get payment with relations
-    const payment = await prisma.payrollPayments.findUnique({
+    const payment = await prisma.payrollAccountPayments.findUnique({
       where: { id: paymentId },
       include: {
         employees: {
@@ -38,22 +39,6 @@ export async function GET(
         users_created: {
           select: { id: true, name: true, email: true },
         },
-        users_signed: {
-          select: { id: true, name: true, email: true },
-        },
-        users_completed: {
-          select: { id: true, name: true, email: true },
-        },
-        payroll_entries: {
-          select: {
-            id: true,
-            netPay: true,
-            grossPay: true,
-            payPeriodStart: true,
-            payPeriodEnd: true,
-          },
-        },
-        payment_vouchers: true,
       },
     })
 
@@ -75,27 +60,15 @@ export async function GET(
           nationalId: payment.employees.nationalId,
         },
         amount: Number(payment.amount),
-        originalAmount: payment.originalAmount ? Number(payment.originalAmount) : null,
-        adjustmentNote: payment.adjustmentNote,
+        notes: payment.notes,
         paymentType: payment.paymentType,
         paymentDate: payment.paymentDate,
-        paymentSchedule: payment.paymentSchedule,
         status: payment.status,
         isAdvance: payment.isAdvance,
         isLocked: payment.isLocked,
-        deductions: payment.deductions,
-        commissionAmount: payment.commissionAmount
-          ? Number(payment.commissionAmount)
-          : null,
+        payrollEntryId: payment.payrollEntryId,
         createdBy: payment.users_created,
-        signedBy: payment.users_signed,
-        signedAt: payment.signedAt,
-        completedBy: payment.users_completed,
-        completedAt: payment.completedAt,
-        payrollEntry: payment.payroll_entries,
-        vouchers: payment.payment_vouchers,
         createdAt: payment.createdAt,
-        updatedAt: payment.updatedAt,
       },
     })
   } catch (error) {
@@ -131,7 +104,7 @@ export async function PATCH(
     // TODO: Add permission check for canMakePayrollPayments
 
     // Get existing payment
-    const existingPayment = await prisma.payrollPayments.findUnique({
+    const existingPayment = await prisma.payrollAccountPayments.findUnique({
       where: { id: paymentId },
     })
 
@@ -163,55 +136,20 @@ export async function PATCH(
         )
       }
 
-      // If amount is changed and different from original, require adjustment note
-      if (
-        Number(body.amount) !== Number(existingPayment.amount) &&
-        !body.adjustmentNote &&
-        !existingPayment.adjustmentNote
-      ) {
-        return NextResponse.json(
-          { error: 'Adjustment note is required when changing amount' },
-          { status: 400 }
-        )
-      }
     }
 
     // Build update data
-    const updateData: any = {
-      updatedAt: new Date(),
-    }
+    const updateData: any = { updatedAt: new Date() }
 
-    if (body.amount !== undefined) {
-      updateData.amount = Number(body.amount)
-      updateData.originalAmount =
-        existingPayment.originalAmount || existingPayment.amount
+    if (body.amount !== undefined) updateData.amount = Number(body.amount)
+    if (body.notes !== undefined || body.adjustmentNote !== undefined) {
+      updateData.notes = body.notes ?? body.adjustmentNote ?? null
     }
-
-    if (body.adjustmentNote !== undefined) {
-      updateData.adjustmentNote = body.adjustmentNote
-    }
-
-    if (body.paymentType !== undefined) {
-      updateData.paymentType = body.paymentType
-    }
-
-    if (body.paymentSchedule !== undefined) {
-      updateData.paymentSchedule = body.paymentSchedule
-    }
-
-    if (body.deductions !== undefined) {
-      updateData.deductions = body.deductions
-    }
-
-    if (body.commissionAmount !== undefined) {
-      updateData.commissionAmount = body.commissionAmount
-        ? Number(body.commissionAmount)
-        : null
-    }
+    if (body.paymentType !== undefined) updateData.paymentType = body.paymentType
 
     // Update payment in transaction
-    const result = await prisma.$transaction(async (tx) => {
-      const updatedPayment = await tx.payrollPayments.update({
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const updatedPayment = await tx.payrollAccountPayments.update({
         where: { id: paymentId },
         data: updateData,
         include: {
@@ -249,10 +187,7 @@ export async function PATCH(
             `${result.payment.employees.firstName} ${result.payment.employees.lastName}`,
         },
         amount: Number(result.payment.amount),
-        originalAmount: result.payment.originalAmount
-          ? Number(result.payment.originalAmount)
-          : null,
-        adjustmentNote: result.payment.adjustmentNote,
+        notes: result.payment.notes,
         paymentType: result.payment.paymentType,
         status: result.payment.status,
         updatedAt: result.payment.updatedAt,
@@ -289,7 +224,7 @@ export async function DELETE(
     // TODO: Add permission check for canMakePayrollPayments
 
     // Get existing payment
-    const existingPayment = await prisma.payrollPayments.findUnique({
+    const existingPayment = await prisma.payrollAccountPayments.findUnique({
       where: { id: paymentId },
     })
 
@@ -309,14 +244,14 @@ export async function DELETE(
     }
 
     // Delete payment in transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Delete associated vouchers first (if any)
       await tx.payrollPaymentVouchers.deleteMany({
         where: { paymentId },
       })
 
       // Delete payment
-      await tx.payrollPayments.delete({
+      await tx.payrollAccountPayments.delete({
         where: { id: paymentId },
       })
 

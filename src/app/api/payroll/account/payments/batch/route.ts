@@ -110,11 +110,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if entries already have payments
+    // Check if entries already have salary payments
     const entryIds = payments.map((p) => p.payrollEntryId)
-    const existingPayments = await prisma.payrollPayments.findMany({
+    const existingPayments = await prisma.payrollAccountPayments.findMany({
       where: {
         payrollEntryId: { in: entryIds },
+        paymentType: 'SALARY',
         isAdvance: false,
       },
       select: { payrollEntryId: true },
@@ -134,14 +135,14 @@ export async function POST(request: NextRequest) {
       const createdPayments = []
 
       for (const payment of payments) {
-        const paymentRecord = await tx.payrollPayments.create({
+        const paymentRecord = await tx.payrollAccountPayments.create({
           data: {
             payrollAccountId: payrollAccount.id,
             employeeId: payment.employeeId,
             payrollEntryId: payment.payrollEntryId,
             amount: Number(payment.amount),
-            originalAmount: Number(payment.amount),
-            adjustmentNote: payment.adjustmentNote || null,
+            netAmount: payment.netAmount != null ? Number(payment.netAmount) : null,
+            notes: payment.adjustmentNote || null,
             paymentType: 'SALARY',
             status: 'PENDING',
             isAdvance: false,
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Update payroll account balance
-      const paymentsSum = await tx.payrollPayments.aggregate({
+      const paymentsSum = await tx.payrollAccountPayments.aggregate({
         where: { payrollAccountId: payrollAccount.id },
         _sum: { amount: true },
       })
