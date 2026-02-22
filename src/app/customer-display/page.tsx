@@ -311,8 +311,10 @@ function CustomerDisplayContent() {
         break
 
       case 'PAYMENT_STARTED':
-        // Payment started - show cart with "Payment in Progress"
+        // Payment started - clear any pending reward messages and show payment in progress
         console.log('[CustomerDisplay] Payment started')
+        setCart(prev => ({ ...prev, rewardAvailableMessage: undefined }))
+        setCustomerRewardMessage(null)
         setPaymentState({
           inProgress: true,
           amountTendered: 0,
@@ -658,10 +660,10 @@ function CustomerDisplayContent() {
             )}
           </div>
 
-          {/* Reward message strip — bottom of banner */}
-          {customerRewardMessage && (
+          {/* Reward applied confirmation — only show green "applied" in banner, yellow strip is in cart */}
+          {customerRewardMessage && customerRewardApplied && (
             <div className="mt-2 text-center">
-              <p className={`text-2xl font-bold animate-pulse ${customerRewardApplied ? 'text-green-300' : 'text-yellow-300'}`}>
+              <p className="text-2xl font-bold animate-pulse text-green-300">
                 {customerRewardMessage}
               </p>
             </div>

@@ -407,9 +407,9 @@ export default function RestaurantPOS() {
       : 0
     const discountedTotal = Math.max(0, total - rewardCredit)
 
-    // Build reward available hint (shown in cart when reward exists but not yet applied)
+    // Build reward available hint (shown in cart when reward exists but not yet applied and payment not started)
     let rewardAvailableMessage: string | undefined
-    if (appliedReward && skipRewardThisTime) {
+    if (appliedReward && skipRewardThisTime && !showPaymentModal) {
       const parts = [
         Number(appliedReward.rewardAmount) > 0 && `$${Number(appliedReward.rewardAmount).toFixed(2)} reward`,
         appliedReward.rewardProduct && `Free ${appliedReward.rewardProduct.name}`,
@@ -477,7 +477,7 @@ export default function RestaurantPOS() {
     }, 3000)
 
     return () => clearInterval(syncInterval)
-  }, [cart, currentBusinessId, taxIncludedInPrice, taxRate, appliedReward, skipRewardThisTime])
+  }, [cart, currentBusinessId, taxIncludedInPrice, taxRate, appliedReward, skipRewardThisTime, showPaymentModal])
 
   // Broadcast payment amount updates to customer display
   useEffect(() => {
@@ -487,7 +487,8 @@ export default function RestaurantPOS() {
     const tax = taxIncludedInPrice
       ? subtotal * (taxRate / (100 + taxRate))
       : subtotal * (taxRate / 100)
-    const total = taxIncludedInPrice ? subtotal : subtotal + tax
+    const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
+    const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
     const tendered = parseFloat(amountReceived) || 0
 
     sendToDisplay('PAYMENT_AMOUNT', {
@@ -1611,12 +1612,13 @@ export default function RestaurantPOS() {
       return
     }
 
-    // Calculate totals for payment broadcast
+    // Calculate totals for payment broadcast (must match component-level total with discounts)
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     const tax = taxIncludedInPrice
       ? subtotal * (taxRate / (100 + taxRate))
       : subtotal * (taxRate / 100)
-    const total = taxIncludedInPrice ? subtotal : subtotal + tax
+    const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
+    const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
 
     // Broadcast payment started to customer display
     sendToDisplay('PAYMENT_STARTED', {
