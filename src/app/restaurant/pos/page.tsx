@@ -141,7 +141,8 @@ export default function RestaurantPOS() {
   const toast = useToastContext()
 
   // Global cart context for mini cart sync
-  const { clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
+  const { cart: globalCart, clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
+  const syncingFromPOS = useRef(false)
 
   // Get or create terminal ID for this POS instance
   const [terminalId] = useState(() => {
@@ -219,6 +220,7 @@ export default function RestaurantPOS() {
     if (!currentBusinessId || !cartLoaded) return
 
     try {
+      syncingFromPOS.current = true
       // Replace global cart to match POS cart exactly
       const globalCartItems = cart.map(item => ({
         productId: item.id,
@@ -237,8 +239,24 @@ export default function RestaurantPOS() {
       replaceGlobalCart(globalCartItems)
     } catch (error) {
       console.error('❌ [Restaurant POS] Failed to sync to global cart:', error)
+    } finally {
+      setTimeout(() => { syncingFromPOS.current = false }, 50)
     }
   }, [cart, currentBusinessId, cartLoaded, replaceGlobalCart])
+
+  // Sync global cart → POS cart when mini cart removes or clears items
+  useEffect(() => {
+    if (!currentBusinessId || !cartLoaded || syncingFromPOS.current) return
+
+    if (globalCart.length === 0) {
+      setCart([])
+    } else {
+      setCart(prev => prev.filter(item => {
+        const variantId = item.variants?.[0]?.id || item.id
+        return globalCart.some(g => g.variantId === variantId)
+      }))
+    }
+  }, [globalCart, currentBusinessId, cartLoaded])
 
   // Broadcast cart state to customer display after cart is loaded
   useEffect(() => {
