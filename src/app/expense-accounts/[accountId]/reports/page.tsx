@@ -8,7 +8,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { ExpenseAccountReports } from '@/components/expense-account/expense-account-reports'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
 interface ExpenseAccount {
@@ -23,9 +23,11 @@ export default function ExpenseAccountReportsPage() {
   const params = useParams()
   const accountId = params.accountId as string
 
+  const { hasPermission, loading: permissionsLoading } = useBusinessPermissionsContext()
+  const canViewExpenseReports = hasPermission('canViewExpenseReports')
+
   const [account, setAccount] = useState<ExpenseAccount | null>(null)
   const [loading, setLoading] = useState(true)
-  const [canViewExpenseReports, setCanViewExpenseReports] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -34,26 +36,16 @@ export default function ExpenseAccountReportsPage() {
   }, [status, router])
 
   useEffect(() => {
+    if (!permissionsLoading && !canViewExpenseReports) {
+      router.push(`/expense-accounts/${accountId}`)
+    }
+  }, [permissionsLoading, canViewExpenseReports, accountId, router])
+
+  useEffect(() => {
     if (session?.user && accountId) {
-      checkPermissions()
       loadAccount()
     }
   }, [session, accountId])
-
-  const checkPermissions = async () => {
-    try {
-      const permissions = getEffectivePermissions(session?.user)
-
-      setCanViewExpenseReports(permissions.canViewExpenseReports || false)
-
-      if (!permissions.canViewExpenseReports) {
-        router.push(`/expense-accounts/${accountId}`)
-      }
-    } catch (error) {
-      console.error('Error checking permissions:', error)
-      router.push('/expense-accounts')
-    }
-  }
 
   const loadAccount = async () => {
     try {
@@ -76,7 +68,7 @@ export default function ExpenseAccountReportsPage() {
     }
   }
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading' || loading || permissionsLoading) {
     return (
       <ContentLayout title="Expense Reports">
         <div className="flex items-center justify-center h-64">

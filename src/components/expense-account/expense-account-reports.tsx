@@ -50,6 +50,21 @@ interface ReportData {
     depositCount: number
     percentage: number
   }>
+  byFundSource?: Array<{
+    sourceId: string
+    sourceName: string
+    sourceEmoji: string
+    totalAmount: number
+    depositCount: number
+    percentage: number
+    subSources: Array<{
+      sourceId: string
+      sourceName: string
+      sourceEmoji: string
+      totalAmount: number
+      depositCount: number
+    }>
+  }>
   incomeVsExpenses?: Array<{
     month: string
     income: number
@@ -175,7 +190,7 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
     )
   }
 
-  const { byCategory, byPayee, trends, summary, accountType, byDepositSource, incomeVsExpenses } = reportData
+  const { byCategory, byPayee, trends, summary, accountType, byDepositSource, byFundSource, incomeVsExpenses } = reportData
   const isPersonal = accountType === 'PERSONAL'
 
   return (
@@ -447,6 +462,38 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Fund Sources breakdown */}
+          {byFundSource && byFundSource.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Deposits by Sender</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Breakdown of who sent funds, with courier detail</p>
+              <div className="space-y-4">
+                {byFundSource.map((src, i) => (
+                  <div key={src.sourceId} className="border border-border rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{src.sourceEmoji}</span>
+                      <span className="font-semibold text-primary flex-1">{src.sourceName}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{src.depositCount} deposit{src.depositCount !== 1 ? 's' : ''}</span>
+                      <span className="font-bold text-green-700 dark:text-green-400">{formatCurrency(src.totalAmount)}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 w-10 text-right">{src.percentage.toFixed(1)}%</span>
+                    </div>
+                    {src.subSources.length > 0 && (
+                      <div className="mt-2 pl-7 space-y-1">
+                        {src.subSources.map((sub) => (
+                          <div key={sub.sourceId} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <span>via {sub.sourceEmoji} {sub.sourceName}</span>
+                            <span className="flex-1 border-b border-dashed border-gray-200 dark:border-gray-600 mx-1" />
+                            <span className="font-medium">{formatCurrency(sub.totalAmount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}

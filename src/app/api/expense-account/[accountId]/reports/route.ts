@@ -259,6 +259,10 @@ export async function GET(
           sourceType: true,
           depositSourceId: true,
           depositSource: { select: { id: true, name: true, emoji: true } },
+          fundSourceId: true,
+          subSourceId: true,
+          fundSource: { select: { id: true, name: true, emoji: true } },
+          subSource: { select: { id: true, name: true, emoji: true } },
         },
       })
 
@@ -279,6 +283,52 @@ export async function GET(
       byDepositSource = Array.from(sourceMap.values())
         .map((s) => ({ ...s, percentage: totalDepositAmount > 0 ? (s.totalAmount / totalDepositAmount) * 100 : 0 }))
         .sort((a, b) => b.totalAmount - a.totalAmount)
+
+      // By fund source (primary sender, with sub-source breakdown)
+      const fundSourceMap = new Map<string, any>()
+      deposits.forEach((d) => {
+        if (!d.fundSourceId || !d.fundSource) return
+        const key = d.fundSourceId
+        if (!fundSourceMap.has(key)) {
+          fundSourceMap.set(key, {
+            sourceId: key,
+            sourceName: d.fundSource.name,
+            sourceEmoji: d.fundSource.emoji,
+            totalAmount: 0,
+            depositCount: 0,
+            percentage: 0,
+            subSources: new Map<string, any>(),
+          })
+        }
+        const entry = fundSourceMap.get(key)!
+        entry.totalAmount += Number(d.amount)
+        entry.depositCount++
+        if (d.subSourceId && d.subSource) {
+          const subKey = d.subSourceId
+          if (!entry.subSources.has(subKey)) {
+            entry.subSources.set(subKey, {
+              sourceId: subKey,
+              sourceName: d.subSource.name,
+              sourceEmoji: d.subSource.emoji,
+              totalAmount: 0,
+              depositCount: 0,
+            })
+          }
+          const sub = entry.subSources.get(subKey)!
+          sub.totalAmount += Number(d.amount)
+          sub.depositCount++
+        }
+      })
+      const totalDepositWithSource = Array.from(fundSourceMap.values()).reduce((s, e) => s + e.totalAmount, 0)
+      const byFundSource = Array.from(fundSourceMap.values()).map((e) => ({
+        sourceId: e.sourceId,
+        sourceName: e.sourceName,
+        sourceEmoji: e.sourceEmoji,
+        totalAmount: e.totalAmount,
+        depositCount: e.depositCount,
+        percentage: totalDepositWithSource > 0 ? (e.totalAmount / totalDepositWithSource) * 100 : 0,
+        subSources: Array.from(e.subSources.values()),
+      })).sort((a, b) => b.totalAmount - a.totalAmount)
 
       // Income vs expenses by month
       const monthSet = new Map<string, { month: string; income: number; expenses: number }>()
@@ -305,7 +355,7 @@ export async function GET(
         trends,
         summary,
         accountType: account.accountType,
-        ...(account.accountType === 'PERSONAL' && { byDepositSource, incomeVsExpenses }),
+        ...(account.accountType === 'PERSONAL' && { byDepositSource, byFundSource, incomeVsExpenses }),
       },
     })
   } catch (error) {

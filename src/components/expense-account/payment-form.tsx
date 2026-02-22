@@ -5,6 +5,7 @@ import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { PayeeSelector } from './payee-selector'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
+import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { CreateCategoryModal } from './create-category-modal'
 import { PaymentBatchList } from './payment-batch-list'
@@ -321,6 +322,7 @@ export function PaymentForm({
   const [submitting, setSubmitting] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
   const [showSupplierModal, setShowSupplierModal] = useState(false)
+  const [showContractorModal, setShowContractorModal] = useState(false)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [showCreateSubcategory, setShowCreateSubcategory] = useState(false)
   const [showCreateSubSubcategory, setShowCreateSubSubcategory] = useState(false)
@@ -469,6 +471,8 @@ export function PaymentForm({
             data.domains.forEach((domain: any) => {
               if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
                 domain.expense_categories.forEach((cat: any) => {
+                  // If account has no business, skip business-type domain categories
+                  if (!businessId && cat.isDomainCategory) return
                   flattenedCategories.push({
                     id: cat.id,
                     name: cat.name,
@@ -917,6 +921,20 @@ export function PaymentForm({
     }
   }
 
+  const handleCreateContractorSuccess = (payload: any) => {
+    if (payload.payee) {
+      setFormData({
+        ...formData,
+        payee: {
+          type: 'PERSON',
+          id: payload.payee.id,
+          name: payload.payee.fullName
+        }
+      })
+      setPayeeRefreshTrigger(prev => prev + 1)
+    }
+  }
+
   const handleCreateSupplierSuccess = async (supplierId?: string) => {
     setShowSupplierModal(false)
     if (!supplierId) {
@@ -1099,6 +1117,7 @@ export function PaymentForm({
                 }}
                 onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
                 onCreateSupplier={canCreatePayees ? () => setShowSupplierModal(true) : undefined}
+                onCreateContractor={canCreatePayees ? () => setShowContractorModal(true) : undefined}
                 error={errors.payee}
                 refreshTrigger={payeeRefreshTrigger}
               />
@@ -1581,6 +1600,14 @@ export function PaymentForm({
         onClose={() => setShowIndividualModal(false)}
         onSuccess={handleCreateIndividualSuccess}
         onError={(error) => console.error('Create individual error:', error)}
+      />
+
+      {/* Create Contractor Payee Modal */}
+      <CreateContractorPayeeModal
+        isOpen={showContractorModal}
+        onClose={() => setShowContractorModal(false)}
+        onSuccess={handleCreateContractorSuccess}
+        onError={(error) => console.error('Create contractor error:', error)}
       />
 
       {/* Create Supplier Modal */}

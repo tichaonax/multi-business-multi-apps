@@ -1353,10 +1353,16 @@ model ExpenseAccountDeposits {
   transactionType       String?
   createdBy             String
   createdAt             DateTime               @default(now())
+  fundSourceId          String?
+  subSourceId           String?
+  fundSourceNote        String?
+  subSourceNote         String?
   creator               Users                  @relation("ExpenseAccountDepositCreator", fields: [createdBy], references: [id])
   expenseAccount        ExpenseAccounts        @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
   sourceBusiness        Businesses?            @relation("ExpenseAccountDepositSource", fields: [sourceBusinessId], references: [id])
   depositSource         PersonalDepositSources? @relation(fields: [depositSourceId], references: [id])
+  fundSource            FundSources?           @relation("PrimaryFundSource", fields: [fundSourceId], references: [id])
+  subSource             FundSources?           @relation("SubFundSource", fields: [subSourceId], references: [id])
 
   @@index([expenseAccountId, depositDate])
   @@index([sourceBusinessId])
@@ -1689,15 +1695,21 @@ model InventorySubcategories {
 }
 
 model FundSources {
-  id         String   @id @default(uuid())
-  name       String
-  emoji      String?  @default("💰")
-  createdAt  DateTime @default(now())
-  isDefault  Boolean  @default(false)
-  usageCount Int      @default(0)
-  userId     String?
-  users      Users?   @relation(fields: [userId], references: [id])
+  id          String   @id @default(uuid())
+  name        String
+  emoji       String   @default("👤")
+  description String?
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  usageCount  Int      @default(0)
+  userId      String?
+  createdAt   DateTime @default(now())
 
+  users             Users?                   @relation(fields: [userId], references: [id])
+  deposits          ExpenseAccountDeposits[] @relation("PrimaryFundSource")
+  subSourceDeposits ExpenseAccountDeposits[] @relation("SubFundSource")
+
+  @@index([userId])
   @@map("fund_sources")
 }
 
@@ -2399,6 +2411,7 @@ model Persons {
   updatedAt                         DateTime                 @default(now())
   driverLicenseNumber               String?
   driverLicenseTemplateId           String?
+  taxId                             String?
   expense_account_payments_as_payee ExpenseAccountPayments[] @relation("ExpensePaymentPayeePerson")
   loans_as_borrower                 InterBusinessLoans[]     @relation("loans_as_borrower")
   loans_as_lender                   InterBusinessLoans[]     @relation("loans_as_lender")

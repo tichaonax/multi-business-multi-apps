@@ -10,11 +10,14 @@ interface Payee {
   email?: string
 }
 
+type PayeeFilter = 'ALL' | 'INDIVIDUAL' | 'SUPPLIER' | 'CONTRACTOR'
+
 interface PayeeSelectorProps {
   value?: { type: string; id: string } | null
   onChange: (payee: { type: string; id: string; name: string } | null) => void
   onCreateIndividual?: (query?: string) => void
   onCreateSupplier?: (query?: string) => void
+  onCreateContractor?: (query?: string) => void
   disabled?: boolean
   error?: string
   refreshTrigger?: number  // Increment this to trigger a refresh
@@ -25,6 +28,7 @@ export function PayeeSelector({
   onChange,
   onCreateIndividual,
   onCreateSupplier,
+  onCreateContractor,
   disabled = false,
   error,
   refreshTrigger = 0
@@ -34,10 +38,12 @@ export function PayeeSelector({
     EMPLOYEE: [],
     PERSON: [],
     BUSINESS: [],
-    SUPPLIER: []
+    SUPPLIER: [],
+    CONTRACTOR: []
   })
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeFilter, setActiveFilter] = useState<PayeeFilter>('ALL')
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -61,7 +67,8 @@ export function PayeeSelector({
           EMPLOYEE: data.data.employees || [],
           PERSON: data.data.persons || [],
           BUSINESS: data.data.businesses || [],
-          SUPPLIER: data.data.suppliers || []
+          SUPPLIER: data.data.suppliers || [],
+          CONTRACTOR: data.data.contractors || []
         })
       }
     } catch (error) {
@@ -76,6 +83,7 @@ export function PayeeSelector({
 
     const typePayees = payees[value.type as keyof typeof payees] || []
     const selected = typePayees.find(p => p.id === value.id)
+      || (value.type === 'PERSON' ? payees.CONTRACTOR.find(p => p.id === value.id) : null)
 
     if (!selected) {
       // If the selected payee isn't yet in the loaded payee lists (e.g., newly created),
@@ -96,7 +104,9 @@ export function PayeeSelector({
       return 'Select a payee...'
     }
 
-    const badge = getTypeBadge(selected.type)
+    // Show "Contractor" badge if the selected person is in the contractors list
+    const isContractor = value.type === 'PERSON' && payees.CONTRACTOR.some(c => c.id === value.id)
+    const badge = getTypeBadge(isContractor ? 'CONTRACTOR' : selected.type)
     const identifier = selected.identifier ? ` (${selected.identifier})` : ''
 
     return (
@@ -115,7 +125,8 @@ export function PayeeSelector({
       EMPLOYEE: { label: 'Employee', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
       PERSON: { label: 'Individual', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
       BUSINESS: { label: 'Business', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
-      SUPPLIER: { label: 'Supplier', className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' }
+      SUPPLIER: { label: 'Supplier', className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
+      CONTRACTOR: { label: 'Contractor', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' }
     }
     return badges[type] || { label: type, className: 'bg-gray-100 text-gray-800' }
   }
@@ -208,7 +219,7 @@ export function PayeeSelector({
           className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-96 overflow-hidden"
         >
           {/* Search Input */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700 space-y-2">
             <input
               type="text"
               value={searchQuery}
@@ -217,6 +228,23 @@ export function PayeeSelector({
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               autoFocus
             />
+            {/* Type filter chips */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {(['ALL', 'INDIVIDUAL', 'SUPPLIER', 'CONTRACTOR'] as PayeeFilter[]).map(filter => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setActiveFilter(filter)}
+                  className={`px-2 py-0.5 text-xs rounded-full font-medium transition-colors ${
+                    activeFilter === filter
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {filter === 'ALL' ? 'All' : filter.charAt(0) + filter.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Payee List */}
@@ -227,8 +255,8 @@ export function PayeeSelector({
               </div>
             ) : (
               <>
-                {/* Users */}
-                {filterPayees(payees.USER).length > 0 && (
+                {/* Users — hidden when filtering by type */}
+                {activeFilter === 'ALL' && filterPayees(payees.USER).length > 0 && (
                   <div>
                     <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Users
@@ -254,8 +282,8 @@ export function PayeeSelector({
                   </div>
                 )}
 
-                {/* Employees */}
-                {filterPayees(payees.EMPLOYEE).length > 0 && (
+                {/* Employees — hidden when filtering by type */}
+                {activeFilter === 'ALL' && filterPayees(payees.EMPLOYEE).length > 0 && (
                   <div>
                     <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Employees
@@ -282,7 +310,7 @@ export function PayeeSelector({
                 )}
 
                 {/* Individuals/Persons */}
-                {filterPayees(payees.PERSON).length > 0 && (
+                {(activeFilter === 'ALL' || activeFilter === 'INDIVIDUAL') && filterPayees(payees.PERSON).length > 0 && (
                   <div>
                     <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Individuals
@@ -308,8 +336,8 @@ export function PayeeSelector({
                   </div>
                 )}
 
-                {/* Businesses */}
-                {filterPayees(payees.BUSINESS).length > 0 && (
+                {/* Businesses — hidden when filtering by type */}
+                {activeFilter === 'ALL' && filterPayees(payees.BUSINESS).length > 0 && (
                   <div>
                     <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Businesses
@@ -336,7 +364,7 @@ export function PayeeSelector({
                 )}
 
                 {/* Suppliers */}
-                {filterPayees(payees.SUPPLIER).length > 0 && (
+                {(activeFilter === 'ALL' || activeFilter === 'SUPPLIER') && filterPayees(payees.SUPPLIER).length > 0 && (
                   <div>
                     <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Suppliers
@@ -356,6 +384,33 @@ export function PayeeSelector({
                         </div>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('SUPPLIER').className}`}>
                           {getTypeBadge('SUPPLIER').label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Contractors */}
+                {(activeFilter === 'ALL' || activeFilter === 'CONTRACTOR') && filterPayees(payees.CONTRACTOR).length > 0 && (
+                  <div>
+                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Contractors
+                    </div>
+                    {filterPayees(payees.CONTRACTOR).map(payee => (
+                      <button
+                        key={payee.id}
+                        type="button"
+                        onClick={() => handleSelect('PERSON', payee)}
+                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{payee.name}</div>
+                          {payee.identifier && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">ID: {payee.identifier}</div>
+                          )}
+                        </div>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('CONTRACTOR').className}`}>
+                          {getTypeBadge('CONTRACTOR').label}
                         </span>
                       </button>
                     ))}
@@ -390,6 +445,18 @@ export function PayeeSelector({
                   className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium"
                 >
                   + Supplier
+                </button>
+              )}
+              {onCreateContractor && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false)
+                    onCreateContractor(searchQuery)
+                  }}
+                  className="text-sm text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-medium"
+                >
+                  + Contractor
                 </button>
               )}
             </div>

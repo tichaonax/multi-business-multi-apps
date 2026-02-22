@@ -110,6 +110,12 @@ export async function GET(
               depositSource: {
                 select: { id: true, name: true, emoji: true },
               },
+              fundSource: {
+                select: { id: true, name: true, emoji: true },
+              },
+              subSource: {
+                select: { id: true, name: true, emoji: true },
+              },
               creator: {
                 select: { id: true, name: true, email: true },
               },
@@ -201,6 +207,10 @@ export async function GET(
         sourceType: deposit.sourceType,
         sourceBusiness: deposit.sourceBusiness,
         depositSource: (deposit as any).depositSource || null,
+        fundSource: (deposit as any).fundSource || null,
+        subSource: (deposit as any).subSource || null,
+        fundSourceNote: (deposit as any).fundSourceNote || null,
+        subSourceNote: (deposit as any).subSourceNote || null,
         transactionType: deposit.transactionType,
         category, // Add category for display
         createdBy: deposit.creator,

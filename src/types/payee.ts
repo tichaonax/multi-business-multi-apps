@@ -71,6 +71,7 @@ export interface CreateIndividualPayeeInput {
   phone?: string
   email?: string
   address?: string
+  taxId?: string
 }
 
 // Grouped Payees (for dropdown/selector UI)

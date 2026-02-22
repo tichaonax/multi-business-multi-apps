@@ -12,9 +12,9 @@ import { formatPayeeDisplayName } from '@/types/payee'
 export async function getAllAvailablePayees(
   userId?: string,
   businessId?: string
-): Promise<GroupedPayees & { suppliers: any[] }> {
+): Promise<GroupedPayees & { suppliers: any[]; contractors: any[] }> {
   // Fetch all payee types in parallel
-  const [users, employees, persons, businesses, suppliers] = await Promise.all([
+  const [users, employees, persons, contractors, businesses, suppliers] = await Promise.all([
     // Get active users
     prisma.users.findMany({
       where: { isActive: true },
@@ -54,9 +54,23 @@ export async function getAllAvailablePayees(
       orderBy: { fullName: 'asc' },
     }),
 
-    // Get active persons (contractors/individuals)
+    // Get active persons who are NOT contractors (no project_contractors assignments)
     prisma.persons.findMany({
-      where: { isActive: true },
+      where: { isActive: true, project_contractors: { none: {} } },
+      select: {
+        id: true,
+        fullName: true,
+        nationalId: true,
+        phone: true,
+        email: true,
+        address: true,
+      },
+      orderBy: { fullName: 'asc' },
+    }),
+
+    // Get active contractors (persons WITH project_contractors assignments)
+    prisma.persons.findMany({
+      where: { isActive: true, project_contractors: { some: {} } },
       select: {
         id: true,
         fullName: true,
@@ -183,6 +197,22 @@ export async function getAllAvailablePayees(
       phone: supplier.phone,
       email: supplier.email,
       businessType: supplier.businessType,
+    })),
+
+    contractors: contractors.map((person) => ({
+      id: person.id,
+      type: 'PERSON' as const, // stored as PERSON in DB
+      name: person.fullName,
+      displayName: person.nationalId
+        ? `${person.fullName} (${person.nationalId})`
+        : person.fullName,
+      identifier: person.nationalId || person.phone,
+      isActive: true,
+      fullName: person.fullName,
+      nationalId: person.nationalId,
+      phone: person.phone,
+      email: person.email,
+      address: person.address,
     })),
   }
 }
@@ -443,6 +473,7 @@ export async function createIndividualPayee(
         phone: data.phone?.trim() || null,
         email: data.email?.trim() || null,
         address: data.address?.trim() || null,
+        taxId: data.taxId?.trim() || null,
         isActive: true,
         createdBy,
       },
@@ -520,7 +551,7 @@ export async function getPayee(payeeType: PayeeType, payeeId: string): Promise<A
 export async function searchPayees(
   searchTerm: string,
   businessId?: string
-): Promise<GroupedPayees & { suppliers: any[] }> {
+): Promise<GroupedPayees & { suppliers: any[]; contractors: any[] }> {
   const term = searchTerm.toLowerCase().trim()
 
   if (!term) {
@@ -528,7 +559,7 @@ export async function searchPayees(
   }
 
   // Search across all payee types
-  const [users, employees, persons, businesses, suppliers] = await Promise.all([
+  const [users, employees, persons, contractors, businesses, suppliers] = await Promise.all([
     prisma.users.findMany({
       where: {
         isActive: true,
@@ -575,9 +606,33 @@ export async function searchPayees(
       orderBy: { fullName: 'asc' },
     }),
 
+    // Persons who are NOT contractors (no project_contractors)
     prisma.persons.findMany({
       where: {
         isActive: true,
+        project_contractors: { none: {} },
+        OR: [
+          { fullName: { contains: term, mode: 'insensitive' } },
+          { nationalId: { contains: term, mode: 'insensitive' } },
+          { phone: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        nationalId: true,
+        phone: true,
+        email: true,
+        address: true,
+      },
+      orderBy: { fullName: 'asc' },
+    }),
+
+    // Contractors (persons WITH project_contractors)
+    prisma.persons.findMany({
+      where: {
+        isActive: true,
+        project_contractors: { some: {} },
         OR: [
           { fullName: { contains: term, mode: 'insensitive' } },
           { nationalId: { contains: term, mode: 'insensitive' } },
@@ -704,6 +759,22 @@ export async function searchPayees(
       phone: supplier.phone,
       email: supplier.email,
       businessType: supplier.businessType,
+    })),
+
+    contractors: contractors.map((person) => ({
+      id: person.id,
+      type: 'PERSON' as const,
+      name: person.fullName,
+      displayName: person.nationalId
+        ? `${person.fullName} (${person.nationalId})`
+        : person.fullName,
+      identifier: person.nationalId || person.phone,
+      isActive: true,
+      fullName: person.fullName,
+      nationalId: person.nationalId,
+      phone: person.phone,
+      email: person.email,
+      address: person.address,
     })),
   }
 }

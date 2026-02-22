@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
       createdBy: null,
       users: null,
       requiresSubcategory: true, // Domains typically have subcategories
+      isDomainCategory: true, // Flag: business-type-specific domain (Restaurant, Grocery, etc.)
     }));
 
     const allCategories = [...globalCategories, ...domainCategories];

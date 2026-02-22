@@ -15,6 +15,10 @@ interface Transaction {
   sourceType?: string
   sourceBusiness?: { id: string; name: string; type: string }
   depositSource?: { id: string; name: string; emoji: string }
+  fundSource?: { id: string; name: string; emoji: string }
+  subSource?: { id: string; name: string; emoji: string }
+  fundSourceNote?: string
+  subSourceNote?: string
   transactionType?: string
   // Payment-specific
   payeeType?: string
@@ -406,6 +410,15 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                         {transaction.sourceBusiness ? (
                           <span className="font-medium">{transaction.sourceBusiness.name}</span>
+                        ) : (transaction.fundSource || transaction.fundSourceNote) ? (
+                          <span className="font-medium">
+                            {transaction.fundSource ? `${transaction.fundSource.emoji} ${transaction.fundSource.name}` : transaction.fundSourceNote}
+                            {(transaction.subSource || transaction.subSourceNote) && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                                via {transaction.subSource ? `${transaction.subSource.emoji} ${transaction.subSource.name}` : transaction.subSourceNote}
+                              </span>
+                            )}
+                          </span>
                         ) : transaction.depositSource ? (
                           <span className="font-medium">{transaction.depositSource.emoji} {transaction.depositSource.name}</span>
                         ) : (
