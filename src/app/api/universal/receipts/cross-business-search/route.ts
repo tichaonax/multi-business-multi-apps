@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
         id: order.id,
         orderNumber: order.orderNumber,
         customerId: order.customerId,
-        customerName: order.business_customers?.name || 'Walk-in Customer',
+        customerName: order.business_customers?.name || (order.attributes as any)?.participantName || 'Walk-in Customer',
         totalAmount: order.totalAmount,
         businessType: order.businessType,
         paymentMethod: order.paymentMethod,

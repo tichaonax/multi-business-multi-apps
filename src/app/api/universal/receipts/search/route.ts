@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
         id: order.id,
         orderNumber: order.orderNumber,
         customerId: order.customerId,
-        customerName: order.business_customers?.name || 'Walk-in Customer',
+        customerName: order.business_customers?.name || (order.attributes as any)?.participantName || 'Walk-in Customer',
         customerPhone: order.business_customers?.phone || null,
         salespersonName: order.employees?.fullName
           || (order.attributes as any)?.employeeName
@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
         totalAmount: order.totalAmount,
         discountAmount: Number(order.discountAmount || 0),
         rewardCouponCode: (order.attributes as any)?.rewardCouponCode || null,
+        mealProgram: (order.attributes as any)?.mealProgram === true,
         businessType: order.businessType,
         paymentMethod: order.paymentMethod,
         status: order.status,

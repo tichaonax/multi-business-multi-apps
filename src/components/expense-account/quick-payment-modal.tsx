@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { OnSuccessArg } from '@/types/ui'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { useToastContext } from '@/components/ui/toast'
@@ -9,7 +9,177 @@ import { DateInput } from '@/components/ui/date-input'
 import { PayeeSelector } from './payee-selector'
 import { SearchableCategorySelector } from './searchable-category-selector'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
+import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { getTodayLocalDateString } from '@/lib/date-utils'
+
+// Searchable select dropdown (same pattern as payment-form)
+function SearchableSelect({
+  value,
+  options,
+  onChange,
+  placeholder = 'Select...',
+  disabled = false,
+  loading = false,
+}: {
+  value: string
+  options: { id: string; label: string }[]
+  onChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  loading?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const selected = options.find(o => o.id === value)
+  const filtered = search
+    ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  if (disabled && !loading) {
+    return (
+      <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed">
+        {placeholder}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-background text-secondary">
+        Loading...
+      </div>
+    )
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen)
+          if (!isOpen) setTimeout(() => inputRef.current?.focus(), 0)
+        }}
+        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-left flex items-center justify-between bg-background"
+      >
+        <span className={selected ? 'text-primary' : 'text-secondary'}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-hidden">
+          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+            <input
+              ref={inputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Type to search..."
+              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-primary"
+            />
+          </div>
+          <div className="overflow-y-auto max-h-48">
+            {value && (
+              <button type="button" onClick={() => { onChange(''); setIsOpen(false); setSearch('') }}
+                className="w-full px-3 py-2 text-left text-sm text-secondary hover:bg-gray-100 dark:hover:bg-gray-700">
+                Clear selection
+              </button>
+            )}
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-secondary">No matches found</div>
+            ) : (
+              filtered.map(option => (
+                <button key={option.id} type="button"
+                  onClick={() => { onChange(option.id); setIsOpen(false); setSearch('') }}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 ${
+                    option.id === value ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-primary'
+                  }`}>
+                  {option.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Quick inline modal for creating subcategory/sub-subcategory
+function QuickCreateModal({
+  isOpen,
+  title,
+  placeholder,
+  onClose,
+  onSubmit,
+  loading,
+}: {
+  isOpen: boolean
+  title: string
+  placeholder: string
+  onClose: () => void
+  onSubmit: (name: string, emoji: string) => void
+  loading: boolean
+}) {
+  const [name, setName] = useState('')
+  const [emoji, setEmoji] = useState('📂')
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[10001] p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-bold text-primary mb-3">{title}</h3>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={emoji}
+              onChange={(e) => setEmoji(e.target.value)}
+              className="w-14 px-2 py-2 text-xl text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
+              maxLength={2}
+            />
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-primary focus:ring-2 focus:ring-blue-500"
+              placeholder={placeholder}
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={onClose}
+              className="px-3 py-1.5 text-sm text-secondary border border-border rounded-md hover:bg-muted">
+              Cancel
+            </button>
+            <button type="button" onClick={() => { if (name.trim()) { onSubmit(name.trim(), emoji); setName(''); setEmoji('📂') } }}
+              disabled={loading || !name.trim()}
+              className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">
+              {loading ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 interface ExpenseCategory {
   id: string
@@ -57,6 +227,7 @@ interface QuickPaymentModalProps {
   canChangeCategory?: boolean
   accountType?: string
   defaultCategoryBusinessType?: string
+  businessId?: string
 }
 
 export function QuickPaymentModal({
@@ -70,12 +241,18 @@ export function QuickPaymentModal({
   canCreatePayees = false,
   canChangeCategory = true,
   accountType = 'GENERAL',
-  defaultCategoryBusinessType
+  defaultCategoryBusinessType,
+  businessId,
 }: QuickPaymentModalProps) {
   const isPersonalAccount = accountType === 'PERSONAL'
   const [loading, setLoading] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
+  const [showSupplierModal, setShowSupplierModal] = useState(false)
+  const [payeeSearchQuery, setPayeeSearchQuery] = useState('')
   const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)
+  const [showCreateSubcategory, setShowCreateSubcategory] = useState(false)
+  const [showCreateSubSubcategory, setShowCreateSubSubcategory] = useState(false)
+  const [creatingSubItem, setCreatingSubItem] = useState(false)
   const [skipPayee, setSkipPayee] = useState(false)
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingSubcategories, setLoadingSubcategories] = useState(false)
@@ -415,6 +592,57 @@ export function QuickPaymentModal({
     setShowIndividualModal(false)
   }
 
+  const handleCreateSupplierSuccess = (createdSupplierId?: string) => {
+    setPayeeRefreshTrigger(prev => prev + 1)
+    setShowSupplierModal(false)
+  }
+
+  const handleCreateSubcategory = async (name: string, emoji: string) => {
+    if (!formData.categoryId) return
+    setCreatingSubItem(true)
+    try {
+      const res = await fetch('/api/expense-categories/flat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, emoji, color: '#3B82F6', domainId: formData.categoryId, requiresSubcategory: false, isUserCreated: true }),
+      })
+      const data = await res.json()
+      if (res.ok && data.data?.category) {
+        await loadSubcategories(formData.categoryId)
+        setFormData(prev => ({ ...prev, subcategoryId: data.data.category.id, subSubcategoryId: '' }))
+        setShowCreateSubcategory(false)
+      }
+    } catch (error) {
+      console.error('Error creating subcategory:', error)
+    } finally {
+      setCreatingSubItem(false)
+    }
+  }
+
+  const handleCreateSubSubcategory = async (name: string, emoji: string) => {
+    if (!formData.subcategoryId) return
+    setCreatingSubItem(true)
+    try {
+      const res = await fetch('/api/expense-categories/subcategories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ categoryId: formData.subcategoryId, name, emoji }),
+      })
+      const data = await res.json()
+      if (res.ok && data.subcategory) {
+        await loadSubSubcategories(formData.subcategoryId)
+        setFormData(prev => ({ ...prev, subSubcategoryId: data.subcategory.id }))
+        setShowCreateSubSubcategory(false)
+      }
+    } catch (error) {
+      console.error('Error creating sub-subcategory:', error)
+    } finally {
+      setCreatingSubItem(false)
+    }
+  }
+
   const selectedCategory = categories.find(c => c.id === formData.categoryId)
 
   if (!isOpen) return null
@@ -457,7 +685,8 @@ export function QuickPaymentModal({
                   setFormData({ ...formData, payee })
                   setErrors({ ...errors, payee: '' })
                 }}
-                onCreateIndividual={canCreatePayees ? () => setShowIndividualModal(true) : undefined}
+                onCreateIndividual={canCreatePayees ? (query) => { setPayeeSearchQuery(query || ''); setShowIndividualModal(true) } : undefined}
+                onCreateSupplier={canCreatePayees && businessId ? (query) => { setPayeeSearchQuery(query || ''); setShowSupplierModal(true) } : undefined}
                 error={errors.payee}
                 refreshTrigger={payeeRefreshTrigger}
               />
@@ -488,48 +717,51 @@ export function QuickPaymentModal({
           )}
 
           {/* Subcategory Selection (if category has subcategories) */}
-          {subcategories.length > 0 && (
+          {(subcategories.length > 0 || formData.categoryId) && (
             <div>
-              <label className="block text-sm font-medium text-secondary mb-1">
-                Subcategory {selectedCategory?.requiresSubcategory && <span className="text-red-500">*</span>}
-              </label>
-              {loadingSubcategories ? (
-                <div className="text-sm text-secondary">Loading subcategories...</div>
-              ) : (
-                <select
-                  value={formData.subcategoryId}
-                  onChange={(e) => setFormData({ ...formData, subcategoryId: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select a subcategory...</option>
-                  {subcategories.map((subcategory) => (
-                    <option key={subcategory.id} value={subcategory.id}>
-                      {subcategory.emoji} {subcategory.name}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-secondary">
+                  Subcategory {selectedCategory?.requiresSubcategory && <span className="text-red-500">*</span>}
+                </label>
+                {formData.categoryId && (
+                  <button type="button" onClick={() => setShowCreateSubcategory(true)}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                    + Create New
+                  </button>
+                )}
+              </div>
+              <SearchableSelect
+                value={formData.subcategoryId}
+                options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
+                placeholder="Select a subcategory..."
+                loading={loadingSubcategories}
+                disabled={!formData.categoryId}
+              />
             </div>
           )}
 
           {/* Sub-Subcategory Selection (if subcategory has sub-subcategories) */}
-          {subSubcategories.length > 0 && (
+          {(subSubcategories.length > 0 || formData.subcategoryId) && (
             <div>
-              <label className="block text-sm font-medium text-secondary mb-1">
-                Sub-Subcategory
-              </label>
-              <select
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-secondary">
+                  Sub-Subcategory
+                </label>
+                {formData.subcategoryId && (
+                  <button type="button" onClick={() => setShowCreateSubSubcategory(true)}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                    + Create New
+                  </button>
+                )}
+              </div>
+              <SearchableSelect
                 value={formData.subSubcategoryId}
-                onChange={(e) => setFormData({ ...formData, subSubcategoryId: e.target.value })}
-                className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select a sub-subcategory...</option>
-                {subSubcategories.map((subSubcategory) => (
-                  <option key={subSubcategory.id} value={subSubcategory.id}>
-                    {subSubcategory.emoji} {subSubcategory.name}
-                  </option>
-                ))}
-              </select>
+                options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
+                placeholder="Select a sub-subcategory..."
+                disabled={!formData.subcategoryId}
+              />
             </div>
           )}
 
@@ -597,14 +829,14 @@ export function QuickPaymentModal({
             <button
               type="button"
               onClick={handleCancel}
-              className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted"
+              className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
               {loading ? 'Creating...' : 'Create Payment'}
@@ -619,6 +851,35 @@ export function QuickPaymentModal({
         onClose={() => setShowIndividualModal(false)}
         onSuccess={handleCreateIndividualSuccess}
         onError={(error) => console.error('Create individual error:', error)}
+        initialName={payeeSearchQuery}
+      />
+
+      {/* Create Supplier Modal */}
+      {showSupplierModal && businessId && (
+        <SupplierEditor
+          businessId={businessId}
+          onSave={handleCreateSupplierSuccess}
+          onCancel={() => setShowSupplierModal(false)}
+          initialName={payeeSearchQuery}
+        />
+      )}
+
+      {/* Quick create modals for subcategory and sub-subcategory */}
+      <QuickCreateModal
+        isOpen={showCreateSubcategory}
+        title="Create Subcategory"
+        placeholder="e.g., Dairy Products"
+        onClose={() => setShowCreateSubcategory(false)}
+        onSubmit={handleCreateSubcategory}
+        loading={creatingSubItem}
+      />
+      <QuickCreateModal
+        isOpen={showCreateSubSubcategory}
+        title="Create Sub-subcategory"
+        placeholder="e.g., Whole Milk"
+        onClose={() => setShowCreateSubSubcategory(false)}
+        onSubmit={handleCreateSubSubcategory}
+        loading={creatingSubItem}
       />
     </div>
   )

@@ -103,7 +103,7 @@ export async function POST(
       id: order.id,
       orderNumber: order.orderNumber,
       customerId: order.customerId || undefined,
-      customerName: order.business_customers?.name || 'Walk-in Customer',
+      customerName: order.business_customers?.name || (order.attributes as any)?.participantName || 'Walk-in Customer',
       employeeId: order.employeeId || undefined,
       employeeName: order.employees?.fullName || undefined,
       orderType: order.orderType,

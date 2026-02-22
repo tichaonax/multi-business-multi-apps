@@ -139,11 +139,11 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Calculate totals — exclude EXPENSE_ACCOUNT orders (meal program subsidy handled separately)
+    // Calculate totals — include ALL orders (meal program is real revenue)
     const regularOrders = orders.filter((o: any) => o.paymentMethod?.toUpperCase() !== 'EXPENSE_ACCOUNT')
-    const totalOrders = regularOrders.length
-    const totalSales = regularOrders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0)
-    const totalTax = regularOrders.reduce((sum: number, order: any) => sum + Number(order.taxAmount || 0), 0)
+    const totalOrders = orders.length
+    const totalSales = orders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0)
+    const totalTax = orders.reduce((sum: number, order: any) => sum + Number(order.taxAmount || 0), 0)
 
     // Group by payment method (regular orders only — EXPENSE_ACCOUNT shown in meal program section)
     const paymentMethods: Record<string, { count: number; total: number }> = {}
@@ -308,22 +308,39 @@ export async function GET(request: NextRequest) {
     })
 
     // Expense account (meal program) breakdown for today
+    // Source 1: mealProgramTransactions (new system — full detail)
     const mealTxns = await prisma.mealProgramTransactions.findMany({
       where: {
         businessId,
         transactionDate: { gte: start, lt: end },
       },
       select: {
+        orderId: true,
         subsidyAmount: true,
         cashAmount: true,
         totalAmount: true,
       },
     })
+
+    // Source 2: businessOrders with EXPENSE_ACCOUNT that have no mealProgramTransaction (legacy orders)
+    const trackedOrderIds = new Set(mealTxns.map((t: any) => t.orderId))
+    const legacyExpenseOrders = orders.filter(
+      (o: any) =>
+        o.paymentMethod?.toUpperCase() === 'EXPENSE_ACCOUNT' &&
+        !trackedOrderIds.has(o.id)
+    )
+
     const expenseAccountSales = {
-      count: mealTxns.length,
-      subsidyTotal: mealTxns.reduce((s: number, t: any) => s + Number(t.subsidyAmount || 0), 0),
-      cashTotal: mealTxns.reduce((s: number, t: any) => s + Number(t.cashAmount || 0), 0),
-      total: mealTxns.reduce((s: number, t: any) => s + Number(t.totalAmount || 0), 0),
+      count: mealTxns.length + legacyExpenseOrders.length,
+      subsidyTotal:
+        mealTxns.reduce((s: number, t: any) => s + Number(t.subsidyAmount || 0), 0) +
+        legacyExpenseOrders.reduce((s: number, o: any) => s + Number((o.attributes as any)?.expenseAmount || 0.5), 0),
+      cashTotal:
+        mealTxns.reduce((s: number, t: any) => s + Number(t.cashAmount || 0), 0) +
+        legacyExpenseOrders.reduce((s: number, o: any) => s + Number((o.attributes as any)?.cashAmount || 0), 0),
+      total:
+        mealTxns.reduce((s: number, t: any) => s + Number(t.totalAmount || 0), 0) +
+        legacyExpenseOrders.reduce((s: number, o: any) => s + Number(o.totalAmount || 0), 0),
     }
 
     return NextResponse.json({

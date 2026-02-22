@@ -58,6 +58,7 @@ interface LineItem {
   // User-entered
   payee: Payee | null
   amount: string
+  paymentDate: string
   touched: boolean
 }
 
@@ -104,6 +105,7 @@ function makeLine(prefill: LineItem['prefill'] = null, level1Id = ''): LineItem 
     loadingLevel3: false,
     payee: null,
     amount: '',
+    paymentDate: getTodayString(),
     touched: false,
   }
 }
@@ -372,7 +374,7 @@ export default function SmartQuickPaymentModal({
       level1Id: defaultLevel1Id,
       level2Id: '', level2Items: [],
       level3Id: '', level3Items: [],
-      payee: null, amount: '', touched: false,
+      payee: null, amount: '', paymentDate: getTodayString(), touched: false,
     })
     if (defaultLevel1Id) loadLevel2(id, defaultLevel1Id)
   }
@@ -454,7 +456,6 @@ export default function SmartQuickPaymentModal({
     if (!canSubmit) return
 
     setSubmitting(true)
-    const today = getTodayString()
     const key = `expense-batch-${accountId}`
     let existing: any[] = []
     try {
@@ -480,7 +481,7 @@ export default function SmartQuickPaymentModal({
           subSubcategoryId: l.prefill.subcategoryId ?? undefined,
           subSubcategoryName: l.prefill.subcategoryName ?? undefined,
           amount: parseFloat(l.amount),
-          paymentDate: today,
+          paymentDate: l.paymentDate || getTodayString(),
           paymentType: 'REGULAR',
           isFullPayment: true,
         }
@@ -502,7 +503,7 @@ export default function SmartQuickPaymentModal({
           subSubcategoryId: l.level3Id || undefined,
           subSubcategoryName: undefined,
           amount: parseFloat(l.amount),
-          paymentDate: today,
+          paymentDate: l.paymentDate || getTodayString(),
           paymentType: 'REGULAR',
           isFullPayment: true,
         }
@@ -659,6 +660,18 @@ export default function SmartQuickPaymentModal({
                           }`}
                         />
                       </div>
+                    </div>
+
+                    {/* Payment date per line */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">Date:</label>
+                      <input
+                        type="date"
+                        value={line.paymentDate}
+                        max={getTodayString()}
+                        onChange={e => updateLine(line.id, { paymentDate: e.target.value || getTodayString() })}
+                        className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500"
+                      />
                     </div>
 
                     {err && <p className="text-xs text-red-500">{err}</p>}

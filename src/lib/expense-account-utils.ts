@@ -978,7 +978,7 @@ export async function validatePaymentEdit(
 }
 
 /**
- * Check if a transaction is within the 5-day edit window
+ * Check if a transaction is within the 7-day edit window
  * @param createdAt - The transaction creation date
  * @param isAdmin - Whether the user is an admin (admins can always edit)
  * @returns Object with allowed flag and error message if not allowed
@@ -997,10 +997,10 @@ export function isWithinEditWindow(
   const diffMs = now.getTime() - createdAt.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-  if (diffDays > 5) {
+  if (diffDays > 7) {
     return {
       allowed: false,
-      error: `This transaction can only be edited within 5 days of creation. It was created ${diffDays} days ago. Only admins can edit older transactions.`
+      error: `This transaction can only be edited within 7 days of creation. It was created ${diffDays} days ago. Only admins can edit older transactions.`
     }
   }
 

@@ -33,6 +33,7 @@ import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
 import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 import { CloseBooksBanner } from '@/components/pos/close-books-banner'
 import { MealProgramPanel } from '@/components/restaurant/meal-program/MealProgramPanel'
+import { MealProgramDetailsModal } from '@/components/restaurant/meal-program/MealProgramDetailsModal'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
 import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
@@ -91,8 +92,10 @@ export default function RestaurantPOS() {
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [completedOrder, setCompletedOrder] = useState<any>(null)
-  // When non-null: meal program transaction is already saved; this is the cash amount the cashier must collect
+  // When non-null: cash amount to collect for a meal program order
   const [mealProgramCashDue, setMealProgramCashDue] = useState<number | null>(null)
+  // Pending meal program transaction data (held until payment is confirmed, then submitted to API)
+  const [pendingMealTransaction, setPendingMealTransaction] = useState<any>(null)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [taxIncludedInPrice, setTaxIncludedInPrice] = useState(true) // Default: tax included
   const [taxRate, setTaxRate] = useState(0) // Default: 0% - businesses configure their own tax rate
@@ -101,6 +104,7 @@ export default function RestaurantPOS() {
   const [dailySales, setDailySales] = useState<any>(null)
   const [yesterdaySales, setYesterdaySales] = useState<any>(null)
   const [showDailySales, setShowDailySales] = useState(false)
+  const [showMealProgramDetails, setShowMealProgramDetails] = useState(false)
   const [recentTransactions, setRecentTransactions] = useState<any[]>([])
   const [showRecentTransactions, setShowRecentTransactions] = useState(false)
   const [loadingRecent, setLoadingRecent] = useState(false)
@@ -1156,7 +1160,7 @@ export default function RestaurantPOS() {
         ? (order.rewardCouponCode ? `Reward (${order.rewardCouponCode})` : 'Reward Applied')
         : undefined,
       footerMessage: order.footerMessage || 'Thank you for dining with us!',
-      customerName: order.customerName,
+      customerName: order.customerName || (order.attributes?.mealProgram ? order.attributes?.participantName : undefined),
       customerPhone: order.customerPhone,
       mealProgram: order.attributes?.mealProgram
         ? {
@@ -1586,16 +1590,56 @@ export default function RestaurantPOS() {
   }
 
   const completeOrderWithPayment = async () => {
-    // Meal-program orders are already saved — just close tender modal and show receipt
+    // Meal-program cash payment — create transaction now that payment is collected
     if (mealProgramCashDue !== null) {
       const received = parseFloat(amountReceived) || 0
-      // Patch the stored completedOrder with the actual change so the receipt shows it
-      setCompletedOrder((prev: any) => prev ? {
-        ...prev,
-        paymentMethod: 'CASH',
-        amountReceived: received,
-        change: Math.max(0, received - mealProgramCashDue),
-      } : prev)
+      if (pendingMealTransaction) {
+        // Submit the transaction to the API now (after payment confirmed)
+        setOrderSubmitting(true)
+        try {
+          const res = await fetch('/api/restaurant/meal-program/transactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              businessId: currentBusinessId,
+              ...(pendingMealTransaction.participantId
+                ? { participantId: pendingMealTransaction.participantId }
+                : { employeeId: pendingMealTransaction.employeeId }),
+              subsidizedItem: pendingMealTransaction.subsidizedItem,
+              cashItems: pendingMealTransaction.cashItems,
+              soldByEmployeeId: employeeId,
+            }),
+          })
+          const data = await res.json()
+          if (!res.ok || !data.success) {
+            toast.push(data.error || 'Transaction failed', { type: 'error' })
+            setOrderSubmitting(false)
+            return
+          }
+          setCompletedOrder((prev: any) => prev ? {
+            ...prev,
+            orderNumber: data.data.orderNumber,
+            customerName: pendingMealTransaction.participantName,
+            paymentMethod: 'CASH',
+            amountReceived: received,
+            change: Math.max(0, received - mealProgramCashDue),
+          } : prev)
+          setPendingMealTransaction(null)
+        } catch {
+          toast.push('Transaction failed', { type: 'error' })
+          setOrderSubmitting(false)
+          return
+        }
+        setOrderSubmitting(false)
+      } else {
+        // Transaction already saved (fully subsidised path shouldn't reach here, but handle gracefully)
+        setCompletedOrder((prev: any) => prev ? {
+          ...prev,
+          paymentMethod: 'CASH',
+          amountReceived: received,
+          change: Math.max(0, received - mealProgramCashDue),
+        } : prev)
+      }
       setShowPaymentModal(false)
       setMealProgramCashDue(null)
       setAmountReceived('')
@@ -1636,7 +1680,8 @@ export default function RestaurantPOS() {
         paymentMethod: paymentMethod,
         amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
         idempotencyKey,
-        customerId: selectedCustomer?.id || null
+        customerId: selectedCustomer?.id || null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }
       console.log('Request body:', requestBody)
 
@@ -1942,6 +1987,30 @@ export default function RestaurantPOS() {
                   </div>
                 </div>
 
+                {/* Meal Program Mini-Bar — always visible when there are transactions today */}
+                {dailySales.expenseAccountSales?.count > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMealProgramDetails(true)}
+                    className="mt-3 w-full flex items-center justify-between px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                      🍱 Meal Program
+                      <span className="text-xs bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-full font-semibold">
+                        {dailySales.expenseAccountSales.count}
+                      </span>
+                    </span>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-green-600 dark:text-green-400">Sub ${dailySales.expenseAccountSales.subsidyTotal.toFixed(2)}</span>
+                      <span className="text-blue-600 dark:text-blue-400">Cash ${dailySales.expenseAccountSales.cashTotal.toFixed(2)}</span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">= ${dailySales.expenseAccountSales.total.toFixed(2)}</span>
+                      <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </button>
+                )}
+
                 {/* Recent Transactions Toggle */}
                 <div className="mt-3">
                   <button
@@ -2087,19 +2156,31 @@ export default function RestaurantPOS() {
 
                     {/* Expense Account (Meal Program) Breakdown */}
                     {dailySales.expenseAccountSales && dailySales.expenseAccountSales.count > 0 && (
-                      <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-700">
-                        <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-2">🍱 Meal Program (Expense Accounts)</h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowMealProgramDetails(true)}
+                        className="w-full text-left bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-400">🍱 Meal Program</h3>
+                          <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            View details
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </span>
+                        </div>
                         <div className="grid grid-cols-3 gap-2 text-sm">
                           <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
                             <div className="text-xs text-gray-500 dark:text-gray-400">Transactions</div>
                             <div className="font-bold text-primary">{dailySales.expenseAccountSales.count}</div>
                           </div>
                           <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Subsidy Paid</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Subsidy</div>
                             <div className="font-bold text-green-600 dark:text-green-400">${dailySales.expenseAccountSales.subsidyTotal.toFixed(2)}</div>
                           </div>
                           <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Cash Collected</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Cash</div>
                             <div className="font-bold text-blue-600 dark:text-blue-400">${dailySales.expenseAccountSales.cashTotal.toFixed(2)}</div>
                           </div>
                         </div>
@@ -2107,7 +2188,7 @@ export default function RestaurantPOS() {
                           <span>Total meal program revenue:</span>
                           <span className="font-semibold text-primary">${dailySales.expenseAccountSales.total.toFixed(2)}</span>
                         </div>
-                      </div>
+                      </button>
                     )}
 
                     {/* Top Items */}
@@ -2609,9 +2690,10 @@ export default function RestaurantPOS() {
                   category: m.category,
                 }))}
                 onTransactionComplete={(result) => {
-                  const cashDue = Number(result.cashAmount)
+                  // Fully subsidised path — transaction already created, go straight to receipt
                   const orderForReceipt = {
                     orderNumber: result.orderNumber,
+                    customerName: result.participantName,
                     items: result.items.map((i) => ({
                       ...i,
                       sku: undefined,
@@ -2632,16 +2714,39 @@ export default function RestaurantPOS() {
                     },
                   }
                   setCompletedOrder(orderForReceipt)
-                  if (cashDue > 0) {
-                    // Reuse existing payment modal as cash-tender step (transaction already saved)
-                    setMealProgramCashDue(cashDue)
-                    setAmountReceived('')
-                    setPaymentMethod('CASH')
-                    setShowPaymentModal(true)
-                  } else {
-                    // Fully subsidised — skip tender, go straight to receipt
-                    setShowReceiptModal(true)
+                  setShowReceiptModal(true)
+                  // Refresh daily sales so meal program count/totals appear immediately
+                  setTimeout(() => loadDailySales(), 800)
+                }}
+                onCashPaymentRequired={(pending) => {
+                  // Cash-due path — hold transaction data, collect payment first
+                  const orderForReceipt = {
+                    orderNumber: 'PENDING',
+                    customerName: pending.participantName,
+                    items: pending.items.map((i) => ({ ...i, sku: undefined })),
+                    subtotal: Number((0.50 + pending.cashAmount).toFixed(2)),
+                    total: Number((0.50 + pending.cashAmount).toFixed(2)),
+                    paymentMethod: 'CASH',
+                    amountReceived: 0,
+                    change: 0,
+                    wifiTokens: [],
+                    r710Tokens: [],
+                    businessInfo: businessDetails || currentBusiness,
+                    attributes: {
+                      mealProgram: true,
+                      participantName: pending.participantName,
+                      expenseAmount: '0.50',
+                      cashAmount: pending.cashAmount.toFixed(2),
+                    },
                   }
+                  setPendingMealTransaction(pending)
+                  setCompletedOrder(orderForReceipt)
+                  setMealProgramCashDue(pending.cashAmount)
+                  setAmountReceived('')
+                  setPaymentMethod('CASH')
+                  setShowPaymentModal(true)
+                  // Transaction already saved — refresh daily sales
+                  setTimeout(() => loadDailySales(), 800)
                 }}
                 onCancel={() => setPosMode('live')}
               />
@@ -2976,6 +3081,7 @@ export default function RestaurantPOS() {
 
                     setShowPaymentModal(false)
                     setMealProgramCashDue(null)
+                    setPendingMealTransaction(null)
                     setAmountReceived('')
                   }}
                   className="flex-1 py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600"
@@ -3275,6 +3381,18 @@ export default function RestaurantPOS() {
           }
         }}
       />
+
+      {/* Meal Program Details Modal */}
+      {showMealProgramDetails && currentBusinessId && dailySales?.expenseAccountSales && (
+        <MealProgramDetailsModal
+          businessId={currentBusinessId}
+          businessDayStart={dailySales.businessDay.start}
+          businessDayEnd={dailySales.businessDay.end}
+          date={dailySales.businessDay.date}
+          summary={dailySales.expenseAccountSales}
+          onClose={() => setShowMealProgramDetails(false)}
+        />
+      )}
 
       {/* POS Settings Modal */}
       {showSettings && (

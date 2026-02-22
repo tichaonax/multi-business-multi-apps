@@ -642,6 +642,7 @@ export function AccountList({
           canCreatePayees={canCreatePayees}
           canChangeCategory={canChangeCategory}
           defaultCategoryBusinessType={businessType}
+          businessId={currentBusinessId}
         />
       )}
     </div>

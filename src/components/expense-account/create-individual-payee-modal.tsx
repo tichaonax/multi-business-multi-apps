@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { OnSuccessArg } from '@/types/ui'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { useToastContext } from '@/components/ui/toast'
@@ -13,13 +13,15 @@ interface CreateIndividualPayeeModalProps {
   onClose: () => void
   onSuccess: (payload: OnSuccessArg & { payee?: any }) => void
   onError?: (error: string) => void
+  initialName?: string
 }
 
 export function CreateIndividualPayeeModal({
   isOpen,
   onClose,
   onSuccess,
-  onError
+  onError,
+  initialName
 }: CreateIndividualPayeeModalProps) {
   const [loading, setLoading] = useState(false)
   const toast = useToastContext()
@@ -38,6 +40,13 @@ export function CreateIndividualPayeeModal({
     nationalId: '',
     phone: ''
   })
+
+  // Pre-fill name from search query when modal opens
+  useEffect(() => {
+    if (isOpen && initialName && !formData.fullName) {
+      setFormData(prev => ({ ...prev, fullName: initialName }))
+    }
+  }, [isOpen, initialName])
 
   const validateForm = () => {
     const newErrors = {

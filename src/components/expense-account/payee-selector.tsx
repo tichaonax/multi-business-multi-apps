@@ -13,8 +13,8 @@ interface Payee {
 interface PayeeSelectorProps {
   value?: { type: string; id: string } | null
   onChange: (payee: { type: string; id: string; name: string } | null) => void
-  onCreateIndividual?: () => void
-  onCreateSupplier?: () => void
+  onCreateIndividual?: (query?: string) => void
+  onCreateSupplier?: (query?: string) => void
   disabled?: boolean
   error?: string
   refreshTrigger?: number  // Increment this to trigger a refresh
@@ -373,7 +373,7 @@ export function PayeeSelector({
                   type="button"
                   onClick={() => {
                     setIsOpen(false)
-                    onCreateIndividual()
+                    onCreateIndividual(searchQuery)
                   }}
                   className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                 >
@@ -385,7 +385,7 @@ export function PayeeSelector({
                   type="button"
                   onClick={() => {
                     setIsOpen(false)
-                    onCreateSupplier()
+                    onCreateSupplier(searchQuery)
                   }}
                   className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium"
                 >

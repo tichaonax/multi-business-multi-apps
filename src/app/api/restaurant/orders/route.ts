@@ -280,7 +280,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone } = await req.json()
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone } = await req.json()
+
+    // Derive local date string (YYYYMMDD) for receipt prefix — falls back to UTC if no timezone sent
+    const localDateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone || 'UTC',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date()).replace(/-/g, '')
 
     // If client provided an idempotencyKey, and we've already processed it, return stored result
     if (idempotencyKey && typeof idempotencyKey === 'string') {
@@ -309,10 +315,9 @@ export async function POST(req: NextRequest) {
         }
       })
 
-      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
       // Add a random component to reduce collision probability
       const counter = String(todayOrderCount + attempts).padStart(4, '0')
-      orderNumber = `RST-${date}-${counter}`
+      orderNumber = `RST-${localDateStr}-${counter}`
 
       // Check if this order number already exists
       const existing = await prisma.businessOrders.findFirst({
@@ -399,6 +404,7 @@ export async function POST(req: NextRequest) {
           paymentStatus: paymentStatus,
           paymentMethod: paymentMethod,
           businessType: 'restaurant',
+          transactionDate: new Date(),
           attributes: {
             ...(tableNumber ? { tableNumber } : {}),
             employeeName: employeeName,
@@ -433,6 +439,7 @@ export async function POST(req: NextRequest) {
             paymentStatus: paymentStatus,
             paymentMethod: paymentMethod,
             businessType: 'restaurant',
+            transactionDate: new Date(),
             attributes: {
               ...(tableNumber ? { tableNumber } : {}),
               employeeName: employeeName,

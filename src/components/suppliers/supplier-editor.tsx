@@ -27,6 +27,7 @@ interface SupplierEditorProps {
   businessId: string
   onSave: (createdSupplierId?: string) => void
   onCancel: () => void
+  initialName?: string
 }
 
 const PAYMENT_TERMS = [
@@ -39,7 +40,7 @@ const PAYMENT_TERMS = [
   'Custom'
 ]
 
-export function SupplierEditor({ supplier, businessId, onSave, onCancel }: SupplierEditorProps) {
+export function SupplierEditor({ supplier, businessId, onSave, onCancel, initialName }: SupplierEditorProps) {
   const [formData, setFormData] = useState<Supplier>({
     name: '',
     emoji: null,
@@ -56,6 +57,12 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel }: Suppl
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!supplier && initialName) {
+      setFormData(prev => ({ ...prev, name: initialName }))
+    }
+  }, [initialName, supplier])
 
   useEffect(() => {
     if (supplier) {
@@ -186,18 +193,18 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel }: Suppl
           </div>
 
           {/* Body */}
-          <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+          <div className="px-6 py-4 max-h-[calc(100vh-250px)] overflow-y-auto">
             {error && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
                 <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
               </div>
             )}
 
-            <div className="space-y-6">
-              {/* Emoji Picker */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Emoji - col 1 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Emoji (Optional)
+                  Emoji
                 </label>
                 <EmojiPicker
                   onSelect={(emoji) => handleInputChange('emoji', emoji)}
@@ -209,146 +216,119 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel }: Suppl
                 />
               </div>
 
-              {/* Basic Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Supplier Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Contact Person
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.contactPerson || ''}
-                    onChange={(e) => handleInputChange('contactPerson', e.target.value || null)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email || ''}
-                    onChange={(e) => handleInputChange('email', e.target.value || null)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-
-                <div>
-                  <PhoneNumberInput
-                    value={formData.phone || ''}
-                    onChange={handlePhoneChange}
-                    label="Phone *"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    TAX ID / EIN
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.taxId || ''}
-                    onChange={(e) => handleInputChange('taxId', e.target.value || null)}
-                    placeholder="12-3456789"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Payment Terms
-                  </label>
-                  <select
-                    value={formData.paymentTerms || ''}
-                    onChange={(e) => handleInputChange('paymentTerms', e.target.value || null)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="">Select...</option>
-                    {PAYMENT_TERMS.map(term => (
-                      <option key={term} value={term}>{term}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Address
-                  </label>
-                  <textarea
-                    value={formData.address || ''}
-                    onChange={(e) => handleInputChange('address', e.target.value || null)}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-              </div>
-
-              {/* Financial Information */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Financial Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Credit Limit
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.creditLimit || ''}
-                      onChange={(e) => handleInputChange('creditLimit', e.target.value ? parseFloat(e.target.value) : null)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Account Balance
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.accountBalance || 0}
-                      onChange={(e) => handleInputChange('accountBalance', e.target.value ? parseFloat(e.target.value) : 0)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Current amount owed to this supplier
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div>
+              {/* Supplier Name - cols 2-3 */}
+              <div className="md:col-span-2 flex flex-col justify-end">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Notes
+                  Supplier Name *
                 </label>
-                <textarea
-                  value={formData.notes || ''}
-                  onChange={(e) => handleInputChange('notes', e.target.value || null)}
-                  rows={3}
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                  placeholder="Additional notes about this supplier..."
+                  required
                 />
               </div>
 
+              {/* Contact Person */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Contact Person
+                </label>
+                <input
+                  type="text"
+                  value={formData.contactPerson || ''}
+                  onChange={(e) => handleInputChange('contactPerson', e.target.value || null)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={formData.email || ''}
+                  onChange={(e) => handleInputChange('email', e.target.value || null)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+
+              {/* Phone */}
+              <div>
+                <PhoneNumberInput
+                  value={formData.phone || ''}
+                  onChange={handlePhoneChange}
+                  label="Phone *"
+                />
+              </div>
+
+              {/* Tax ID */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  TAX ID / EIN
+                </label>
+                <input
+                  type="text"
+                  value={formData.taxId || ''}
+                  onChange={(e) => handleInputChange('taxId', e.target.value || null)}
+                  placeholder="12-3456789"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+
+              {/* Payment Terms */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Payment Terms
+                </label>
+                <select
+                  value={formData.paymentTerms || ''}
+                  onChange={(e) => handleInputChange('paymentTerms', e.target.value || null)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">Select...</option>
+                  {PAYMENT_TERMS.map(term => (
+                    <option key={term} value={term}>{term}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Credit Limit */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Credit Limit
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.creditLimit || ''}
+                  onChange={(e) => handleInputChange('creditLimit', e.target.value ? parseFloat(e.target.value) : null)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+
+              {/* Account Balance */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Account Balance
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.accountBalance || 0}
+                  onChange={(e) => handleInputChange('accountBalance', e.target.value ? parseFloat(e.target.value) : 0)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Amount owed to supplier
+                </p>
+              </div>
+
               {/* Active Status */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pt-6">
                 <input
                   type="checkbox"
                   id="isActive"
@@ -359,6 +339,33 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel }: Suppl
                 <label htmlFor="isActive" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Active Supplier
                 </label>
+              </div>
+
+              {/* Address - full width */}
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Address
+                </label>
+                <textarea
+                  value={formData.address || ''}
+                  onChange={(e) => handleInputChange('address', e.target.value || null)}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+
+              {/* Notes - full width */}
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={formData.notes || ''}
+                  onChange={(e) => handleInputChange('notes', e.target.value || null)}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                  placeholder="Additional notes about this supplier..."
+                />
               </div>
             </div>
           </div>

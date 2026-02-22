@@ -44,6 +44,7 @@ export async function GET(
             id: true,
             accountNumber: true,
             accountName: true,
+            businessId: true,
           },
         },
         payeeUser: {
@@ -72,7 +73,7 @@ export async function GET(
           select: { id: true, name: true, type: true, description: true },
         },
         category: {
-          select: { id: true, name: true, emoji: true, color: true },
+          select: { id: true, name: true, emoji: true, color: true, domainId: true },
         },
         subcategory: {
           select: { id: true, name: true, emoji: true },
@@ -219,7 +220,32 @@ export async function PATCH(
       receiptServiceProvider,
       receiptReason,
       isFullPayment,
+      // Payee fields — admin only
+      payeeType,
+      payeeUserId,
+      payeeEmployeeId,
+      payeePersonId,
+      payeeBusinessId,
+      payeeSupplierId,
+      payeeChangeReason,
     } = body
+
+    // Payee changes are admin-only and require a reason
+    const isChangingPayee = payeeType !== undefined
+    if (isChangingPayee) {
+      if (!isAdmin) {
+        return NextResponse.json(
+          { error: 'Only system administrators can change the payee on a submitted payment' },
+          { status: 403 }
+        )
+      }
+      if (!payeeChangeReason?.trim()) {
+        return NextResponse.json(
+          { error: 'A reason is required when changing the payee' },
+          { status: 400 }
+        )
+      }
+    }
 
     // Build update data
     const updateData: any = {}
@@ -292,8 +318,23 @@ export async function PATCH(
       updateData.paymentDate = payDate
     }
 
+    // Update payee fields (admin only — already validated above)
+    if (isChangingPayee) {
+      updateData.payeeType = payeeType
+      updateData.payeeUserId = payeeUserId || null
+      updateData.payeeEmployeeId = payeeEmployeeId || null
+      updateData.payeePersonId = payeePersonId || null
+      updateData.payeeBusinessId = payeeBusinessId || null
+      updateData.payeeSupplierId = payeeSupplierId || null
+      // Append reason to notes for audit trail
+      const reasonNote = `[Payee changed by admin: ${payeeChangeReason.trim()}]`
+      updateData.notes = notes?.trim()
+        ? `${notes.trim()}\n${reasonNote}`
+        : (existingPayment.notes ? `${existingPayment.notes}\n${reasonNote}` : reasonNote)
+    }
+
     // Update other fields
-    if (notes !== undefined) updateData.notes = notes?.trim() || null
+    if (notes !== undefined && !isChangingPayee) updateData.notes = notes?.trim() || null
     if (receiptNumber !== undefined) updateData.receiptNumber = receiptNumber?.trim() || null
     if (receiptServiceProvider !== undefined)
       updateData.receiptServiceProvider = receiptServiceProvider?.trim() || null

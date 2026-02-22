@@ -21,6 +21,7 @@ interface ReceiptListItem {
   totalAmount: number
   discountAmount: number
   rewardCouponCode: string | null
+  mealProgram?: boolean
   businessType: string
   paymentMethod: string | null
   status: string
@@ -423,10 +424,13 @@ function ReceiptHistoryPageContent() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
                       <div>{formatCurrency(receipt.totalAmount)}</div>
-                      {receipt.rewardCouponCode && (
+                      {receipt.mealProgram && (
+                        <div className="text-xs text-amber-600 dark:text-amber-400 font-normal">🍱 Meal Program</div>
+                      )}
+                      {!receipt.mealProgram && receipt.rewardCouponCode && (
                         <div className="text-xs text-green-600 dark:text-green-400 font-normal">🎁 {receipt.rewardCouponCode}</div>
                       )}
-                      {!receipt.rewardCouponCode && receipt.discountAmount > 0 && (
+                      {!receipt.mealProgram && !receipt.rewardCouponCode && receipt.discountAmount > 0 && (
                         <div className="text-xs text-green-600 dark:text-green-400 font-normal">-{formatCurrency(receipt.discountAmount)} discount</div>
                       )}
                     </td>

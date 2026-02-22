@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { DateInput } from '@/components/ui/date-input'
+import { EditPaymentModal } from './edit-payment-modal'
 
 interface Transaction {
   id: string
@@ -34,9 +35,38 @@ interface TransactionHistoryProps {
   defaultType?: 'DEPOSIT' | 'PAYMENT'
   defaultSortOrder?: 'asc' | 'desc'
   pageLimit?: number
+  canEditPayments?: boolean
+  isAdmin?: boolean
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50 }: TransactionHistoryProps) {
+function isWithin7Days(createdAt: string) {
+  const diffMs = Date.now() - new Date(createdAt).getTime()
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24)) <= 7
+}
+
+function shortDescription(transaction: Transaction): string {
+  const desc = transaction.description || ''
+
+  if (transaction.type === 'PAYMENT') {
+    if (desc.startsWith('Payment to ')) return 'PAY ' + desc.slice(11)
+    if (desc === 'General Payment') return 'GEN PAY'
+    return desc
+  }
+
+  // Deposits
+  if (desc.startsWith('Deposit from ')) return 'DEP from ' + desc.slice(13)
+  if (desc === 'Cash Deposit' || transaction.sourceType === 'CASH') return 'DEP CASH'
+  if (desc === 'Bank Transfer' || transaction.sourceType === 'BANK_TRANSFER') return 'DEP BANK'
+  if (desc === 'Loan Received' || transaction.sourceType === 'LOAN_RECEIVED') return 'LOAN IN'
+  if (desc === 'Loan Repayment' || transaction.sourceType === 'LOAN_REPAYMENT') return 'LOAN REPAY'
+  if (desc === 'Payroll Funding' || transaction.sourceType === 'PAYROLL_FUNDING') return 'PAYROLL'
+  if (desc === 'Transfer Return' || transaction.sourceType === 'TRANSFER_RETURN') return 'TRANSFER RTN'
+  if (desc === 'Deposit') return 'DEP'
+  if (desc.startsWith('Deposit ')) return 'DEP ' + desc.slice(8)
+  return desc
+}
+
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState('')
@@ -46,10 +76,24 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const limit = pageLimit
+  const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Debounce search input
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(0)
+    }, 350)
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current) }
+  }, [search])
 
   useEffect(() => {
     loadTransactions()
-  }, [accountId, startDate, endDate, typeFilter, page])
+  }, [accountId, startDate, endDate, typeFilter, page, debouncedSearch])
   // also refetch when sortOrder changes
   useEffect(() => {
     setPage(0)
@@ -63,6 +107,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       if (startDate) params.append('startDate', startDate)
       if (endDate) params.append('endDate', endDate)
       if (typeFilter) params.append('transactionType', typeFilter)
+      if (debouncedSearch) params.append('search', debouncedSearch)
       params.append('limit', limit.toString())
       params.append('offset', (page * limit).toString())
       params.append('sortOrder', sortOrder)
@@ -114,6 +159,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     setStartDate('')
     setEndDate('')
     setTypeFilter(defaultType)
+    setSearch('')
+    setDebouncedSearch('')
     setPage(0)
   }
 
@@ -156,9 +203,36 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   }
 
   return (
+    <>
     <div className="space-y-4">
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4">
+        {/* Search */}
+        <div className="mb-3">
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search payee, category, notes, receipt..."
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Quick date filters */}
         <div className="flex gap-1.5 flex-wrap mb-3">
           {QUICK_FILTERS.map((f) => (
@@ -298,12 +372,12 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       </td>
 
                       <td className="hidden sm:table-cell px-2 sm:px-4 py-2 sm:py-3 text-sm text-gray-900 dark:text-gray-100">
-                        <div>
-                          {transaction.description}
+                        <div className="font-medium">
+                          {shortDescription(transaction)}
                         </div>
                         {transaction.receiptNumber && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Receipt: {transaction.receiptNumber}
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {transaction.receiptNumber}
                           </div>
                         )}
                       </td>
@@ -355,6 +429,19 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       <td className="hidden md:table-cell px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-gray-100">
                         {formatCurrency(transaction.balanceAfter)}
                       </td>
+
+                      {/* Edit action — payments only, within 7 days, for authorized roles */}
+                      <td className="px-2 py-2 sm:py-3 text-right whitespace-nowrap">
+                        {canEditPayments && !isDeposit && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditPaymentId(transaction.id) }}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
+                            title="Edit payment"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -389,5 +476,18 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         )}
       </div>
     </div>
+
+      {/* Edit Payment Modal */}
+      {editPaymentId && (
+        <EditPaymentModal
+          isOpen={true}
+          onClose={() => setEditPaymentId(null)}
+          accountId={accountId}
+          paymentId={editPaymentId}
+          isAdmin={isAdmin}
+          onSuccess={() => { setEditPaymentId(null); loadTransactions() }}
+        />
+      )}
+    </>
   )
 }

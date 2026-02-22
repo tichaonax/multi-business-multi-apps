@@ -73,6 +73,7 @@ export default function ExpenseAccountDetailPage() {
   const canManageLending = isSystemAdmin || hasPermission('canManageLending')
   const canChangeCategory = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
   const canCreatePayees = canChangeCategory // Only owners, managers, and admins can create payees
+  const canEditPayments = canChangeCategory // Same set of roles can edit payments
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -443,7 +444,7 @@ export default function ExpenseAccountDetailPage() {
                   <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
                     Recent Transactions
                   </h4>
-                  <TransactionHistory accountId={accountId} />
+                  <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} />
                 </div>
               </div>
             )}
@@ -515,7 +516,7 @@ export default function ExpenseAccountDetailPage() {
                 <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
                   Transaction History
                 </h4>
-                <TransactionHistory accountId={accountId} />
+                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} />
               </div>
             )}
 
@@ -598,6 +599,7 @@ export default function ExpenseAccountDetailPage() {
           canChangeCategory={canChangeCategory}
           accountType={account.accountType}
           defaultCategoryBusinessType={currentBusiness?.businessType}
+          businessId={account.businessId || currentBusiness?.id}
         />
       )}
 

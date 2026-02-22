@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
+import { getEffectivePermissions } from '@/lib/permission-utils'
 
 /**
  * POST /api/expense-categories/subcategories
@@ -29,19 +30,9 @@ export async function POST(request: NextRequest) {
 
     const userId = user.id;
 
-    // Check permission (admins always have access)
-    const dbUser = await prisma.users.findUnique({
-      where: { id: userId },
-      select: { permissions: true, role: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const isAdmin = user.role === 'admin';
-    const permissions = user.permissions as any;
-    if (!isAdmin && !permissions?.canCreateExpenseSubcategories) {
+    // Check permission — business owners and managers have canCreateExpenseAccount
+    const permissions = getEffectivePermissions(user)
+    if (!permissions.canCreateExpenseAccount) {
       return NextResponse.json(
         { error: 'You do not have permission to create expense subcategories' },
         { status: 403 }

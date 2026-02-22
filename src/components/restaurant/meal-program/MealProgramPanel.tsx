@@ -41,6 +41,16 @@ type CashAddOn = {
 
 type Step = 'search' | 'select-item' | 'add-ons' | 'confirm' | 'complete'
 
+interface PendingMealTransaction {
+  cashAmount: number
+  participantId: string | null
+  employeeId: string | null
+  participantName: string
+  subsidizedItem: { productId: string | null; productName: string; unitPrice: number; isEligibleItem: boolean }
+  cashItems: { productId: string | null; productName: string; unitPrice: number; quantity: number }[]
+  items: { name: string; quantity: number; price: number }[]
+}
+
 interface MealProgramPanelProps {
   businessId: string
   soldByEmployeeId?: string
@@ -55,6 +65,7 @@ interface MealProgramPanelProps {
     items: { name: string; quantity: number; price: number }[]
     paymentMethod: string
   }) => void
+  onCashPaymentRequired?: (pending: PendingMealTransaction) => void
   onCancel?: () => void
 }
 
@@ -65,6 +76,7 @@ export function MealProgramPanel({
   soldByEmployeeId,
   allMenuItems,
   onTransactionComplete,
+  onCashPaymentRequired,
   onCancel,
 }: MealProgramPanelProps) {
   const toast = useToastContext()
@@ -225,6 +237,38 @@ export function MealProgramPanel({
   // ---- Submit ----
   async function handleConfirm() {
     if (!selectedParticipant || !subsidizedItem) return
+
+    const receiptItems = [
+      { name: subsidizedItem.productName, quantity: 1, price: subsidizedItem.unitPrice },
+      ...cashAddOns.map((c) => ({ name: c.productName, quantity: c.quantity, price: c.unitPrice })),
+    ]
+
+    // If cash payment is required, delegate to POS to collect payment FIRST
+    // so the transaction is only created after money is actually collected
+    if (totalCash > 0 && onCashPaymentRequired) {
+      onCashPaymentRequired({
+        cashAmount: totalCash,
+        participantId: selectedParticipant.id,
+        employeeId: selectedParticipant.employeeId,
+        participantName: selectedParticipant.name,
+        subsidizedItem: {
+          productId: subsidizedItem.productId,
+          productName: subsidizedItem.productName,
+          unitPrice: subsidizedItem.unitPrice,
+          isEligibleItem: subsidizedItem.isEligibleItem,
+        },
+        cashItems: cashAddOns.map((c) => ({
+          productId: c.productId,
+          productName: c.productName,
+          unitPrice: c.unitPrice,
+          quantity: c.quantity,
+        })),
+        items: receiptItems,
+      })
+      return
+    }
+
+    // Fully subsidised (no cash due) — create transaction immediately
     setSubmitting(true)
     try {
       const res = await fetch('/api/restaurant/meal-program/transactions', {
@@ -255,11 +299,6 @@ export function MealProgramPanel({
       if (res.ok && data.success) {
         setCompletedResult(data.data)
         setStep('complete')
-        // Build items list for receipt
-        const receiptItems = [
-          { name: subsidizedItem.productName, quantity: 1, price: subsidizedItem.unitPrice },
-          ...cashAddOns.map((c) => ({ name: c.productName, quantity: c.quantity, price: c.unitPrice })),
-        ]
         onTransactionComplete?.({
           ...data.data,
           items: receiptItems,
