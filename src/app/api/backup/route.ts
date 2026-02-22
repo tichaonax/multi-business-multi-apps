@@ -7,6 +7,7 @@ import { restoreCleanBackup, validateBackupData } from '@/lib/restore-clean';
 import { createProgressId, updateProgress } from '@/lib/backup-progress';
 import { compressBackup, decompressBackup, isGzipped } from '@/lib/backup-compression';
 import { getServerUser } from '@/lib/get-server-user'
+import { isBusinessOwner } from '@/lib/permission-utils'
 
 /**
  * GET /api/backup - Create and download backup
@@ -24,7 +25,8 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser();
 
-    if (!user || user.role !== 'admin') {
+    const canBackup = user && (user.role === 'admin' || user.role === 'manager' || isBusinessOwner(user))
+    if (!canBackup) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
