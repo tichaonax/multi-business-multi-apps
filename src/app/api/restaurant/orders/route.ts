@@ -280,7 +280,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId } = await req.json()
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone } = await req.json()
 
     // If client provided an idempotencyKey, and we've already processed it, return stored result
     if (idempotencyKey && typeof idempotencyKey === 'string') {
@@ -1219,6 +1219,35 @@ export async function POST(req: NextRequest) {
       }, { tableName: 'orders', recordId: newOrder.id })
     } catch (auditErr) {
       console.warn('Audit log failed for order creation', auditErr)
+    }
+
+    // Record coupon usage if a coupon was applied
+    if (couponId && reqCouponDiscount > 0) {
+      try {
+        const coupon = await prisma.coupons.findUnique({ where: { id: couponId } })
+        if (coupon && coupon.isActive) {
+          await prisma.couponUsages.create({
+            data: {
+              couponId: coupon.id,
+              orderId: newOrder.id,
+              appliedAmount: reqCouponDiscount,
+              customerPhone: couponCustomerPhone || null
+            }
+          })
+          // Store couponCode in order attributes for receipt history tracing
+          await prisma.businessOrders.update({
+            where: { id: newOrder.id },
+            data: {
+              attributes: {
+                ...(newOrder.attributes as any || {}),
+                rewardCouponCode: reqCouponCode
+              }
+            }
+          })
+        }
+      } catch (couponErr) {
+        console.warn('Failed to record coupon usage:', couponErr)
+      }
     }
 
     // Credit business account when order is COMPLETED with PAID status

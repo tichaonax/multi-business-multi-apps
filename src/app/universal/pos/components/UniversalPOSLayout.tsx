@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Gift, X, Tag } from 'lucide-react'
+import { Gift, X, Tag, Clock } from 'lucide-react'
 import { ProductPanel } from './ProductPanel'
 import { CartPanel } from './CartPanel'
 import { PaymentPanel } from './PaymentPanel'
@@ -95,6 +95,7 @@ export function UniversalPOSLayout({
   onRemoveReward
 }: UniversalPOSLayoutProps) {
   const [showQuickRegister, setShowQuickRegister] = useState(false)
+  const [showRewardHistory, setShowRewardHistory] = useState(false)
 
   const showCustomerSection = !!businessId && !!onSelectCustomer
 
@@ -190,29 +191,41 @@ export function UniversalPOSLayout({
               </div>
             )}
 
-            {/* Used Rewards — show if customer has no active reward but has used ones recently */}
-            {selectedCustomer && !appliedReward && customerRewards.length === 0 && customerUsedRewards.length > 0 && (
-              <div className="space-y-1">
-                {customerUsedRewards.map(r => (
-                  <div
-                    key={r.id}
-                    className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2"
-                  >
-                    <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {r.promo_campaigns.name} —{' '}
-                        {r.status === 'REDEEMED' ? 'Reward already used' :
-                         r.status === 'DEACTIVATED' ? 'Reward deactivated' : 'Reward expired'}
-                      </div>
-                      {r.redeemedAt && (
-                        <div className="text-[10px] text-gray-400 dark:text-gray-500">
-                          Redeemed {new Date(r.redeemedAt).toLocaleDateString()}
+            {/* Reward history icon — only show if customer has used/expired rewards */}
+            {selectedCustomer && customerUsedRewards.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowRewardHistory(h => !h)}
+                  className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <Clock className="w-3 h-3" />
+                  {showRewardHistory ? 'Hide' : 'View'} reward history ({customerUsedRewards.length})
+                </button>
+                {showRewardHistory && (
+                  <div className="mt-1 space-y-1">
+                    {customerUsedRewards.map(r => (
+                      <div
+                        key={r.id}
+                        className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2"
+                      >
+                        <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {r.promo_campaigns.name} —{' '}
+                            {r.status === 'REDEEMED' ? 'Used' :
+                             r.status === 'DEACTIVATED' ? 'Deactivated' : 'Expired'}
+                            {' '}<span className="font-mono">{r.couponCode}</span>
+                          </div>
+                          {r.redeemedAt && (
+                            <div className="text-[10px] text-gray-400 dark:text-gray-500">
+                              {new Date(r.redeemedAt).toLocaleDateString()}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>

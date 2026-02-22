@@ -37,6 +37,7 @@ import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
 import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
+import { useCoupon } from '@/app/universal/pos/hooks/useCoupon'
 
 interface MenuItem {
   id: string
@@ -77,6 +78,7 @@ export default function RestaurantPOS() {
   const [skipRewardThisTime, setSkipRewardThisTime] = useState(false)
   const autoAppliedForRef = useRef<string | null>(null)
   const [showQuickRegister, setShowQuickRegister] = useState(false)
+  const [showRewardHistory, setShowRewardHistory] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
@@ -129,6 +131,11 @@ export default function RestaurantPOS() {
     selectedCustomer?.id ?? null,
     currentBusinessId ?? null
   )
+
+  // Coupon hook — reads coupon applied via mini-cart (shared localStorage)
+  const { appliedCoupon, removeCoupon } = useCoupon(currentBusinessId ?? undefined)
+  const appliedCouponRef = useRef(appliedCoupon)
+  useEffect(() => { appliedCouponRef.current = appliedCoupon }, [appliedCoupon])
 
   // Toast context (hook) must be called unconditionally to preserve hooks order
   const toast = useToastContext()
@@ -196,10 +203,11 @@ export default function RestaurantPOS() {
     }
   }, [cart, currentBusinessId, cartLoaded])
 
-  // Auto-apply first available reward when customer rewards load
+  // Auto-apply first available ISSUED reward when customer rewards load (skip if coupon active)
   useEffect(() => {
     if (!selectedCustomer || appliedReward || customerRewards.length === 0) return
     if (autoAppliedForRef.current === selectedCustomer.id) return
+    if (appliedCouponRef.current) return // Cannot combine coupon + reward
     autoAppliedForRef.current = selectedCustomer.id
     setAppliedReward(customerRewards[0])
     toast.push(`Reward applied: ${customerRewards[0].couponCode}`, { type: 'success' })
@@ -1472,7 +1480,8 @@ export default function RestaurantPOS() {
 
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
   const rewardCredit = (appliedReward && !skipRewardThisTime) ? Math.min(Number(appliedReward.rewardAmount), subtotal) : 0
-  const total = Math.max(0, subtotal - rewardCredit)
+  const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discountAmount, Math.max(0, subtotal - rewardCredit)) : 0
+  const total = Math.max(0, subtotal - rewardCredit - couponDiscount)
 
   // Manual cart helpers
   const addToManualCart = (item: ManualCartItem) => {
@@ -1597,8 +1606,14 @@ export default function RestaurantPOS() {
       const requestBody = {
         items: cart,
         total,
-        discountAmount: rewardCredit,
+        discountAmount: rewardCredit + couponDiscount,
         rewardId: (appliedReward && !skipRewardThisTime) ? appliedReward.id : undefined,
+        ...(appliedCoupon ? {
+          couponId: appliedCoupon.id,
+          couponCode: appliedCoupon.code,
+          couponDiscount: couponDiscount,
+          couponCustomerPhone: appliedCoupon.customerPhone
+        } : {}),
         businessId: businessId,
         paymentMethod: paymentMethod,
         amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
@@ -1699,11 +1714,15 @@ export default function RestaurantPOS() {
         // Clear cart on POS and global cart
         setCart([])
         clearGlobalCart()
+        // Clear any coupon applied via mini-cart
+        removeCoupon()
+        window.dispatchEvent(new Event('coupon-removed'))
 
         // Reset customer for next sale
         setSelectedCustomer(null)
         setAppliedReward(null)
         setSkipRewardThisTime(false)
+        setShowRewardHistory(false)
         autoAppliedForRef.current = null
         setShowQuickRegister(false)
 
@@ -2633,6 +2652,7 @@ export default function RestaurantPOS() {
                       setSelectedCustomer(c)
                       setAppliedReward(null)
                       setSkipRewardThisTime(false)
+                      setShowRewardHistory(false)
                       autoAppliedForRef.current = null
                     }}
                     onCreateCustomer={() => setShowQuickRegister(true)}
@@ -2668,18 +2688,29 @@ export default function RestaurantPOS() {
                   </div>
                 )}
 
-                {/* Used Rewards — no active reward but has used ones recently */}
-                {selectedCustomer && !appliedReward && customerRewards.length === 0 && customerUsedRewards.length > 0 && (
-                  <div className="space-y-1">
-                    {customerUsedRewards.map(r => (
-                      <div key={r.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
-                        <div className="text-xs text-gray-500 dark:text-gray-400 flex-1">
-                          <span className="font-medium">{r.promo_campaigns.name}</span> —{' '}
-                          {r.status === 'REDEEMED' ? 'Reward already used' : r.status === 'DEACTIVATED' ? 'Reward deactivated' : 'Reward expired'}
-                          {r.redeemedAt && ` on ${new Date(r.redeemedAt).toLocaleDateString()}`}
-                        </div>
+                {/* Reward history icon — click to view used/expired rewards */}
+                {selectedCustomer && customerUsedRewards.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setShowRewardHistory(h => !h)}
+                      className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      🕐 {showRewardHistory ? 'Hide' : 'View'} reward history ({customerUsedRewards.length})
+                    </button>
+                    {showRewardHistory && (
+                      <div className="mt-1 space-y-1">
+                        {customerUsedRewards.map(r => (
+                          <div key={r.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 flex-1">
+                              <span className="font-medium">{r.promo_campaigns.name}</span> —{' '}
+                              {r.status === 'REDEEMED' ? 'Used' : r.status === 'DEACTIVATED' ? 'Deactivated' : 'Expired'}
+                              {' '}<span className="font-mono text-[10px]">{r.couponCode}</span>
+                              {r.redeemedAt && ` · ${new Date(r.redeemedAt).toLocaleDateString()}`}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
@@ -2741,6 +2772,27 @@ export default function RestaurantPOS() {
             )}
             
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              {rewardCredit > 0 && (
+                <div className="flex justify-between items-center mb-1 text-sm text-green-600 dark:text-green-400">
+                  <span>🎁 Reward credit</span>
+                  <span>-${rewardCredit.toFixed(2)}</span>
+                </div>
+              )}
+              {couponDiscount > 0 && appliedCoupon && (
+                <div className="flex justify-between items-center mb-1 text-sm text-green-600 dark:text-green-400">
+                  <span className="flex items-center gap-1">
+                    🏷 Coupon ({appliedCoupon.code})
+                    <button
+                      onClick={() => { removeCoupon(); window.dispatchEvent(new Event('coupon-removed')) }}
+                      className="ml-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 leading-none"
+                      title="Remove coupon"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                  <span>-${couponDiscount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center mb-4">
                 <span className="font-bold text-lg">Total:</span>
                 <span className="font-bold text-xl text-green-600">${total.toFixed(2)}</span>
@@ -2761,7 +2813,11 @@ export default function RestaurantPOS() {
                   setSelectedCustomer(null)
                   setAppliedReward(null)
                   setSkipRewardThisTime(false)
+                  setShowRewardHistory(false)
                   autoAppliedForRef.current = null
+                  // Clear any coupon applied via mini-cart
+                  removeCoupon()
+                  window.dispatchEvent(new Event('coupon-removed'))
                 }}
                 disabled={cart.length === 0}
                 className="w-full py-3 sm:py-2 mt-2 bg-gray-500 dark:bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"

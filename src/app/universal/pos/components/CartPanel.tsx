@@ -224,8 +224,17 @@ export function CartPanel({
           </div>
           {totals.discount > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-green-600 dark:text-green-400">
+              <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
                 {appliedCoupon ? `Coupon (${appliedCoupon.code})` : 'Discount'}
+                {appliedCoupon && onRemoveCoupon && (
+                  <button
+                    onClick={onRemoveCoupon}
+                    className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 leading-none"
+                    title="Remove coupon"
+                  >
+                    ✕
+                  </button>
+                )}
               </span>
               <span className="text-green-600 dark:text-green-400">
                 -${totals.discount.toFixed(2)}

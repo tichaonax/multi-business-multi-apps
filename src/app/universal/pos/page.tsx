@@ -82,6 +82,8 @@ export default function UniversalPOS() {
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; customerType: string } | null>(null)
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
   const autoAppliedForRef = useRef<string | null>(null)
+  const appliedCouponRef = useRef(appliedCoupon)
+  useEffect(() => { appliedCouponRef.current = appliedCoupon }, [appliedCoupon])
   const { rewards: customerRewards, usedRewards: customerUsedRewards, refetch: refetchRewards } = useCustomerRewards(
     selectedCustomer?.id ?? null,
     currentBusinessId ?? null
@@ -144,11 +146,11 @@ export default function UniversalPOS() {
     setAppliedReward(null)
   }
 
-  // Auto-apply first available reward when customer rewards load
+  // Auto-apply first available ISSUED reward when customer rewards load
   useEffect(() => {
     if (!selectedCustomer || appliedReward || customerRewards.length === 0) return
     if (autoAppliedForRef.current === selectedCustomer.id) return
-    if (appliedCoupon) return // Cannot combine coupon + reward
+    if (appliedCouponRef.current) return // Use ref to avoid stale closure — cannot combine coupon + reward
     autoAppliedForRef.current = selectedCustomer.id
     handleApplyReward(customerRewards[0])
     toast.success(`Reward applied: ${customerRewards[0].couponCode}`)
@@ -401,6 +403,15 @@ export default function UniversalPOS() {
     setDiscount(0)
   }
 
+  // Handle clear cart — also clears coupon and reward so POS is ready for next order
+  const handleClearCart = () => {
+    clearCart()
+    removeCoupon()
+    setDiscount(0)
+    setAppliedReward(null)
+    autoAppliedForRef.current = null
+  }
+
   // Handle checkout
   const handleCheckout = async (paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty', amountPaid?: number) => {
     await processCheckout(cart, totals, {
@@ -440,7 +451,7 @@ export default function UniversalPOS() {
           onAddToCart={handleAddToCart}
           onUpdateQuantity={updateQuantity}
           onRemoveItem={removeFromCart}
-          onClearCart={clearCart}
+          onClearCart={handleClearCart}
           config={config}
           isProcessing={isProcessing}
           onCheckout={handleCheckout}

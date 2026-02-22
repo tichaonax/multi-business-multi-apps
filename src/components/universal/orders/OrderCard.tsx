@@ -115,7 +115,14 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, onRefund, can
               )}
               {order.discountAmount > 0 && (
                 <div className="flex justify-between">
-                  <span>Discount</span>
+                  <span>
+                    Discount
+                    {order.attributes?.rewardCouponCode && (
+                      <span className="ml-1 text-xs text-green-600 dark:text-green-400 font-normal">
+                        🎁 {order.attributes.rewardCouponCode}
+                      </span>
+                    )}
+                  </span>
                   <span className="font-medium text-red-500">-{formatCurrency(order.discountAmount)}</span>
                 </div>
               )}
