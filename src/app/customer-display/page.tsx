@@ -61,6 +61,9 @@ interface CartState {
   subtotal: number
   tax: number
   total: number
+  discountAmount?: number
+  discountLabel?: string
+  rewardAvailableMessage?: string
 }
 
 function CustomerDisplayContent() {
@@ -99,6 +102,8 @@ function CustomerDisplayContent() {
   // Greeting and business info
   const [employeeName, setEmployeeName] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState<string | null>(null)
+  const [customerRewardMessage, setCustomerRewardMessage] = useState<string | null>(null)
+  const [customerRewardApplied, setCustomerRewardApplied] = useState(false)
   const [thankYouName, setThankYouName] = useState<string | null>(null)
   const [businessName, setBusinessName] = useState<string | null>(null)
   const [businessPhone, setBusinessPhone] = useState<string | null>(null)
@@ -187,7 +192,10 @@ function CustomerDisplayContent() {
           items: message.payload.items || [],
           subtotal: message.payload.subtotal,
           tax: message.payload.tax,
-          total: message.payload.total
+          total: message.payload.total,
+          discountAmount: message.payload.discountAmount,
+          discountLabel: message.payload.discountLabel,
+          rewardAvailableMessage: message.payload.rewardAvailableMessage,
         }
         console.log('🛒 [CustomerDisplay] Setting cart state:', {
           itemCount: newCart.items.length,
@@ -289,8 +297,10 @@ function CustomerDisplayContent() {
         break
 
       case 'SET_CUSTOMER':
-        // Update customer name for personalized greeting (null = no customer selected)
+        // Update customer name, reward message, and applied state
         setCustomerName(message.payload.customerName || null)
+        setCustomerRewardMessage(message.payload.rewardMessage || null)
+        setCustomerRewardApplied(!!message.payload.rewardApplied)
         break
 
       case 'SET_PAGE_CONTEXT':
@@ -359,6 +369,8 @@ function CustomerDisplayContent() {
           })
           setThankYouName(null)
           setCustomerName(null)
+          setCustomerRewardMessage(null)
+          setCustomerRewardApplied(false)
         }, 4000)
         break
 
@@ -587,7 +599,7 @@ function CustomerDisplayContent() {
   // }, [cart.items.length, lastActivityTime])
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-white relative">
+    <div className="h-screen w-screen overflow-hidden bg-white flex flex-col">
       {/* Thank You Overlay — shown briefly after payment complete */}
       {thankYouName !== null && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-green-600 text-white">
@@ -600,8 +612,8 @@ function CustomerDisplayContent() {
         </div>
       )}
 
-      {/* Business Info Banner - Only visible element */}
-      <div className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-8 shadow-lg">
+      {/* Business Info Banner */}
+      <div className="z-30 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-8 shadow-lg flex-shrink-0">
         <div className="max-w-7xl mx-auto">
           {/* Business Name */}
           {businessName && (
@@ -634,7 +646,7 @@ function CustomerDisplayContent() {
 
             {businessPhone && (
               <div className="text-right flex items-center gap-3">
-                <p className="text-3xl font-bold">📞 {formatPhoneNumberForDisplay(businessPhone)}</p>
+                <p className="text-3xl font-bold">{formatPhoneNumberForDisplay(businessPhone)}</p>
                 {ecocashEnabled && (
                   <img
                     src="/images/ecocash-logo.png"
@@ -645,6 +657,15 @@ function CustomerDisplayContent() {
               </div>
             )}
           </div>
+
+          {/* Reward message strip — bottom of banner */}
+          {customerRewardMessage && (
+            <div className="mt-2 text-center">
+              <p className={`text-2xl font-bold animate-pulse ${customerRewardApplied ? 'text-green-300' : 'text-yellow-300'}`}>
+                {customerRewardMessage}
+              </p>
+            </div>
+          )}
 
           {/* Reward Pending Banner */}
           {rewardPending && (
@@ -663,7 +684,7 @@ function CustomerDisplayContent() {
       </div>
 
       {/* Display content with smooth transitions */}
-      <div className="h-full w-full relative pt-32">
+      <div className="flex-1 relative overflow-hidden">
         {/* Marketing Display - fade in/out */}
         <div
           className={`absolute inset-0 transition-opacity duration-700 ${
@@ -687,6 +708,9 @@ function CustomerDisplayContent() {
             taxIncludedInPrice={taxIncludedInPrice}
             taxRate={taxRate}
             taxLabel={taxLabel}
+            discountAmount={cart.discountAmount}
+            discountLabel={cart.discountLabel}
+            rewardAvailableMessage={cart.rewardAvailableMessage}
             paymentInProgress={paymentState.inProgress}
             amountTendered={paymentState.amountTendered}
             changeDue={paymentState.changeDue}

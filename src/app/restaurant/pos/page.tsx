@@ -76,7 +76,7 @@ export default function RestaurantPOS() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; customerType: string } | null>(null)
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
-  const [skipRewardThisTime, setSkipRewardThisTime] = useState(false)
+  const [skipRewardThisTime, setSkipRewardThisTime] = useState(true)
   const autoAppliedForRef = useRef<string | null>(null)
   const [showQuickRegister, setShowQuickRegister] = useState(false)
   const [showRewardHistory, setShowRewardHistory] = useState(false)
@@ -215,7 +215,7 @@ export default function RestaurantPOS() {
     if (appliedCouponRef.current) return // Cannot combine coupon + reward
     autoAppliedForRef.current = selectedCustomer.id
     setAppliedReward(customerRewards[0])
-    toast.push(`Reward applied: ${customerRewards[0].couponCode}`, { type: 'success' })
+    setSkipRewardThisTime(true) // Loaded but not applied — customer must opt in
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerRewards])
 
@@ -357,10 +357,29 @@ export default function RestaurantPOS() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBusinessId])
 
-  // Notify customer display when selected customer changes (for personalized greeting)
+  // Notify customer display when selected customer, reward, or reward opt-in changes
   useEffect(() => {
-    sendToDisplay('SET_CUSTOMER', { customerName: selectedCustomer?.name || null })
-  }, [selectedCustomer])
+    let rewardMessage: string | null = null
+    let rewardApplied = false
+    if (appliedReward) {
+      const parts = [
+        Number(appliedReward.rewardAmount) > 0 && `$${Number(appliedReward.rewardAmount).toFixed(2)} reward`,
+        appliedReward.rewardProduct && `Free ${appliedReward.rewardProduct.name}`,
+        appliedReward.wifiConfig && `Free WiFi (${appliedReward.wifiConfig.name})`,
+      ].filter(Boolean).join(' + ')
+      if (!skipRewardThisTime) {
+        rewardMessage = `✅ ${parts} applied to this order!`
+        rewardApplied = true
+      } else {
+        rewardMessage = `🎁 You have a ${parts} waiting — ask your cashier!`
+      }
+    }
+    sendToDisplay('SET_CUSTOMER', {
+      customerName: selectedCustomer?.name || null,
+      rewardMessage,
+      rewardApplied,
+    })
+  }, [selectedCustomer, appliedReward, skipRewardThisTime])
 
 
   // Broadcast cart state to customer display
@@ -383,6 +402,22 @@ export default function RestaurantPOS() {
       total = subtotal + tax
     }
 
+    const rewardCredit = (appliedReward && !skipRewardThisTime)
+      ? Math.min(Number(appliedReward.rewardAmount), subtotal)
+      : 0
+    const discountedTotal = Math.max(0, total - rewardCredit)
+
+    // Build reward available hint (shown in cart when reward exists but not yet applied)
+    let rewardAvailableMessage: string | undefined
+    if (appliedReward && skipRewardThisTime) {
+      const parts = [
+        Number(appliedReward.rewardAmount) > 0 && `$${Number(appliedReward.rewardAmount).toFixed(2)} reward`,
+        appliedReward.rewardProduct && `Free ${appliedReward.rewardProduct.name}`,
+        appliedReward.wifiConfig && `Free WiFi (${appliedReward.wifiConfig.name})`,
+      ].filter(Boolean).join(' + ')
+      rewardAvailableMessage = `🎁 You have a ${parts} — ask cashier to apply!`
+    }
+
     const cartMessage = {
       items: cartItems.map(item => ({
         id: item.id,
@@ -390,15 +425,16 @@ export default function RestaurantPOS() {
         quantity: item.quantity,
         price: Number(item.price),
         variant: item.category,
-        imageUrl: item.imageUrl, // Include product image for customer display
+        imageUrl: item.imageUrl,
         isCombo: (item as any).isCombo || false,
-        comboItems: (item as any).comboItems || null // Include combo items for display
+        comboItems: (item as any).comboItems || null
       })),
       subtotal,
       tax,
-      total,
-      rewardPending: !!appliedReward && !skipRewardThisTime,
-      rewardAmount: (appliedReward && !skipRewardThisTime) ? Number(appliedReward.rewardAmount) : undefined
+      total: discountedTotal,
+      discountAmount: rewardCredit > 0 ? rewardCredit : undefined,
+      discountLabel: rewardCredit > 0 ? `Reward (${appliedReward!.couponCode})` : undefined,
+      rewardAvailableMessage,
     }
 
     console.log('[POS] Sending CART_STATE:', {
@@ -441,7 +477,7 @@ export default function RestaurantPOS() {
     }, 3000)
 
     return () => clearInterval(syncInterval)
-  }, [cart, currentBusinessId, taxIncludedInPrice, taxRate])
+  }, [cart, currentBusinessId, taxIncludedInPrice, taxRate, appliedReward, skipRewardThisTime])
 
   // Broadcast payment amount updates to customer display
   useEffect(() => {
@@ -2781,7 +2817,7 @@ export default function RestaurantPOS() {
                     onSelectCustomer={(c) => {
                       setSelectedCustomer(c)
                       setAppliedReward(null)
-                      setSkipRewardThisTime(false)
+                      setSkipRewardThisTime(true)
                       setShowRewardHistory(false)
                       autoAppliedForRef.current = null
                     }}
@@ -2809,11 +2845,11 @@ export default function RestaurantPOS() {
                     <label className="flex items-center gap-2 cursor-pointer px-1">
                       <input
                         type="checkbox"
-                        checked={skipRewardThisTime}
-                        onChange={e => setSkipRewardThisTime(e.target.checked)}
+                        checked={!skipRewardThisTime}
+                        onChange={e => setSkipRewardThisTime(!e.target.checked)}
                         className="rounded w-3.5 h-3.5"
                       />
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Don&apos;t apply reward this time</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Apply reward to this order</span>
                     </label>
                   </div>
                 )}
