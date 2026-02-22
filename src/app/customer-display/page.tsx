@@ -98,6 +98,8 @@ function CustomerDisplayContent() {
 
   // Greeting and business info
   const [employeeName, setEmployeeName] = useState<string | null>(null)
+  const [customerName, setCustomerName] = useState<string | null>(null)
+  const [thankYouName, setThankYouName] = useState<string | null>(null)
   const [businessName, setBusinessName] = useState<string | null>(null)
   const [businessPhone, setBusinessPhone] = useState<string | null>(null)
   const [slogan, setSlogan] = useState<string | null>(null)
@@ -286,6 +288,11 @@ function CustomerDisplayContent() {
         // Business data (name, phone, customMessage) is ONLY set from API, not from POS broadcast
         break
 
+      case 'SET_CUSTOMER':
+        // Update customer name for personalized greeting (null = no customer selected)
+        setCustomerName(message.payload.customerName || null)
+        break
+
       case 'SET_PAGE_CONTEXT':
         // Update page context (pos or marketing)
         if (message.payload.pageContext) {
@@ -325,14 +332,17 @@ function CustomerDisplayContent() {
         break
 
       case 'PAYMENT_COMPLETE':
-        // Payment complete - show "Sale Complete" then clear cart after 3 seconds
+        // Payment complete - show thank you message, then clear cart after 4 seconds
         console.log('[CustomerDisplay] Payment complete - sale finished')
         setPaymentState(prev => ({
           ...prev,
           inProgress: false
         }))
 
-        // Clear cart and payment state after 3 seconds
+        // Show thank you overlay with customer name (or generic)
+        setThankYouName(message.payload.customerName || '')
+
+        // Clear cart, payment state, and thank you after 4 seconds
         setTimeout(() => {
           console.log('[CustomerDisplay] Clearing cart after sale complete')
           setCart({
@@ -347,7 +357,9 @@ function CustomerDisplayContent() {
             changeDue: 0,
             shortfall: 0
           })
-        }, 3000)
+          setThankYouName(null)
+          setCustomerName(null)
+        }, 4000)
         break
 
       case 'PAYMENT_CANCELLED':
@@ -576,6 +588,18 @@ function CustomerDisplayContent() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-white relative">
+      {/* Thank You Overlay — shown briefly after payment complete */}
+      {thankYouName !== null && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-green-600 text-white">
+          <div className="text-8xl mb-6">✅</div>
+          <p className="text-5xl font-bold mb-4">
+            {thankYouName ? `Thank you, ${thankYouName}!` : 'Thank you!'}
+          </p>
+          <p className="text-3xl font-medium opacity-90">Your order is being prepared.</p>
+          <p className="text-xl mt-4 opacity-70">Please wait for your number to be called.</p>
+        </div>
+      )}
+
       {/* Business Info Banner - Only visible element */}
       <div className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-8 shadow-lg">
         <div className="max-w-7xl mx-auto">
@@ -592,11 +616,20 @@ function CustomerDisplayContent() {
           {/* Employee Greeting & Business Info */}
           <div className="flex items-center justify-between">
             <div className="flex-1 text-center">
-              {employeeName && (
+              {customerName ? (
+                <p className="text-2xl font-bold">
+                  {(() => {
+                    const h = new Date().getHours()
+                    if (h < 12) return `🌅 Good Morning, ${customerName}!`
+                    if (h < 17) return `☀️ Good Afternoon, ${customerName}!`
+                    return `🌙 Good Evening, ${customerName}!`
+                  })()}
+                </p>
+              ) : employeeName ? (
                 <p className="text-xl font-medium">
                   🙋 {employeeName} is here to help you today
                 </p>
-              )}
+              ) : null}
             </div>
 
             {businessPhone && (

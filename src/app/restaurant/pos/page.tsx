@@ -357,6 +357,12 @@ export default function RestaurantPOS() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBusinessId])
 
+  // Notify customer display when selected customer changes (for personalized greeting)
+  useEffect(() => {
+    sendToDisplay('SET_CUSTOMER', { customerName: selectedCustomer?.name || null })
+  }, [selectedCustomer])
+
+
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {
     console.log('[POS] Broadcasting cart state, items:', cartItems.length)
@@ -1767,11 +1773,12 @@ export default function RestaurantPOS() {
         // Show receipt modal
         setShowReceiptModal(true)
 
-        // Broadcast payment complete to customer display (cart will clear after 3 seconds on display)
+        // Broadcast payment complete to customer display (cart will clear after 4 seconds on display)
         sendToDisplay('PAYMENT_COMPLETE', {
           subtotal: total,
           tax: 0,
-          total: total
+          total: total,
+          customerName: selectedCustomer?.name || null
         })
 
         // Clear cart on POS and global cart
