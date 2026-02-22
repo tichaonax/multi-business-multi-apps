@@ -166,7 +166,8 @@ const RESTORE_ORDER = [
   'personalDepositSources',     // no FK dependencies (reference table)
   'expenseAccountLenders',      // no FK dependencies (reference table)
   'expenseAccountLoans',        // depends on expenseAccounts + expenseAccountLenders
-  'expenseAccountDeposits',     // depends on expenseAccounts + personalDepositSources + expenseAccountLoans
+  'fundSources',                // MUST come before expenseAccountDeposits (deposits FK → fundSources)
+  'expenseAccountDeposits',     // depends on expenseAccounts + personalDepositSources + expenseAccountLoans + fundSources
   'businessTransferLedger',     // depends on expenseAccounts
   'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger
 
@@ -181,7 +182,6 @@ const RESTORE_ORDER = [
   'payrollAdjustments',
 
   // Personal finance
-  'fundSources',
   'personalBudgets',
   'personalExpenses',
 

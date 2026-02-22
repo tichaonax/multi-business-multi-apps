@@ -81,7 +81,11 @@ interface RestoreResult {
   };
 }
 
-export function DataBackup() {
+interface DataBackupProps {
+  canRestore?: boolean;
+}
+
+export function DataBackup({ canRestore = true }: DataBackupProps) {
   const [loading, setLoading] = useState(false);
   const [backupOptions, setBackupOptions] = useState<BackupOptions>({
     type: 'full',
@@ -832,10 +836,10 @@ export function DataBackup() {
       </div>
 
       {/* Divider */}
-      <div className="border-t border-slate-200 dark:border-slate-700"></div>
+      {canRestore && <div className="border-t border-slate-200 dark:border-slate-700"></div>}
 
       {/* Restore Section */}
-      <div className="space-y-6">
+      {canRestore && <div className="space-y-6">
         <div>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
             Restore from Backup
@@ -1272,12 +1276,13 @@ export function DataBackup() {
             )}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Divider */}
-      <div className="border-t border-slate-200 dark:border-slate-700"></div>
+      {canRestore && <div className="border-t border-slate-200 dark:border-slate-700"></div>}
 
       {/* Demo Business Management Section */}
+      {canRestore && <>
       <div className="space-y-6">
         <div>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
@@ -1450,6 +1455,7 @@ export function DataBackup() {
           </Button>
         </div>
       </div>
+      </>}
     </div>
   );
 }

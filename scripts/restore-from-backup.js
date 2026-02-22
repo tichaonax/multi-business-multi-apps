@@ -30,7 +30,6 @@ const RESTORE_ORDER = [
   'expenseDomains',
   'expenseCategories',
   'expenseSubcategories',
-  'expenseAccountLenders',  // Loan lender reference data (no external FKs)
 
   // Users and authentication
   'users',
@@ -107,9 +106,11 @@ const RESTORE_ORDER = [
 
   // Expense accounts
   'expenseAccounts',
-  'expenseAccountDeposits',
-  'expenseAccountPayments',
+  'expenseAccountLenders',        // No FK dependencies (reference table)
   'expenseAccountLoans',          // Depends on expenseAccounts + expenseAccountLenders
+  'fundSources',                  // MUST come before expenseAccountDeposits (deposits FK → fundSources)
+  'expenseAccountDeposits',       // Depends on expenseAccounts + expenseAccountLoans + fundSources
+  'expenseAccountPayments',
   'businessTransferLedger',       // Depends on expenseAccounts + businesses
   'accountOutgoingLoans',         // Depends on expenseAccounts, persons, employees, businesses
 
@@ -133,7 +134,6 @@ const RESTORE_ORDER = [
   'accountOutgoingLoanPayments',   // Depends on accountOutgoingLoans + payrollEntries
 
   // Personal finance
-  'fundSources',
   'personalBudgets',
   'personalExpenses',
 

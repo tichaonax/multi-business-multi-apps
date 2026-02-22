@@ -10,11 +10,13 @@ import { DataSeed } from '@/components/data-seed';
 import { Download, Upload, HardDrive, Shield, Sprout } from 'lucide-react';
 import { ContentLayout } from '@/components/layout/content-layout';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context';
 
 export function DataManagementClient() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'export' | 'import' | 'backup' | 'seed'>('export');
+  const { isBusinessOwner } = useBusinessPermissionsContext();
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -35,12 +37,15 @@ export function DataManagementClient() {
   }
 
   const isAdmin = session.user?.role === 'admin';
+  const isManager = session.user?.role === 'manager';
+  // Managers and business owners can backup; only admins can restore
+  const canBackup = isAdmin || isManager || isBusinessOwner;
 
   return (
     <ProtectedRoute>
       <ContentLayout
         title="🗂️ Data Management"
-        subtitle={`Export your data for analysis, import bulk data from CSV files, or create database backups${!isAdmin ? '. Import and backup functionality requires administrator privileges.' : ''}`}
+        subtitle={`Export your data for analysis, import bulk data from CSV files, or create database backups${!canBackup ? '. Backup functionality requires manager or administrator privileges.' : !isAdmin ? '. Restore functionality is restricted to administrators.' : ''}`}
         maxWidth="7xl"
       >
         {/* Tab Navigation */}
@@ -77,19 +82,19 @@ export function DataManagementClient() {
               </button>
               <button
                 onClick={() => setActiveTab('backup')}
-                disabled={!isAdmin}
+                disabled={!canBackup}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'backup' && isAdmin
+                  activeTab === 'backup' && canBackup
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : !isAdmin
+                    : !canBackup
                       ? 'border-transparent text-slate-300 cursor-not-allowed dark:text-slate-600'
                       : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'
                 }`}
               >
                 <HardDrive className="h-4 w-4 inline mr-2" />
-                Backup & Restore
-                {!isAdmin && (
-                  <span className="ml-1 text-xs">(Admin Only)</span>
+                {isAdmin ? 'Backup & Restore' : 'Backup'}
+                {!canBackup && (
+                  <span className="ml-1 text-xs">(Manager+ Only)</span>
                 )}
               </button>
               <button
@@ -141,18 +146,18 @@ export function DataManagementClient() {
 
           {activeTab === 'backup' && (
             <>
-              {isAdmin ? (
-                <DataBackup />
+              {canBackup ? (
+                <DataBackup canRestore={isAdmin} />
               ) : (
                 <div className="text-center py-12">
                   <Shield className="h-16 w-16 text-slate-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
-                    Administrator Access Required
+                    Manager Access Required
                   </h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Backup and restore functionality is restricted to
-                    administrators only. Please contact your system
-                    administrator for assistance.
+                    Backup functionality requires manager or administrator
+                    privileges. Please contact your system administrator for
+                    assistance.
                   </p>
                 </div>
               )}
