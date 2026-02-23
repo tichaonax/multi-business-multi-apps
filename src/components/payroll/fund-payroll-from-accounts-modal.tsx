@@ -56,7 +56,7 @@ export function FundPayrollFromAccountsModal({
       .filter((t) => t.amount > 0)
 
     if (transfers.length === 0) {
-      toast.push('Enter an amount for at least one account', { type: 'error' })
+      toast.error('Enter an amount for at least one account')
       return
     }
 
@@ -64,7 +64,7 @@ export function FundPayrollFromAccountsModal({
     for (const t of transfers) {
       const src = sources.find((s) => s.id === t.expenseAccountId)
       if (src && t.amount > src.balance) {
-        toast.push(`Amount exceeds balance for ${src.accountName}`, { type: 'error' })
+        toast.error(`Amount exceeds balance for ${src.accountName}`)
         return
       }
     }
@@ -84,10 +84,10 @@ export function FundPayrollFromAccountsModal({
         onSuccess()
         onClose()
       } else {
-        toast.push(data.error || 'Transfer failed', { type: 'error' })
+        toast.error(data.error || 'Transfer failed')
       }
     } catch {
-      toast.push('Network error. Please try again.', { type: 'error' })
+      toast.error('Network error. Please try again.')
     } finally {
       setSubmitting(false)
     }

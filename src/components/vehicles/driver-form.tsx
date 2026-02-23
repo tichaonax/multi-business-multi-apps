@@ -154,7 +154,7 @@ export function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred'
       setError(message)
-      try { toast.push(message) } catch (e) { }
+      try { toast.error(message) } catch (e) { }
     } finally {
       setIsSubmitting(false)
     }

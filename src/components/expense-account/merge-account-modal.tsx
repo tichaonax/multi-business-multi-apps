@@ -107,7 +107,7 @@ export function MergeAccountModal({
     } catch (error) {
       console.error('Merge sibling account error:', error)
       const message = error instanceof Error ? error.message : 'Failed to merge sibling account'
-      toast.push(message)
+      toast.error(message)
       try {
         onError(message)
       } catch (e) {}

@@ -110,7 +110,7 @@ export default function LaybyDetailPage({ params }: LaybyDetailPageProps) {
       setShowCompleteModal(false)
       await fetchLayby()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to complete layby')
+      toast.error(err instanceof Error ? err.message : 'Failed to complete layby')
     } finally {
       setActionLoading(false)
     }
@@ -144,7 +144,7 @@ export default function LaybyDetailPage({ params }: LaybyDetailPageProps) {
       setShowCancelModal(false)
       await fetchLayby()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to cancel layby')
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel layby')
     } finally {
       setActionLoading(false)
     }
@@ -183,7 +183,7 @@ export default function LaybyDetailPage({ params }: LaybyDetailPageProps) {
       setHoldReason('')
       await fetchLayby()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to put layby on hold')
+      toast.error(err instanceof Error ? err.message : 'Failed to put layby on hold')
     } finally {
       setActionLoading(false)
     }
@@ -217,7 +217,7 @@ export default function LaybyDetailPage({ params }: LaybyDetailPageProps) {
       setReactivateNotes('')
       await fetchLayby()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to reactivate layby')
+      toast.error(err instanceof Error ? err.message : 'Failed to reactivate layby')
     } finally {
       setActionLoading(false)
     }

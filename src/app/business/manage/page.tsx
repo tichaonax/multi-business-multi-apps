@@ -373,7 +373,7 @@ function BusinessManagePageContent() {
                             const res = await fetch(`/api/universal/business-config?businessId=${encodeURIComponent(id)}`)
                             if (!res.ok) {
                               const err = await res.json().catch(() => ({}))
-                              toast.push(err?.error || 'Failed to load business details')
+                              toast.error(err?.error || 'Failed to load business details')
                               return
                             }
                             const json = await res.json()
@@ -400,7 +400,7 @@ function BusinessManagePageContent() {
                             setShowEditBusiness(true)
                           } catch (err) {
                             console.error('Failed to fetch business details for edit:', err)
-                            toast.push('Failed to load business details')
+                            toast.error('Failed to load business details')
                           } finally {
                             setEditLoading(false)
                           }
@@ -596,13 +596,13 @@ function BusinessManagePageContent() {
               }
             } catch (err) {
               console.error('Failed to switch to new business:', err)
-              toast.push('Business created but failed to switch')
+              toast.error('Business created but failed to switch')
             } finally {
               setShowCreateBusiness(false)
             }
           }}
           onError={(error) => {
-            toast.push(error)
+            toast.error(error)
           }}
         />
       )}
@@ -644,7 +644,7 @@ function BusinessManagePageContent() {
             }
           }}
           onError={(error) => {
-            toast.push(error)
+            toast.error(error)
           }}
           initial={editBusinessInitial}
           method="PUT"
@@ -681,7 +681,7 @@ function BusinessManagePageContent() {
             }
           }}
           onError={(error) => {
-            toast.push(error)
+            toast.error(error)
             setShowDeleteBusiness(false)
           }}
         />

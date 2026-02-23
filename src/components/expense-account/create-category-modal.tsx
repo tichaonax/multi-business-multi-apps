@@ -135,7 +135,7 @@ export function CreateCategoryModal({
     } catch (error) {
       console.error('Create category error:', error)
       const message = error instanceof Error ? error.message : 'Failed to create category'
-      toast.push(message)
+      toast.error(message)
       try {
         onError(message)
       } catch (e) {}

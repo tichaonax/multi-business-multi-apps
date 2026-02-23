@@ -166,7 +166,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
       // Refresh the list
       fetchDrivers()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : `Failed to ${action} driver`)
+      toast.error(err instanceof Error ? err.message : `Failed to ${action} driver`)
     }
   }
 
@@ -177,7 +177,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
     if (driver.authorizations && driver.authorizations.length > 0) relatedData.push('vehicle authorizations')
 
     if (relatedData.length > 0) {
-      toast.push(`Cannot delete driver: They have ${relatedData.join(', ')}. Please remove these first or disable the driver instead.`)
+      toast.error(`Cannot delete driver: They have ${relatedData.join(', ')}. Please remove these first or disable the driver instead.`)
       return
     }
 
@@ -205,7 +205,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
       // Refresh the list
       fetchDrivers()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to delete driver')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete driver')
     }
   }
 
@@ -257,7 +257,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
       toast.push(`User account for ${driverName} has been deactivated successfully`)
       fetchDrivers() // Refresh list
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to deactivate user')
+      toast.error(err instanceof Error ? err.message : 'Failed to deactivate user')
     } finally {
       setUserOperationLoading(null)
     }
@@ -288,7 +288,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
       toast.push(`User account for ${driverName} has been reactivated successfully`)
       fetchDrivers() // Refresh list
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to reactivate user')
+      toast.error(err instanceof Error ? err.message : 'Failed to reactivate user')
     } finally {
       setUserOperationLoading(null)
     }
@@ -302,7 +302,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
   }
 
   const handlePromotionError = (error: string) => {
-    toast.push(error)
+    toast.error(error)
   }
 
   const { format: globalDateFormat } = useDateFormat()

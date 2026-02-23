@@ -152,8 +152,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check permissions
-    if (!hasPermission(user, 'canManageCustomers')) {
+    // Check permissions — POS role has canCreateCustomers; managers have canManageCustomers
+    if (!hasPermission(user, 'canManageCustomers') && !hasPermission(user, 'canCreateCustomers')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

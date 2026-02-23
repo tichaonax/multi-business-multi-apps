@@ -134,7 +134,7 @@ export default function MealProgramReportPage() {
         if (view === 'salesperson') setSalespersonData(data.data)
         if (view === 'participant') setParticipantData(data.data)
       } catch (err: any) {
-        toast.push(err.message || 'Failed to load report', { type: 'error' })
+        toast.error(err.message || 'Failed to load report')
       } finally {
         setLoading(false)
       }

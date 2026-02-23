@@ -288,7 +288,7 @@ export async function GET(request: NextRequest) {
         date: date.toISOString().split('T')[0],
         tokensCreated,
         salesCount,
-        revenue: salesRevenue._sum.saleAmount || 0,
+        revenue: Number(salesRevenue._sum.saleAmount) || 0,
       });
     }
 
@@ -310,7 +310,7 @@ export async function GET(request: NextRequest) {
         expiredTokens: expiredTokens,
         disabledTokens: disabledTokens,
         totalSales: totalSales._count,
-        totalRevenue: totalSales._sum.saleAmount || 0,
+        totalRevenue: Number(totalSales._sum.saleAmount) || 0,
         averageSaleAmount:
           totalSales._count > 0
             ? Number(totalSales._sum.saleAmount || 0) / totalSales._count
@@ -319,21 +319,21 @@ export async function GET(request: NextRequest) {
       salesByPaymentMethod: salesByPaymentMethod.map((pm) => ({
         paymentMethod: pm.paymentMethod,
         count: pm._count,
-        totalAmount: pm._sum.saleAmount || 0,
+        totalAmount: Number(pm._sum.saleAmount) || 0,
       })),
       tokensByConfiguration: tokensByConfigWithDetails.sort((a, b) => b.count - a.count),
       bandwidthUsage: {
-        totalDownloadMb: bandwidthStats._sum.bandwidthUsedDown || 0,
-        totalUploadMb: bandwidthStats._sum.bandwidthUsedUp || 0,
-        averageDownloadMb: bandwidthStats._avg.bandwidthUsedDown || 0,
-        averageUploadMb: bandwidthStats._avg.bandwidthUsedUp || 0,
+        totalDownloadMb: Number(bandwidthStats._sum.bandwidthUsedDown) || 0,
+        totalUploadMb: Number(bandwidthStats._sum.bandwidthUsedUp) || 0,
+        averageDownloadMb: Number(bandwidthStats._avg.bandwidthUsedDown) || 0,
+        averageUploadMb: Number(bandwidthStats._avg.bandwidthUsedUp) || 0,
       },
       dailyTrends: last7Days,
       recentSales: recentSales.map((sale) => ({
         id: sale.id,
         token: sale.wifi_tokens.token,
         tokenConfig: sale.wifi_tokens.token_configurations.name,
-        saleAmount: sale.saleAmount,
+        saleAmount: Number(sale.saleAmount),
         paymentMethod: sale.paymentMethod,
         soldAt: sale.soldAt,
       })),

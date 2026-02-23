@@ -121,7 +121,7 @@ export function CreateContractorPayeeModal({
       setErrors({ fullName: '', nationalId: '', phone: '', taxId: '' })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create contractor payee'
-      toast.push(message)
+      toast.error(message)
       try { onError?.(message) } catch (e) {}
     } finally {
       setLoading(false)

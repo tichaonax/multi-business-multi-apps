@@ -1695,7 +1695,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 toast.push(`${receiptType} receipt sent to printer`)
               },
               onError: (error, receiptType) => {
-                toast.push(`Error: ${error.message}`)
+                toast.error(`Error: ${error.message}`)
               }
             })
 
@@ -1706,7 +1706,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             setCompletedOrderReceipt(null)
 
           } catch (error: any) {
-            toast.push(`Print error: ${error.message}`)
+            toast.error(`Print error: ${error.message}`)
           } finally {
             printInFlightRef.current = false
           }

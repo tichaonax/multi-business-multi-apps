@@ -17,9 +17,9 @@ const COLORS: Record<string, string> = {
   CASH: '#10b981', // Green
   CARD: '#3b82f6', // Blue
   MOBILE: '#8b5cf6', // Purple
-  GCASH: '#0066cc', // GCash Blue
-  PAYMAYA: '#00a74f', // PayMaya Green
-  FREE: '#f59e0b', // Amber for free tokens
+  ECOCASH: '#f59e0b', // EcoCash Amber
+  ONEMONEY: '#ef4444', // OneMoney Red
+  FREE: '#06b6d4', // Cyan for free tokens
   OTHER: '#6b7280', // Gray
 }
 
@@ -27,8 +27,8 @@ const METHOD_LABELS: Record<string, string> = {
   CASH: '💵 Cash',
   CARD: '💳 Card',
   MOBILE: '📱 Mobile',
-  GCASH: '📱 GCash',
-  PAYMAYA: '📱 PayMaya',
+  ECOCASH: '📱 EcoCash',
+  ONEMONEY: '📱 OneMoney',
   FREE: '🎁 Free',
   OTHER: '🔖 Other',
 }

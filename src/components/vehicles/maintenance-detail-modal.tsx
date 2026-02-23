@@ -88,7 +88,7 @@ export function MaintenanceDetailModal({ maintenance, onClose, onStatusChanged, 
       if (onStatusChanged) onStatusChanged()
     } catch (err) {
       console.error('Error marking maintenance as complete:', err)
-      toast.push(err instanceof Error ? err.message : 'Failed to mark maintenance as complete')
+      toast.error(err instanceof Error ? err.message : 'Failed to mark maintenance as complete')
     } finally {
       setProcessing(false)
     }
@@ -126,7 +126,7 @@ export function MaintenanceDetailModal({ maintenance, onClose, onStatusChanged, 
       if (onStatusChanged) onStatusChanged()
     } catch (err) {
       console.error('Error reopening maintenance:', err)
-      toast.push(err instanceof Error ? err.message : 'Failed to reopen maintenance')
+      toast.error(err instanceof Error ? err.message : 'Failed to reopen maintenance')
     } finally {
       setProcessing(false)
     }
@@ -212,14 +212,14 @@ export function MaintenanceDetailModal({ maintenance, onClose, onStatusChanged, 
                   const contentType = res.headers.get('content-type') || ''
                   if (!res.ok) {
                     newWin.close()
-                    toast.push('Failed to open receipt: server returned an error')
+                    toast.error('Failed to open receipt: server returned an error')
                     return
                   }
 
                   if (contentType.includes('text/html')) {
                     // Likely a redirect to an HTML page (login/home). Close the tab and show message.
                     newWin.close()
-                    toast.push('Receipt could not be opened — it may require authentication or is not available.')
+                    toast.error('Receipt could not be opened — it may require authentication or is not available.')
                     return
                   }
 
@@ -228,7 +228,7 @@ export function MaintenanceDetailModal({ maintenance, onClose, onStatusChanged, 
                   newWin.location.href = blobUrl
                 } catch (err) {
                   try { newWin?.close() } catch (e) {}
-                  toast.push((err as any)?.message || 'Failed to open receipt')
+                  toast.error((err as any)?.message || 'Failed to open receipt')
                 }
               }}
               className="px-4 py-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"

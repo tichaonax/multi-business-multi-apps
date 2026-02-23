@@ -107,12 +107,12 @@ function NewPrintJobPageContent() {
           color: data.defaultColor || '',
         }));
       } else {
-        toast.push('Template not found', { type: 'error' });
+        toast.error('Template not found');
         router.push('/universal/barcode-management/templates');
       }
     } catch (error) {
       console.error('Error fetching template:', error);
-      toast.push('Failed to load template', { type: 'error' });
+      toast.error('Failed to load template');
     } finally {
       setLoading(false);
     }
@@ -199,7 +199,7 @@ function NewPrintJobPageContent() {
     setSubmitting(true);
 
     if (!formData.templateId) {
-      toast.push('Please select a template', { type: 'error' });
+      toast.error('Please select a template');
       setSubmitting(false);
       return;
     }
@@ -245,7 +245,7 @@ function NewPrintJobPageContent() {
           router.push('/universal/barcode-management/print-jobs');
         } else {
           const data = await response.json();
-          toast.push(data.error || 'Failed to generate PDF', { type: 'error' });
+          toast.error(data.error || 'Failed to generate PDF');
         }
         setSubmitting(false);
         return;
@@ -301,14 +301,14 @@ function NewPrintJobPageContent() {
             fieldErrors[detail.field] = detail.message;
           });
           setErrors(fieldErrors);
-          toast.push('Please correct the validation errors', { type: 'error' });
+          toast.error('Please correct the validation errors');
         } else {
-          toast.push(data.error || 'Failed to create print job', { type: 'error' });
+          toast.error(data.error || 'Failed to create print job');
         }
       }
     } catch (error) {
       console.error('Error creating print job:', error);
-      toast.push('Failed to create print job. Please try again.', { type: 'error' });
+      toast.error('Failed to create print job. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -379,7 +379,7 @@ function NewPrintJobPageContent() {
           setOriginalPrice(currentPrice);
         } else {
           const errorData = await response.json();
-          toast.push(errorData.error || 'Failed to update price', { type: 'error' });
+          toast.error(errorData.error || 'Failed to update price');
         }
       } catch (error) {
         console.error('Error updating price:', error);

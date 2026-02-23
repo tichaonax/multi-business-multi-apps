@@ -395,7 +395,7 @@ export default function VehicleExpenseModal({
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      toast.push(err.message || err.error || 'Failed to create category')
+      toast.error(err.message || err.error || 'Failed to create category')
       return
     }
     const json = await res.json()
@@ -417,7 +417,7 @@ export default function VehicleExpenseModal({
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      toast.push(err.message || err.error || 'Failed to create sub-category')
+      toast.error(err.message || err.error || 'Failed to create sub-category')
       return
     }
     const json = await res.json()

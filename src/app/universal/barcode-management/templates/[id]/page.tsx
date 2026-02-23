@@ -125,12 +125,12 @@ function EditTemplatePageContent() {
           fieldFontSize: layout.fieldFontSize || 12,
         });
       } else {
-        toast.push('Template not found', { type: 'error' });
+        toast.error('Template not found');
         router.push('/universal/barcode-management/templates');
       }
     } catch (error) {
       console.error('Error fetching template:', error);
-      toast.push('Failed to load template', { type: 'error' });
+      toast.error('Failed to load template');
     } finally {
       setLoading(false);
     }
@@ -174,14 +174,14 @@ function EditTemplatePageContent() {
             fieldErrors[detail.field] = detail.message;
           });
           setErrors(fieldErrors);
-          toast.push('Please correct the validation errors', { type: 'error' });
+          toast.error('Please correct the validation errors');
         } else {
-          toast.push(data.error || 'Failed to update template', { type: 'error' });
+          toast.error(data.error || 'Failed to update template');
         }
       }
     } catch (error) {
       console.error('Error updating template:', error);
-      toast.push('Failed to update template. Please try again.', { type: 'error' });
+      toast.error('Failed to update template. Please try again.');
     } finally {
       setSaving(false);
     }

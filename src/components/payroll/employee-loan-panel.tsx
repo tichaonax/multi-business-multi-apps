@@ -238,10 +238,10 @@ export function EmployeeLoanPanel({ canManage }: EmployeeLoanPanelProps) {
         toast.push('Loan approved — pending contract signing', { type: 'success' })
         loadLoans()
       } else {
-        toast.push(data.error || 'Approval failed', { type: 'error' })
+        toast.error(data.error || 'Approval failed')
       }
     } catch {
-      toast.push('Network error', { type: 'error' })
+      toast.error('Network error')
     } finally {
       setActionLoading(null)
     }
@@ -261,10 +261,10 @@ export function EmployeeLoanPanel({ canManage }: EmployeeLoanPanelProps) {
         toast.push('Contract signed — loan activated and disbursed', { type: 'success' })
         loadLoans()
       } else {
-        toast.push(data.error || 'Contract signing failed', { type: 'error' })
+        toast.error(data.error || 'Contract signing failed')
       }
     } catch {
-      toast.push('Network error', { type: 'error' })
+      toast.error('Network error')
     } finally {
       setActionLoading(null)
     }
@@ -441,10 +441,10 @@ export function EmployeeLoanPanel({ canManage }: EmployeeLoanPanelProps) {
                 setRejectLoan(null)
                 loadLoans()
               } else {
-                toast.push(data.error || 'Failed to reject loan', { type: 'error' })
+                toast.error(data.error || 'Failed to reject loan')
               }
             } catch {
-              toast.push('Network error', { type: 'error' })
+              toast.error('Network error')
             } finally {
               setActionLoading(null)
             }
@@ -473,10 +473,10 @@ export function EmployeeLoanPanel({ canManage }: EmployeeLoanPanelProps) {
                 setConfirmSignLoan(null)
                 loadLoans()
               } else {
-                toast.push(data.error || 'Failed to release funds', { type: 'error' })
+                toast.error(data.error || 'Failed to release funds')
               }
             } catch {
-              toast.push('Network error', { type: 'error' })
+              toast.error('Network error')
             } finally {
               setActionLoading(null)
             }
@@ -762,13 +762,13 @@ function CreateEmployeeLoanModal({ onSuccess, onClose }: { onSuccess: () => void
 
   const handleNext = () => {
     const err = validateDetails()
-    if (err) { toast.push(err, { type: 'error' }); return }
+    if (err) { toast.error(err); return }
     setStep('contract')
   }
 
   const handleSubmit = async () => {
     if (!contractConsent) {
-      toast.push('Payroll deduction consent is required', { type: 'error' })
+      toast.error('Payroll deduction consent is required')
       return
     }
 
@@ -794,10 +794,10 @@ function CreateEmployeeLoanModal({ onSuccess, onClose }: { onSuccess: () => void
         toast.push(`Loan request submitted for ${selectedEmployee?.fullName} — pending approval`, { type: 'success' })
         onSuccess()
       } else {
-        toast.push(data.error || 'Failed to create loan', { type: 'error' })
+        toast.error(data.error || 'Failed to create loan')
       }
     } catch {
-      toast.push('Network error. Please try again.', { type: 'error' })
+      toast.error('Network error. Please try again.')
     } finally {
       setSubmitting(false)
     }

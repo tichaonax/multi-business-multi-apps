@@ -68,7 +68,7 @@ export default function RootLayout({
                     <CartProvider>
                       <NavigationProvider>
                         <GlobalBarcodeProvider>
-                          <div className="min-h-screen w-full overflow-x-hidden">
+                          <div className="min-h-screen w-full [overflow-x:clip]">
                             <ConditionalGlobalHeader />
                             <ConfirmProvider>
                               <main className="min-w-0 w-full">

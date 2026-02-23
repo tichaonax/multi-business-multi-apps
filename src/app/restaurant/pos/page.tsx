@@ -64,6 +64,32 @@ interface CartItem extends MenuItem {
   quantity: number
 }
 
+function SalesPerfBadge({ sales, size = 'md' }: { sales: number; size?: 'sm' | 'md' }) {
+  const isGreen = sales >= 150
+  const isAmber = sales >= 100
+  const emoji = isGreen ? '🟢' : isAmber ? '🟡' : '🔴'
+  const label = isGreen ? 'Good' : isAmber ? 'Fair' : 'Low'
+  const barColor = isGreen ? 'bg-green-500' : isAmber ? 'bg-amber-400' : 'bg-red-500'
+  const textColor = isGreen ? 'text-green-600 dark:text-green-400' : isAmber ? 'text-amber-500 dark:text-amber-400' : 'text-red-500'
+  const fillPct = Math.min(100, (sales / 200) * 100)
+  if (size === 'sm') {
+    return (
+      <span className="inline-flex items-center gap-0.5 flex-shrink-0" title={`${label} ($${sales.toFixed(2)})`}>
+        <span className="text-[10px] leading-none">{emoji}</span>
+      </span>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5 flex-shrink-0">
+      <span className="text-sm leading-none">{emoji}</span>
+      <div className="w-14 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${fillPct}%` }} />
+      </div>
+      <span className={`text-xs font-semibold ${textColor}`}>{label}</span>
+    </div>
+  )
+}
+
 export default function RestaurantPOS() {
   // IMMEDIATE LOG - This will show when component renders
   console.log('🚀🚀🚀 [Restaurant POS] COMPONENT RENDERING 🚀🚀🚀')
@@ -103,6 +129,7 @@ export default function RestaurantPOS() {
   const [isPrinting, setIsPrinting] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
   const [yesterdaySales, setYesterdaySales] = useState<any>(null)
+  const [dayBeforeYesterdaySales, setDayBeforeYesterdaySales] = useState<any>(null)
   const [showDailySales, setShowDailySales] = useState(false)
   const [showMealProgramDetails, setShowMealProgramDetails] = useState(false)
   const [recentTransactions, setRecentTransactions] = useState<any[]>([])
@@ -916,7 +943,7 @@ export default function RestaurantPOS() {
       }
     } catch (error) {
       console.error('Failed to load menu items:', error)
-      toast.push('Failed to load menu items')
+      toast.error('Failed to load menu items')
     }
   }
 
@@ -1047,7 +1074,7 @@ export default function RestaurantPOS() {
         },
         onError: (error, receiptType) => {
           console.error(`❌ ${receiptType} receipt print failed:`, error)
-          toast.push(`Error printing ${receiptType} receipt: ${error.message}`)
+          toast.error(`Error printing ${receiptType} receipt: ${error.message}`)
         },
         onShowPreview: (data, options) => {
           // Show unified preview modal
@@ -1066,7 +1093,7 @@ export default function RestaurantPOS() {
 
     } catch (error: any) {
       console.error('❌ Receipt print error:', error)
-      toast.push(`Print error: ${error.message}`)
+      toast.error(`Print error: ${error.message}`)
     } finally {
       printInFlightRef.current = false
       setIsPrinting(false)
@@ -1215,7 +1242,7 @@ export default function RestaurantPOS() {
     }
   }
 
-  // Load daily sales summary (today + yesterday for comparison)
+  // Load daily sales summary (today + yesterday + day before yesterday for comparison)
   const loadDailySales = async () => {
     if (!currentBusinessId) return
 
@@ -1224,10 +1251,14 @@ export default function RestaurantPOS() {
       const yesterday = new Date()
       yesterday.setDate(yesterday.getDate() - 1)
       const yStr = yesterday.toISOString().split('T')[0]
+      const dayBefore = new Date()
+      dayBefore.setDate(dayBefore.getDate() - 2)
+      const dbStr = dayBefore.toISOString().split('T')[0]
 
-      const [todayRes, yRes] = await Promise.all([
+      const [todayRes, yRes, dbRes] = await Promise.all([
         fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}`),
-        fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}&date=${yStr}`)
+        fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}&date=${yStr}`),
+        fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}&date=${dbStr}`)
       ])
       if (todayRes.ok) {
         const data = await todayRes.json()
@@ -1236,6 +1267,10 @@ export default function RestaurantPOS() {
       if (yRes.ok) {
         const yData = await yRes.json()
         setYesterdaySales(yData.data)
+      }
+      if (dbRes.ok) {
+        const dbData = await dbRes.json()
+        setDayBeforeYesterdaySales(dbData.data)
       }
     } catch (error) {
       console.error('Failed to load daily sales:', error)
@@ -1456,7 +1491,7 @@ export default function RestaurantPOS() {
 
       if (!hasCompanionInCart) {
         console.log('⚠️ Companion item required, blocking add')
-        toast.push(`"${item.name}" cannot be sold alone. Please add a main item from ${item.category} first.`)
+        toast.error(`"${item.name}" cannot be sold alone. Please add a main item from ${item.category} first.`)
         return
       }
     }
@@ -1656,7 +1691,7 @@ export default function RestaurantPOS() {
           })
           const data = await res.json()
           if (!res.ok || !data.success) {
-            toast.push(data.error || 'Transaction failed', { type: 'error' })
+            toast.error(data.error || 'Transaction failed')
             setOrderSubmitting(false)
             return
           }
@@ -1670,7 +1705,7 @@ export default function RestaurantPOS() {
           } : prev)
           setPendingMealTransaction(null)
         } catch {
-          toast.push('Transaction failed', { type: 'error' })
+          toast.error('Transaction failed')
           setOrderSubmitting(false)
           return
         }
@@ -1847,19 +1882,11 @@ export default function RestaurantPOS() {
         console.error('Order processing failed:', errorMessage, errorData)
 
         // Use error toast with longer duration for critical errors
-        const isWiFiError = errorData?.rollback === true || errorMessage.includes('WiFi Token')
-        toast.push(`Order Failed:\n\n${errorMessage}`, {
-          type: 'error',
-          duration: isWiFiError ? 0 : 8000, // WiFi errors require dismissal, others 8s
-          requireDismiss: isWiFiError
-        })
+        toast.error(`Order Failed:\n\n${errorMessage}`)
       }
     } catch (error: any) {
       console.error('Order processing error:', error)
-      toast.push(`Order Failed:\n\n${error.message || 'Network error occurred. Please try again.'}`, {
-        type: 'error',
-        duration: 8000
-      })
+      toast.error(`Order Failed:\n\n${error.message || 'Network error occurred. Please try again.'}`)
     }
     finally {
       submitInFlightRef.current = false
@@ -1888,7 +1915,7 @@ export default function RestaurantPOS() {
                     try {
                       await openDisplay()
                     } catch (error) {
-                      toast.push('Failed to open customer display. Please allow popups for this site.', { type: 'error', duration: 5000 })
+                      toast.error('Failed to open customer display. Please allow popups for this site.')
                     }
                   }}
                   className="px-2 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs sm:text-sm font-medium"
@@ -1976,12 +2003,15 @@ export default function RestaurantPOS() {
                       ({formatDate(dailySales.businessDay.start)} - {formatDate(dailySales.businessDay.end)})
                     </span>
                   </h2>
-                  <button
-                    onClick={() => setShowDailySales(!showDailySales)}
-                    className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
-                  >
-                    {showDailySales ? '▼ Hide Details' : '▶ Show Details'}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <SalesPerfBadge sales={dailySales.summary.totalSales} />
+                    <button
+                      onClick={() => setShowDailySales(!showDailySales)}
+                      className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
+                    >
+                      {showDailySales ? '▼ Hide Details' : '▶ Show Details'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Summary Cards */}
@@ -1996,9 +2026,26 @@ export default function RestaurantPOS() {
                       const diff = dailySales.summary.totalSales - yVal
                       const pct = yVal > 0 ? (diff / yVal) * 100 : null
                       return (
-                        <div className={`text-xs mt-0.5 ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {diff >= 0 ? '↑' : '↓'} vs yesterday ${yVal.toFixed(2)}
-                          {pct !== null && ` (${Math.abs(pct).toFixed(0)}%)`}
+                        <div className="text-xs mt-0.5 flex items-center justify-between gap-1">
+                          <span className={diff >= 0 ? 'text-green-500' : 'text-red-500'}>
+                            {diff >= 0 ? '↑' : '↓'} vs yesterday ${yVal.toFixed(2)}
+                            {pct !== null && ` (${Math.abs(pct).toFixed(0)}%)`}
+                          </span>
+                          <SalesPerfBadge sales={yVal} size="sm" />
+                        </div>
+                      )
+                    })()}
+                    {dayBeforeYesterdaySales && (() => {
+                      const dbVal = dayBeforeYesterdaySales.summary?.totalSales ?? 0
+                      const diff = dailySales.summary.totalSales - dbVal
+                      const pct = dbVal > 0 ? (diff / dbVal) * 100 : null
+                      return (
+                        <div className="text-xs mt-0.5 flex items-center justify-between gap-1">
+                          <span className={diff >= 0 ? 'text-green-500' : 'text-red-500'}>
+                            {diff >= 0 ? '↑' : '↓'} vs 2 days ago ${dbVal.toFixed(2)}
+                            {pct !== null && ` (${Math.abs(pct).toFixed(0)}%)`}
+                          </span>
+                          <SalesPerfBadge sales={dbVal} size="sm" />
                         </div>
                       )
                     })()}
@@ -2014,6 +2061,15 @@ export default function RestaurantPOS() {
                       return (
                         <div className={`text-xs mt-0.5 ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)} vs yesterday ({yOrders})
+                        </div>
+                      )
+                    })()}
+                    {dayBeforeYesterdaySales && (() => {
+                      const dbOrders = dayBeforeYesterdaySales.summary?.totalOrders ?? 0
+                      const diff = dailySales.summary.totalOrders - dbOrders
+                      return (
+                        <div className={`text-xs mt-0.5 ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)} vs 2 days ago ({dbOrders})
                         </div>
                       )
                     })()}
@@ -2241,15 +2297,19 @@ export default function RestaurantPOS() {
                       <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
                         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Top Items</h3>
                         <div className="space-y-1">
-                          {dailySales.topItems.slice(0, 5).map((item: any) => (
-                            <div key={item.name} className="flex justify-between items-center text-sm">
-                              <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
-                              <div className="text-right">
-                                <span className="font-semibold text-primary">${item.totalSales.toFixed(2)}</span>
-                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">×{item.quantity}</span>
+                          {dailySales.topItems.slice(0, 5).map((item: any) => {
+                            const unitPrice = item.quantity > 0 ? item.totalSales / item.quantity : 0
+                            return (
+                              <div key={item.name} className="flex justify-between items-center text-sm">
+                                <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
+                                <div className="text-right">
+                                  <span className="font-semibold text-primary">${unitPrice.toFixed(2)}</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">×{item.quantity}</span>
+                                  <span className="text-xs text-gray-400 dark:text-gray-500 ml-1.5">=&nbsp;${item.totalSales.toFixed(2)}</span>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -2265,6 +2325,14 @@ export default function RestaurantPOS() {
                   )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* POS Performance Indicator — minimal badge for POS-role users */}
+            {dailySales && !isAdmin && !hasPermission('canAccessFinancialData') && !hasPermission('canViewWifiReports') && (
+              <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Today's Performance</span>
+                <SalesPerfBadge sales={dailySales.summary.totalSales} />
               </div>
             )}
 
@@ -2654,17 +2722,11 @@ export default function RestaurantPOS() {
                                   // Background refresh to confirm quantities
                                   loadMenuItems();
                                 } else {
-                                  toast.push(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`, {
-                                    type: 'error',
-                                    duration: 0  // Require manual dismissal for errors
-                                  });
+                                  toast.error(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`);
                                 }
                               } catch (error) {
                                 console.error('Error creating tokens:', error);
-                                toast.push('❌ Error creating tokens. Please try again.', {
-                                  type: 'error',
-                                  duration: 0  // Require manual dismissal for errors
-                                });
+                                toast.error('❌ Error creating tokens. Please try again.');
                               } finally {
                                 // Remove from requesting set to re-enable button
                                 setRequestingMore(prev => {
@@ -3405,7 +3467,7 @@ export default function RestaurantPOS() {
                 toast.push(`${receiptType} receipt sent to printer`)
               },
               onError: (error, receiptType) => {
-                toast.push(`Error: ${error.message}`)
+                toast.error(`Error: ${error.message}`)
               }
             })
 
@@ -3420,7 +3482,7 @@ export default function RestaurantPOS() {
             autoPrintedOrderRef.current = null
 
           } catch (error: any) {
-            toast.push(`Print error: ${error.message}`)
+            toast.error(`Print error: ${error.message}`)
           } finally {
             printInFlightRef.current = false
           }

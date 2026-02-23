@@ -212,7 +212,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
     // Check if trying to switch to an inactive business
     const inactiveBusiness = businesses.find((b) => b.businessId === businessId && !b.isActive);
     if (inactiveBusiness) {
-      toast.push('Cannot switch to inactive business. Please reactivate it first.');
+      toast.error('Cannot switch to inactive business. Please reactivate it first.');
       throw new Error('Business is inactive');
     }
     
@@ -229,7 +229,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
           // Re-check for inactive business after refresh
           const stillInactive = refreshed.find((b) => b.businessId === businessId && !b.isActive);
           if (stillInactive) {
-            toast.push('Cannot switch to inactive business. Please reactivate it first.');
+            toast.error('Cannot switch to inactive business. Please reactivate it first.');
             throw new Error('Business is inactive');
           }
         }
@@ -403,14 +403,14 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
           const fallback = await fetch('/api/admin/seed-dev-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true, confirmText }) })
           const json = await fallback.json().catch(() => ({}))
           if (!fallback.ok) {
-            toast.push(json?.message || 'Fallback dev seed failed')
+            toast.error(json?.message || 'Fallback dev seed failed')
             return
           }
           toast.push('Fallback dev seed completed')
         } else {
           const json = await res.json().catch(() => ({}))
           if (!res.ok) {
-            toast.push(json?.message || 'Targeted seed failed')
+            toast.error(json?.message || 'Targeted seed failed')
             return
           }
 
@@ -445,7 +445,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
         const res = await fetch('/api/admin/seed-dev-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true, confirmText }) })
         const json = await res.json().catch(() => ({}))
         if (!res.ok) {
-          toast.push(json?.message || 'Dev seed failed')
+          toast.error(json?.message || 'Dev seed failed')
           return
         }
         toast.push('Dev seed completed')
@@ -482,7 +482,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
           // Give one final, actionable notice and log details for debugging
           const msg = `Demo seed completed but business ${seedTargetBusiness} not found after retries`
           toast.push(msg)
-          toast.push('Try refreshing memberships, check server seed logs, or re-run the targeted seed')
+          toast.error('Try refreshing memberships, check server seed logs, or re-run the targeted seed')
           // Helpful console output for admins/developers checking the browser console
           // (keeps visibility when toast may be missed)
           // eslint-disable-next-line no-console
@@ -492,7 +492,7 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
         // ignore network/other transient errors here
       }
     } catch (err: any) {
-      toast.push('Seeding failed: ' + (err?.message || String(err)))
+      toast.error('Seeding failed: ' + (err?.message || String(err)))
     } finally {
       setSeedTargetBusiness(null)
     }

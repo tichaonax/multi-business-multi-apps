@@ -180,7 +180,7 @@ export function QuickDepositModal({
     } catch (error) {
       console.error('Create deposit error:', error)
       const message = error instanceof Error ? error.message : 'Failed to create deposit'
-      toast.push(message)
+      toast.error(message)
       try {
         onError(message)
       } catch (e) {}

@@ -22,6 +22,7 @@ type PushOptions = {
 const ToastContext = createContext<{
   toasts: Toast[]
   push: (message: string, options?: PushOptions) => void
+  error: (message: string) => void
   remove: (id: string) => void
 } | null>(null)
 
@@ -58,6 +59,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const remove = (id: string) => setToasts((s) => s.filter((t) => t.id !== id))
 
+  // Convenience: error toasts are always red and require manual dismiss
+  const error = (message: string) => push(message, { type: 'error', requireDismiss: true })
+
   const getToastStyles = (type: ToastType) => {
     switch (type) {
       case 'error':
@@ -87,7 +91,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ToastContext.Provider value={{ toasts, push, remove }}>
+    <ToastContext.Provider value={{ toasts, push, error, remove }}>
       {children}
       {/* Render toasts into document.body via portal to avoid stacking-context issues; apply very high z-index */}
       {mounted && typeof document !== 'undefined' && createPortal(

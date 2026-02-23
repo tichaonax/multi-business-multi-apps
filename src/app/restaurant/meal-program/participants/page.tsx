@@ -59,7 +59,7 @@ export default function ParticipantsPage() {
       const data = await res.json()
       if (data.success) setParticipants(data.data)
     } catch {
-      toast.push('Failed to load participants', { type: 'error' })
+      toast.error('Failed to load participants')
     } finally {
       setLoading(false)
     }
@@ -80,11 +80,11 @@ export default function ParticipantsPage() {
           body: JSON.stringify({ businessId: currentBusinessId, employeeId: participant.employeeId, isActive: false }),
         })
         const data = await res.json()
-        if (!res.ok) { toast.push(data.error || 'Failed to deactivate', { type: 'error' }); return }
+        if (!res.ok) { toast.error(data.error || 'Failed to deactivate'); return }
         toast.push('Employee deactivated from meal program', { type: 'success' })
         fetchParticipants()
       } catch {
-        toast.push('Failed to deactivate employee', { type: 'error' })
+        toast.error('Failed to deactivate employee')
       }
       return
     }
@@ -103,7 +103,7 @@ export default function ParticipantsPage() {
         fetchParticipants()
       }
     } catch {
-      toast.push('Failed to update participant', { type: 'error' })
+      toast.error('Failed to update participant')
     }
   }
 
@@ -133,10 +133,10 @@ export default function ParticipantsPage() {
         setTab('EXTERNAL')
         fetchParticipants()
       } else {
-        toast.push(data.error || 'Registration failed', { type: 'error' })
+        toast.error(data.error || 'Registration failed')
       }
     } catch {
-      toast.push('Registration failed', { type: 'error' })
+      toast.error('Registration failed')
     } finally {
       setRegistering(false)
     }

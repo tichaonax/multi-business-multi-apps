@@ -42,11 +42,9 @@ interface R710Stats {
 export default function R710PortalPage() {
   return (
     <ProtectedRoute>
-      <MainLayout>
-        <ContentLayout>
-          <R710PortalContent />
-        </ContentLayout>
-      </MainLayout>
+      <ContentLayout>
+        <R710PortalContent />
+      </ContentLayout>
     </ProtectedRoute>
   )
 }
@@ -389,7 +387,7 @@ function R710PortalContent() {
             {canSetup && (
               <button
                 disabled={(!hasIntegration || !deviceOnline) && !!currentBusinessId}
-                onClick={() => (!hasIntegration || !deviceOnline) && currentBusinessId ? null : window.location.href = '/r710-portal/sales'}
+                onClick={() => (!hasIntegration || !deviceOnline) && currentBusinessId ? null : window.location.href = '/r710-portal/sales-history'}
                 className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   (!hasIntegration || !deviceOnline) && currentBusinessId
                     ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
@@ -397,7 +395,7 @@ function R710PortalContent() {
                 }`}
                 title={!deviceOnline && hasIntegration ? 'Device offline or credentials invalid - click "Test" on device' : ''}
               >
-                <span className="mr-2">💵</span>
+                <span className="mr-2">📋</span>
                 Sales History
               </button>
             )}
@@ -636,14 +634,14 @@ function R710PortalContent() {
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
                   }`}
-                  onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/sales'}
+                  onClick={() => !hasIntegration && currentBusinessId ? null : window.location.href = '/r710-portal/sales-history'}
                 >
                   <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 0a3 3 0 110 6H9l3 3m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">Sales History</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Revenue & analytics</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">View token sales history</p>
                   </div>
                 </div>
               )}

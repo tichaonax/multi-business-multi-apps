@@ -68,7 +68,7 @@ export function TripForm({ trip, onSuccess, onCancel }: TripFormProps) {
         setDrivers(driversBody?.data || [])
       } catch (err) {
         console.error('Error fetching data:', err)
-        try { toast.push(err instanceof Error ? err.message : 'Failed to load data') } catch (e) { }
+        try { toast.error(err instanceof Error ? err.message : 'Failed to load data') } catch (e) { }
       } finally {
         setLoadingData(false)
       }
@@ -86,7 +86,7 @@ export function TripForm({ trip, onSuccess, onCancel }: TripFormProps) {
           setAuthorizedDrivers(body?.data || [])
         } catch (err) {
           console.error('Error fetching authorized drivers:', err)
-          try { toast.push(err instanceof Error ? err.message : 'Failed to load authorized drivers') } catch (e) { }
+          try { toast.error(err instanceof Error ? err.message : 'Failed to load authorized drivers') } catch (e) { }
         }
       }
 
@@ -164,7 +164,7 @@ export function TripForm({ trip, onSuccess, onCancel }: TripFormProps) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred'
       setError(message)
-      try { toast.push(message) } catch (e) { }
+      try { toast.error(message) } catch (e) { }
     } finally {
       setIsSubmitting(false)
     }

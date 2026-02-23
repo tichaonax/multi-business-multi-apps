@@ -273,11 +273,11 @@ export function DriverMaintenanceList({ onAddMaintenance }: DriverMaintenanceLis
         fetchRecords(currentPage)
       } else {
   const data = await response.json()
-  toast.push(data.error || 'Failed to delete maintenance record')
+  toast.error(data.error || 'Failed to delete maintenance record')
       }
     } catch (error) {
       console.error('Error deleting record:', error)
-      toast.push('Network error. Please try again.')
+      toast.error('Network error. Please try again.')
     }
   }
 

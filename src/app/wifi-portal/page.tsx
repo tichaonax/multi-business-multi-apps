@@ -28,6 +28,9 @@ export default function WiFiPortalLandingPage() {
   const [dbStats, setDbStats] = useState<any>(null)
   const [dbStatsLoading, setDbStatsLoading] = useState(false)
 
+  // Track whether integration record exists (separate from device health)
+  const [integrationConfigured, setIntegrationConfigured] = useState(false)
+
   // Check if user can access WiFi Portal
   const canSetup = currentUser ? (isSystemAdmin(currentUser) || hasPermission(currentUser, 'canSetupPortalIntegration')) : false
   const canConfigureTokens = currentUser ? (isSystemAdmin(currentUser) || hasPermission(currentUser, 'canConfigureWifiTokens')) : false
@@ -88,6 +91,14 @@ export default function WiFiPortalLandingPage() {
       setHealthLoading(false)
     }
   }
+
+  // Check if integration record exists (regardless of device health)
+  useEffect(() => {
+    if (!currentBusinessId) return
+    fetch(`/api/wifi-portal/integration?businessId=${currentBusinessId}`)
+      .then(r => setIntegrationConfigured(r.ok))
+      .catch(() => setIntegrationConfigured(false))
+  }, [currentBusinessId])
 
   // Set up health monitoring (poll every 20 seconds when page has focus)
   useEffect(() => {
@@ -181,6 +192,7 @@ export default function WiFiPortalLandingPage() {
       color: 'blue',
       show: canSetup,
       alwaysShowWhenNoIntegration: true,
+      showWhenConfigured: false,
     },
     {
       title: 'Device Registry',
@@ -190,6 +202,7 @@ export default function WiFiPortalLandingPage() {
       color: 'blue',
       show: isSystemAdmin(currentUser),
       alwaysShowWhenNoIntegration: false,
+      showWhenConfigured: false,
     },
     {
       title: 'Connected Clients',
@@ -199,6 +212,17 @@ export default function WiFiPortalLandingPage() {
       color: 'blue',
       show: isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageWifiPortal'),
       alwaysShowWhenNoIntegration: false,
+      showWhenConfigured: false,
+    },
+    {
+      title: 'ESP32 Menu Config',
+      description: `Configure which WiFi packages appear in your ${currentBusiness?.businessType || 'business'} POS`,
+      icon: '📶',
+      href: `/${currentBusiness?.businessType}/wifi-tokens`,
+      color: 'purple',
+      show: canConfigureTokens,
+      alwaysShowWhenNoIntegration: false,
+      showWhenConfigured: true,  // show whenever integration is configured, even if device offline
     },
     {
       title: 'Token Configurations',
@@ -208,6 +232,7 @@ export default function WiFiPortalLandingPage() {
       color: 'purple',
       show: canConfigureTokens,
       alwaysShowWhenNoIntegration: false,
+      showWhenConfigured: false,
     },
     {
       title: 'Direct Sales',
@@ -217,6 +242,7 @@ export default function WiFiPortalLandingPage() {
       color: 'green',
       show: canSellTokens,
       alwaysShowWhenNoIntegration: false,
+      showWhenConfigured: false,
     },
     {
       title: 'Token Ledger',
@@ -226,6 +252,7 @@ export default function WiFiPortalLandingPage() {
       color: 'orange',
       show: canSellTokens,
       alwaysShowWhenNoIntegration: false,
+      showWhenConfigured: false,
     },
     {
       title: 'Reports & Analytics',
@@ -235,6 +262,7 @@ export default function WiFiPortalLandingPage() {
       color: 'indigo',
       show: canViewReports,
       alwaysShowWhenNoIntegration: false,
+      showWhenConfigured: false,
     },
   ]
 
@@ -247,11 +275,13 @@ export default function WiFiPortalLandingPage() {
   }
 
   const visibleItems = menuItems.filter(item => {
-    // If no portal integration exists, only show items marked for that case
     if (!hasPortalIntegration) {
-      return item.alwaysShowWhenNoIntegration && item.show
+      // Always-visible items (e.g. Portal Setup)
+      if (item.alwaysShowWhenNoIntegration) return item.show
+      // Items that only need the integration record to exist (not the device to be healthy)
+      if (item.showWhenConfigured && integrationConfigured) return item.show
+      return false
     }
-    // Otherwise, show items based on permissions
     return item.show
   })
 
@@ -421,22 +451,6 @@ export default function WiFiPortalLandingPage() {
           </div>
         )}
 
-        {/* Business Menu Quick Link */}
-        {hasPortalIntegration && (canConfigureTokens || isSystemAdmin(currentUser)) && (
-          <div className="mt-6 bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4">
-            <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">💡 Quick Tip</h3>
-            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-              After setting up the portal, configure which WiFi tokens appear in your {currentBusiness?.businessType} POS:
-            </p>
-            <Link
-              href={`/${currentBusiness?.businessType}/wifi-tokens`}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <span className="mr-2">📶</span>
-              <span>Manage {currentBusiness?.businessType === 'restaurant' ? 'Restaurant' : 'Grocery'} WiFi Menu</span>
-            </Link>
-          </div>
-        )}
       </div>
     </ContentLayout>
   )

@@ -205,14 +205,14 @@ function NewTemplatePageContent() {
             fieldErrors[detail.field] = detail.message;
           });
           setErrors(fieldErrors);
-          toast.push('Please correct the validation errors', { type: 'error' });
+          toast.error('Please correct the validation errors');
         } else {
-          toast.push(data.error || 'Failed to create template', { type: 'error' });
+          toast.error(data.error || 'Failed to create template');
         }
       }
     } catch (error) {
       console.error('Error creating template:', error);
-      toast.push('Failed to create template. Please try again.', { type: 'error' });
+      toast.error('Failed to create template. Please try again.');
     } finally {
       setLoading(false);
     }

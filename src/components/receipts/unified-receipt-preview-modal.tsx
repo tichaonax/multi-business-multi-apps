@@ -141,12 +141,12 @@ export function UnifiedReceiptPreviewModal({
 
       // Check if no printers available at all
       if (availablePrinters.length === 0 && !localAvailable) {
-        toast.push('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
+        toast.error('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
       }
 
     } catch (error) {
       console.error('Failed to load printers:', error)
-      toast.push('Error: Failed to load available printers')
+      toast.error('Failed to load available printers')
     } finally {
       setPrintersLoading(false)
     }
@@ -164,10 +164,10 @@ export function UnifiedReceiptPreviewModal({
         toast.push('Printer is now online and ready!')
         await loadPrinters()
       } else {
-        toast.push('Printer is still offline. Check power and network connection.')
+        toast.error('Printer is still offline. Check power and network connection.')
       }
     } catch (error) {
-      toast.push('Error checking printer status')
+      toast.error('Error checking printer status')
     } finally {
       setCheckingOnline(false)
     }
@@ -175,7 +175,7 @@ export function UnifiedReceiptPreviewModal({
 
   async function handlePrint() {
     if (!receiptData) {
-      toast.push('Error: No receipt data')
+      toast.error('No receipt data')
       return
     }
 
@@ -237,7 +237,7 @@ export function UnifiedReceiptPreviewModal({
 
     } catch (error) {
       console.error('Print failed:', error)
-      toast.push('Error: Print failed - ' + (error instanceof Error ? error.message : 'Unknown error'))
+      toast.error('Print failed - ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       isPrintingRef.current = false
       setLoading(false)

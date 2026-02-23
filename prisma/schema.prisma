@@ -414,6 +414,8 @@ model Businesses {
   taxIncludedInPrice                                                       Boolean                       @default(true)
   taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
   taxLabel                                                                 String?
+  currency                                                                 String                        @default("USD")
+  currencySymbol                                                           String                        @default("$")
   defaultPage                                                              String?                       @db.VarChar(50)
   slogan                                                                   String?                       @default("Where Customer Is King") @db.VarChar(200)
   showSlogan                                                               Boolean                       @default(true)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { EmojiPicker } from '@/components/common/emoji-picker'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 
@@ -28,6 +28,7 @@ interface SupplierEditorProps {
   onSave: (createdSupplierId?: string) => void
   onCancel: () => void
   initialName?: string
+  focusField?: string  // Field to highlight and scroll to on open (e.g. 'taxId')
 }
 
 const PAYMENT_TERMS = [
@@ -40,7 +41,8 @@ const PAYMENT_TERMS = [
   'Custom'
 ]
 
-export function SupplierEditor({ supplier, businessId, onSave, onCancel, initialName }: SupplierEditorProps) {
+export function SupplierEditor({ supplier, businessId, onSave, onCancel, initialName, focusField }: SupplierEditorProps) {
+  const taxIdRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState<Supplier>({
     name: '',
     emoji: null,
@@ -63,6 +65,16 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
       setFormData(prev => ({ ...prev, name: initialName }))
     }
   }, [initialName, supplier])
+
+  // Scroll to and highlight the field that needs attention
+  useEffect(() => {
+    if (focusField === 'taxId' && taxIdRef.current) {
+      setTimeout(() => {
+        taxIdRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        taxIdRef.current?.focus()
+      }, 200)
+    }
+  }, [focusField, supplier])
 
   useEffect(() => {
     if (supplier) {
@@ -267,15 +279,20 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
 
               {/* Tax ID */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  TAX ID / EIN
+                <label className={`block text-sm font-medium mb-1 ${focusField === 'taxId' ? 'text-yellow-600 dark:text-yellow-400 font-semibold' : 'text-gray-700 dark:text-gray-300'}`}>
+                  TAX ID / EIN {focusField === 'taxId' && <span className="text-yellow-500">← Required for large payments</span>}
                 </label>
                 <input
+                  ref={taxIdRef}
                   type="text"
                   value={formData.taxId || ''}
                   onChange={(e) => handleInputChange('taxId', e.target.value || null)}
                   placeholder="12-3456789"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${
+                    focusField === 'taxId'
+                      ? 'border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-300 dark:ring-yellow-600'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
                 />
               </div>
 

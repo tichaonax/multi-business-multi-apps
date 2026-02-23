@@ -50,7 +50,7 @@ export default function EligibleItemsPage() {
       const data = await res.json()
       if (data.success) setItems(data.data)
     } catch {
-      toast.push('Failed to load eligible items', { type: 'error' })
+      toast.error('Failed to load eligible items')
     }
   }, [currentBusinessId, includeInactive, toast])
 
@@ -78,7 +78,7 @@ export default function EligibleItemsPage() {
         )
       }
     } catch {
-      toast.push('Failed to load products', { type: 'error' })
+      toast.error('Failed to load products')
     }
   }, [currentBusinessId, toast])
 
@@ -118,11 +118,11 @@ export default function EligibleItemsPage() {
           setItems(prev => [...prev, data.data])
           toast.push(`${product.name} added to eligible items`, { type: 'success' })
         } else {
-          toast.push(data.error || 'Failed to add item', { type: 'error' })
+          toast.error(data.error || 'Failed to add item')
         }
       }
     } catch {
-      toast.push('Action failed', { type: 'error' })
+      toast.error('Action failed')
     } finally {
       setTogglingId(null)
     }
@@ -140,7 +140,7 @@ export default function EligibleItemsPage() {
         toast.push(item.isActive ? `${item.productName} deactivated` : `${item.productName} reactivated`, { type: 'success' })
       }
     } catch {
-      toast.push('Failed to update item', { type: 'error' })
+      toast.error('Failed to update item')
     }
   }
 

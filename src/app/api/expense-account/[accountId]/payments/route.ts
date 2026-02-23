@@ -613,6 +613,26 @@ export async function POST(
     const result = await prisma.$transaction(async (tx) => {
       const createdPayments = []
 
+      // Authoritative balance check INSIDE the transaction using SUM calculation.
+      // This protects against: (1) restored data leaving the balance column out of sync,
+      // (2) race conditions where two concurrent requests both pass the pre-transaction check.
+      if (totalAmount > 0) {
+        const depositsAgg = await tx.expenseAccountDeposits.aggregate({
+          where: { expenseAccountId: accountId },
+          _sum: { amount: true },
+        })
+        const paymentsAgg = await tx.expenseAccountPayments.aggregate({
+          where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+          _sum: { amount: true },
+        })
+        const trueBalance = Number(depositsAgg._sum.amount || 0) - Number(paymentsAgg._sum.amount || 0)
+        if (totalAmount > trueBalance) {
+          throw new Error(
+            `Insufficient balance. Available: $${trueBalance.toFixed(2)}, Required: $${totalAmount.toFixed(2)}`
+          )
+        }
+      }
+
       for (const payment of paymentsToCreate) {
         const paymentStatus = payment.status || 'SUBMITTED'
         const paymentDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date()

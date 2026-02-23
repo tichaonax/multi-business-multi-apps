@@ -37,15 +37,15 @@ export function RepayLoanModal({
 
   const handleSubmit = async () => {
     if (!parsedAmount || parsedAmount <= 0) {
-      toast.push('Enter a valid repayment amount', { type: 'error' })
+      toast.error('Enter a valid repayment amount')
       return
     }
     if (parsedAmount > remainingBalance + 0.001) {
-      toast.push(`Amount exceeds outstanding balance of $${remainingBalance.toFixed(2)}`, { type: 'error' })
+      toast.error(`Amount exceeds outstanding balance of $${remainingBalance.toFixed(2)}`)
       return
     }
     if (!paymentDate) {
-      toast.push('Payment date is required', { type: 'error' })
+      toast.error('Payment date is required')
       return
     }
 
@@ -69,10 +69,10 @@ export function RepayLoanModal({
         onSuccess()
         onClose()
       } else {
-        toast.push(data.error || 'Failed to record repayment', { type: 'error' })
+        toast.error(data.error || 'Failed to record repayment')
       }
     } catch {
-      toast.push('Network error. Please try again.', { type: 'error' })
+      toast.error('Network error. Please try again.')
     } finally {
       setSubmitting(false)
     }

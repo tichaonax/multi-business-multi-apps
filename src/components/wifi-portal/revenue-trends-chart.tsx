@@ -1,7 +1,7 @@
 'use client'
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { formatCurrency } from '@/lib/format-currency'
+import { formatCurrency, CURRENCY_SYMBOL } from '@/lib/format-currency'
 
 interface DailyTrend {
   date: string
@@ -46,7 +46,7 @@ export function RevenueTrendsChart({ data }: RevenueTrendsChartProps) {
           />
           <YAxis
             className="text-xs fill-gray-600"
-            tickFormatter={(value) => `₱${value}`}
+            tickFormatter={(value) => `${CURRENCY_SYMBOL}${value}`}
           />
           <Tooltip
             contentStyle={{

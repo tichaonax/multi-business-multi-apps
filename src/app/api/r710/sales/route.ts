@@ -1,152 +1,79 @@
 /**
  * R710 WiFi Token Sales API
- *
- * Fetch token sales history and analytics
+ * Queries R710TokenSales (the actual sale records) joined to token/config/wlan data.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-
-
-import { prisma } from '@/lib/prisma';
-import { isSystemAdmin } from '@/lib/permission-utils';
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { isSystemAdmin } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getServerUser();
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const searchParams = request.nextUrl.searchParams
+    const businessId = searchParams.get('businessId')
+    const dateRange  = searchParams.get('dateRange') // 'today' | 'week' | 'month' | 'all'
 
-    const searchParams = request.nextUrl.searchParams;
-    const businessId = searchParams.get('businessId');
-    const dateRange = searchParams.get('dateRange'); // 'today', 'week', 'month', 'all'
-    const activated = searchParams.get('activated'); // 'true', 'false', null
+    if (!businessId) return NextResponse.json({ error: 'Business ID required' }, { status: 400 })
 
-    if (!businessId) {
-      return NextResponse.json({ error: 'Business ID required' }, { status: 400 });
-    }
-
-
-    // Check if user has access to this business (admins have access to all businesses)
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({
-        where: {
-          businessId: businessId,
-          userId: user.id,
-          isActive: true
-        }
-      });
-
-      if (!membership) {
-        return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 });
-      }
+        where: { businessId, userId: user.id, isActive: true },
+      })
+      if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Build where clause for sold tokens
-    const whereClause: any = {
-      businessId: businessId,
-      status: {
-        in: ['SOLD', 'ACTIVE', 'EXPIRED']
-      },
-      soldAt: {
-        not: null
-      }
-    };
-
-    // Apply date range filter
-    if (dateRange) {
-      const now = new Date();
-      let startDate: Date;
-
+    // Date filter on R710TokenSales.soldAt
+    const now = new Date()
+    const startDate: Date = (() => {
       switch (dateRange) {
-        case 'today':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          break;
-        case 'week':
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case 'month':
-          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          startDate = new Date(0); // All time
+        case 'today': return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        case 'week':  return new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000)
+        case 'month': return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        default:      return new Date(0)
       }
+    })()
 
-      whereClause.soldAt = {
-        ...whereClause.soldAt,
-        gte: startDate
-      };
-    }
-
-    // Apply activation filter
-    if (activated !== null) {
-      if (activated === 'true') {
-        whereClause.firstUsedAt = { not: null };
-      } else if (activated === 'false') {
-        whereClause.firstUsedAt = null;
-      }
-    }
-
-    // Fetch sales
-    const sales = await prisma.r710Tokens.findMany({
-      where: whereClause,
+    // Fetch paginated sale records (most recent first)
+    const saleRecords = await prisma.r710TokenSales.findMany({
+      where: { businessId, soldAt: { gte: startDate } },
       include: {
-        token_config: {
-          select: {
-            name: true,
-            durationMinutes: true
-          }
+        r710_tokens: {
+          include: {
+            r710_token_configs: { select: { name: true } },
+            r710_wlans:         { select: { ssid: true } },
+          },
         },
-        wlan: {
-          select: {
-            ssid: true
-          }
-        }
+        users: { select: { name: true, email: true } },
       },
-      orderBy: {
-        soldAt: 'desc'
-      },
-      take: 500 // Limit to 500 sales
-    });
+      orderBy: { soldAt: 'desc' },
+      take: 500,
+    })
 
-    // Calculate statistics
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    // All-time aggregate for stats
+    const todayStart  = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const last7Start  = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000)
+    const last30Start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-    // All-time stats
-    const allSales = await prisma.r710Tokens.findMany({
-      where: {
-        businessId: businessId,
-        soldAt: { not: null }
-      },
-      select: {
-        salePrice: true,
-        firstUsedAt: true,
-        soldAt: true
-      }
-    });
+    const [allAgg, todayAgg, last7Agg, last30Agg] = await Promise.all([
+      prisma.r710TokenSales.aggregate({ where: { businessId }, _sum: { saleAmount: true }, _count: true }),
+      prisma.r710TokenSales.aggregate({ where: { businessId, soldAt: { gte: todayStart  } }, _sum: { saleAmount: true }, _count: true }),
+      prisma.r710TokenSales.aggregate({ where: { businessId, soldAt: { gte: last7Start  } }, _sum: { saleAmount: true }, _count: true }),
+      prisma.r710TokenSales.aggregate({ where: { businessId, soldAt: { gte: last30Start } }, _sum: { saleAmount: true }, _count: true }),
+    ])
 
-    const totalSales = allSales.length;
-    const totalRevenue = allSales.reduce((sum, sale) => sum + (sale.salePrice || 0), 0);
-    const averagePrice = totalSales > 0 ? totalRevenue / totalSales : 0;
-    const activatedCount = allSales.filter(s => s.firstUsedAt !== null).length;
-    const activationRate = totalSales > 0 ? (activatedCount / totalSales) * 100 : 0;
+    const totalSales   = allAgg._count
+    const totalRevenue = Number(allAgg._sum.saleAmount || 0)
+    const averagePrice = totalSales > 0 ? totalRevenue / totalSales : 0
 
-    // Today stats
-    const todaySales = allSales.filter(s => s.soldAt && new Date(s.soldAt) >= todayStart);
-    const todayRevenue = todaySales.reduce((sum, sale) => sum + (sale.salePrice || 0), 0);
-
-    // Last 7 days stats
-    const last7DaysSalesData = allSales.filter(s => s.soldAt && new Date(s.soldAt) >= last7Days);
-    const last7DaysRevenue = last7DaysSalesData.reduce((sum, sale) => sum + (sale.salePrice || 0), 0);
-
-    // Last 30 days stats
-    const last30DaysSalesData = allSales.filter(s => s.soldAt && new Date(s.soldAt) >= last30Days);
-    const last30DaysRevenue = last30DaysSalesData.reduce((sum, sale) => sum + (sale.salePrice || 0), 0);
+    // Activation rate: how many sold tokens were actually used
+    const activatedCount = await prisma.r710Tokens.count({
+      where: { businessId, firstUsedAt: { not: null } },
+    })
+    const activationRate = totalSales > 0 ? (activatedCount / totalSales) * 100 : 0
 
     const stats = {
       totalSales,
@@ -154,39 +81,36 @@ export async function GET(request: NextRequest) {
       averagePrice,
       activatedCount,
       activationRate,
-      todaySales: todaySales.length,
-      todayRevenue,
-      last7DaysSales: last7DaysSalesData.length,
-      last7DaysRevenue,
-      last30DaysSales: last30DaysSalesData.length,
-      last30DaysRevenue
-    };
+      todaySales:     todayAgg._count,
+      todayRevenue:   Number(todayAgg._sum.saleAmount  || 0),
+      last7DaysSales: last7Agg._count,
+      last7DaysRevenue: Number(last7Agg._sum.saleAmount  || 0),
+      last30DaysSales: last30Agg._count,
+      last30DaysRevenue: Number(last30Agg._sum.saleAmount || 0),
+    }
 
-    // Format sales response
-    const formattedSales = sales.map(sale => ({
-      id: sale.id,
-      username: sale.username,
-      password: sale.password,
-      status: sale.status,
-      salePrice: sale.salePrice,
-      soldAt: sale.soldAt,
-      activatedAt: sale.firstUsedAt,
-      expiresAt: sale.expiresAt,
-      tokenConfig: sale.token_config,
-      wlan: sale.wlan
-    }));
+    const sales = saleRecords.map(sale => ({
+      id:          sale.id,
+      username:    sale.r710_tokens.username,
+      password:    sale.r710_tokens.password,
+      status:      sale.r710_tokens.status,
+      salePrice:   Number(sale.saleAmount),
+      soldAt:      sale.soldAt,
+      activatedAt: sale.r710_tokens.firstUsedAt,
+      expiresAt:   sale.r710_tokens.expiresAtR710,
+      tokenConfig: sale.r710_tokens.r710_token_configs
+        ? { name: sale.r710_tokens.r710_token_configs.name }
+        : null,
+      wlan: sale.r710_tokens.r710_wlans
+        ? { ssid: sale.r710_tokens.r710_wlans.ssid }
+        : null,
+      soldBy: sale.users?.name || sale.users?.email || null,
+      paymentMethod: sale.paymentMethod,
+    }))
 
-    return NextResponse.json({
-      sales: formattedSales,
-      stats: stats,
-      count: sales.length
-    });
-
+    return NextResponse.json({ sales, stats, count: sales.length })
   } catch (error) {
-    console.error('[R710 Sales API] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch sales data' },
-      { status: 500 }
-    );
+    console.error('[R710 Sales API] Error:', error)
+    return NextResponse.json({ error: 'Failed to fetch sales data' }, { status: 500 })
   }
 }

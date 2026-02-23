@@ -97,7 +97,7 @@ export function TripDetailModal({ trip, onClose, onUpdate, onTripStatusChanged }
       if (onTripStatusChanged) onTripStatusChanged()
     } catch (err) {
       console.error('Error reopening trip:', err)
-      toast.push(err instanceof Error ? err.message : 'Failed to reopen trip')
+      toast.error(err instanceof Error ? err.message : 'Failed to reopen trip')
     } finally {
       setReopening(false)
     }

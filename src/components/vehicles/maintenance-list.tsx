@@ -121,7 +121,7 @@ export function MaintenanceList({ onMaintenanceSelect, onAddMaintenance, vehicle
       // Refresh the list immediately
       fetchMaintenanceRecords()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to delete maintenance record')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete maintenance record')
     }
   }
 

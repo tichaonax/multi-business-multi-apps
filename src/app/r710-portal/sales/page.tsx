@@ -472,13 +472,13 @@ export default function R710SalesPage() {
         },
         onError: (error, receiptType) => {
           console.error(`❌ Receipt print failed:`, error)
-          toast.push(`Error printing receipt: ${error.message}`)
+          toast.error(`Error printing receipt: ${error.message}`)
         }
       })
 
     } catch (error: any) {
       console.error('❌ Print receipt error:', error)
-      toast.push(error.message || 'Failed to print receipt')
+      toast.error(error.message || 'Failed to print receipt')
     } finally {
       setIsPrinting(false)
       // Reset ref guard after a small delay to prevent rapid re-clicks

@@ -246,6 +246,8 @@ export function QuickPaymentModal({
 }: QuickPaymentModalProps) {
   const isPersonalAccount = accountType === 'PERSONAL'
   const [loading, setLoading] = useState(false)
+  const [liveBalance, setLiveBalance] = useState<number | null>(null)
+  const [balanceLoading, setBalanceLoading] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [payeeSearchQuery, setPayeeSearchQuery] = useState('')
@@ -256,6 +258,10 @@ export function QuickPaymentModal({
   const [skipPayee, setSkipPayee] = useState(false)
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingSubcategories, setLoadingSubcategories] = useState(false)
+  const [payeeErrorMessage, setPayeeErrorMessage] = useState<string | null>(null)
+  const [loadingSupplierForEdit, setLoadingSupplierForEdit] = useState(false)
+  const [supplierForEdit, setSupplierForEdit] = useState<any | null>(null)
+  const [showEditSupplierModal, setShowEditSupplierModal] = useState(false)
   const toast = useToastContext()
   const customAlert = useAlert()
   const customConfirm = useConfirm()
@@ -284,8 +290,28 @@ export function QuickPaymentModal({
   useEffect(() => {
     if (isOpen) {
       loadCategories()
+      fetchLiveBalance()
+    } else {
+      setLiveBalance(null)
     }
   }, [isOpen])
+
+  const fetchLiveBalance = async () => {
+    setBalanceLoading(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/balance`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        // Use calculatedBalance (SUM-based) which is always authoritative
+        const value = data.data?.calculatedBalance ?? data.data?.balance ?? null
+        if (value !== null) setLiveBalance(Number(value))
+      }
+    } catch {
+      // Silently fall back to the currentBalance prop
+    } finally {
+      setBalanceLoading(false)
+    }
+  }
 
   // Auto-select category matching business type when categories load
   useEffect(() => {
@@ -418,8 +444,9 @@ export function QuickPaymentModal({
       newErrors.amount = 'Amount must be greater than 0'
     } else if (amount > 999999999.99) {
       newErrors.amount = 'Amount exceeds maximum allowed value'
-    } else if (amount > currentBalance) {
-      newErrors.amount = `Insufficient funds. Available balance: $${currentBalance.toFixed(2)}`
+    } else if (amount > (liveBalance ?? currentBalance)) {
+      const displayBalance = liveBalance ?? currentBalance
+      newErrors.amount = `Insufficient funds. Available balance: $${displayBalance.toFixed(2)}`
     } else if (formData.payee?.type === 'PERSON') {
       // Validate payment amount for individuals without national ID
       try {
@@ -496,6 +523,7 @@ export function QuickPaymentModal({
         payeeEmployeeId: !skipPayee && formData.payee?.type === 'EMPLOYEE' ? formData.payee.id : undefined,
         payeePersonId: !skipPayee && formData.payee?.type === 'PERSON' ? formData.payee.id : undefined,
         payeeBusinessId: !skipPayee && formData.payee?.type === 'BUSINESS' ? formData.payee.id : undefined,
+        payeeSupplierId: !skipPayee && formData.payee?.type === 'SUPPLIER' ? formData.payee.id : undefined,
         // Form "category" = domain, "subcategory" = actual category, "sub-subcategory" = subcategory
         categoryId: formData.subcategoryId || formData.categoryId,
         subcategoryId: formData.subSubcategoryId || null,
@@ -513,6 +541,7 @@ export function QuickPaymentModal({
       })
 
       // Success
+      setPayeeErrorMessage(null)
       toast.push('Payment created successfully')
       try {
         onSuccess({
@@ -529,7 +558,10 @@ export function QuickPaymentModal({
     } catch (error) {
       console.error('Create payment error:', error)
       const message = error instanceof Error ? error.message : 'Failed to create payment'
-      toast.push(message)
+      toast.error(message)
+      // Show Edit Payee button if the error is payee-related
+      const isPayeeError = /supplier|person|national.?id|payee.*id|id.*required/i.test(message)
+      setPayeeErrorMessage(isPayeeError ? message : null)
       try {
         onError(message)
       } catch (e) {}
@@ -554,6 +586,8 @@ export function QuickPaymentModal({
       amount: '',
       paymentDate: '',
     })
+    setPayeeErrorMessage(null)
+    setSupplierForEdit(null)
     setSubcategories([])
     setSubSubcategories([])
   }
@@ -595,6 +629,35 @@ export function QuickPaymentModal({
   const handleCreateSupplierSuccess = (createdSupplierId?: string) => {
     setPayeeRefreshTrigger(prev => prev + 1)
     setShowSupplierModal(false)
+  }
+
+  const handleEditPayeeClick = async () => {
+    if (!formData.payee || !canCreatePayees) return
+    if (formData.payee.type === 'SUPPLIER' && businessId) {
+      setLoadingSupplierForEdit(true)
+      try {
+        const res = await fetch(`/api/business/${businessId}/suppliers/${formData.payee.id}`, { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          setSupplierForEdit(data.supplier || data)
+        } else {
+          // Fallback: open with minimal data
+          setSupplierForEdit({ id: formData.payee.id, name: formData.payee.name })
+        }
+      } catch {
+        setSupplierForEdit({ id: formData.payee.id, name: formData.payee.name })
+      } finally {
+        setLoadingSupplierForEdit(false)
+      }
+      setShowEditSupplierModal(true)
+    }
+  }
+
+  const handleEditSupplierSuccess = (updatedSupplierId?: string) => {
+    setPayeeRefreshTrigger(prev => prev + 1)
+    setShowEditSupplierModal(false)
+    setSupplierForEdit(null)
+    setPayeeErrorMessage(null)
   }
 
   const handleCreateSubcategory = async (name: string, emoji: string) => {
@@ -649,10 +712,17 @@ export function QuickPaymentModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <h2 className="text-xl font-bold text-primary mb-2">Quick Payment</h2>
         <p className="text-sm text-secondary mb-4">
-          from {accountName} (Balance: ${currentBalance.toFixed(2)})
+          from {accountName} (Balance:{' '}
+          {balanceLoading ? (
+            <span className="text-secondary font-semibold">Loading...</span>
+          ) : (
+            <span className={`font-semibold ${(liveBalance ?? currentBalance) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              ${(liveBalance ?? currentBalance).toFixed(2)}
+            </span>
+          )})
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -684,12 +754,29 @@ export function QuickPaymentModal({
                 onChange={(payee) => {
                   setFormData({ ...formData, payee })
                   setErrors({ ...errors, payee: '' })
+                  setPayeeErrorMessage(null)
                 }}
                 onCreateIndividual={canCreatePayees ? (query) => { setPayeeSearchQuery(query || ''); setShowIndividualModal(true) } : undefined}
                 onCreateSupplier={canCreatePayees && businessId ? (query) => { setPayeeSearchQuery(query || ''); setShowSupplierModal(true) } : undefined}
                 error={errors.payee}
                 refreshTrigger={payeeRefreshTrigger}
               />
+            )}
+            {/* Edit Payee button — shown only when there is a payee-related error and user has permission */}
+            {payeeErrorMessage && formData.payee && canCreatePayees && (
+              <div className="mt-2 flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-md">
+                <span className="text-yellow-600 dark:text-yellow-400 text-xs flex-1">
+                  ⚠️ Payee is missing required information.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleEditPayeeClick}
+                  disabled={loadingSupplierForEdit}
+                  className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                >
+                  {loadingSupplierForEdit ? 'Loading…' : '✏️ Edit Payee'}
+                </button>
+              </div>
             )}
           </div>
 
@@ -837,7 +924,8 @@ export function QuickPaymentModal({
             <button
               type="submit"
               className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading}
+              disabled={loading || (liveBalance ?? currentBalance) < 0}
+              title={(liveBalance ?? currentBalance) < 0 ? 'Cannot create payment: account balance is negative' : undefined}
             >
               {loading ? 'Creating...' : 'Create Payment'}
             </button>
@@ -861,6 +949,17 @@ export function QuickPaymentModal({
           onSave={handleCreateSupplierSuccess}
           onCancel={() => setShowSupplierModal(false)}
           initialName={payeeSearchQuery}
+        />
+      )}
+
+      {/* Edit Supplier Modal — opened when a payee error occurs */}
+      {showEditSupplierModal && businessId && supplierForEdit && (
+        <SupplierEditor
+          businessId={businessId}
+          supplier={supplierForEdit}
+          focusField="taxId"
+          onSave={handleEditSupplierSuccess}
+          onCancel={() => { setShowEditSupplierModal(false); setSupplierForEdit(null) }}
         />
       )}
 

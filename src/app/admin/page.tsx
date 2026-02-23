@@ -175,11 +175,11 @@ export default function AdminPage() {
         toast.push('Token sanitization completed')
       } else {
         setSanitizeError(data.error || 'Failed to sanitize tokens')
-        toast.push(`Sanitization failed: ${data.error || 'Unknown error'}`)
+        toast.error(`Sanitization failed: ${data.error || 'Unknown error'}`)
       }
     } catch (error) {
       setSanitizeError('Network error occurred')
-      toast.push('Network error during token sanitization')
+      toast.error('Network error during token sanitization')
     } finally {
       setSanitizingTokens(false)
     }
@@ -667,7 +667,7 @@ export default function AdminPage() {
                     const res = await fetch(endpoint, { method: modalAction.method || 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
                     const json = await res.json().catch(() => ({}))
                     if (!res.ok) {
-                      toast.push(`${modalAction.label} failed: ${json?.message || res.statusText}`)
+                      toast.error(`${modalAction.label} failed: ${json?.message || res.statusText}`)
                     } else {
                       toast.push(`${modalAction.label} completed`)
                       // update small results where appropriate
@@ -675,7 +675,7 @@ export default function AdminPage() {
                       if (modalAction.endpoint.includes('cleanup-dev-data')) setReferenceDataResult(json)
                     }
                   } catch (err: any) {
-                    toast.push(`${modalAction.label} error: ${err?.message || String(err)}`)
+                    toast.error(`${modalAction.label} error: ${err?.message || String(err)}`)
                   } finally {
                     setModalAction(null)
                     setSeedingData(false)

@@ -72,12 +72,12 @@ export function UserEmployeeSearch({
           setResults(data.data || [])
           setIsOpen(true)
         } else {
-          toast.push(data.error || 'Failed to search')
+          toast.error(data.error || 'Failed to search')
           setResults([])
         }
       } catch (error) {
         console.error('Search error:', error)
-        toast.push('Failed to search people')
+        toast.error('Failed to search people')
         setResults([])
       } finally {
         setIsLoading(false)

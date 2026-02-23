@@ -26,7 +26,9 @@ export function CustomerQuickRegister({ businessId, onCreated, onCancel }: Custo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!fullName.trim()) { setError('Name is required'); return }
+    const digitsOnly = phone.replace(/\D/g, '')
     if (!phone.trim()) { setError('Phone number is required'); return }
+    if (digitsOnly.length < 9) { setError('Phone number must be at least 9 digits'); return }
     setSaving(true)
     setError(null)
     try {

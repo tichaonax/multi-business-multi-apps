@@ -209,7 +209,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete license')
-      toast.push(err instanceof Error ? err.message : 'Failed to delete license')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete license')
     }
   }
 
@@ -247,7 +247,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete selected licenses')
-      toast.push(err instanceof Error ? err.message : 'Failed to delete selected licenses')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete selected licenses')
     }
   }
 

@@ -134,7 +134,7 @@ export function CreateIndividualPayeeModal({
     } catch (error) {
       console.error('Create individual payee error:', error)
       const message = error instanceof Error ? error.message : 'Failed to create individual payee'
-      toast.push(message)
+      toast.error(message)
       try {
         onError?.(message)
       } catch (e) {}

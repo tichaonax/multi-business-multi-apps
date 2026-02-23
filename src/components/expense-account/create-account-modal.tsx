@@ -81,7 +81,7 @@ export function CreateAccountModal({
     } catch (error) {
       console.error('Create expense account error:', error)
       const message = error instanceof Error ? error.message : 'Failed to create expense account'
-      toast.push(message)
+      toast.error(message)
       try {
         onError(message)
       } catch (e) {}

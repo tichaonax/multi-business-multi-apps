@@ -1399,7 +1399,7 @@ function GroceryPOSContent() {
       setShowReceiptPreview(true)
     } catch (error) {
       console.error('Print error:', error)
-      toast.push('Failed to open receipt preview')
+      toast.error('Failed to open receipt preview')
     }
   }
 
@@ -1708,7 +1708,7 @@ function GroceryPOSContent() {
                 toast.push(`${receiptType} receipt sent to printer`)
               },
               onError: (error, receiptType) => {
-                toast.push(`Error: ${error.message}`)
+                toast.error(`Error: ${error.message}`)
               }
             })
 
@@ -1719,7 +1719,7 @@ function GroceryPOSContent() {
             setCompletedOrder(null)
 
           } catch (error: any) {
-            toast.push(`Print error: ${error.message}`)
+            toast.error(`Print error: ${error.message}`)
           }
         }}
       />
@@ -1762,7 +1762,7 @@ function GroceryPOSContent() {
             try {
               await openDisplay()
             } catch (error) {
-              toast.push('Failed to open customer display. Please allow popups for this site.', { type: 'error', duration: 5000 })
+              toast.error('Failed to open customer display. Please allow popups for this site.')
             }
           }}
           className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg font-medium"
@@ -2115,17 +2115,11 @@ function GroceryPOSContent() {
                                   // Background refresh to confirm quantities
                                   fetchProducts();
                                 } else {
-                                  toast.push(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`, {
-                                    type: 'error',
-                                    duration: 0  // Require manual dismissal for errors
-                                  });
+                                  toast.error(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`);
                                 }
                               } catch (error) {
                                 console.error('Error creating tokens:', error);
-                                toast.push('❌ Error creating tokens. Please try again.', {
-                                  type: 'error',
-                                  duration: 0  // Require manual dismissal for errors
-                                });
+                                toast.error('❌ Error creating tokens. Please try again.');
                               } finally {
                                 // Remove from requesting set to re-enable button
                                 setRequestingMore(prev => {
@@ -2196,17 +2190,11 @@ function GroceryPOSContent() {
                                   // Background refresh to confirm quantities
                                   fetchProducts();
                                 } else {
-                                  toast.push(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`, {
-                                    type: 'error',
-                                    duration: 0  // Require manual dismissal for errors
-                                  });
+                                  toast.error(`❌ Failed to create tokens: ${result.error || 'Unknown error'}`);
                                 }
                               } catch (error) {
                                 console.error('Error creating tokens:', error);
-                                toast.push('❌ Error creating tokens. Please try again.', {
-                                  type: 'error',
-                                  duration: 0  // Require manual dismissal for errors
-                                });
+                                toast.error('❌ Error creating tokens. Please try again.');
                               } finally {
                                 // Remove from requesting set to re-enable button
                                 setRequestingMore(prev => {

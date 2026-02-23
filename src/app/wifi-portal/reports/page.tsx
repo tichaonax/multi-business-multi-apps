@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
@@ -72,11 +73,14 @@ interface WifiPortalStats {
 export default function WiFiPortalReportsPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
+  const { currentBusinessId, activeBusinesses, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
 
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<WifiPortalStats | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
+  const [esp32BusinessIds, setEsp32BusinessIds] = useState<Set<string>>(new Set())
+  const [integrationCheckDone, setIntegrationCheckDone] = useState(false)
 
   // Initialize date range to last 30 days
   const getInitialDateRange = (): DateRange => {
@@ -90,15 +94,37 @@ export default function WiFiPortalReportsPage() {
 
   const canViewReports = hasPermission('canViewWifiReports')
 
-  useEffect(() => {
-    if (businessLoading || !currentBusinessId) return
+  // Filter out umbrella businesses, then check ESP32 integration for each
+  const nonUmbrellaBusinesses = activeBusinesses.filter(b => b.businessType !== 'umbrella')
 
-    // Check business type
-    if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery') {
-      setErrorMessage('WiFi portal reports are only available for restaurant and grocery businesses')
-      setLoading(false)
-      return
-    }
+  useEffect(() => {
+    if (nonUmbrellaBusinesses.length === 0) return
+    Promise.all(
+      nonUmbrellaBusinesses.map(b =>
+        fetch(`/api/wifi-portal/integration?businessId=${b.businessId}`)
+          .then(r => r.ok ? b.businessId : null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      const ids = new Set(results.filter(Boolean) as string[])
+      setEsp32BusinessIds(ids)
+      // Auto-select: prefer current business if it has ESP32, otherwise first available
+      const preferred = currentBusinessId && ids.has(currentBusinessId)
+        ? currentBusinessId
+        : nonUmbrellaBusinesses.find(b => ids.has(b.businessId))?.businessId ?? null
+      setSelectedBusinessId(preferred)
+      setIntegrationCheckDone(true)
+    })
+  }, [activeBusinesses])
+
+  // Businesses with ESP32 integration (used for dropdown)
+  const esp32Businesses = nonUmbrellaBusinesses.filter(b => esp32BusinessIds.has(b.businessId))
+  const showBusinessSelector = esp32Businesses.length > 1
+
+  const activeBusinessId = selectedBusinessId || currentBusinessId
+
+  useEffect(() => {
+    if (businessLoading || !integrationCheckDone || !activeBusinessId) return
 
     if (!canViewReports) {
       router.push('/dashboard')
@@ -106,10 +132,10 @@ export default function WiFiPortalReportsPage() {
     }
 
     fetchStats()
-  }, [currentBusinessId, businessLoading, dateRange])
+  }, [activeBusinessId, businessLoading, dateRange, integrationCheckDone])
 
   const fetchStats = async () => {
-    if (!currentBusinessId) return
+    if (!activeBusinessId) return
 
     try {
       setLoading(true)
@@ -119,7 +145,7 @@ export default function WiFiPortalReportsPage() {
       const endDate = getLocalDateString(dateRange.end)
 
       const response = await fetch(
-        `/api/wifi-portal/stats?businessId=${currentBusinessId}&startDate=${startDate}&endDate=${endDate}`
+        `/api/wifi-portal/stats?businessId=${activeBusinessId}&startDate=${startDate}&endDate=${endDate}`
       )
 
       if (response.ok) {
@@ -153,10 +179,11 @@ export default function WiFiPortalReportsPage() {
   }
 
   const formatBandwidth = (mb: number): string => {
-    if (mb >= 1024) {
-      return `${(mb / 1024).toFixed(2)} GB`
+    const val = Number(mb) || 0
+    if (val >= 1024) {
+      return `${(val / 1024).toFixed(2)} GB`
     }
-    return `${mb.toFixed(2)} MB`
+    return `${val.toFixed(2)} MB`
   }
 
   const exportToCSV = () => {
@@ -203,18 +230,6 @@ export default function WiFiPortalReportsPage() {
     )
   }
 
-  if (currentBusiness?.businessType !== 'restaurant' && currentBusiness?.businessType !== 'grocery') {
-    return (
-      <ContentLayout title="WiFi Portal Reports">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800">
-            WiFi portal reports are only available for restaurant and grocery businesses.
-          </p>
-        </div>
-      </ContentLayout>
-    )
-  }
-
   if (!canViewReports) {
     return (
       <ContentLayout title="WiFi Portal Reports">
@@ -232,6 +247,30 @@ export default function WiFiPortalReportsPage() {
       title="WiFi Portal Reports"
       description="Analytics and statistics for WiFi token sales and usage"
     >
+      {/* Back link + business selector row */}
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-6 no-print">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link
+            href="/wifi-portal"
+            className="inline-flex items-center px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors text-sm"
+          >
+            ← Back to WiFi Portal
+          </Link>
+          {/* Business selector — only shown when multiple ESP32-enabled businesses exist */}
+          {showBusinessSelector && (
+            <select
+              value={selectedBusinessId ?? ''}
+              onChange={e => setSelectedBusinessId(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+            >
+              {esp32Businesses.map(b => (
+                <option key={b.businessId} value={b.businessId}>{b.businessName}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+
       {/* Error Message */}
       {errorMessage && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">

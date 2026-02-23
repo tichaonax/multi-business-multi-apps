@@ -160,7 +160,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
         }
       } catch (err) {
         console.warn('Detailed detect-ports-detailed fetch failed:', err)
-        toast.push('⚠️ Port detection service not available (detailed)')
+        toast.error('Port detection service not available')
       }
 
       // Fallback to the basic detector
@@ -174,7 +174,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
         }
       } catch (err) {
         console.warn('Basic detect-ports fetch failed:', err)
-        toast.push('⚠️ Port detection service not available')
+        toast.error('Port detection service not available')
       }
 
       // Final fallback
@@ -185,7 +185,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
       ])
     } catch (error) {
       console.error('Failed to detect USB ports (unexpected):', error)
-      toast.push('❌ Port detection failed (unexpected error)')
+      toast.error('Port detection failed')
       setAvailablePorts([
         'TMUSB001', 'USB001', 'USB002', 'USB003',
         'COM1', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8',
@@ -223,7 +223,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
       // Call and handle errors to avoid uncaught promise rejections
       detectUSBPorts().catch((err) => {
         console.error('detectUSBPorts error (unhandled):', err)
-        toast.push('⚠️ Port detection failed')
+        toast.error('Port detection failed')
       })
     }
 
@@ -405,7 +405,7 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  if (!formData.usbPort) return toast.push('Select a port first');
+                  if (!formData.usbPort) return toast.error('Select a port first');
 
                   try {
                     toast.push('Sending test to port...')
@@ -417,13 +417,13 @@ export function PrinterEditor({ isOpen, onClose, printer, onSuccess }: PrinterEd
 
                     const data = await res.json();
                     if (res.ok) {
-                      toast.push(`✅ Test sent: ${data.message || data.method || 'OK'}`)
+                      toast.push(`Test sent: ${data.message || data.method || 'OK'}`)
                     } else {
-                      toast.push(`❌ Test failed - ${data.error || data.message || 'Unknown'}`)
+                      toast.error(`Test failed - ${data.error || data.message || 'Unknown'}`)
                     }
                   } catch (err) {
                     console.error('Port test failed:', err)
-                    toast.push('❌ Test failed - see console')
+                    toast.error('Test failed — see console')
                   }
                 }}
                 disabled={!formData.usbPort || detectingPorts}

@@ -177,7 +177,7 @@ export default function RestaurantSuppliersPage() {
       }
     } catch (error) {
       console.error('Error deleting supplier:', error)
-      toast.push('Error deleting supplier')
+      toast.error('Error deleting supplier')
     }
   }
 

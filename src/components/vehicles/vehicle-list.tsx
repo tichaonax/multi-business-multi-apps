@@ -130,7 +130,7 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
     if (vehicle.driverAuthorizations && vehicle.driverAuthorizations.length > 0) relatedData.push('driver authorizations')
 
     if (relatedData.length > 0) {
-      toast.push(`Cannot delete vehicle: It has ${relatedData.join(', ')}. Please remove these first.`)
+      toast.error(`Cannot delete vehicle: It has ${relatedData.join(', ')}. Please remove these first.`)
       return
     }
 
@@ -158,7 +158,7 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
       // Refresh the list
       fetchVehicles()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to delete vehicle')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete vehicle')
     }
   }
 

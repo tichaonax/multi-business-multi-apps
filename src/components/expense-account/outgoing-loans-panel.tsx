@@ -83,10 +83,10 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
         onApprove?.(loan.id)
       } else {
         const data = await res.json()
-        toast.push(data.error || 'Approval failed', { type: 'error' })
+        toast.error(data.error || 'Approval failed')
       }
     } catch {
-      toast.push('Network error', { type: 'error' })
+      toast.error('Network error')
     }
     setApprovingId(null)
   }

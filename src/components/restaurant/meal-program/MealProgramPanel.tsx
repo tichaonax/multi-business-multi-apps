@@ -139,7 +139,7 @@ export function MealProgramPanel({
           setSearchResults(mapped)
         }
       } catch {
-        toast.push('Search failed', { type: 'error' })
+        toast.error('Search failed')
       } finally {
         setSearchLoading(false)
       }
@@ -176,7 +176,7 @@ export function MealProgramPanel({
   // ---- Step handlers ----
   function selectParticipant(p: Participant) {
     if (!p.isActive) {
-      toast.push(`${p.name} is inactive and cannot use the meal program`, { type: 'error' })
+      toast.error(`${p.name} is inactive and cannot use the meal program`)
       return
     }
     if (p.alreadyPurchasedToday) {
@@ -305,10 +305,10 @@ export function MealProgramPanel({
           paymentMethod: 'EXPENSE_ACCOUNT',
         })
       } else {
-        toast.push(data.error || 'Transaction failed', { type: 'error' })
+        toast.error(data.error || 'Transaction failed')
       }
     } catch {
-      toast.push('Transaction failed', { type: 'error' })
+      toast.error('Transaction failed')
     } finally {
       setSubmitting(false)
     }

@@ -27,11 +27,11 @@ export function FundPayrollModal({
 
   const handleSubmit = async () => {
     if (!parsedAmount || parsedAmount <= 0) {
-      toast.push('Enter a valid amount', { type: 'error' })
+      toast.error('Enter a valid amount')
       return
     }
     if (parsedAmount > accountBalance) {
-      toast.push(`Insufficient balance ($${accountBalance.toFixed(2)} available)`, { type: 'error' })
+      toast.error(`Insufficient balance ($${accountBalance.toFixed(2)} available)`)
       return
     }
 
@@ -50,10 +50,10 @@ export function FundPayrollModal({
         onSuccess()
         onClose()
       } else {
-        toast.push(data.error || 'Transfer failed', { type: 'error' })
+        toast.error(data.error || 'Transfer failed')
       }
     } catch {
-      toast.push('Network error. Please try again.', { type: 'error' })
+      toast.error('Network error. Please try again.')
     } finally {
       setSubmitting(false)
     }

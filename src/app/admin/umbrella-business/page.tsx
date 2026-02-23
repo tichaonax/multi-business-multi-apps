@@ -93,11 +93,11 @@ export default function UmbrellaBusinessManagement() {
         setUmbrellaData(updatedData)
         toast.push('Umbrella business information updated successfully!')
       } else {
-        toast.push('Failed to update umbrella business information')
+        toast.error('Failed to update umbrella business information')
       }
     } catch (error) {
       console.error('Error updating umbrella business:', error)
-      toast.push('Error updating umbrella business information')
+      toast.error('Error updating umbrella business information')
     } finally {
       setSaving(false)
     }

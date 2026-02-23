@@ -120,7 +120,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
       await fetchTrips()
     } catch (err) {
       console.error('Error completing trip:', err)
-      toast.push(err instanceof Error ? err.message : 'Failed to complete trip')
+      toast.error(err instanceof Error ? err.message : 'Failed to complete trip')
     } finally {
       setCompletingTripId(null)
     }
@@ -129,7 +129,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
   const handleDelete = async (trip: VehicleTrip) => {
     // Prevent deletion of completed trips
     if (trip.isCompleted) {
-      toast.push('Cannot delete completed trip. You can reopen it first if you need to make changes.')
+      toast.error('Cannot delete completed trip. You can reopen it first if you need to make changes.')
       return
     }
 
@@ -157,7 +157,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
       // Refresh the list
       fetchTrips()
     } catch (err) {
-      toast.push(err instanceof Error ? err.message : 'Failed to delete trip')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete trip')
     }
   }
 
@@ -354,7 +354,7 @@ export function TripList({ onTripSelect, onAddTrip }: TripListProps) {
                             if (input && Number(input) > trip.startMileage) {
                               await handleCompleteTrip(trip.id, Number(input))
                             } else if (input !== null) {
-                              toast.push('Invalid mileage entered')
+                              toast.error('Invalid mileage entered')
                             }
                           }}
                           className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors relative z-[9999] pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"

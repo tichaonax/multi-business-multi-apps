@@ -223,7 +223,7 @@ export default function EmployeeDetailPage() {
       toast.push('Contract PDF data not available. This contract may be from an older version.')
     } catch (error) {
       console.error('Error generating contract PDF:', error)
-      toast.push('Failed to generate contract PDF. Please try again.')
+      toast.error('Failed to generate contract PDF. Please try again.')
     }
   }
   const handleDeleteContract = async (contractId: string, contractNumber: string) => {
@@ -258,7 +258,7 @@ export default function EmployeeDetailPage() {
       toast.push('Contract deleted successfully.')
     } catch (error: any) {
       console.error('Error deleting contract:', error)
-      toast.push(error.message || 'Failed to delete contract. Please try again.')
+      toast.error(error.message || 'Failed to delete contract. Please try again.')
     } finally {
       setDeletingContract(null)
     }
@@ -345,7 +345,7 @@ export default function EmployeeDetailPage() {
     }
 
     if (statusChangeData.status === 'terminated' && !statusChangeData.terminationReason) {
-      toast.push('Termination reason is required when terminating a contract')
+      toast.error('Termination reason is required when terminating a contract')
       return
     }
 

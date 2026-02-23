@@ -65,7 +65,7 @@ export function PrinterManagement() {
       setPrinters(data.printers || [])
     } catch (error) {
       console.error('Error fetching printers:', error)
-      toast.push('Error: Failed to load printers')
+      toast.error('Failed to load printers')
     } finally {
       setLoading(false)
     }
@@ -99,7 +99,7 @@ export function PrinterManagement() {
       }
 
       if (data.count === 0) {
-        toast.push('No physical printers found. Make sure your printers are connected and powered on.')
+        toast.error('No physical printers found. Check connections and power.')
       } else {
         toast.push(`Discovery complete - Found ${data.count} physical printer(s). Select one to register.`)
         // Store discovered printers for selection UI
@@ -108,7 +108,7 @@ export function PrinterManagement() {
       }
     } catch (error) {
       console.error('Error discovering printers:', error)
-      toast.push(`Discovery failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast.error(`Discovery failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -135,11 +135,11 @@ export function PrinterManagement() {
         await fetchPrinters()
       } else {
         const errorData = await registerResponse.json().catch(() => ({}))
-        toast.push(`Failed to register: ${errorData.error || 'Unknown error'}`)
+        toast.error(`Failed to register: ${errorData.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Error registering printer:', error)
-      toast.push(`Registration failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast.error(`Registration failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -181,7 +181,7 @@ export function PrinterManagement() {
       fetchPrinters()
     } catch (error) {
       console.error('Error deleting printer:', error)
-      toast.push('Error: Failed to delete printer')
+      toast.error('Failed to delete printer')
     }
   }
 

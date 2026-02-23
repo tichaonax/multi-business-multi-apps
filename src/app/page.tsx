@@ -130,17 +130,6 @@ export default function HomePage() {
               Sign In to Get Started
             </Link>
             
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <Link
-                href="/test"
-                className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors font-medium inline-block text-sm"
-              >
-                🧪 Database Schema Test
-              </Link>
-              <div className="text-xs text-gray-500 mt-2">
-                Debug employee relations & camelCase schema
-              </div>
-            </div>
           </div>
           
           <div className="text-sm text-secondary">

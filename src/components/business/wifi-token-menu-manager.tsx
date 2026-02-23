@@ -326,6 +326,7 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
         setSuccessMessage(`${tokenConfig.name} added to ${businessType} menu!`)
         fetchData()
         delete editingPrices[tokenConfig.id]
+        window.dispatchEvent(new CustomEvent('wifi-menu-updated'))
       } else {
         setErrorMessage(data.error || 'Failed to add token to menu')
       }
@@ -414,6 +415,7 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
       if (response.ok) {
         setSuccessMessage('Token removed from menu!')
         fetchData()
+        window.dispatchEvent(new CustomEvent('wifi-menu-updated'))
       } else {
         setErrorMessage(data.error || 'Failed to remove token from menu')
       }
@@ -444,6 +446,7 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
       if (response.ok) {
         setSuccessMessage(`Token ${!menuItem.isActive ? 'enabled' : 'disabled'} in menu!`)
         fetchData()
+        window.dispatchEvent(new CustomEvent('wifi-menu-updated'))
       } else {
         setErrorMessage(data.error || 'Failed to update token status')
       }

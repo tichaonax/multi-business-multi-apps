@@ -50,7 +50,7 @@ export default function LendersPage() {
       const res = await fetch('/api/expense-account/lenders?includeInactive=true', { credentials: 'include' })
       const data = await res.json()
       setLenders(data.data?.lenders || [])
-    } catch { toast.push('Failed to load lenders') }
+    } catch { toast.error('Failed to load lenders') }
     finally { setLoading(false) }
   }
 
@@ -78,9 +78,9 @@ export default function LendersPage() {
         loadLenders()
       } else {
         const d = await res.json()
-        toast.push(d.error || 'Failed to create lender')
+        toast.error(d.error || 'Failed to create lender')
       }
-    } catch { toast.push('Failed to create lender') }
+    } catch { toast.error('Failed to create lender') }
     finally { setSubmitting(false) }
   }
 
@@ -117,9 +117,9 @@ export default function LendersPage() {
         loadLenders()
       } else {
         const d = await res.json()
-        toast.push(d.error || 'Failed to update lender')
+        toast.error(d.error || 'Failed to update lender')
       }
-    } catch { toast.push('Failed to update lender') }
+    } catch { toast.error('Failed to update lender') }
     finally { setSaving(false) }
   }
 
@@ -136,9 +136,9 @@ export default function LendersPage() {
         toast.push(`${lender.name} deactivated`)
         loadLenders()
       } else {
-        toast.push('Failed to deactivate lender')
+        toast.error('Failed to deactivate lender')
       }
-    } catch { toast.push('Failed to deactivate lender') }
+    } catch { toast.error('Failed to deactivate lender') }
   }
 
   const handleReactivate = async (lender: Lender) => {
@@ -153,9 +153,9 @@ export default function LendersPage() {
         toast.push(`${lender.name} reactivated`)
         loadLenders()
       } else {
-        toast.push('Failed to reactivate lender')
+        toast.error('Failed to reactivate lender')
       }
-    } catch { toast.push('Failed to reactivate lender') }
+    } catch { toast.error('Failed to reactivate lender') }
   }
 
   const grouped = {

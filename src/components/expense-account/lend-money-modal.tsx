@@ -86,7 +86,7 @@ export function LendMoneyModal({ accountId, accountName, accountBalance, current
 
   const handleNext = () => {
     const err = validateStep1()
-    if (err) { toast.push(err, { type: 'error' }); return }
+    if (err) { toast.error(err); return }
     setStep('confirm')
   }
 
@@ -118,10 +118,10 @@ export function LendMoneyModal({ accountId, accountName, accountBalance, current
         onClose()
       } else {
         const data = await res.json()
-        toast.push(data.error || 'Failed to create loan', { type: 'error' })
+        toast.error(data.error || 'Failed to create loan')
       }
     } catch {
-      toast.push('Network error. Please try again.', { type: 'error' })
+      toast.error('Network error. Please try again.')
     } finally {
       setSubmitting(false)
     }

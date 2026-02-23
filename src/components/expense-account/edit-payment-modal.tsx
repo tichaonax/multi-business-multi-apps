@@ -386,10 +386,10 @@ export function EditPaymentModal({
         setSubOptions([])
         setShowCreateMidModal(false)
       } else {
-        toast.push(data.error || 'Failed to create subcategory')
+        toast.error(data.error || 'Failed to create subcategory')
       }
     } catch {
-      toast.push('Failed to create subcategory')
+      toast.error('Failed to create subcategory')
     } finally {
       setCreatingItem(false)
     }
@@ -412,10 +412,10 @@ export function EditPaymentModal({
         setSubId(data.subcategory.id)
         setShowCreateSubModal(false)
       } else {
-        toast.push(data.error || 'Failed to create sub-subcategory')
+        toast.error(data.error || 'Failed to create sub-subcategory')
       }
     } catch {
-      toast.push('Failed to create sub-subcategory')
+      toast.error('Failed to create sub-subcategory')
     } finally {
       setCreatingItem(false)
     }
@@ -477,7 +477,7 @@ export function EditPaymentModal({
           setTopId(p.category.id)
         }
       })
-      .catch(() => toast.push('Failed to load payment'))
+      .catch(() => toast.error('Failed to load payment'))
       .finally(() => setLoading(false))
   }, [isOpen, accountId, paymentId])
 
@@ -577,11 +577,11 @@ export function EditPaymentModal({
     if (!payment) return
     const parsedAmount = parseFloat(amount)
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      toast.push('Please enter a valid amount')
+      toast.error('Please enter a valid amount')
       return
     }
     if (payeeChanged && !payeeChangeReason.trim()) {
-      toast.push('A reason is required when changing the payee')
+      toast.error('A reason is required when changing the payee')
       return
     }
 
@@ -618,7 +618,7 @@ export function EditPaymentModal({
 
       const data = await res.json()
       if (!res.ok) {
-        toast.push(data.error || 'Failed to update payment')
+        toast.error(data.error || 'Failed to update payment')
         return
       }
 
@@ -626,7 +626,7 @@ export function EditPaymentModal({
       onSuccess()
       onClose()
     } catch {
-      toast.push('Failed to update payment')
+      toast.error('Failed to update payment')
     } finally {
       setSaving(false)
     }
@@ -889,7 +889,7 @@ export function EditPaymentModal({
         isOpen={showCreateCategoryModal}
         onClose={() => setShowCreateCategoryModal(false)}
         onSuccess={handleCreateCategorySuccess}
-        onError={msg => toast.push(msg)}
+        onError={msg => toast.error(msg)}
       />
 
       {/* ── Quick create: subcategory under domain ────────────────────────────── */}

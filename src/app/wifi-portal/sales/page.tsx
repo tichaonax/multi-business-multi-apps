@@ -349,12 +349,12 @@ export default function WiFiTokenSalesPage() {
         },
         onError: (error, receiptType) => {
           console.error(`❌ Receipt print failed:`, error)
-          toast.push(`Error printing receipt: ${error.message}`)
+          toast.error(`Error printing receipt: ${error.message}`)
         }
       })
     } catch (error: any) {
       console.error('❌ Error printing receipt:', error)
-      toast.push(`Failed to print receipt: ${error.message}`)
+      toast.error(`Failed to print receipt: ${error.message}`)
     } finally {
       setIsPrinting(false)
       // Reset ref guard after a small delay to prevent rapid re-clicks

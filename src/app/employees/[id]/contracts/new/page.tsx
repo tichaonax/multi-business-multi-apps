@@ -565,7 +565,7 @@ export default function NewContractPage() {
     e.preventDefault()
 
     if (!validateForm()) {
-      toast.push('Please fill in all required fields')
+      toast.error('Please fill in all required fields')
       return
     }
 
@@ -619,11 +619,11 @@ export default function NewContractPage() {
         toast.push(`Contract created successfully! Contract #${newContract.contractNumber || 'New Contract'}. You can now download the PDF or view all contracts.`)
       } else {
         const error = await response.json()
-        toast.push(error.error || 'Failed to create contract')
+        toast.error(error.error || 'Failed to create contract')
       }
     } catch (error) {
       console.error('Error creating contract:', error)
-      toast.push('Failed to create contract')
+      toast.error('Failed to create contract')
     } finally {
       setSaving(false)
     }
@@ -834,7 +834,7 @@ export default function NewContractPage() {
       pdf.save(fileName)
     } catch (error) {
       console.error('Error generating PDF:', error)
-      toast.push('Failed to generate PDF')
+      toast.error('Failed to generate PDF')
     }
   }
 
@@ -850,7 +850,7 @@ export default function NewContractPage() {
       window.open(pdfUrl, '_blank')
     } catch (error) {
       console.error('Error previewing PDF:', error)
-      toast.push('Failed to preview PDF')
+      toast.error('Failed to preview PDF')
     }
   }
 

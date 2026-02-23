@@ -90,19 +90,19 @@ export function ReturnTransferModal({
   const handleSubmit = async () => {
     if (!selected) return
     if (!parsedAmount || parsedAmount <= 0) {
-      toast.push('Enter a valid amount', { type: 'error' })
+      toast.error('Enter a valid amount')
       return
     }
     if (parsedAmount > maxReturnable + 0.001) {
-      toast.push(`Cannot exceed outstanding amount of $${maxReturnable.toFixed(2)}`, { type: 'error' })
+      toast.error(`Cannot exceed outstanding amount of $${maxReturnable.toFixed(2)}`)
       return
     }
     if (accountBalance !== null && parsedAmount > effectiveBalance + 0.001) {
-      toast.push(`Insufficient balance in account. Available: $${effectiveBalance.toFixed(2)}`, { type: 'error' })
+      toast.error(`Insufficient balance in account. Available: $${effectiveBalance.toFixed(2)}`)
       return
     }
     if (!date) {
-      toast.push('Please enter a date', { type: 'error' })
+      toast.error('Please enter a date')
       return
     }
 
@@ -130,10 +130,10 @@ export function ReturnTransferModal({
         onClose()
       } else {
         const data = await res.json()
-        toast.push(data.error || 'Failed to process return', { type: 'error' })
+        toast.error(data.error || 'Failed to process return')
       }
     } catch {
-      toast.push('Network error. Please try again.', { type: 'error' })
+      toast.error('Network error. Please try again.')
     } finally {
       setSubmitting(false)
     }
