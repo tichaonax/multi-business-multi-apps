@@ -485,6 +485,28 @@ export async function createCleanBackup(
     businessData.customerRewards = await prisma.customerRewards.findMany({
       where: { businessId: { in: businessIds } }
     })
+
+    // Coupons
+    businessData.coupons = await prisma.coupons.findMany({
+      where: { businessId: { in: businessIds } }
+    })
+
+    businessData.couponUsages = await prisma.couponUsages.findMany({
+      where: { coupons: { businessId: { in: businessIds } } }
+    })
+
+    // Meal Program
+    businessData.mealProgramParticipants = await prisma.mealProgramParticipants.findMany({
+      where: { businessId: { in: businessIds } }
+    })
+
+    businessData.mealProgramEligibleItems = await prisma.mealProgramEligibleItems.findMany({
+      where: { businessId: { in: businessIds } }
+    })
+
+    businessData.mealProgramTransactions = await prisma.mealProgramTransactions.findMany({
+      where: { businessId: { in: businessIds } }
+    })
   }
 
   // 7. Inventory system
@@ -950,6 +972,54 @@ export async function createCleanBackup(
       orderBy: { timestamp: 'desc' }
     })
   }
+
+  // 30. Clothing bales
+  businessData.clothingBaleCategories = await prisma.clothingBaleCategories.findMany()
+
+  businessData.clothingBales = await prisma.clothingBales.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 31. Outgoing loans (disbursed from expense/payroll accounts)
+  businessData.accountOutgoingLoans = await prisma.accountOutgoingLoans.findMany({
+    where: { createdBy: { in: userIds } }
+  })
+
+  const outgoingLoanIds = businessData.accountOutgoingLoans.map((l: any) => l.id)
+  businessData.accountOutgoingLoanPayments = await prisma.accountOutgoingLoanPayments.findMany({
+    where: { loanId: { in: outgoingLoanIds } }
+  })
+
+  // 32. Payroll slips, ZIMRA remittances, and payment vouchers
+  businessData.payrollSlips = await prisma.payrollSlips.findMany({
+    where: { payroll_periods: { businessId: { in: businessIds } } }
+  })
+
+  businessData.payrollZimraRemittances = await prisma.payrollZimraRemittances.findMany({
+    where: { payroll_periods: { businessId: { in: businessIds } } }
+  })
+
+  businessData.payrollPaymentVouchers = await prisma.payrollPaymentVouchers.findMany({
+    where: {
+      payroll_payments: {
+        payroll_accounts: {
+          OR: [
+            { businessId: { in: businessIds } },
+            { businessId: null }
+          ]
+        }
+      }
+    }
+  })
+
+  // 33. Saved reports and customer display ads
+  businessData.savedReports = await prisma.savedReports.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.customerDisplayAds = await prisma.customerDisplayAd.findMany({
+    where: { businessId: { in: businessIds } }
+  })
 
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined

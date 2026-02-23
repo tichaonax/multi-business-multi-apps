@@ -146,7 +146,9 @@ const RESTORE_ORDER = [
   'productImages',
   'productAttributes',
   'businessStockMovements',
-  'productPriceChanges',  // Product price audit trail
+  'productPriceChanges',      // Product price audit trail
+  'clothingBaleCategories',   // No FK dependencies (reference table)
+  'clothingBales',            // Depends on businesses, clothingBaleCategories, employees
 
   // Customers and orders
   'businessCustomers',
@@ -156,9 +158,19 @@ const RESTORE_ORDER = [
   'customerLaybys',
   'customerLaybyPayments',
 
-  // Promo Campaigns and Customer Rewards
-  'promoCampaigns',   // Depends on businesses
-  'customerRewards',  // Depends on businesses, businessCustomers, promoCampaigns, businessOrders
+  // Promo Campaigns, Coupons and Customer Rewards
+  'promoCampaigns',           // Depends on businesses
+  'customerRewards',          // Depends on businesses, businessCustomers, promoCampaigns, businessOrders
+  'coupons',                  // Depends on businesses, employees
+  'couponUsages',             // Depends on coupons, businessOrders, employees
+
+  // Meal Program (participants and config before transactions)
+  'mealProgramParticipants',  // Depends on businesses, employees, persons, users
+  'mealProgramEligibleItems', // Depends on businesses, businessProducts, users
+
+  // Saved reports and display ads
+  'savedReports',             // Depends on businesses, users
+  'customerDisplayAds',       // Depends on businesses
 
   // Expense accounts (order matters: grants/lenders/loans before deposits; ledger before payments)
   'expenseAccounts',
@@ -173,13 +185,19 @@ const RESTORE_ORDER = [
 
   // Payroll
   'payrollAccounts',
-  'payrollAccountDeposits',  // Depends on payrollAccounts
-  'payrollAccountPayments',  // Depends on payrollAccounts
+  'payrollAccountDeposits',     // Depends on payrollAccounts
+  'payrollAccountPayments',     // Depends on payrollAccounts
+  'payrollPaymentVouchers',     // Depends on payrollAccountPayments
+  'accountOutgoingLoans',       // Depends on expenseAccounts + payrollAccounts
+  'accountOutgoingLoanPayments', // Depends on accountOutgoingLoans
   'payrollPeriods',
   'payrollEntries',
   'payrollEntryBenefits',
   'payrollExports',
   'payrollAdjustments',
+  'payrollSlips',               // Depends on payrollPeriods + payrollEntries
+  'payrollZimraRemittances',    // Depends on payrollPeriods
+  'mealProgramTransactions',    // Depends on mealProgramParticipants, businessOrders, expenseAccounts, employees, users
 
   // Personal finance
   'personalBudgets',
@@ -295,7 +313,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'jobTitles': 'title',
 
   // Promo system unique constraints
-  'customerRewards': 'couponCode'
+  'customerRewards': 'couponCode',
+
+  // Coupons: unique on (businessId, code) — cross-server restores can have same code, different id
+  'coupons': { fields: ['businessId', 'code'] }
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
@@ -305,7 +326,8 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
  */
 const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'customerLaybys': 'customerLayby',
-  'customerLaybyPayments': 'customerLaybyPayment'
+  'customerLaybyPayments': 'customerLaybyPayment',
+  'customerDisplayAds': 'customerDisplayAd'
 }
 
 /**
