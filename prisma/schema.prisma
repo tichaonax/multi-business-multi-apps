@@ -152,7 +152,6 @@ model BusinessCustomers {
   customer_laybys  CustomerLayby[]
   customer_rewards CustomerRewards[]
 
-  @@unique([businessId, customerNumber])
   @@map("business_customers")
 }
 
@@ -225,7 +224,6 @@ model BusinessOrders {
   meal_program_transaction MealProgramTransactions?
   customer_rewards         CustomerRewards[]        @relation("RedeemedReward")
 
-  @@unique([businessId, orderNumber])
   @@index([orderNumber])
   @@index([businessId, createdAt(sort: Desc)])
   @@index([customerId, createdAt(sort: Desc)])
@@ -338,7 +336,6 @@ model BusinessSuppliers {
   supplier_products         SupplierProducts[]
   expense_account_payments  ExpenseAccountPayments[]   @relation("ExpensePaymentPayeeSupplier")
 
-  @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
 }
 
@@ -704,7 +701,7 @@ model ContractRenewals {
 
 model CustomerLayby {
   id                   String                 @id @default(cuid())
-  laybyNumber          String                 @unique
+  laybyNumber          String
   businessId           String
   customerId           String?
   status               LaybyStatus            @default(ACTIVE)
@@ -747,7 +744,7 @@ model CustomerLayby {
 model CustomerLaybyPayment {
   id                String                 @id @default(cuid())
   laybyId           String
-  receiptNumber     String                 @unique
+  receiptNumber     String
   amount            Decimal                @db.Decimal(12, 2)
   paymentMethod     PaymentMethod
   paymentReference  String?
@@ -1145,7 +1142,7 @@ model Employees {
   createdBy                                                                 String?
   customResponsibilities                                                    String?
   dateOfBirth                                                               DateTime?
-  employeeNumber                                                            String                        @unique
+  employeeNumber                                                            String
   firstName                                                                 String
   fullName                                                                  String
   hireDate                                                                  DateTime
@@ -1449,7 +1446,7 @@ model ExpenseAccountLenders {
 
 model ExpenseAccountLoans {
   id               String                @id @default(uuid())
-  loanNumber       String                @unique
+  loanNumber       String
   expenseAccountId String
   lenderId         String
   principalAmount  Decimal               @db.Decimal(12, 2)
@@ -1473,7 +1470,7 @@ model ExpenseAccountLoans {
 // Loans disbursed FROM expense accounts (PERSON/BUSINESS) or payroll account (EMPLOYEE) TO recipients
 model AccountOutgoingLoans {
   id                     String    @id @default(uuid())
-  loanNumber             String    @unique                // auto-generated, e.g. "OL-2026-001"
+  loanNumber             String                          // display label only, not unique across machines
   expenseAccountId       String?                         // null for EMPLOYEE loans (sourced from payroll account)
   payrollAccountId       String?                         // set for EMPLOYEE loans only
   loanType               String                          // "PERSON" | "BUSINESS" | "EMPLOYEE"
@@ -1762,7 +1759,7 @@ model FullSyncSessions {
 
 model InterBusinessLoans {
   id                                                             String             @id @default(uuid())
-  loanNumber                                                     String             @unique
+  loanNumber                                                     String
   principalAmount                                                Decimal            @db.Decimal(12, 2)
   interestRate                                                   Decimal            @default(0) @db.Decimal(5, 2)
   totalAmount                                                    Decimal            @db.Decimal(12, 2)
@@ -1990,7 +1987,7 @@ model Orders {
   status      String       @default("pending")
   createdAt   DateTime     @default(now())
   createdBy   String?
-  orderNumber String       @unique
+  orderNumber String
   tableNumber String?
   order_items OrderItems[]
   users       Users?       @relation(fields: [createdBy], references: [id])
@@ -2328,7 +2325,7 @@ model PayrollAccountPayments {
 model PayrollPaymentVouchers {
   id                 String                 @id @default(uuid())
   paymentId          String
-  voucherNumber      String                 @unique
+  voucherNumber      String
   employeeNumber     String
   employeeName       String
   employeeNationalId String?
@@ -2461,7 +2458,7 @@ model ProductVariants {
   id                       String                   @id @default(uuid())
   productId                String
   name                     String?
-  sku                      String                   @unique
+  sku                      String
   barcode                  String?
   price                    Decimal?                 @db.Decimal(10, 2)
   stockQuantity            Int                      @default(0)
@@ -4451,7 +4448,7 @@ model ClothingBales {
   itemCount      Int
   remainingCount Int
   unitPrice      Decimal  @db.Decimal(10, 2)
-  sku            String   @unique
+  sku            String
   barcode        String?
   bogoActive     Boolean  @default(false)
   bogoRatio      Int      @default(1)
