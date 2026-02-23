@@ -632,12 +632,10 @@ export async function restoreCleanBackup(
           delete cleaned.r710_tokens
           delete cleaned.wifi_tokens
           delete cleaned.menu_items
-          // Remove any other array fields (likely relations)
-          Object.keys(cleaned).forEach(key => {
-            if (Array.isArray(cleaned[key])) {
-              delete cleaned[key]
-            }
-          })
+          // NOTE: Do NOT add generic array-field removal here.
+          // Json columns (e.g. MealProgramTransactions.itemsSummary) store arrays as
+          // valid scalar data. Removing all arrays would silently strip those values
+          // and cause "Argument X is missing" errors from Prisma.
           return cleaned
         })
 
