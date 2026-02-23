@@ -110,6 +110,8 @@ export default function RestaurantPOS() {
   const [searchTerm, setSearchTerm] = useState('')
   const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
+  const [manualSuccessActive, setManualSuccessActive] = useState(false)
+  const [manualResetTrigger, setManualResetTrigger] = useState(0)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
@@ -1585,6 +1587,13 @@ export default function RestaurantPOS() {
 
   // Manual cart helpers
   const addToManualCart = (item: ManualCartItem) => {
+    // If the success modal is showing, dismiss it and start fresh with this item
+    if (manualSuccessActive) {
+      setManualSuccessActive(false)
+      setManualResetTrigger(n => n + 1)
+      setManualCart([item])
+      return
+    }
     setManualCart(prev => {
       // For custom items, always add as new entry
       if (item.isCustom) return [...prev, item]
@@ -2781,6 +2790,8 @@ export default function RestaurantPOS() {
               onUpdateQuantity={updateManualCartQuantity}
               onRemoveItem={removeFromManualCart}
               onClearAll={clearManualCart}
+              onSuccess={() => setManualSuccessActive(true)}
+              resetTrigger={manualResetTrigger}
             />
           )}
 

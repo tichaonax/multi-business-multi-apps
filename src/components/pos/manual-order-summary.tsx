@@ -31,6 +31,8 @@ interface ManualOrderSummaryProps {
   onUpdateQuantity: (id: string, qty: number) => void
   onRemoveItem: (id: string) => void
   onClearAll: () => void
+  onSuccess?: () => void
+  resetTrigger?: number
 }
 
 export function ManualOrderSummary({
@@ -40,6 +42,8 @@ export function ManualOrderSummary({
   onUpdateQuantity,
   onRemoveItem,
   onClearAll,
+  onSuccess,
+  resetTrigger,
 }: ManualOrderSummaryProps) {
   const { format: globalDateFormat } = useDateFormat()
   const [transactionDate, setTransactionDate] = useState('')
@@ -53,6 +57,14 @@ export function ManualOrderSummary({
   const [error, setError] = useState<string | null>(null)
 
   const allDates = getPastDays()
+
+  // Dismiss success state when parent signals a new item was added
+  useEffect(() => {
+    if (resetTrigger && successOrder) {
+      setSuccessOrder(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetTrigger])
 
   // Fetch all closed dates on mount
   useEffect(() => {
@@ -130,6 +142,7 @@ export function ManualOrderSummary({
         orderNumber: data.data.orderNumber,
         totalAmount: data.data.totalAmount,
       })
+      onSuccess?.()
     } catch {
       setError('Network error. Please try again.')
     } finally {
