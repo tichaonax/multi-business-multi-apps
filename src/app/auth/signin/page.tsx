@@ -30,7 +30,7 @@ export default function SignIn() {
       if (result?.error) {
         setError('Invalid credentials')
       } else {
-        router.push('/dashboard')
+        router.push('/auth/redirect')
       }
     } catch (error) {
       setError('An error occurred')
