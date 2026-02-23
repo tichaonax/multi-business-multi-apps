@@ -119,7 +119,8 @@ export async function countDatabaseRecords(
  */
 const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'customerLaybys': 'customerLayby',
-  'customerLaybyPayments': 'customerLaybyPayment'
+  'customerLaybyPayments': 'customerLaybyPayment',
+  'customerDisplayAds': 'customerDisplayAd'
 }
 
 /**
