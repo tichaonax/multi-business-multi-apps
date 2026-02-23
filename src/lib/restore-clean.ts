@@ -282,9 +282,6 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'payrollAccounts': 'accountNumber',
   'expenseAccounts': 'accountNumber',
 
-  // Loan unique constraint
-  'expenseAccountLoans': 'loanNumber',
-
   // Expense account grants (composite unique)
   'expenseAccountGrants': { fields: ['expenseAccountId', 'userId'] },
 
@@ -296,9 +293,6 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'inventoryDomains': 'name',
   'permissions': 'name',
   'jobTitles': 'title',
-
-  // Composite unique constraints
-  'businessOrders': { fields: ['businessId', 'orderNumber'] },
 
   // Promo system unique constraints
   'customerRewards': 'couponCode'
