@@ -968,7 +968,7 @@ export async function restoreCleanBackup(
           } catch (error: any) {
             const errorMsg = error.message || 'Unknown error'
             const isForeignKeyError = error.code === 'P2003' || errorMsg.includes('Foreign key constraint')
-            const isValidationError = error.code === 'P2002' || errorMsg.includes('Unique constraint') || errorMsg.includes('validation')
+            const isUniqueConstraintError = error.code === 'P2002' || errorMsg.includes('Unique constraint')
 
             if (isForeignKeyError) {
               // Skip records with missing foreign key references - they're likely from incomplete backup data
@@ -976,23 +976,24 @@ export async function restoreCleanBackup(
               totalSkipped++
               modelCounts[tableName].skipped++
               skippedReasons.foreignKeyErrors++
-              errorLog.push({
-                model: tableName,
-                recordId,
-                error: `Foreign key constraint: ${errorMsg}`
-              })
+              continue
+            }
+
+            if (isUniqueConstraintError) {
+              // Skip records that conflict on a non-ID unique field (e.g. display numbers like orderNumber,
+              // customerNumber, sku). These are legitimate cross-server conflicts where the local record
+              // (different GUID, same display number) takes precedence. Not a restore error.
+              console.warn(`[restore-clean] Skipping ${tableName} record ${recordId} due to unique constraint conflict (local record preserved)`)
+              totalSkipped++
+              modelCounts[tableName].skipped++
+              skippedReasons.validationErrors++
               continue
             }
 
             totalErrors++
             totalSkipped++
             modelCounts[tableName].skipped++
-
-            if (isValidationError) {
-              skippedReasons.validationErrors++
-            } else {
-              skippedReasons.otherErrors++
-            }
+            skippedReasons.otherErrors++
 
           errorLog.push({
             model: tableName,
