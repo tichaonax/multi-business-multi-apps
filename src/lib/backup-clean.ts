@@ -837,13 +837,9 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
-  // Get token config IDs used by businesses
-  const tokenConfigIds = [...new Set(businessData.businessTokenMenuItems.map((item: any) => item.tokenConfigId))]
-
-  // Get token configurations (global table, filter by usage)
-  businessData.tokenConfigurations = await prisma.tokenConfigurations.findMany({
-    where: { id: { in: tokenConfigIds } }
-  })
+  // Get token configurations (global catalog — back up ALL, not just referenced ones)
+  // Filtering by usage would silently drop configs not yet linked to any businessTokenMenuItems
+  businessData.tokenConfigurations = await prisma.tokenConfigurations.findMany()
 
   // Get WiFi tokens for businesses
   businessData.wifiTokens = await prisma.wifiTokens.findMany({
@@ -1020,6 +1016,31 @@ export async function createCleanBackup(
   businessData.customerDisplayAds = await prisma.customerDisplayAd.findMany({
     where: { businessId: { in: businessIds } }
   })
+
+  // 34. Receipt sequences (POS day sequences — composite PK: businessId + date, no id field)
+  businessData.receiptSequences = await prisma.receiptSequences.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 35. Supplier payment workflow
+  businessData.supplierPaymentRequests = await prisma.supplierPaymentRequests.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const supplierPaymentRequestIds = businessData.supplierPaymentRequests.map((r: any) => r.id)
+  businessData.supplierPaymentRequestItems = await prisma.supplierPaymentRequestItems.findMany({
+    where: { requestId: { in: supplierPaymentRequestIds } }
+  })
+  businessData.supplierPaymentRequestPartials = await prisma.supplierPaymentRequestPartials.findMany({
+    where: { requestId: { in: supplierPaymentRequestIds } }
+  })
+  businessData.supplierRatings = await prisma.supplierRatings.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 36. Chat
+  businessData.chatRooms = await prisma.chatRooms.findMany()
+  businessData.chatMessages = await prisma.chatMessages.findMany()
+  businessData.chatParticipants = await prisma.chatParticipants.findMany()
 
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined

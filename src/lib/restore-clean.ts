@@ -114,6 +114,7 @@ const RESTORE_ORDER = [
   // Business categories and suppliers (shared data)
   'businessCategories',
   'businessSuppliers',
+  'supplierRatings',          // Depends on businesses, businessSuppliers, users
   'inventorySubcategories',
 
   // Persons (for various associations)
@@ -182,6 +183,9 @@ const RESTORE_ORDER = [
   'expenseAccountDeposits',     // depends on expenseAccounts + personalDepositSources + expenseAccountLoans + fundSources
   'businessTransferLedger',     // depends on expenseAccounts
   'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger
+  'supplierPaymentRequests',    // Depends on businesses, businessSuppliers, expenseAccounts, users
+  'supplierPaymentRequestItems', // Depends on supplierPaymentRequests, expenseCategories, expenseSubcategories
+  'supplierPaymentRequestPartials', // Depends on supplierPaymentRequests, expenseAccountPayments, users
 
   // Payroll
   'payrollAccounts',
@@ -274,7 +278,15 @@ const RESTORE_ORDER = [
   'inventoryTransferItems',   // depends on inventoryTransfers + productVariants
   'interBusinessLoans',
   'loanTransactions',
-  'receiptSequences'
+  'receiptSequences',
+
+  // Chat
+  'chatRooms',          // Depends on users
+  'chatMessages',       // Depends on chatRooms, users
+  'chatParticipants',   // Depends on chatRooms, users
+
+  // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
+  'auditLogs'           // Depends on users
 ]
 
 /**
@@ -316,7 +328,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'customerRewards': 'couponCode',
 
   // Coupons: unique on (businessId, code) — cross-server restores can have same code, different id
-  'coupons': { fields: ['businessId', 'code'] }
+  'coupons': { fields: ['businessId', 'code'] },
+
+  // SupplierRatings: unique on (supplierId, businessId, ratedBy)
+  'supplierRatings': { fields: ['supplierId', 'businessId', 'ratedBy'] }
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
@@ -646,7 +661,7 @@ export async function restoreCleanBackup(
 
           modelCounts[tableName].attempted++
 
-          if (!recordId) {
+          if (!recordId && tableName !== 'receiptSequences') {
             console.warn(`[restore-clean] Record in ${tableName} has no ID, skipping`)
             totalErrors++
             totalSkipped++
@@ -733,6 +748,19 @@ export async function restoreCleanBackup(
                 },
                 create: recordToInsert,
                 update: recordToInsert
+              })
+            } else if (tableName === 'receiptSequences') {
+              // ReceiptSequences has composite PK (businessId, date) — no id field
+              // Use Prisma composite where: { businessId_date: { businessId, date } }
+              await model.upsert({
+                where: {
+                  businessId_date: {
+                    businessId: recordToInsert.businessId,
+                    date: recordToInsert.date
+                  }
+                },
+                create: recordToInsert,
+                update: { lastSequence: recordToInsert.lastSequence, updatedAt: recordToInsert.updatedAt }
               })
             } else if (tableName === 'r710Wlans') {
               // R710Wlans has unique constraint on [deviceRegistryId, wlanId]
