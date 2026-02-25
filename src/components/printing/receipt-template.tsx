@@ -77,7 +77,8 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
         </div>
         {data.items.map((item, index) => (
           <div key={index} className="mb-2">
-            <div className="font-bold mb-0.5">
+            <div className="font-bold mb-0.5 flex items-center gap-1">
+              {(item as any).isCombo && <span className="text-[8px] font-black border border-current px-0.5 leading-tight">[COMBO]</span>}
               {item.name}
             </div>
             <div className="flex justify-between text-[11px]">

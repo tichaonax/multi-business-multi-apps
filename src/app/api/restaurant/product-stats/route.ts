@@ -26,32 +26,50 @@ export async function GET(request: NextRequest) {
     const tzStr = new Date(midnightUTC).toLocaleString('en-US', { timeZone: timezone })
     const offsetMs = new Date(tzStr).getTime() - new Date(utcStr).getTime()
     const todayStart = new Date(midnightUTC - offsetMs)
+    const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000)
 
-    // Query ALL of today's order items for this business (including those without variants)
-    const todayItems = await prisma.businessOrderItems.findMany({
-      where: {
-        business_orders: {
-          businessId,
-          status: { not: 'CANCELLED' },
-          createdAt: { gte: todayStart },
+    // Query today's AND yesterday's order items in parallel
+    const [todayItems, yesterdayItems] = await Promise.all([
+      prisma.businessOrderItems.findMany({
+        where: {
+          business_orders: {
+            businessId,
+            status: { not: 'CANCELLED' },
+            createdAt: { gte: todayStart },
+          },
         },
-      },
-      select: {
-        quantity: true,
-        attributes: true,
-        product_variants: {
-          select: {
-            productId: true,
-            business_products: {
-              select: { id: true, name: true },
+        select: {
+          quantity: true,
+          attributes: true,
+          product_variants: {
+            select: {
+              productId: true,
+              business_products: { select: { id: true, name: true } },
+            },
+          },
+          business_orders: { select: { createdAt: true } },
+        },
+      }),
+      prisma.businessOrderItems.findMany({
+        where: {
+          business_orders: {
+            businessId,
+            status: { not: 'CANCELLED' },
+            createdAt: { gte: yesterdayStart, lt: todayStart },
+          },
+        },
+        select: {
+          quantity: true,
+          attributes: true,
+          product_variants: {
+            select: {
+              productId: true,
+              business_products: { select: { id: true, name: true } },
             },
           },
         },
-        business_orders: {
-          select: { createdAt: true },
-        },
-      },
-    })
+      }),
+    ])
 
     console.log(`[product-stats] businessId=${businessId}, todayStart=${todayStart.toISOString()}, found ${todayItems.length} order items today`)
 
@@ -100,9 +118,28 @@ export async function GET(request: NextRequest) {
       productStats[productId].soldToday += qty
     })
 
-    const statsArray = Object.values(productStats).sort((a, b) => b.soldToday - a.soldToday)
+    // Aggregate yesterday's sold counts
+    const yesterdaySoldMap: Record<string, number> = {}
+    yesterdayItems.forEach(item => {
+      let productId = item.product_variants?.business_products?.id
+      if (!productId && item.attributes) {
+        const attrs = item.attributes as Record<string, any>
+        if (attrs.isCombo && attrs.comboId) productId = `combo-${attrs.comboId}`
+        else if (attrs.productId) productId = attrs.productId
+      }
+      if (!productId) return
+      yesterdaySoldMap[productId] = (yesterdaySoldMap[productId] || 0) + Number(item.quantity)
+    })
 
-    console.log(`[product-stats] Returning ${statsArray.length} products. Sample:`, statsArray.slice(0, 3).map(s => `${s.productName}: ${s.soldToday} sold today`))
+    const statsArray = Object.values(productStats)
+      .map(s => ({ ...s, soldYesterday: yesterdaySoldMap[s.productId] || 0 }))
+      .sort((a, b) => b.soldToday - a.soldToday)
+
+    console.log(`[product-stats] todayWindow: ${todayStart.toISOString()} → now`)
+    console.log(`[product-stats] yesterdayWindow: ${yesterdayStart.toISOString()} → ${todayStart.toISOString()}`)
+    console.log(`[product-stats] yesterdayItems found: ${yesterdayItems.length}`)
+    console.log(`[product-stats] yesterdaySoldMap:`, yesterdaySoldMap)
+    console.log(`[product-stats] Returning ${statsArray.length} products:`, statsArray.map(s => `${s.productName}: today=${s.soldToday}, yesterday=${s.soldYesterday}`))
 
     return NextResponse.json({
       success: true,

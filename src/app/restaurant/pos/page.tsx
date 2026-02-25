@@ -59,6 +59,7 @@ interface MenuItem {
   imageUrl?: string  // Product image for customer display
   variants?: Array<{ id: string; name?: string; price?: number; isAvailable?: boolean }>
   soldToday?: number
+  soldYesterday?: number
   firstSoldTodayAt?: string | null
 }
 
@@ -667,6 +668,7 @@ export default function RestaurantPOS() {
           // Get purchase counts if available
           let purchaseCounts: Record<string, number> = {}
           let soldTodayCounts: Record<string, number> = {}
+          let soldYesterdayCounts: Record<string, number> = {}
           let firstSoldTodayAtMap: Record<string, string | null> = {}
           if (statsResponse.ok) {
             const statsData = await statsResponse.json()
@@ -675,6 +677,7 @@ export default function RestaurantPOS() {
               statsData.data.forEach((item: any) => {
                 purchaseCounts[item.productId] = item.totalSold || 0
                 soldTodayCounts[item.productId] = item.soldToday || 0
+                soldYesterdayCounts[item.productId] = item.soldYesterday || 0
                 firstSoldTodayAtMap[item.productId] = item.firstSoldTodayAt || null
               })
             }
@@ -711,6 +714,7 @@ export default function RestaurantPOS() {
                 variants: product.variants,
                 purchaseCount: purchaseCounts[product.id] || 0,
                 soldToday: soldTodayCounts[product.id] || 0,
+                soldYesterday: soldYesterdayCounts[product.id] || 0,
                 firstSoldTodayAt: firstSoldTodayAtMap[product.id] || null
               }
             })
@@ -911,6 +915,7 @@ export default function RestaurantPOS() {
                     preparationTime: combo.preparationTime,
                     comboItems: combo.comboItems, // Include combo items for display
                     soldToday: soldTodayCounts[`combo-${combo.id}`] || 0,
+                    soldYesterday: soldYesterdayCounts[`combo-${combo.id}`] || 0,
                     firstSoldTodayAt: firstSoldTodayAtMap[`combo-${combo.id}`] || null,
                   }))
                 console.log(`✅ Loaded ${comboItems.length} menu combos`)
@@ -1142,6 +1147,7 @@ export default function RestaurantPOS() {
         quantity: item.quantity,
         unitPrice: item.price,
         totalPrice: item.price * item.quantity,
+        isCombo: !!item.isCombo,
         // Mark the first item as the subsidized meal program item
         notes: order.attributes?.mealProgram && index === 0
           ? `[Meals Program] Subsidy: $${Number(order.attributes.expenseAmount || 0.50).toFixed(2)}`
@@ -1320,15 +1326,18 @@ export default function RestaurantPOS() {
           const statsData = await statsResponse.json()
           if (statsData.success && statsData.data) {
           const soldTodayCounts: Record<string, number> = {}
+            const soldYesterdayCounts: Record<string, number> = {}
             const firstSoldTodayAtMap: Record<string, string | null> = {}
             statsData.data.forEach((item: any) => {
               soldTodayCounts[item.productId] = item.soldToday || 0
+              soldYesterdayCounts[item.productId] = item.soldYesterday || 0
               firstSoldTodayAtMap[item.productId] = item.firstSoldTodayAt || null
             })
             setMenuItems(prev => {
               const updated = prev.map(item => ({
                 ...item,
                 soldToday: soldTodayCounts[item.id] || 0,
+                soldYesterday: soldYesterdayCounts[item.id] || 0,
                 // Only set firstSoldTodayAt if not already locked in (preserve position)
                 firstSoldTodayAt: item.firstSoldTodayAt || firstSoldTodayAtMap[item.id] || null,
               }))
@@ -2131,8 +2140,10 @@ export default function RestaurantPOS() {
                           <div className="space-y-0.5">
                             {visibleItems.map((item: any, i: number) => {
                               const name = item?.product_variants?.business_products?.name || item?.attributes?.productName || item?.notes
+                              const isComboItem = !!(item?.attributes?.isCombo)
                               return (
-                                <div key={i} className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                                <div key={i} className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
+                                  {isComboItem && <span className="text-[8px] font-bold bg-purple-600 text-white px-0.5 rounded leading-none flex-shrink-0">✦</span>}
                                   {item.quantity}× {name}
                                 </div>
                               )
@@ -2451,10 +2462,12 @@ export default function RestaurantPOS() {
                           || item.attributes?.productName
                           || item.notes
                           || 'Item'
+                        const isComboItem = !!(item?.attributes?.isCombo)
                         return (
                           <div key={item.id || idx} className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                               <span className="text-xs text-gray-400 w-5 text-right">{item.quantity}×</span>
+                              {isComboItem && <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded leading-none">✦</span>}
                               <span>{name}</span>
                             </div>
                             <span className="font-medium text-gray-900 dark:text-white">
@@ -2647,6 +2660,41 @@ export default function RestaurantPOS() {
                 const isUnavailable = item.isAvailable === false
                 const cartItem = cart.find(c => c.id === item.id)
                 const cartQuantity = cartItem?.quantity || 0
+                const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+
+                // Performance bar metrics — computed once, shared by badge color and bar
+                const soldToday = item.soldToday || 0
+                const soldYesterday = item.soldYesterday || 0
+                let barFill = 0
+                let barColorClass = 'bg-red-500'
+                let barTextColorClass = 'text-red-500 dark:text-red-400'
+                let barLabel = 'Low'
+                const showBar = soldToday > 0
+                if (showBar) {
+                  if (soldYesterday > 0) {
+                    // Ratio-based: today vs yesterday for this specific item
+                    // ratio=1.0 means matched yesterday → full bar (100%)
+                    // ratio>1 is capped at 100%; ratio<1 fills proportionally
+                    const ratio = soldToday / soldYesterday
+                    barFill = Math.min(100, ratio * 100)
+                    if (ratio >= 1.0) {
+                      barColorClass = 'bg-green-500'
+                      barTextColorClass = 'text-green-500 dark:text-green-400'
+                      barLabel = 'Good'
+                    } else if (ratio >= 0.5) {
+                      barColorClass = 'bg-amber-400'
+                      barTextColorClass = 'text-amber-500 dark:text-amber-400'
+                      barLabel = 'Fair'
+                    }
+                    // else: stays Red / "Low" (ratio < 0.5)
+                  } else {
+                    // No yesterday baseline — any sale today is a new win
+                    barFill = 60
+                    barColorClass = 'bg-green-500'
+                    barTextColorClass = 'text-green-500 dark:text-green-400'
+                    barLabel = 'New'
+                  }
+                }
 
                 return (
                   <div
@@ -2679,6 +2727,30 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
+                    {/* Combo indicator with hover tooltip listing combo contents */}
+                    {(item as any).isCombo && (
+                      <div className={`absolute left-1 ${item.spiceLevel != null && item.spiceLevel > 0 ? 'top-5' : 'top-1'} group z-10`}>
+                        <span className="text-[9px] font-bold bg-purple-600 dark:bg-purple-700 text-white px-1 py-0.5 rounded leading-none tracking-wide cursor-default">
+                          ✦ COMBO
+                        </span>
+                        {/* Hover popup */}
+                        {(item as any).comboItems && (item as any).comboItems.length > 0 && (
+                          <div className="absolute left-0 top-full mt-1 hidden group-hover:block w-44 bg-gray-900 dark:bg-gray-950 border border-purple-500/40 rounded-lg shadow-xl p-2 pointer-events-none">
+                            <p className="text-[10px] font-semibold text-purple-300 mb-1 uppercase tracking-wide">Includes</p>
+                            {(item as any).comboItems.map((ci: any, idx: number) => (
+                              <div key={idx} className="flex items-center gap-1 text-[11px] text-gray-200 py-0.5">
+                                {ci.tokenConfigId || ci.wifiToken ? (
+                                  <><span>📶</span><span className="truncate">{ci.wifiToken?.name || ci.product?.name || 'WiFi Access'}</span></>
+                                ) : (
+                                  <><span className="text-purple-400">•</span><span className="truncate">{ci.product?.name || ci.name || 'Item'}</span>{ci.quantity > 1 && <span className="text-gray-400 flex-shrink-0">×{ci.quantity}</span>}</>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <h3 className="font-semibold text-[10px] sm:text-xs line-clamp-2 mt-2">
                       {item.name}
                       {item.requiresCompanionItem && (
@@ -2686,25 +2758,44 @@ export default function RestaurantPOS() {
                       )}
                     </h3>
 
-                    <div className="flex items-center gap-1 mt-1">
-                      <p className={`text-sm sm:text-base font-bold ${hasDiscount ? 'text-red-600' : 'text-green-600'}`}>
-                        ${Number(item.price).toFixed(2)}
-                      </p>
-                      {hasDiscount && (
-                        <p className="text-xs text-secondary line-through">
-                          ${Number(item.originalPrice || 0).toFixed(2)}
+                    {/* Price row + revenue — two-column when financial user has sold items */}
+                    {canSeeFinancials && soldToday > 0 ? (
+                      <div className="flex items-stretch gap-2 mt-1">
+                        {/* Left column: price on top, sold badge below */}
+                        <div className="flex flex-col justify-between">
+                          <p className={`text-sm sm:text-base font-bold leading-tight ${hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
+                            ${Number(item.price).toFixed(2)}
+                            {hasDiscount && (
+                              <span className="ml-1 text-xs text-secondary line-through font-normal">
+                                ${Number(item.originalPrice || 0).toFixed(2)}
+                              </span>
+                            )}
+                          </p>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 whitespace-nowrap self-start mt-0.5">
+                            <span className="text-yellow-400 font-bold">{soldToday}</span> sold
+                          </span>
+                        </div>
+                        {/* Right column: large revenue in bar color, vertically centered */}
+                        <div className="flex items-center justify-end flex-1">
+                          <span className={`text-lg sm:text-xl font-black leading-none ${barTextColorClass}`}>
+                            ${(Number(item.price) * soldToday).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 mt-1">
+                        <p className={`text-sm sm:text-base font-bold ${hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
+                          ${Number(item.price).toFixed(2)}
                         </p>
-                      )}
-                    </div>
+                        {hasDiscount && (
+                          <p className="text-xs text-secondary line-through">
+                            ${Number(item.originalPrice || 0).toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
-                    {/* Sold today badge - always visible */}
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
-                      (item.soldToday || 0) > 0
-                        ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
-                        : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
-                    }`}>
-                      <span className={(item.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{item.soldToday || 0}</span> sold today
-                    </span>
+                    {/* Sold count hidden from non-financial users */}
 
                     {/* WiFi token details - Duration and Bandwidth (ESP32 only) */}
                     {(item as any).esp32Token && (item as any).tokenConfig && (
@@ -2825,6 +2916,17 @@ export default function RestaurantPOS() {
 
                     {isUnavailable && (
                       <p className="text-xs text-red-500 mt-1 font-medium">Unavailable</p>
+                    )}
+
+                    {/* Performance comparison bar — all users, whenever soldToday > 0 */}
+                    {showBar && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 shadow ${barColorClass}`} />
+                        <div className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden">
+                          <div className={`h-full transition-all duration-500 ${barColorClass} opacity-70`} style={{ width: `${barFill}%` }} />
+                        </div>
+                        <span className={`text-[10px] font-semibold flex-shrink-0 ${barTextColorClass}`}>{barLabel}</span>
+                      </div>
                     )}
 
                     {/* Cart quantity badge - bottom right, only show when in cart */}
@@ -3028,7 +3130,10 @@ export default function RestaurantPOS() {
                 <div key={item.id} className="border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0">
                   <div className="flex justify-between items-center">
                     <div className="flex-1">
-                      <div className="font-medium text-sm">{item.name}</div>
+                      <div className="font-medium text-sm flex items-center gap-1.5">
+                        {(item as any).isCombo && <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded leading-none flex-shrink-0">✦</span>}
+                        {item.name}
+                      </div>
                       <div className="text-green-600">${Number(item.price).toFixed(2)}</div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -3268,7 +3373,8 @@ export default function RestaurantPOS() {
                     setPendingMealTransaction(null)
                     setAmountReceived('')
                   }}
-                  className="flex-1 py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600"
+                  disabled={orderSubmitting}
+                  className="flex-1 py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
@@ -3327,8 +3433,10 @@ export default function RestaurantPOS() {
                   <div className="space-y-2">
                     {completedOrder.items.map((item: any, index: number) => (
                       <div key={index} className="flex justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">
-                          {item.quantity}x {item.name}
+                        <span className="text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                          {item.quantity}x
+                          {item.isCombo && <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded leading-none">✦</span>}
+                          {item.name}
                         </span>
                         <span className="font-medium text-gray-900 dark:text-gray-100">
                           ${(item.price * item.quantity).toFixed(2)}

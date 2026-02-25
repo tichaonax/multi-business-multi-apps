@@ -172,6 +172,9 @@ export function ReceiptPreview({
                 {receiptData.items.map((item, index) => (
                   <div key={index} className="flex justify-between py-1 text-gray-900 dark:text-gray-100">
                     <div className="flex-1">
+                      {(item as any).isCombo && (
+                        <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded mr-1 leading-none">✦ COMBO</span>
+                      )}
                       <span>{item.name}</span>
                       {item.quantity > 1 && (
                         <span className="text-gray-600 dark:text-gray-400 ml-2">x{item.quantity}</span>

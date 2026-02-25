@@ -185,6 +185,7 @@ export function buildReceiptData(
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         totalPrice: item.totalPrice,
+        isCombo: !!(attrs.isCombo),
         notes: noteParts.length > 0 ? noteParts.join(' · ') : undefined
       }
     }),
