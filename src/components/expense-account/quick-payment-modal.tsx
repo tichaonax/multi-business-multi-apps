@@ -357,11 +357,18 @@ export function QuickPaymentModal({
         const data = await response.json()
         const flattenedCategories: ExpenseCategory[] = []
 
+        // When a business type is known, only show that domain + global (non-domain) categories.
+        // This prevents restaurant users from seeing Business/Personal/Clothing/etc. domain entries.
+        const targetDomainName = defaultCategoryBusinessType
+          ? getDefaultDomainName(defaultCategoryBusinessType)
+          : null
+
         if (data.domains && Array.isArray(data.domains)) {
           data.domains.forEach((domain: any) => {
-            if (isPersonalAccount && domain.name !== 'Personal') return
             if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
               domain.expense_categories.forEach((cat: any) => {
+                // Skip other domain entries when a target domain is known
+                if (targetDomainName && cat.isDomainCategory && cat.name !== targetDomainName) return
                 flattenedCategories.push({
                   id: cat.id,
                   name: cat.name,
@@ -374,11 +381,19 @@ export function QuickPaymentModal({
           })
         }
 
-        setCategories(flattenedCategories)
+        // Deduplicate by name (keeps first occurrence — removes e.g. duplicate "Transportation" globals)
+        const seen = new Set<string>()
+        const deduped = flattenedCategories.filter(c => {
+          if (seen.has(c.name)) return false
+          seen.add(c.name)
+          return true
+        })
+
+        setCategories(deduped)
 
         // For PERSONAL accounts: auto-select the first Personal category
-        if (isPersonalAccount && flattenedCategories.length > 0) {
-          setFormData(prev => ({ ...prev, categoryId: flattenedCategories[0].id }))
+        if (isPersonalAccount && deduped.length > 0) {
+          setFormData(prev => ({ ...prev, categoryId: deduped[0].id }))
         }
       }
     } catch (error) {

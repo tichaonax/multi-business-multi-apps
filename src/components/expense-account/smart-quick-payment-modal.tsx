@@ -259,18 +259,34 @@ export default function SmartQuickPaymentModal({
       if (!res.ok) return
       const json = await res.json()
       // API returns { domains: [{ expense_categories: [...] }] }
+      // When a business type is known, only include the matching domain entry + global (non-domain) categories.
+      const targetDomainName = defaultCategoryBusinessType
+        ? getDefaultDomainName(defaultCategoryBusinessType)
+        : null
+
       const flat: SelectItem[] = []
       const domains: any[] = json.domains ?? []
       for (const domain of domains) {
         for (const c of (domain.expense_categories ?? [])) {
+          // Skip other domain entries when a target domain is known
+          if (targetDomainName && c.isDomainCategory && c.name !== targetDomainName) continue
           flat.push({ id: c.id, name: c.name, emoji: c.emoji ?? null })
         }
       }
-      setAllCategories(flat)
+
+      // Deduplicate by name (keeps first occurrence — removes e.g. duplicate "Transportation" globals)
+      const seen = new Set<string>()
+      const deduped = flat.filter(c => {
+        if (seen.has(c.name)) return false
+        seen.add(c.name)
+        return true
+      })
+
+      setAllCategories(deduped)
       // Auto-select matching domain for business type
       if (defaultCategoryBusinessType) {
         const domainName = getDefaultDomainName(defaultCategoryBusinessType)
-        const match = flat.find(c => c.name === domainName)
+        const match = deduped.find(c => c.name === domainName)
         if (match) setDefaultLevel1Id(match.id)
       }
     } catch { /* non-fatal */ }
