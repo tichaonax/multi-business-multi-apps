@@ -5,11 +5,13 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { StarRating } from '@/components/ui/star-rating'
+import { getSupplierTypeEmoji } from '@/components/suppliers/supplier-editor'
 
 // Helper to check if a string is a valid emoji character (not text)
 function isValidEmoji(str: string | null | undefined): boolean {
@@ -35,6 +37,11 @@ interface Supplier {
   accountBalance: number
   notes?: string | null
   isActive: boolean
+  hasSpecialInstructions?: boolean
+  specialInstructions?: string | null
+  posBlocked?: boolean
+  discontinued?: boolean
+  supplierType?: string | null
   productCount: number
   createdAt: string
   updatedAt: string
@@ -43,6 +50,7 @@ interface Supplier {
 export default function SuppliersPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,13 +58,20 @@ export default function SuppliersPage() {
   const [showActiveOnly, setShowActiveOnly] = useState(true)
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [showEditor, setShowEditor] = useState(false)
+  const [viewOnlyMode, setViewOnlyMode] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [paymentSummaries, setPaymentSummaries] = useState<Record<string, { totalPaid: number; outstanding: number; pendingCount: number; requestCount: number; averageRating: number | null }>>({})
+  const [ratingFilter, setRatingFilter] = useState(0)           // 0 = all, 1-5 = min stars
+  const [supplierTypeFilter, setSupplierTypeFilter] = useState('')  // '' = all
+
+  const canViewQueue = hasPermission('canViewSupplierPaymentQueue')
 
   const canView = hasPermission('canViewSuppliers')
   const canCreate = hasPermission('canCreateSuppliers')
   const canEdit = hasPermission('canEditSuppliers')
   const canDelete = hasPermission('canDeleteSuppliers')
+  const canApprovePayments = hasPermission('canApproveSupplierPayments')
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return
@@ -82,7 +97,25 @@ export default function SuppliersPage() {
       if (!response.ok) throw new Error('Failed to fetch suppliers')
 
       const data = await response.json()
-      setSuppliers(data.suppliers || [])
+      const list: Supplier[] = data.suppliers || []
+      setSuppliers(list)
+
+      // Fetch payment summaries for badges (managers/owners only)
+      fetch(`/api/business/${currentBusinessId}/suppliers/payment-summaries`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.success) setPaymentSummaries(d.summaries || {}) })
+        .catch(() => {})
+
+      // Auto-open viewer if supplierId was passed as a query param (e.g. from payment queue)
+      const targetId = searchParams.get('supplierId')
+      if (targetId) {
+        const target = list.find(s => s.id === targetId)
+        if (target) {
+          setSelectedSupplier(target)
+          setViewOnlyMode(true)
+          setShowEditor(true)
+        }
+      }
     } catch (error) {
       console.error('Error fetching suppliers:', error)
     } finally {
@@ -92,11 +125,13 @@ export default function SuppliersPage() {
 
   const handleCreate = () => {
     setSelectedSupplier(null)
+    setViewOnlyMode(false)
     setShowEditor(true)
   }
 
   const handleEdit = (supplier: Supplier) => {
     setSelectedSupplier(supplier)
+    setViewOnlyMode(false)
     setShowEditor(true)
   }
 
@@ -162,6 +197,15 @@ export default function SuppliersPage() {
     )
   }
 
+  const filteredSuppliers = suppliers.filter(s => {
+    if (supplierTypeFilter && s.supplierType !== supplierTypeFilter) return false
+    if (ratingFilter > 0) {
+      const avg = paymentSummaries[s.id]?.averageRating ?? 2
+      if (ratingFilter === 5 ? avg < 4.5 : avg < ratingFilter - 0.5) return false
+    }
+    return true
+  })
+
   return (
     <>
       <ContentLayout
@@ -185,8 +229,8 @@ export default function SuppliersPage() {
       >
         <div className="space-y-6">
           {/* Filters */}
-          <div className="flex gap-4 items-center">
-            <div className="flex-1">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex-1 min-w-48">
               <input
                 type="text"
                 placeholder="Search suppliers..."
@@ -195,6 +239,29 @@ export default function SuppliersPage() {
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               />
             </div>
+            {/* Supplier Type filter */}
+            <select
+              value={supplierTypeFilter}
+              onChange={(e) => setSupplierTypeFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
+            >
+              <option value="">All Types</option>
+              {Array.from(new Set(suppliers.filter(s => s.supplierType).map(s => s.supplierType!))).sort().map(type => (
+                <option key={type} value={type}>{getSupplierTypeEmoji(type)} {type}</option>
+              ))}
+            </select>
+            {/* Rating filter */}
+            <select
+              value={ratingFilter}
+              onChange={(e) => setRatingFilter(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
+            >
+              <option value={0}>All Ratings</option>
+              <option value={2}>★★+ (2+)</option>
+              <option value={3}>★★★+ (3+)</option>
+              <option value={4}>★★★★+ (4+)</option>
+              <option value={5}>★★★★★ (5 only)</option>
+            </select>
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input
                 type="checkbox"
@@ -212,10 +279,10 @@ export default function SuppliersPage() {
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
               <p className="mt-2 text-gray-600 dark:text-gray-400">Loading suppliers...</p>
             </div>
-          ) : suppliers.length === 0 ? (
+          ) : filteredSuppliers.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <p className="text-gray-600 dark:text-gray-400">No suppliers found.</p>
-              {canCreate && (
+              <p className="text-gray-600 dark:text-gray-400">No suppliers match the selected filters.</p>
+              {canCreate && !supplierTypeFilter && !ratingFilter && (
                 <button
                   onClick={handleCreate}
                   className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -226,10 +293,14 @@ export default function SuppliersPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {suppliers.map((supplier) => (
+              {filteredSuppliers.map((supplier) => (
                 <div
                   key={supplier.id}
-                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className={`bg-white dark:bg-gray-800 border rounded-lg p-4 hover:shadow-md transition-shadow ${
+                    supplier.discontinued
+                      ? 'border-gray-300 dark:border-gray-600 opacity-60'
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}
                 >
               {/* Header */}
               <div className="flex items-start justify-between mb-3">
@@ -238,15 +309,32 @@ export default function SuppliersPage() {
                     {isValidEmoji(supplier.emoji) ? supplier.emoji : '📦'}
                   </span>
                   <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">{supplier.name}</h3>
+                    <h3 className={`font-semibold ${supplier.discontinued ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'}`}>{supplier.name}</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{supplier.supplierNumber}</p>
+                    {supplier.supplierType && (
+                      <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full font-medium">
+                        {getSupplierTypeEmoji(supplier.supplierType)} {supplier.supplierType}
+                      </span>
+                    )}
                   </div>
                 </div>
-                {!supplier.isActive && (
-                  <span className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
-                    Inactive
-                  </span>
-                )}
+                <div className="flex flex-col items-end gap-1">
+                  {supplier.discontinued && (
+                    <span className="px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded font-medium">
+                      Discontinued
+                    </span>
+                  )}
+                  {!supplier.isActive && !supplier.discontinued && (
+                    <span className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
+                      Inactive
+                    </span>
+                  )}
+                  {canApprovePayments && supplier.posBlocked && (
+                    <span className="px-2 py-0.5 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded font-medium">
+                      POS Blocked
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Details */}
@@ -269,22 +357,58 @@ export default function SuppliersPage() {
                     <span>{formatPhoneNumberForDisplay(supplier.phone)}</span>
                   </div>
                 )}
-                {supplier.taxId && (
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                    <span>🏛️</span>
-                    <span className="font-mono text-xs">{supplier.taxId}</span>
+                {/* Cumulative total paid row (managers only) */}
+                {canViewQueue && paymentSummaries[supplier.id] && (
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <span className="text-gray-600 dark:text-gray-400">Total Paid:</span>
+                    <span className="font-semibold text-green-700 dark:text-green-400">
+                      ${paymentSummaries[supplier.id].totalPaid.toFixed(2)}
+                    </span>
                   </div>
                 )}
-                <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <span className="text-gray-600 dark:text-gray-400">Products:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{supplier.productCount}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Balance:</span>
-                  <span className={`font-medium ${supplier.accountBalance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                    ${supplier.accountBalance.toFixed(2)}
-                  </span>
-                </div>
+                {supplier.taxId && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Tax ID:</span>
+                    <span className="font-mono text-xs font-medium text-gray-900 dark:text-gray-100">{supplier.taxId}</span>
+                  </div>
+                )}
+                {/* Supplier rating row */}
+                {(() => {
+                  const avg = paymentSummaries[supplier.id]?.averageRating ?? null
+                  const display = avg !== null ? Math.round(avg) : 2
+                  return (
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Rating:</span>
+                      <StarRating value={display} size="sm" />
+                      {avg === null && <span className="text-xs text-gray-400 dark:text-gray-500">(default)</span>}
+                      {avg !== null && <span className="text-xs text-gray-500 dark:text-gray-400">{avg.toFixed(1)}</span>}
+                    </div>
+                  )
+                })()}
+                {/* Status badges: outstanding & pending (managers only) */}
+                {canViewQueue && paymentSummaries[supplier.id] &&
+                  (paymentSummaries[supplier.id].outstanding > 0.001 || paymentSummaries[supplier.id].pendingCount > 0) && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {paymentSummaries[supplier.id].outstanding > 0.001 && (
+                      <button
+                        onClick={() => { setSelectedSupplier(supplier); setViewOnlyMode(true); setShowEditor(true) }}
+                        className="px-2 py-0.5 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full font-medium hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
+                        title="Click to view payment details"
+                      >
+                        ● ${paymentSummaries[supplier.id].outstanding.toFixed(2)} owed
+                      </button>
+                    )}
+                    {paymentSummaries[supplier.id].pendingCount > 0 && (
+                      <button
+                        onClick={() => { setSelectedSupplier(supplier); setViewOnlyMode(true); setShowEditor(true) }}
+                        className="px-2 py-0.5 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                        title="Click to view payment details"
+                      >
+                        ⏳ {paymentSummaries[supplier.id].pendingCount} pending
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
@@ -340,9 +464,12 @@ export default function SuppliersPage() {
           supplier={selectedSupplier}
           businessId={currentBusinessId}
           onSave={handleSave}
+          viewOnly={viewOnlyMode}
+          averageRating={selectedSupplier ? (paymentSummaries[selectedSupplier.id]?.averageRating ?? null) : null}
           onCancel={() => {
             setShowEditor(false)
             setSelectedSupplier(null)
+            setViewOnlyMode(false)
           }}
         />
       )}

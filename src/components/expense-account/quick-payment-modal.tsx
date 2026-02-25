@@ -493,11 +493,9 @@ export function QuickPaymentModal({
     if (!formData.paymentDate) {
       newErrors.paymentDate = 'Please select a payment date'
     } else {
-      const paymentDate = new Date(formData.paymentDate)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-
-      if (paymentDate > today) {
+      // Compare date strings only — avoids timezone/clock-skew false positives
+      const todayStr = new Date().toLocaleDateString('en-CA') // 'YYYY-MM-DD' in local TZ
+      if (formData.paymentDate > todayStr) {
         newErrors.paymentDate = 'Payment date cannot be in the future'
       }
     }

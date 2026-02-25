@@ -331,10 +331,17 @@ model BusinessSuppliers {
   notes             String?
   taxId             String?
   productsSupplied  String?
+  hasSpecialInstructions  Boolean  @default(false)
+  specialInstructions     String?
+  posBlocked              Boolean  @default(false)
+  discontinued            Boolean  @default(false)
+  supplierType            String?
   business_products         BusinessProducts[]         @relation("ProductSupplier")
   businesses                Businesses?                @relation(fields: [businessId], references: [id])
   supplier_products         SupplierProducts[]
   expense_account_payments  ExpenseAccountPayments[]   @relation("ExpensePaymentPayeeSupplier")
+  supplier_payment_requests SupplierPaymentRequests[]
+  supplier_ratings          SupplierRatings[]
 
   @@map("business_suppliers")
 }
@@ -493,6 +500,8 @@ model Businesses {
   meal_program_eligible_items                                              MealProgramEligibleItems[]
   meal_program_transactions                                                MealProgramTransactions[]
   outgoing_loans_as_recipient                                              AccountOutgoingLoans[]     @relation("OutgoingLoanBusiness")
+  supplier_payment_requests                                                SupplierPaymentRequests[]
+  supplier_ratings                                                         SupplierRatings[]
 
   @@map("businesses")
 }
@@ -1237,11 +1246,12 @@ model ExpenseCategories {
   createdBy                String?
   requiresSubcategory      Boolean                  @default(false)
   updatedAt                DateTime                 @default(now()) @updatedAt
-  expense_account_payments ExpenseAccountPayments[] @relation("ExpensePaymentCategory")
-  users                    Users?                   @relation(fields: [createdBy], references: [id])
-  domain                   ExpenseDomains?          @relation(fields: [domainId], references: [id])
-  expense_subcategories    ExpenseSubcategories[]
-  personal_expenses        PersonalExpenses[]
+  expense_account_payments   ExpenseAccountPayments[]          @relation("ExpensePaymentCategory")
+  users                      Users?                            @relation(fields: [createdBy], references: [id])
+  domain                     ExpenseDomains?                   @relation(fields: [domainId], references: [id])
+  expense_subcategories      ExpenseSubcategories[]
+  personal_expenses          PersonalExpenses[]
+  supplier_payment_items     SupplierPaymentRequestItems[]     @relation("SupplierPaymentItemCategory")
 
   @@unique([domainId, name])
   @@index([updatedAt(sort: Desc)], map: "idx_expense_categories_updated_at")
@@ -1258,10 +1268,11 @@ model ExpenseSubcategories {
   isUserCreated            Boolean                  @default(false)
   createdAt                DateTime                 @default(now())
   createdBy                String?
-  expense_account_payments ExpenseAccountPayments[] @relation("ExpensePaymentSubcategory")
-  category                 ExpenseCategories        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  users                    Users?                   @relation(fields: [createdBy], references: [id])
-  personal_expenses        PersonalExpenses[]
+  expense_account_payments   ExpenseAccountPayments[]          @relation("ExpensePaymentSubcategory")
+  category                   ExpenseCategories                 @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users                      Users?                            @relation(fields: [createdBy], references: [id])
+  personal_expenses          PersonalExpenses[]
+  supplier_payment_items     SupplierPaymentRequestItems[]     @relation("SupplierPaymentItemSubcategory")
 
   @@unique([categoryId, name])
   @@map("expense_subcategories")
@@ -1297,6 +1308,7 @@ model ExpenseAccounts {
   loans                      ExpenseAccountLoans[]      @relation("ExpenseAccountLoans")
   outgoingLoans              AccountOutgoingLoans[]     @relation("OutgoingLoans")
   incomingTransfers          BusinessTransferLedger[]   @relation("TransferToAccount")
+  supplier_payment_requests  SupplierPaymentRequests[]
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1415,6 +1427,7 @@ model ExpenseAccountPayments {
   submitter                Users?                   @relation("ExpensePaymentSubmitter", fields: [submittedBy], references: [id])
   meal_program_transaction MealProgramTransactions? @relation("MealProgramExpensePayment")
   transferLedger           BusinessTransferLedger?  @relation("TransferReturns", fields: [transferLedgerId], references: [id])
+  supplier_payment_partials SupplierPaymentRequestPartials[]
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -2935,6 +2948,11 @@ model Users {
   payroll_slips_distributed                                      PayrollSlips[]              @relation("PayrollSlipDistributedBy")
   zimra_levy_processed                                           PayrollZimraRemittances[]   @relation("ZimraLevyProcessedBy")
   zimra_submitted                                                PayrollZimraRemittances[]   @relation("ZimraSubmittedBy")
+  supplier_payment_requests_submitted                            SupplierPaymentRequests[]   @relation("RequestSubmitter")
+  supplier_payment_requests_approved                             SupplierPaymentRequests[]   @relation("RequestApprover")
+  supplier_payment_requests_denied                               SupplierPaymentRequests[]   @relation("RequestDenier")
+  supplier_payment_request_partials_paid                         SupplierPaymentRequestPartials[] @relation("PartialPayer")
+  supplier_ratings                                               SupplierRatings[]
 
   @@map("users")
 }
@@ -4293,6 +4311,14 @@ enum TransferStatus {
   CANCELLED
 }
 
+enum SupplierPaymentRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  PARTIAL
+  PAID
+}
+
 // ============================================================
 // Coupon & Inventory Transfer Models (MBM-123)
 // ============================================================
@@ -4467,4 +4493,105 @@ model ClothingBales {
 
   @@unique([businessId, batchNumber])
   @@map("clothing_bales")
+}
+
+// ============================================================
+// Supplier Payment Request Queue (MBM-127)
+// ============================================================
+
+model SupplierPaymentRequests {
+  id               String                       @id @default(cuid())
+  businessId       String
+  supplierId       String
+  expenseAccountId String
+  amount           Decimal                      @db.Decimal(12, 2)
+  dueDate          DateTime
+  notes            String?
+  receiptNumber    String?
+  status           SupplierPaymentRequestStatus @default(PENDING)
+  submittedBy      String
+  submittedAt      DateTime                     @default(now())
+  approvedBy       String?
+  approvedAt       DateTime?
+  deniedBy         String?
+  deniedAt         DateTime?
+  denialNote       String?
+  paidAmount       Decimal                      @db.Decimal(12, 2) @default(0)
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  business        Businesses                       @relation(fields: [businessId], references: [id])
+  supplier        BusinessSuppliers                @relation(fields: [supplierId], references: [id])
+  expenseAccount  ExpenseAccounts                  @relation(fields: [expenseAccountId], references: [id])
+  submitter       Users                            @relation("RequestSubmitter", fields: [submittedBy], references: [id])
+  approver        Users?                           @relation("RequestApprover", fields: [approvedBy], references: [id])
+  denier          Users?                           @relation("RequestDenier", fields: [deniedBy], references: [id])
+  partialPayments SupplierPaymentRequestPartials[]
+  items           SupplierPaymentRequestItems[]
+
+  @@index([businessId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([submittedBy])
+  @@index([dueDate])
+  @@index([expenseAccountId])
+  @@index([submittedAt])
+  @@map("supplier_payment_requests")
+}
+
+model SupplierPaymentRequestPartials {
+  id        String   @id @default(cuid())
+  requestId String
+  paymentId String
+  amount    Decimal  @db.Decimal(12, 2)
+  paidAt    DateTime @default(now())
+  paidBy    String
+
+  request SupplierPaymentRequests @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  payment ExpenseAccountPayments  @relation(fields: [paymentId], references: [id])
+  payer   Users                   @relation("PartialPayer", fields: [paidBy], references: [id])
+
+  @@index([requestId])
+  @@index([paymentId])
+  @@map("supplier_payment_request_partials")
+}
+
+model SupplierPaymentRequestItems {
+  id            String   @id @default(cuid())
+  requestId     String
+  description   String?
+  categoryId    String?
+  subcategoryId String?
+  amount          Decimal  @db.Decimal(12, 2)
+  taxAmount       Decimal? @db.Decimal(12, 2)
+  status          String   @default("PENDING")
+  approvedAmount  Decimal? @db.Decimal(12, 2)
+  approvalNote    String?
+  managerNote     String?
+
+  request     SupplierPaymentRequests  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  category    ExpenseCategories?       @relation("SupplierPaymentItemCategory", fields: [categoryId], references: [id])
+  subcategory ExpenseSubcategories?    @relation("SupplierPaymentItemSubcategory", fields: [subcategoryId], references: [id])
+
+  @@index([requestId])
+  @@map("supplier_payment_request_items")
+}
+
+model SupplierRatings {
+  id         String   @id @default(cuid())
+  supplierId String
+  businessId String
+  ratedBy    String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  supplier   BusinessSuppliers @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  businesses Businesses        @relation(fields: [businessId], references: [id])
+  user       Users             @relation(fields: [ratedBy], references: [id])
+
+  @@unique([supplierId, businessId, ratedBy])
+  @@index([supplierId, businessId])
+  @@map("supplier_ratings")
 }

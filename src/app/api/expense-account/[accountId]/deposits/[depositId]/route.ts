@@ -193,7 +193,10 @@ export async function PATCH(
     // Validate and update deposit date if provided
     if (depositDate !== undefined) {
       const depDate = new Date(depositDate)
-      if (depDate > new Date()) {
+      // Compare date strings only to avoid millisecond clock-skew between client and server
+      const serverToday = new Date().toISOString().split('T')[0]
+      const depDateStr = new Date(depositDate).toISOString().split('T')[0]
+      if (depDateStr > serverToday) {
         return NextResponse.json(
           { error: 'Deposit date cannot be in the future' },
           { status: 400 }

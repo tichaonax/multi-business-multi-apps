@@ -309,7 +309,10 @@ export async function PATCH(
     // Validate and update payment date if provided
     if (paymentDate !== undefined) {
       const payDate = new Date(paymentDate)
-      if (payDate > new Date()) {
+      // Compare date strings only to avoid millisecond clock-skew between client and server
+      const serverToday = new Date().toISOString().split('T')[0]
+      const payDateStr = new Date(paymentDate).toISOString().split('T')[0]
+      if (payDateStr > serverToday) {
         return NextResponse.json(
           { error: 'Payment date cannot be in the future' },
           { status: 400 }

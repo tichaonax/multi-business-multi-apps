@@ -209,6 +209,12 @@ export interface CoreBusinessPermissions {
   canEditSuppliers: boolean;
   canDeleteSuppliers: boolean;
   canManageSupplierCatalog: boolean;
+  // Supplier Payment Requests (MBM-127)
+  canSubmitSupplierPaymentRequests: boolean;  // POS/all: submit requests to queue
+  canApproveSupplierPayments: boolean;        // Manager+: approve, deny, pay from queue
+  canViewSupplierPaymentQueue: boolean;       // Manager+: see full queue
+  canViewSupplierPaymentReports: boolean;     // Manager+: financial reports & charts
+  canViewCrossBusinessReports: boolean;       // Owner/Admin: cross-business reporting
 
   // Location Management
   canViewLocations: boolean;
@@ -1146,6 +1152,11 @@ export const CORE_PERMISSIONS = {
     { key: 'canEditSuppliers', label: 'Edit Suppliers' },
     { key: 'canDeleteSuppliers', label: 'Delete Suppliers' },
     { key: 'canManageSupplierCatalog', label: 'Manage Supplier Catalog' },
+    { key: 'canSubmitSupplierPaymentRequests', label: 'Submit Supplier Payment Requests' },
+    { key: 'canApproveSupplierPayments', label: 'Approve / Deny / Pay Supplier Requests' },
+    { key: 'canViewSupplierPaymentQueue', label: 'View Supplier Payment Queue' },
+    { key: 'canViewSupplierPaymentReports', label: 'View Supplier Payment Reports' },
+    { key: 'canViewCrossBusinessReports', label: 'View Cross-Business Reports' },
   ],
   locationManagement: [
     { key: 'canViewLocations', label: 'View Locations' },
@@ -1294,6 +1305,11 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canEditSuppliers: true,
   canDeleteSuppliers: true,
   canManageSupplierCatalog: true,
+  canSubmitSupplierPaymentRequests: true,
+  canApproveSupplierPayments: true,
+  canViewSupplierPaymentQueue: true,
+  canViewSupplierPaymentReports: true,
+  canViewCrossBusinessReports: true,
 
   // Location Management - Full access
   canViewLocations: true,
@@ -1430,6 +1446,11 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canEditSuppliers: true,
   canDeleteSuppliers: false,
   canManageSupplierCatalog: true,
+  canSubmitSupplierPaymentRequests: true,
+  canApproveSupplierPayments: true,
+  canViewSupplierPaymentQueue: true,
+  canViewSupplierPaymentReports: true,
+  canViewCrossBusinessReports: false,   // ❌ Manager cannot see cross-business reports
 
   // Location Management - Manager access
   canViewLocations: true,
@@ -1566,6 +1587,11 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canEditSuppliers: false,
   canDeleteSuppliers: false,
   canManageSupplierCatalog: false,
+  canSubmitSupplierPaymentRequests: true,   // ✅ Employees can submit payment requests
+  canApproveSupplierPayments: false,
+  canViewSupplierPaymentQueue: false,
+  canViewSupplierPaymentReports: false,
+  canViewCrossBusinessReports: false,
 
   // Location Management - View only
   canViewLocations: true,
@@ -1700,6 +1726,11 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canEditSuppliers: false,
   canDeleteSuppliers: false,
   canManageSupplierCatalog: false,
+  canSubmitSupplierPaymentRequests: false,  // ❌ Read-only has no submission access
+  canApproveSupplierPayments: false,
+  canViewSupplierPaymentQueue: false,
+  canViewSupplierPaymentReports: false,
+  canViewCrossBusinessReports: false,
 
   // Location Management - View only
   canViewLocations: true,
@@ -1837,6 +1868,11 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canEditSuppliers: false,
   canDeleteSuppliers: false,
   canManageSupplierCatalog: false,
+  canSubmitSupplierPaymentRequests: true,   // ✅ POS can submit payment requests
+  canApproveSupplierPayments: false,        // ❌ POS cannot approve
+  canViewSupplierPaymentQueue: false,       // ❌ POS cannot see full queue
+  canViewSupplierPaymentReports: false,     // ❌ POS cannot see financial reports
+  canViewCrossBusinessReports: false,
 
   // Location Management - View only
   canViewLocations: true,
@@ -1974,6 +2010,11 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canEditSuppliers: false,
   canDeleteSuppliers: false,
   canManageSupplierCatalog: false,
+  canSubmitSupplierPaymentRequests: false,
+  canApproveSupplierPayments: false,
+  canViewSupplierPaymentQueue: false,
+  canViewSupplierPaymentReports: false,
+  canViewCrossBusinessReports: false,
 
   // Location Management - No access
   canViewLocations: false,
@@ -2108,6 +2149,11 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canEditSuppliers: true,
   canDeleteSuppliers: true,
   canManageSupplierCatalog: true,
+  canSubmitSupplierPaymentRequests: true,
+  canApproveSupplierPayments: true,
+  canViewSupplierPaymentQueue: true,
+  canViewSupplierPaymentReports: true,
+  canViewCrossBusinessReports: true,
 
   // Location Management - Full access
   canViewLocations: true,

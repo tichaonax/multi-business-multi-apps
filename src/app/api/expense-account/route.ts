@@ -84,7 +84,14 @@ export async function GET(request: NextRequest) {
       _max: { amount: true, paymentDate: true }, // Get most recent payment date
       _count: { id: true },
     })
+    // SUBMITTED-only payments — matches the authoritative balance check in the pay API
+    const submittedPaymentGroups = await prisma.expenseAccountPayments.groupBy({
+      by: ['expenseAccountId'],
+      where: { expenseAccountId: { in: accountIds }, status: 'SUBMITTED' },
+      _sum: { amount: true },
+    })
 
+    const submittedPaymentMap = new Map(submittedPaymentGroups.map((g) => [g.expenseAccountId, Number(g._sum?.amount ?? 0)]))
     const depositMap = new Map(depositGroups.map((g) => [g.expenseAccountId, Number(g._sum?.amount ?? 0)]))
     const depositCountMap = new Map(depositGroups.map((g) => [g.expenseAccountId, Number(g._count?.id ?? 0)]))
     const lastDepositDateMap = new Map(depositGroups.map((g) => [g.expenseAccountId, g._max?.depositDate]))
@@ -219,7 +226,7 @@ export async function GET(request: NextRequest) {
           id: account.id,
           accountNumber: account.accountNumber,
           accountName: account.accountName,
-          balance: Number(account.balance),
+          balance: (depositMap.get(account.id) ?? 0) - (submittedPaymentMap.get(account.id) ?? 0),
           description: account.description,
           isActive: account.isActive,
           lowBalanceThreshold: Number(account.lowBalanceThreshold),

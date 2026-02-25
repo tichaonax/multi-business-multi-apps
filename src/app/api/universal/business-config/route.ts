@@ -126,7 +126,15 @@ const BusinessConfigSchema = z.object({
     enableCashDrawer: z.boolean().default(true),
     requireSignature: z.boolean().default(false),
     enableTips: z.boolean().default(false),
-    defaultPaymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY']).default('CASH')
+    defaultPaymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY']).default('CASH'),
+    salesPerformanceThresholds: z.object({
+      fairMin: z.number().min(1).max(1_000_000).default(100),
+      goodMin: z.number().min(1).max(1_000_000).default(150),
+      maxBar:  z.number().min(1).max(1_000_000).default(200),
+    }).refine(
+      (t) => t.fairMin < t.goodMin && t.goodMin <= t.maxBar,
+      { message: 'fairMin must be < goodMin, and goodMin must be ≤ maxBar' }
+    ).optional()
   }).optional(),
   inventory: z.object({
     trackInventory: z.boolean().default(true),
@@ -214,7 +222,12 @@ export async function GET(request: NextRequest) {
           enableCashDrawer: true,
           requireSignature: false,
           enableTips: businessType === 'restaurant',
-          defaultPaymentMethod: 'CASH'
+          defaultPaymentMethod: 'CASH',
+          salesPerformanceThresholds: {
+            fairMin: 100,
+            goodMin: 150,
+            maxBar:  200,
+          }
         },
         inventory: {
           trackInventory: ['clothing', 'hardware', 'grocery'].includes(businessType),

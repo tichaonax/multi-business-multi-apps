@@ -67,7 +67,7 @@ export function Sidebar() {
   const [expandedBusinessTypes, setExpandedBusinessTypes] = useState<Set<string>>(new Set())
   const [businessSectionExpanded, setBusinessSectionExpanded] = useState(false)
   const [financeOpsSectionExpanded, setFinanceOpsSectionExpanded] = useState(
-    () => pathname.startsWith('/expense-accounts') || pathname.startsWith('/payroll') || pathname.startsWith('/payees') || pathname.startsWith('/reports')
+    () => pathname.startsWith('/expense-accounts') || pathname.startsWith('/payroll') || pathname.startsWith('/payees') || pathname.startsWith('/reports') || pathname.startsWith('/supplier-payments')
   )
   const [toolsSectionExpanded, setToolsSectionExpanded] = useState(false)
   const [employeeSectionExpanded, setEmployeeSectionExpanded] = useState(false)
@@ -701,6 +701,12 @@ export function Sidebar() {
                     </Link>
                   </>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/restaurant/settings/pos" className={getLinkClasses('/restaurant/settings/pos')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>POS Settings</span>
+                  </Link>
+                )}
               </>
             )}
 
@@ -757,6 +763,12 @@ export function Sidebar() {
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/grocery/settings/pos" className={getLinkClasses('/grocery/settings/pos')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>POS Settings</span>
                   </Link>
                 )}
               </>
@@ -817,6 +829,12 @@ export function Sidebar() {
                     <span>R710 WiFi Sales</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/clothing/settings/pos" className={getLinkClasses('/clothing/settings/pos')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>POS Settings</span>
+                  </Link>
+                )}
               </>
             )}
 
@@ -869,6 +887,12 @@ export function Sidebar() {
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/hardware/settings/pos" className={getLinkClasses('/hardware/settings/pos')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>POS Settings</span>
                   </Link>
                 )}
               </>
@@ -988,7 +1012,9 @@ export function Sidebar() {
             (hasPermission('canAccessExpenseAccount') && grantedAccounts.length > 0) ||
             hasPermission('canViewPayees') ||
             hasPermission('canSetupPortalIntegration') ||
-            hasPermission('canAccessFinancialData')
+            hasPermission('canAccessFinancialData') ||
+            hasPermission('canSubmitSupplierPaymentRequests') ||
+            hasPermission('canViewSupplierPaymentQueue')
           if (!hasFinanceOpsItems) return null
           return (
         <button
@@ -1223,6 +1249,57 @@ export function Sidebar() {
               </div>
             )}
 
+          </>
+        )}
+
+        {/* Supplier Payments */}
+        {(hasPermission('canViewSupplierPaymentQueue') || hasPermission('canSubmitSupplierPaymentRequests')) && (
+          <>
+            <Link
+              href={hasPermission('canViewSupplierPaymentQueue') ? '/supplier-payments' : '/supplier-payments/my-requests'}
+              className={getLinkClasses('/supplier-payments')}
+            >
+              <span className="text-lg">🧾</span>
+              <span>Supplier Payments</span>
+            </Link>
+            <div className="ml-8 space-y-1 mt-1">
+              {hasPermission('canViewSupplierPaymentQueue') && (
+                <Link
+                  href="/supplier-payments"
+                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                >
+                  <span>📋</span>
+                  <span>Approval Queue</span>
+                </Link>
+              )}
+              {hasPermission('canViewSupplierPaymentReports') && (
+                <Link
+                  href="/supplier-payments/reports"
+                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                >
+                  <span>📊</span>
+                  <span>Reports</span>
+                </Link>
+              )}
+              {hasPermission('canSubmitSupplierPaymentRequests') && (
+                <Link
+                  href="/supplier-payments/request"
+                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                >
+                  <span>➕</span>
+                  <span>Submit Request</span>
+                </Link>
+              )}
+              {hasPermission('canSubmitSupplierPaymentRequests') && (
+                <Link
+                  href="/supplier-payments/my-requests"
+                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                >
+                  <span>📄</span>
+                  <span>My Requests</span>
+                </Link>
+              )}
+            </div>
           </>
         )}
 

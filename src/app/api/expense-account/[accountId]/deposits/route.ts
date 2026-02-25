@@ -295,8 +295,14 @@ export async function POST(
     }
 
     // Validate deposit date (cannot be in the future)
-    const depDate = depositDate ? new Date(depositDate) : new Date()
-    if (depDate > new Date()) {
+    // Compare date strings only to avoid millisecond clock-skew between client and server
+    const now = new Date()
+    const serverToday = now.toISOString().split('T')[0] // YYYY-MM-DD (server UTC date)
+    const depDateStr = depositDate
+      ? new Date(depositDate).toISOString().split('T')[0]
+      : serverToday
+    const depDate = depositDate ? new Date(depositDate) : now
+    if (depDateStr > serverToday) {
       return NextResponse.json(
         { error: 'Deposit date cannot be in the future' },
         { status: 400 }

@@ -126,6 +126,11 @@ export async function GET(
       accountBalance: supplier.accountBalance ? parseFloat(supplier.accountBalance.toString()) : 0,
       notes: supplier.notes,
       isActive: supplier.isActive,
+      hasSpecialInstructions: supplier.hasSpecialInstructions,
+      specialInstructions: supplier.specialInstructions,
+      posBlocked: supplier.posBlocked,
+      discontinued: supplier.discontinued,
+      supplierType: supplier.supplierType,
       productCount: supplier._count.business_products + supplier._count.supplier_products,
       createdAt: supplier.createdAt.toISOString(),
       updatedAt: supplier.updatedAt.toISOString(),
@@ -269,6 +274,7 @@ export async function POST(
         notes: body.notes || null,
         isActive: body.isActive !== false,
         businessType: business.type,
+        supplierType: body.supplierType || null,
         attributes: body.attributes || {},
         updatedAt: new Date()
       }
@@ -293,6 +299,7 @@ export async function POST(
         accountBalance: supplier.accountBalance ? parseFloat(supplier.accountBalance.toString()) : 0,
         notes: supplier.notes,
         isActive: supplier.isActive,
+        supplierType: supplier.supplierType,
         createdAt: supplier.createdAt.toISOString(),
         updatedAt: supplier.updatedAt.toISOString(),
       }

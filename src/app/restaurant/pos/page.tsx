@@ -39,6 +39,8 @@ import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
 import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { useCoupon } from '@/app/universal/pos/hooks/useCoupon'
+import { SalesPerfBadge, DEFAULT_SALES_PERF_THRESHOLDS } from '@/components/pos/SalesPerfBadge'
+import type { SalesPerfThresholds } from '@/components/pos/SalesPerfBadge'
 
 interface MenuItem {
   id: string
@@ -54,40 +56,14 @@ interface MenuItem {
   discountPercent?: number | null
   spiceLevel?: number | null
   preparationTime?: number | null
-  stockQuantity?: number
   imageUrl?: string  // Product image for customer display
-  variants?: Array<{ id: string; name?: string; price?: number; isAvailable?: boolean; stockQuantity?: number }>
+  variants?: Array<{ id: string; name?: string; price?: number; isAvailable?: boolean }>
   soldToday?: number
+  firstSoldTodayAt?: string | null
 }
 
 interface CartItem extends MenuItem {
   quantity: number
-}
-
-function SalesPerfBadge({ sales, size = 'md' }: { sales: number; size?: 'sm' | 'md' }) {
-  const isGreen = sales >= 150
-  const isAmber = sales >= 100
-  const emoji = isGreen ? '🟢' : isAmber ? '🟡' : '🔴'
-  const label = isGreen ? 'Good' : isAmber ? 'Fair' : 'Low'
-  const barColor = isGreen ? 'bg-green-500' : isAmber ? 'bg-amber-400' : 'bg-red-500'
-  const textColor = isGreen ? 'text-green-600 dark:text-green-400' : isAmber ? 'text-amber-500 dark:text-amber-400' : 'text-red-500'
-  const fillPct = Math.min(100, (sales / 200) * 100)
-  if (size === 'sm') {
-    return (
-      <span className="inline-flex items-center gap-0.5 flex-shrink-0" title={`${label} ($${sales.toFixed(2)})`}>
-        <span className="text-[10px] leading-none">{emoji}</span>
-      </span>
-    )
-  }
-  return (
-    <div className="flex items-center gap-1.5 flex-shrink-0">
-      <span className="text-sm leading-none">{emoji}</span>
-      <div className="w-14 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${fillPct}%` }} />
-      </div>
-      <span className={`text-xs font-semibold ${textColor}`}>{label}</span>
-    </div>
-  )
 }
 
 export default function RestaurantPOS() {
@@ -96,6 +72,7 @@ export default function RestaurantPOS() {
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const submitInFlightRef = useRef<{ current: boolean } | any>({ current: false })
+  const menuSectionRef = useRef<HTMLDivElement>(null)
   const [orderSubmitting, setOrderSubmitting] = useState(false)
   // Ref-based guard to prevent duplicate print calls (more reliable than state)
   const printInFlightRef = useRef(false)
@@ -133,12 +110,13 @@ export default function RestaurantPOS() {
   const [yesterdaySales, setYesterdaySales] = useState<any>(null)
   const [dayBeforeYesterdaySales, setDayBeforeYesterdaySales] = useState<any>(null)
   const [showDailySales, setShowDailySales] = useState(false)
+  const [perfThresholds, setPerfThresholds] = useState<SalesPerfThresholds>(DEFAULT_SALES_PERF_THRESHOLDS)
   const [showMealProgramDetails, setShowMealProgramDetails] = useState(false)
   const [recentTransactions, setRecentTransactions] = useState<any[]>([])
   const [showRecentTransactions, setShowRecentTransactions] = useState(false)
+  const [lastOrderExpanded, setLastOrderExpanded] = useState(false)
   const [loadingRecent, setLoadingRecent] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
   const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -263,7 +241,7 @@ export default function RestaurantPOS() {
         price: item.price,
         quantity: item.quantity,
         attributes: {},
-        stock: item.stockQuantity || undefined,
+
         imageUrl: item.imageUrl,
         // Include combo data for mini cart display
         isCombo: (item as any).isCombo || false,
@@ -689,6 +667,7 @@ export default function RestaurantPOS() {
           // Get purchase counts if available
           let purchaseCounts: Record<string, number> = {}
           let soldTodayCounts: Record<string, number> = {}
+          let firstSoldTodayAtMap: Record<string, string | null> = {}
           if (statsResponse.ok) {
             const statsData = await statsResponse.json()
             console.log('[POS] Stats API response:', { success: statsData.success, dataCount: statsData.data?.length, sample: statsData.data?.slice(0, 3) })
@@ -696,6 +675,7 @@ export default function RestaurantPOS() {
               statsData.data.forEach((item: any) => {
                 purchaseCounts[item.productId] = item.totalSold || 0
                 soldTodayCounts[item.productId] = item.soldToday || 0
+                firstSoldTodayAtMap[item.productId] = item.firstSoldTodayAt || null
               })
             }
           } else {
@@ -711,11 +691,6 @@ export default function RestaurantPOS() {
               return price > 0 && !isNaN(price)
             })
             .map((product: any) => {
-              // Calculate total stock from all variants
-              const totalStock = (product.variants || []).reduce((sum: number, variant: any) => {
-                return sum + (variant.stockQuantity || 0)
-              }, 0)
-
               // Get primary image or first image for customer display
               const primaryImage = product.images?.find((img: any) => img.isPrimary) || product.images?.[0]
               const imageUrl = primaryImage?.imageUrl || primaryImage?.url
@@ -732,11 +707,11 @@ export default function RestaurantPOS() {
                 discountPercent: product.discountPercent,
                 spiceLevel: product.spiceLevel,
                 preparationTime: product.preparationTime,
-                stockQuantity: totalStock,
                 imageUrl: imageUrl, // Product image for customer display
                 variants: product.variants,
                 purchaseCount: purchaseCounts[product.id] || 0,
-                soldToday: soldTodayCounts[product.id] || 0
+                soldToday: soldTodayCounts[product.id] || 0,
+                firstSoldTodayAt: firstSoldTodayAtMap[product.id] || null
               }
             })
 
@@ -750,22 +725,26 @@ export default function RestaurantPOS() {
           }
 
           items
-            // Sort by: (1) items with price > 0 first, (2) most purchased, (3) name
+            // Sort by:
+            // (1) Items sold today come before unsold items (position locked by first-sale time)
+            // (2) Among sold-today items: sort by firstSoldTodayAt ASC (earliest sold = first position, locked for the day)
+            // (3) Among unsold items: sort by purchase history then name
             .sort((a: any, b: any) => {
-              const aHasPrice = Number(a.price) > 0
-              const bHasPrice = Number(b.price) > 0
+              const aSoldToday = (a.soldToday || 0) > 0
+              const bSoldToday = (b.soldToday || 0) > 0
 
-              // Items with price come before items without price
-              if (aHasPrice !== bHasPrice) {
-                return bHasPrice ? 1 : -1
+              // Sold-today items always come first
+              if (aSoldToday !== bSoldToday) return aSoldToday ? -1 : 1
+
+              if (aSoldToday && bSoldToday) {
+                // Both sold today — sort by when they were first sold (earliest = leftmost, position locked)
+                const aTime = a.firstSoldTodayAt ? new Date(a.firstSoldTodayAt).getTime() : Infinity
+                const bTime = b.firstSoldTodayAt ? new Date(b.firstSoldTodayAt).getTime() : Infinity
+                return aTime - bTime
               }
 
-              // Both have same price status, sort by purchase count
-              if (b.purchaseCount !== a.purchaseCount) {
-                return b.purchaseCount - a.purchaseCount
-              }
-
-              // Same purchase count, sort alphabetically
+              // Both unsold — keep default order: purchase history then name
+              if (b.purchaseCount !== a.purchaseCount) return b.purchaseCount - a.purchaseCount
               return a.name.localeCompare(b.name)
             })
 
@@ -927,10 +906,12 @@ export default function RestaurantPOS() {
                     isCombo: true,
                     comboId: combo.id,
                     comboData: combo, // Store full combo data for order processing
-                    originalPrice: combo.originalTotalPrice ? Number(combo.originalTotalPrice) : null,
+                    originalPrice: combo.originalTotalPrice && Number(combo.originalTotalPrice) > 0 ? Number(combo.originalTotalPrice) : null,
                     discountPercent: combo.discountPercent ? Number(combo.discountPercent) : null,
                     preparationTime: combo.preparationTime,
                     comboItems: combo.comboItems, // Include combo items for display
+                    soldToday: soldTodayCounts[`combo-${combo.id}`] || 0,
+                    firstSoldTodayAt: firstSoldTodayAtMap[`combo-${combo.id}`] || null,
                   }))
                 console.log(`✅ Loaded ${comboItems.length} menu combos`)
               }
@@ -1312,6 +1293,14 @@ export default function RestaurantPOS() {
     if (currentBusinessId && isRestaurantBusiness) {
       loadDailySales()
       loadRecentTransactions()
+      // Load configurable sales performance thresholds
+      fetch(`/api/universal/business-config?businessId=${currentBusinessId}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((cfg) => {
+          const t = cfg?.data?.pos?.salesPerformanceThresholds
+          if (t?.fairMin && t?.goodMin && t?.maxBar) setPerfThresholds(t)
+        })
+        .catch(() => { /* keep defaults on error */ })
     }
   }, [currentBusinessId, isRestaurantBusiness])
 
@@ -1330,14 +1319,33 @@ export default function RestaurantPOS() {
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
           if (statsData.success && statsData.data) {
-            const soldTodayCounts: Record<string, number> = {}
+          const soldTodayCounts: Record<string, number> = {}
+            const firstSoldTodayAtMap: Record<string, string | null> = {}
             statsData.data.forEach((item: any) => {
               soldTodayCounts[item.productId] = item.soldToday || 0
+              firstSoldTodayAtMap[item.productId] = item.firstSoldTodayAt || null
             })
-            setMenuItems(prev => prev.map(item => ({
-              ...item,
-              soldToday: soldTodayCounts[item.id] || 0
-            })))
+            setMenuItems(prev => {
+              const updated = prev.map(item => ({
+                ...item,
+                soldToday: soldTodayCounts[item.id] || 0,
+                // Only set firstSoldTodayAt if not already locked in (preserve position)
+                firstSoldTodayAt: item.firstSoldTodayAt || firstSoldTodayAtMap[item.id] || null,
+              }))
+              // Re-sort: sold-today items by firstSoldTodayAt ASC, then unsold by purchase history
+              return [...updated].sort((a, b) => {
+                const aSold = (a.soldToday || 0) > 0
+                const bSold = (b.soldToday || 0) > 0
+                if (aSold !== bSold) return aSold ? -1 : 1
+                if (aSold && bSold) {
+                  const aTime = a.firstSoldTodayAt ? new Date(a.firstSoldTodayAt).getTime() : Infinity
+                  const bTime = b.firstSoldTodayAt ? new Date(b.firstSoldTodayAt).getTime() : Infinity
+                  return aTime - bTime
+                }
+                if ((b as any).purchaseCount !== (a as any).purchaseCount) return (b as any).purchaseCount - (a as any).purchaseCount
+                return a.name.localeCompare(b.name)
+              })
+            })
           }
         }
       } catch (error) {
@@ -1356,6 +1364,12 @@ export default function RestaurantPOS() {
         loadDailySales()
         loadMenuItems() // Refresh WiFi token availability badges
         loadRecentTransactions()
+
+        // Desktop only: scroll so menu items align with the top of the sticky Order Summary panel
+        if (typeof window !== 'undefined' && window.innerWidth >= 1024 && menuSectionRef.current) {
+          const top = menuSectionRef.current.getBoundingClientRect().top + window.scrollY - 80
+          window.scrollTo({ top, behavior: 'smooth' })
+        }
       }, 500)
     }
   }, [completedOrder])
@@ -1641,11 +1655,23 @@ export default function RestaurantPOS() {
     ? categoryFiltered.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
     : categoryFiltered
   ).sort((a, b) => {
-    const aSold = a.soldToday || 0
-    const bSold = b.soldToday || 0
-    if (aSold > 0 && bSold > 0) return bSold - aSold
-    if (aSold > 0) return -1
-    if (bSold > 0) return 1
+    const aSold = (a.soldToday || 0) > 0
+    const bSold = (b.soldToday || 0) > 0
+
+    // Sold-today items always come first
+    if (aSold !== bSold) return aSold ? -1 : 1
+
+    if (aSold && bSold) {
+      // Both sold today — preserve first-sale-time order (position locked for the day)
+      const aTime = a.firstSoldTodayAt ? new Date(a.firstSoldTodayAt).getTime() : Infinity
+      const bTime = b.firstSoldTodayAt ? new Date(b.firstSoldTodayAt).getTime() : Infinity
+      return aTime - bTime
+    }
+
+    // Both unsold — sort by purchase history then name
+    const aPurchase = (a as any).purchaseCount || 0
+    const bPurchase = (b as any).purchaseCount || 0
+    if (bPurchase !== aPurchase) return bPurchase - aPurchase
     return a.name.localeCompare(b.name)
   })
 
@@ -1932,13 +1958,13 @@ export default function RestaurantPOS() {
                 >
                   🖥️ <span className="hidden sm:inline">Display</span>
                 </button>
-                <button
-                  onClick={() => setShowSettings(true)}
+                <Link
+                  href="/restaurant/settings/pos"
                   className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-xs sm:text-sm font-medium"
                   title="POS Settings"
                 >
                   ⚙️ <span className="hidden sm:inline">Settings</span>
-                </button>
+                </Link>
                 {/* Menu Management - Only for users with canManageMenu permission */}
                 {(isAdmin || hasPermission('canManageMenu')) && (
                   <Link
@@ -2013,7 +2039,7 @@ export default function RestaurantPOS() {
                     </span>
                   </h2>
                   <div className="flex items-center gap-3">
-                    <SalesPerfBadge sales={dailySales.summary.totalSales} />
+                    <SalesPerfBadge sales={dailySales.summary.totalSales} thresholds={perfThresholds} />
                     <button
                       onClick={() => setShowDailySales(!showDailySales)}
                       className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
@@ -2040,7 +2066,7 @@ export default function RestaurantPOS() {
                             {diff >= 0 ? '↑' : '↓'} vs yesterday ${yVal.toFixed(2)}
                             {pct !== null && ` (${Math.abs(pct).toFixed(0)}%)`}
                           </span>
-                          <SalesPerfBadge sales={yVal} size="sm" />
+                          <SalesPerfBadge sales={yVal} size="sm" thresholds={perfThresholds} />
                         </div>
                       )
                     })()}
@@ -2054,7 +2080,7 @@ export default function RestaurantPOS() {
                             {diff >= 0 ? '↑' : '↓'} vs 2 days ago ${dbVal.toFixed(2)}
                             {pct !== null && ` (${Math.abs(pct).toFixed(0)}%)`}
                           </span>
-                          <SalesPerfBadge sales={dbVal} size="sm" />
+                          <SalesPerfBadge sales={dbVal} size="sm" thresholds={perfThresholds} />
                         </div>
                       )
                     })()}
@@ -2088,6 +2114,42 @@ export default function RestaurantPOS() {
                     <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
                       ${dailySales.summary.averageOrderValue.toFixed(2)}
                     </div>
+                    {recentTransactions.length > 0 && (() => {
+                      const last = recentTransactions[0]
+                      const items = (last?.business_order_items || []).filter((item: any) => {
+                        const name = item?.product_variants?.business_products?.name || item?.attributes?.productName || item?.notes
+                        return !!name
+                      })
+                      const visibleItems = lastOrderExpanded ? items : items.slice(0, 2)
+                      const hasMore = items.length > 2
+                      return (
+                        <div className="mt-1.5 border-t border-gray-100 dark:border-gray-700 pt-1.5">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <div className="text-[10px] text-gray-400 dark:text-gray-500">Last Order Total</div>
+                            <div className="text-xs font-bold text-blue-600 dark:text-blue-400">${Number(last?.totalAmount || 0).toFixed(2)}</div>
+                          </div>
+                          <div className="space-y-0.5">
+                            {visibleItems.map((item: any, i: number) => {
+                              const name = item?.product_variants?.business_products?.name || item?.attributes?.productName || item?.notes
+                              return (
+                                <div key={i} className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                                  {item.quantity}× {name}
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {hasMore && (
+                            <button
+                              type="button"
+                              onClick={() => setLastOrderExpanded(prev => !prev)}
+                              className="text-[10px] text-blue-400 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-300 mt-0.5"
+                            >
+                              {lastOrderExpanded ? '▲ less' : `▼ +${items.length - 2} more`}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                   <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Receipts</div>
@@ -2341,7 +2403,7 @@ export default function RestaurantPOS() {
             {dailySales && !isAdmin && !hasPermission('canAccessFinancialData') && !hasPermission('canViewWifiReports') && (
               <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Today's Performance</span>
-                <SalesPerfBadge sales={dailySales.summary.totalSales} />
+                <SalesPerfBadge sales={dailySales.summary.totalSales} thresholds={perfThresholds} />
               </div>
             )}
 
@@ -2534,7 +2596,7 @@ export default function RestaurantPOS() {
 
             {/* Live POS Mode */}
             {posMode === 'live' && (<>
-            <div className="flex items-center gap-2 mb-2">
+            <div ref={menuSectionRef} className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
                 <input
                   type="text"
@@ -2581,11 +2643,10 @@ export default function RestaurantPOS() {
             
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4">
               {filteredItems.map(item => {
-                const hasDiscount = item.originalPrice && Number(item.originalPrice) > Number(item.price)
+                const hasDiscount = !!(item.originalPrice) && Number(item.originalPrice) > 0 && Number(item.originalPrice) > Number(item.price)
                 const isUnavailable = item.isAvailable === false
                 const cartItem = cart.find(c => c.id === item.id)
                 const cartQuantity = cartItem?.quantity || 0
-                const stockQuantity = item.stockQuantity || 0
 
                 return (
                   <div
@@ -2874,7 +2935,12 @@ export default function RestaurantPOS() {
           {/* Live Order Summary (right panel) */}
           {posMode === 'live' && (
           <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
-            <h2 className="text-xl font-bold text-primary mb-3">Order Summary</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-bold text-primary">Order Summary</h2>
+              {dailySales && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (
+                <SalesPerfBadge sales={dailySales.summary.totalSales} thresholds={perfThresholds} />
+              )}
+            </div>
 
             {/* Customer Section */}
             {currentBusinessId && (
@@ -3510,110 +3576,6 @@ export default function RestaurantPOS() {
           summary={dailySales.expenseAccountSales}
           onClose={() => setShowMealProgramDetails(false)}
         />
-      )}
-
-      {/* POS Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">⚙️ POS Settings</h2>
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                {/* Auto-Print Receipt Setting */}
-                <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                        Auto-Print Receipts
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Automatically print receipts after completing an order
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setAutoPrint(!preferences.autoPrintReceipt)
-                        toast.push(`Auto-print ${!preferences.autoPrintReceipt ? 'enabled' : 'disabled'}`)
-                      }}
-                      className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                        preferences.autoPrintReceipt ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                          preferences.autoPrintReceipt ? 'translate-x-7' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    {preferences.autoPrintReceipt ? (
-                      <span className="text-green-600 dark:text-green-400">✅ Enabled - Receipts will print automatically</span>
-                    ) : (
-                      <span className="text-gray-500">❌ Disabled - Click "Print Receipt" button to print</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Default Printer Setting */}
-                <div className="pb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                    Default Printer
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    Select the default printer for receipts
-                  </p>
-                  <select
-                    value={preferences.defaultPrinterId || printerId || ''}
-                    onChange={(e) => {
-                      const newPrinterId = e.target.value || undefined
-                      setDefaultPrinter(newPrinterId)
-                      if (newPrinterId) {
-                        setPrinterId(newPrinterId)
-                        toast.push('Default printer updated')
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">No default printer</option>
-                    {printerId && (
-                      <option value={printerId}>Current Printer (EPSON TM-T20III)</option>
-                    )}
-                  </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    If no printer is selected, you'll be prompted each time
-                  </p>
-                </div>
-
-                {/* Current Settings Summary */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                  <h4 className="font-semibold text-blue-900 dark:text-blue-200 mb-2">Current Settings:</h4>
-                  <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
-                    <li>• Auto-print: <strong>{preferences.autoPrintReceipt ? 'ON' : 'OFF'}</strong></li>
-                    <li>• Default printer: <strong>{preferences.defaultPrinterId ? 'Set' : 'Not set'}</strong></li>
-                  </ul>
-                </div>
-
-                {/* Close Button */}
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </BusinessTypeRoute>
   )

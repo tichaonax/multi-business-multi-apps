@@ -127,11 +127,9 @@ export function QuickDepositModal({
     if (!formData.depositDate) {
       newErrors.depositDate = 'Please select a deposit date'
     } else {
-      const depositDate = new Date(formData.depositDate)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-
-      if (depositDate > today) {
+      // Compare date strings only — avoids timezone/clock-skew false positives
+      const todayStr = new Date().toLocaleDateString('en-CA') // 'YYYY-MM-DD' in local TZ
+      if (formData.depositDate > todayStr) {
         newErrors.depositDate = 'Deposit date cannot be in the future'
       }
     }

@@ -83,6 +83,11 @@ export async function GET(
         accountBalance: supplier.accountBalance ? parseFloat(supplier.accountBalance.toString()) : 0,
         notes: supplier.notes,
         isActive: supplier.isActive,
+        hasSpecialInstructions: supplier.hasSpecialInstructions,
+        specialInstructions: supplier.specialInstructions,
+        posBlocked: supplier.posBlocked,
+        discontinued: supplier.discontinued,
+        supplierType: supplier.supplierType,
         productCount: supplier._count.business_products + supplier._count.supplier_products,
         createdAt: supplier.createdAt.toISOString(),
         updatedAt: supplier.updatedAt.toISOString(),
@@ -171,6 +176,11 @@ export async function PUT(
     if (body.notes !== undefined) updateData.notes = body.notes
     if (body.isActive !== undefined) updateData.isActive = body.isActive
     if (body.attributes !== undefined) updateData.attributes = body.attributes
+    if (body.hasSpecialInstructions !== undefined) updateData.hasSpecialInstructions = body.hasSpecialInstructions
+    if (body.specialInstructions !== undefined) updateData.specialInstructions = body.specialInstructions || null
+    if (body.posBlocked !== undefined) updateData.posBlocked = body.posBlocked
+    if (body.discontinued !== undefined) updateData.discontinued = body.discontinued
+    if (body.supplierType !== undefined) updateData.supplierType = body.supplierType || null
 
     const supplier = await prisma.businessSuppliers.update({
       where: { id },
@@ -195,6 +205,11 @@ export async function PUT(
         accountBalance: supplier.accountBalance ? parseFloat(supplier.accountBalance.toString()) : 0,
         notes: supplier.notes,
         isActive: supplier.isActive,
+        hasSpecialInstructions: supplier.hasSpecialInstructions,
+        specialInstructions: supplier.specialInstructions,
+        posBlocked: supplier.posBlocked,
+        discontinued: supplier.discontinued,
+        supplierType: supplier.supplierType,
         createdAt: supplier.createdAt.toISOString(),
         updatedAt: supplier.updatedAt.toISOString(),
       }

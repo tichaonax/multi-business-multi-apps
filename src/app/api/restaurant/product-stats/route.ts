@@ -47,27 +47,38 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        business_orders: {
+          select: { createdAt: true },
+        },
       },
     })
 
     console.log(`[product-stats] businessId=${businessId}, todayStart=${todayStart.toISOString()}, found ${todayItems.length} order items today`)
 
     // Aggregate by product — use variant linkage OR attributes.productId fallback
-    const productStats: Record<string, { productId: string; productName: string; totalSold: number; soldToday: number }> = {}
+    const productStats: Record<string, { productId: string; productName: string; totalSold: number; soldToday: number; firstSoldTodayAt: Date | null }> = {}
 
     todayItems.forEach(item => {
       // Try to get product from variant linkage first
       let productId = item.product_variants?.business_products?.id
       let productName = item.product_variants?.business_products?.name
 
-      // Fallback: use productId from attributes (for items without variant)
+      // Fallback: check attributes for productId or comboId
       if (!productId && item.attributes) {
         const attrs = item.attributes as Record<string, any>
-        productId = attrs.productId
-        productName = attrs.productName || 'Unknown'
+        if (attrs.isCombo && attrs.comboId) {
+          // Combo items — key must match the front-end id format: 'combo-{comboId}'
+          productId = `combo-${attrs.comboId}`
+          productName = attrs.productName || 'Combo'
+        } else if (attrs.productId) {
+          productId = attrs.productId
+          productName = attrs.productName || 'Unknown'
+        }
       }
 
       if (!productId) return
+
+      const orderCreatedAt = item.business_orders?.createdAt ?? null
 
       if (!productStats[productId]) {
         productStats[productId] = {
@@ -75,6 +86,12 @@ export async function GET(request: NextRequest) {
           productName: productName || 'Unknown',
           totalSold: 0,
           soldToday: 0,
+          firstSoldTodayAt: orderCreatedAt,
+        }
+      } else {
+        // Keep the earliest timestamp
+        if (orderCreatedAt && (!productStats[productId].firstSoldTodayAt || orderCreatedAt < productStats[productId].firstSoldTodayAt!)) {
+          productStats[productId].firstSoldTodayAt = orderCreatedAt
         }
       }
 

@@ -365,8 +365,12 @@ export async function POST(
       }
 
       // Validate payment date
-      const payDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date()
       const now = new Date()
+      const serverToday = now.toISOString().split('T')[0] // YYYY-MM-DD (server UTC date)
+      const payDateStr = payment.paymentDate
+        ? new Date(payment.paymentDate).toISOString().split('T')[0]
+        : serverToday
+      const payDate = payment.paymentDate ? new Date(payment.paymentDate) : now
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
       // Anyone with canMakeExpensePayments can backdate up to 30 days.
@@ -380,8 +384,8 @@ export async function POST(
         )
       }
 
-      // Payment date cannot be in the future
-      if (payDate > now) {
+      // Payment date cannot be in the future (compare date strings to avoid millisecond clock-skew)
+      if (payDateStr > serverToday) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Payment date cannot be in the future`, index: i },
           { status: 400 }
