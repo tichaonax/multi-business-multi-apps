@@ -725,22 +725,25 @@ export function QuickPaymentModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
-        <h2 className="text-xl font-bold text-primary mb-2">Quick Payment</h2>
-        <p className="text-sm text-secondary mb-4">
-          from {accountName} (Balance:{' '}
-          {balanceLoading ? (
-            <span className="text-secondary font-semibold">Loading...</span>
-          ) : (
-            <span className={`font-semibold ${(liveBalance ?? currentBalance) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              ${(liveBalance ?? currentBalance).toFixed(2)}
-            </span>
-          )})
-        </p>
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md sm:max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
+        {/* Header */}
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-primary">Quick Payment</h2>
+          <p className="text-sm text-secondary">
+            from {accountName} (Balance:{' '}
+            {balanceLoading ? (
+              <span className="text-secondary font-semibold">Loading...</span>
+            ) : (
+              <span className={`font-semibold ${(liveBalance ?? currentBalance) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                ${(liveBalance ?? currentBalance).toFixed(2)}
+              </span>
+            )})
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Payee Selection */}
-          <div>
+        <form onSubmit={handleSubmit}>
+          {/* ── Payee — full width ───────────────────────────────────── */}
+          <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-secondary">
                 Payee {!isPersonalAccount && <span className="text-red-500">*</span>}
@@ -775,7 +778,6 @@ export function QuickPaymentModal({
                 refreshTrigger={payeeRefreshTrigger}
               />
             )}
-            {/* Edit Payee button — shown only when there is a payee-related error and user has permission */}
             {payeeErrorMessage && formData.payee && canCreatePayees && (
               <div className="mt-2 flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-md">
                 <span className="text-yellow-600 dark:text-yellow-400 text-xs flex-1">
@@ -793,139 +795,152 @@ export function QuickPaymentModal({
             )}
           </div>
 
-          {/* Category Selection — hidden for Personal accounts (auto-set) */}
-          {!isPersonalAccount && (
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Category <span className="text-red-500">*</span>
-            </label>
-            {loadingCategories ? (
-              <div className="text-sm text-secondary">Loading categories...</div>
-            ) : (
-              <SearchableCategorySelector
-                categories={categories}
-                value={formData.categoryId}
-                onChange={(categoryId) => {
-                  setFormData({ ...formData, categoryId })
-                  setErrors({ ...errors, categoryId: '' })
-                }}
-                error={errors.categoryId}
-                disabled={!canChangeCategory}
-              />
-            )}
-          </div>
-          )}
+          {/* ── Two-column grid on desktop ───────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
 
-          {/* Subcategory Selection (if category has subcategories) */}
-          {(subcategories.length > 0 || formData.categoryId) && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-secondary">
-                  Subcategory {selectedCategory?.requiresSubcategory && <span className="text-red-500">*</span>}
+            {/* LEFT column: Category → Subcategory → Sub-Subcategory */}
+            <div className="space-y-4">
+
+              {/* Category — hidden for Personal accounts */}
+              {!isPersonalAccount && (
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Category <span className="text-red-500">*</span>
+                  </label>
+                  {loadingCategories ? (
+                    <div className="text-sm text-secondary">Loading categories...</div>
+                  ) : (
+                    <SearchableCategorySelector
+                      categories={categories}
+                      value={formData.categoryId}
+                      onChange={(categoryId) => {
+                        setFormData({ ...formData, categoryId })
+                        setErrors({ ...errors, categoryId: '' })
+                      }}
+                      error={errors.categoryId}
+                      disabled={!canChangeCategory}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Subcategory */}
+              {(subcategories.length > 0 || formData.categoryId) && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-secondary">
+                      Subcategory {selectedCategory?.requiresSubcategory && <span className="text-red-500">*</span>}
+                    </label>
+                    {formData.categoryId && (
+                      <button type="button" onClick={() => setShowCreateSubcategory(true)}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                        + Create New
+                      </button>
+                    )}
+                  </div>
+                  <SearchableSelect
+                    value={formData.subcategoryId}
+                    options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                    onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
+                    placeholder="Select a subcategory..."
+                    loading={loadingSubcategories}
+                    disabled={!formData.categoryId}
+                  />
+                </div>
+              )}
+
+              {/* Sub-Subcategory */}
+              {(subSubcategories.length > 0 || formData.subcategoryId) && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-secondary">
+                      Sub-Subcategory
+                    </label>
+                    {formData.subcategoryId && (
+                      <button type="button" onClick={() => setShowCreateSubSubcategory(true)}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                        + Create New
+                      </button>
+                    )}
+                  </div>
+                  <SearchableSelect
+                    value={formData.subSubcategoryId}
+                    options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                    onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
+                    placeholder="Select a sub-subcategory..."
+                    disabled={!formData.subcategoryId}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT column: Amount → Date → Notes */}
+            <div className="space-y-4">
+
+              {/* Amount */}
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">
+                  Amount <span className="text-red-500">*</span>
                 </label>
-                {formData.categoryId && (
-                  <button type="button" onClick={() => setShowCreateSubcategory(true)}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
-                    + Create New
-                  </button>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    value={formData.amount}
+                    onChange={(e) => {
+                      setFormData({ ...formData, amount: e.target.value })
+                      setErrors({ ...errors, amount: '' })
+                    }}
+                    className={`w-full pl-8 pr-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      errors.amount ? 'border-red-500' : 'border-border'
+                    }`}
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                {errors.amount && (
+                  <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
                 )}
               </div>
-              <SearchableSelect
-                value={formData.subcategoryId}
-                options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
-                onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
-                placeholder="Select a subcategory..."
-                loading={loadingSubcategories}
-                disabled={!formData.categoryId}
-              />
-            </div>
-          )}
 
-          {/* Sub-Subcategory Selection (if subcategory has sub-subcategories) */}
-          {(subSubcategories.length > 0 || formData.subcategoryId) && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-secondary">
-                  Sub-Subcategory
+              {/* Date */}
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">
+                  Payment Date <span className="text-red-500">*</span>
                 </label>
-                {formData.subcategoryId && (
-                  <button type="button" onClick={() => setShowCreateSubSubcategory(true)}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
-                    + Create New
-                  </button>
-                )}
+                <DateInput
+                  value={formData.paymentDate}
+                  onChange={(value) => {
+                    setFormData({ ...formData, paymentDate: value })
+                    setErrors({ ...errors, paymentDate: '' })
+                  }}
+                  error={errors.paymentDate}
+                  max={getTodayLocalDateString()}
+                />
               </div>
-              <SearchableSelect
-                value={formData.subSubcategoryId}
-                options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
-                onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
-                placeholder="Select a sub-subcategory..."
-                disabled={!formData.subcategoryId}
-              />
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Add any additional notes..."
+                  maxLength={500}
+                />
+              </div>
             </div>
-          )}
-
-          {/* Amount */}
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Amount <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary">
-                $
-              </span>
-              <input
-                type="number"
-                value={formData.amount}
-                onChange={(e) => {
-                  setFormData({ ...formData, amount: e.target.value })
-                  setErrors({ ...errors, amount: '' })
-                }}
-                className={`w-full pl-8 pr-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.amount ? 'border-red-500' : 'border-border'
-                }`}
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-              />
-            </div>
-            {errors.amount && (
-              <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
-            )}
           </div>
 
-          {/* Date */}
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Payment Date <span className="text-red-500">*</span>
-            </label>
-            <DateInput
-              value={formData.paymentDate}
-              onChange={(value) => {
-                setFormData({ ...formData, paymentDate: value })
-                setErrors({ ...errors, paymentDate: '' })
-              }}
-              error={errors.paymentDate}
-              max={getTodayLocalDateString()}
-            />
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Notes (Optional)
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={2}
-              placeholder="Add any additional notes..."
-              maxLength={500}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
+          {/* ── Actions — full width ─────────────────────────────────── */}
+          <div className="flex justify-end gap-3 pt-2 border-t border-border">
             <button
               type="button"
               onClick={handleCancel}
