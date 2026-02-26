@@ -361,7 +361,19 @@ export async function validateBatchPaymentTotal(
     return { valid: false, error: 'Expense account not found' }
   }
 
-  const availableBalance = Number(account.balance)
+  // Compute true balance from actual transactions to catch stale column values
+  const [depositsAgg, paymentsAgg] = await Promise.all([
+    prisma.expenseAccountDeposits.aggregate({
+      where: { expenseAccountId: accountId },
+      _sum: { amount: true },
+    }),
+    prisma.expenseAccountPayments.aggregate({
+      where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+      _sum: { amount: true },
+    }),
+  ])
+  const availableBalance =
+    Number(depositsAgg._sum.amount || 0) - Number(paymentsAgg._sum.amount || 0)
 
   if (batchTotal > availableBalance) {
     return {

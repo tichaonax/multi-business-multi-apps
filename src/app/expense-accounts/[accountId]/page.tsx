@@ -655,7 +655,9 @@ export default function ExpenseAccountDetailPage() {
                     )}
                     <button
                       onClick={() => setShowReturnTransferModal(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+                      disabled={account.balance <= 0}
+                      title={account.balance <= 0 ? 'Insufficient balance to return transfer' : undefined}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-purple-50 dark:disabled:hover:bg-purple-900/20"
                     >
                       🔄 Return Transfer
                     </button>
