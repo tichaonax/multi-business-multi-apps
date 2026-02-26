@@ -24,6 +24,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
   const [showTestPrint, setShowTestPrint] = useState(false)
+  const [showBusinessSwitcher, setShowBusinessSwitcher] = useState(false)
+  const [switchingToBusinessId, setSwitchingToBusinessId] = useState<string | null>(null)
+  const [businessSwitcherSearch, setBusinessSwitcherSearch] = useState('')
   const { useServerTime, toggleTimeDisplay } = useTimeDisplay()
   const businessMenuOpenedByClick = useRef(false)
   const businessMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -40,7 +43,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const {
     currentBusiness,
     isAuthenticated,
-    hasPermission
+    hasPermission,
+    businesses,
+    switchBusiness,
   } = useBusinessPermissionsContext()
 
   const user = session?.user as SessionUser
@@ -54,6 +59,20 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     }
     businessMenuOpenedByClick.current = false
     setShowBusinessMenu(false)
+    setShowBusinessSwitcher(false)
+    setBusinessSwitcherSearch('')
+  }
+
+  // Switch to another business, preserving the current module where supported
+  const handleSwitchBusiness = async (targetBusinessId: string, targetBusinessType: string) => {
+    setSwitchingToBusinessId(targetBusinessId)
+    try {
+      await switchBusiness(targetBusinessId)
+      const targetPath = getBusinessNavigationPath(targetBusinessType)
+      window.location.href = targetPath
+    } catch {
+      setSwitchingToBusinessId(null)
+    }
   }
 
   // Business menu hover handlers (desktop only)
@@ -325,6 +344,112 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       </div>
                       
                       <div className="py-1">
+                        {/* ── Quick Business Switcher ── */}
+                        {(() => {
+                          const otherBusinesses = businesses.filter(
+                            b => b.businessId !== currentBusiness.businessId && b.isActive
+                          )
+                          if (otherBusinesses.length === 0) return null
+                          const isSingle = otherBusinesses.length === 1
+                          return (
+                            <>
+                              {isSingle ? (
+                                // Single other business — one-click direct switch
+                                <button
+                                  disabled={!!switchingToBusinessId}
+                                  onClick={() => handleSwitchBusiness(otherBusinesses[0].businessId, otherBusinesses[0].businessType)}
+                                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 transition-colors w-full text-left disabled:opacity-60"
+                                >
+                                  <span className={switchingToBusinessId === otherBusinesses[0].businessId ? 'animate-spin inline-block' : ''}>
+                                    {switchingToBusinessId === otherBusinesses[0].businessId ? '⟳' : '🔄'}
+                                  </span>
+                                  <span className="truncate">Switch to {otherBusinesses[0].businessName}</span>
+                                  <span className="ml-auto text-xs capitalize text-gray-400 dark:text-gray-500 shrink-0">{otherBusinesses[0].businessType}</span>
+                                </button>
+                              ) : (
+                                // Multiple businesses — accordion
+                                <>
+                                  <button
+                                    onClick={() => setShowBusinessSwitcher(prev => !prev)}
+                                    className="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <span>🔄</span>
+                                      <span>Switch Business</span>
+                                    </div>
+                                    <svg
+                                      className={`w-3 h-3 text-gray-400 transition-transform duration-150 ${showBusinessSwitcher ? 'rotate-180' : ''}`}
+                                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  {showBusinessSwitcher && (
+                                    <div className="border-y border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+                                      {/* Current business indicator */}
+                                      <div className="flex items-center gap-2 px-6 py-1.5">
+                                        <span className="text-green-500 text-xs shrink-0">✓</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{currentBusiness.businessName}</span>
+                                        <span className="ml-auto text-xs capitalize text-gray-300 dark:text-gray-600 shrink-0">{currentBusiness.businessType}</span>
+                                      </div>
+                                      {/* Search — only when > 3 other businesses */}
+                                      {otherBusinesses.length > 3 && (
+                                        <div className="px-3 pb-1.5">
+                                          <div className="relative">
+                                            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                                            </svg>
+                                            <input
+                                              type="text"
+                                              value={businessSwitcherSearch}
+                                              onChange={e => setBusinessSwitcherSearch(e.target.value)}
+                                              placeholder="Search businesses…"
+                                              autoFocus
+                                              className="w-full pl-6 pr-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                      {/* Other businesses — scrollable when > 3 */}
+                                      <div className={otherBusinesses.length > 3 ? 'overflow-y-auto max-h-48' : ''}>
+                                        {(() => {
+                                          const q = businessSwitcherSearch.trim().toLowerCase()
+                                          const filtered = q
+                                            ? otherBusinesses.filter(b =>
+                                                b.businessName.toLowerCase().includes(q) ||
+                                                b.businessType.toLowerCase().includes(q)
+                                              )
+                                            : otherBusinesses
+                                          if (filtered.length === 0) {
+                                            return (
+                                              <p className="px-6 py-2 text-xs text-gray-400 dark:text-gray-500 italic">No businesses match</p>
+                                            )
+                                          }
+                                          return filtered.map(biz => (
+                                            <button
+                                              key={biz.businessId}
+                                              disabled={!!switchingToBusinessId}
+                                              onClick={() => handleSwitchBusiness(biz.businessId, biz.businessType)}
+                                              className="flex items-center gap-2 w-full px-6 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 transition-colors text-left disabled:opacity-60"
+                                            >
+                                              <span className={`shrink-0 ${switchingToBusinessId === biz.businessId ? 'animate-spin inline-block' : ''}`}>
+                                                {switchingToBusinessId === biz.businessId ? '⟳' : '🏢'}
+                                              </span>
+                                              <span className="truncate">{biz.businessName}</span>
+                                              <span className="ml-auto capitalize text-gray-400 dark:text-gray-500 shrink-0">{biz.businessType}</span>
+                                            </button>
+                                          ))
+                                        })()}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                            </>
+                          )
+                        })()}
+
                         {/* Business-specific links */}
                         {getBusinessMenuLinks(currentBusiness.businessType, pathname).map((link, index) => (
                           <button

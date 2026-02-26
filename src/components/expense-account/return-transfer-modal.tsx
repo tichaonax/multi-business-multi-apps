@@ -49,25 +49,19 @@ export function ReturnTransferModal({
   useEffect(() => {
     const load = async () => {
       try {
-        const fetches: Promise<Response>[] = [
+        // Always fetch fresh balance (account API now returns computed true balance)
+        const [r1, r2, r3] = await Promise.all([
           fetch(`/api/expense-account/${accountId}/transfers?status=OUTSTANDING`, { credentials: 'include' }),
           fetch(`/api/expense-account/${accountId}/transfers?status=PARTIALLY_RETURNED`, { credentials: 'include' }),
-        ]
-        // Fetch balance if it wasn't provided by the parent
-        if (balanceProp === undefined) {
-          fetches.push(fetch(`/api/expense-account/${accountId}`, { credentials: 'include' }))
-        }
-
-        const results = await Promise.all(fetches)
-        const d1 = results[0].ok ? (await results[0].json()).data?.transfers ?? [] : []
-        const d2 = results[1].ok ? (await results[1].json()).data?.transfers ?? [] : []
+          fetch(`/api/expense-account/${accountId}`, { credentials: 'include' }),
+        ])
+        const d1 = r1.ok ? (await r1.json()).data?.transfers ?? [] : []
+        const d2 = r2.ok ? (await r2.json()).data?.transfers ?? [] : []
         setTransfers([...d1, ...d2])
 
-        if (balanceProp === undefined && results[2]) {
-          const acctData = results[2].ok ? await results[2].json() : null
-          if (acctData?.data?.account?.balance !== undefined) {
-            setAccountBalance(Number(acctData.data.account.balance))
-          }
+        const acctData = r3.ok ? await r3.json() : null
+        if (acctData?.data?.account?.balance !== undefined) {
+          setAccountBalance(Number(acctData.data.account.balance))
         }
       } catch {
         // ignore network errors
@@ -234,8 +228,7 @@ export function ReturnTransferModal({
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Date</label>
-                      <DateInput value={date} onChange={setDate} />
+                      <DateInput label="Date" compact value={date} onChange={setDate} />
                     </div>
                   </div>
 
@@ -259,7 +252,7 @@ export function ReturnTransferModal({
             <button
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Cancel
             </button>

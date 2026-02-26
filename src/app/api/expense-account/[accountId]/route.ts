@@ -50,6 +50,27 @@ export async function GET(
       )
     }
 
+    // Compute true balance from actual transactions (avoids stale column after backup restores)
+    const [depositsAgg, paymentsAgg] = await Promise.all([
+      prisma.expenseAccountDeposits.aggregate({
+        where: { expenseAccountId: accountId },
+        _sum: { amount: true },
+      }),
+      prisma.expenseAccountPayments.aggregate({
+        where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+        _sum: { amount: true },
+      }),
+    ])
+    const computedBalance =
+      Number(depositsAgg._sum.amount || 0) - Number(paymentsAgg._sum.amount || 0)
+
+    // Silently repair the column if it has drifted (fire-and-forget)
+    if (Math.abs(computedBalance - Number(account.balance)) > 0.005) {
+      prisma.expenseAccounts
+        .update({ where: { id: accountId }, data: { balance: computedBalance, updatedAt: new Date() } })
+        .catch(() => {}) // non-blocking
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -57,7 +78,7 @@ export async function GET(
           id: account.id,
           accountNumber: account.accountNumber,
           accountName: account.accountName,
-          balance: Number(account.balance),
+          balance: computedBalance,
           description: account.description,
           isActive: account.isActive,
           lowBalanceThreshold: Number(account.lowBalanceThreshold),
