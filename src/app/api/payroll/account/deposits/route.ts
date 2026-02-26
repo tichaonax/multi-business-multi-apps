@@ -296,7 +296,9 @@ export async function POST(request: NextRequest) {
         sourceBusinessId,
         Number(amount),
         depositNote,
-        user.id
+        user.id,
+        payrollAccount.id,
+        'Payroll Account'
       )
 
       // 2. Create deposit record

@@ -516,6 +516,23 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </>
                         )}
 
+                        {/* Business Account - financial data access */}
+                        {(isAdmin || hasPermission('canAccessFinancialData')) && (
+                          <>
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                            <button
+                              className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full text-left"
+                              onClick={() => {
+                                closeBusinessMenu()
+                                router.push(`/business-accounts/${currentBusiness.businessId}`)
+                              }}
+                            >
+                              <span>�</span>
+                              <span>Business Account</span>
+                            </button>
+                          </>
+                        )}
+
                         {/* Business address and phone - non-clickable info at bottom */}
                         {(currentBusiness.address || currentBusiness.phone) && (
                           <>
@@ -992,6 +1009,23 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
                   <div className="flex items-center space-x-2">
                     <span>💳</span>
                     <span>Expense Accounts</span>
+                  </div>
+                </Link>
+              )}
+
+              {/* Business Account link - visible to users with financial data access or admins */}
+              {(
+                isSystemAdmin(user) ||
+                hasPermission('canAccessFinancialData')
+              ) && (
+                <Link
+                  href={`/business-accounts/${currentBusiness?.businessId ?? ''}`}
+                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => closeUserMenu()}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>🏦</span>
+                    <span>Business Account</span>
                   </div>
                 </Link>
               )}

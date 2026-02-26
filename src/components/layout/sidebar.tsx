@@ -1252,6 +1252,17 @@ export function Sidebar() {
           </>
         )}
 
+        {/* Business Accounts */}
+        {(isSystemAdmin(currentUser) || hasPermission('canAccessFinancialData')) && (
+          <Link
+            href="/business-accounts"
+            className={getLinkClasses('/business-accounts')}
+          >
+            <span className="text-lg">�</span>
+            <span>Business Accounts</span>
+          </Link>
+        )}
+
         {/* Supplier Payments */}
         {(hasPermission('canViewSupplierPaymentQueue') || hasPermission('canSubmitSupplierPaymentRequests')) && (
           <>

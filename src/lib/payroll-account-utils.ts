@@ -123,7 +123,9 @@ export async function debitBusinessAccount(
   businessId: string,
   amount: number,
   note: string,
-  userId: string
+  userId: string,
+  targetAccountId?: string,
+  targetAccountName?: string
 ) {
   const businessAccount = await prisma.businessAccounts.findUnique({
     where: { businessId },
@@ -145,16 +147,22 @@ export async function debitBusinessAccount(
     data: { balance: newBalance },
   })
 
+  // Use destination-oriented description when account name is available
+  const description = targetAccountName
+    ? `Transfer to ${targetAccountName}`
+    : note
+
   // Create transaction record
   await prisma.businessTransactions.create({
     data: {
       businessId,
       type: 'DEBIT',
       amount: -amount, // Negative for debit
-      description: note,
+      description,
       balanceAfter: newBalance,
       createdBy: userId,
       referenceType: 'PAYROLL_DEPOSIT',
+      referenceId: targetAccountId ?? null,
     },
   })
 

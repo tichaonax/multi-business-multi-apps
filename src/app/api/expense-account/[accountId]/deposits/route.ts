@@ -376,7 +376,9 @@ export async function POST(
           sourceBusinessId,
           Number(amount),
           autoNote || `Deposit to expense account: ${account.accountName}`,
-          user.id
+          user.id,
+          account.id,
+          account.accountName
         )
       }
 
