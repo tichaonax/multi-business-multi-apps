@@ -10,6 +10,7 @@ import ReceiptSearchBar from '@/components/receipts/receipt-search-bar'
 import ReceiptDetailModal from '@/components/receipts/receipt-detail-modal'
 import CrossBusinessAlert from '@/components/receipts/cross-business-alert'
 import { getLocalDateString } from '@/lib/utils'
+import { useTimeDisplay } from '@/hooks/use-time-display'
 
 interface ReceiptListItem {
   id: string
@@ -22,6 +23,7 @@ interface ReceiptListItem {
   discountAmount: number
   rewardCouponCode: string | null
   mealProgram?: boolean
+  hasCombo?: boolean
   businessType: string
   paymentMethod: string | null
   status: string
@@ -63,7 +65,7 @@ function ReceiptHistoryPageContent() {
   const [dateFromDisplay, setDateFromDisplay] = useState('') // dd/mm/yyyy for input
   const [dateToDisplay, setDateToDisplay] = useState('')     // dd/mm/yyyy for input
   const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom' | ''>('')
-  const [useServerTime, setUseServerTime] = useState(false)
+  const { useServerTime } = useTimeDisplay()
 
   // Get businessId from URL params or localStorage
   useEffect(() => {
@@ -383,20 +385,7 @@ function ReceiptHistoryPageContent() {
                     Amount
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <div className="flex items-center gap-2">
-                      <span>Date</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setUseServerTime(!useServerTime) }}
-                        className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors ${
-                          useServerTime
-                            ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700'
-                            : 'bg-gray-100 text-gray-500 border-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600'
-                        }`}
-                        title={useServerTime ? 'Showing server time (UTC) — click for local time' : 'Showing local time — click for server time (UTC)'}
-                      >
-                        {useServerTime ? 'UTC' : 'Local'}
-                      </button>
-                    </div>
+                    Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
@@ -432,6 +421,13 @@ function ReceiptHistoryPageContent() {
                       )}
                       {!receipt.mealProgram && !receipt.rewardCouponCode && receipt.discountAmount > 0 && (
                         <div className="text-xs text-green-600 dark:text-green-400 font-normal">-{formatCurrency(receipt.discountAmount)} discount</div>
+                      )}
+                      {receipt.hasCombo && (
+                        <div className="text-xs font-normal mt-0.5">
+                          <span className="inline-flex items-center gap-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-semibold">
+                            ✦ Combo
+                          </span>
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">

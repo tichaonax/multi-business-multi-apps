@@ -220,10 +220,12 @@ export const DateInput = /*#__PURE__*/ (function () {
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>
       )}
 
-      {/* Help Text */}
-      <p className="text-xs text-secondary mt-1">
-        Format: {globalDateFormat} (e.g., {formatDateByFormat(new Date(), globalDateFormat)})
-      </p>
+      {/* Help Text — hidden in compact mode */}
+      {!compact && (
+        <p className="text-xs text-secondary mt-1">
+          Format: {globalDateFormat} (e.g., {formatDateByFormat(new Date(), globalDateFormat)})
+        </p>
+      )}
     </div>
   )
 }

@@ -313,68 +313,34 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-3">
       {/* Source Type Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
           Deposit Source <span className="text-red-500">*</span>
         </label>
-        <div className="grid grid-cols-4 gap-2">
-          <button
-            type="button"
-            onClick={() => setFormData({ ...formData, sourceType: 'BUSINESS', sourceBusinessId: '' })}
-            className={`p-3 border-2 rounded-lg transition-colors ${
-              formData.sourceType === 'BUSINESS'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-            }`}
-          >
-            <div className="text-2xl mb-1">🏢</div>
-            <div className="text-sm font-medium">Business</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Transfer from business account</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFormData({ ...formData, sourceType: 'MANUAL', sourceBusinessId: '' })}
-            className={`p-3 border-2 rounded-lg transition-colors ${
-              formData.sourceType === 'MANUAL'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-            }`}
-          >
-            <div className="text-2xl mb-1">✋</div>
-            <div className="text-sm font-medium">Manual</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Manual cash or bank deposit</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFormData({ ...formData, sourceType: 'OTHER', sourceBusinessId: '' })}
-            className={`p-3 border-2 rounded-lg transition-colors ${
-              formData.sourceType === 'OTHER'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-            }`}
-          >
-            <div className="text-2xl mb-1">💼</div>
-            <div className="text-sm font-medium">Other</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">External source</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFormData({ ...formData, sourceType: 'LOAN', sourceBusinessId: '' })}
-            className={`p-3 border-2 rounded-lg transition-colors ${
-              formData.sourceType === 'LOAN'
-                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-            }`}
-          >
-            <div className="text-2xl mb-1">📚</div>
-            <div className="text-sm font-medium">Loan</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">From a lender</div>
-          </button>
+        <div className="flex gap-1.5 flex-wrap">
+          {([
+            { type: 'BUSINESS', emoji: '🏢', label: 'Business' },
+            { type: 'MANUAL',   emoji: '✋', label: 'Manual'   },
+            { type: 'OTHER',    emoji: '💼', label: 'Other'    },
+            { type: 'LOAN',     emoji: '📚', label: 'Loan'     },
+          ] as const).map(({ type, emoji, label }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setFormData({ ...formData, sourceType: type, sourceBusinessId: '' })}
+              className={`px-3 py-1.5 text-xs rounded-full border-2 font-medium transition-colors ${
+                formData.sourceType === type
+                  ? type === 'LOAN'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                    : 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                  : 'border-border hover:border-gray-400 dark:hover:border-gray-500 text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              {emoji} {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -412,7 +378,7 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
       {/* Deposit Source (personal accounts) */}
       {isPersonalAccount && depositSources.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
             Funding Source
           </label>
           <select
@@ -431,7 +397,7 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
       {/* Business Selection (only if source type is BUSINESS) */}
       {formData.sourceType === 'BUSINESS' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
             Source Business <span className="text-red-500">*</span>
           </label>
           {loadingBusinesses ? (
@@ -463,19 +429,11 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
 
       {/* Business Balance Display */}
       {selectedBusiness && formData.sourceType === 'BUSINESS' && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-blue-800 dark:text-blue-300 font-medium">{selectedBusiness.name}</p>
-              <p className="text-xs text-blue-600 dark:text-blue-400">Business Type: {selectedBusiness.type}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-blue-600 dark:text-blue-400">Available Balance</p>
-              <p className="text-lg font-bold text-blue-900 dark:text-blue-200">
-                {formatCurrency(selectedBusiness.balance)}
-              </p>
-            </div>
-          </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs">
+          <span className="font-medium text-blue-800 dark:text-blue-300">{selectedBusiness.name}</span>
+          <span className="text-blue-500 dark:text-blue-500">·</span>
+          <span className="text-blue-600 dark:text-blue-400">{selectedBusiness.type}</span>
+          <span className="ml-auto font-bold text-blue-900 dark:text-blue-200">{formatCurrency(selectedBusiness.balance)} available</span>
         </div>
       )}
 
@@ -503,8 +461,8 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
 
           {/* — WHO SENT THIS MONEY — */}
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-              Who sent this money? <span className="text-xs font-normal text-gray-400">(optional)</span>
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+              Who sent this money? <span className="font-normal text-gray-400">(optional)</span>
             </label>
             <div className="flex gap-2 mb-2">
               <button type="button"
@@ -592,8 +550,8 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
 
           {/* — VIA (COURIER) — always visible, independent — */}
           <div className="border-t border-border pt-3">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-              Delivered via? <span className="text-xs font-normal text-gray-400">(optional courier / intermediary)</span>
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+              Delivered via? <span className="font-normal text-gray-400">(optional courier / intermediary)</span>
             </label>
             <div className="flex gap-2 mb-2">
               <button type="button"
@@ -683,70 +641,75 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
         </div>
       )}
 
-      {/* Amount Input */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Deposit Amount <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400">$</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="999999999.99"
-            value={formData.amount}
-            onChange={(e) => {
-              setFormData({ ...formData, amount: e.target.value })
-              setErrors({ ...errors, amount: '' })
-            }}
-            className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              errors.amount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-            }`}
-            placeholder="0.00"
-          />
+      {/* Amount + Date inline */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Amount */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Deposit Amount <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400 text-sm">$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="999999999.99"
+              value={formData.amount}
+              onChange={(e) => {
+                setFormData({ ...formData, amount: e.target.value })
+                setErrors({ ...errors, amount: '' })
+              }}
+              className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${
+                errors.amount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              }`}
+              placeholder="0.00"
+            />
+          </div>
+          {errors.amount && (
+            <p className="mt-1 text-xs text-red-500">{errors.amount}</p>
+          )}
+          {selectedBusiness && formData.amount && !errors.amount && formData.sourceType === 'BUSINESS' && (
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+              Remaining: {formatCurrency(selectedBusiness.balance - parseFloat(formData.amount || '0'))}
+            </p>
+          )}
         </div>
-        {errors.amount && (
-          <p className="mt-1 text-sm text-red-500">{errors.amount}</p>
-        )}
-        {selectedBusiness && formData.amount && !errors.amount && formData.sourceType === 'BUSINESS' && (
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Remaining business balance after deposit: {formatCurrency(selectedBusiness.balance - parseFloat(formData.amount || '0'))}
-          </p>
-        )}
-      </div>
 
-      {/* Deposit Date */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Deposit Date <span className="text-red-500">*</span>
-        </label>
-        <DateInput
-          value={formData.depositDate}
-          onChange={(value) => {
-            setFormData({ ...formData, depositDate: value })
-            setErrors({ ...errors, depositDate: '' })
-          }}
-          required
-        />
-        {errors.depositDate && (
-          <p className="mt-1 text-sm text-red-500">{errors.depositDate}</p>
-        )}
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          You can record past deposits, but future dates are not allowed
-        </p>
+        {/* Deposit Date */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Deposit Date <span className="text-red-500">*</span>
+          </label>
+          <DateInput
+            label=""
+            value={formData.depositDate}
+            onChange={(value) => {
+              setFormData({ ...formData, depositDate: value })
+              setErrors({ ...errors, depositDate: '' })
+            }}
+            required
+            compact
+          />
+          {errors.depositDate && (
+            <p className="mt-1 text-xs text-red-500">{errors.depositDate}</p>
+          )}
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Past dates allowed; no future dates
+          </p>
+        </div>
       </div>
 
       {/* Custom Note (Optional) */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Custom Note (Optional)
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Custom Note <span className="font-normal text-gray-400">(optional)</span>
         </label>
         <textarea
           value={formData.manualNote}
           onChange={(e) => setFormData({ ...formData, manualNote: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          rows={2}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+          rows={1}
           placeholder="Leave empty to use auto-generated note"
           maxLength={500}
         />
@@ -754,14 +717,14 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
 
       {/* Auto-Generated Note Preview */}
       {displayNote && (
-        <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Deposit Note:</p>
-          <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">{displayNote}</p>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+          <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Note:</span>
+          <span className="text-xs text-gray-800 dark:text-gray-200 font-medium truncate">{displayNote}</span>
         </div>
       )}
 
       {/* Form Actions */}
-      <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-end space-x-3 pt-2 border-t border-gray-200 dark:border-gray-700">
         <button
           type="button"
           onClick={() => {

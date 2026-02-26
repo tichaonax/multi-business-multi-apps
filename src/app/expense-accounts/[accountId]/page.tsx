@@ -42,6 +42,162 @@ interface ExpenseAccount {
   canMerge: boolean
 }
 
+// ─── Recent Deposits Panel ──────────────────────────────────────────────────
+interface RecentDeposit {
+  id: string
+  amount: number
+  date: string
+  description: string
+  sourceType: string
+  sourceBusiness?: { name: string } | null
+}
+
+function RecentDepositsPanel({ accountId, refreshKey }: { accountId: string; refreshKey: number }) {
+  const [deposits, setDeposits] = useState<RecentDeposit[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/expense-account/${accountId}/transactions?transactionType=DEPOSIT&limit=5&sortOrder=desc`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.data?.transactions) setDeposits(data.data.transactions)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [accountId, refreshKey])
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+  const sourceLabel = (d: RecentDeposit) => {
+    if (d.sourceType === 'BUSINESS') return d.sourceBusiness?.name ?? 'Business'
+    if (d.sourceType === 'MANUAL') return 'Manual'
+    if (d.sourceType === 'LOAN') return 'Loan'
+    if (d.sourceType === 'WIFI_TOKEN_SALE') return 'WiFi Sale'
+    return d.sourceType.charAt(0) + d.sourceType.slice(1).toLowerCase()
+  }
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border">
+        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Recent Deposits</span>
+        {loading && <span className="text-xs text-gray-400 animate-pulse">Loading…</span>}
+      </div>
+      {!loading && deposits.length === 0 ? (
+        <p className="px-3 py-4 text-xs text-gray-400 dark:text-gray-500 text-center">No deposits yet</p>
+      ) : (
+        <div className="divide-y divide-border">
+          {deposits.map(d => (
+            <div key={d.id} className="flex items-center gap-2 px-3 py-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-primary truncate">{sourceLabel(d)}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{d.description}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-xs font-semibold text-green-600 dark:text-green-400">+{fmt(d.amount)}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">{fmtDate(d.date)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+// ────────────────────────────────────────────────────────────────────────────
+
+// ─── Recent Payments Panel ──────────────────────────────────────────────────
+interface RecentPayment {
+  id: string
+  amount: number
+  paymentDate: string
+  createdAt: string
+  payeeType: string
+  payeeUser?: { name: string } | null
+  payeeEmployee?: { fullName: string } | null
+  payeePerson?: { fullName: string } | null
+  payeeBusiness?: { name: string } | null
+  payeeSupplier?: { name: string } | null
+  category?: { name: string; emoji: string } | null
+  receiptNumber?: string | null
+  status: string
+}
+
+function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; refreshKey: number }) {
+  const [payments, setPayments] = useState<RecentPayment[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/expense-account/${accountId}/payments?sortBy=createdAt&limit=5`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.data?.payments) setPayments(data.data.payments)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [accountId, refreshKey])
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+  const payeeName = (p: RecentPayment): string => {
+    if (p.payeeType === 'NONE') return 'General'
+    if (p.payeeUser) return p.payeeUser.name
+    if (p.payeeEmployee) return p.payeeEmployee.fullName
+    if (p.payeePerson) return p.payeePerson.fullName
+    if (p.payeeBusiness) return p.payeeBusiness.name
+    if (p.payeeSupplier) return p.payeeSupplier.name
+    return 'Unknown'
+  }
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border">
+        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Recently Entered</span>
+        {loading && <span className="text-xs text-gray-400 animate-pulse">Loading…</span>}
+      </div>
+      {!loading && payments.length === 0 ? (
+        <p className="px-3 py-4 text-xs text-gray-400 dark:text-gray-500 text-center">No payments yet</p>
+      ) : (
+        <div className="divide-y divide-border">
+          {payments.map(p => (
+            <div key={p.id} className="flex items-center gap-2 px-3 py-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
+                  <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                  {p.status === 'DRAFT' && (
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">DRAFT</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                  {p.category?.name ?? 'No category'}
+                  {p.receiptNumber ? ` · #${p.receiptNumber}` : ''}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500" title={`Payment date: ${fmtDate(p.paymentDate)}`}>
+                  entered {fmtDate(p.createdAt)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function ExpenseAccountDetailPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -63,6 +219,8 @@ export default function ExpenseAccountDetailPage() {
   const [showVehicleExpenseModal, setShowVehicleExpenseModal] = useState(false)
   const [loansRefreshKey, setLoansRefreshKey] = useState(0)
   const [batchRefreshKey, setBatchRefreshKey] = useState(0)
+  const [depositRefreshKey, setDepositRefreshKey] = useState(0)
+  const [paymentRefreshKey, setPaymentRefreshKey] = useState(0)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
@@ -142,10 +300,12 @@ export default function ExpenseAccountDetailPage() {
   const handleDepositSuccess = () => {
     loadAccount()
     setShowDepositModal(false)
+    setDepositRefreshKey(k => k + 1)
   }
 
   const handlePaymentSuccess = () => {
     loadAccount()
+    setPaymentRefreshKey(k => k + 1)
   }
 
   if (status === 'loading' || loading || permissionsLoading) {
@@ -200,74 +360,81 @@ export default function ExpenseAccountDetailPage() {
         </div>
       )}
     >
-      <div className="space-y-4 sm:space-y-6">
-        {/* Header with Actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <Link
-              href="/expense-accounts"
-              className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 mb-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to Expense Accounts
-            </Link>
-            <div className="flex items-center gap-2 mt-1">
-              {account.accountType === 'PERSONAL' ? (
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-                  PERSONAL ACCOUNT
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                  GENERAL ACCOUNT
-                </span>
-              )}
-            </div>
-            {account.description && (
-              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">{account.description}</p>
-            )}
-          </div>
+      <div className="space-y-2">
+        {/* Compact header: back link · badge · description · actions */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {/* Back link */}
+          <Link
+            href="/expense-accounts"
+            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-0.5 shrink-0"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Accounts
+          </Link>
 
-          <div className="flex flex-wrap gap-2">
+          <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
+
+          {/* Account type badge */}
+          {account.accountType === 'PERSONAL' ? (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 shrink-0">
+              PERSONAL
+            </span>
+          ) : (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 shrink-0">
+              GENERAL
+            </span>
+          )}
+
+          {/* Description (if any) */}
+          {account.description && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{account.description}</span>
+          )}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Action buttons — compact */}
+          <div className="flex flex-wrap gap-1.5 items-center">
             {canMakeExpenseDeposits && (
               <button
                 onClick={() => setShowDepositModal(true)}
-                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-xs sm:text-sm font-medium"
+                className="px-2.5 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
               >
-                Quick Deposit
+                + Deposit
               </button>
             )}
             {canMakeExpensePayments && (
               <button
                 onClick={() => setShowQuickPaymentModal(true)}
-                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-xs sm:text-sm font-medium"
+                className="px-2.5 py-1 bg-orange-600 text-white rounded text-xs font-medium hover:bg-orange-700"
               >
-                Quick Payment
+                + Payment
               </button>
             )}
             {canMakeExpensePayments && (
               <button
                 onClick={() => setShowSmartQuickPayModal(true)}
-                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs sm:text-sm font-medium"
+                className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
               >
-                ⚡ Daily Expenses
+                ⚡ Daily
               </button>
             )}
             {canMakeExpensePayments && (
               <button
                 onClick={() => setShowVehicleExpenseModal(true)}
-                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 text-xs sm:text-sm font-medium"
+                className="px-2.5 py-1 bg-slate-600 text-white rounded text-xs font-medium hover:bg-slate-700"
               >
-                🚗 Vehicle Expenses
+                🚗 Vehicle
               </button>
             )}
             {canViewExpenseReports && (
               <Link
                 href={`/expense-accounts/${accountId}/reports`}
-                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-xs sm:text-sm font-medium"
+                className="px-2.5 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700"
               >
-                View Reports
+                Reports
               </Link>
             )}
           </div>
@@ -283,7 +450,7 @@ export default function ExpenseAccountDetailPage() {
 
         {/* Tabs */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+          <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <nav className="flex -mb-px min-w-0">
               <button
                 onClick={() => setActiveTab('overview')}
@@ -372,150 +539,135 @@ export default function ExpenseAccountDetailPage() {
             </nav>
           </div>
 
-          <div className="p-3 sm:p-6">
+          <div className="p-2 sm:p-3">
             {/* Overview Tab */}
             {activeTab === 'overview' && (
-              <div className="space-y-4 sm:space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 sm:p-4">
-                    <h4 className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 sm:mb-3">
-                      Account Information
-                    </h4>
-                    <dl className="space-y-2">
-                      <div className="flex justify-between">
-                        <dt className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Account Number:</dt>
-                        <dd className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">{account.accountNumber}</dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Status:</dt>
-                        <dd className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {account.isActive ? '✅ Active' : '❌ Inactive'}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Created:</dt>
-                        <dd className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {new Date(account.createdAt).toLocaleDateString()}
-                        </dd>
-                      </div>
-                    </dl>
+              <div className="space-y-3">
+                {/* Compact info bar + quick actions on one row */}
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  {/* Account info chips */}
+                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 shrink-0">
+                    <span className="opacity-60">#</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{account.accountNumber}</span>
+                  </div>
+                  <div className="text-xs shrink-0">
+                    {account.isActive
+                      ? <span className="text-green-600 dark:text-green-400">✅ Active</span>
+                      : <span className="text-red-500">❌ Inactive</span>}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 shrink-0">
+                    <span className="opacity-60">Since</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{new Date(account.createdAt).toLocaleDateString()}</span>
                   </div>
 
-                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 sm:p-4">
-                    <h4 className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 sm:mb-3">
-                      Quick Actions
-                    </h4>
-                    <div className="space-y-2">
-                      {canMakeExpenseDeposits && (
-                        <button
-                          onClick={() => setActiveTab('deposits')}
-                          className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          💰 Make a Deposit
-                        </button>
-                      )}
-                      {canMakeExpensePayments && (
-                        <button
-                          onClick={() => setActiveTab('payments')}
-                          className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          💸 Make a Payment
-                        </button>
-                      )}
+                  <div className="flex-1 hidden sm:block" />
+
+                  {/* Quick action buttons inline */}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {canMakeExpenseDeposits && (
                       <button
-                        onClick={() => setActiveTab('transactions')}
-                        className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                        onClick={() => setActiveTab('deposits')}
+                        className="px-4 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-400 dark:hover:border-green-700 transition-colors"
                       >
-                        📜 View Transactions
+                        💰 Deposit
                       </button>
-                      {canViewExpenseReports && (
-                        <Link
-                          href={`/expense-accounts/${accountId}/reports`}
-                          className="block w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          📊 View Reports
-                        </Link>
-                      )}
-                    </div>
+                    )}
+                    {canMakeExpensePayments && (
+                      <button
+                        onClick={() => setActiveTab('payments')}
+                        className="px-4 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-400 dark:hover:border-orange-700 transition-colors"
+                      >
+                        💸 Payment
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setActiveTab('transactions')}
+                      className="px-4 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-400 dark:hover:border-blue-700 transition-colors"
+                    >
+                      📜 Transactions
+                    </button>
+                    {canViewExpenseReports && (
+                      <Link
+                        href={`/expense-accounts/${accountId}/reports`}
+                        className="px-4 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-400 dark:hover:border-purple-700 transition-colors"
+                      >
+                        📊 Reports
+                      </Link>
+                    )}
                   </div>
                 </div>
 
-                <div>
-                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
-                    Recent Transactions
-                  </h4>
-                  <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} />
-                </div>
+                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} />
               </div>
             )}
 
             {/* Deposits Tab */}
             {activeTab === 'deposits' && canMakeExpenseDeposits && (
-              <div>
-                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
-                  Add Deposit
-                </h4>
-                <DepositForm
-                  accountId={accountId}
-                  accountType={account.accountType}
-                  onSuccess={handleDepositSuccess}
-                />
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-start">
+                {/* Deposit Form */}
+                <div className="lg:col-span-3">
+                  <DepositForm
+                    accountId={accountId}
+                    accountType={account.accountType}
+                    onSuccess={handleDepositSuccess}
+                  />
+                </div>
+                {/* Last 5 Deposits Panel */}
+                <div className="lg:col-span-2">
+                  <RecentDepositsPanel accountId={accountId} refreshKey={depositRefreshKey} />
+                </div>
               </div>
             )}
 
             {/* Payments Tab */}
             {activeTab === 'payments' && canMakeExpensePayments && (
-              <div>
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    Create Payments
-                  </h4>
-                  <div className="flex items-center gap-2">
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-start">
+                {/* Left: Payment Form */}
+                <div className="lg:col-span-3">
+                  <PaymentForm
+                    accountId={accountId}
+                    businessId={account.businessId || currentBusiness?.id}
+                    currentBalance={Number(account.balance)}
+                    onSuccess={handlePaymentSuccess}
+                    onAddFunds={() => setActiveTab('deposits')}
+                    canCreatePayees={canCreatePayees}
+                    accountType={account.accountType}
+                    defaultCategoryBusinessType={currentBusiness?.businessType}
+                    batchRefreshKey={batchRefreshKey}
+                    accountInfo={{
+                      accountName: account.accountName,
+                      isSibling: account.isSibling,
+                      siblingNumber: account.siblingNumber,
+                      parentAccountId: account.parentAccountId
+                    }}
+                  />
+                </div>
+                {/* Right: action buttons + recent panel */}
+                <div className="lg:col-span-2 flex flex-col gap-2">
+                  <div className="flex items-center justify-end gap-2">
                     {canMakeExpensePayments && (
                       <button
                         onClick={() => setShowFundPayrollModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
                       >
-                        <span>💵</span>
-                        Fund Payroll
+                        💵 Fund Payroll
                       </button>
                     )}
                     <button
                       onClick={() => setShowReturnTransferModal(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
                     >
-                      <span>🔄</span>
-                      Return Transfer
+                      🔄 Return Transfer
                     </button>
                   </div>
+                  <RecentPaymentsPanel accountId={accountId} refreshKey={paymentRefreshKey} />
                 </div>
-                <PaymentForm
-                  accountId={accountId}
-                  businessId={account.businessId || currentBusiness?.id}
-                  currentBalance={Number(account.balance)}
-                  onSuccess={handlePaymentSuccess}
-                  onAddFunds={() => setActiveTab('deposits')}
-                  canCreatePayees={canCreatePayees}
-                  accountType={account.accountType}
-                  defaultCategoryBusinessType={currentBusiness?.businessType}
-                  batchRefreshKey={batchRefreshKey}
-                  accountInfo={{
-                    accountName: account.accountName,
-                    isSibling: account.isSibling,
-                    siblingNumber: account.siblingNumber,
-                    parentAccountId: account.parentAccountId
-                  }}
-                />
-
               </div>
             )}
 
             {/* Transactions Tab */}
             {activeTab === 'transactions' && (
               <div>
-                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
-                  Transaction History
-                </h4>
                 <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} />
               </div>
             )}
@@ -523,9 +675,6 @@ export default function ExpenseAccountDetailPage() {
             {/* Loans Tab */}
             {activeTab === 'loans' && (
               <div>
-                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
-                  Loans
-                </h4>
                 <LoansTab accountId={accountId} />
               </div>
             )}
@@ -533,16 +682,12 @@ export default function ExpenseAccountDetailPage() {
             {/* Lent Out Tab */}
             {activeTab === 'lent-out' && canManageLending && (
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    🤝 Lent Out
-                  </h4>
+                <div className="flex justify-end mb-2">
                   <button
                     onClick={() => setShowLendMoneyModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                   >
-                    <span>🤝</span>
-                    Lend Money
+                    🤝 Lend Money
                   </button>
                 </div>
                 <OutgoingLoansPanel
@@ -557,9 +702,6 @@ export default function ExpenseAccountDetailPage() {
             {/* Permissions Tab (admin only) */}
             {activeTab === 'permissions' && isSystemAdmin && (
               <div>
-                <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">
-                  Account Access
-                </h4>
                 <AccountPermissionsTab accountId={accountId} />
               </div>
             )}

@@ -87,6 +87,11 @@ export async function GET(request: NextRequest) {
             fullName: true,
           },
         },
+        business_order_items: {
+          select: {
+            attributes: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -116,6 +121,7 @@ export async function GET(request: NextRequest) {
         discountAmount: Number(order.discountAmount || 0),
         rewardCouponCode: (order.attributes as any)?.rewardCouponCode || null,
         mealProgram: (order.attributes as any)?.mealProgram === true,
+        hasCombo: order.business_order_items.some(item => !!(item.attributes as any)?.isCombo),
         businessType: order.businessType,
         paymentMethod: order.paymentMethod,
         status: order.status,

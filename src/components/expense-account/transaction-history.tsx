@@ -73,9 +73,16 @@ function shortDescription(transaction: Transaction): string {
 export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 29)
+    return d.toISOString().split('T')[0]
+  })
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0)
+    return d.toISOString().split('T')[0]
+  })
   const [typeFilter, setTypeFilter] = useState<string>(defaultType)
+  const [sourceTypeFilter, setSourceTypeFilter] = useState('')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(defaultSortOrder)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
@@ -84,6 +91,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [activeQuickFilter, setActiveQuickFilter] = useState<string>('30 Days')
 
   // Debounce search input
   useEffect(() => {
@@ -91,13 +99,13 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     searchDebounceRef.current = setTimeout(() => {
       setDebouncedSearch(search)
       setPage(0)
-    }, 350)
+    }, 600)
     return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current) }
   }, [search])
 
   useEffect(() => {
     loadTransactions()
-  }, [accountId, startDate, endDate, typeFilter, page, debouncedSearch])
+  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch])
   // also refetch when sortOrder changes
   useEffect(() => {
     setPage(0)
@@ -111,6 +119,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       if (startDate) params.append('startDate', startDate)
       if (endDate) params.append('endDate', endDate)
       if (typeFilter) params.append('transactionType', typeFilter)
+      if (sourceTypeFilter) params.append('sourceType', sourceTypeFilter)
       if (debouncedSearch) params.append('search', debouncedSearch)
       params.append('limit', limit.toString())
       params.append('offset', (page * limit).toString())
@@ -160,17 +169,21 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   }
 
   const handleReset = () => {
-    setStartDate('')
-    setEndDate('')
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const from = new Date(today); from.setDate(from.getDate() - 29)
+    setStartDate(from.toISOString().split('T')[0])
+    setEndDate(today.toISOString().split('T')[0])
     setTypeFilter(defaultType)
+    setSourceTypeFilter('')
     setSearch('')
     setDebouncedSearch('')
+    setActiveQuickFilter('30 Days')
     setPage(0)
   }
 
   const toDateStr = (d: Date) => d.toISOString().split('T')[0]
 
-  const applyQuickFilter = (days: number | 'today' | 'yesterday') => {
+  const applyQuickFilter = (days: number | 'today' | 'yesterday', label: string) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     if (days === 'today') {
@@ -187,33 +200,27 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       setStartDate(toDateStr(from))
       setEndDate(toDateStr(today))
     }
+    setActiveQuickFilter(label)
     setPage(0)
   }
 
   const QUICK_FILTERS = [
-    { label: 'Today', action: () => applyQuickFilter('today') },
-    { label: 'Yesterday', action: () => applyQuickFilter('yesterday') },
-    { label: '7 Days', action: () => applyQuickFilter(7) },
-    { label: '30 Days', action: () => applyQuickFilter(30) },
-    { label: '90 Days', action: () => applyQuickFilter(90) },
+    { label: 'Today',     action: () => applyQuickFilter('today', 'Today') },
+    { label: 'Yesterday', action: () => applyQuickFilter('yesterday', 'Yesterday') },
+    { label: '7 Days',   action: () => applyQuickFilter(7, '7 Days') },
+    { label: '30 Days',  action: () => applyQuickFilter(30, '30 Days') },
+    { label: '90 Days',  action: () => applyQuickFilter(90, '90 Days') },
   ]
-
-  if (loading && page === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-secondary">Loading transaction history...</div>
-      </div>
-    )
-  }
 
   return (
     <>
     <div className="space-y-4">
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4">
-        {/* Search */}
-        <div className="mb-3">
-          <div className="relative">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow px-3 py-2.5">
+
+        {/* Row 1: Search + Reset */}
+        <div className="flex gap-2 mb-2">
+          <div className="relative flex-1">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -221,8 +228,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search payee, category, notes, receipt..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Search payee, category, source, notes, receipt…"
+              className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {search && (
               <button
@@ -235,82 +242,128 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
               </button>
             )}
           </div>
+          <button
+            onClick={handleReset}
+            className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 whitespace-nowrap"
+          >
+            ↺ Reset
+          </button>
         </div>
 
-        {/* Quick date filters */}
-        <div className="flex gap-1.5 flex-wrap mb-3">
-          {QUICK_FILTERS.map((f) => (
-            <button
-              key={f.label}
-              onClick={f.action}
-              className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Start Date
-            </label>
-            <DateInput
-              value={startDate}
-              onChange={setStartDate}
-            />
+        {/* Row 2: Pills + date range + dropdowns — all inline */}
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-1.5">
+
+          {/* Quick pills */}
+          <div className="flex gap-1 flex-wrap">
+            {QUICK_FILTERS.map((f) => (
+              <button
+                key={f.label}
+                onClick={f.action}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-full transition-colors ${
+                  activeQuickFilter === f.label
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              End Date
-            </label>
-            <DateInput
-              value={endDate}
-              onChange={setEndDate}
-            />
+          {/* Thin divider */}
+          <div className="w-px self-stretch bg-gray-200 dark:bg-gray-600 mx-0.5 hidden sm:block" />
+
+          {/* Date range: From → To inline */}
+          <div className="flex items-end gap-1">
+            <div className="w-32">
+              <DateInput
+                label="From"
+                value={startDate}
+                onChange={(v) => { setStartDate(v); setActiveQuickFilter('') }}
+                compact
+              />
+            </div>
+            <span className="text-gray-400 dark:text-gray-500 text-xs pb-2">→</span>
+            <div className="w-32">
+              <DateInput
+                label="To"
+                value={endDate}
+                onChange={(v) => { setEndDate(v); setActiveQuickFilter('') }}
+                compact
+              />
+            </div>
           </div>
 
+          {/* Thin divider */}
+          <div className="w-px self-stretch bg-gray-200 dark:bg-gray-600 mx-0.5 hidden sm:block" />
+
+          {/* Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Type
-            </label>
+            <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 uppercase tracking-wide">Type</label>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All Transactions</option>
-              <option value="DEPOSIT">Deposits Only</option>
-              <option value="PAYMENT">Payments Only</option>
+              <option value="DEPOSIT">Deposits</option>
+              <option value="PAYMENT">Payments</option>
             </select>
           </div>
 
+          {/* Deposit Source */}
+          {typeFilter !== 'PAYMENT' && (
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 uppercase tracking-wide">Source</label>
+              <select
+                value={sourceTypeFilter}
+                onChange={(e) => { setSourceTypeFilter(e.target.value); setPage(0) }}
+                className="px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Sources</option>
+                <option value="CASH">💵 Cash</option>
+                <option value="BANK_TRANSFER">🏦 Bank Transfer</option>
+                <option value="BUSINESS_TRANSFER">🏢 Business Transfer</option>
+                <option value="LOAN_RECEIVED">🤝 Loan Received</option>
+                <option value="LOAN_REPAYMENT">🔄 Loan Repayment</option>
+                <option value="PAYROLL_FUNDING">💼 Payroll Funding</option>
+                <option value="TRANSFER_RETURN">↩️ Transfer Return</option>
+                <option value="WIFI_TOKEN_SALE">📡 WiFi Portal Sale</option>
+                <option value="R710_TOKEN_SALE">📶 R710 WiFi Sale</option>
+              </select>
+            </div>
+          )}
+
+          {/* Sort */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Sort
-            </label>
+            <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 uppercase tracking-wide">Sort</label>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
             >
               <option value="desc">Newest First</option>
               <option value="asc">Oldest First</option>
             </select>
           </div>
 
-          <div className="flex items-end">
-            <button
-              onClick={handleReset}
-              className="w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
-            >
-              Reset Filters
-            </button>
-          </div>
         </div>
       </div>
 
       {/* Transactions Table */}
+      <div className="relative">
+        {/* Subtle in-place loading overlay — does not replace the UI */}
+        {loading && (
+          <div className="absolute inset-0 z-10 rounded-lg bg-white/60 dark:bg-gray-800/60 flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Loading…
+            </div>
+          </div>
+        )}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         {transactions.length === 0 ? (
           <div className="text-center py-12">
@@ -487,6 +540,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             </button>
           </div>
         )}
+      </div>
       </div>
     </div>
 

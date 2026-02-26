@@ -1076,10 +1076,10 @@ export function PaymentForm({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Entry Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
           {editingPaymentId ? 'Edit Payment' : 'Add Payment to Batch'}
         </h3>
 
@@ -1100,8 +1100,7 @@ export function PaymentForm({
           </div>
         )}
 
-        <div className="space-y-4">
-          {/* Payee Selector */}
+        <div className="space-y-3">
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1189,15 +1188,19 @@ export function PaymentForm({
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Subcategory
                   </label>
-                  {formData.subcategoryId && (
-                    <button
-                      type="button"
-                      onClick={() => setShowCreateSubSubcategory(true)}
-                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                    >
-                      + Create New
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!formData.subcategoryId) {
+                        customAlert({ title: 'Select category first', message: 'Please select a personal category before creating a subcategory.' })
+                        return
+                      }
+                      setShowCreateSubSubcategory(true)
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                  >
+                    + Create New
+                  </button>
                 </div>
                 <SearchableSelect
                   value={formData.subSubcategoryId}
@@ -1282,10 +1285,16 @@ export function PaymentForm({
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                             Sub-subcategory
                           </label>
-                          {formData.subcategoryId && (
+                          {formData.categoryId && (
                             <button
                               type="button"
-                              onClick={() => setShowCreateSubSubcategory(true)}
+                              onClick={() => {
+                                if (!formData.subcategoryId) {
+                                  customAlert({ title: 'Select subcategory first', message: 'Please select a subcategory before creating a sub-subcategory.' })
+                                  return
+                                }
+                                setShowCreateSubSubcategory(true)
+                              }}
                               className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                             >
                               + Create New
@@ -1309,9 +1318,9 @@ export function PaymentForm({
           )}
 
           {/* Amount & Date */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Amount <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -1338,16 +1347,18 @@ export function PaymentForm({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Payment Date <span className="text-red-500">*</span>
               </label>
               <DateInput
+                label=""
                 value={formData.paymentDate}
                 onChange={(value) => {
                   setFormData({ ...formData, paymentDate: value })
                   setErrors({ ...errors, paymentDate: '' })
                 }}
                 required
+                compact
               />
               {errors.paymentDate && (
                 <p className="mt-1 text-sm text-red-500">{errors.paymentDate}</p>
@@ -1357,13 +1368,13 @@ export function PaymentForm({
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
               Notes (Optional)
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               rows={2}
               placeholder="Additional notes about this payment"
               maxLength={500}

@@ -9,6 +9,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
 import { MiniCart } from '@/components/global/mini-cart'
 import { TestPrintModal } from '@/components/printing/test-print-modal'
+import { useTimeDisplay } from '@/hooks/use-time-display'
 
 interface GlobalHeaderProps {
   title?: string
@@ -23,6 +24,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
   const [showTestPrint, setShowTestPrint] = useState(false)
+  const { useServerTime, toggleTimeDisplay } = useTimeDisplay()
   const businessMenuOpenedByClick = useRef(false)
   const businessMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const businessMenuOpenedAt = useRef(0)
@@ -422,6 +424,18 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                   showMenu={showThemeMenu}
                   setShowMenu={setShowThemeMenu}
                 />
+                {/* UTC / Local time toggle */}
+                <button
+                  onClick={toggleTimeDisplay}
+                  className={`px-2 py-1 text-[11px] font-semibold rounded border transition-colors ${
+                    useServerTime
+                      ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700'
+                      : 'bg-gray-100 text-gray-500 border-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                  title={useServerTime ? 'Showing UTC (server time) — click for local time' : 'Showing local time — click for UTC (server time)'}
+                >
+                  {useServerTime ? 'UTC' : 'Local'}
+                </button>
                 <UserDropdown
                   user={session.user as SessionUser}
                   showMenu={showUserMenu}

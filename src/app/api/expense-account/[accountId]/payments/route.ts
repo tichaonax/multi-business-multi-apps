@@ -71,6 +71,7 @@ export async function GET(
     const endDate = searchParams.get('endDate')
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = parseInt(searchParams.get('offset') || '0')
+    const sortBy = searchParams.get('sortBy') === 'createdAt' ? 'createdAt' : 'paymentDate'
 
     // Build where clause
     const where: any = {
@@ -158,7 +159,7 @@ export async function GET(
             select: { id: true, name: true, email: true },
           },
         },
-        orderBy: { paymentDate: 'desc' },
+        orderBy: { [sortBy]: 'desc' },
         take: limit,
         skip: offset,
       }),

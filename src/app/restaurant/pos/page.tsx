@@ -41,6 +41,7 @@ import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerReward
 import { useCoupon } from '@/app/universal/pos/hooks/useCoupon'
 import { SalesPerfBadge, DEFAULT_SALES_PERF_THRESHOLDS } from '@/components/pos/SalesPerfBadge'
 import type { SalesPerfThresholds } from '@/components/pos/SalesPerfBadge'
+import { useTimeDisplay } from '@/hooks/use-time-display'
 
 interface MenuItem {
   id: string
@@ -148,6 +149,10 @@ export default function RestaurantPOS() {
   const { appliedCoupon, removeCoupon } = useCoupon(currentBusinessId ?? undefined)
   const appliedCouponRef = useRef(appliedCoupon)
   useEffect(() => { appliedCouponRef.current = appliedCoupon }, [appliedCoupon])
+
+  // Global UTC/Local time toggle — determines "today" window for sold-today badge counts
+  const { useServerTime } = useTimeDisplay()
+  const statsTimezone = useServerTime ? 'UTC' : Intl.DateTimeFormat().resolvedOptions().timeZone
 
   // Toast context (hook) must be called unconditionally to preserve hooks order
   const toast = useToastContext()
@@ -657,7 +662,7 @@ export default function RestaurantPOS() {
       // Fetch products, purchase statistics, WiFi tokens, and menu combos in parallel
       const [productsResponse, statsResponse, wifiTokensResponse, combosResponse] = await Promise.all([
         fetch(`/api/universal/products?${queryParams.toString()}`),
-        fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId || ''}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
+        fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId || ''}&timezone=${encodeURIComponent(statsTimezone)}`),
         currentBusinessId ? fetch(`/api/business/${currentBusinessId}/wifi-tokens`) : Promise.resolve({ ok: false }),
         currentBusinessId ? fetch(`/api/universal/menu-combos?businessId=${currentBusinessId}`) : Promise.resolve({ ok: false })
       ])
@@ -980,7 +985,7 @@ export default function RestaurantPOS() {
     if (isAdmin || isRestaurantBusiness) {
       loadMenuItems()
     }
-  }, [currentBusinessId, isRestaurantBusiness, status, businessLoading, isAuthenticated, isAdmin])
+  }, [currentBusinessId, isRestaurantBusiness, status, businessLoading, isAuthenticated, isAdmin, useServerTime])
 
   // Debug: Log cart changes
   useEffect(() => {
@@ -1321,7 +1326,7 @@ export default function RestaurantPOS() {
 
       // Lightweight refresh of product sold-today counts (without reloading full product list)
       try {
-        const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+        const tz = encodeURIComponent(statsTimezone)
         const statsResponse = await fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId}&timezone=${tz}`)
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
@@ -1364,7 +1369,7 @@ export default function RestaurantPOS() {
     }, 30000)
 
     return () => clearInterval(interval)
-  }, [currentBusinessId, isRestaurantBusiness])
+  }, [currentBusinessId, isRestaurantBusiness, useServerTime])
 
   // Reload daily sales and menu items after completing an order
   useEffect(() => {
