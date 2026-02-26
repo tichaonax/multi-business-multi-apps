@@ -172,6 +172,7 @@ export async function POST(
         })
 
         // 4. Record in BusinessTransferLedger for future settlement
+        // isAutoTransfer = true: not editable, return must be in full
         await tx.businessTransferLedger.create({
           data: {
             id: uuidv4(),
@@ -184,6 +185,7 @@ export async function POST(
             outstandingAmount: parsedAmount,
             transferDate: new Date(),
             status: 'OUTSTANDING',
+            isAutoTransfer: true,
             createdBy: user.id,
           },
         })

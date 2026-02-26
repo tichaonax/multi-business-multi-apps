@@ -48,6 +48,7 @@ export async function GET(
           outstandingAmount: Number(t.outstandingAmount),
           transferDate: t.transferDate.toISOString(),
           status: t.status,
+          isAutoTransfer: t.isAutoTransfer,
           createdAt: t.createdAt.toISOString(),
         })),
       },

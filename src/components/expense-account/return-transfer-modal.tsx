@@ -13,6 +13,7 @@ interface Transfer {
   outstandingAmount: number
   transferDate: string
   status: string
+  isAutoTransfer: boolean
 }
 
 interface ReturnTransferModalProps {
@@ -72,10 +73,17 @@ export function ReturnTransferModal({
     load()
   }, [accountId])
 
-  // Reset amount when transfer selection changes (only relevant in free-pick mode)
+  // Reset amount when transfer selection changes in free-pick mode (non-auto-transfers only)
   useEffect(() => {
-    if (!isLocked) setAmount('')
+    if (!isLocked && selected && !selected.isAutoTransfer) setAmount('')
   }, [selectedTransferId])
+
+  // Auto-transfers must always be returned in full — auto-fill the amount
+  useEffect(() => {
+    if (selected?.isAutoTransfer) {
+      setAmount(String(selected.outstandingAmount.toFixed(2)))
+    }
+  }, [selected?.id, selected?.isAutoTransfer, selected?.outstandingAmount])
 
   const maxReturnable = selected ? selected.outstandingAmount : 0
   const parsedAmount = parseFloat(amount) || 0
@@ -89,6 +97,10 @@ export function ReturnTransferModal({
     }
     if (parsedAmount > maxReturnable + 0.001) {
       toast.error(`Cannot exceed outstanding amount of $${maxReturnable.toFixed(2)}`)
+      return
+    }
+    if (selected.isAutoTransfer && parsedAmount < maxReturnable - 0.001) {
+      toast.error(`Auto-transfers must be returned in full ($${maxReturnable.toFixed(2)})`)
       return
     }
     if (accountBalance !== null && parsedAmount > effectiveBalance + 0.001) {
@@ -208,6 +220,11 @@ export function ReturnTransferModal({
                         </span>
                       )}
                     </p>
+                    {selected.isAutoTransfer && (
+                      <p className="mt-1 text-amber-700 dark:text-amber-400 font-medium">
+                        🔒 Auto-transfer — must be returned in full
+                      </p>
+                    )}
                   </div>
 
                   {/* Amount + Date */}
@@ -223,7 +240,8 @@ export function ReturnTransferModal({
                           max={Math.min(maxReturnable, effectiveBalance)}
                           value={amount}
                           onChange={(e) => setAmount(e.target.value)}
-                          className="w-full pl-7 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                          readOnly={selected.isAutoTransfer}
+                          className={`w-full pl-7 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${selected.isAutoTransfer ? 'opacity-70 cursor-not-allowed' : ''}`}
                         />
                       </div>
                     </div>

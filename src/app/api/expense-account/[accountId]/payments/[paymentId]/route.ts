@@ -196,6 +196,14 @@ export async function PATCH(
       )
     }
 
+    // Auto-transfer (TRANSFER_OUT) payments are system-generated and cannot be edited by anyone
+    if (existingPayment.paymentType === 'TRANSFER_OUT') {
+      return NextResponse.json(
+        { error: 'Auto-transfer payments cannot be edited. They are system-generated records.' },
+        { status: 403 }
+      )
+    }
+
     // Check if within edit window (5 days for non-admins)
     const editWindowCheck = isWithinEditWindow(existingPayment.createdAt, isAdmin)
     if (!editWindowCheck.allowed) {

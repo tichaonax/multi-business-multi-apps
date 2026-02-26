@@ -148,6 +148,14 @@ export async function PATCH(
       )
     }
 
+    // Auto-transfer (ACCOUNT_TRANSFER) deposits are system-generated and cannot be edited by anyone
+    if (existingDeposit.sourceType === 'ACCOUNT_TRANSFER') {
+      return NextResponse.json(
+        { error: 'Auto-transfer deposits cannot be edited. They are system-generated records.' },
+        { status: 403 }
+      )
+    }
+
     // Check if within edit window (5 days for non-admins)
     const editWindowCheck = isWithinEditWindow(existingDeposit.createdAt, isAdmin)
     if (!editWindowCheck.allowed) {

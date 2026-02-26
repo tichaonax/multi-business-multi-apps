@@ -727,6 +727,12 @@ export async function POST(
         if (payment.paymentType === 'TRANSFER_RETURN' && payment.transferLedgerId) {
           const ledger = await tx.businessTransferLedger.findUnique({ where: { id: payment.transferLedgerId } })
           if (ledger) {
+            // Auto-transfer returns must be paid in full — no partial returns allowed
+            if (ledger.isAutoTransfer && Number(payment.amount) < Number(ledger.outstandingAmount) - 0.001) {
+              throw new Error(
+                `Auto-transfer returns must be paid in full. Outstanding: $${Number(ledger.outstandingAmount).toFixed(2)}, Submitted: $${Number(payment.amount).toFixed(2)}`
+              )
+            }
             const newOutstanding = Math.max(0, Number(ledger.outstandingAmount) - Number(payment.amount))
             await tx.businessTransferLedger.update({
               where: { id: payment.transferLedgerId },

@@ -68,7 +68,8 @@ export async function GET(
       const entry = dayMap.get(dateKey)!
       const amount = Number(tx.amount)
       if (CREDIT_TYPES.includes(tx.type)) entry.credits += amount
-      else if (DEBIT_TYPES.includes(tx.type)) entry.debits += amount
+      // DEBIT-type amounts are stored negative; take absolute value for the chart
+      else if (DEBIT_TYPES.includes(tx.type)) entry.debits += Math.abs(amount)
     }
 
     // Fill in missing days with 0 values so chart is continuous

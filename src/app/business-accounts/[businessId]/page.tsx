@@ -102,6 +102,28 @@ const REF_LABELS: Record<string, string> = {
   DEBIT: 'Debit Out',
 }
 
+// Badge colour per reference type
+const REF_BADGE_CLASS: Record<string, string> = {
+  order:                  'bg-green-50  dark:bg-green-900/30  text-green-700  dark:text-green-400',
+  PAYROLL_DEPOSIT:        'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
+  PAYROLL_EXPENSE:        'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
+  EXPENSE_DEPOSIT:        'bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-400',
+  EXPENSE_TRANSFER:       'bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-400',
+  EXPENSE_TRANSFER_RETURN:'bg-teal-50   dark:bg-teal-900/30   text-teal-700   dark:text-teal-400',
+  DEBIT:                  'bg-red-50    dark:bg-red-900/30    text-red-700    dark:text-red-400',
+}
+
+// Left-border accent colour per reference type (makes rows visually distinct)
+const REF_ROW_ACCENT: Record<string, string> = {
+  order:                  'border-l-2 border-green-400  dark:border-green-600',
+  PAYROLL_DEPOSIT:        'border-l-2 border-violet-400 dark:border-violet-600',
+  PAYROLL_EXPENSE:        'border-l-2 border-violet-400 dark:border-violet-600',
+  EXPENSE_DEPOSIT:        'border-l-2 border-orange-500 dark:border-orange-700',
+  EXPENSE_TRANSFER:       'border-l-2 border-orange-500 dark:border-orange-700',
+  EXPENSE_TRANSFER_RETURN:'border-l-2 border-teal-400   dark:border-teal-600',
+  DEBIT:                  'border-l-2 border-red-400    dark:border-red-600',
+}
+
 // Descriptions that are misleading when viewed from the source business
 const MISLEADING_DESC_PREFIXES = [
   'Manual transfer from ',
@@ -141,14 +163,19 @@ function TxRow({ tx }: { tx: BizTransaction }) {
       ? false  // notes shown separately
       : !isDescriptionMisleading(tx.description) && tx.description !== primaryLabel
 
+  const rowAccent = tx.referenceType ? (REF_ROW_ACCENT[tx.referenceType] ?? '') : ''
+  const badgeClass = tx.referenceType
+    ? (REF_BADGE_CLASS[tx.referenceType] ?? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400')
+    : ''
+
   return (
-    <div className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+    <div className={`flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${rowAccent}`}>
       <span className="text-base shrink-0 w-6 text-center">{TYPE_ICONS[tx.type] ?? '•'}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
           <p className="text-xs font-medium text-primary truncate">{primaryLabel}</p>
           {tx.referenceType && REF_LABELS[tx.referenceType] && (
-            <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium">
+            <span className={`shrink-0 text-[10px] px-1 py-0.5 rounded font-medium ${badgeClass}`}>
               {REF_LABELS[tx.referenceType]}
             </span>
           )}

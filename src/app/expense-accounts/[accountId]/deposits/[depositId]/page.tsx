@@ -202,13 +202,18 @@ export default function ExpenseDepositDetailPage() {
             )}
 
             <div className="mt-4 flex gap-2">
-              {hasPermission('canEditExpenseTransactions') && (
+              {hasPermission('canEditExpenseTransactions') && deposit.sourceType !== 'ACCOUNT_TRANSFER' && (
                 <button
                   onClick={handleEdit}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   Edit Deposit
                 </button>
+              )}
+              {deposit.sourceType === 'ACCOUNT_TRANSFER' && (
+                <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded text-sm">
+                  🔒 Auto-transfer — not editable
+                </div>
               )}
               <button
                 onClick={() => router.push(`/expense-accounts/${accountId}/deposits`)}

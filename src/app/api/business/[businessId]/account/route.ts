@@ -73,7 +73,8 @@ export async function GET(
     ])
 
     const totalCredits = Number(creditsAgg._sum?.amount ?? 0)
-    const totalDebits = Number(debitsAgg._sum?.amount ?? 0)
+    // DEBIT-type transactions store amount as a negative number; take absolute value
+    const totalDebits = Math.abs(Number(debitsAgg._sum?.amount ?? 0))
     const computedBalance = totalCredits - totalDebits
 
     // Silent self-repair if column is stale

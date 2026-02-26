@@ -279,13 +279,18 @@ export default function ExpensePaymentDetailPage() {
             </div>
 
             <div className="mt-4 flex gap-2">
-              {hasPermission('canEditExpenseTransactions') && (
+              {hasPermission('canEditExpenseTransactions') && payment.paymentType !== 'TRANSFER_OUT' && (
                 <button
                   onClick={handleEdit}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   Edit Payment
                 </button>
+              )}
+              {payment.paymentType === 'TRANSFER_OUT' && (
+                <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded text-sm">
+                  🔒 Auto-transfer — not editable
+                </div>
               )}
               <button
                 onClick={() => router.push(`/expense-accounts/${accountId}/payments`)}

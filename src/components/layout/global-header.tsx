@@ -65,10 +65,17 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
   // Switch to another business, preserving the current module where supported
   const handleSwitchBusiness = async (targetBusinessId: string, targetBusinessType: string) => {
+    // Close both dropdowns immediately so the UI feels responsive
+    closeBusinessMenu()
     setSwitchingToBusinessId(targetBusinessId)
+
+    // Compute the target path NOW — before switchBusiness() updates currentBusiness
+    // in context, which would corrupt the expense-account name-matching logic.
+    const targetBiz = businesses.find(b => b.businessId === targetBusinessId) ?? null
+    const targetPath = getBusinessNavigationPath(targetBusinessType, targetBiz)
+
     try {
       await switchBusiness(targetBusinessId)
-      const targetPath = getBusinessNavigationPath(targetBusinessType)
       window.location.href = targetPath
     } catch {
       setSwitchingToBusinessId(null)
@@ -163,12 +170,34 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     // Expense account links - one per account linked to this business
     // General Expenses account requires canAccessFinancialData permission
     const canSeeGeneralExpenses = isAdmin || hasPermission('canAccessFinancialData')
+    // Extract the meaningful account type label from the raw DB account name.
+    // Account names are always "{biz name} {type}" or "{biz name} - {type}".
+    // Known types are matched by suffix — completely independent of the business name,
+    // so renaming the business never breaks labels.
+    const KNOWN_ACCOUNT_TYPES = [
+      'R710 WiFi Token Sales',
+      'ESP32 WiFi Token Sales',
+      'WiFi Token Revenue',
+      'WiFi Token Sales',
+      'General Expenses',
+      'Expense Account',
+    ]
+    const accountTypeLabel = (name: string): string => {
+      for (const type of KNOWN_ACCOUNT_TYPES) {
+        if (name.toLowerCase().endsWith(type.toLowerCase())) return type
+      }
+      // Fallback: strip everything up to and including the last " - " separator
+      const dashIdx = name.lastIndexOf(' - ')
+      if (dashIdx !== -1) return name.slice(dashIdx + 3).trim()
+      return name
+    }
+
     const expenseLinks: MenuLink[] = (currentBusiness?.expenseAccounts || [])
       .filter(ea => ea.id !== 'acc-general-expenses' || canSeeGeneralExpenses)
       .map(ea => ({
         href: `/expense-accounts/${ea.id}`,
         icon: '💳',
-        label: ea.accountName,
+        label: accountTypeLabel(ea.accountName),
         permissions: ['canAccessExpenseAccount']
       }))
 
@@ -215,9 +244,52 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   }
 
   // Function to get navigation path that preserves current module when switching businesses
-  const getBusinessNavigationPath = (targetBusinessType: string): string => {
+  const getBusinessNavigationPath = (targetBusinessType: string, targetBiz?: { businessId: string; expenseAccounts?: { id: string; accountName: string }[] } | null): string => {
     const currentPath = pathname
     let targetPath = `/${targetBusinessType}` // Default to business homepage
+
+    // ── Cross-module paths ──────────────────────────────────────────────────
+    // Expense account detail page — navigate to the equivalent account in the target business
+    if (currentPath.startsWith('/expense-accounts/')) {
+      const accounts = targetBiz?.expenseAccounts
+      if (!accounts?.length) return `/${targetBusinessType}`
+
+      // Extract the canonical account type key from a raw DB account name.
+      // Matches known type suffixes so this is fully rename-proof.
+      const KNOWN_ACCOUNT_TYPES = [
+        'R710 WiFi Token Sales',
+        'ESP32 WiFi Token Sales',
+        'WiFi Token Revenue',
+        'WiFi Token Sales',
+        'General Expenses',
+        'Expense Account',
+      ]
+      const accountTypeKey = (name: string): string => {
+        for (const type of KNOWN_ACCOUNT_TYPES) {
+          if (name.toLowerCase().endsWith(type.toLowerCase())) return type.toLowerCase()
+        }
+        const dashIdx = name.lastIndexOf(' - ')
+        if (dashIdx !== -1) return name.slice(dashIdx + 3).trim().toLowerCase()
+        return name.toLowerCase()
+      }
+
+      // Identify the current account by ID and match to same type in target business
+      const currentAccountId = currentPath.split('/').filter(Boolean)[1]
+      const currentAccount = currentBusiness?.expenseAccounts?.find(ea => ea.id === currentAccountId)
+
+      if (currentAccount) {
+        const currentKey = accountTypeKey(currentAccount.accountName)
+        const matched = accounts.find(ea => accountTypeKey(ea.accountName) === currentKey)
+        return `/expense-accounts/${(matched ?? accounts[0]).id}`
+      }
+
+      return `/expense-accounts/${accounts[0].id}`
+    }
+
+    // Business account detail page — navigate to target business's account page
+    if (currentPath.startsWith('/business-accounts/')) {
+      return targetBiz?.businessId ? `/business-accounts/${targetBiz.businessId}` : `/${targetBusinessType}`
+    }
 
     // Check if we're currently on a business-specific module page
     const businessModules = ['pos', 'reports', 'inventory', 'products', 'menu', 'orders', 'employees', 'suppliers', 'customers']
