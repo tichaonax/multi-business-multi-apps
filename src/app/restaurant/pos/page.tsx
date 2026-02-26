@@ -1321,7 +1321,8 @@ export default function RestaurantPOS() {
 
       // Lightweight refresh of product sold-today counts (without reloading full product list)
       try {
-        const statsResponse = await fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId}`)
+        const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+        const statsResponse = await fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId}&timezone=${tz}`)
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
           if (statsData.success && statsData.data) {
@@ -2926,6 +2927,14 @@ export default function RestaurantPOS() {
                           <div className={`h-full transition-all duration-500 ${barColorClass} opacity-70`} style={{ width: `${barFill}%` }} />
                         </div>
                         <span className={`text-[10px] font-semibold flex-shrink-0 ${barTextColorClass}`}>{barLabel}</span>
+                      </div>
+                    )}
+
+                    {/* Yesterday sold count — shown below bar whenever there's a yesterday baseline */}
+                    {showBar && soldYesterday > 0 && (
+                      <div className="mt-0.5 flex items-center gap-1">
+                        <span className="text-[9px] text-gray-400 dark:text-gray-500">yesterday:</span>
+                        <span className="text-[9px] font-semibold text-gray-400 dark:text-gray-500">{soldYesterday}</span>
                       </div>
                     )}
 
