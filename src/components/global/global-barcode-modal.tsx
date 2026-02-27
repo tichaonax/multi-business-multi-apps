@@ -7,6 +7,7 @@ import { getGlobalBarcodeScanningAccess, canStockInventoryFromModal } from '@/li
 import { BusinessSelectionModal, InventoryType, ProductData } from './business-selection-modal'
 import { useToast } from '@/components/ui/use-toast'
 import { useRouter } from 'next/navigation'
+import { ClockInModal } from '@/components/clock-in/clock-in-modal'
 
 interface BusinessInventory {
   businessId: string
@@ -47,6 +48,13 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   const [isSwitching, setIsSwitching] = useState(false)
   const { push: showToast } = useToast()
 
+  // Clock-in state
+  const [clockInEmployee, setClockInEmployee] = useState<any>(null)
+  const [clockInState, setClockInState] = useState<'notYetClockedIn' | 'clockedIn' | 'clockedOut'>('notYetClockedIn')
+  const [clockInAttendance, setClockInAttendance] = useState<any>(null)
+  const [clockInIsOwnCard, setClockInIsOwnCard] = useState(false)
+  const [showClockInModal, setShowClockInModal] = useState(false)
+
   useEffect(() => {
     if (isOpen && barcode) {
       setCurrentBarcode(barcode)
@@ -64,6 +72,26 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     setSelectedBusiness(null)
 
     try {
+      // --- Employee clock-in intercept: check if barcode is an employee number ---
+      const clockScanRes = await fetch('/api/clock-in/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeNumber: barcodeToLookup }),
+      })
+      if (clockScanRes.ok) {
+        const clockData = await clockScanRes.json()
+        if (clockData.found) {
+          setClockInEmployee(clockData.employee)
+          setClockInState(clockData.clockState)
+          setClockInAttendance(clockData.attendance)
+          setClockInIsOwnCard(!!clockData.isOwnCard)
+          setShowClockInModal(true)
+          setIsLoading(false)
+          return // Stop — do not proceed with inventory lookup
+        }
+      }
+      // --- End employee clock-in intercept ---
+
       // Check user permissions
       const access = getGlobalBarcodeScanningAccess(session.user as any)
       if (!access.canScan) {
@@ -608,6 +636,21 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
             </div>
           </div>
         </div>
+      )}
+
+      {/* Clock-In Modal (shown when scanned barcode matches an employee number) */}
+      {showClockInModal && clockInEmployee && (
+        <ClockInModal
+          isOpen={showClockInModal}
+          onClose={() => {
+            setShowClockInModal(false)
+            onClose()
+          }}
+          employee={clockInEmployee}
+          clockState={clockInState}
+          attendance={clockInAttendance}
+          isOwnCard={clockInIsOwnCard}
+        />
       )}
     </div>
   )

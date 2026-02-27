@@ -21,6 +21,7 @@ import type { Employee } from '@/types/employee'
 import { PayeeExpenseSummary } from '@/components/expense-account/payee-expense-summary'
 import { PayeePaymentsTable } from '@/components/expense-account/payee-payments-table'
 import { PayeeExpenseReport } from '@/components/expense-account/payee-expense-report'
+import { EmployeeIdCard, PrintIdCardButton } from '@/components/clock-in/employee-id-card'
 
 const EMPLOYMENT_STATUS_COLORS = {
   active: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
@@ -75,6 +76,7 @@ export default function EmployeeDetailPage() {
 
   const canViewEmployees = currentUser && hasPermission(currentUser, 'canViewEmployees')
   const canEditEmployees = currentUser && hasPermission(currentUser, 'canEditEmployees')
+  const canManageEmployees = currentUser && hasPermission(currentUser, 'canManageEmployees')
   const canViewEmployeeContracts = currentUser && hasPermission(currentUser, 'canViewEmployeeContracts')
   const canCreateEmployeeContracts = currentUser && hasPermission(currentUser, 'canCreateEmployeeContracts')
   const canApproveEmployeeContracts = currentUser && hasPermission(currentUser, 'canApproveEmployeeContracts')
@@ -86,11 +88,13 @@ export default function EmployeeDetailPage() {
     if (canViewEmployees && employeeId) {
       fetchEmployee()
     }
-    // Check for highlightContract query param on initial load
+    // Check for tab + highlightContract query params on initial load
     try {
       const params = new URLSearchParams(window.location.search)
       const hc = params.get('highlightContract')
       if (hc) setHighlightContractId(hc)
+      const tabParam = params.get('tab')
+      if (tabParam) setActiveTab(tabParam)
     } catch (err) {
       // ignore
     }
@@ -605,7 +609,7 @@ export default function EmployeeDetailPage() {
         {/* Navigation Tabs */}
         <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
           <nav className="-mb-px flex space-x-4 sm:space-x-8 min-w-max px-1">
-            {['profile', 'contracts', 'assignments', 'performance', 'expensePayments'].map((tab) => (
+            {['profile', 'contracts', 'assignments', 'performance', 'expensePayments', 'clockIn'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -615,7 +619,7 @@ export default function EmployeeDetailPage() {
                     : 'border-transparent text-secondary hover:text-primary hover:border-gray-300'
                 }`}
               >
-                {tab === 'expensePayments' ? 'Expense Payments' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === 'expensePayments' ? 'Expense Payments' : tab === 'clockIn' ? '🕐 Clock-In' : tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             ))}
           </nav>
@@ -1275,6 +1279,10 @@ export default function EmployeeDetailPage() {
             />
           </div>
         )}
+
+        {activeTab === 'clockIn' && (
+          <ClockInSettingsTab employee={employee} canEdit={!!(canEditEmployees || canManageEmployees || isSystemAdmin(currentUser))} />
+        )}
       </div>
 
       {/* Success/Error Message */}
@@ -1469,5 +1477,152 @@ export default function EmployeeDetailPage() {
         />
       )}
     </ContentLayout>
+  )
+}
+
+// ── Clock-In Settings Tab ─────────────────────────────────────────────────────
+function ClockInSettingsTab({ employee, canEdit }: { employee: any; canEdit: boolean }) {
+  const [startTime, setStartTime] = useState(employee?.scheduledStartTime ?? '')
+  const [endTime, setEndTime] = useState(employee?.scheduledEndTime ?? '')
+  const [isExempt, setIsExempt] = useState(employee?.isClockInExempt ?? false)
+  const [exemptReason, setExemptReason] = useState(employee?.clockInExemptReason ?? '')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const saveSchedule = async () => {
+    setSaving(true)
+    setMsg(null)
+    try {
+      const res = await fetch(`/api/clock-in/employees/${employee.id}/schedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduledStartTime: startTime || null, scheduledEndTime: endTime || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setMsg({ type: 'success', text: 'Schedule saved.' })
+    } catch (e) {
+      setMsg({ type: 'error', text: e instanceof Error ? e.message : 'Failed to save' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveExemption = async () => {
+    setSaving(true)
+    setMsg(null)
+    try {
+      const res = await fetch(`/api/clock-in/employees/${employee.id}/exempt`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isClockInExempt: isExempt, clockInExemptReason: exemptReason }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setMsg({ type: 'success', text: 'Exemption updated.' })
+    } catch (e) {
+      setMsg({ type: 'error', text: e instanceof Error ? e.message : 'Failed to save' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">🕐 Clock-In Settings</h3>
+
+      {msg && (
+        <div className={`p-3 rounded-lg text-sm border ${msg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300' : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'}`}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Schedule */}
+      <div className="card p-4 sm:p-6 space-y-4">
+        <h4 className="font-medium text-gray-800 dark:text-gray-200">Work Schedule</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Start Time</label>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              disabled={!canEdit}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">End Time</label>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              disabled={!canEdit}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+            />
+          </div>
+        </div>
+        {canEdit && (
+          <button
+            onClick={saveSchedule}
+            disabled={saving}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Schedule'}
+          </button>
+        )}
+      </div>
+
+      {/* Exemption */}
+      <div className="card p-4 sm:p-6 space-y-4">
+        <h4 className="font-medium text-gray-800 dark:text-gray-200">Clock-In Exemption</h4>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isExempt}
+            onChange={(e) => { setIsExempt(e.target.checked); if (!e.target.checked) setExemptReason('') }}
+            disabled={!canEdit}
+            className="w-4 h-4 rounded border-gray-300"
+          />
+          <span className="text-sm text-gray-700 dark:text-gray-300">Exempt from clock-in requirement</span>
+        </label>
+        {isExempt && (
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Reason (required)</label>
+            <input
+              type="text"
+              value={exemptReason}
+              onChange={(e) => setExemptReason(e.target.value)}
+              placeholder="e.g. Remote worker, field agent..."
+              disabled={!canEdit}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+            />
+          </div>
+        )}
+        {canEdit && (
+          <button
+            onClick={saveExemption}
+            disabled={saving}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Exemption'}
+          </button>
+        )}
+        {!canEdit && employee?.clockInExemptReason && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Reason: {employee.clockInExemptReason}</p>
+        )}
+      </div>
+
+      {/* ID Card Preview & Print */}
+      <div className="card p-4 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-gray-800 dark:text-gray-200">Employee ID Card</h4>
+          <PrintIdCardButton employee={employee} />
+        </div>
+        <div className="overflow-x-auto">
+          <EmployeeIdCard employee={employee} />
+        </div>
+      </div>
+    </div>
   )
 }

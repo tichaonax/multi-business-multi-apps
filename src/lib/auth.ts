@@ -55,6 +55,24 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' }
       },
     async authorize(credentials, req) {
+        // --- Card scan path: employee scans their ID card on the login screen ---
+        const c = credentials as Record<string, string> | undefined
+        if (c?.type === 'card' && c?.employeeNumber) {
+          const emp = await prisma.employees.findFirst({
+            where: { employeeNumber: c.employeeNumber, isActive: true },
+            select: {
+              users: { select: { id: true, email: true, name: true, role: true, isActive: true } },
+            },
+          })
+          if (!emp?.users || !emp.users.isActive) {
+            console.log('❌ Card scan: no active user account for employee:', c.employeeNumber)
+            return null
+          }
+          console.log('✅ Card scan login for:', emp.users.email)
+          return { id: emp.users.id, email: emp.users.email, name: emp.users.name, role: emp.users.role } as any
+        }
+
+        // --- Normal email / password path ---
         console.log('🔐 Authorization attempt for:', credentials?.identifier)
 
         if (!credentials?.identifier || !credentials?.password) {

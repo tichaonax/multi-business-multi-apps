@@ -1,4 +1,4 @@
-import { getGlobalBarcodeScanningAccess, SessionUser } from '@/lib/permission-utils'
+import { SessionUser } from '@/lib/permission-utils'
 
 export interface GlobalBarcodeEvent {
   barcode: string
@@ -120,12 +120,13 @@ class GlobalBarcodeService {
   }
 
   /**
-   * Check if global scanning can be enabled for current user
+   * Check if global scanning can be enabled for current user.
+   * Any authenticated user may scan — the barcode modal routes employee
+   * card scans to the clock-in flow; inventory operations enforce their
+   * own permissions downstream.
    */
   private canEnableGlobalScanning(): boolean {
-    if (!this.currentUser) return false
-    const access = getGlobalBarcodeScanningAccess(this.currentUser)
-    return access.canScan
+    return !!this.currentUser
   }
 
   /**
@@ -139,12 +140,7 @@ class GlobalBarcodeService {
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // Skip if global scanning is not enabled
-      if (!this.isEnabled()) {
-        console.log('🚫 GlobalBarcodeService: Scanning not enabled, ignoring key:', e.key)
-        return
-      }
-
-      console.log('⌨️ GlobalBarcodeService: Processing key:', e.key, 'enabled:', this.isEnabled())
+      if (!this.isEnabled()) return
 
       // Ignore keys typed into inputs/textareas/contenteditable
       const target = e.target as HTMLElement | null

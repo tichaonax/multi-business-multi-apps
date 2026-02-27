@@ -132,6 +132,12 @@ export type Employee = {
     subordinates: number
     disciplinaryActions: number
   }
+  // Clock-in settings (optional — added by feature/employee-clock-in-management)
+  scheduledStartTime?: string | null
+  scheduledEndTime?: string | null
+  isClockInExempt?: boolean
+  clockInExemptReason?: string | null
+  clockInExemptApprovedBy?: string | null
   // optional UI-only / derived fields used in some pages
   currentSalary?: {
     annualSalary: number

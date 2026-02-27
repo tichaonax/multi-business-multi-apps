@@ -882,16 +882,22 @@ model EmployeeAllowances {
 }
 
 model EmployeeAttendance {
-  id          String    @id @default(uuid())
-  date        DateTime
-  status      String    @default("present")
-  notes       String?
-  checkIn     DateTime?
-  checkOut    DateTime?
-  createdAt   DateTime  @default(now())
-  employeeId  String
-  hoursWorked Decimal?  @db.Decimal(4, 2)
-  employees   Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id                     String    @id @default(uuid())
+  date                   DateTime
+  status                 String    @default("present")
+  notes                  String?
+  checkIn                DateTime?
+  checkOut               DateTime?
+  createdAt              DateTime  @default(now())
+  employeeId             String
+  hoursWorked            Decimal?  @db.Decimal(4, 2)
+  isAutoClockOut         Boolean   @default(false)
+  isApproved             Boolean   @default(true)
+  autoClockOutApprovedBy String?
+  autoClockOutApprovedAt DateTime?
+  clockInPhotoUrl        String?
+  clockOutPhotoUrl       String?
+  employees              Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, date])
   @@map("employee_attendance")
@@ -1171,6 +1177,11 @@ model Employees {
   userId                                                                    String?                       @unique
   driverLicenseNumber                                                       String?
   driverLicenseTemplateId                                                   String?
+  scheduledStartTime                                                        String?
+  scheduledEndTime                                                          String?
+  isClockInExempt                                                           Boolean                       @default(false)
+  clockInExemptReason                                                       String?
+  clockInExemptApprovedBy                                                   String?
   business_orders                                                           BusinessOrders[]
   business_stock_movements                                                  BusinessStockMovements[]
   contract_renewals                                                         ContractRenewals[]
@@ -1672,6 +1683,17 @@ model EmojiLookup {
   @@unique([emoji, description])
   @@index([description])
   @@map("emoji_lookup")
+}
+
+model Images {
+  id        String    @id @default(uuid())
+  data      Bytes
+  mimeType  String    @default("image/jpeg")
+  size      Int
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("images")
 }
 
 model InventoryDomains {
@@ -2435,8 +2457,29 @@ model Persons {
   project_transactions              ProjectTransactions[]
   meal_program_participant          MealProgramParticipants?
   outgoing_loans_as_recipient       AccountOutgoingLoans[]   @relation("OutgoingLoanPerson")
+  external_clock_ins                ExternalClockIn[]
 
   @@map("persons")
+}
+
+model ExternalClockIn {
+  id          String    @id @default(uuid())
+  type        String    // 'contractor' | 'visitor'
+  personId    String?
+  visitorName String?
+  businessId  String
+  date        DateTime
+  clockIn     DateTime?
+  clockOut    DateTime?
+  hoursWorked Decimal?  @db.Decimal(6, 2)
+  notes       String?
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  persons     Persons?  @relation(fields: [personId], references: [id])
+
+  @@map("external_clock_in")
 }
 
 model ProductAttributes {

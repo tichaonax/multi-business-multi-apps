@@ -13,6 +13,8 @@ import { useToastContext } from '@/components/ui/toast'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import type { ReceiptData } from '@/types/printing'
 
 interface CartItem {
@@ -84,11 +86,20 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed' | 'none'>('none')
   const [discountValue, setDiscountValue] = useState(0)
   const [customerInfo, setCustomerInfo] = useState<{
-    id?: string
+    id: string
+    customerNumber: string
+    name: string
     email?: string
     phone?: string
-    loyaltyPoints?: number
-  } | null>(null)
+    customerType: string
+  } | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const saved = localStorage.getItem(`pos-customer-${businessId}`)
+      return saved ? JSON.parse(saved) : null
+    } catch { return null }
+  })
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showSupervisorModal, setShowSupervisorModal] = useState(false)
   const [printReceipt, setPrintReceipt] = useState(true)
@@ -114,6 +125,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [productSearchTerm, setProductSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+
+  // Browse tab: 'quickadd' | 'bales'
+  const [browseTab, setBrowseTab] = useState<'quickadd' | 'bales'>('quickadd')
+  const [bales, setBales] = useState<any[]>([])
+  const [balesLoading, setBalesLoading] = useState(false)
+  const [baleSearch, setBaleSearch] = useState('')
 
   // Pinned quick-add products (persisted in localStorage)
   const [pinnedProductIds, setPinnedProductIds] = useState<Set<string>>(new Set())
@@ -237,6 +254,31 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     }
   }, [])
 
+  // Persist customerInfo to localStorage so Basic POS picks it up on switch
+  useEffect(() => {
+    if (!businessId) return
+    try {
+      if (customerInfo) localStorage.setItem(`pos-customer-${businessId}`, JSON.stringify(customerInfo))
+      else localStorage.removeItem(`pos-customer-${businessId}`)
+    } catch {}
+  }, [customerInfo, businessId])
+
+  // Listen for external cart-clear events (e.g. from mini-cart "Clear All" button)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail || detail.businessId !== businessId) return
+      setCart([])
+      setSupervisorOverride(null)
+      setCustomerInfo(null)
+      setAppliedCoupon(null)
+      try { localStorage.removeItem(`applied-coupon-${businessId}`) } catch {}
+      try { localStorage.removeItem(`pos-customer-${businessId}`) } catch {}
+    }
+    window.addEventListener('pos:cart-cleared', handler)
+    return () => window.removeEventListener('pos:cart-cleared', handler)
+  }, [businessId])
+
   // Toggle pin/unpin a product for quick add
   const toggleQuickAdd = (productId: string) => {
     setPinnedProductIds(prev => {
@@ -281,15 +323,44 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
       if (savedCart) {
         existingCart = JSON.parse(savedCart).map((item: any) => {
+          const normalized: any = { ...item }
+
+          // Ensure id exists
+          if (!normalized.id) {
+            normalized.id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          }
+
           // Normalize UniversalPOS format (uses `unitPrice`) into AdvancedPOS format (uses `price`)
-          if (item.price === undefined && item.unitPrice !== undefined) {
-            return { ...item, price: Number(item.unitPrice) || 0, id: item.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }
+          if (normalized.price === undefined && normalized.unitPrice !== undefined) {
+            normalized.price = Number(normalized.unitPrice) || 0
           }
-          // Ensure all items have an id (safety guard)
-          if (!item.id) {
-            return { ...item, id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }
+
+          // Extract name from nested product object if missing (Basic POS format)
+          if (!normalized.name) {
+            normalized.name =
+              item.product?.name ||
+              item.productName ||
+              item.name ||
+              'Unknown Item'
           }
-          return item
+
+          // Extract sku from nested product/variant if missing
+          if (!normalized.sku) {
+            normalized.sku =
+              item.variant?.sku ||
+              item.product?.sku ||
+              item.sku ||
+              normalized.variantId ||
+              normalized.productId ||
+              ''
+          }
+
+          // Extract attributes from nested product if missing (Basic POS stores them in product.attributes)
+          if (!normalized.attributes) {
+            normalized.attributes = item.product?.attributes || undefined
+          }
+
+          return normalized as CartItem
         })
       }
 
@@ -312,7 +383,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         // Merge carts - global cart is the source of truth for price; avoid doubling quantities
         const mergedCart = [...existingCart]
         importedItems.forEach(newItem => {
-          const existingIndex = mergedCart.findIndex(item => item.variantId === newItem.variantId)
+          // Match by variantId first, then by productId (covers bale items where variantId may differ)
+          const existingIndex = mergedCart.findIndex(item =>
+            (newItem.variantId && item.variantId === newItem.variantId) ||
+            (!newItem.variantId && item.productId === newItem.productId) ||
+            // Bale items: match by baleId attribute or canonical productId
+            (newItem.attributes?.baleId && item.attributes?.baleId === newItem.attributes.baleId) ||
+            (newItem.productId?.startsWith('bale_') && item.productId === newItem.productId)
+          )
           if (existingIndex >= 0) {
             // Item exists in both — always take the fresh price from global cart (localStorage may be stale)
             mergedCart[existingIndex].price = newItem.price
@@ -361,26 +439,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     if (!businessId || !cartLoaded) return
 
     try {
-      // Replace global cart to match POS cart exactly
-      const globalCartItems = cart.map(item => {
-        console.log('🔄 [POS Sync] Item:', {
-          name: item.name,
-          sku: item.sku,
-          variantId: item.variantId,
-          id: item.id
-        })
-        return {
-          productId: item.productId,
-          variantId: item.variantId!,
-          name: item.name,
-          sku: item.sku,
-          price: item.price,
-          quantity: item.quantity,
-          attributes: item.attributes,
-          imageUrl: item.imageUrl
-        }
-      })
-      console.log('🔄 [POS] Syncing', globalCartItems.length, 'items to global cart')
+      const globalCartItems = cart.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        variantId: item.variantId!,
+        name: item.name,
+        sku: item.sku,
+        price: item.price,
+        quantity: item.quantity,
+        attributes: item.attributes,
+        imageUrl: item.imageUrl
+      }))
       replaceGlobalCart(globalCartItems)
     } catch (error) {
       console.error('❌ [POS] Failed to sync to global cart:', error)
@@ -563,7 +632,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             }
           } catch { /* ignore localStorage errors */ }
 
-          setQuickAddProducts([...pinnedProducts, ...wifiTokenProducts, ...products])
+          setQuickAddProducts([...pinnedProducts, ...wifiTokenProducts, ...products].filter(
+            p => p.variants.some((v: any) => v.price > 0)
+          ))
         }
       }
     } catch (error) {
@@ -577,6 +648,24 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   useEffect(() => {
     loadProducts()
   }, [loadProducts])
+
+  // Load bale items eagerly on mount (not just on tab click) so the search box can find them
+  useEffect(() => {
+    if (!currentBusiness?.businessId) return
+    if (bales.length > 0) return // already loaded
+    ;(async () => {
+      try {
+        setBalesLoading(true)
+        const res = await fetch(`/api/clothing/bales?businessId=${currentBusiness.businessId}`)
+        const data = await res.json()
+        if (data.success) setBales(data.data)
+      } catch (err) {
+        console.error('Failed to load bales for Advanced POS:', err)
+      } finally {
+        setBalesLoading(false)
+      }
+    })()
+  }, [currentBusiness?.businessId, bales.length])
 
   // Auto-reload products when window regains focus (e.g., after seeding)
   // DISABLED: This was causing issues when switching between businesses
@@ -655,7 +744,22 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               p.id.startsWith('r710_') && p.name.toLowerCase().includes(searchLower)
             )
 
-            setSearchResults([...matchingWifiTokens, ...products])
+            // Also search locally-loaded bales by SKU, batchNumber, or category name
+            const matchingBales = bales
+              .filter(b =>
+                b.sku?.toLowerCase().includes(searchLower) ||
+                b.batchNumber?.toLowerCase().includes(searchLower) ||
+                b.category?.name?.toLowerCase().includes(searchLower)
+              )
+              .map(b => ({
+                id: `bale_${b.id}`,
+                name: `${b.category?.name || 'Bale'} - ${b.batchNumber}`,
+                isBale: true,
+                baleData: b,
+                variants: [] as any[]
+              }))
+
+            setSearchResults([...matchingWifiTokens, ...matchingBales, ...products])
           }
         }
       } catch (error) {
@@ -707,9 +811,48 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     broadcastCartState(newCart)
   }
 
-  // Overloaded function for scanner integration
-  const addToCartFromScanner = (product: UniversalProduct, variantId?: string, quantity = 1) => {
-    const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined
+  // Add a bale item directly to cart
+  const addBaleToCart = (bale: any) => {
+    const price = parseFloat(bale.unitPrice)
+    const baleVariantId = `bale_${bale.id}`
+    // Match by baleId attribute OR by the canonical variantId/productId (covers items added via Basic POS)
+    const isSameBale = (item: CartItem) =>
+      item.attributes?.baleId === bale.id ||
+      item.variantId === baleVariantId ||
+      item.productId === baleVariantId
+    const existingItem = cart.find(isSameBale)
+    let newCart: CartItem[]
+    if (existingItem) {
+      newCart = cart.map(item =>
+        isSameBale(item)
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      )
+    } else {
+      const newItem: CartItem = {
+        id: Date.now().toString(),
+        productId: `bale_${bale.id}`,
+        variantId: `bale_${bale.id}`,
+        name: `${bale.category?.name || 'Bale'} - ${bale.batchNumber}`,
+        sku: bale.sku || bale.batchNumber,
+        price,
+        quantity: 1,
+        attributes: {
+          baleId: bale.id,
+          isBale: true,
+          bogoActive: bale.bogoActive,
+          bogoRatio: bale.bogoRatio,
+        },
+        isReturn: false,
+      }
+      newCart = [...cart, newItem]
+    }
+    setCart(newCart)
+    broadcastCartState(newCart)
+  }
+
+  const addToCartFromScanner = (product: any, variantId?: string, quantity: number = 1) => {
+    const variant = variantId ? product.variants?.find((v: any) => v.id === variantId) : undefined
     const unitPrice = variant?.price ?? product.basePrice
 
     const existingItem = cart.find(item =>
@@ -997,7 +1140,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         paymentMethod: selectedPaymentMethod,
         cashTendered: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
         change: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined,
-        customerName: customerInfo?.email || 'Walk-in Customer',
+        customerName: customerInfo?.name || 'Walk-in Customer',
         date: new Date(),
         cashierName: employeeId ? 'Employee' : undefined,
         businessSpecificData: {
@@ -1137,114 +1280,151 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   ]
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start overflow-x-hidden">
       {/* Main POS Interface */}
       <div className="xl:col-span-2 space-y-6">
-        {/* Mode Selection */}
-        <div className={`p-4 rounded-lg border ${getModeColor()}`}>
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Advanced POS System</h2>
-            <div className="flex gap-2">
+        {/* Compact mode bar + search — single row */}
+        <div className={`p-2 rounded-lg border ${getModeColor()}`}>
+          <div className="flex items-center gap-2">
+            {/* Sale / Return / Exchange */}
+            <div className="flex gap-1 flex-shrink-0">
               {(['sale', 'return', 'exchange'] as const).map((modeOption) => (
                 <button
+                  type="button"
                   key={modeOption}
                   onClick={() => setMode(modeOption)}
-                  className={`px-3 py-1 text-sm rounded capitalize ${
+                  className={`px-3 py-1.5 text-xs font-medium rounded capitalize ${
                     mode === modeOption ? 'bg-white shadow-sm' : 'hover:bg-white/50'
                   }`}
                 >
-                  {modeOption}
+                  {modeOption.charAt(0).toUpperCase() + modeOption.slice(1)}
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Product Search */}
-        <div className="card p-4">
-          <h3 className="font-semibold text-primary mb-4">Search Products</h3>
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search products by name, SKU, or barcode..."
-              value={productSearchTerm}
-              onChange={(e) => setProductSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            {productSearchTerm && (
-              <button
-                onClick={() => setProductSearchTerm('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Search Results */}
-          {productSearchTerm.trim() && (
-            <div className="mt-4">
-              {searchLoading ? (
-                <div className="text-center py-4 text-secondary">
-                  Searching...
-                </div>
-              ) : searchResults.length === 0 ? (
-                <div className="text-center py-4 text-secondary">
-                  No products found for "{productSearchTerm}"
-                </div>
+            {/* Search input — takes remaining width */}
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Search products by name, SKU, or barcode…"
+                value={productSearchTerm}
+                onChange={(e) => setProductSearchTerm(e.target.value)}
+                className="w-full px-3 py-1.5 pr-8 text-sm border border-white/40 rounded-md bg-white/20 dark:bg-black/20 placeholder-current/60 focus:outline-none focus:ring-2 focus:ring-white/60"
+              />
+              {productSearchTerm ? (
+                <button
+                  type="button"
+                  onClick={() => setProductSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-current/60 hover:text-current"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
               ) : (
-                <div className="space-y-2">
-                  {searchResults.map((product) => (
-                    <div key={product.id} className="border rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-primary">{product.name}</h4>
-                        <button
-                          type="button"
-                          onClick={() => toggleQuickAdd(product.id)}
-                          className="text-lg leading-none hover:scale-110 transition-transform ml-2"
-                          title={pinnedProductIds.has(product.id) ? 'Remove from Quick Add' : 'Pin to Quick Add'}
-                        >
-                          {pinnedProductIds.has(product.id) ? '★' : '☆'}
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {product.variants.map((variant: any) => (
-                          <div key={variant.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">
-                                {variant.attributes?.size && `${variant.attributes.size} `}
-                                {variant.attributes?.color}
-                              </span>
-                              <span className="text-sm text-secondary">({variant.stock} left)</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-current/40 text-sm">🔍</span>
+              )}
+              {/* Floating search results — no layout shift */}
+              {productSearchTerm.trim() && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl max-h-80 overflow-y-auto">
+                  {searchLoading ? (
+                    <div className="text-center py-4 text-sm text-gray-500">Searching…</div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="text-center py-4 text-sm text-gray-500">No products found for &quot;{productSearchTerm}&quot;</div>
+                  ) : (
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {searchResults.map((product) => (
+                        <div key={product.id} className="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700">
+                          {product.isBale ? (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">📦 {product.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {product.baleData.sku}{product.baleData.unitPrice ? ` · ${formatCurrency(parseFloat(product.baleData.unitPrice))}` : ''}
+                                </p>
+                              </div>
                               <button
-                                onClick={() => addToCart(product.id, variant.id)}
-                                disabled={variant.stock === 0}
-                                className="px-2 py-1 bg-primary text-white text-xs rounded hover:bg-primary/90 disabled:opacity-50"
+                                type="button"
+                                onClick={() => { addBaleToCart(product.baleData); setProductSearchTerm('') }}
+                                className="px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 flex-shrink-0"
                               >
-                                Add
+                                Add Bale
                               </button>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleQuickAdd(product.id)}
+                                  className="text-base ml-2 hover:scale-110 transition-transform flex-shrink-0"
+                                  title={pinnedProductIds.has(product.id) ? 'Remove from Quick Add' : 'Pin to Quick Add'}
+                                >
+                                  {pinnedProductIds.has(product.id) ? '★' : '☆'}
+                                </button>
+                              </div>
+                              <div className="space-y-1">
+                                {product.variants.map((variant: any) => (
+                                  <div key={variant.id} className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                                      {[variant.attributes?.size, variant.attributes?.color].filter(Boolean).join(' ') || 'Standard'}
+                                      <span className="ml-1 text-gray-400">({variant.stock} left)</span>
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-medium">{formatCurrency(variant.price)}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => { addToCart(product.id, variant.id); setProductSearchTerm('') }}
+                                        disabled={variant.stock === 0}
+                                        className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+                                      >
+                                        Add
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Quick Add Products */}
+        {/* Quick Add / Bale Items tabbed panel */}
         <div className="card p-4">
-          <h3 className="font-semibold text-primary mb-4">
-            Quick Add Products
-            {!productsLoading && quickAddProducts.length > 0 && (
-              <span className="text-sm text-secondary ml-2">
+          {/* Tab selector */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => setBrowseTab('quickadd')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  browseTab === 'quickadd'
+                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                }`}
+              >
+                Quick Add Products
+              </button>
+              <button
+                type="button"
+                onClick={() => setBrowseTab('bales')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  browseTab === 'bales'
+                    ? 'bg-white dark:bg-gray-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                }`}
+              >
+                📦 Bale Items
+              </button>
+            </div>
+            {browseTab === 'quickadd' && !productsLoading && quickAddProducts.length > 0 && (
+              <span className="text-sm text-secondary">
                 ({(() => {
                   const pinned = quickAddProducts.filter(p => pinnedProductIds.has(p.id))
                   const unpinned = quickAddProducts.filter(p => !pinnedProductIds.has(p.id))
@@ -1252,7 +1432,11 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 })()} available)
               </span>
             )}
-          </h3>
+          </div>
+
+          {/* ── Quick Add Products ── */}
+          {browseTab === 'quickadd' && (
+            <>
           {productsLoading ? (
             <div className="text-center py-8 text-secondary">
               Loading products...
@@ -1327,6 +1511,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
                             <button
+                              type="button"
                               onClick={() => addToCart(product.id, variant.id)}
                               disabled={variant.stock === 0 || variant.price < 0}
                               className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1340,6 +1525,86 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   </div>
                 </div>
                 ))
+              })()}
+            </div>
+          )}
+            </>
+          )}
+
+          {/* ── Bale Items Tab ── */}
+          {browseTab === 'bales' && (
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Search by category, batch, or SKU…"
+                value={baleSearch}
+                onChange={e => setBaleSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-gray-700 dark:text-white"
+              />
+              {balesLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+                </div>
+              ) : (() => {
+                const filtered = bales.filter(b =>
+                  !baleSearch ||
+                  b.category?.name?.toLowerCase().includes(baleSearch.toLowerCase()) ||
+                  b.batchNumber?.toLowerCase().includes(baleSearch.toLowerCase()) ||
+                  b.sku?.toLowerCase().includes(baleSearch.toLowerCase())
+                )
+                if (filtered.length === 0) return (
+                  <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+                    {baleSearch ? 'No bale items match your search' : 'No bale items available'}
+                  </div>
+                )
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
+                    {filtered.map(bale => {
+                      const outOfStock = bale.remainingCount <= 0
+                      const price = parseFloat(bale.unitPrice)
+                      return (
+                        <div
+                          key={bale.id}
+                          className={`rounded-xl border p-3 flex flex-col gap-2 ${
+                            outOfStock
+                              ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 opacity-60'
+                              : 'bg-white dark:bg-gray-800 border-emerald-200 dark:border-emerald-800 hover:shadow-md'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                {bale.category?.emoji || '📦'} {bale.category?.name || 'Bale'}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{bale.batchNumber}</p>
+                              {bale.sku && <p className="text-xs text-gray-400">SKU: {bale.sku}</p>}
+                            </div>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                              outOfStock
+                                ? 'bg-gray-100 text-gray-500'
+                                : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                            }`}>
+                              {outOfStock ? 'Out' : `${bale.remainingCount} left`}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between mt-auto">
+                            <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                              {formatCurrency(price)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => addBaleToCart(bale)}
+                              disabled={outOfStock}
+                              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
               })()}
             </div>
           )}
@@ -1378,12 +1643,24 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       </div>
 
       {/* Cart and Checkout */}
-      <div className="space-y-6">
+      <div className="space-y-6 sticky top-20 self-start max-h-[calc(100vh-5.5rem)] overflow-y-auto">
+        {/* Customer lookup — top of cart column to match Basic POS workflow */}
+        <div className="card p-4">
+          <CustomerLookup
+            businessId={businessId}
+            selectedCustomer={customerInfo}
+            onSelectCustomer={(customer) => setCustomerInfo(customer)}
+            onCreateCustomer={() => setShowAddCustomerModal(true)}
+            allowWalkIn={true}
+          />
+        </div>
+
         {/* Cart */}
         <div className="card p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-primary">Cart ({cart.length})</h3>
             <button
+              type="button"
               onClick={() => setCart([])}
               className="text-sm text-red-600 hover:text-red-700"
             >
@@ -1391,45 +1668,51 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             </button>
           </div>
 
-          <div className="space-y-3 max-h-64 overflow-y-auto">
+          <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
             {cart.length === 0 ? (
-              <div className="text-center py-8 text-secondary">
+              <div className="text-center py-6 text-secondary text-sm">
                 Cart is empty
               </div>
             ) : (
               cart.map((item) => (
-                <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg border ${
-                  item.isReturn ? 'bg-red-50 border-red-200' : 'bg-gray-50 dark:bg-gray-800'
+                <div key={item.id} className={`flex items-start gap-2 p-2 rounded-lg border ${
+                  item.isReturn ? 'bg-red-50 border-red-200 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                 }`}>
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">{item.name}</div>
-                    <div className="text-xs text-secondary">
-                      SKU: {item.sku}
-                      {item.attributes?.size && ` • Size: ${item.attributes.size}`}
-                      {item.attributes?.color && ` • ${item.attributes.color}`}
-                      {item.variant?.name && ` • ${item.variant.name}`}
-                      {item.isReturn && item.returnReason && ` • Return: ${item.returnReason}`}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">
+                      {item.name || (item as any).product?.name || (item as any).productName || 'Unknown Item'}
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
+                    {(item.attributes?.size || item.attributes?.color || item.variant?.name || item.sku || item.isReturn) && (
+                      <div className="text-xs text-secondary truncate">
+                        {item.sku && <span className="font-mono">{item.sku}</span>}
+                        {item.attributes?.size && ` · ${item.attributes.size}`}
+                        {item.attributes?.color && ` · ${item.attributes.color}`}
+                        {item.variant?.name && ` · ${item.variant.name}`}
+                        {item.isReturn && item.returnReason && ` · ${item.returnReason}`}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 mt-1">
                       <input
                         type="number"
                         min="1"
                         value={item.quantity}
                         onChange={(e) => updateQuantity(item.id, parseInt(e.target.value))}
-                        className="w-16 px-2 py-1 text-xs border rounded"
+                        className="w-12 px-1.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
                       />
-                      <span className="text-sm">× {formatCurrency(item.price - (item.discount || 0))}</span>
+                      <span className="text-xs text-secondary">× {formatCurrency(item.price - (item.discount || 0))}</span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-medium">
+                  <div className="flex items-center gap-0.5 flex-shrink-0 pt-0.5">
+                    <span className="font-bold text-sm min-w-[56px] text-right">
                       {formatCurrency((item.price - (item.discount || 0)) * item.quantity)}
-                    </div>
+                    </span>
                     <button
+                      type="button"
                       onClick={() => removeFromCart(item.id)}
-                      className="text-xs text-red-600 hover:text-red-700"
+                      className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      title="Remove"
                     >
-                      Remove
+                      ✕
                     </button>
                   </div>
                 </div>
@@ -1460,6 +1743,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                     <span className="text-xs">🏷️</span>
                     <span className="text-sm font-medium">Coupon ({appliedCoupon.code}):</span>
                     <button
+                      type="button"
                       onClick={() => {
                         setAppliedCoupon(null)
                         try { localStorage.removeItem(`applied-coupon-${businessId}`) } catch {}
@@ -1494,6 +1778,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             )}
 
             <button
+              type="button"
               onClick={() => setShowPaymentModal(true)}
               disabled={cart.length === 0}
               className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-lg"
@@ -1503,31 +1788,30 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           </div>
         ) : null}
 
-        {/* Customer Info */}
-        <div className="card p-4">
-          <h3 className="font-semibold text-primary mb-3">Customer Info</h3>
-          <div className="space-y-2">
-            <input
-              type="email"
-              placeholder="Customer email"
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-            />
-            <input
-              type="tel"
-              placeholder="Phone number"
-              className="w-full px-3 py-2 border rounded-lg text-sm"
-            />
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="printReceipt"
-                checked={printReceipt}
-                onChange={(e) => setPrintReceipt(e.target.checked)}
-              />
-              <label htmlFor="printReceipt" className="text-sm">Print receipt</label>
-            </div>
-          </div>
-        </div>
+        {showAddCustomerModal && (
+          <AddCustomerModal
+            onClose={() => setShowAddCustomerModal(false)}
+            onCustomerCreated={(newCustomer) => {
+              setShowAddCustomerModal(false)
+              if (newCustomer?.id) {
+                const displayName =
+                  newCustomer.fullName ||
+                  newCustomer.name ||
+                  `${newCustomer.firstName || ''} ${newCustomer.lastName || ''}`.trim() ||
+                  newCustomer.email ||
+                  'New Customer'
+                setCustomerInfo({
+                  id: newCustomer.id,
+                  customerNumber: newCustomer.customerNumber || '',
+                  name: displayName,
+                  email: newCustomer.email,
+                  phone: newCustomer.phone,
+                  customerType: newCustomer.customerType || 'INDIVIDUAL',
+                })
+              }
+            }}
+          />
+        )}
       </div>
 
       {/* Payment Modal */}
@@ -1595,6 +1879,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setShowPaymentModal(false)
                     setCashTendered('')
@@ -1655,12 +1940,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() => setShowSupervisorModal(false)}
                   className="flex-1 py-2 px-4 border rounded-lg hover:bg-gray-50 dark:bg-gray-800"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     const supervisorId = (document.querySelector('input[placeholder="Enter supervisor ID"]') as HTMLInputElement)?.value
                     const pin = (document.querySelector('input[placeholder="Enter PIN"]') as HTMLInputElement)?.value

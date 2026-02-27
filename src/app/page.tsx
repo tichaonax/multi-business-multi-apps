@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
 
 export default function HomePage() {
   const { data: session, status } = useSession()
@@ -92,6 +93,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen page-background">
+      <CardScanOverlay />
       <div className="flex flex-col items-center justify-center min-h-screen px-4">
         <div className="max-w-md w-full space-y-8 text-center">
           <div>
@@ -129,6 +131,7 @@ export default function HomePage() {
             >
               Sign In to Get Started
             </Link>
+            <p className="text-xs text-gray-400 mt-3">Employees — scan your ID card to clock in</p>
             
           </div>
           

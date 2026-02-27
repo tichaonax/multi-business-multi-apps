@@ -10,7 +10,18 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 
 interface AddCustomerModalProps {
   onClose: () => void
-  onCustomerCreated: () => void
+  onCustomerCreated: (customer?: {
+    id: string
+    customerNumber?: string
+    name?: string
+    fullName?: string
+    firstName?: string
+    lastName?: string
+    email?: string
+    phone?: string
+    customerType?: string
+    [key: string]: any
+  }) => void
 }
 
 export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModalProps) {
@@ -112,7 +123,7 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
       const data = await response.json()
 
       if (response.ok) {
-        onCustomerCreated()
+        onCustomerCreated(data.data || data)
       } else {
         setError(data.error || 'Failed to create customer')
       }

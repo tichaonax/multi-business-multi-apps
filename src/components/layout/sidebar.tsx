@@ -1572,6 +1572,16 @@ export function Sidebar() {
                 <span>Disciplinary Actions</span>
               </Link>
             )}
+
+            {(hasPermission('canManageEmployees') || hasPermission('canEditEmployees')) && (
+              <Link
+                href="/employees/clock-in"
+                className="sidebar-link flex items-center space-x-3"
+              >
+                <span className="text-lg">🕐</span>
+                <span>Clock-In Management</span>
+              </Link>
+            )}
             </>)}
           </>
         )}

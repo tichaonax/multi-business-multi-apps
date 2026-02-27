@@ -10,6 +10,7 @@ import { hasPermission } from '@/lib/permission-utils'
 import { SalaryIncreaseModal } from '@/components/employees/salary-increase-modal'
 import { PayrollExportModal } from '@/components/payroll/payroll-export-modal'
 import { AddEmployeeModal } from '@/components/employees/add-employee-modal'
+import { EmployeeIdCard } from '@/components/clock-in/employee-id-card'
 
 interface Employee {
   id: string
@@ -93,6 +94,21 @@ export default function EmployeesPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [payrollExportModal, setPayrollExportModal] = useState(false)
   const [addEmployeeModal, setAddEmployeeModal] = useState(false)
+  const [printCardEmployee, setPrintCardEmployee] = useState<Employee | null>(null)
+
+  const printIdCard = (emp: Employee) => {
+    setTimeout(() => {
+      const cardEl = document.getElementById('employee-id-card')
+      if (!cardEl) return
+      const printWindow = window.open('', '_blank', 'width=460,height=360')
+      if (!printWindow) return
+      const styles = Array.from(document.styleSheets)
+        .map((sheet) => { try { return Array.from(sheet.cssRules).map((r) => r.cssText).join('\n') } catch { return '' } })
+        .join('\n')
+      printWindow.document.write(`<!DOCTYPE html><html><head><title>ID Card — ${emp.fullName}</title><style>${styles}body{margin:20px;display:flex;justify-content:center;}@media print{body{margin:0;}}</style></head><body>${cardEl.outerHTML}<script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`)
+      printWindow.document.close()
+    }, 300)
+  }
 
   const canViewEmployees = currentUser && hasPermission(currentUser, 'canViewEmployees')
   const canCreateEmployees = currentUser && hasPermission(currentUser, 'canCreateEmployees')
@@ -637,6 +653,13 @@ export default function EmployeesPage() {
                             💰 Salary
                           </button>
                         )}
+                        <button
+                          className="text-xs px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded font-medium"
+                          onClick={() => setPrintCardEmployee(employee)}
+                          title="Print ID Card"
+                        >
+                          🪪 ID Card
+                        </button>
                       </div>
                     </div>
                   )
@@ -818,6 +841,13 @@ export default function EmployeesPage() {
                                   💰
                                 </button>
                               )}
+                              <button
+                                className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                                onClick={() => setPrintCardEmployee(employee)}
+                                title="Print ID Card"
+                              >
+                                🪪
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -947,6 +977,43 @@ export default function EmployeesPage() {
             setTimeout(() => setMessage(null), 5000)
           }}
         />
+      )}
+
+      {/* Print ID Card Modal */}
+      {printCardEmployee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white">🪪 Employee ID Card</h3>
+              <button onClick={() => setPrintCardEmployee(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+            </div>
+            <EmployeeIdCard
+              employee={{
+                id: printCardEmployee.id,
+                fullName: printCardEmployee.fullName ?? '',
+                employeeNumber: printCardEmployee.employeeNumber ?? printCardEmployee.id,
+                phone: printCardEmployee.phone ?? null,
+                profilePhotoUrl: (printCardEmployee as any).profilePhotoUrl ?? null,
+                jobTitle: printCardEmployee.jobTitle ? { title: printCardEmployee.jobTitle.title ?? printCardEmployee.jobTitle, department: printCardEmployee.jobTitle.department ?? null } : null,
+                primaryBusiness: printCardEmployee.primaryBusiness ? { name: printCardEmployee.primaryBusiness.name ?? printCardEmployee.primaryBusiness } : null,
+              }}
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setPrintCardEmployee(null)}
+                className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => printIdCard(printCardEmployee)}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
+                🖨️ Print
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </ContentLayout>
   )

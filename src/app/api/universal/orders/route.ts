@@ -555,7 +555,10 @@ export async function POST(request: NextRequest) {
 
       // Update stock for physical products (regular items only)
       for (const item of regularItems) {
-        const variant = variants.find(v => v.id === item.productVariantId)!
+        // Skip items with no variant (e.g. service products with null productVariantId)
+        if (!item.productVariantId) continue
+        const variant = variants.find(v => v.id === item.productVariantId)
+        if (!variant) continue
         if ((variant as any).businessProducts?.productType === 'PHYSICAL') {
           await tx.product_variants.update({
             where: { id: item.productVariantId },

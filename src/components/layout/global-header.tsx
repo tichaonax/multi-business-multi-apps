@@ -869,16 +869,14 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
   }
 
   const handleSignOut = () => {
-    // Clear any stored callback URLs and redirect to home page
     const currentOrigin = window.location.origin
     signOut({
-      callbackUrl: `${currentOrigin}/`,
+      callbackUrl: `${currentOrigin}/auth/signin`,
       redirect: true
     }).then(() => {
-      // Fallback: if NextAuth doesn't redirect properly, do it manually
       setTimeout(() => {
-        if (window.location.pathname !== '/') {
-          window.location.href = `${currentOrigin}/`
+        if (!window.location.pathname.startsWith('/auth')) {
+          window.location.href = `${currentOrigin}/auth/signin`
         }
       }, 100)
     })

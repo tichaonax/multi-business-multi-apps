@@ -97,6 +97,24 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
     onError: (error) => console.error('[Customer Display] Sync error:', error)
   })
 
+  // Load selected customer from localStorage (shared with Advanced POS)
+  useEffect(() => {
+    if (!businessId) return
+    try {
+      const saved = localStorage.getItem(`pos-customer-${businessId}`)
+      if (saved) setSelectedCustomer(JSON.parse(saved))
+    } catch {}
+  }, [businessId])
+
+  // Save selected customer to localStorage whenever it changes
+  useEffect(() => {
+    if (!businessId) return
+    try {
+      if (selectedCustomer) localStorage.setItem(`pos-customer-${businessId}`, JSON.stringify(selectedCustomer))
+      else localStorage.removeItem(`pos-customer-${businessId}`)
+    } catch {}
+  }, [selectedCustomer, businessId])
+
   // Track if cart has been loaded from localStorage to prevent overwriting on mount
   const [cartLoaded, setCartLoaded] = useState(false)
 
@@ -216,6 +234,25 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
     window.addEventListener('pos:external-add', handler)
     return () => window.removeEventListener('pos:external-add', handler)
+  }, [businessId])
+
+  // Listen for external cart-clear events (e.g. from mini-cart "Clear All" button)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail || detail.businessId !== businessId) return
+      setCart([])
+      setDiscountAmount(0)
+      setSelectedCustomer(null)
+      setCustomerInfo({ name: '' })
+      setAppliedReward(null)
+      setSkipRewardThisTime(false)
+      autoAppliedForRef.current = null
+      setError(null)
+      try { localStorage.removeItem(`pos-customer-${businessId}`) } catch {}
+    }
+    window.addEventListener('pos:cart-cleared', handler)
+    return () => window.removeEventListener('pos:cart-cleared', handler)
   }, [businessId])
 
   // Broadcast cart state to customer display
@@ -503,13 +540,14 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           change: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totalAmount : undefined
         },
         items: cart.map(item => ({
-          productVariantId: item.variantId || item.product.variants?.[0]?.id,
+          productVariantId: item.variantId || item.product.variants?.[0]?.id || null,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           discountAmount: item.discountAmount,
           attributes: {
             productName: (item as any).productName || item.product?.name || (item as any).name || 'Item',
             variantName: item.variant?.name,
+            sku: item.product?.sku,
             ...(item.product?.attributes || {}),
             ...(item.scannedBarcode && { scannedBarcode: item.scannedBarcode })
           }
@@ -757,33 +795,32 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                 <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Scan or browse to add items</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-2">
+              <div className="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1">
                 {cart.map((item, index) => (
-                  <div key={item.id || `cart-item-${index}`} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-sm transition-shadow">
+                  <div key={item.id || `cart-item-${index}`} className="flex items-start gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-sm transition-shadow">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-gray-900 dark:text-white truncate">{(item as any).productName || item.product?.name || (item as any).name || 'Item'}</h4>
+                      <h4 className="font-medium text-sm text-gray-900 dark:text-white truncate">{(item as any).productName || item.product?.name || (item as any).name || 'Item'}</h4>
                       {item.variant?.name && (
-                        <p className="text-sm text-blue-600 dark:text-blue-400 mt-0.5">{item.variant.name}</p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400">{item.variant.name}</p>
                       )}
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {formatCurrency(item.unitPrice)} each
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateCartItem(index, { quantity: parseInt(e.target.value) || 1 })}
+                          className="w-12 px-1.5 py-0.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">× {formatCurrency(item.unitPrice)}</span>
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateCartItem(index, { quantity: parseInt(e.target.value) || 1 })}
-                        className="w-16 px-2 py-1.5 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <span className="font-bold text-gray-900 dark:text-white min-w-[80px] text-right">
+                    <div className="flex items-center gap-0.5 flex-shrink-0 pt-0.5">
+                      <span className="font-bold text-sm text-gray-900 dark:text-white min-w-[60px] text-right">
                         {formatCurrency(item.totalPrice)}
                       </span>
                       <button
                         onClick={() => removeFromCart(index)}
-                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                         title="Remove item"
                       >
                         ✕
@@ -797,48 +834,45 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
           {/* Totals */}
           {cart.length > 0 && (
-            <div className="border-t-2 border-gray-200 dark:border-gray-700 pt-4 mt-3 bg-gray-50 dark:bg-gray-800/50 -mx-4 px-4 pb-4 rounded-b-xl">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-medium">Subtotal:</span>
-                  <span className="font-semibold">{formatCurrency(subtotal)}</span>
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-2 space-y-1.5">
+              <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                <span>Subtotal:</span>
+                <span className="font-medium tabular-nums">{formatCurrency(subtotal)}</span>
+              </div>
+
+              {taxRate > 0 && (
+                <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                  <span>
+                    {config?.taxLabel || 'Tax'} ({taxRate}%)
+                    {taxIncludedInPrice && <span className="text-xs ml-1 opacity-70">(incl.)</span>}
+                  </span>
+                  <span className="font-medium tabular-nums">{formatCurrency(taxAmount)}</span>
                 </div>
+              )}
 
-                {taxRate > 0 && (
-                  <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
-                    <span className="font-medium">
-                      {config?.taxLabel || 'Tax'} ({taxRate}%)
-                      {taxIncludedInPrice && <span className="text-xs text-gray-500 ml-1">(incl.)</span>}
-                      :
-                    </span>
-                    <span className="font-semibold">{formatCurrency(taxAmount)}</span>
-                  </div>
-                )}
-
-                {rewardCredit > 0 && (
-                  <div className="flex justify-between text-sm text-green-700 dark:text-green-400">
-                    <span className="font-medium flex items-center gap-1"><Gift className="w-3.5 h-3.5" /> Reward Credit:</span>
-                    <span className="font-semibold">-{formatCurrency(rewardCredit)}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between items-center text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-medium">Discount:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={subtotal}
-                    step="0.01"
-                    value={discountAmount}
-                    onChange={(e) => setDiscountAmount(e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                    className="w-24 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-transparent font-semibold text-sm"
-                  />
+              {rewardCredit > 0 && (
+                <div className="flex justify-between items-center text-sm text-green-600 dark:text-green-400">
+                  <span className="flex items-center gap-1"><Gift className="w-3.5 h-3.5" /> Reward:</span>
+                  <span className="font-medium tabular-nums">-{formatCurrency(rewardCredit)}</span>
                 </div>
+              )}
 
-                <div className="flex justify-between text-xl font-bold pt-2 border-t-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
-                  <span>Total:</span>
-                  <span className="text-blue-600 dark:text-blue-400">{formatCurrency(totalAmount)}</span>
-                </div>
+              <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                <span>Discount:</span>
+                <input
+                  type="number"
+                  min="0"
+                  max={subtotal}
+                  step="0.01"
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                  className="w-20 px-1.5 py-0.5 text-right text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-transparent tabular-nums"
+                />
+              </div>
+
+              <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-gray-300 dark:border-gray-600">
+                <span className="text-gray-900 dark:text-white">Total:</span>
+                <span className="text-blue-600 dark:text-blue-400 tabular-nums">{formatCurrency(totalAmount)}</span>
               </div>
             </div>
           )}
@@ -876,7 +910,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                     placeholder="Enter amount received"
                     value={cashTendered}
                     onChange={(e) => setCashTendered(e.target.value)}
-                    className="input-field w-full text-xl font-bold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="input-field w-full text-base font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     autoFocus
                   />
                   {cashTendered && parseFloat(cashTendered) >= totalAmount && (
@@ -968,10 +1002,24 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
       {showAddCustomerModal && (
         <AddCustomerModal
           onClose={() => setShowAddCustomerModal(false)}
-          onCustomerCreated={() => {
+          onCustomerCreated={(newCustomer) => {
             setShowAddCustomerModal(false)
-            // Optionally refresh customer list or show success message
-            customAlert({ title: 'Success', description: 'Customer created successfully! You can now search for them.' })
+            if (newCustomer?.id) {
+              const displayName =
+                newCustomer.fullName ||
+                newCustomer.name ||
+                `${newCustomer.firstName || ''} ${newCustomer.lastName || ''}`.trim() ||
+                newCustomer.email ||
+                'New Customer'
+              setSelectedCustomer({
+                id: newCustomer.id,
+                customerNumber: newCustomer.customerNumber || '',
+                name: displayName,
+                email: newCustomer.email,
+                phone: newCustomer.phone,
+                customerType: newCustomer.customerType || 'INDIVIDUAL',
+              })
+            }
           }}
         />
       )}

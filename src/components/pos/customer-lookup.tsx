@@ -32,8 +32,33 @@ export function CustomerLookup({
   const [loading, setLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [isWalkIn, setIsWalkIn] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const searchInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const updateDropdownPosition = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setDropdownStyle({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (showDropdown) {
+      updateDropdownPosition()
+      window.addEventListener('scroll', updateDropdownPosition, true)
+      window.addEventListener('resize', updateDropdownPosition)
+      return () => {
+        window.removeEventListener('scroll', updateDropdownPosition, true)
+        window.removeEventListener('resize', updateDropdownPosition)
+      }
+    }
+  }, [showDropdown])
 
   // Search customers as user types
   useEffect(() => {
@@ -41,6 +66,10 @@ export function CustomerLookup({
       setCustomers([])
       return
     }
+
+    // Show dropdown immediately (with Walk-in) while waiting for API
+    updateDropdownPosition()
+    setShowDropdown(true)
 
     const delaySearch = setTimeout(() => {
       searchCustomers(searchQuery)
@@ -69,15 +98,19 @@ export function CustomerLookup({
     setLoading(true)
     try {
       const response = await fetch(
-        `/api/customers?businessId=${businessId}&search=${encodeURIComponent(query)}&limit=10`
+        `/api/pos/customer-search?businessId=${encodeURIComponent(businessId)}&search=${encodeURIComponent(query)}&limit=10`
       )
+      const data = await response.json()
       if (response.ok) {
-        const data = await response.json()
         setCustomers(data.customers || [])
-        setShowDropdown(true)
+      } else {
+        console.error('[CustomerLookup] Search error:', data.error)
+        setCustomers([])
       }
+      setShowDropdown(true)
     } catch (error) {
-      console.error('Error searching customers:', error)
+      console.error('[CustomerLookup] Network error:', error)
+      setCustomers([])
     } finally {
       setLoading(false)
     }
@@ -169,7 +202,7 @@ export function CustomerLookup({
         </div>
       ) : (
         // Show search input
-        <div className="relative">
+        <div ref={containerRef} className="relative">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
@@ -178,7 +211,8 @@ export function CustomerLookup({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => {
-                if (customers.length > 0) setShowDropdown(true)
+                updateDropdownPosition()
+                setShowDropdown(true)
               }}
               placeholder="Search by name or customer ID..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-primary focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -194,7 +228,8 @@ export function CustomerLookup({
           {showDropdown && (searchQuery.length >= 2 || allowWalkIn) && (
             <div
               ref={dropdownRef}
-              className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+              className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+              style={dropdownStyle}
             >
               {/* Walk-in Customer Option */}
               {allowWalkIn && (

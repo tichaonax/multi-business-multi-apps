@@ -1,12 +1,12 @@
 'use client'
 
-
 // Force dynamic rendering for session-based pages
-export const dynamic = 'force-dynamic';
-import { signIn, getSession } from 'next-auth/react'
+export const dynamic = 'force-dynamic'
+import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import HealthIndicator from '@/components/ui/health-indicator'
+import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
 
 export default function SignIn() {
   const [identifier, setIdentifier] = useState('')
@@ -15,6 +15,7 @@ export default function SignIn() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
+  // ── Normal login submit ────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -32,16 +33,27 @@ export default function SignIn() {
       } else {
         router.push('/auth/redirect')
       }
-    } catch (error) {
+    } catch {
       setError('An error occurred')
     } finally {
       setLoading(false)
     }
   }
 
+  // ── Scan overlay helpers ───────────────────────────────────────────────────
+  const formatTime = (iso: string | null | undefined) => {
+    if (!iso) return ''
+    return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const dismissOverlay = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    setScanState('idle')
+    setScanResult(null)
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center page-background px-4">
-      {/* Health Status Indicator */}
       <HealthIndicator position="bottom-right" />
 
       <div className="max-w-md w-full space-y-8">
@@ -49,14 +61,15 @@ export default function SignIn() {
           <div className="mx-auto w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-4">
             <span className="text-4xl text-white">🏢</span>
           </div>
-          <h2 className="text-3xl font-bold text-primary mb-2">
-            Welcome Back
-          </h2>
+          <h2 className="text-3xl font-bold text-primary mb-2">Welcome Back</h2>
           <p className="text-secondary">
             Sign in to access your business management platform
           </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Employees — scan your ID card to clock in
+          </p>
         </div>
-        
+
         <div className="card p-8">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
@@ -69,12 +82,12 @@ export default function SignIn() {
                 type="text"
                 required
                 className="input-field"
-                placeholder={process.env.NODE_ENV === 'development' ? "admin@business.local or username" : "Enter your email or username"}
+                placeholder={process.env.NODE_ENV === 'development' ? 'admin@business.local or username' : 'Enter your email or username'}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
               />
             </div>
-            
+
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Password
@@ -90,7 +103,7 @@ export default function SignIn() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            
+
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex">
@@ -99,7 +112,7 @@ export default function SignIn() {
                 </div>
               </div>
             )}
-            
+
             <button
               type="submit"
               disabled={loading}
@@ -107,18 +120,18 @@ export default function SignIn() {
             >
               {loading ? (
                 <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Signing in...
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  Signing in…
                 </div>
               ) : (
                 'Sign In'
               )}
             </button>
           </form>
-          
+
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="text-center text-sm text-gray-600 mb-4">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <a href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
                 Create one here
               </a>
@@ -134,6 +147,8 @@ export default function SignIn() {
           </div>
         </div>
       </div>
+
+      <CardScanOverlay />
     </div>
   )
 }

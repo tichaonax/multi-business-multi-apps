@@ -200,6 +200,9 @@ export function MiniCart() {
       } catch {}
     }
     window.dispatchEvent(new Event('coupon-removed'))
+    if (currentBusinessId) {
+      window.dispatchEvent(new CustomEvent('pos:cart-cleared', { detail: { businessId: currentBusinessId } }))
+    }
   }
 
   const handleRemoveItem = (itemId: string) => {
