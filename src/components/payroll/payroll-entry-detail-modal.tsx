@@ -123,6 +123,17 @@ export function PayrollEntryDetailModal({
     description: ''
   })
 
+  // Clock-in sync state
+  const [syncingClockIn, setSyncingClockIn] = useState(false)
+  const [clockInAnalysis, setClockInAnalysis] = useState<{
+    lateCount: number
+    earlyCount: number
+    totalLateMinutes: number
+    totalEarlyMinutes: number
+    deductionAmount: number
+    summary: string
+  } | null>(null)
+
   const [benefitForm, setBenefitForm] = useState({
     benefitTypeId: '',
     amount: 0
@@ -1232,6 +1243,21 @@ export function PayrollEntryDetailModal({
     }
   }
 
+  const handleSyncClockIn = async () => {
+    setSyncingClockIn(true)
+    try {
+      const res = await fetch(`/api/payroll/entries/${entryId}/sync-clock-in`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { onError(data.error || 'Clock-in sync failed'); return }
+      setClockInAnalysis(data)
+      await loadEntry()
+    } catch {
+      onError('Failed to sync clock-in deduction')
+    } finally {
+      setSyncingClockIn(false)
+    }
+  }
+
   const handleAddBenefit = async () => {
     try {
       if (!benefitForm.benefitTypeId || benefitForm.amount <= 0) {
@@ -1861,6 +1887,26 @@ export function PayrollEntryDetailModal({
                     />
                   </div>
                 </div>
+                {/* Clock-In Deduction Sync */}
+                {!isLocked && (
+                  <div className="flex items-center justify-between py-1">
+                    <div>
+                      <span className="text-sm font-medium text-secondary">🕐 Clock-In Deduction</span>
+                      <div className="text-xs text-secondary">Auto-calculates late arrivals &amp; early departures from attendance</div>
+                      {clockInAnalysis && (
+                        <div className="text-xs text-orange-600 mt-0.5">{clockInAnalysis.summary}</div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSyncClockIn}
+                      disabled={syncingClockIn}
+                      className="px-3 py-1 text-xs bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-400 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/40 disabled:opacity-50"
+                    >
+                      {syncingClockIn ? 'Syncing…' : '↻ Sync'}
+                    </button>
+                  </div>
+                )}
                 {/* Show payroll adjustments that are deductions as individual line items */}
                 {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').length > 0 && (
                   <div>
@@ -1869,7 +1915,12 @@ export function PayrollEntryDetailModal({
                       <div key={adj.id} className="flex justify-between ml-4 text-xs items-center">
                         {/* Show type and description */}
                         <div className="text-secondary">
-                          <span className="font-medium capitalize">{(adj.adjustmentType || adj.type || 'other').replace(/_/g, ' ')}</span>
+                          <span className="font-medium capitalize">
+                            {(adj.adjustmentType || adj.type || 'other').replace(/_/g, ' ')}
+                            {(adj.isClockInAdjustment || adj.adjustmentType === 'clock_in_deduction') && (
+                              <span className="ml-1 text-xs text-orange-500">(auto)</span>
+                            )}
+                          </span>
                           {(adj.description || adj.reason) && <span className="ml-1">- {adj.description || adj.reason}</span>}
                         </div>
                         <div className="flex items-center gap-3">

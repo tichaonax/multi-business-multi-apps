@@ -2041,6 +2041,7 @@ model PayrollAdjustments {
   createdAt                                   DateTime        @default(now())
   createdBy                                   String?
   adjustmentType                              String?
+  isClockInAdjustment                         Boolean         @default(false)
   approvedAt                                  DateTime?
   approvedBy                                  String?
   status                                      String          @default("pending")
