@@ -134,7 +134,9 @@ export default function ExpenseDepositDetailPage() {
     </ContentLayout>
   )
 
-  const sourceName = deposit.sourceBusiness?.name || 'Direct Deposit'
+  const sourceName = deposit.sourceType === 'ACCOUNT_TRANSFER'
+    ? (deposit.autoTransferSource ?? 'Auto Transfer')
+    : (deposit.sourceBusiness?.name || 'Direct Deposit')
 
   // Header actions: counts showing deposits and payments
   const headerActions = (

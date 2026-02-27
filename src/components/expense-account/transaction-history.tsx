@@ -29,6 +29,7 @@ interface Transaction {
   category?: { id: string; name: string; emoji: string }
   paymentType?: string
   isAutoTransfer?: boolean
+  autoTransferSource?: string
   receiptNumber?: string
   status?: string
   createdBy?: { id: string; name: string }
@@ -466,7 +467,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         )}
                       </td>
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                        {transaction.sourceBusiness ? (
+                        {transaction.isAutoTransfer && transaction.autoTransferSource ? (
+                          <span className="font-medium text-sky-700 dark:text-sky-400">↩ {transaction.autoTransferSource}</span>
+                        ) : transaction.sourceBusiness ? (
                           <span className="font-medium">{transaction.sourceBusiness.name}</span>
                         ) : (transaction.fundSource || transaction.fundSourceNote) ? (
                           <span className="font-medium">

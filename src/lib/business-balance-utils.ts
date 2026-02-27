@@ -46,9 +46,24 @@ export async function getBusinessBalance(businessId: string): Promise<BusinessBa
       }
     }
 
+    // Compute true balance from transaction history — guards against stale stored balance
+    const CREDIT_TYPES = ['deposit', 'transfer', 'loan_received', 'CREDIT']
+    const DEBIT_TYPES = ['withdrawal', 'loan_disbursement', 'loan_payment', 'DEBIT']
+    const [creditsAgg, debitsAgg] = await Promise.all([
+      (prisma.businessTransactions as any).aggregate({
+        where: { businessId, type: { in: CREDIT_TYPES } },
+        _sum: { amount: true },
+      }),
+      (prisma.businessTransactions as any).aggregate({
+        where: { businessId, type: { in: DEBIT_TYPES } },
+        _sum: { amount: true },
+      }),
+    ])
+    const trueBalance = Number(creditsAgg._sum?.amount ?? 0) - Math.abs(Number(debitsAgg._sum?.amount ?? 0))
+
     return {
       businessId,
-      balance: Number(account.balance),
+      balance: trueBalance,
       hasAccount: true,
       isInitialized: true
     }
