@@ -280,7 +280,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       let existingCart: CartItem[] = []
 
       if (savedCart) {
-        existingCart = JSON.parse(savedCart)
+        existingCart = JSON.parse(savedCart).map((item: any) => {
+          // Normalize UniversalPOS format (uses `unitPrice`) into AdvancedPOS format (uses `price`)
+          if (item.price === undefined && item.unitPrice !== undefined) {
+            return { ...item, price: Number(item.unitPrice) || 0, id: item.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }
+          }
+          // Ensure all items have an id (safety guard)
+          if (!item.id) {
+            return { ...item, id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }
+          }
+          return item
+        })
       }
 
       let finalCart: CartItem[] = existingCart
@@ -299,12 +309,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           attributes: item.attributes
         }))
 
-        // Merge carts - prefer global cart quantity for existing items (avoid doubling)
+        // Merge carts - global cart is the source of truth for price; avoid doubling quantities
         const mergedCart = [...existingCart]
         importedItems.forEach(newItem => {
           const existingIndex = mergedCart.findIndex(item => item.variantId === newItem.variantId)
           if (existingIndex >= 0) {
-            // Item exists in both — use the higher quantity (don't sum, that doubles)
+            // Item exists in both — always take the fresh price from global cart (localStorage may be stale)
+            mergedCart[existingIndex].price = newItem.price
+            mergedCart[existingIndex].name = newItem.name
             mergedCart[existingIndex].quantity = Math.max(mergedCart[existingIndex].quantity, newItem.quantity)
           } else {
             // New item from global cart — add it

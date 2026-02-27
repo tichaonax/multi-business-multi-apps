@@ -9,7 +9,8 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import {
   BusinessProvider,
   UniversalProductGrid,
-  UniversalPOS
+  UniversalPOS,
+  UniversalCategoryNavigation
 } from '@/components/universal'
 import { ClothingAdvancedPOS } from './components/advanced-pos'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
@@ -30,10 +31,120 @@ import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 // const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'clothing-demo-business'
 // const EMPLOYEE_ID = process.env.NEXT_PUBLIC_DEMO_EMPLOYEE_ID || 'demo-employee'
 
+// ─── Bale Items Browser (used inside Basic POS browse panel) ───────────────
+function BaleItemsBrowser({
+  businessId,
+  onAddToCart,
+}: {
+  businessId: string
+  onAddToCart: (bale: any) => void
+}) {
+  const [bales, setBales] = useState<any[]>([])
+  const [balesLoading, setBalesLoading] = useState(true)
+  const [baleSearch, setBaleSearch] = useState('')
+
+  useEffect(() => {
+    if (!businessId) return
+    ;(async () => {
+      try {
+        setBalesLoading(true)
+        const res = await fetch(`/api/clothing/bales?businessId=${businessId}`)
+        const data = await res.json()
+        if (data.success) setBales(data.data)
+      } catch (err) {
+        console.error('Failed to fetch bales for POS browser:', err)
+      } finally {
+        setBalesLoading(false)
+      }
+    })()
+  }, [businessId])
+
+  const filteredBales = bales.filter(
+    b =>
+      !baleSearch ||
+      b.category?.name?.toLowerCase().includes(baleSearch.toLowerCase()) ||
+      b.batchNumber?.toLowerCase().includes(baleSearch.toLowerCase()) ||
+      b.sku?.toLowerCase().includes(baleSearch.toLowerCase()),
+  )
+
+  return (
+    <div className="space-y-4">
+      <input
+        type="text"
+        placeholder="Search bale items by category, batch, or SKU…"
+        value={baleSearch}
+        onChange={e => setBaleSearch(e.target.value)}
+        className="input-field w-full"
+      />
+
+      {balesLoading ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+        </div>
+      ) : filteredBales.length === 0 ? (
+        <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+          {baleSearch
+            ? 'No bale items match your search'
+            : 'No bale items registered for this business'}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[540px] overflow-y-auto pr-1">
+          {filteredBales.map(bale => {
+            const outOfStock = bale.remainingCount <= 0
+            const price = parseFloat(bale.unitPrice)
+            return (
+              <div
+                key={bale.id}
+                className={`rounded-xl border p-3 flex flex-col gap-2 ${
+                  outOfStock
+                    ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 opacity-60'
+                    : 'bg-white dark:bg-gray-800 border-emerald-200 dark:border-emerald-800 hover:shadow-md transition-shadow'
+                }`}
+              >
+                <div className="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                  {bale.category?.name || 'Uncategorized'}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
+                  {bale.batchNumber}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold text-sm">
+                    ${price.toFixed(2)}
+                  </span>
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                      outOfStock
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                        : bale.remainingCount <= 5
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                        : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                    }`}
+                  >
+                    {bale.remainingCount} left
+                  </span>
+                </div>
+                <button
+                  disabled={outOfStock}
+                  onClick={() => onAddToCart(bale)}
+                  className="mt-auto py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {outOfStock ? 'Out of Stock' : '+ Add to Cart'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ClothingPOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
   const [useAdvancedPOS, setUseAdvancedPOS] = useState(true)
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
+  const [productBrowseTab, setProductBrowseTab] = useState<'products' | 'bales'>('products')
+  const [posSelectedCategory, setPosSelectedCategory] = useState<string | null>(null)
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [manualProducts, setManualProducts] = useState<any[]>([])
   const [dailySales, setDailySales] = useState<any>(null)
@@ -462,9 +573,98 @@ export default function ClothingPOSPage() {
                 onOrderComplete={handleOrderComplete}
               />
             ) : (
-              <div className={`grid gap-6 ${showProductGrid ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
-                {/* Basic POS System */}
-                <div className={showProductGrid ? '' : 'max-w-3xl mx-auto w-full'}>
+              <div className={`grid gap-4 items-start ${showProductGrid ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
+                {/* Browse Products Panel — 2/3 width */}
+                {showProductGrid && (
+                  <div className="lg:col-span-2">
+                    <div className="card p-0 lg:flex lg:flex-col lg:max-h-[calc(100vh-5.5rem)]">
+
+                      {/* Tab bar — pinned, never scrolls */}
+                      <div className="flex-shrink-0 flex flex-wrap items-center gap-3 px-4 pt-4 pb-3 border-b border-gray-100 dark:border-gray-700">
+                        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                          <button
+                            onClick={() => setProductBrowseTab('products')}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                              productBrowseTab === 'products'
+                                ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                            }`}
+                          >
+                            🛍️ Products
+                          </button>
+                          <button
+                            onClick={() => setProductBrowseTab('bales')}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                              productBrowseTab === 'bales'
+                                ? 'bg-white dark:bg-gray-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                            }`}
+                          >
+                            📦 Bale Items
+                          </button>
+                        </div>
+
+                        {/* Category pills — same row as tabs, only shown on Products tab */}
+                        {productBrowseTab === 'products' && (
+                          <div className="flex-1 min-w-0">
+                            <UniversalCategoryNavigation
+                              businessId={businessId}
+                              onCategorySelect={setPosSelectedCategory}
+                              selectedCategoryId={posSelectedCategory}
+                              layout="horizontal"
+                              showProductCounts={true}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Scrollable area — only products scroll, search is sticky inside */}
+                      <div className="flex-1 overflow-y-auto min-h-0 p-4">
+                        {productBrowseTab === 'products' && (
+                          <UniversalProductGrid
+                            businessId={businessId}
+                            onAddToCart={handleAddToCart}
+                            layout="grid"
+                            itemsPerPage={12}
+                            showCategories={false}
+                            showSearch={true}
+                            showFilters={true}
+                            stickyFilters={true}
+                            categoryId={posSelectedCategory}
+                          />
+                        )}
+                        {productBrowseTab === 'bales' && (
+                          <BaleItemsBrowser
+                            businessId={businessId}
+                            onAddToCart={(bale) => {
+                              if (bale.remainingCount <= 0) return
+                              window.dispatchEvent(new CustomEvent('pos:external-add', {
+                                detail: {
+                                  businessId,
+                                  productId: `bale_${bale.id}`,
+                                  variantId: `bale_${bale.id}`,
+                                  name: `${bale.category?.name || 'Bale'} - ${bale.batchNumber}`,
+                                  sku: bale.sku || bale.batchNumber,
+                                  price: parseFloat(bale.unitPrice),
+                                  attributes: {
+                                    baleId: bale.id,
+                                    isBale: true,
+                                    bogoActive: bale.bogoActive,
+                                    bogoRatio: bale.bogoRatio,
+                                  },
+                                },
+                              }))
+                            }}
+                          />
+                        )}
+                      </div>
+
+                    </div>
+                  </div>
+                )}
+
+                {/* POS Cart — 1/3 width on desktop, sticky */}
+                <div className={!showProductGrid ? 'max-w-2xl mx-auto w-full' : 'sticky top-20 self-start max-h-[calc(100vh-5.5rem)] overflow-y-auto rounded-xl'}>
                   <UniversalPOS
                     businessId={businessId}
                     employeeId={employeeId!}
@@ -472,27 +672,6 @@ export default function ClothingPOSPage() {
                     onOrderComplete={handleOrderComplete}
                   />
                 </div>
-
-                {/* Product Grid (when visible) */}
-                {showProductGrid && (
-                  <div>
-                    <div className="card p-4">
-                      <h2 className="text-lg font-semibold text-primary mb-4">
-                        Browse Products
-                      </h2>
-
-                      <UniversalProductGrid
-                        businessId={businessId}
-                        onAddToCart={handleAddToCart}
-                        layout="grid"
-                        itemsPerPage={8}
-                        showCategories={true}
-                        showSearch={true}
-                        showFilters={true}
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
 

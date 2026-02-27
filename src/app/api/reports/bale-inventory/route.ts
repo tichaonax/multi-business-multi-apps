@@ -92,10 +92,12 @@ export async function GET(request: NextRequest) {
     let totalRevenue = 0
     let totalBogoFree = 0
     let totalTransferred = 0
+    let totalCost = 0
 
     const baleDetails = bales.map((bale: any) => {
       const sales = salesMap[bale.id] || { totalSold: 0, totalRevenue: 0, bogoFreeGiven: 0 }
       const transferred = transferMap[bale.id] || 0
+      const costPrice = bale.costPrice != null ? Number(bale.costPrice) : null
 
       if (bale.isActive) activeBales++
       totalItems += bale.itemCount
@@ -104,10 +106,19 @@ export async function GET(request: NextRequest) {
       totalRevenue += sales.totalRevenue
       totalBogoFree += sales.bogoFreeGiven
       totalTransferred += transferred
+      if (costPrice != null) totalCost += costPrice
 
       const employeeName = bale.employee
         ? `${bale.employee.firstName} ${bale.employee.lastName}`
         : null
+
+      // Cost-recovery metrics (only meaningful when costPrice is set)
+      const revenue = Math.round(sales.totalRevenue * 100) / 100
+      const costRecoveredPct = costPrice != null && costPrice > 0
+        ? Math.min(100, Math.round((revenue / costPrice) * 100))
+        : null
+      const profit = costPrice != null ? Math.round((revenue - costPrice) * 100) / 100 : null
+      const costRecovered = costPrice != null
 
       return {
         id: bale.id,
@@ -117,18 +128,22 @@ export async function GET(request: NextRequest) {
         itemCount: bale.itemCount,
         remainingCount: bale.remainingCount,
         unitPrice: Number(bale.unitPrice),
+        costPrice,
         bogoActive: bale.bogoActive,
         bogoRatio: bale.bogoRatio,
         isActive: bale.isActive,
         createdAt: bale.createdAt,
         stockedBy: employeeName,
         sold: sales.totalSold,
-        revenue: Math.round(sales.totalRevenue * 100) / 100,
+        revenue,
         bogoFreeGiven: sales.bogoFreeGiven,
         transferred,
         utilizationPct: bale.itemCount > 0
           ? Math.round(((bale.itemCount - bale.remainingCount) / bale.itemCount) * 100)
-          : 0
+          : 0,
+        costRecoveredPct,
+        profit,
+        costRecovered
       }
     })
 
@@ -143,7 +158,9 @@ export async function GET(request: NextRequest) {
           totalSold,
           totalRevenue: Math.round(totalRevenue * 100) / 100,
           totalBogoFree,
-          totalTransferred
+          totalTransferred,
+          totalCost: Math.round(totalCost * 100) / 100,
+          totalProfit: Math.round((totalRevenue - totalCost) * 100) / 100
         },
         bales: baleDetails
       }

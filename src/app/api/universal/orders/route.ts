@@ -529,8 +529,8 @@ export async function POST(request: NextRequest) {
               };
 
               // For regular products: use connect (Prisma sets productVariantId automatically)
-              // For virtual items (WiFi tokens, services): don't set productVariantId at all
-              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService
+              // For virtual items (WiFi tokens, services, bale items): don't set productVariantId at all
+              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService || item.attributes?.baleId
               if (item.productVariantId && !isVirtualItem) {
                 orderItem.product_variants = {
                   connect: { id: item.productVariantId }

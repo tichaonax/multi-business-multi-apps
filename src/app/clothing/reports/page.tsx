@@ -75,6 +75,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/bale-inventory`,
       icon: '📋',
       color: 'bg-indigo-600 hover:bg-indigo-700'
+    },
+    {
+      title: 'Bale Cost Recovery Report',
+      description: 'Cost vs revenue per bale — see which bales have recovered their purchase cost and get Transfer / Continue / End-of-Sale recommendations',
+      href: `/${businessType}/reports/bale-cost-recovery`,
+      icon: '💰',
+      color: 'bg-emerald-600 hover:bg-emerald-700'
     }
   ]
 

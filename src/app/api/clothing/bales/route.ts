@@ -15,7 +15,21 @@ export async function GET(request: NextRequest) {
     }
 
     const bales = await prisma.clothingBales.findMany({
-      where: { businessId, isActive: true },
+      where: {
+        businessId,
+        isActive: true,
+        // Exclude bales that have been fully transferred to another business
+        NOT: {
+          inventory_transfer_items: {
+            some: {
+              transfer: {
+                status: 'COMPLETED',
+                sourceBusinessId: businessId,
+              }
+            }
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         category: { select: { id: true, name: true } },
@@ -47,16 +61,24 @@ export async function POST(request: NextRequest) {
       batchNumber,
       itemCount,
       unitPrice,
+      costPrice,
       barcode,
       employeeId,
       notes
     } = data
 
     // Validation
-    if (!businessId || !categoryId || !itemCount || unitPrice === undefined) {
+    if (!businessId || !categoryId || !itemCount || unitPrice === undefined || costPrice === undefined || costPrice === null || costPrice === '') {
       return NextResponse.json({
         success: false,
-        error: 'businessId, categoryId, itemCount, and unitPrice are required'
+        error: 'businessId, categoryId, itemCount, unitPrice, and costPrice are required'
+      }, { status: 400 })
+    }
+
+    if (Number(costPrice) < 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'Bale cost must be 0 or greater'
       }, { status: 400 })
     }
 
@@ -150,7 +172,7 @@ export async function POST(request: NextRequest) {
     const sku = `BALE-${shortName}-${finalBatchNumber}`
 
     // Check SKU uniqueness
-    const existingSku = await prisma.clothingBales.findUnique({
+    const existingSku = await prisma.clothingBales.findFirst({
       where: { sku }
     })
 
@@ -169,6 +191,7 @@ export async function POST(request: NextRequest) {
         itemCount: Number(itemCount),
         remainingCount: Number(itemCount),
         unitPrice: Number(unitPrice),
+        costPrice: costPrice != null ? Number(costPrice) : null,
         sku,
         barcode: barcode?.trim() || null,
         employeeId: employeeId || null,

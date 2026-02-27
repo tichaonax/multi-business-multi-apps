@@ -15,6 +15,8 @@ interface ProductGridProps {
   showCategories?: boolean
   showSearch?: boolean
   showFilters?: boolean
+  stickyFilters?: boolean
+  categoryId?: string | null
 }
 
 interface ProductFilters {
@@ -38,7 +40,9 @@ export function UniversalProductGrid({
   itemsPerPage = 12,
   showCategories = true,
   showSearch = true,
-  showFilters = true
+  showFilters = true,
+  stickyFilters = false,
+  categoryId: externalCategoryId
 }: ProductGridProps) {
   const { formatCurrency } = useBusinessContext()
   const businessFeatures = useBusinessFeatures()
@@ -50,6 +54,14 @@ export function UniversalProductGrid({
   const [totalPages, setTotalPages] = useState(1)
   const [filters, setFilters] = useState<ProductFilters>({})
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([])
+
+  // Sync externally-controlled category into internal filter state
+  useEffect(() => {
+    if (externalCategoryId !== undefined) {
+      setFilters(prev => ({ ...prev, categoryId: externalCategoryId }))
+      setCurrentPage(1)
+    }
+  }, [externalCategoryId])
 
   useEffect(() => {
     fetchProducts()
@@ -80,6 +92,7 @@ export function UniversalProductGrid({
       if (filters.condition) params.set('condition', filters.condition)
       if (filters.search) params.set('search', filters.search)
       if (filters.barcode) params.set('barcode', filters.barcode)
+      if (filters.inStockOnly) params.set('inStockOnly', 'true')
 
       const response = await fetch(`/api/universal/products?${params}`)
       const data = await response.json()
@@ -181,108 +194,184 @@ export function UniversalProductGrid({
   const businessSpecificFilters = getBusinessSpecificFilters()
 
   return (
-    <div className="w-full min-w-0 space-y-6">
-      {/* Categories */}
-      {showCategories && (
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-primary mb-4">Categories</h2>
-          <UniversalCategoryNavigation
-            businessId={businessId}
-            onCategorySelect={handleCategorySelect}
-            selectedCategoryId={filters.categoryId}
-            layout="horizontal"
-            showProductCounts={true}
-          />
-        </div>
-      )}
+    <div className="w-full min-w-0 space-y-4">
 
-      {/* Search and Filters */}
-      {(showSearch || showFilters) && (
-        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            {showSearch && (
-              <div className="flex-1">
-                <input
-                  type="text"
-                  placeholder={`Search ${businessFeatures.isRestaurant() ? 'menu items' : 'products'}...`}
-                  value={filters.search || ''}
-                  onChange={(e) => updateFilter('search', e.target.value)}
-                  className="input-field w-full"
-                />
-              </div>
-            )}
-
-            {/* Barcode Filter */}
-            {showFilters && (
-              <div className="flex-1 max-w-xs">
-                <input
-                  type="text"
-                  placeholder="Filter by barcode..."
-                  value={filters.barcode || ''}
-                  onChange={(e) => updateFilter('barcode', e.target.value)}
-                  className="input-field w-full"
-                />
-              </div>
-            )}
-
-            {/* Filters */}
-            {showFilters && (
-              <div className="flex gap-3">
-                {/* Brand Filter */}
-                {brands.length > 0 && (
-                  <select
-                    value={filters.brandId || ''}
-                    onChange={(e) => updateFilter('brandId', e.target.value || null)}
-                    className="input-field"
-                  >
-                    <option value="">All Brands</option>
-                    {brands.map(brand => (
-                      <option key={brand.id} value={brand.id}>{brand.name}</option>
-                    ))}
-                  </select>
+      {/* Sticky header: categories + search/filters pinned together */}
+      {stickyFilters ? (
+        <div className="sticky top-0 z-10 bg-white dark:bg-neutral-800 rounded-lg shadow-sm pb-2 -mx-1 px-1">
+          {showCategories && (
+            <div className="min-w-0 mb-2">
+              <UniversalCategoryNavigation
+                businessId={businessId}
+                onCategorySelect={handleCategorySelect}
+                selectedCategoryId={filters.categoryId}
+                layout="horizontal"
+                showProductCounts={true}
+              />
+            </div>
+          )}
+          {(showSearch || showFilters) && (
+            <div className="bg-gray-50 dark:bg-gray-700/60 p-3 rounded-lg">
+              {/* Row 1: search + in-stock toggle */}
+              <div className="flex gap-2 mb-2">
+                {showSearch && (
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      placeholder={`Search ${businessFeatures.isRestaurant() ? 'menu items' : 'products'}...`}
+                      value={filters.search || ''}
+                      onChange={(e) => updateFilter('search', e.target.value)}
+                      className="input-field w-full"
+                    />
+                  </div>
                 )}
-
-                {/* Business-specific Filters */}
-                {businessSpecificFilters.map(filter => (
-                  <select
-                    key={filter.key}
-                    value={filters[filter.key as keyof ProductFilters] as string || ''}
-                    onChange={(e) => updateFilter(filter.key as keyof ProductFilters, e.target.value || null)}
-                    className="input-field"
-                  >
-                    {filter.options.map(option => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                ))}
-
-                {/* Stock Filter for inventory-tracked businesses */}
-                {businessFeatures.hasInventoryTracking() && (
-                  <label className="flex items-center gap-2 px-3 py-2 text-sm text-primary">
+                {showFilters && businessFeatures.hasInventoryTracking() && (
+                  <label className="flex items-center gap-1.5 px-3 py-2 text-sm text-primary whitespace-nowrap bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer">
                     <input
                       type="checkbox"
                       checked={filters.inStockOnly || false}
                       onChange={(e) => updateFilter('inStockOnly', e.target.checked)}
                       className="rounded border-gray-300 text-primary focus:ring-primary"
                     />
-                    In Stock Only
+                    In Stock
                   </label>
                 )}
-
-                {/* Clear Filters */}
-                {Object.keys(filters).some(key => filters[key as keyof ProductFilters]) && (
-                  <button
-                    onClick={clearFilters}
-                    className="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    Clear Filters
-                  </button>
+              </div>
+              {showFilters && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="Barcode..."
+                    value={filters.barcode || ''}
+                    onChange={(e) => updateFilter('barcode', e.target.value)}
+                    className="input-field w-32 flex-shrink-0"
+                  />
+                  {brands.length > 0 && (
+                    <select
+                      value={filters.brandId || ''}
+                      onChange={(e) => updateFilter('brandId', e.target.value || null)}
+                      className="input-field flex-shrink-0"
+                    >
+                      <option value="">All Brands</option>
+                      {brands.map(brand => (
+                        <option key={brand.id} value={brand.id}>{brand.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  {businessSpecificFilters.map(filter => (
+                    <select
+                      key={filter.key}
+                      value={filters[filter.key as keyof ProductFilters] as string || ''}
+                      onChange={(e) => updateFilter(filter.key as keyof ProductFilters, e.target.value || null)}
+                      className="input-field flex-shrink-0"
+                    >
+                      {filter.options.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  ))}
+                  {Object.keys(filters).some(key => filters[key as keyof ProductFilters]) && (
+                    <button
+                      onClick={clearFilters}
+                      className="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors whitespace-nowrap"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Non-sticky: categories */}
+          {showCategories && (
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-primary mb-4">Categories</h2>
+              <UniversalCategoryNavigation
+                businessId={businessId}
+                onCategorySelect={handleCategorySelect}
+                selectedCategoryId={filters.categoryId}
+                layout="horizontal"
+                showProductCounts={true}
+              />
+            </div>
+          )}
+          {/* Non-sticky: search + filters */}
+          {(showSearch || showFilters) && (
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+              {/* Row 1: search + in-stock toggle */}
+              <div className="flex gap-2 mb-2">
+                {showSearch && (
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      placeholder={`Search ${businessFeatures.isRestaurant() ? 'menu items' : 'products'}...`}
+                      value={filters.search || ''}
+                      onChange={(e) => updateFilter('search', e.target.value)}
+                      className="input-field w-full"
+                    />
+                  </div>
+                )}
+                {showFilters && businessFeatures.hasInventoryTracking() && (
+                  <label className="flex items-center gap-1.5 px-3 py-2 text-sm text-primary whitespace-nowrap bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.inStockOnly || false}
+                      onChange={(e) => updateFilter('inStockOnly', e.target.checked)}
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    In Stock
+                  </label>
                 )}
               </div>
-            )}
-          </div>
-        </div>
+              {showFilters && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="Barcode..."
+                    value={filters.barcode || ''}
+                    onChange={(e) => updateFilter('barcode', e.target.value)}
+                    className="input-field w-32 flex-shrink-0"
+                  />
+                  {brands.length > 0 && (
+                    <select
+                      value={filters.brandId || ''}
+                      onChange={(e) => updateFilter('brandId', e.target.value || null)}
+                      className="input-field flex-shrink-0"
+                    >
+                      <option value="">All Brands</option>
+                      {brands.map(brand => (
+                        <option key={brand.id} value={brand.id}>{brand.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  {businessSpecificFilters.map(filter => (
+                    <select
+                      key={filter.key}
+                      value={filters[filter.key as keyof ProductFilters] as string || ''}
+                      onChange={(e) => updateFilter(filter.key as keyof ProductFilters, e.target.value || null)}
+                      className="input-field flex-shrink-0"
+                    >
+                      {filter.options.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  ))}
+                  {Object.keys(filters).some(key => filters[key as keyof ProductFilters]) && (
+                    <button
+                      onClick={clearFilters}
+                      className="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors whitespace-nowrap"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Loading State */}
@@ -355,9 +444,9 @@ export function UniversalProductGrid({
               </div>
 
               {/* Product Grid */}
-              <div className={`grid gap-3 sm:gap-6 ${
+              <div className={`grid gap-3 ${
                 layout === 'grid'
-                  ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                  ? 'grid-cols-2 xl:grid-cols-3'
                   : 'grid-cols-1'
               }`}>
                 {products.map((product) => (

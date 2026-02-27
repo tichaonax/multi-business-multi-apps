@@ -46,6 +46,7 @@ function ClothingInventoryContent() {
     batchNumber: '',
     itemCount: '',
     unitPrice: '',
+    costPrice: '',
     barcode: '',
     notes: ''
   })
@@ -191,8 +192,8 @@ function ClothingInventoryContent() {
       showToast('No business selected', { type: 'error' })
       return
     }
-    if (!baleForm.categoryId || !baleForm.itemCount || !baleForm.unitPrice) {
-      showToast('Category, item count, and unit price are required', { type: 'error' })
+    if (!baleForm.categoryId || !baleForm.itemCount || !baleForm.unitPrice || !baleForm.costPrice) {
+      showToast('Category, item count, unit price, and bale cost are required', { type: 'error' })
       return
     }
     setBaleFormLoading(true)
@@ -206,6 +207,7 @@ function ClothingInventoryContent() {
           ...(baleForm.batchNumber.trim() ? { batchNumber: baleForm.batchNumber.trim() } : {}),
           itemCount: Number(baleForm.itemCount),
           unitPrice: Number(baleForm.unitPrice),
+          costPrice: Number(baleForm.costPrice),
           barcode: baleForm.barcode.trim() || undefined,
           notes: baleForm.notes.trim() || undefined
         })
@@ -213,7 +215,7 @@ function ClothingInventoryContent() {
       const data = await response.json()
       if (data.success) {
         showToast(`Bale ${data.data.batchNumber} registered (${data.data.itemCount} items)`, { type: 'success' })
-        setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', barcode: '', notes: '' })
+        setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', costPrice: '', barcode: '', notes: '' })
         setShowBaleForm(false)
         fetchBales()
       } else {
@@ -1034,6 +1036,20 @@ function ClothingInventoryContent() {
                             />
                           </div>
                           <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">Bale Cost ($) <span className="text-red-500">*</span></label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              required
+                              value={baleForm.costPrice}
+                              onChange={(e) => setBaleForm({ ...baleForm, costPrice: e.target.value })}
+                              placeholder="Total paid to acquire this bale"
+                              className="input-field w-full"
+                            />
+                            <p className="text-xs text-secondary mt-1">Used to track cost recovery in reports</p>
+                          </div>
+                          <div>
                             <label className="block text-sm font-medium text-secondary mb-1">Barcode (optional)</label>
                             <input
                               type="text"
@@ -1065,7 +1081,7 @@ function ClothingInventoryContent() {
                           <button
                             onClick={() => {
                               setShowBaleForm(false)
-                              setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', barcode: '', notes: '' })
+                              setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', costPrice: '', barcode: '', notes: '' })
                             }}
                             className="btn-secondary"
                           >

@@ -87,6 +87,10 @@ export async function PUT(
       updateData.notes = data.notes?.trim() || null
     }
 
+    if (data.costPrice !== undefined) {
+      updateData.costPrice = data.costPrice != null ? Number(data.costPrice) : null
+    }
+
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({
         success: false,

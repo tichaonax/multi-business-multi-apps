@@ -71,6 +71,28 @@ export default function BaleInventoryReportPage() {
               </div>
             </div>
 
+            {/* Cost recovery summary row */}
+            {report.summary.totalCost > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-red-700 dark:text-red-300">${report.summary.totalCost.toFixed(2)}</div>
+                  <div className="text-sm text-red-600 dark:text-red-400">Total Bale Cost</div>
+                </div>
+                <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
+                  <div className={`text-2xl font-bold ${report.summary.totalProfit >= 0 ? 'text-teal-700 dark:text-teal-300' : 'text-red-700 dark:text-red-300'}`}>
+                    ${report.summary.totalProfit.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-teal-600 dark:text-teal-400">Net Profit (Revenue − Cost)</div>
+                </div>
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                    {report.summary.totalCost > 0 ? Math.min(100, Math.round((report.summary.totalRevenue / report.summary.totalCost) * 100)) : '—'}%
+                  </div>
+                  <div className="text-sm text-purple-600 dark:text-purple-400">Overall Cost Recovery</div>
+                </div>
+              </div>
+            )}
+
             {/* Bale Details Table */}
             {report.bales.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No bales found.</p>
@@ -83,9 +105,11 @@ export default function BaleInventoryReportPage() {
                         <th className="px-3 py-3 text-left">Batch #</th>
                         <th className="px-3 py-3 text-left">Category</th>
                         <th className="px-3 py-3 text-right">Stock</th>
-                        <th className="px-3 py-3 text-right">Price</th>
+                        <th className="px-3 py-3 text-right">Unit $</th>
+                        <th className="px-3 py-3 text-right">Bale Cost</th>
                         <th className="px-3 py-3 text-right">Sold</th>
                         <th className="px-3 py-3 text-right">Revenue</th>
+                        <th className="px-3 py-3 text-right">Cost Rec.</th>
                         <th className="px-3 py-3 text-right">BOGO Free</th>
                         <th className="px-3 py-3 text-right">Transferred</th>
                         <th className="px-3 py-3 text-right">Utilization</th>
@@ -107,8 +131,18 @@ export default function BaleInventoryReportPage() {
                             <span className="text-gray-400">/{bale.itemCount}</span>
                           </td>
                           <td className="px-3 py-2 text-right text-gray-900 dark:text-gray-100">${bale.unitPrice.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right text-gray-500">
+                            {bale.costPrice != null ? `$${bale.costPrice.toFixed(2)}` : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </td>
                           <td className="px-3 py-2 text-right text-green-600">{bale.sold}</td>
                           <td className="px-3 py-2 text-right text-green-600">${bale.revenue.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">
+                            {bale.costPrice != null ? (
+                              <span className={`font-medium ${bale.costRecoveredPct >= 100 ? 'text-green-600' : bale.costRecoveredPct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                                {bale.costRecoveredPct}%
+                              </span>
+                            ) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </td>
                           <td className="px-3 py-2 text-right text-amber-600">{bale.bogoFreeGiven}</td>
                           <td className="px-3 py-2 text-right text-purple-600">{bale.transferred}</td>
                           <td className="px-3 py-2 text-right">

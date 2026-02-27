@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') // 'upc-first', 'no-upc-first', 'name', 'sku'
     const isAvailable = searchParams.get('isAvailable')
     const isActive = searchParams.get('isActive')
+    const inStockOnly = searchParams.get('inStockOnly')
     const includeVariants = searchParams.get('includeVariants') === 'true'
     const includeImages = searchParams.get('includeImages') === 'true'
     const page = parseInt(searchParams.get('page') || '1')
@@ -121,6 +122,9 @@ export async function GET(request: NextRequest) {
     if (isAvailable !== null) {
       where.isAvailable = isAvailable === 'true'
     }
+
+    // Always exclude zero-price products from browse results
+    where.basePrice = { gt: 0 }
 
     if (categoryId) where.categoryId = categoryId
     if (brandId) where.brandId = brandId

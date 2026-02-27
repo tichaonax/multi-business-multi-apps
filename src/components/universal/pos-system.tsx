@@ -108,8 +108,27 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
       const savedCart = localStorage.getItem(`cart-${businessId}`)
       if (savedCart) {
         const parsedCart = JSON.parse(savedCart)
-        setCart(parsedCart)
-        console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+        // Normalize items saved by Advanced POS (uses `price`) into UniversalPOS format (uses `unitPrice`)
+        const normalizedCart = parsedCart.map((item: any) => {
+          if (item.unitPrice === undefined && item.price !== undefined) {
+            const unitPrice = Number(item.price) || 0
+            const qty = item.quantity || 1
+            const discount = item.discount || item.discountAmount || 0
+            return {
+              productId: item.productId || item.id,
+              variantId: item.variantId,
+              product: item.product || { id: item.productId, name: item.name, basePrice: unitPrice, variants: [], attributes: {} },
+              variant: item.variant,
+              quantity: qty,
+              unitPrice,
+              discountAmount: discount,
+              totalPrice: unitPrice * qty - discount,
+            }
+          }
+          return item
+        })
+        setCart(normalizedCart)
+        console.log('✅ Cart restored from localStorage:', normalizedCart.length, 'items')
       } else {
         // CRITICAL: Clear cart when switching to a business with no saved cart
         setCart([])
@@ -142,6 +161,62 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
     autoAppliedForRef.current = selectedCustomer.id
     setAppliedReward(customerRewards[0])
   }, [customerRewards, selectedCustomer, appliedReward])
+
+  // Listen for external add-to-cart events (e.g. bale items from Browse Products panel)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail || detail.businessId !== businessId) return
+
+      const { productId, variantId, name, sku, price, attributes } = detail
+      const unitPrice = Number(price) || 0
+      if (!unitPrice || unitPrice <= 0) return
+
+      const syntheticProduct: UniversalProduct = {
+        id: productId,
+        name: name || productId,
+        sku: sku || productId,
+        productType: 'PHYSICAL',
+        condition: 'USED',
+        basePrice: unitPrice,
+        businessType: 'clothing',
+        isActive: true,
+        attributes: attributes || {},
+      }
+
+      setCart(currentCart => {
+        const existing = currentCart.findIndex(
+          item => item.productId === productId && item.variantId === variantId
+        )
+
+        if (existing >= 0) {
+          const updatedCart = [...currentCart]
+          const existingItem = updatedCart[existing]
+          const newQuantity = existingItem.quantity + 1
+          updatedCart[existing] = {
+            ...existingItem,
+            quantity: newQuantity,
+            totalPrice: unitPrice * newQuantity - existingItem.discountAmount,
+          }
+          return updatedCart
+        } else {
+          const newItem: CartItem = {
+            productId,
+            variantId,
+            product: syntheticProduct,
+            quantity: 1,
+            unitPrice,
+            discountAmount: 0,
+            totalPrice: unitPrice,
+          }
+          return [...currentCart, newItem]
+        }
+      })
+    }
+
+    window.addEventListener('pos:external-add', handler)
+    return () => window.removeEventListener('pos:external-add', handler)
+  }, [businessId])
 
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {
@@ -435,6 +510,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           attributes: {
             productName: (item as any).productName || item.product?.name || (item as any).name || 'Item',
             variantName: item.variant?.name,
+            ...(item.product?.attributes || {}),
             ...(item.scannedBarcode && { scannedBarcode: item.scannedBarcode })
           }
         }))
@@ -552,17 +628,15 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800">
-      {/* Header */}
-      <div className="p-6 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-850">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labels.title}</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-          {config?.businessName} - {config?.businessType}
-        </p>
+      {/* Compact Header */}
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-t-xl">
+        <div>
+          <h3 className="font-bold text-gray-900 dark:text-white">{labels.title}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{config?.businessName}</p>
+        </div>
       </div>
 
-      <div className="flex">
-        {/* Left Panel - Cart */}
-        <div className="flex-1 p-6">
+      <div className="p-4">
           {/* Customer Lookup */}
           <div className="mb-4">
             <CustomerLookup
@@ -661,9 +735,9 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
           {/* Barcode Scanner */}          <BarcodeScanner            onProductScanned={(product, variantId, scannedBarcode) => addToCart(product, variantId, 1, scannedBarcode)}            businessId={businessId}            showScanner={showBarcodeScanner}            onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}          />
           {/* Cart Items */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">
                 {labels.items} <span className="text-blue-600 dark:text-blue-400">({cart.length})</span>
               </h3>
               {cart.length > 0 && (
@@ -677,15 +751,15 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
             </div>
 
             {cart.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
-                <div className="text-5xl mb-3">🛒</div>
-                <p className="text-gray-600 dark:text-gray-400 font-medium">No items in {businessFeatures.isRestaurant() ? 'order' : 'cart'}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Scan a barcode or select products to get started</p>
+              <div className="text-center py-6 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
+                <div className="text-3xl mb-1">🛒</div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm font-medium">Cart is empty</p>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Scan or browse to add items</p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-2">
                 {cart.map((item, index) => (
-                  <div key={item.id || `cart-item-${index}`} className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-shadow">
+                  <div key={item.id || `cart-item-${index}`} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-sm transition-shadow">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-gray-900 dark:text-white truncate">{(item as any).productName || item.product?.name || (item as any).name || 'Item'}</h4>
                       {item.variant?.name && (
@@ -723,18 +797,18 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
           {/* Totals */}
           {cart.length > 0 && (
-            <div className="border-t-2 border-gray-200 dark:border-gray-700 pt-6 mt-4 bg-gray-50 dark:bg-gray-800/50 -mx-6 px-6 pb-6 rounded-b-xl">
-              <div className="space-y-3">
-                <div className="flex justify-between text-gray-700 dark:text-gray-300">
+            <div className="border-t-2 border-gray-200 dark:border-gray-700 pt-4 mt-3 bg-gray-50 dark:bg-gray-800/50 -mx-4 px-4 pb-4 rounded-b-xl">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                   <span className="font-medium">Subtotal:</span>
                   <span className="font-semibold">{formatCurrency(subtotal)}</span>
                 </div>
 
                 {taxRate > 0 && (
-                  <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                  <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                     <span className="font-medium">
                       {config?.taxLabel || 'Tax'} ({taxRate}%)
-                      {taxIncludedInPrice && <span className="text-xs text-gray-500 ml-1">(included)</span>}
+                      {taxIncludedInPrice && <span className="text-xs text-gray-500 ml-1">(incl.)</span>}
                       :
                     </span>
                     <span className="font-semibold">{formatCurrency(taxAmount)}</span>
@@ -742,13 +816,13 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                 )}
 
                 {rewardCredit > 0 && (
-                  <div className="flex justify-between text-green-700 dark:text-green-400">
+                  <div className="flex justify-between text-sm text-green-700 dark:text-green-400">
                     <span className="font-medium flex items-center gap-1"><Gift className="w-3.5 h-3.5" /> Reward Credit:</span>
                     <span className="font-semibold">-{formatCurrency(rewardCredit)}</span>
                   </div>
                 )}
 
-                <div className="flex justify-between items-center text-gray-700 dark:text-gray-300">
+                <div className="flex justify-between items-center text-sm text-gray-700 dark:text-gray-300">
                   <span className="font-medium">Discount:</span>
                   <input
                     type="number"
@@ -757,11 +831,11 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                     step="0.01"
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                    className="w-28 px-3 py-1.5 text-right border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-semibold"
+                    className="w-24 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-transparent font-semibold text-sm"
                   />
                 </div>
 
-                <div className="flex justify-between text-2xl font-bold pt-3 border-t-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
+                <div className="flex justify-between text-xl font-bold pt-2 border-t-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
                   <span>Total:</span>
                   <span className="text-blue-600 dark:text-blue-400">{formatCurrency(totalAmount)}</span>
                 </div>
@@ -771,9 +845,9 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
           {/* Payment Method */}
           {cart.length > 0 && (
-            <div className="mt-6 space-y-4 bg-gray-50 dark:bg-gray-800 p-5 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="mt-4 space-y-3 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
                   💳 Payment Method
                 </label>
                 <select
@@ -792,7 +866,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
               {/* Cash Tender Input - only show if total > 0 */}
               {paymentMethod === 'CASH' && totalAmount > 0 && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
                     💵 Cash Tendered
                   </label>
                   <input
@@ -858,7 +932,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
             <button
               onClick={processOrder}
               disabled={isProcessing || (paymentMethod === 'CASH' && totalAmount > 0 && (!cashTendered || parseFloat(cashTendered) < totalAmount))}
-              className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-4 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-3 rounded-lg font-bold text-base shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
             >
               {isProcessing ? (
                 <div className="flex items-center justify-center gap-2">
@@ -873,7 +947,6 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
               )}
             </button>
           )}
-        </div>
       </div>
 
       {/* Receipt Preview Modal */}
