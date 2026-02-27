@@ -28,6 +28,7 @@ interface Transaction {
   payeeBusiness?: { id: string; name: string }
   category?: { id: string; name: string; emoji: string }
   paymentType?: string
+  isAutoTransfer?: boolean
   receiptNumber?: string
   status?: string
   createdBy?: { id: string; name: string }
@@ -50,6 +51,10 @@ function isWithin7Days(createdAt: string) {
 
 function shortDescription(transaction: Transaction): string {
   const desc = transaction.description || ''
+
+  // Auto-transfer labels take priority
+  if (transaction.paymentType === 'TRANSFER_OUT') return 'AUTO XFER OUT'
+  if (transaction.sourceType === 'ACCOUNT_TRANSFER') return 'AUTO XFER IN'
 
   if (transaction.type === 'PAYMENT') {
     if (desc.startsWith('Payment to ')) return 'PAY ' + desc.slice(11)
@@ -496,9 +501,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         {formatCurrency(transaction.balanceAfter)}
                       </td>
 
-                      {/* Edit action — payments only, within 7 days, for authorized roles */}
+                      {/* Edit action — payments only, not auto-transfers, within 7 days or admin */}
                       <td className="px-2 py-2 sm:py-3 text-right whitespace-nowrap">
-                        {canEditPayments && !isDeposit && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+                        {canEditPayments && !isDeposit && !transaction.isAutoTransfer && (isAdmin || isWithin7Days(transaction.createdAt)) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setEditPaymentId(transaction.id) }}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
