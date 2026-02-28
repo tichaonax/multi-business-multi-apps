@@ -326,6 +326,18 @@ export async function createCleanBackup(
     }
   })
 
+  businessData.employeeLoginLog = await prisma.employeeLoginLog.findMany({
+    where: {
+      employees: {
+        primaryBusinessId: { in: businessIds }
+      }
+    }
+  })
+
+  businessData.externalClockIn = await prisma.externalClockIn.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   businessData.disciplinaryActions = await prisma.disciplinaryActions.findMany({
     where: {
       employees_disciplinary_actions_employeeIdToemployees: {
@@ -1017,6 +1029,10 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  businessData.posTerminalConfig = await prisma.posTerminalConfig.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // 34. Receipt sequences (POS day sequences — composite PK: businessId + date, no id field)
   businessData.receiptSequences = await prisma.receiptSequences.findMany({
     where: { businessId: { in: businessIds } }
@@ -1100,7 +1116,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.19.1',
+    schemaVersion: '6.20.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum
