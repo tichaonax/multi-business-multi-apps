@@ -48,6 +48,10 @@ export async function POST(req: NextRequest) {
     if (!businessId) {
       return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     }
+    const businessExists = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true } })
+    if (!businessExists) {
+      return NextResponse.json({ error: 'Invalid businessId' }, { status: 400 })
+    }
     if (!type || !['contractor', 'visitor'].includes(type)) {
       return NextResponse.json({ error: 'type must be contractor or visitor' }, { status: 400 })
     }

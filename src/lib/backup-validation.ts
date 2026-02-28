@@ -84,7 +84,7 @@ export async function countDatabaseRecords(
 
         // If we have backed-up business IDs, try a scoped count (business-specific OR null businessId)
         // This mirrors what the backup captures: records belonging to those businesses + shared records (null businessId)
-        if (backedUpBusinessIds && backedUpBusinessIds.length > 0) {
+        if (backedUpBusinessIds && backedUpBusinessIds.length > 0 && !SKIP_BUSINESS_SCOPING.has(tableName)) {
           try {
             count = await model.count({
               where: { OR: [{ businessId: { in: backedUpBusinessIds } }, { businessId: null }] }
@@ -122,6 +122,13 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'customerLaybyPayments': 'customerLaybyPayment',
   'customerDisplayAds': 'customerDisplayAd'
 }
+
+/**
+ * Tables that have a businessId field but should NOT be scoped by backedUpBusinessIds
+ * during validation — because the backup captures ALL records for these tables
+ * (e.g. records with orphaned/non-FK businessIds like "default").
+ */
+const SKIP_BUSINESS_SCOPING = new Set(['externalClockIn'])
 
 /**
  * Find Prisma model name from table name

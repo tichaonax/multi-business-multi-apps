@@ -334,9 +334,9 @@ export async function createCleanBackup(
     }
   })
 
-  businessData.externalClockIn = await prisma.externalClockIn.findMany({
-    where: { businessId: { in: businessIds } }
-  })
+  businessData.externalClockIn = businessId
+    ? await prisma.externalClockIn.findMany({ where: { businessId: { in: businessIds } } })
+    : await prisma.externalClockIn.findMany()
 
   businessData.disciplinaryActions = await prisma.disciplinaryActions.findMany({
     where: {
@@ -1026,10 +1026,6 @@ export async function createCleanBackup(
   })
 
   businessData.customerDisplayAds = await prisma.customerDisplayAd.findMany({
-    where: { businessId: { in: businessIds } }
-  })
-
-  businessData.posTerminalConfig = await prisma.posTerminalConfig.findMany({
     where: { businessId: { in: businessIds } }
   })
 
