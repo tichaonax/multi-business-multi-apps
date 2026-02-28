@@ -11,7 +11,12 @@ const RenewalSchema = z.object({
   extendMonths: z.number().optional(),
   customStartDate: z.string().optional(),
   customEndDate: z.string().optional(),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  // Optional schedule overrides — if omitted, original contract values are carried forward
+  workDaysPerWeek: z.number().optional(),
+  dailyStartTime: z.string().optional(),
+  dailyEndTime: z.string().optional(),
+  annualVacationDays: z.number().int().optional(),
 })
 
 // POST - Renew an existing contract
@@ -129,6 +134,11 @@ export async function POST(
         supervisorTitle: originalContract.supervisorTitle,
         contractDurationMonths: originalContract.contractDurationMonths,
         additionalBusinesses: originalContract.additionalBusinesses,
+        // Work schedule: use override from request if provided, else carry forward from original
+        workDaysPerWeek:    validatedData.workDaysPerWeek    ?? (originalContract as any).workDaysPerWeek    ?? null,
+        dailyStartTime:     validatedData.dailyStartTime     ?? (originalContract as any).dailyStartTime     ?? null,
+        dailyEndTime:       validatedData.dailyEndTime       ?? (originalContract as any).dailyEndTime       ?? null,
+        annualVacationDays: validatedData.annualVacationDays ?? (originalContract as any).annualVacationDays ?? null,
 
         // New contract specific fields
         contractNumber: newContractNumber,
@@ -153,7 +163,12 @@ export async function POST(
           renewalNote: `==RENEWED== (Renewal #${renewalCount})`,
           contractNumber: newContractNumber,
           startDate: newStartDate.toISOString(),
-          endDate: newEndDate ? newEndDate.toISOString() : null
+          endDate: newEndDate ? newEndDate.toISOString() : null,
+          // Update schedule fields with effective values (override wins over original contract, then pdfGenerationData fallback)
+          workDaysPerWeek: validatedData.workDaysPerWeek ?? (originalContract as any).workDaysPerWeek ?? (originalContract.pdfGenerationData as any)?.workDaysPerWeek ?? undefined,
+          dailyStartTime: validatedData.dailyStartTime ?? (originalContract as any).dailyStartTime ?? (originalContract.pdfGenerationData as any)?.dailyStartTime ?? undefined,
+          dailyEndTime: validatedData.dailyEndTime ?? (originalContract as any).dailyEndTime ?? (originalContract.pdfGenerationData as any)?.dailyEndTime ?? undefined,
+          annualVacationDays: validatedData.annualVacationDays ?? (originalContract as any).annualVacationDays ?? (originalContract.pdfGenerationData as any)?.annualVacationDays ?? undefined,
         } : null,
 
         // Notes combining original and renewal notes
@@ -201,6 +216,21 @@ export async function POST(
 
       return newContract
     })
+
+    // Sync schedule fields from renewed contract to employee's clock-in settings
+    // Uses override values from the renewal request if provided, else falls back to original contract
+    const effectiveStart    = validatedData.dailyStartTime     ?? (originalContract as any).dailyStartTime
+    const effectiveEnd      = validatedData.dailyEndTime       ?? (originalContract as any).dailyEndTime
+    const effectiveDays     = validatedData.workDaysPerWeek    ?? (originalContract as any).workDaysPerWeek
+    const effectiveVacation = validatedData.annualVacationDays ?? (originalContract as any).annualVacationDays
+    const renewalSchedule: any = {}
+    if (effectiveStart    != null) renewalSchedule.scheduledStartTime   = effectiveStart
+    if (effectiveEnd      != null) renewalSchedule.scheduledEndTime     = effectiveEnd
+    if (effectiveDays     != null) renewalSchedule.scheduledDaysPerWeek = effectiveDays
+    if (effectiveVacation != null) renewalSchedule.annualVacationDays   = effectiveVacation
+    if (Object.keys(renewalSchedule).length > 0) {
+      await prisma.employees.update({ where: { id: originalContract.employeeId }, data: renewalSchedule })
+    }
 
     // Create contract renewal record
     // Determine a renewalDueDate (required by the schema). Use the new contract end date if present,

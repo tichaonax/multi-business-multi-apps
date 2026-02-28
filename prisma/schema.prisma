@@ -1012,6 +1012,10 @@ model EmployeeContracts {
   isRenewal                                                                  Boolean             @default(false)
   originalContractId                                                         String?
   renewalCount                                                               Int                 @default(0)
+  workDaysPerWeek                                                            Float?
+  dailyStartTime                                                             String?
+  dailyEndTime                                                               String?
+  annualVacationDays                                                         Int?
   contract_benefits                                                          ContractBenefits[]
   contract_renewals_contract_renewals_newContractIdToemployee_contracts      ContractRenewals[]  @relation("contract_renewals_newContractIdToemployee_contracts")
   contract_renewals_contract_renewals_originalContractIdToemployee_contracts ContractRenewals[]  @relation("contract_renewals_originalContractIdToemployee_contracts")
@@ -1196,6 +1200,8 @@ model Employees {
   isClockInExempt                                                           Boolean                       @default(false)
   clockInExemptReason                                                       String?
   clockInExemptApprovedBy                                                   String?
+  scheduledDaysPerWeek                                                      Float?
+  annualVacationDays                                                        Int?
   business_orders                                                           BusinessOrders[]
   business_stock_movements                                                  BusinessStockMovements[]
   contract_renewals                                                         ContractRenewals[]

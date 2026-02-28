@@ -1336,7 +1336,11 @@ export default function EmployeeDetailPage() {
             endDate: selectedContractForRenewal.endDate,
             contractDurationMonths: selectedContractForRenewal.contractDurationMonths,
             jobTitle: selectedContractForRenewal.jobTitle?.title || employee.jobTitle.title,
-            baseSalary: selectedContractForRenewal.baseSalary
+            baseSalary: selectedContractForRenewal.baseSalary,
+            workDaysPerWeek: selectedContractForRenewal.workDaysPerWeek ?? null,
+            dailyStartTime: selectedContractForRenewal.dailyStartTime ?? null,
+            dailyEndTime: selectedContractForRenewal.dailyEndTime ?? null,
+            annualVacationDays: selectedContractForRenewal.annualVacationDays ?? null,
           }}
           isOpen={showRenewalModal}
           onClose={() => {

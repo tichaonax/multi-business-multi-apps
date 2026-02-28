@@ -34,6 +34,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             dateOfBirth: true,
             hireDate: true,
             email: true,
+            employmentStatus: true,
+            scheduledStartTime: true,
+            scheduledEndTime: true,
+            scheduledDaysPerWeek: true,
+            annualVacationDays: true,
             job_titles: { select: { title: true } }
           }
         },

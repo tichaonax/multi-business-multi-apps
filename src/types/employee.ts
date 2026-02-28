@@ -138,6 +138,8 @@ export type Employee = {
   // Clock-in settings (optional — added by feature/employee-clock-in-management)
   scheduledStartTime?: string | null
   scheduledEndTime?: string | null
+  scheduledDaysPerWeek?: number | null
+  annualVacationDays?: number | null
   isClockInExempt?: boolean
   clockInExemptReason?: string | null
   clockInExemptApprovedBy?: string | null

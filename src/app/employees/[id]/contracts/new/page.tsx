@@ -103,6 +103,11 @@ interface ContractFormData {
     notes: string
   }>
   notes: string
+  // Work schedule
+  workDaysPerWeek: string
+  dailyStartTime: string
+  dailyEndTime: string
+  annualVacationDays: string
 }
 
 export default function NewContractPage() {
@@ -146,7 +151,11 @@ export default function NewContractPage() {
     isCommissionBased: false,
     isSalaryBased: true,
     benefits: [],
-    notes: ''
+    notes: '',
+    workDaysPerWeek: '6.5',
+    dailyStartTime: '06:00',
+    dailyEndTime: '17:00',
+    annualVacationDays: '14',
   })
 
   // Keep track of the contract we prefilled from so we can show a readonly reference
@@ -156,6 +165,29 @@ export default function NewContractPage() {
   const [copyMode, setCopyMode] = useState(false)
   const [selectedSourceEmployee, setSelectedSourceEmployee] = useState<any>(null)
   const [loadingTemplate, setLoadingTemplate] = useState(false)
+
+  // Schedule templates by business type — auto-fill when primaryBusiness changes
+  const SCHEDULE_TEMPLATES: Record<string, { workDaysPerWeek: string; dailyStartTime: string; dailyEndTime: string; annualVacationDays: string }> = {
+    clothing:   { workDaysPerWeek: '6',   dailyStartTime: '07:00', dailyEndTime: '17:00', annualVacationDays: '14' },
+    restaurant: { workDaysPerWeek: '6.5', dailyStartTime: '06:00', dailyEndTime: '17:00', annualVacationDays: '14' },
+    grocery:    { workDaysPerWeek: '7',   dailyStartTime: '07:00', dailyEndTime: '20:00', annualVacationDays: '14' },
+  }
+  const DEFAULT_SCHEDULE = SCHEDULE_TEMPLATES.restaurant
+
+  useEffect(() => {
+    if (!formData.primaryBusinessId || businesses.length === 0) return
+    const biz = businesses.find(b => b.id === formData.primaryBusinessId)
+    if (!biz) return
+    const tmpl = SCHEDULE_TEMPLATES[biz.type] ?? DEFAULT_SCHEDULE
+    setFormData(prev => ({
+      ...prev,
+      workDaysPerWeek:   prev.workDaysPerWeek   === '' ? tmpl.workDaysPerWeek   : prev.workDaysPerWeek,
+      dailyStartTime:    prev.dailyStartTime    === '' ? tmpl.dailyStartTime    : prev.dailyStartTime,
+      dailyEndTime:      prev.dailyEndTime      === '' ? tmpl.dailyEndTime      : prev.dailyEndTime,
+      annualVacationDays: prev.annualVacationDays === '' ? tmpl.annualVacationDays : prev.annualVacationDays,
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.primaryBusinessId, businesses])
 
   const canCreateEmployeeContracts = currentUser && hasPermission(currentUser, 'canCreateEmployeeContracts')
   const toast = useToastContext()
@@ -593,6 +625,10 @@ export default function NewContractPage() {
           supervisorId: formData.supervisorId || null,
           baseSalary: parseFloat(formData.baseSalary),
           probationPeriodMonths: formData.probationPeriodMonths ? parseInt(formData.probationPeriodMonths) : null,
+          workDaysPerWeek: formData.workDaysPerWeek ? parseFloat(formData.workDaysPerWeek) : null,
+          dailyStartTime: formData.dailyStartTime || null,
+          dailyEndTime: formData.dailyEndTime || null,
+          annualVacationDays: formData.annualVacationDays ? parseInt(formData.annualVacationDays) : null,
           benefits: formData.benefits.map(benefit => ({
             ...benefit,
             amount: parseFloat(benefit.amount)
@@ -716,6 +752,10 @@ export default function NewContractPage() {
       benefits,
       customResponsibilities: formData.customResponsibilities,
       notes: formData.notes,
+      workDaysPerWeek: formData.workDaysPerWeek ? parseFloat(formData.workDaysPerWeek) : null,
+      dailyStartTime: formData.dailyStartTime || null,
+      dailyEndTime: formData.dailyEndTime || null,
+      annualVacationDays: formData.annualVacationDays ? parseInt(formData.annualVacationDays, 10) : null,
       businessAssignments: employee.employeeBusinessAssignments?.map(assignment => ({
         businessId: assignment.businessId,
         businessName: assignment.businesses?.name || selectedBusiness?.name || '',
@@ -796,7 +836,12 @@ export default function NewContractPage() {
         isPrimary: true,
         role: '',
         startDate: data.startDate
-      }]
+      }],
+      // Work schedule fields
+      workDaysPerWeek: formData.workDaysPerWeek ? parseFloat(formData.workDaysPerWeek) : undefined,
+      dailyStartTime: formData.dailyStartTime || undefined,
+      dailyEndTime: formData.dailyEndTime || undefined,
+      annualVacationDays: formData.annualVacationDays ? parseInt(formData.annualVacationDays, 10) : undefined,
     }
   }
 
@@ -1301,6 +1346,84 @@ export default function NewContractPage() {
                   placeholder="Any additional responsibilities beyond the standard job title requirements..."
                 />
               </div>
+
+              {/* Work Schedule Section */}
+              {(() => {
+                const selJobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId)
+                const isManagement = ['manager','director','ceo','chief','head'].some(w => selJobTitle?.title?.toLowerCase().includes(w)) ||
+                  selJobTitle?.department?.toLowerCase() === 'executive'
+                const dailyHrs = formData.dailyStartTime && formData.dailyEndTime
+                  ? (() => {
+                      const [sh, sm] = formData.dailyStartTime.split(':').map(Number)
+                      const [eh, em] = formData.dailyEndTime.split(':').map(Number)
+                      return ((eh * 60 + em) - (sh * 60 + sm)) / 60
+                    })()
+                  : null
+                const hoursPerYear = dailyHrs && formData.workDaysPerWeek
+                  ? Math.round(dailyHrs * parseFloat(formData.workDaysPerWeek) * 52)
+                  : null
+                return (
+                  <div className="mt-6 border-t border-border pt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <h4 className="text-sm font-semibold text-primary">🕐 Work Schedule</h4>
+                      <span className="text-xs text-secondary">(auto-filled from business type — override if needed)</span>
+                    </div>
+                    {isManagement && (
+                      <div className="mb-3 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md px-3 py-2">
+                        Management roles are exempt from clock-in. Schedule fields are optional and will not generate clock-in deductions.
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-secondary mb-1">Days / Week</label>
+                        <select
+                          value={formData.workDaysPerWeek}
+                          onChange={(e) => setFormData(prev => ({ ...prev, workDaysPerWeek: e.target.value }))}
+                          className="input w-full h-10 px-2 py-1 text-sm"
+                        >
+                          <option value="5">5 days</option>
+                          <option value="6">6 days</option>
+                          <option value="6.5">6.5 days</option>
+                          <option value="7">7 days</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-secondary mb-1">Start Time</label>
+                        <input
+                          type="time"
+                          value={formData.dailyStartTime}
+                          onChange={(e) => setFormData(prev => ({ ...prev, dailyStartTime: e.target.value }))}
+                          className="input w-full h-10 px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-secondary mb-1">End Time</label>
+                        <input
+                          type="time"
+                          value={formData.dailyEndTime}
+                          onChange={(e) => setFormData(prev => ({ ...prev, dailyEndTime: e.target.value }))}
+                          className="input w-full h-10 px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-secondary mb-1">Vacation Days / Year</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={formData.annualVacationDays}
+                          onChange={(e) => setFormData(prev => ({ ...prev, annualVacationDays: e.target.value }))}
+                          className="input w-full h-10 px-2 py-1 text-sm"
+                        />
+                      </div>
+                    </div>
+                    {hoursPerYear && (
+                      <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                        → {dailyHrs} hrs/day × {formData.workDaysPerWeek} days × 52 weeks = <strong>{hoursPerYear.toLocaleString()} hrs/year</strong>
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Benefits Section */}

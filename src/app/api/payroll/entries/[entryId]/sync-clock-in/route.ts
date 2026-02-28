@@ -37,6 +37,7 @@ export async function POST(
           id: true,
           scheduledStartTime: true,
           scheduledEndTime: true,
+          scheduledDaysPerWeek: true,
         },
       },
     },
@@ -78,10 +79,29 @@ export async function POST(
   const schedStart = parseHHMM(employee?.scheduledStartTime)
   const schedEnd = parseHHMM(employee?.scheduledEndTime)
 
+  // Derive hourly rate from employee's actual schedule
+  // Fallback to restaurant defaults if no schedule set
+  const baseSalary = Number(entry.baseSalary ?? 0)
+  const annualSalary = baseSalary * 12
+
+  let dailyHours = 11 // restaurant default: 06:00–17:00
+  if (schedStart && schedEnd) {
+    const startMin = schedStart.h * 60 + schedStart.m
+    const endMin   = schedEnd.h   * 60 + schedEnd.m
+    dailyHours = (endMin - startMin) / 60
+  }
+  const daysPerWeek = (employee?.scheduledDaysPerWeek as number | null) ?? 6.5
+  const hoursPerYear = dailyHours * daysPerWeek * 52
+  const hourlyRate = hoursPerYear > 0 ? annualSalary / hoursPerYear : 0
+  const dailyRate  = hourlyRate * dailyHours
+  const round2 = (n: number) => Math.round(n * 100) / 100
+
   let lateCount = 0
   let earlyCount = 0
   let totalLateMinutes = 0
   let totalEarlyMinutes = 0
+  let totalOvertimeCreditMinutes = 0 // 1–30 min past schedEnd (pending credit)
+  let totalOvertimeMinutes = 0       // >30 min past schedEnd (pending 1.5× pay)
 
   const formatTime = (d: Date) =>
     `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -94,15 +114,20 @@ export async function POST(
     scheduledEnd: string | null
     lateMinutes: number
     earlyMinutes: number
+    overtimeCreditMinutes: number
+    overtimeMinutes: number
   }> = []
 
   for (const att of attendanceRows) {
-    const checkIn = att.checkIn as Date | null
+    const checkIn  = att.checkIn  as Date | null
     const checkOut = att.checkOut as Date | null
     const baseDate = att.date as Date
     let lateMinutesForDay = 0
     let earlyMinutesForDay = 0
+    let overtimeCreditForDay = 0
+    let overtimeForDay = 0
 
+    // Late arrival: clocked in after scheduled start
     if (checkIn && schedStart) {
       const scheduled = new Date(baseDate)
       scheduled.setHours(schedStart.h, schedStart.m, 0, 0)
@@ -114,46 +139,60 @@ export async function POST(
       }
     }
 
+    // Early departure OR overtime: compare checkOut to scheduled end
     if (checkOut && schedEnd) {
       const scheduled = new Date(baseDate)
       scheduled.setHours(schedEnd.h, schedEnd.m, 0, 0)
-      const diffMs = scheduled.getTime() - checkOut.getTime()
-      if (diffMs > 0) {
+      const diffMs = checkOut.getTime() - scheduled.getTime()
+      if (diffMs < 0) {
+        // Clocked out BEFORE scheduled end → early departure (deduction)
         earlyCount++
-        earlyMinutesForDay = Math.round(diffMs / 60000)
+        earlyMinutesForDay = Math.round(Math.abs(diffMs) / 60000)
         totalEarlyMinutes += earlyMinutesForDay
+      } else if (diffMs > 0) {
+        // Clocked out AFTER scheduled end → overtime
+        const extraMin = Math.round(diffMs / 60000)
+        if (extraMin <= 30) {
+          // Grace window: 1–30 min = overtime credit (pending)
+          overtimeCreditForDay = extraMin
+          totalOvertimeCreditMinutes += overtimeCreditForDay
+        } else {
+          // >30 min = overtime at 1.5× (pending)
+          overtimeForDay = extraMin
+          totalOvertimeMinutes += overtimeForDay
+        }
       }
     }
 
-    if (lateMinutesForDay > 0 || earlyMinutesForDay > 0) {
+    if (lateMinutesForDay > 0 || earlyMinutesForDay > 0 || overtimeCreditForDay > 0 || overtimeForDay > 0) {
       records.push({
         date: (baseDate as Date).toISOString().split('T')[0],
-        checkIn: checkIn ? formatTime(checkIn) : null,
+        checkIn:  checkIn  ? formatTime(checkIn)  : null,
         checkOut: checkOut ? formatTime(checkOut) : null,
         scheduledStart: employee?.scheduledStartTime ?? null,
-        scheduledEnd: employee?.scheduledEndTime ?? null,
-        lateMinutes: lateMinutesForDay,
-        earlyMinutes: earlyMinutesForDay,
+        scheduledEnd:   employee?.scheduledEndTime   ?? null,
+        lateMinutes:          lateMinutesForDay,
+        earlyMinutes:         earlyMinutesForDay,
+        overtimeCreditMinutes: overtimeCreditForDay,
+        overtimeMinutes:       overtimeForDay,
       })
     }
   }
 
-  // Derive hourly rate (same formula used in helpers.ts)
-  const baseSalary = Number(entry.baseSalary ?? 0)
-  const annualSalary = baseSalary * 12
-  const hoursPerYear = 6 * 9 * 52 // 2808
-  const hourlyRate = hoursPerYear > 0 ? annualSalary / hoursPerYear : 0
-
-  const totalMinutes = totalLateMinutes + totalEarlyMinutes
-  const deductionAmount = Math.round((totalMinutes / 60) * hourlyRate * 100) / 100
+  const totalTardinessMinutes = totalLateMinutes + totalEarlyMinutes
+  const deductionAmount  = round2((totalTardinessMinutes / 60) * hourlyRate)
+  const creditAmount     = round2((totalOvertimeCreditMinutes / 60) * hourlyRate)        // pending
+  const overtimeAmount   = round2((totalOvertimeMinutes / 60) * hourlyRate * 1.5)        // pending 1.5×
 
   // Build human-readable summary
   const parts: string[] = []
-  if (lateCount > 0) parts.push(`${lateCount} late arrival${lateCount > 1 ? 's' : ''} (${totalLateMinutes} min)`)
+  if (lateCount  > 0) parts.push(`${lateCount} late arrival${lateCount > 1 ? 's' : ''} (${totalLateMinutes} min)`)
   if (earlyCount > 0) parts.push(`${earlyCount} early departure${earlyCount > 1 ? 's' : ''} (${totalEarlyMinutes} min)`)
+  if (totalOvertimeCreditMinutes > 0) parts.push(`overtime credit ${totalOvertimeCreditMinutes} min`)
+  if (totalOvertimeMinutes > 0)       parts.push(`overtime ${totalOvertimeMinutes} min`)
   const summary = parts.length > 0 ? parts.join(', ') : 'No tardiness recorded'
 
-  // Remove any existing clock-in adjustment for this entry, then create a fresh one
+  // Remove ALL existing clock-in adjustments for this entry, then recreate
   await prisma.payrollAdjustments.deleteMany({
     where: { payrollEntryId: entryId, isClockInAdjustment: true } as any,
   })
@@ -167,14 +206,46 @@ export async function POST(
         id: newId,
         payrollEntryId: entryId,
         adjustmentType: 'clock_in_deduction',
-        amount: -deductionAmount,           // negative = deduction
+        amount: -deductionAmount,
         isClockInAdjustment: true,
-        reason: summary,
+        reason: `Clock-in deduction: ${parts.filter(p => !p.includes('overtime')).join(', ') || 'No tardiness'}`,
         createdBy: user.id,
         status: 'approved',
       } as any,
     })
     adjustmentId = newId
+  }
+
+  // Create overtime credit adjustment (pending — manager must approve)
+  if (creditAmount > 0) {
+    await prisma.payrollAdjustments.create({
+      data: {
+        id: `PA-${nanoid(12)}`,
+        payrollEntryId: entryId,
+        adjustmentType: 'overtime_credit',
+        amount: creditAmount,
+        isClockInAdjustment: true,
+        reason: `Overtime credit: ${totalOvertimeCreditMinutes} min (≤30 min grace window)`,
+        createdBy: user.id,
+        status: 'pending',
+      } as any,
+    })
+  }
+
+  // Create overtime adjustment (pending — manager must approve, 1.5× rate)
+  if (overtimeAmount > 0) {
+    await prisma.payrollAdjustments.create({
+      data: {
+        id: `PA-${nanoid(12)}`,
+        payrollEntryId: entryId,
+        adjustmentType: 'overtime',
+        amount: overtimeAmount,
+        isClockInAdjustment: true,
+        reason: `Overtime: ${totalOvertimeMinutes} min at 1.5× rate`,
+        createdBy: user.id,
+        status: 'pending',
+      } as any,
+    })
   }
 
   // Recalculate entry totals
@@ -185,8 +256,14 @@ export async function POST(
     earlyCount,
     totalLateMinutes,
     totalEarlyMinutes,
+    totalOvertimeCreditMinutes,
+    totalOvertimeMinutes,
     deductionAmount,
-    hourlyRate: Math.round(hourlyRate * 100) / 100,
+    creditAmount,
+    overtimeAmount,
+    hourlyRate: round2(hourlyRate),
+    dailyRate:  round2(dailyRate),
+    hoursPerYear: round2(hoursPerYear),
     adjustmentId,
     summary,
     records,

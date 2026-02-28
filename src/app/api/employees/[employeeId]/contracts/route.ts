@@ -33,6 +33,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         pdfGenerationData: true,
         isRenewal: true,
         renewalCount: true,
+        workDaysPerWeek: true,
+        dailyStartTime: true,
+        dailyEndTime: true,
+        annualVacationDays: true,
+        contractDurationMonths: true,
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -88,7 +93,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       pdfContractData,
       previousContractId,
       umbrellaBusinessId,
-      businessAssignments
+      businessAssignments,
+      workDaysPerWeek,
+      dailyStartTime,
+      dailyEndTime,
+      annualVacationDays,
     } = data
 
     // Debug logging
@@ -203,12 +212,26 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         umbrellaBusinessName: umbrellaBusinessData?.umbrellaBusinessName || 'Demo Umbrella Company',
         businessAssignments: businessAssignments || null,
         notes: notesValue,
+        workDaysPerWeek: workDaysPerWeek ?? null,
+        dailyStartTime: dailyStartTime ?? null,
+        dailyEndTime: dailyEndTime ?? null,
+        annualVacationDays: annualVacationDays ?? null,
         // updatedAt has a default in the schema; not required here
       }
 
       return await tx.employeeContracts.create({ data: contractCreateData })
     })
 
+
+    // Sync schedule fields from contract to employee's clock-in settings
+    const scheduleUpdate: any = {}
+    if (dailyStartTime)    scheduleUpdate.scheduledStartTime   = dailyStartTime
+    if (dailyEndTime)      scheduleUpdate.scheduledEndTime     = dailyEndTime
+    if (workDaysPerWeek != null) scheduleUpdate.scheduledDaysPerWeek = workDaysPerWeek
+    if (annualVacationDays != null) scheduleUpdate.annualVacationDays = annualVacationDays
+    if (Object.keys(scheduleUpdate).length > 0) {
+      await prisma.employees.update({ where: { id: employeeId }, data: scheduleUpdate })
+    }
 
     // Debug: Log created contract
     console.log('✅ Contract created with pdfGenerationData:', {

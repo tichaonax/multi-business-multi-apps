@@ -121,6 +121,10 @@ interface ContractData {
   }>
   customResponsibilities?: string
   notes?: string | null
+  workDaysPerWeek?: number | null
+  dailyStartTime?: string | null
+  dailyEndTime?: string | null
+  annualVacationDays?: number | null
   businessAssignments?: Array<{
     businessId: string
     businessName: string
@@ -409,7 +413,26 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p className="font-semibold">4. OFFICE HOURS</p>
               <p className="ml-4">
-                4.1 Ordinarily your working hours are 8.5 hours for 26 days in a month. However, due to the position and nature of the commercial/hospitality business, you may be expected to work beyond these times when necessary.
+                {(() => {
+                  const d = contractData
+                  if (d.dailyStartTime && d.dailyEndTime && d.workDaysPerWeek != null) {
+                    const fmt = (t: string) => {
+                      const [h, m] = t.split(':').map(Number)
+                      const p = h >= 12 ? 'PM' : 'AM'
+                      const hr = h % 12 || 12
+                      return m === 0 ? `${hr}:00 ${p}` : `${hr}:${String(m).padStart(2,'0')} ${p}`
+                    }
+                    const startMin = parseInt(d.dailyStartTime.split(':')[0],10)*60 + parseInt(d.dailyStartTime.split(':')[1],10)
+                    const endMin = parseInt(d.dailyEndTime.split(':')[0],10)*60 + parseInt(d.dailyEndTime.split(':')[1],10)
+                    const dailyHrs = ((endMin - startMin)/60)
+                    const daysStr = (d.workDaysPerWeek % 1 === 0) ? d.workDaysPerWeek.toString() : d.workDaysPerWeek.toFixed(1)
+                    return `4.1 Your working hours are ${fmt(d.dailyStartTime)} to ${fmt(d.dailyEndTime)} (${dailyHrs % 1 === 0 ? dailyHrs : dailyHrs.toFixed(1)} hours per day), ${daysStr} days per week. However, due to the position and nature of the commercial/hospitality business, you may be expected to work beyond these times when necessary.`
+                  } else if (d.workDaysPerWeek != null) {
+                    const daysStr = (d.workDaysPerWeek % 1 === 0) ? d.workDaysPerWeek.toString() : d.workDaysPerWeek.toFixed(1)
+                    return `4.1 You are expected to work ${daysStr} days per week. However, due to the position and nature of the commercial/hospitality business, you may be expected to work beyond these times when necessary.`
+                  }
+                  return '4.1 Ordinarily your working hours are 8.5 hours for 26 days in a month. However, due to the position and nature of the commercial/hospitality business, you may be expected to work beyond these times when necessary.'
+                })()}
               </p>
             </div>
 
@@ -426,7 +449,15 @@ export const ContractTemplate = forwardRef<HTMLDivElement, ContractTemplateProps
             <div>
               <p className="font-semibold">6. VACATION LEAVE</p>
               <p className="ml-4">
-                6.1 You accrue 2.5 days leave days per month (this includes weekends and public holidays).
+                {(() => {
+                  const vacDays = contractData.annualVacationDays
+                  if (vacDays != null && vacDays > 0) {
+                    const monthlyRate = vacDays / 12
+                    const monthlyStr = monthlyRate % 1 === 0 ? monthlyRate.toString() : monthlyRate.toFixed(1)
+                    return `6.1 You are entitled to ${vacDays} days of annual leave, accruing at ${monthlyStr} days per month (this includes weekends and public holidays).`
+                  }
+                  return '6.1 You accrue 2.5 days leave days per month (this includes weekends and public holidays).'
+                })()}
               </p>
             </div>
 

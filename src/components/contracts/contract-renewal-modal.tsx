@@ -14,6 +14,10 @@ interface ContractRenewalModalProps {
     contractDurationMonths?: number
     jobTitle: string
     baseSalary: number
+    workDaysPerWeek?: number | null
+    dailyStartTime?: string | null
+    dailyEndTime?: string | null
+    annualVacationDays?: number | null
   }
   isOpen: boolean
   onClose: () => void
@@ -26,6 +30,10 @@ interface RenewalData {
   customStartDate?: string
   customEndDate?: string
   notes?: string
+  workDaysPerWeek?: number
+  dailyStartTime?: string
+  dailyEndTime?: string
+  annualVacationDays?: number
 }
 
 export function ContractRenewalModal({
@@ -40,6 +48,27 @@ export function ContractRenewalModal({
   const [customEndDate, setCustomEndDate] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Work schedule — pre-filled from original contract, manager can override
+  const [schedDaysPerWeek, setSchedDaysPerWeek] = useState(
+    contract.workDaysPerWeek != null ? String(contract.workDaysPerWeek) : '6.5'
+  )
+  const [schedStartTime, setSchedStartTime] = useState(contract.dailyStartTime ?? '06:00')
+  const [schedEndTime, setSchedEndTime] = useState(contract.dailyEndTime ?? '17:00')
+  const [schedVacationDays, setSchedVacationDays] = useState(
+    contract.annualVacationDays != null ? String(contract.annualVacationDays) : '14'
+  )
+
+  // Live hrs/year calculation
+  const computeHrsPerYear = () => {
+    const [sh, sm] = schedStartTime.split(':').map(Number)
+    const [eh, em] = schedEndTime.split(':').map(Number)
+    if (isNaN(sh) || isNaN(eh)) return null
+    const dailyHrs = (eh * 60 + em - (sh * 60 + sm)) / 60
+    const days = parseFloat(schedDaysPerWeek) || 0
+    return dailyHrs > 0 && days > 0 ? Math.round(dailyHrs * days * 52 * 10) / 10 : null
+  }
+  const hrsPerYear = computeHrsPerYear()
 
   if (!isOpen) return null
 
@@ -97,7 +126,11 @@ export function ContractRenewalModal({
           customStartDate: customStartDate,
           customEndDate: customEndDate
         }),
-        notes: notes.trim() || undefined
+        notes: notes.trim() || undefined,
+        workDaysPerWeek: parseFloat(schedDaysPerWeek) || undefined,
+        dailyStartTime: schedStartTime || undefined,
+        dailyEndTime: schedEndTime || undefined,
+        annualVacationDays: parseInt(schedVacationDays) || undefined,
       }
 
       await onRenew(renewalData)
@@ -270,6 +303,69 @@ export function ContractRenewalModal({
                   </div>
                 </label>
               </div>
+            </div>
+
+            {/* Work Schedule */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-primary flex items-center gap-2">
+                <Clock className="h-4 w-4 text-blue-500" />
+                Work Schedule
+                <span className="text-xs font-normal text-secondary">(carried forward from original — override if changing)</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-secondary mb-1">Working Days / Week</label>
+                  <select
+                    value={schedDaysPerWeek}
+                    onChange={(e) => setSchedDaysPerWeek(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="5">5 days</option>
+                    <option value="6">6 days</option>
+                    <option value="6.5">6.5 days</option>
+                    <option value="7">7 days</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-secondary mb-1">Annual Vacation Days</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={schedVacationDays}
+                    onChange={(e) => setSchedVacationDays(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-secondary mb-1">Daily Start Time</label>
+                  <input
+                    type="time"
+                    value={schedStartTime}
+                    onChange={(e) => setSchedStartTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-secondary mb-1">Daily End Time</label>
+                  <input
+                    type="time"
+                    value={schedEndTime}
+                    onChange={(e) => setSchedEndTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              {hrsPerYear != null && (
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  → {(() => {
+                    const [sh, sm] = schedStartTime.split(':').map(Number)
+                    const [eh, em] = schedEndTime.split(':').map(Number)
+                    const dailyHrs = (eh * 60 + em - (sh * 60 + sm)) / 60
+                    return `${dailyHrs} hrs/day × ${schedDaysPerWeek} days × 52 weeks = ${hrsPerYear} hrs/year`
+                  })()}
+                </p>
+              )}
             </div>
 
             {/* Preview */}

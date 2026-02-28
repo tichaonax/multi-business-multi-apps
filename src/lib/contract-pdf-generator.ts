@@ -109,6 +109,11 @@ interface ContractData {
     role?: string
     startDate?: string
   }>
+  // Work schedule fields
+  workDaysPerWeek?: number
+  dailyStartTime?: string   // "HH:MM" 24-hour
+  dailyEndTime?: string     // "HH:MM" 24-hour
+  annualVacationDays?: number
   // Renewal tracking fields
   isRenewal?: boolean
   renewalCount?: number
@@ -690,7 +695,31 @@ export function generateComprehensiveContract(data: ContractData): jsPDF {
   checkPageBreak(20)
   yPosition += addText('4.    OFFICE HOURS', margin, yPosition, { bold: true, size: PDF_CONSTANTS.FONT_SIZE.SUBSECTION_HEADER })
   yPosition += PDF_CONSTANTS.SECTION_SPACING.AFTER_SECTION_HEADER
-  yPosition += addText('4.1    Ordinarily your working hours are 8.5 hours for 26 days in a month. However, due to the position and nature of the commercial/hospitality business, you may be expected to work beyond these times when necessary.', margin, yPosition, { 
+
+  // Build office hours text from schedule fields if available
+  let officeHoursText: string
+  if (data.dailyStartTime && data.dailyEndTime && data.workDaysPerWeek != null) {
+    const formatTime = (t: string) => {
+      const [hStr, mStr] = t.split(':')
+      const h = parseInt(hStr, 10)
+      const m = parseInt(mStr, 10)
+      const period = h >= 12 ? 'PM' : 'AM'
+      const hr = h % 12 || 12
+      return m === 0 ? `${hr}:00 ${period}` : `${hr}:${String(m).padStart(2, '0')} ${period}`
+    }
+    const startMin = parseInt(data.dailyStartTime.split(':')[0], 10) * 60 + parseInt(data.dailyStartTime.split(':')[1], 10)
+    const endMin = parseInt(data.dailyEndTime.split(':')[0], 10) * 60 + parseInt(data.dailyEndTime.split(':')[1], 10)
+    const dailyHrsRaw = (endMin - startMin) / 60
+    const dailyHrs = dailyHrsRaw % 1 === 0 ? dailyHrsRaw.toString() : dailyHrsRaw.toFixed(1)
+    const daysStr = data.workDaysPerWeek % 1 === 0 ? data.workDaysPerWeek.toString() : data.workDaysPerWeek.toFixed(1)
+    officeHoursText = `4.1    Your working hours are ${formatTime(data.dailyStartTime)} to ${formatTime(data.dailyEndTime)} (${dailyHrs} hours per day), ${daysStr} days per week. However, due to the position and nature of the commercial/hospitality business, you may be expected to work beyond these times when necessary.`
+  } else if (data.workDaysPerWeek != null) {
+    const daysStr = data.workDaysPerWeek % 1 === 0 ? data.workDaysPerWeek.toString() : data.workDaysPerWeek.toFixed(1)
+    officeHoursText = `4.1    You are expected to work ${daysStr} days per week. However, due to the position and nature of the commercial/hospitality business, you may be expected to work beyond these times when necessary.`
+  } else {
+    officeHoursText = '4.1    Ordinarily your working hours are 8.5 hours for 26 days in a month. However, due to the position and nature of the commercial/hospitality business, you may be expected to work beyond these times when necessary.'
+  }
+  yPosition += addText(officeHoursText, margin, yPosition, {
     maxWidth: pageWidth - 2 * margin,
     lineHeight: 5
   })
@@ -715,8 +744,18 @@ export function generateComprehensiveContract(data: ContractData): jsPDF {
   checkPageBreak(20)
   yPosition += addText('6.    VACATION LEAVE', margin, yPosition, { bold: true, size: 11 })
   yPosition += 4
-  const leaveRate = data.leaveAccrualRate || 2.5
-  yPosition += addText(`6.1    You accrue ${leaveRate} days leave days per month (this includes weekends and public holidays).`, margin, yPosition, { 
+
+  // Build vacation leave text from annualVacationDays if available
+  let vacationLeaveText: string
+  if (data.annualVacationDays != null && data.annualVacationDays > 0) {
+    const monthlyRaw = data.annualVacationDays / 12
+    const monthlyRate = monthlyRaw % 1 === 0 ? monthlyRaw.toString() : monthlyRaw.toFixed(1)
+    vacationLeaveText = `6.1    You are entitled to ${data.annualVacationDays} days of annual leave, accruing at ${monthlyRate} days per month (this includes weekends and public holidays).`
+  } else {
+    const leaveRate = data.leaveAccrualRate || 2.5
+    vacationLeaveText = `6.1    You accrue ${leaveRate} days leave days per month (this includes weekends and public holidays).`
+  }
+  yPosition += addText(vacationLeaveText, margin, yPosition, {
     maxWidth: pageWidth - 2 * margin,
     lineHeight: 5
   })

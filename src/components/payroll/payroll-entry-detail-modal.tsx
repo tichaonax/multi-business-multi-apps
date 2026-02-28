@@ -90,6 +90,16 @@ export function PayrollEntryDetailModal({
     isAddition: true,
     description: ''
   })
+  const [approvingAdjId, setApprovingAdjId] = useState<string | null>(null)
+  const [overrideAmounts, setOverrideAmounts] = useState<Record<string, string>>({})
+  const [vacationBalance, setVacationBalance] = useState<{
+    annualDays: number
+    usedDays: number
+    remainingDays: number
+    dailyRate: number
+    accrualValue: number
+  } | null>(null)
+  const [calculatingPayout, setCalculatingPayout] = useState(false)
 
   const showPrompt = usePrompt()
   const { data: session } = useSession()
@@ -130,7 +140,14 @@ export function PayrollEntryDetailModal({
     earlyCount: number
     totalLateMinutes: number
     totalEarlyMinutes: number
+    totalOvertimeCreditMinutes?: number
+    totalOvertimeMinutes?: number
     deductionAmount: number
+    creditAmount?: number
+    overtimeAmount?: number
+    hourlyRate?: number
+    dailyRate?: number
+    hoursPerYear?: number
     summary: string
     records?: Array<{
       date: string
@@ -140,6 +157,8 @@ export function PayrollEntryDetailModal({
       scheduledEnd: string | null
       lateMinutes: number
       earlyMinutes: number
+      overtimeCreditMinutes?: number
+      overtimeMinutes?: number
     }>
   } | null>(null)
   const [showClockInDetails, setShowClockInDetails] = useState(false)
@@ -428,6 +447,46 @@ export function PayrollEntryDetailModal({
           })
         }
         setBenefits(benefitsList)
+
+        // Load vacation balance for the payroll period's year
+        const empForVacation = data.employees || data.employee
+        const empIdForVacation = empForVacation?.id || data.employeeId
+        const periodYear = data.payroll_periods?.year ?? new Date().getFullYear()
+        if (empIdForVacation) {
+          try {
+            const lbRes = await fetch(`/api/employees/${empIdForVacation}/leave-balance?year=${periodYear}`)
+            if (lbRes.ok) {
+              const lb = await lbRes.json()
+              // Compute daily rate from employee schedule fields
+              const parseHHMM2 = (str: string | null | undefined) => {
+                if (!str) return null
+                const parts = str.split(':').map(Number)
+                if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null
+                return { h: parts[0], m: parts[1] }
+              }
+              let dailyHoursV = 11 // restaurant fallback
+              const ss = parseHHMM2(empForVacation?.scheduledStartTime)
+              const se = parseHHMM2(empForVacation?.scheduledEndTime)
+              if (ss && se) dailyHoursV = (se.h * 60 + se.m - (ss.h * 60 + ss.m)) / 60
+              const daysPerWeekV = (empForVacation?.scheduledDaysPerWeek as number | null) ?? 6.5
+              const baseSalV = Number(data.baseSalary ?? 0)
+              const hrsPerYearV = dailyHoursV * daysPerWeekV * 52
+              const hrRateV = hrsPerYearV > 0 ? (baseSalV * 12) / hrsPerYearV : 0
+              const dayRateV = Math.round(hrRateV * dailyHoursV * 100) / 100
+              const annualDaysV = (empForVacation?.annualVacationDays as number | null) ?? lb.annualLeaveDays ?? 14
+              const usedDaysV = lb.usedAnnualDays ?? 0
+              const remainingDaysV = Math.max(0, annualDaysV - usedDaysV)
+              setVacationBalance({
+                annualDays: annualDaysV,
+                usedDays: usedDaysV,
+                remainingDays: remainingDaysV,
+                dailyRate: dayRateV,
+                accrualValue: Math.round(remainingDaysV * dayRateV * 100) / 100,
+              })
+            }
+          } catch { /* non-fatal */ }
+        }
+
         // return loaded data to callers so they can opt-in to receive updatedEntry without forcing a full refresh
         return loadedData
       }
@@ -1206,6 +1265,50 @@ export function PayrollEntryDetailModal({
     }
   }
 
+  const handleApproveAdjustment = async (adjId: string, overrideAmount?: number) => {
+    setApprovingAdjId(adjId)
+    try {
+      const body: any = { action: 'approve' }
+      if (overrideAmount != null && !isNaN(overrideAmount)) body.overrideAmount = overrideAmount
+      const res = await fetch(`/api/payroll/adjustments/${adjId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) { onError('Failed to approve adjustment'); return }
+      setOverrideAmounts(prev => { const n = { ...prev }; delete n[adjId]; return n })
+      await loadEntry()
+    } finally {
+      setApprovingAdjId(null)
+    }
+  }
+
+  const handleRejectAdjustment = async (adjId: string) => {
+    setApprovingAdjId(adjId)
+    try {
+      const res = await fetch(`/api/payroll/adjustments/${adjId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject' }),
+      })
+      if (!res.ok) { onError('Failed to reject adjustment'); return }
+      await loadEntry()
+    } finally {
+      setApprovingAdjId(null)
+    }
+  }
+
+  const handleCalculateVacationPayout = async () => {
+    setCalculatingPayout(true)
+    try {
+      const res = await fetch(`/api/payroll/entries/${entryId}/vacation-payout`, { method: 'POST' })
+      if (!res.ok) { onError('Failed to calculate vacation payout'); return }
+      await loadEntry()
+    } finally {
+      setCalculatingPayout(false)
+    }
+  }
+
   const handleEditAdjustment = async (adjustmentId: string, patch: any) => {
     try {
       // Normalize patch: ensure amount sign matches isAddition flag and include adjustmentType
@@ -1917,6 +2020,17 @@ export function PayrollEntryDetailModal({
                               </button>
                             )}
                           </div>
+                          {clockInAnalysis.hourlyRate != null && (
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              Rate: ${clockInAnalysis.hourlyRate}/hr · {clockInAnalysis.hoursPerYear?.toFixed(0)} hrs/yr
+                              {(clockInAnalysis.creditAmount ?? 0) > 0 && (
+                                <span className="ml-2 text-green-600">+${clockInAnalysis.creditAmount} OT credit (pending)</span>
+                              )}
+                              {(clockInAnalysis.overtimeAmount ?? 0) > 0 && (
+                                <span className="ml-2 text-blue-600">+${clockInAnalysis.overtimeAmount} OT 1.5× (pending)</span>
+                              )}
+                            </div>
+                          )}
                           {showClockInDetails && clockInAnalysis.records && clockInAnalysis.records.length > 0 && (
                             <div className="mt-1 border border-orange-200 rounded-md overflow-hidden text-xs">
                               <table className="w-full">
@@ -1927,6 +2041,8 @@ export function PayrollEntryDetailModal({
                                     <th className="text-left px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">Clock Out</th>
                                     <th className="text-right px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">Late</th>
                                     <th className="text-right px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">Early Out</th>
+                                    <th className="text-right px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">OT Credit</th>
+                                    <th className="text-right px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">OT 1.5×</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1943,12 +2059,16 @@ export function PayrollEntryDetailModal({
                                       <td className="px-2 py-1">
                                         {r.earlyMinutes > 0 ? (
                                           <span className="text-red-600">{r.checkOut} <span className="text-gray-400">(sched {r.scheduledEnd})</span></span>
+                                        ) : (r.overtimeCreditMinutes ?? 0) > 0 || (r.overtimeMinutes ?? 0) > 0 ? (
+                                          <span className="text-green-600">{r.checkOut} <span className="text-gray-400">(sched {r.scheduledEnd})</span></span>
                                         ) : (
                                           <span className="text-secondary">{r.checkOut ?? '—'}</span>
                                         )}
                                       </td>
                                       <td className="px-2 py-1 text-right">{r.lateMinutes > 0 ? <span className="text-red-600">{r.lateMinutes} min</span> : <span className="text-gray-400">—</span>}</td>
                                       <td className="px-2 py-1 text-right">{r.earlyMinutes > 0 ? <span className="text-red-600">{r.earlyMinutes} min</span> : <span className="text-gray-400">—</span>}</td>
+                                      <td className="px-2 py-1 text-right">{(r.overtimeCreditMinutes ?? 0) > 0 ? <span className="text-green-600">{r.overtimeCreditMinutes} min</span> : <span className="text-gray-400">—</span>}</td>
+                                      <td className="px-2 py-1 text-right">{(r.overtimeMinutes ?? 0) > 0 ? <span className="text-blue-600">{r.overtimeMinutes} min</span> : <span className="text-gray-400">—</span>}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -2009,6 +2129,52 @@ export function PayrollEntryDetailModal({
                 })()}
               </div>
             </div>
+
+            {/* Vacation Entitlement */}
+            {vacationBalance && (
+              <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-teal-800 dark:text-teal-300 text-sm">🏖 Vacation Entitlement</h3>
+                  {!isLocked && entry?.employee?.employmentStatus ?? (entry?.employees as any)?.employmentStatus === 'terminated' && (
+                    <button
+                      type="button"
+                      disabled={calculatingPayout}
+                      onClick={handleCalculateVacationPayout}
+                      className="px-3 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-50"
+                    >
+                      {calculatingPayout ? 'Calculating…' : '+ Payout Adjustment'}
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Annual days:</span>
+                    <span className="font-medium text-primary">{vacationBalance.annualDays} days</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Daily rate:</span>
+                    <span className="font-medium text-primary">{formatCurrency(vacationBalance.dailyRate)}/day</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Days used:</span>
+                    <span className="font-medium text-primary">{vacationBalance.usedDays} days</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Days remaining:</span>
+                    <span className="font-medium text-teal-700 dark:text-teal-400">{vacationBalance.remainingDays} days</span>
+                  </div>
+                  <div className="flex justify-between col-span-2 border-t border-teal-200 dark:border-teal-700 pt-1 mt-1">
+                    <span className="text-secondary">Accrued value:</span>
+                    <span className="font-semibold text-teal-700 dark:text-teal-400">{formatCurrency(vacationBalance.accrualValue)}</span>
+                  </div>
+                </div>
+                {entry?.employee?.employmentStatus ?? (entry?.employees as any)?.employmentStatus === 'terminated' && (
+                  <div className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                    ⚠ Employee is terminated — use "+ Payout Adjustment" to create a pending vacation payout for manager approval.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Adjustments */}
             <div>
@@ -2121,9 +2287,80 @@ export function PayrollEntryDetailModal({
                 </div>
               )}
 
-              {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => a.isAddition).length > 0 ? (
+              {/* Pending clock-in OT credits / overtime — require manager approval */}
+              {(() => {
+                const pendingAdjs = (entry.payrollAdjustments || []).filter((a: any) =>
+                  (a as any).status === 'pending' &&
+                  ['overtime_credit', 'overtime', 'vacation_payout'].includes(String((a as any).adjustmentType || ''))
+                )
+                if (pendingAdjs.length === 0) return null
+                return (
+                  <div className="mb-4 space-y-2">
+                    <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                      ⏳ Pending Approval
+                    </div>
+                    {pendingAdjs.map((adj: any) => {
+                      const isCredit = adj.adjustmentType === 'overtime_credit'
+                      const isVacationPayout = adj.adjustmentType === 'vacation_payout'
+                      const colorClass = isCredit || isVacationPayout
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                      const textClass = isCredit || isVacationPayout
+                        ? 'text-green-700 dark:text-green-400'
+                        : 'text-blue-700 dark:text-blue-400'
+                      const overrideVal = overrideAmounts[adj.id] ?? ''
+                      return (
+                        <div key={adj.id} className={`p-3 rounded-lg border ${colorClass}`}>
+                          <div className="flex items-start justify-between mb-1">
+                            <div>
+                              <span className={`text-xs font-semibold ${textClass}`}>
+                                {isCredit ? '⏱ Overtime Credit (grace ≤30 min)' : isVacationPayout ? '🏖 Vacation Payout' : '🕐 Overtime 1.5× (>30 min)'}
+                              </span>
+                              <div className="text-xs text-secondary mt-0.5">{adj.reason}</div>
+                            </div>
+                            <span className={`text-sm font-semibold ml-3 ${isCredit || isVacationPayout ? 'text-green-600' : 'text-blue-600'}`}>
+                              +{formatCurrency(Math.abs(Number(adj.amount || 0)))}
+                            </span>
+                          </div>
+                          {!isLocked && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Override amount"
+                                value={overrideVal}
+                                onChange={(e) => setOverrideAmounts(prev => ({ ...prev, [adj.id]: e.target.value }))}
+                                className="flex-1 px-2 py-1 text-xs border border-border rounded bg-background text-primary"
+                              />
+                              <button
+                                type="button"
+                                disabled={approvingAdjId === adj.id}
+                                onClick={() => handleApproveAdjustment(adj.id, overrideVal ? parseFloat(overrideVal) : undefined)}
+                                className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                type="button"
+                                disabled={approvingAdjId === adj.id}
+                                onClick={() => handleRejectAdjustment(adj.id)}
+                                className="px-3 py-1 text-xs bg-red-100 text-red-700 border border-red-300 rounded hover:bg-red-200 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                ✗ Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+
+              {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => a.isAddition && (a as any).status !== 'pending').length > 0 ? (
                 <div className="space-y-2">
-                  {entry.payrollAdjustments.filter((a: any) => a.isAddition).map((adj: any) => (
+                  {entry.payrollAdjustments.filter((a: any) => a.isAddition && (a as any).status !== 'pending').map((adj: any) => (
                     <div key={adj.id} className="bg-muted p-3 rounded border border-border flex items-center justify-between">
                       <div>
                         {/* Prefer description, then reason, then type */}
@@ -2601,7 +2838,11 @@ export function PayrollEntryDetailModal({
                       <label className="block text-sm font-medium text-secondary mb-1">Type</label>
                       {editingAdjustment.isClockInAdjustment ? (
                         <div className="w-full px-3 py-2 border border-border rounded-md bg-muted text-secondary text-sm flex items-center gap-2">
-                          🕐 Clock-In Deduction
+                          {editingAdjustment.adjustmentType === 'overtime_credit'
+                            ? '⏱ Overtime Credit (grace ≤30 min)'
+                            : editingAdjustment.adjustmentType === 'overtime'
+                            ? '🕐 Overtime 1.5× (>30 min)'
+                            : '🕐 Clock-In Deduction'}
                           <span className="text-xs text-orange-500">(auto)</span>
                         </div>
                       ) : (
@@ -2639,7 +2880,11 @@ export function PayrollEntryDetailModal({
                       <label className="block text-sm font-medium text-secondary mb-1">
                         Amount
                         {editingAdjustment.isClockInAdjustment && (
-                          <span className="ml-2 text-xs text-gray-400 font-normal">Override auto-calculated deduction</span>
+                          <span className="ml-2 text-xs text-gray-400 font-normal">
+                            {['overtime_credit', 'overtime'].includes(editingAdjustment.adjustmentType)
+                              ? 'Override auto-calculated overtime amount'
+                              : 'Override auto-calculated deduction'}
+                          </span>
                         )}
                       </label>
                       <input
