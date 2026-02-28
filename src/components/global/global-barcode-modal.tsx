@@ -37,6 +37,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   const { data: session } = useSession()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  // True while the initial card-scan check is in-flight (before we know if it's a card or product)
+  const [isIdentifying, setIsIdentifying] = useState(false)
   const [businesses, setBusinesses] = useState<BusinessInventory[]>([])
   const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -99,6 +101,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     if (!session?.user) return
 
     setIsLoading(true)
+    setIsIdentifying(true)
     setError(null)
     setBusinesses([])
     setSelectedBusiness(null)
@@ -148,10 +151,13 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
             setShowClockInModal(true)
           }
           setIsLoading(false)
+          setIsIdentifying(false)
           return // Stop — do not proceed with inventory lookup
         }
       }
       // --- End employee clock-in intercept ---
+      // Card check complete — not a card scan, switching to product lookup
+      setIsIdentifying(false)
 
       // Check user permissions
       const access = getGlobalBarcodeScanningAccess(session.user as any)
@@ -226,6 +232,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
       setError('Failed to lookup barcode. Please check your connection and try again.')
     } finally {
       setIsLoading(false)
+      setIsIdentifying(false)
     }
   }
 
@@ -477,6 +484,115 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
 
   if (!isOpen) return null
 
+  // ── Route: clock-in / clock-out flow ─────────────────────────────────────
+  // Rendered as a top-level early return so it is NOT inside the z-50
+  // stacking context of the inventory-lookup overlay. This gives the
+  // ClockInModal its own independent z-index on the page.
+  if (showClockInModal && clockInEmployee) {
+    return (
+      <ClockInModal
+        isOpen={true}
+        onClose={() => {
+          setShowClockInModal(false)
+          if (pendingLogoutAfterClockIn) {
+            setPendingLogoutAfterClockIn(false)
+            setShowLogoutPrompt(true)
+          } else {
+            onClose()
+          }
+        }}
+        employee={clockInEmployee}
+        clockState={clockInState}
+        attendance={clockInAttendance}
+        isOwnCard={clockInIsOwnCard}
+        onBeforeSignOut={async () => {
+          if (clockInEmployee?.id) {
+            await fetch('/api/clock-in/login-log', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ employeeId: clockInEmployee.id, action: 'logout', method: 'card' }),
+            }).catch(() => {})
+          }
+        }}
+      />
+    )
+  }
+
+  // ── Route: logout prompt ──────────────────────────────────────────────────
+  if (showLogoutPrompt) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+          <div className="px-6 py-4 bg-red-600">
+            <h3 className="text-lg font-semibold text-white">Switch User?</h3>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              <strong>{logoutPromptEmployee?.fullName}</strong> is an admin/manager.
+              Confirming will sign out the current session.
+            </p>
+            {/* Camera viewfinder — always rendered so ref exists before stream arrives */}
+            {logoutCameraError ? (
+              <p className="text-xs text-gray-400 text-center py-1">
+                Camera unavailable — proceeding without photo
+              </p>
+            ) : (
+              <div className="relative rounded-lg overflow-hidden bg-black" style={{ minHeight: '120px' }}>
+                <video ref={logoutVideoRef} autoPlay playsInline muted
+                  className="w-full rounded-lg"
+                  style={{ maxHeight: '160px', objectFit: 'cover' }} />
+                {!logoutCameraActive && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="animate-spin h-5 w-5 border-2 border-gray-400 border-t-white rounded-full" />
+                  </div>
+                )}
+                {logoutCameraActive && (
+                  <div className="absolute bottom-1 right-2 text-white/70 text-xs bg-black/30 px-1.5 py-0.5 rounded">
+                    Photo taken on action
+                  </div>
+                )}
+              </div>
+            )}
+            <canvas ref={logoutCanvasRef} className="hidden" />
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const dataUrl = captureLogoutFrame()
+                  const emp = logoutPromptEmployee
+                  stopLogoutCamera()
+                  setShowLogoutPrompt(false)
+                  setPendingLogoutAfterClockIn(false)
+                  setShowClockInModal(false)
+                  onClose()
+                  if (emp?.id) {
+                    ;(async () => {
+                      const photoUrl = dataUrl ? await uploadLogoutFrame(dataUrl) : undefined
+                      fetch('/api/clock-in/login-log', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ employeeId: emp.id, action: 'declined', method: 'card', photoUrl: photoUrl ?? null }),
+                      }).catch(() => {})
+                    })()
+                  }
+                }}
+                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogoutConfirm}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Route: inventory lookup modal ─────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -484,7 +600,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
           <div className="mb-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {isLoading ? 'Searching for Product...' : businesses.length === 0 ? 'Product Not Found' : `Product Found in ${businesses.length} Business${businesses.length > 1 ? 'es' : ''}`}
+                {isIdentifying ? 'Scanning…' : isLoading ? 'Searching for Product…' : businesses.length === 0 ? 'Product Not Found' : `Product Found in ${businesses.length} Business${businesses.length > 1 ? 'es' : ''}`}
               </h2>
               <button
                 onClick={onClose}
@@ -509,7 +625,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
             )}
           </div>
 
-          <div className="mb-4">
+          {/* Barcode info + custom SKU — hidden during initial card-check phase */}
+          {!isIdentifying && <div className="mb-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Barcode:</span>
               <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-sm text-gray-900 dark:text-gray-100">{currentBarcode}</code>
@@ -550,7 +667,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
                 🔄 Reset
               </button>
             </div>
-          </div>
+          </div>}
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -561,7 +678,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
-              <span className="ml-2 text-gray-600 dark:text-gray-400">Looking up product...</span>
+              <span className="ml-2 text-gray-600 dark:text-gray-400">{isIdentifying ? 'Identifying scan…' : 'Looking up product…'}</span>
             </div>
           ) : businesses.length === 0 ? (
             <div className="text-center py-8">
@@ -752,112 +869,6 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
         </div>
       )}
 
-      {/* Clock-In Modal (shown when scanned barcode matches an employee number) */}
-      {showClockInModal && clockInEmployee && (
-        <ClockInModal
-          isOpen={showClockInModal}
-          onClose={() => {
-            setShowClockInModal(false)
-            if (pendingLogoutAfterClockIn) {
-              // Non-exempt admin/manager: show logout prompt after clock action finishes
-              setPendingLogoutAfterClockIn(false)
-              setShowLogoutPrompt(true)
-            } else {
-              onClose()
-            }
-          }}
-          employee={clockInEmployee}
-          clockState={clockInState}
-          attendance={clockInAttendance}
-          isOwnCard={clockInIsOwnCard}
-          onBeforeSignOut={async () => {
-            if (clockInEmployee?.id) {
-              await fetch('/api/clock-in/login-log', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ employeeId: clockInEmployee.id, action: 'logout', method: 'card' }),
-              }).catch(() => {})
-            }
-          }}
-        />
-      )}
-
-      {/* Logout confirmation prompt — shown when an admin/manager scans while another user is active */}
-      {showLogoutPrompt && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
-            <div className="px-6 py-4 bg-red-600">
-              <h3 className="text-lg font-semibold text-white">Switch User?</h3>
-            </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                <strong>{logoutPromptEmployee?.fullName}</strong> is an admin/manager.
-                Confirming will sign out the current session.
-              </p>
-              {/* Camera viewfinder — always rendered so ref exists before stream arrives */}
-              {logoutCameraError ? (
-                <p className="text-xs text-gray-400 text-center py-1">
-                  Camera unavailable — proceeding without photo
-                </p>
-              ) : (
-                <div className="relative rounded-lg overflow-hidden bg-black" style={{ minHeight: '120px' }}>
-                  {/* video always in DOM so logoutVideoRef is set before getUserMedia resolves */}
-                  <video ref={logoutVideoRef} autoPlay playsInline muted
-                    className="w-full rounded-lg"
-                    style={{ maxHeight: '160px', objectFit: 'cover' }} />
-                  {/* Spinner overlay while waiting for camera */}
-                  {!logoutCameraActive && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="animate-spin h-5 w-5 border-2 border-gray-400 border-t-white rounded-full" />
-                    </div>
-                  )}
-                  {logoutCameraActive && (
-                    <div className="absolute bottom-1 right-2 text-white/70 text-xs bg-black/30 px-1.5 py-0.5 rounded">
-                      Photo taken on action
-                    </div>
-                  )}
-                </div>
-              )}
-              <canvas ref={logoutCanvasRef} className="hidden" />
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    // 1. Sync capture BEFORE closing (video still in DOM)
-                    const dataUrl = captureLogoutFrame()
-                    const emp = logoutPromptEmployee
-                    // 2. Stop camera and close immediately
-                    stopLogoutCamera()
-                    setShowLogoutPrompt(false)
-                    setPendingLogoutAfterClockIn(false)
-                    setShowClockInModal(false)
-                    onClose()
-                    // 3. Upload + log in background (fire-and-forget)
-                    if (emp?.id) {
-                      ;(async () => {
-                        const photoUrl = dataUrl ? await uploadLogoutFrame(dataUrl) : undefined
-                        fetch('/api/clock-in/login-log', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ employeeId: emp.id, action: 'declined', method: 'card', photoUrl: photoUrl ?? null }),
-                        }).catch(() => {})
-                      })()
-                    }
-                  }}
-                  className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleLogoutConfirm}
-                  className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700"
-                >
-                  Log Out
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useRef } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { globalBarcodeService } from '@/lib/services/global-barcode-service'
 import { SessionUser } from '@/lib/permission-utils'
@@ -16,17 +16,15 @@ const GlobalBarcodeContext = createContext<GlobalBarcodeContextType | null>(null
 function GlobalBarcodeProviderInner({ children }: { children: React.ReactNode }) {
   const [isEnabled, setIsEnabled] = useState(false)
   const { data: session, status } = useSession()
-  const initializedRef = useRef(false)
 
+  // Sync the current user into the service on every session change.
+  // initialize() handles first-run setup; on subsequent calls it delegates
+  // to updateUser() internally, re-enabling scanning after a kiosk login.
   useEffect(() => {
-    // Only initialize once and when session is loaded
-    if (initializedRef.current || status === 'loading') {
-      return
-    }
+    if (status === 'loading') return
 
-    // Convert next-auth session to our SessionUser format
     const sessionUser: SessionUser | null = session?.user ? {
-      id: session.user.id || '',
+      id: (session.user as any).id || '',
       email: session.user.email || null,
       name: session.user.name || null,
       role: (session.user as any).role || 'user',
@@ -34,21 +32,16 @@ function GlobalBarcodeProviderInner({ children }: { children: React.ReactNode })
       businessMemberships: (session.user as any).businessMemberships || []
     } : null
 
-    console.log('🔍 Initializing global barcode service with user:', sessionUser?.id || 'null')
-
-    // Initialize the service with the user session
     globalBarcodeService.initialize(sessionUser)
     setIsEnabled(globalBarcodeService.isEnabled())
-    initializedRef.current = true
+  }, [session, status])
 
-    // Listen for service state changes
+  // Poll service state so the context stays in sync with any external enable/disable calls
+  useEffect(() => {
     const checkEnabled = () => setIsEnabled(globalBarcodeService.isEnabled())
     const interval = setInterval(checkEnabled, 1000)
-
-    return () => {
-      clearInterval(interval)
-    }
-  }, [session, status])
+    return () => clearInterval(interval)
+  }, [])
 
   const enableScanning = () => {
     globalBarcodeService.enable()
