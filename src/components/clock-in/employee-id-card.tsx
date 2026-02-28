@@ -17,6 +17,7 @@ interface EmployeeIdCardProps {
 }
 
 export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
+  console.log('[IdCard] primaryBusiness:', employee.primaryBusiness, '| emp phone:', employee.phone)
   const barcodeRef = useRef<SVGSVGElement>(null)
 
   useEffect(() => {

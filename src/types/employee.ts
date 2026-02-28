@@ -66,6 +66,8 @@ export type BusinessRef = {
   id: string
   name: string
   type: string
+  phone?: string | null
+  umbrellaBusinessPhone?: string | null
 }
 
 export type BusinessAssignment = {
