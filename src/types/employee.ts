@@ -96,6 +96,7 @@ export type Employee = {
   fullName: string
   email: string | null
   phone: string
+  businessContactPhone?: string | null
   address: string | null
   dateOfBirth: string | null
   nationalId: string | null

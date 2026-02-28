@@ -129,6 +129,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       jobTitle: Array.isArray(e.job_titles) ? e.job_titles[0] : (e.job_titles || null),
       compensationType: employeeCompensationType,
       primaryBusiness: e.businesses || e.primaryBusiness || null,
+      businessContactPhone: e.businesses?.phone ?? e.businesses?.umbrellaBusinessPhone ?? null,
       supervisor: supervisorObj,
       subordinates,
       contracts: (e.employee_contracts_employee_contracts_employeeIdToemployees || e.employeeContracts || []).map((contract: any) => {
