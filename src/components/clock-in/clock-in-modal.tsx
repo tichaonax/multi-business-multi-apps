@@ -204,9 +204,13 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
 
       const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 
+      // Only sign out after clock-out if this is the logged-in user's own card.
+      // kioskLogin alone is not enough — an admin can manage other employees' clock-outs
+      // on a kiosk session without signing themselves out.
       const shouldSignOut =
         action === 'clockOut' &&
-        (isOwnCard || sessionStorage.getItem('kioskLogin') === 'true')
+        isOwnCard &&
+        sessionStorage.getItem('kioskLogin') === 'true'
 
       if (shouldSignOut) {
         sessionStorage.removeItem('kioskLogin')
@@ -217,10 +221,10 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
           }
           onClose()
           signOut({ callbackUrl: window.location.origin, redirect: true })
-        }, 2000)
+        }, 3000)
       } else {
         setSuccess(action === 'clockIn' ? `Clocked in at ${now}` : `Clocked out at ${now}`)
-        setTimeout(() => onClose(), 2000)
+        setTimeout(() => onClose(), 3000)
       }
     } catch {
       setError('Failed to record clock action. Please try again.')
@@ -248,7 +252,7 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
               {clockState === 'clockedIn' && '🟠 Clock Out'}
               {clockState === 'clockedOut' && '✅ Already Clocked Out'}
             </h2>
-            <button onClick={handleCancel} className="text-white/80 hover:text-white text-xl">✕</button>
+            <button onClick={handleCancel} disabled={isLoading} className="text-white/80 hover:text-white text-xl disabled:opacity-40 disabled:cursor-not-allowed">✕</button>
           </div>
         </div>
 
@@ -357,8 +361,8 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
           {/* Action buttons */}
           {action && !success && (
             <div className="flex gap-3">
-              <button onClick={handleCancel}
-                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
+              <button onClick={handleCancel} disabled={isLoading}
+                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
                 Cancel
               </button>
               <button onClick={handleAction} disabled={isLoading}

@@ -39,6 +39,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   const [isLoading, setIsLoading] = useState(false)
   // True while the initial card-scan check is in-flight (before we know if it's a card or product)
   const [isIdentifying, setIsIdentifying] = useState(false)
+  // True once the barcode matched an employee card — prevents the inventory modal from ever showing
+  const [cardScanHandled, setCardScanHandled] = useState(false)
   const [businesses, setBusinesses] = useState<BusinessInventory[]>([])
   const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -150,6 +152,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
             setClockInIsOwnCard(!!clockData.isOwnCard)
             setShowClockInModal(true)
           }
+          setCardScanHandled(true)
           setIsLoading(false)
           setIsIdentifying(false)
           return // Stop — do not proceed with inventory lookup
@@ -268,24 +271,27 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     setLogoutCameraError(false)
   }
 
-  const handleLogoutConfirm = async () => {
-    // 1. Capture frame NOW — before closing the dialog unmounts the video element
+  const handleLogoutConfirm = () => {
+    // 1. Capture frame NOW — before closing unmounts the video element
     const dataUrl = captureLogoutFrame()
     const currentUserId = (session?.user as any)?.id
-    // 2. Stop camera and close dialog
+    // 2. Stop camera and close everything immediately — prevents inventory modal flash
     stopLogoutCamera()
     setShowLogoutPrompt(false)
-    // 3. Upload photo + log (await so it completes before signOut navigates away)
-    if (currentUserId) {
+    onClose()
+    // 3. Upload photo + log in background (fire-and-forget; signOut navigates away)
+    ;(async () => {
       try {
         const photoUrl = dataUrl ? await uploadLogoutFrame(dataUrl) : undefined
-        await fetch('/api/clock-in/login-log', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUserId, action: 'logout', method: 'card', photoUrl: photoUrl ?? null }),
-        })
+        if (currentUserId) {
+          await fetch('/api/clock-in/login-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUserId, action: 'logout', method: 'card', photoUrl: photoUrl ?? null }),
+          })
+        }
       } catch { /* non-fatal */ }
-    }
+    })()
     signOut({ callbackUrl: window.location.origin })
   }
 
@@ -593,6 +599,9 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   }
 
   // ── Route: inventory lookup modal ─────────────────────────────────────────
+  // If a valid card scan was already handled, never fall through to inventory lookup
+  if (cardScanHandled) return null
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">

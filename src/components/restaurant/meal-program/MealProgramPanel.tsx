@@ -87,6 +87,8 @@ export function MealProgramPanel({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Participant[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+  const [defaultParticipants, setDefaultParticipants] = useState<Participant[]>([])
+  const [defaultLoading, setDefaultLoading] = useState(false)
 
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null)
   const [eligibleItems, setEligibleItems] = useState<EligibleItem[]>([])
@@ -110,6 +112,32 @@ export function MealProgramPanel({
 
   const [submitting, setSubmitting] = useState(false)
   const [completedResult, setCompletedResult] = useState<any>(null)
+
+  // ---- Load default (top 3 eligible) participants on mount ----
+  useEffect(() => {
+    if (!businessId) return
+    setDefaultLoading(true)
+    fetch(`/api/restaurant/meal-program/participants?businessId=${businessId}&search=&limit=10`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          const mapped: Participant[] = (data.data || []).map((p: any) => ({
+            id: p.participantRecordId || null,
+            participantType: p.participantType,
+            name: p.fullName || p.name || 'Unknown',
+            employeeId: p.employeeId || null,
+            isActive: p.isActive ?? true,
+            alreadyPurchasedToday: p.alreadyPurchasedToday ?? false,
+            isEnrolled: !!p.participantRecordId,
+          }))
+          // Show eligible ones first, cap at 3
+          const eligible = mapped.filter(p => p.isActive && !p.alreadyPurchasedToday)
+          setDefaultParticipants(eligible.slice(0, 3))
+        }
+      })
+      .catch(() => {})
+      .finally(() => setDefaultLoading(false))
+  }, [businessId])
 
   // ---- Search participants ----
   const doSearch = useCallback(
@@ -368,8 +396,8 @@ export function MealProgramPanel({
               autoFocus
               className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 mb-3"
             />
-            {searchLoading && (
-              <p className="text-xs text-secondary text-center py-3">Searching…</p>
+            {(searchLoading || (!searchQuery && defaultLoading)) && (
+              <p className="text-xs text-secondary text-center py-3">Loading…</p>
             )}
             {!searchLoading && searchQuery && searchResults.length === 0 && (
               <div className="text-center py-3">
@@ -379,16 +407,39 @@ export function MealProgramPanel({
                 </p>
               </div>
             )}
-            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 text-center">
-              {canManageProgram && (
-                <button
-                  onClick={() => router.push('/restaurant/meal-program/participants')}
-                  className="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hover:underline"
-                >
-                  <span>➕</span> Manage participants
-                </button>
-              )}
-            </div>
+
+            {/* Default eligible participants (shown only when not searching) */}
+            {!searchQuery && !defaultLoading && defaultParticipants.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs text-secondary font-medium mb-2">Eligible today:</p>
+                <div className="space-y-2">
+                  {defaultParticipants.map((p) => (
+                    <button
+                      key={p.id ?? p.employeeId}
+                      onClick={() => selectParticipant(p)}
+                      className="w-full text-left p-3 border rounded-lg transition-colors hover:bg-amber-50 dark:hover:bg-amber-900/20 border-gray-200 dark:border-gray-700"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-sm text-primary">{p.name}</div>
+                          <div className="text-xs text-secondary">
+                            {p.participantType === 'EMPLOYEE' ? '👤 Employee' : '🙋 External Guest'}
+                          </div>
+                        </div>
+                        <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded-full">
+                          ✓ Eligible
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {searchResults.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-2 text-center">Type to search all participants</p>
+                )}
+              </div>
+            )}
+
+            {/* Search results (shown when user has typed something) */}
             <div className="space-y-2">
               {searchResults.map((p) => (
                 <button
@@ -426,6 +477,17 @@ export function MealProgramPanel({
                   </div>
                 </button>
               ))}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 text-center">
+              {canManageProgram && (
+                <button
+                  onClick={() => router.push('/restaurant/meal-program/participants')}
+                  className="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                >
+                  <span>➕</span> Manage participants
+                </button>
+              )}
             </div>
           </div>
         )}

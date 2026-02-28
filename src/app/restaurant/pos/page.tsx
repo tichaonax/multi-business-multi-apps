@@ -103,6 +103,8 @@ export default function RestaurantPOS() {
   const [mealProgramCashDue, setMealProgramCashDue] = useState<number | null>(null)
   // Pending meal program transaction data (held until payment is confirmed, then submitted to API)
   const [pendingMealTransaction, setPendingMealTransaction] = useState<any>(null)
+  // Increment to force-remount MealProgramPanel (resets its internal state)
+  const [mealPanelKey, setMealPanelKey] = useState(0)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [taxIncludedInPrice, setTaxIncludedInPrice] = useState(true) // Default: tax included
   const [taxRate, setTaxRate] = useState(0) // Default: 0% - businesses configure their own tax rate
@@ -1754,6 +1756,7 @@ export default function RestaurantPOS() {
             change: Math.max(0, received - mealProgramCashDue),
           } : prev)
           setPendingMealTransaction(null)
+          setMealPanelKey(k => k + 1)
         } catch {
           toast.error('Transaction failed')
           setOrderSubmitting(false)
@@ -2976,6 +2979,7 @@ export default function RestaurantPOS() {
           {posMode === 'meal_program' && currentBusinessId && (
             <div className="card overflow-hidden sticky top-20 self-start" style={{ minHeight: '480px' }}>
               <MealProgramPanel
+                key={mealPanelKey}
                 businessId={currentBusinessId}
                 soldByEmployeeId={employeeId}
                 allMenuItems={menuItems.map((m) => ({
@@ -3386,6 +3390,7 @@ export default function RestaurantPOS() {
                     setMealProgramCashDue(null)
                     setPendingMealTransaction(null)
                     setAmountReceived('')
+                    setMealPanelKey(k => k + 1)
                   }}
                   disabled={orderSubmitting}
                   className="flex-1 py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
