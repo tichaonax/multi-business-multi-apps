@@ -138,7 +138,10 @@ export async function POST(req: NextRequest) {
     let variance = null
 
     if (reportData.paymentMethods && reportData.paymentMethods.CASH) {
-      expectedCash = parseFloat(reportData.paymentMethods.CASH.total) || 0
+      const cashSales = parseFloat(reportData.paymentMethods.CASH.total) || 0
+      // Add meal program cash collected from participants (same as live till reconciliation view)
+      const mealProgramCash = parseFloat(reportData.expenseAccountSales?.cashTotal) || 0
+      expectedCash = cashSales + mealProgramCash
 
       if (cashCounted !== undefined && cashCounted !== null) {
         const counted = parseFloat(cashCounted.toString())

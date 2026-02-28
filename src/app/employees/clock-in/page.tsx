@@ -60,8 +60,11 @@ interface ExemptEmployee {
   employeeNumber: string
   profilePhotoUrl: string | null
   phone: string | null
+  businessContactPhone?: string | null
   scheduledStartTime: string | null
   scheduledEndTime: string | null
+  isClockInExempt: boolean
+  isAutoExempt: boolean
   clockInExemptReason: string | null
   primaryBusiness: { id: string; name: string } | null
   jobTitle: { title: string; department: string | null } | null
@@ -244,7 +247,7 @@ export default function ClockInDashboardPage() {
       }
 
       setScheduleMsg('Saved!')
-      await loadAttendance()
+      await Promise.all([loadAttendance(), loadExemptEmployees()])
       setTimeout(() => setScheduleModal(null), 800)
     } catch (e) {
       setScheduleMsg(e instanceof Error ? e.message : 'Save failed')
@@ -646,7 +649,7 @@ export default function ClockInDashboardPage() {
       {activeTab === 'exempt' && (
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            These employees are exempt from daily clock-in. They still have company ID cards that can be printed below.
+            These employees are exempt from daily clock-in. <span className="text-blue-600 dark:text-blue-400 font-medium">🏢 Management roles</span> are auto-exempt by their job title. They still have company ID cards that can be printed.
           </p>
           {isLoadingExempt ? (
             <div className="flex items-center justify-center py-12">
@@ -662,7 +665,7 @@ export default function ClockInDashboardPage() {
                   <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                     <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Employee</th>
                     <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Business</th>
-                    <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Exemption Reason</th>
+                    <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Exemption</th>
                     <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium"></th>
                   </tr>
                 </thead>
@@ -685,8 +688,14 @@ export default function ClockInDashboardPage() {
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
                         {emp.primaryBusiness?.name ?? '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs italic">
-                        {emp.clockInExemptReason ?? '—'}
+                      <td className="px-4 py-3">
+                        {emp.isAutoExempt ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                            🏢 Management role
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400 text-xs italic">{emp.clockInExemptReason ?? '—'}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -1066,6 +1075,7 @@ export default function ClockInDashboardPage() {
                 employeeNumber: printExemptEmp.employeeNumber,
                 profilePhotoUrl: printExemptEmp.profilePhotoUrl,
                 phone: printExemptEmp.phone,
+                businessContactPhone: (printExemptEmp as any).businessContactPhone ?? null,
                 scheduledStartTime: printExemptEmp.scheduledStartTime,
                 scheduledEndTime: printExemptEmp.scheduledEndTime,
                 primaryBusiness: printExemptEmp.primaryBusiness,

@@ -19,10 +19,15 @@ export async function GET(req: NextRequest) {
     const todayEnd = new Date()
     todayEnd.setHours(23, 59, 59, 999)
 
+    // Job title levels that are automatically exempt (kept in sync with exempt-employees route)
+    const MANAGER_LEVELS = ['manager', 'senior', 'executive']
+
     const employees = await prisma.employees.findMany({
       where: {
         isActive: true,
         isClockInExempt: false,
+        // Also exclude employees whose job title is a management level
+        NOT: { job_titles: { level: { in: MANAGER_LEVELS, mode: 'insensitive' } } },
         ...(businessId ? { primaryBusinessId: businessId } : {}),
       },
       select: {
@@ -34,7 +39,7 @@ export async function GET(req: NextRequest) {
         scheduledEndTime: true,
         phone: true,
         businesses: {
-          select: { id: true, name: true },
+          select: { id: true, name: true, phone: true, umbrellaBusinessPhone: true },
         },
         job_titles: {
           select: { title: true, department: true },
@@ -58,6 +63,13 @@ export async function GET(req: NextRequest) {
       orderBy: { fullName: 'asc' },
     })
 
+    // Fetch umbrella business phone once as final fallback for ID cards
+    const umbrellaBiz = await prisma.businesses.findFirst({
+      where: { isUmbrellaBusiness: true },
+      select: { umbrellaBusinessPhone: true }
+    })
+    const umbrellaPhone = umbrellaBiz?.umbrellaBusinessPhone ?? null
+
     const result = employees.map((emp: (typeof employees)[number]) => {
       const att = emp.employee_attendance[0] ?? null
       let clockState: 'notYetClockedIn' | 'clockedIn' | 'clockedOut' = 'notYetClockedIn'
@@ -73,6 +85,9 @@ export async function GET(req: NextRequest) {
         isLate = (att.checkIn as Date) > scheduled
       }
 
+      // Phone priority: business phone → business's umbrella phone → umbrella record phone
+      const businessContactPhone = emp.businesses?.phone || emp.businesses?.umbrellaBusinessPhone || umbrellaPhone || null
+
       return {
         ...emp,
         employee_attendance: undefined,
@@ -80,6 +95,7 @@ export async function GET(req: NextRequest) {
         job_titles: undefined,
         primaryBusiness: emp.businesses ?? null,
         jobTitle: emp.job_titles ?? null,
+        businessContactPhone,
         attendance: att,
         clockState,
         isLate,

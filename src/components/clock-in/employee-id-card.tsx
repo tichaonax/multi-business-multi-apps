@@ -21,16 +21,22 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
   const barcodeRef = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
-    if (!barcodeRef.current) return
+    const el = barcodeRef.current
+    if (!el) return
     import('jsbarcode').then((JsBarcode) => {
-      JsBarcode.default(barcodeRef.current!, employee.employeeNumber, {
-        format: 'CODE128',
-        width: 1.2,
-        height: 30,
-        displayValue: true,
-        fontSize: 9,
-        margin: 3,
-      })
+      if (!el.isConnected) return
+      try {
+        JsBarcode.default(el, employee.employeeNumber, {
+          format: 'CODE128',
+          width: 1.2,
+          height: 30,
+          displayValue: true,
+          fontSize: 9,
+          margin: 3,
+        })
+      } catch {
+        // Element may have been replaced between import and render — safe to ignore
+      }
     })
   }, [employee.employeeNumber])
 

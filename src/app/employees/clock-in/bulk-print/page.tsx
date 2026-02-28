@@ -9,6 +9,7 @@ interface BulkEmployee {
   employeeNumber: string
   profilePhotoUrl: string | null
   phone: string | null
+  businessContactPhone?: string | null
   scheduledStartTime: string | null
   scheduledEndTime: string | null
   primaryBusiness: { id: string; name: string } | null
@@ -42,7 +43,7 @@ function buildCardHtml(emp: BulkEmployee, barcodeSvg: string): string {
           <div style="font-weight:bold;color:#111827;font-size:13px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(emp.fullName)}</div>
           ${emp.jobTitle?.title ? `<div style="color:#1d4ed8;font-size:11px;font-weight:500;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(emp.jobTitle.title)}</div>` : ''}
           ${emp.jobTitle?.department ? `<div style="color:#6b7280;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(emp.jobTitle.department)}</div>` : ''}
-          ${emp.phone ? `<div style="color:#4b5563;font-size:11px;margin-top:2px;">${escHtml(emp.phone)}</div>` : ''}
+          ${(emp.businessContactPhone || emp.phone) ? `<div style="color:#4b5563;font-size:11px;margin-top:2px;">${escHtml(emp.businessContactPhone || emp.phone || '')}</div>` : ''}
           ${hours ? `<div style="color:#374151;font-size:11px;font-weight:500;margin-top:2px;">${hours}</div>` : ''}
         </div>
       </div>

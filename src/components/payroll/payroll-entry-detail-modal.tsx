@@ -132,7 +132,17 @@ export function PayrollEntryDetailModal({
     totalEarlyMinutes: number
     deductionAmount: number
     summary: string
+    records?: Array<{
+      date: string
+      checkIn: string | null
+      checkOut: string | null
+      scheduledStart: string | null
+      scheduledEnd: string | null
+      lateMinutes: number
+      earlyMinutes: number
+    }>
   } | null>(null)
+  const [showClockInDetails, setShowClockInDetails] = useState(false)
 
   const [benefitForm, setBenefitForm] = useState({
     benefitTypeId: '',
@@ -1894,7 +1904,58 @@ export function PayrollEntryDetailModal({
                       <span className="text-sm font-medium text-secondary">🕐 Clock-In Deduction</span>
                       <div className="text-xs text-secondary">Auto-calculates late arrivals &amp; early departures from attendance</div>
                       {clockInAnalysis && (
-                        <div className="text-xs text-orange-600 mt-0.5">{clockInAnalysis.summary}</div>
+                        <div>
+                          <div className="text-xs text-orange-600 mt-0.5 flex items-center gap-1">
+                            {clockInAnalysis.summary}
+                            {clockInAnalysis.records && clockInAnalysis.records.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setShowClockInDetails(v => !v)}
+                                className="underline text-blue-600 hover:text-blue-800 ml-1"
+                              >
+                                {showClockInDetails ? 'Hide' : 'View'}
+                              </button>
+                            )}
+                          </div>
+                          {showClockInDetails && clockInAnalysis.records && clockInAnalysis.records.length > 0 && (
+                            <div className="mt-1 border border-orange-200 rounded-md overflow-hidden text-xs">
+                              <table className="w-full">
+                                <thead className="bg-orange-50 dark:bg-orange-900/20">
+                                  <tr>
+                                    <th className="text-left px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">Date</th>
+                                    <th className="text-left px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">Clock In</th>
+                                    <th className="text-left px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">Clock Out</th>
+                                    <th className="text-right px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">Late</th>
+                                    <th className="text-right px-2 py-1 text-orange-700 dark:text-orange-400 font-medium">Early Out</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {clockInAnalysis.records.map((r, i) => (
+                                    <tr key={i} className="border-t border-orange-100 dark:border-orange-800">
+                                      <td className="px-2 py-1 text-secondary">{r.date}</td>
+                                      <td className="px-2 py-1">
+                                        {r.lateMinutes > 0 ? (
+                                          <span className="text-red-600">{r.checkIn} <span className="text-gray-400">(sched {r.scheduledStart})</span></span>
+                                        ) : (
+                                          <span className="text-secondary">{r.checkIn ?? '—'}</span>
+                                        )}
+                                      </td>
+                                      <td className="px-2 py-1">
+                                        {r.earlyMinutes > 0 ? (
+                                          <span className="text-red-600">{r.checkOut} <span className="text-gray-400">(sched {r.scheduledEnd})</span></span>
+                                        ) : (
+                                          <span className="text-secondary">{r.checkOut ?? '—'}</span>
+                                        )}
+                                      </td>
+                                      <td className="px-2 py-1 text-right">{r.lateMinutes > 0 ? <span className="text-red-600">{r.lateMinutes} min</span> : <span className="text-gray-400">—</span>}</td>
+                                      <td className="px-2 py-1 text-right">{r.earlyMinutes > 0 ? <span className="text-red-600">{r.earlyMinutes} min</span> : <span className="text-gray-400">—</span>}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                     <button
@@ -2538,31 +2599,49 @@ export function PayrollEntryDetailModal({
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-secondary mb-1">Type</label>
-                      <select
-                        value={editAdjustmentForm.type}
-                        onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, type: e.target.value })}
-                        className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="bonus">Bonus</option>
-                        <option value="penalty">Penalty</option>
-                        <option value="correction">Correction</option>
-                        <option value="overtime">Overtime</option>
-                        <option value="allowance">Allowance</option>
-                        <option value="other">Other</option>
-                      </select>
+                      {editingAdjustment.isClockInAdjustment ? (
+                        <div className="w-full px-3 py-2 border border-border rounded-md bg-muted text-secondary text-sm flex items-center gap-2">
+                          🕐 Clock-In Deduction
+                          <span className="text-xs text-orange-500">(auto)</span>
+                        </div>
+                      ) : (
+                        <select
+                          value={editAdjustmentForm.type}
+                          onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, type: e.target.value })}
+                          className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="bonus">Bonus</option>
+                          <option value="penalty">Penalty</option>
+                          <option value="correction">Correction</option>
+                          <option value="overtime">Overtime</option>
+                          <option value="allowance">Allowance</option>
+                          <option value="other">Other</option>
+                        </select>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-secondary mb-1">Description</label>
-                      <input
-                        type="text"
-                        value={editAdjustmentForm.description}
-                        onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, description: e.target.value })}
-                        className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Reason for adjustment"
-                      />
+                      {editingAdjustment.isClockInAdjustment ? (
+                        <div className="w-full px-3 py-2 border border-border rounded-md bg-muted text-secondary text-sm">
+                          {editingAdjustment.description || editingAdjustment.reason}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={editAdjustmentForm.description}
+                          onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, description: e.target.value })}
+                          className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Reason for adjustment"
+                        />
+                      )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">Amount</label>
+                      <label className="block text-sm font-medium text-secondary mb-1">
+                        Amount
+                        {editingAdjustment.isClockInAdjustment && (
+                          <span className="ml-2 text-xs text-gray-400 font-normal">Override auto-calculated deduction</span>
+                        )}
+                      </label>
                       <input
                         type="number"
                         step="0.01"
@@ -2571,17 +2650,19 @@ export function PayrollEntryDetailModal({
                         className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
-                    <div>
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={editAdjustmentForm.isAddition}
-                          onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, isAddition: e.target.checked })}
-                          className="mr-2"
-                        />
-                        <span className="text-sm text-secondary">Addition (uncheck for deduction)</span>
-                      </label>
-                    </div>
+                    {!editingAdjustment.isClockInAdjustment && (
+                      <div>
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={editAdjustmentForm.isAddition}
+                            onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, isAddition: e.target.checked })}
+                            className="mr-2"
+                          />
+                          <span className="text-sm text-secondary">Addition (uncheck for deduction)</span>
+                        </label>
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-end gap-3 mt-6">
                     <button

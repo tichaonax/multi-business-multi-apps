@@ -20,6 +20,7 @@ interface Employee {
   lastName?: string
   email?: string | null
   phone?: string
+  businessContactPhone?: string | null
   nationalId?: string
   driverLicense?: string | null
   hireDate?: string
@@ -993,9 +994,14 @@ export default function EmployeesPage() {
                 fullName: printCardEmployee.fullName ?? '',
                 employeeNumber: printCardEmployee.employeeNumber ?? printCardEmployee.id,
                 phone: printCardEmployee.phone ?? null,
+                businessContactPhone: printCardEmployee.businessContactPhone ?? null,
                 profilePhotoUrl: (printCardEmployee as any).profilePhotoUrl ?? null,
                 jobTitle: printCardEmployee.jobTitle ? { title: printCardEmployee.jobTitle.title ?? printCardEmployee.jobTitle, department: printCardEmployee.jobTitle.department ?? null } : null,
-                primaryBusiness: printCardEmployee.primaryBusiness ? { name: printCardEmployee.primaryBusiness.name ?? printCardEmployee.primaryBusiness } : null,
+                primaryBusiness: printCardEmployee.primaryBusiness ? {
+                  name: printCardEmployee.primaryBusiness.name ?? printCardEmployee.primaryBusiness,
+                  phone: (printCardEmployee.primaryBusiness as any).phone ?? null,
+                  umbrellaBusinessPhone: (printCardEmployee.primaryBusiness as any).umbrellaBusinessPhone ?? null,
+                } : null,
               }}
             />
             <div className="flex gap-3 mt-4">

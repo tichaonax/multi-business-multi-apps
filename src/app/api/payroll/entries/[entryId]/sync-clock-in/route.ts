@@ -83,10 +83,25 @@ export async function POST(
   let totalLateMinutes = 0
   let totalEarlyMinutes = 0
 
+  const formatTime = (d: Date) =>
+    `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+
+  const records: Array<{
+    date: string
+    checkIn: string | null
+    checkOut: string | null
+    scheduledStart: string | null
+    scheduledEnd: string | null
+    lateMinutes: number
+    earlyMinutes: number
+  }> = []
+
   for (const att of attendanceRows) {
     const checkIn = att.checkIn as Date | null
     const checkOut = att.checkOut as Date | null
     const baseDate = att.date as Date
+    let lateMinutesForDay = 0
+    let earlyMinutesForDay = 0
 
     if (checkIn && schedStart) {
       const scheduled = new Date(baseDate)
@@ -94,7 +109,8 @@ export async function POST(
       const diffMs = checkIn.getTime() - scheduled.getTime()
       if (diffMs > 0) {
         lateCount++
-        totalLateMinutes += Math.round(diffMs / 60000)
+        lateMinutesForDay = Math.round(diffMs / 60000)
+        totalLateMinutes += lateMinutesForDay
       }
     }
 
@@ -104,8 +120,21 @@ export async function POST(
       const diffMs = scheduled.getTime() - checkOut.getTime()
       if (diffMs > 0) {
         earlyCount++
-        totalEarlyMinutes += Math.round(diffMs / 60000)
+        earlyMinutesForDay = Math.round(diffMs / 60000)
+        totalEarlyMinutes += earlyMinutesForDay
       }
+    }
+
+    if (lateMinutesForDay > 0 || earlyMinutesForDay > 0) {
+      records.push({
+        date: (baseDate as Date).toISOString().split('T')[0],
+        checkIn: checkIn ? formatTime(checkIn) : null,
+        checkOut: checkOut ? formatTime(checkOut) : null,
+        scheduledStart: employee?.scheduledStartTime ?? null,
+        scheduledEnd: employee?.scheduledEndTime ?? null,
+        lateMinutes: lateMinutesForDay,
+        earlyMinutes: earlyMinutesForDay,
+      })
     }
   }
 
@@ -160,6 +189,7 @@ export async function POST(
     hourlyRate: Math.round(hourlyRate * 100) / 100,
     adjustmentId,
     summary,
+    records,
   })
 }
 

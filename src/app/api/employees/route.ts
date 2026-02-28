@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
     const businessIds = [...new Set(employees.map(e => e.primaryBusinessId).filter(Boolean))]
     const supervisorIds = [...new Set(employees.map(e => e.supervisorId).filter(Boolean))]
 
-    const [jobTitles, compensationTypes, businesses, supervisors] = await Promise.all([
+    const [jobTitles, compensationTypes, businesses, supervisors, umbrellaRecord] = await Promise.all([
       jobTitleIds.length > 0 ? prisma.jobTitles.findMany({
         where: { id: { in: jobTitleIds } },
         select: { id: true, title: true, department: true, level: true }
@@ -162,8 +162,15 @@ export async function GET(req: NextRequest) {
             select: { title: true }
           }
         }
-      }) : []
+      }) : [],
+      // Fetch umbrella business phone as final fallback for cards
+      prisma.businesses.findFirst({
+        where: { isUmbrellaBusiness: true },
+        select: { umbrellaBusinessPhone: true }
+      })
     ])
+    // Umbrella phone is the last resort: used when the business has no direct phone
+    const umbrellaPhone = (umbrellaRecord as any)?.umbrellaBusinessPhone ?? null
 
     // Create lookup maps for O(1) access
     const jobTitleMap = new Map(jobTitles.map(jt => [jt.id, jt]))
@@ -196,6 +203,10 @@ export async function GET(req: NextRequest) {
       const compensationType = compensationTypeMap.get(employee.compensationTypeId)
       const business = businessMap.get(employee.primaryBusinessId)
       const supervisor = employee.supervisorId ? supervisorMap.get(employee.supervisorId) : null
+      // Phone priority: business direct phone → business umbrella phone → umbrella record phone
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const biz = business as any
+      const businessContactPhone = biz?.phone || biz?.umbrellaBusinessPhone || umbrellaPhone || null
 
       return {
         id: employee.id,
@@ -205,6 +216,7 @@ export async function GET(req: NextRequest) {
         lastName: employee.lastName,
         email: employee.email,
         phone: employee.phone,
+        businessContactPhone,
         nationalId: employee.nationalId,
         hireDate: employee.hireDate,
         employmentStatus: employee.employmentStatus,

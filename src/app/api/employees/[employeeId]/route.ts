@@ -123,13 +123,31 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Extract compensation type first for use in contracts mapping
     const employeeCompensationType = Array.isArray(e.compensation_types) ? e.compensation_types[0] : (e.compensation_types || null)
 
+    // Fetch business phone via separate query — the businesses include only returns id/name
+    // due to legacy Prisma type constraints, so we query phone explicitly
+    let businessContactPhone: string | null = null
+    if (e.primaryBusinessId) {
+      const [biz, umbrellaBiz] = await Promise.all([
+        prisma.businesses.findUnique({
+          where: { id: e.primaryBusinessId },
+          select: { phone: true, umbrellaBusinessPhone: true }
+        }),
+        prisma.businesses.findFirst({
+          where: { isUmbrellaBusiness: true },
+          select: { umbrellaBusinessPhone: true }
+        })
+      ])
+      // Priority: business direct phone → business's stored umbrella phone → umbrella record phone
+      businessContactPhone = biz?.phone || biz?.umbrellaBusinessPhone || umbrellaBiz?.umbrellaBusinessPhone || null
+    }
+
     const formattedEmployee = {
       ...e,
       user: e.users,
       jobTitle: Array.isArray(e.job_titles) ? e.job_titles[0] : (e.job_titles || null),
       compensationType: employeeCompensationType,
       primaryBusiness: e.businesses || e.primaryBusiness || null,
-      businessContactPhone: e.businesses?.phone ?? e.businesses?.umbrellaBusinessPhone ?? null,
+      businessContactPhone,
       supervisor: supervisorObj,
       subordinates,
       contracts: (e.employee_contracts_employee_contracts_employeeIdToemployees || e.employeeContracts || []).map((contract: any) => {
