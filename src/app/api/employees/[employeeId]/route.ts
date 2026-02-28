@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       job_titles: true,
       compensation_types: true,
       businesses: {
-        select: { id: true, name: true, type: true }
+        select: { id: true, name: true, type: true, phone: true, umbrellaBusinessPhone: true }
       },
       id_format_templates: true,
       driver_license_templates: true,

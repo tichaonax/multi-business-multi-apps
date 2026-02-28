@@ -12,7 +12,7 @@ interface EmployeeIdCardProps {
     scheduledStartTime?: string | null
     scheduledEndTime?: string | null
     jobTitle?: { title: string; department?: string | null } | null
-    primaryBusiness?: { name: string } | null
+    primaryBusiness?: { name: string; phone?: string | null; umbrellaBusinessPhone?: string | null } | null
   }
 }
 
@@ -78,8 +78,10 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
           {employee.jobTitle?.department && (
             <div className="text-gray-500 text-xs truncate">{employee.jobTitle.department}</div>
           )}
-          {employee.phone && (
-            <div className="text-gray-600 text-xs mt-0.5">{employee.phone}</div>
+          {(employee.primaryBusiness?.phone || employee.primaryBusiness?.umbrellaBusinessPhone || employee.phone) && (
+            <div className="text-gray-600 text-xs mt-0.5">
+              {employee.primaryBusiness?.phone || employee.primaryBusiness?.umbrellaBusinessPhone || employee.phone}
+            </div>
           )}
           {hours && (
             <div className="text-gray-500 text-xs mt-0.5">

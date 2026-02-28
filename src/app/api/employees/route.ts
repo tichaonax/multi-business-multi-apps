@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
       }) : [],
       businessIds.length > 0 ? prisma.businesses.findMany({
         where: { id: { in: businessIds } },
-        select: { id: true, name: true, type: true }
+        select: { id: true, name: true, type: true, phone: true, umbrellaBusinessPhone: true }
       }) : [],
       supervisorIds.length > 0 ? prisma.employees.findMany({
         where: { id: { in: supervisorIds } },
@@ -223,7 +223,9 @@ export async function GET(req: NextRequest) {
         primaryBusiness: business ? {
           id: business.id,
           name: business.name,
-          type: business.type
+          type: business.type,
+          phone: business.phone ?? null,
+          umbrellaBusinessPhone: business.umbrellaBusinessPhone ?? null,
         } : null,
         supervisor: supervisor ? {
           id: supervisor.id,
