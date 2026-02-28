@@ -47,10 +47,15 @@ export function createProgressId() {
 
 export function updateProgress(id: string, entry: Partial<ProgressEntry>) {
   const cur = _progress.get(id) ?? { processed: 0, total: 0, startedAt: new Date().toISOString() }
-  const merged: ProgressEntry = { ...cur, ...entry, updatedAt: new Date().toISOString() }
+  // Exclude 'counts' from the object spread to prevent a per-model entry.counts
+  // (e.g. { businessProducts: { processed: 10, total: 2000 } }) from overwriting
+  // cur.counts (which holds ALL accumulated model counts). Counts are merged below.
+  const { counts: _entryCounts, ...entryWithoutCounts } = entry
+  const merged: ProgressEntry = { ...cur, ...entryWithoutCounts, updatedAt: new Date().toISOString() }
   // update counts map if model, processed or total are present
   try {
-    merged.counts = merged.counts ?? {}
+    // Always start from cur.counts so previously completed models are preserved
+    merged.counts = cur.counts ? { ...cur.counts } : {}
     // Accept either `entry.model` or `entry.counts` as update signals
     if (entry.counts && typeof entry.counts === 'object') {
       for (const [k, v] of Object.entries(entry.counts)) {
