@@ -903,6 +903,20 @@ model EmployeeAttendance {
   @@map("employee_attendance")
 }
 
+model EmployeeLoginLog {
+  id         String    @id @default(uuid())
+  employeeId String
+  userId     String?
+  action     String
+  method     String
+  photoUrl   String?
+  note       String?
+  createdAt  DateTime  @default(now())
+  employees  Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_login_log")
+}
+
 model EmployeeBenefits {
   id            String       @id @default(uuid())
   amount        Decimal      @db.Decimal(12, 2)
@@ -1191,6 +1205,7 @@ model Employees {
   employee_allowances_employee_allowances_employeeIdToemployees             EmployeeAllowances[]          @relation("employee_allowances_employeeIdToemployees")
   employee_attendance                                                       EmployeeAttendance[]
   employee_benefits                                                         EmployeeBenefits[]
+  employee_login_logs                                                       EmployeeLoginLog[]
   employee_bonuses_employee_bonuses_approvedByToemployees                   EmployeeBonuses[]             @relation("employee_bonuses_approvedByToemployees")
   employee_bonuses_employee_bonuses_employeeIdToemployees                   EmployeeBonuses[]             @relation("employee_bonuses_employeeIdToemployees")
   employee_business_assignments                                             EmployeeBusinessAssignments[]

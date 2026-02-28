@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { globalBarcodeService, GlobalBarcodeEvent } from '@/lib/services/global-barcode-service'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { getGlobalBarcodeScanningAccess, canStockInventoryFromModal } from '@/lib/permission-utils'
 import { BusinessSelectionModal, InventoryType, ProductData } from './business-selection-modal'
 import { useToast } from '@/components/ui/use-toast'
@@ -55,6 +55,19 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   const [clockInIsOwnCard, setClockInIsOwnCard] = useState(false)
   const [showClockInModal, setShowClockInModal] = useState(false)
 
+  // Logout prompt state (shown when admin/manager card is scanned while another user is active)
+  const [showLogoutPrompt, setShowLogoutPrompt] = useState(false)
+  const [logoutPromptEmployee, setLogoutPromptEmployee] = useState<any>(null)
+  // Set to true when a non-exempt admin/manager scans — logout prompt shows AFTER ClockInModal closes
+  const [pendingLogoutAfterClockIn, setPendingLogoutAfterClockIn] = useState(false)
+
+  // Logout prompt camera
+  const logoutVideoRef = useRef<HTMLVideoElement>(null)
+  const logoutCanvasRef = useRef<HTMLCanvasElement>(null)
+  const logoutStreamRef = useRef<MediaStream | null>(null)
+  const [logoutCameraActive, setLogoutCameraActive] = useState(false)
+  const [logoutCameraError, setLogoutCameraError] = useState(false)
+
   useEffect(() => {
     if (isOpen && barcode) {
       setCurrentBarcode(barcode)
@@ -62,6 +75,25 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
       lookupBarcode(barcode)
     }
   }, [isOpen, barcode])
+
+  // Start/stop camera when logout prompt opens or closes
+  useEffect(() => {
+    if (showLogoutPrompt) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+        .then(stream => {
+          logoutStreamRef.current = stream
+          if (logoutVideoRef.current) logoutVideoRef.current.srcObject = stream
+          setLogoutCameraActive(true)
+          setLogoutCameraError(false)
+        })
+        .catch(() => setLogoutCameraError(true))
+    } else {
+      logoutStreamRef.current?.getTracks().forEach(t => t.stop())
+      logoutStreamRef.current = null
+      setLogoutCameraActive(false)
+      setLogoutCameraError(false)
+    }
+  }, [showLogoutPrompt])
 
   const lookupBarcode = async (barcodeToLookup: string) => {
     if (!session?.user) return
@@ -81,11 +113,40 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
       if (clockScanRes.ok) {
         const clockData = await clockScanRes.json()
         if (clockData.found) {
-          setClockInEmployee(clockData.employee)
-          setClockInState(clockData.clockState)
-          setClockInAttendance(clockData.attendance)
-          setClockInIsOwnCard(!!clockData.isOwnCard)
-          setShowClockInModal(true)
+          // Log every scan invocation that triggers a workflow (fire-and-forget)
+          if (clockData.employee?.id) {
+            fetch('/api/clock-in/login-log', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ employeeId: clockData.employee.id, action: 'scan', method: 'card' }),
+            }).catch(() => {})
+          }
+          const scannedRole: string | null = clockData.scannedUserRole ?? null
+          const isExempt: boolean = !!clockData.employee?.isClockInExempt
+          const isDifferentAdminOrManager =
+            !clockData.isOwnCard && (scannedRole === 'admin' || scannedRole === 'manager')
+
+          if (isExempt && (isDifferentAdminOrManager || clockData.isOwnCard)) {
+            // Exempt employee (own card or different admin/manager): skip clock-in, show logout prompt
+            setLogoutPromptEmployee(clockData.employee)
+            setShowLogoutPrompt(true)
+          } else if (isDifferentAdminOrManager && !isExempt) {
+            // Non-exempt admin/manager (different user): clock-in first, then logout prompt after it closes
+            setClockInEmployee(clockData.employee)
+            setClockInState(clockData.clockState)
+            setClockInAttendance(clockData.attendance)
+            setClockInIsOwnCard(false)
+            setLogoutPromptEmployee(clockData.employee)
+            setPendingLogoutAfterClockIn(true)
+            setShowClockInModal(true)
+          } else {
+            // Own card non-exempt, or regular employee: normal clock-in/out flow
+            setClockInEmployee(clockData.employee)
+            setClockInState(clockData.clockState)
+            setClockInAttendance(clockData.attendance)
+            setClockInIsOwnCard(!!clockData.isOwnCard)
+            setShowClockInModal(true)
+          }
           setIsLoading(false)
           return // Stop — do not proceed with inventory lookup
         }
@@ -166,6 +227,59 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Synchronously grab the current video frame as a data URL (no async)
+  const captureLogoutFrame = (): string | null => {
+    const video = logoutVideoRef.current
+    const canvas = logoutCanvasRef.current
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) return null
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    const d = canvas.toDataURL('image/jpeg', 0.8)
+    return d && d !== 'data:,' ? d : null
+  }
+
+  // Upload a data URL to the images API and return the stored URL
+  const uploadLogoutFrame = async (dataUrl: string): Promise<string | undefined> => {
+    try {
+      const blob = await (await fetch(dataUrl)).blob()
+      const fd = new FormData()
+      fd.append('files', blob, 'logout-photo.jpg')
+      fd.append('expiresInDays', '60')
+      const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
+      const upData = await res.json()
+      return upData.data?.[0]?.url
+    } catch { return undefined }
+  }
+
+  const stopLogoutCamera = () => {
+    logoutStreamRef.current?.getTracks().forEach(t => t.stop())
+    logoutStreamRef.current = null
+    setLogoutCameraActive(false)
+    setLogoutCameraError(false)
+  }
+
+  const handleLogoutConfirm = async () => {
+    // 1. Capture frame NOW — before closing the dialog unmounts the video element
+    const dataUrl = captureLogoutFrame()
+    const currentUserId = (session?.user as any)?.id
+    // 2. Stop camera and close dialog
+    stopLogoutCamera()
+    setShowLogoutPrompt(false)
+    // 3. Upload photo + log (await so it completes before signOut navigates away)
+    if (currentUserId) {
+      try {
+        const photoUrl = dataUrl ? await uploadLogoutFrame(dataUrl) : undefined
+        await fetch('/api/clock-in/login-log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUserId, action: 'logout', method: 'card', photoUrl: photoUrl ?? null }),
+        })
+      } catch { /* non-fatal */ }
+    }
+    signOut({ callbackUrl: window.location.origin })
   }
 
   const handleResetScan = () => {
@@ -644,13 +758,105 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
           isOpen={showClockInModal}
           onClose={() => {
             setShowClockInModal(false)
-            onClose()
+            if (pendingLogoutAfterClockIn) {
+              // Non-exempt admin/manager: show logout prompt after clock action finishes
+              setPendingLogoutAfterClockIn(false)
+              setShowLogoutPrompt(true)
+            } else {
+              onClose()
+            }
           }}
           employee={clockInEmployee}
           clockState={clockInState}
           attendance={clockInAttendance}
           isOwnCard={clockInIsOwnCard}
+          onBeforeSignOut={async () => {
+            if (clockInEmployee?.id) {
+              await fetch('/api/clock-in/login-log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ employeeId: clockInEmployee.id, action: 'logout', method: 'card' }),
+              }).catch(() => {})
+            }
+          }}
         />
+      )}
+
+      {/* Logout confirmation prompt — shown when an admin/manager scans while another user is active */}
+      {showLogoutPrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+            <div className="px-6 py-4 bg-red-600">
+              <h3 className="text-lg font-semibold text-white">Switch User?</h3>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <strong>{logoutPromptEmployee?.fullName}</strong> is an admin/manager.
+                Confirming will sign out the current session.
+              </p>
+              {/* Camera viewfinder — always rendered so ref exists before stream arrives */}
+              {logoutCameraError ? (
+                <p className="text-xs text-gray-400 text-center py-1">
+                  Camera unavailable — proceeding without photo
+                </p>
+              ) : (
+                <div className="relative rounded-lg overflow-hidden bg-black" style={{ minHeight: '120px' }}>
+                  {/* video always in DOM so logoutVideoRef is set before getUserMedia resolves */}
+                  <video ref={logoutVideoRef} autoPlay playsInline muted
+                    className="w-full rounded-lg"
+                    style={{ maxHeight: '160px', objectFit: 'cover' }} />
+                  {/* Spinner overlay while waiting for camera */}
+                  {!logoutCameraActive && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="animate-spin h-5 w-5 border-2 border-gray-400 border-t-white rounded-full" />
+                    </div>
+                  )}
+                  {logoutCameraActive && (
+                    <div className="absolute bottom-1 right-2 text-white/70 text-xs bg-black/30 px-1.5 py-0.5 rounded">
+                      Photo taken on action
+                    </div>
+                  )}
+                </div>
+              )}
+              <canvas ref={logoutCanvasRef} className="hidden" />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    // 1. Sync capture BEFORE closing (video still in DOM)
+                    const dataUrl = captureLogoutFrame()
+                    const emp = logoutPromptEmployee
+                    // 2. Stop camera and close immediately
+                    stopLogoutCamera()
+                    setShowLogoutPrompt(false)
+                    setPendingLogoutAfterClockIn(false)
+                    setShowClockInModal(false)
+                    onClose()
+                    // 3. Upload + log in background (fire-and-forget)
+                    if (emp?.id) {
+                      ;(async () => {
+                        const photoUrl = dataUrl ? await uploadLogoutFrame(dataUrl) : undefined
+                        fetch('/api/clock-in/login-log', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ employeeId: emp.id, action: 'declined', method: 'card', photoUrl: photoUrl ?? null }),
+                        }).catch(() => {})
+                      })()
+                    }
+                  }}
+                  className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogoutConfirm}
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700"
+                >
+                  Log Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

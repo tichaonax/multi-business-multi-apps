@@ -27,9 +27,11 @@ export interface ClockInModalProps {
   attendance: Attendance | null
   /** True when the scanned card belongs to the currently logged-in user */
   isOwnCard?: boolean
+  /** Called just before signOut fires on clock-out — use to log the logout event */
+  onBeforeSignOut?: () => Promise<void>
 }
 
-export function ClockInModal({ isOpen, onClose, employee, clockState, attendance, isOwnCard }: ClockInModalProps) {
+export function ClockInModal({ isOpen, onClose, employee, clockState, attendance, isOwnCard, onBeforeSignOut }: ClockInModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -70,11 +72,18 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
       setError(null)
       setSuccess(null)
       setCameraError(false)
-    } else if (clockState !== 'clockedOut') {
+    } else {
       startCamera()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
+
+  // Re-assign stream once cameraActive flips true and the <video> element is in the DOM
+  useEffect(() => {
+    if (cameraActive && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [cameraActive])
 
   // Live clock — updates every second while modal is open
   useEffect(() => {
@@ -95,6 +104,47 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
     canvas.height = video.videoHeight
     canvas.getContext('2d')?.drawImage(video, 0, 0)
     return canvas.toDataURL('image/jpeg', 0.8)
+  }
+
+  // Sync-capture current frame, stop camera, log 'declined', then close
+  const handleCancel = () => {
+    let dataUrl: string | null = null
+    if (cameraActive && videoRef.current && canvasRef.current) {
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        canvas.getContext('2d')?.drawImage(video, 0, 0)
+        const d = canvas.toDataURL('image/jpeg', 0.8)
+        if (d && d !== 'data:,') dataUrl = d
+      }
+    }
+    stopCamera()
+    onClose()
+    // Log declined (fire-and-forget) — only when an active clock workflow was open
+    if (clockState !== 'clockedOut') {
+      const empId = employee.id
+      ;(async () => {
+        let photoUrl: string | undefined
+        if (dataUrl) {
+          try {
+            const blob = await (await fetch(dataUrl)).blob()
+            const fd = new FormData()
+            fd.append('files', blob, 'cancel-photo.jpg')
+            fd.append('expiresInDays', '60')
+            const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
+            const upData = await res.json()
+            photoUrl = upData.data?.[0]?.url
+          } catch { /* non-fatal */ }
+        }
+        fetch('/api/clock-in/login-log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employeeId: empId, action: 'declined', method: 'card', photoUrl: photoUrl ?? null }),
+        }).catch(() => {})
+      })()
+    }
   }
 
   const handleAction = async () => {
@@ -140,6 +190,18 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
         return
       }
 
+      // Log the confirmed clock action (fire-and-forget)
+      fetch('/api/clock-in/login-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: employee.id,
+          action: action === 'clockIn' ? 'clock_in' : 'clock_out',
+          method: 'card',
+          photoUrl: photoUrl ?? null,
+        }),
+      }).catch(() => {})
+
       const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 
       const shouldSignOut =
@@ -149,7 +211,10 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
       if (shouldSignOut) {
         sessionStorage.removeItem('kioskLogin')
         setSuccess(`Clocked out at ${now} — signing out…`)
-        setTimeout(() => {
+        setTimeout(async () => {
+          if (onBeforeSignOut) {
+            try { await onBeforeSignOut() } catch { /* non-fatal */ }
+          }
           onClose()
           signOut({ callbackUrl: window.location.origin, redirect: true })
         }, 2000)
@@ -183,7 +248,7 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
               {clockState === 'clockedIn' && '🟠 Clock Out'}
               {clockState === 'clockedOut' && '✅ Already Clocked Out'}
             </h2>
-            <button onClick={onClose} className="text-white/80 hover:text-white text-xl">✕</button>
+            <button onClick={handleCancel} className="text-white/80 hover:text-white text-xl">✕</button>
           </div>
         </div>
 
@@ -250,8 +315,8 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
             </div>
           )}
 
-          {/* Camera viewfinder — photo captured automatically on confirm */}
-          {action && !success && (
+          {/* Camera viewfinder — always shown while modal is open */}
+          {!success && (
             <div>
               {cameraError && (
                 <p className="text-xs text-gray-400 text-center py-1">
@@ -263,9 +328,11 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
                   <video ref={videoRef} autoPlay playsInline muted
                     className="w-full rounded-lg"
                     style={{ maxHeight: '160px', objectFit: 'cover' }} />
-                  <div className="absolute bottom-1 right-2 text-white/70 text-xs bg-black/30 px-1.5 py-0.5 rounded">
-                    Photo taken on confirm
-                  </div>
+                  {action && (
+                    <div className="absolute bottom-1 right-2 text-white/70 text-xs bg-black/30 px-1.5 py-0.5 rounded">
+                      Photo taken on confirm
+                    </div>
+                  )}
                 </div>
               )}
               <canvas ref={canvasRef} className="hidden" />
@@ -290,7 +357,7 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
           {/* Action buttons */}
           {action && !success && (
             <div className="flex gap-3">
-              <button onClick={onClose}
+              <button onClick={handleCancel}
                 className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
                 Cancel
               </button>

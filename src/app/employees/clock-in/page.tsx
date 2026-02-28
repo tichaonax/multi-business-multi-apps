@@ -68,7 +68,14 @@ interface ExemptEmployee {
 }
 
 export default function ClockInDashboardPage() {
-  const [activeTab, setActiveTab] = useState<'attendance' | 'exempt'>('attendance')
+  const [activeTab, setActiveTab] = useState<'attendance' | 'exempt' | 'loginTracking'>('attendance')
+
+  // Login Tracking tab state
+  const [loginLogs, setLoginLogs] = useState<any[]>([])
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false)
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [logDateFrom, setLogDateFrom] = useState(todayStr)
+  const [logDateTo, setLogDateTo] = useState(todayStr)
   const [employees, setEmployees] = useState<AttendanceEmployee[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -131,6 +138,21 @@ export default function ClockInDashboardPage() {
     loadAttendance()
     loadExemptEmployees()
   }, [loadAttendance, loadExemptEmployees])
+
+  const loadLoginLogs = async () => {
+    setIsLoadingLogs(true)
+    try {
+      const res = await fetch(`/api/clock-in/login-log?dateFrom=${logDateFrom}&dateTo=${logDateTo}`)
+      const data = await res.json()
+      if (res.ok) setLoginLogs(data.logs || [])
+    } catch { /* silent */ }
+    finally { setIsLoadingLogs(false) }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'loginTracking') loadLoginLogs()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
   const runAutoClockOut = async () => {
     setIsRunningAutoClockOut(true)
@@ -437,6 +459,16 @@ export default function ClockInDashboardPage() {
           🏷️ Exempt Employees
           <span className="ml-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">{exemptEmployees.length}</span>
         </button>
+        <button
+          onClick={() => setActiveTab('loginTracking')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'loginTracking'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          🔐 Login Tracking
+        </button>
       </div>
 
       {autoClockOutMessage && (
@@ -694,6 +726,116 @@ export default function ClockInDashboardPage() {
                             {enablingClockInId === emp.id ? '⏳' : '🔓'}
                           </button>
                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Login Tracking Tab */}
+      {activeTab === 'loginTracking' && (
+        <div>
+          <div className="flex items-center gap-3 mb-5 flex-wrap">
+            <input
+              type="date"
+              value={logDateFrom}
+              onChange={(e) => setLogDateFrom(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+            <span className="text-gray-500 text-sm">to</span>
+            <input
+              type="date"
+              value={logDateTo}
+              onChange={(e) => setLogDateTo(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+            <button
+              onClick={loadLoginLogs}
+              disabled={isLoadingLogs}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isLoadingLogs ? 'Loading…' : 'Load'}
+            </button>
+          </div>
+
+          {isLoadingLogs ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              <span className="ml-3 text-gray-500">Loading…</span>
+            </div>
+          ) : loginLogs.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">No login events found for this period.</div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                    <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Employee</th>
+                    <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Action</th>
+                    <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Method</th>
+                    <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Date / Time</th>
+                    <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Photo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loginLogs.map((log: any) => (
+                    <tr key={log.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {log.employees?.profilePhotoUrl ? (
+                            <img src={log.employees.profilePhotoUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-sm">👤</div>
+                          )}
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">{log.employees?.fullName}</div>
+                            <div className="text-xs text-gray-400">#{log.employees?.employeeNumber}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          log.action === 'login'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                            : log.action === 'logout'
+                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300'
+                            : log.action === 'clock_in'
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                            : log.action === 'clock_out'
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
+                            : log.action === 'scan'
+                            ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                        }`}>
+                          {log.action === 'login' ? '🔑 Login'
+                            : log.action === 'logout' ? '🚪 Logout'
+                            : log.action === 'clock_in' ? '⏰ Clock In'
+                            : log.action === 'clock_out' ? '⏱ Clock Out'
+                            : log.action === 'scan' ? '📡 Scan'
+                            : '❌ Declined'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400 capitalize">{log.method}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {new Date(log.createdAt).toLocaleString('en-US', {
+                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="px-4 py-3">
+                        {log.photoUrl ? (
+                          <img
+                            src={log.photoUrl}
+                            alt="Login photo"
+                            className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-gray-600"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/expired-photo.svg' }}
+                          />
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

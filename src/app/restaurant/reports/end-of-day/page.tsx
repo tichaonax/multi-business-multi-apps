@@ -149,9 +149,13 @@ export default function EndOfDayReport() {
     }
   }
 
-  // Calculate expected cash — subtract meal program subsidy (paid by expense account, not cashier)
+  // Calculate expected cash:
+  // - paymentMethods.CASH.total = regular (non-meal) cash orders only
+  // - expenseAccountSales.cashTotal = cash collected from meal program participants (also in drawer)
+  // - The subsidy is paid by the expense account and was NEVER in the cash total, so no subtraction needed
   const mealProgramSubsidy = dailySales?.expenseAccountSales?.subsidyTotal || 0
-  const expectedCash = (dailySales?.paymentMethods?.CASH?.total || 0) - mealProgramSubsidy
+  const mealProgramCashCollected = dailySales?.expenseAccountSales?.cashTotal || 0
+  const expectedCash = (dailySales?.paymentMethods?.CASH?.total || 0) + mealProgramCashCollected
 
   // Calculate variance when cash counted changes
   useEffect(() => {
@@ -677,13 +681,13 @@ export default function EndOfDayReport() {
                 <span className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(dailySales?.paymentMethods?.CASH?.total || 0)}</span>
               </div>
 
-              {mealProgramSubsidy > 0 && (
+              {mealProgramCashCollected > 0 && (
                 <div className="flex justify-between items-center p-3 bg-amber-50 dark:bg-amber-900/20 rounded print:bg-amber-50">
                   <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">
-                    Less: 🍱 Meal Program Subsidy (expense account):
+                    Add: 🍱 Meal Program Cash (from participants):
                   </span>
-                  <span className="text-xl font-bold text-red-600 dark:text-red-400 print:text-red-600">
-                    −{formatCurrency(mealProgramSubsidy)}
+                  <span className="text-xl font-bold text-green-600 dark:text-green-400 print:text-green-600">
+                    +{formatCurrency(mealProgramCashCollected)}
                   </span>
                 </div>
               )}

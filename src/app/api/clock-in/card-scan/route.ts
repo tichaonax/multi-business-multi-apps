@@ -51,10 +51,29 @@ export async function POST(req: NextRequest) {
           employeeId: employee.id,
           date: { gte: todayStart, lte: todayEnd },
         },
-        select: { id: true, checkIn: true },
+        select: { id: true, checkIn: true, checkOut: true },
       })
 
       if (existing) {
+        // Already clocked out (both checkIn and checkOut set)
+        if (existing.checkIn && existing.checkOut) {
+          return NextResponse.json({
+            found: true,
+            canLogin,
+            employee: {
+              id: employee.id,
+              fullName: employee.fullName,
+              profilePhotoUrl: employee.profilePhotoUrl,
+              employeeNumber: employee.employeeNumber,
+            },
+            isExempt: false,
+            clockedIn: false,
+            alreadyClockedIn: false,
+            clockedOut: true,
+            clockInTime: existing.checkIn?.toISOString() ?? null,
+            attendanceId: null,
+          })
+        }
         alreadyClockedIn = true
         clockInTime = existing.checkIn
       } else {
@@ -90,6 +109,7 @@ export async function POST(req: NextRequest) {
       isExempt: employee.isClockInExempt,
       clockedIn,
       alreadyClockedIn,
+      clockedOut: false,
       clockInTime: clockInTime?.toISOString() ?? null,
       attendanceId: (employee as any)._attendanceId ?? null,
     })

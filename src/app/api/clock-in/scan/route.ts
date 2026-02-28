@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
         scheduledEndTime: true,
         primaryBusinessId: true,
         userId: true,
+        users: { select: { role: true } },
       },
     })
 
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       found: true,
       isOwnCard,
+      scannedUserRole: (employee as any).users?.role ?? null,
       employee,
       clockState,
       attendance: attendance

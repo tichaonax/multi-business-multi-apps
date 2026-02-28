@@ -24,7 +24,8 @@ import {
   Printer,
   Package,
   Wifi,
-  RefreshCw
+  RefreshCw,
+  Clock
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -59,6 +60,13 @@ export default function AdminPage() {
   const [sanitizingTokens, setSanitizingTokens] = useState(false)
   const [sanitizeResult, setSanitizeResult] = useState<any>(null)
   const [sanitizeError, setSanitizeError] = useState('')
+
+  // Clock-In Data Reset
+  const [resettingClockIn, setResettingClockIn] = useState(false)
+  const [clockInResetResult, setClockInResetResult] = useState<any>(null)
+  const [clockInResetError, setClockInResetError] = useState('')
+  const [showClockInConfirm, setShowClockInConfirm] = useState<'today' | 'all' | null>(null)
+  const [clockInResetAllText, setClockInResetAllText] = useState('')
 
   const isSysAdmin = isSystemAdmin(session?.user as any)
 
@@ -185,6 +193,37 @@ export default function AdminPage() {
     }
   }
 
+
+  const handleResetClockIn = async (scope: 'today' | 'all') => {
+    if (scope === 'all' && clockInResetAllText !== 'RESET ALL ATTENDANCE') return
+
+    setResettingClockIn(true)
+    setClockInResetError('')
+    setClockInResetResult(null)
+
+    try {
+      const response = await fetch('/api/admin/reset-clock-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setClockInResetResult(data)
+        setShowClockInConfirm(null)
+        setClockInResetAllText('')
+        toast.push(data.message)
+      } else {
+        setClockInResetError(data.message || 'Failed to reset clock-in data')
+      }
+    } catch (error) {
+      setClockInResetError('Network error occurred')
+    } finally {
+      setResettingClockIn(false)
+    }
+  }
 
   return (
     <ProtectedRoute>
@@ -984,6 +1023,115 @@ export default function AdminPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Clock-In Data Reset */}
+          <div className="card p-6 border-orange-200 dark:border-orange-800">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Clock className="h-6 w-6 mr-2 text-orange-500" />
+                <h3 className="text-lg font-semibold text-orange-700 dark:text-orange-400">Clock-In Data Reset</h3>
+              </div>
+              <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs font-semibold rounded">
+                TEST
+              </span>
+            </div>
+            <p className="text-secondary mb-4">Reset attendance records for testing purposes</p>
+
+            <div className="space-y-3">
+              {/* Reset Today */}
+              {showClockInConfirm === 'today' ? (
+                <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md p-3 space-y-2">
+                  <div className="text-sm font-medium text-orange-800 dark:text-orange-200">Reset today&apos;s clock-in records?</div>
+                  <div className="text-xs text-orange-700 dark:text-orange-300">This will delete all attendance records for today.</div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowClockInConfirm(null)}
+                      disabled={resettingClockIn}
+                      className="px-3 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs rounded disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleResetClockIn('today')}
+                      disabled={resettingClockIn}
+                      className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded disabled:opacity-50 flex items-center"
+                    >
+                      {resettingClockIn ? <><div className="animate-spin rounded-full h-3 w-3 border-b border-white mr-1"></div>Resetting...</> : 'Confirm Reset Today'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setShowClockInConfirm('today'); setClockInResetResult(null); setClockInResetError('') }}
+                  disabled={resettingClockIn}
+                  className="w-full px-3 py-2 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 text-orange-800 dark:text-orange-200 text-sm rounded-md border border-orange-200 dark:border-orange-700 text-left disabled:opacity-50 flex items-center justify-between"
+                >
+                  <span>Reset Today&apos;s Clock-In Records</span>
+                  <Clock className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Reset All */}
+              {showClockInConfirm === 'all' ? (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md p-3 space-y-2">
+                  <div className="text-sm font-medium text-red-800 dark:text-red-200">Reset ALL attendance records?</div>
+                  <div className="text-xs text-red-700 dark:text-red-300 mb-2">This deletes all attendance history and clock-in payroll adjustments.</div>
+                  <div className="text-xs font-mono bg-gray-100 dark:bg-gray-700 p-2 rounded mb-2">RESET ALL ATTENDANCE</div>
+                  <input
+                    type="text"
+                    value={clockInResetAllText}
+                    onChange={(e) => setClockInResetAllText(e.target.value)}
+                    placeholder="Type confirmation text..."
+                    className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    disabled={resettingClockIn}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setShowClockInConfirm(null); setClockInResetAllText('') }}
+                      disabled={resettingClockIn}
+                      className="px-3 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs rounded disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleResetClockIn('all')}
+                      disabled={resettingClockIn || clockInResetAllText !== 'RESET ALL ATTENDANCE'}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded disabled:opacity-50 flex items-center"
+                    >
+                      {resettingClockIn ? <><div className="animate-spin rounded-full h-3 w-3 border-b border-white mr-1"></div>Resetting...</> : 'Confirm Reset All'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setShowClockInConfirm('all'); setClockInResetResult(null); setClockInResetError('') }}
+                  disabled={resettingClockIn}
+                  className="w-full px-3 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 text-sm rounded-md border border-red-200 dark:border-red-700 text-left disabled:opacity-50 flex items-center justify-between"
+                >
+                  <span>Reset All Attendance Records</span>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+
+              {clockInResetResult && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3">
+                  <div className="flex items-center">
+                    <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                    <div className="text-sm text-green-800 dark:text-green-200">{clockInResetResult.message}</div>
+                  </div>
+                </div>
+              )}
+
+              {clockInResetError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                  <div className="flex items-center">
+                    <AlertTriangle className="h-4 w-4 text-red-500 mr-2 flex-shrink-0" />
+                    <div className="text-sm text-red-700 dark:text-red-300">{clockInResetError}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
