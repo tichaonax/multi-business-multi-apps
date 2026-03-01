@@ -8,6 +8,7 @@ interface BulkEmployee {
   id: string
   fullName: string
   employeeNumber: string
+  scanToken?: string | null
   profilePhotoUrl: string | null
   phone: string | null
   businessContactPhone?: string | null
@@ -49,8 +50,9 @@ function buildCardHtml(emp: BulkEmployee, barcodeSvg: string): string {
           ${hours ? `<div style="color:#374151;font-size:11px;font-weight:500;margin-top:2px;">${hours}</div>` : ''}
         </div>
       </div>
-      <div style="padding:0 12px 12px;display:flex;justify-content:center;">
+      <div style="padding:0 12px 12px;display:flex;flex-direction:column;align-items:center;">
         ${barcodeSvg}
+        <span style="font-size:10px;color:#6b7280;margin-top:2px;letter-spacing:0.05em;">${escHtml(emp.employeeNumber)}</span>
       </div>
     </div>
   `
@@ -113,6 +115,7 @@ export default function BulkPrintPage() {
           id: e.id,
           fullName: e.fullName,
           employeeNumber: e.employeeNumber,
+          scanToken: e.scanToken ?? null,
           profilePhotoUrl: e.profilePhotoUrl ?? null,
           phone: e.phone ?? null,
           businessContactPhone: e.businessContactPhone ?? null,
@@ -188,12 +191,11 @@ export default function BulkPrintPage() {
 
       const cardRows = selected.map((emp) => {
         const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-        JsBarcode(svgEl, emp.employeeNumber, {
+        JsBarcode(svgEl, emp.scanToken ?? emp.employeeNumber, {
           format: 'CODE128',
           width: 1.2,
           height: 30,
-          displayValue: true,
-          fontSize: 9,
+          displayValue: false,
           margin: 3,
         })
         const barcodeSvg = svgEl.outerHTML

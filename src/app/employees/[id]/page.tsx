@@ -1621,10 +1621,10 @@ function ClockInSettingsTab({ employee, canEdit }: { employee: any; canEdit: boo
       <div className="card p-4 sm:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h4 className="font-medium text-gray-800 dark:text-gray-200">Employee ID Card</h4>
-          <PrintIdCardButton employee={employee} />
+          <PrintIdCardButton employee={{ ...employee, scanToken: employee.scanToken ?? employee.employeeNumber }} />
         </div>
         <div className="overflow-x-auto">
-          <EmployeeIdCard employee={employee} />
+          <EmployeeIdCard employee={{ ...employee, scanToken: employee.scanToken ?? employee.employeeNumber }} />
         </div>
       </div>
     </div>

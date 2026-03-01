@@ -175,7 +175,7 @@ export function CardScanOverlay() {
     dismiss()
   }
 
-  const handleCardScan = useCallback(async (employeeNumber: string) => {
+  const handleCardScan = useCallback(async (scanToken: string) => {
     setScanState('scanning')
     setScanResult(null)
     setCapturedPhoto(null)
@@ -186,7 +186,7 @@ export function CardScanOverlay() {
       const res = await fetch('/api/clock-in/card-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeNumber }),
+        body: JSON.stringify({ scanToken }),
       })
       const data: ScanResult = await res.json()
       setScanResult(data)

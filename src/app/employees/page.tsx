@@ -993,6 +993,7 @@ export default function EmployeesPage() {
                 id: printCardEmployee.id,
                 fullName: printCardEmployee.fullName ?? '',
                 employeeNumber: printCardEmployee.employeeNumber ?? printCardEmployee.id,
+                scanToken: (printCardEmployee as any).scanToken ?? printCardEmployee.employeeNumber ?? printCardEmployee.id,
                 phone: printCardEmployee.phone ?? null,
                 businessContactPhone: printCardEmployee.businessContactPhone ?? null,
                 profilePhotoUrl: (printCardEmployee as any).profilePhotoUrl ?? null,

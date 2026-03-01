@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
         id: true,
         fullName: true,
         employeeNumber: true,
+        scanToken: true,
         profilePhotoUrl: true,
         scheduledStartTime: true,
         scheduledEndTime: true,

@@ -12,13 +12,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { employeeNumber } = await req.json()
-    if (!employeeNumber) {
-      return NextResponse.json({ error: 'employeeNumber is required' }, { status: 400 })
+    const { scanToken } = await req.json()
+    if (!scanToken) {
+      return NextResponse.json({ error: 'scanToken is required' }, { status: 400 })
     }
 
     const employee = await prisma.employees.findFirst({
-      where: { employeeNumber, isActive: true },
+      where: { scanToken, isActive: true },
       select: {
         id: true,
         fullName: true,

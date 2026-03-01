@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
         id: true,
         fullName: true,
         employeeNumber: true,
+        scanToken: true,
         profilePhotoUrl: true,
         phone: true,
         isClockInExempt: true,
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest) {
         id: emp.id,
         fullName: emp.fullName,
         employeeNumber: emp.employeeNumber,
+        scanToken: emp.scanToken,
         profilePhotoUrl: emp.profilePhotoUrl,
         phone: emp.phone,
         // Phone priority: business phone → business umbrella phone → umbrella record phone

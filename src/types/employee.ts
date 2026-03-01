@@ -90,6 +90,7 @@ export type Subordinate = {
 export type Employee = {
   id: string
   employeeNumber: string
+  scanToken?: string | null
   userId: string | null
   firstName: string
   lastName: string

@@ -9,6 +9,7 @@ interface AttendanceEmployee {
   id: string
   fullName: string
   employeeNumber: string
+  scanToken?: string | null
   profilePhotoUrl: string | null
   phone: string | null
   scheduledStartTime: string | null
@@ -1247,6 +1248,7 @@ export default function ClockInDashboardPage() {
                   id: printCardEmp.id,
                   fullName: printCardEmp.fullName,
                   employeeNumber: printCardEmp.employeeNumber,
+                  scanToken: printCardEmp.scanToken ?? printCardEmp.employeeNumber,
                   profilePhotoUrl: printCardEmp.profilePhotoUrl,
                   phone: printCardEmp.phone,
                   scheduledStartTime: printCardEmp.scheduledStartTime,
@@ -1287,6 +1289,7 @@ export default function ClockInDashboardPage() {
                 id: printExemptEmp.id,
                 fullName: printExemptEmp.fullName,
                 employeeNumber: printExemptEmp.employeeNumber,
+                scanToken: (printExemptEmp as any).scanToken ?? printExemptEmp.employeeNumber,
                 profilePhotoUrl: printExemptEmp.profilePhotoUrl,
                 phone: printExemptEmp.phone,
                 businessContactPhone: (printExemptEmp as any).businessContactPhone ?? null,

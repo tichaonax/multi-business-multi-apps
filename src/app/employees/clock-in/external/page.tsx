@@ -588,12 +588,13 @@ export default function ExternalClockInPage() {
               <h3 className="font-semibold text-gray-900 dark:text-white">🪪 Contractor ID Card</h3>
               <button onClick={() => setPrintCardPerson(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
             </div>
-            {/* EmployeeIdCard reused — nationalId passed as employeeNumber for the barcode */}
+            {/* EmployeeIdCard reused — nationalId shown as barcode for contractors */}
             <EmployeeIdCard
               employee={{
                 id: printCardPerson.id,
                 fullName: printCardPerson.fullName,
                 employeeNumber: printCardPerson.nationalId ?? printCardPerson.id,
+                scanToken: printCardPerson.nationalId ?? printCardPerson.id,
                 phone: printCardPerson.phone,
               }}
             />

@@ -101,6 +101,7 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           employeeNumber: true,
+          scanToken: true,
           fullName: true,
           firstName: true,
           lastName: true,
@@ -214,6 +215,7 @@ export async function GET(req: NextRequest) {
       return {
         id: employee.id,
         employeeNumber: employee.employeeNumber,
+        scanToken: employee.scanToken,
         fullName: employee.fullName,
         firstName: employee.firstName,
         lastName: employee.lastName,
@@ -407,6 +409,7 @@ export async function POST(req: NextRequest) {
       const employeeCreateData: Prisma.EmployeesUncheckedCreateInput = {
         id: randomUUID(),
         employeeNumber: employeeNumber,
+        scanToken: randomUUID(),
         userId: userId || null,
         firstName: firstName,
         lastName: lastName,

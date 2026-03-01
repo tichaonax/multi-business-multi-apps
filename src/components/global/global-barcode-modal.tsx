@@ -113,7 +113,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
       const clockScanRes = await fetch('/api/clock-in/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeNumber: barcodeToLookup }),
+        body: JSON.stringify({ scanToken: barcodeToLookup }),
       })
       if (clockScanRes.ok) {
         const clockData = await clockScanRes.json()

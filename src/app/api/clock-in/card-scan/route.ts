@@ -8,14 +8,14 @@ import { prisma } from '@/lib/prisma'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const employeeNumber = String(body.employeeNumber ?? '').trim()
-    if (!employeeNumber) {
-      return NextResponse.json({ found: false, error: 'employeeNumber required' }, { status: 400 })
+    const scanToken = String(body.scanToken ?? '').trim()
+    if (!scanToken) {
+      return NextResponse.json({ found: false, error: 'scanToken required' }, { status: 400 })
     }
 
-    // Find the active employee by employeeNumber
+    // Find the active employee by scanToken
     const employee = await prisma.employees.findFirst({
-      where: { employeeNumber, isActive: true },
+      where: { scanToken, isActive: true },
       select: {
         id: true,
         fullName: true,

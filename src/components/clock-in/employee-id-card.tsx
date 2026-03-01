@@ -7,6 +7,7 @@ interface EmployeeIdCardProps {
     id: string
     fullName: string
     employeeNumber: string
+    scanToken: string
     phone?: string | null
     businessContactPhone?: string | null
     profilePhotoUrl?: string | null
@@ -26,19 +27,18 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
     import('jsbarcode').then((JsBarcode) => {
       if (!el.isConnected) return
       try {
-        JsBarcode.default(el, employee.employeeNumber, {
+        JsBarcode.default(el, employee.scanToken, {
           format: 'CODE128',
           width: 1.2,
           height: 30,
-          displayValue: true,
-          fontSize: 9,
+          displayValue: false,
           margin: 3,
         })
       } catch {
         // Element may have been replaced between import and render — safe to ignore
       }
     })
-  }, [employee.employeeNumber])
+  }, [employee.scanToken])
 
   const hours =
     employee.scheduledStartTime && employee.scheduledEndTime
@@ -99,8 +99,9 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
       </div>
 
       {/* Barcode */}
-      <div className="px-3 pb-3 flex justify-center">
+      <div className="px-3 pb-3 flex flex-col items-center">
         <svg ref={barcodeRef} />
+        <span className="text-xs text-gray-500 mt-0.5 tracking-wide">{employee.employeeNumber}</span>
       </div>
     </div>
   )

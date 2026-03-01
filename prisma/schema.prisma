@@ -1204,6 +1204,7 @@ model Employees {
   clockInExemptApprovedBy                                                   String?
   scheduledDaysPerWeek                                                      Float?
   annualVacationDays                                                        Int?
+  scanToken                                                                 String?                       @unique
   business_orders                                                           BusinessOrders[]
   business_stock_movements                                                  BusinessStockMovements[]
   contract_renewals                                                         ContractRenewals[]
