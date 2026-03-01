@@ -606,13 +606,13 @@ export function UniversalStockMovements({
       {/* Create Movement Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">Create Stock Movement</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Create Stock Movement</h2>
                 <button
                   onClick={resetModal}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                 >
                   ✕
                 </button>
@@ -630,9 +630,9 @@ export function UniversalStockMovements({
 
               {/* Scanned Product Info */}
               {scannedProduct && (
-                <div className="bg-green-50 border border-green-200 p-4 rounded-lg mb-6">
-                  <h3 className="font-medium text-green-800 mb-2">Scanned Product</h3>
-                  <div className="text-sm text-green-700">
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 rounded-lg mb-6">
+                  <h3 className="font-medium text-green-800 dark:text-green-300 mb-2">Scanned Product</h3>
+                  <div className="text-sm text-green-700 dark:text-green-400">
                     <div><strong>{scannedProduct.name}</strong></div>
                     <div>SKU: {formData.itemSku}</div>
                   </div>
@@ -643,7 +643,7 @@ export function UniversalStockMovements({
                     if (availableBarcodes.length > 1) {
                       return (
                         <div className="mt-3">
-                          <label className="block text-sm font-medium text-green-800 mb-2">
+                          <label className="block text-sm font-medium text-green-800 dark:text-green-300 mb-2">
                             Select Scanned Barcode:
                           </label>
                           <select
@@ -692,7 +692,7 @@ export function UniversalStockMovements({
               <form onSubmit={handleSubmitMovement} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Movement Type</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Movement Type</label>
                     <select
                       value={formData.movementType}
                       onChange={(e) => setFormData(prev => ({ ...prev, movementType: e.target.value as any }))}
@@ -709,7 +709,7 @@ export function UniversalStockMovements({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Quantity</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Quantity</label>
                     <input
                       type="number"
                       step="0.01"
@@ -722,7 +722,7 @@ export function UniversalStockMovements({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Unit</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Unit</label>
                     <input
                       type="text"
                       value={formData.unit}
@@ -734,7 +734,7 @@ export function UniversalStockMovements({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Unit Cost (Optional)</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Unit Cost (Optional)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -747,7 +747,7 @@ export function UniversalStockMovements({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Reason</label>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Reason</label>
                   <input
                     type="text"
                     value={formData.reason}
@@ -758,7 +758,7 @@ export function UniversalStockMovements({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Reference Number (Optional)</label>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Reference Number (Optional)</label>
                   <input
                     type="text"
                     value={formData.referenceNumber}
@@ -769,7 +769,7 @@ export function UniversalStockMovements({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Location (Optional)</label>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Location (Optional)</label>
                   <input
                     type="text"
                     value={formData.location}
@@ -780,7 +780,7 @@ export function UniversalStockMovements({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Notes (Optional)</label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}

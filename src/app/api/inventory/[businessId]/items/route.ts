@@ -87,6 +87,9 @@ export async function GET(
     const isActive = searchParams.get('isActive')
     const condition = searchParams.get('condition')
     const lowStock = searchParams.get('lowStock') === 'true'
+    const inMenu = searchParams.get('inMenu')   // 'true' = items with a sell price (on menu)
+    const posTracked = searchParams.get('posTracked') // 'true' = isInventoryTracked items only
+    const priceFilter = searchParams.get('priceFilter') // 'with' | 'without'
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
@@ -117,6 +120,46 @@ export async function GET(
       where.business_categories = {
         domainId: domainId
       }
+    }
+
+    // Filter to items that are on the menu (have a sell price > 0)
+    if (inMenu === 'true') {
+      where.basePrice = { gt: 0 }
+    }
+
+    // Filter to items with POS inventory tracking enabled
+    if (posTracked === 'true') {
+      where.isInventoryTracked = true
+    }
+
+    // Filter by whether items have prices set
+    if (priceFilter === 'with') {
+      // Items with at least a cost price OR a sell price set
+      where.OR = [
+        ...(where.OR || []),
+        { costPrice: { gt: 0 } },
+        { basePrice: { gt: 0 } },
+      ]
+      // Replace OR from search if needed — handle conflict by wrapping
+      if (search) {
+        // Re-apply both filters via AND
+        const searchOr = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { sku: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } }
+        ]
+        delete where.OR
+        where.AND = [
+          { OR: searchOr },
+          { OR: [{ costPrice: { gt: 0 } }, { basePrice: { gt: 0 } }] }
+        ]
+      } else {
+        where.OR = [{ costPrice: { gt: 0 } }, { basePrice: { gt: 0 } }]
+      }
+    } else if (priceFilter === 'without') {
+      // Items where both costPrice and basePrice are 0 or null
+      where.costPrice = { lte: 0 }
+      where.basePrice = { lte: 0 }
     }
 
     // Note: We'll filter by category/ingredientType after fetching since ingredientType is in JSON
@@ -180,7 +223,8 @@ export async function GET(
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
         barcodes: (product as any).product_barcodes || [],
-        attributes: product.attributes || {}
+        attributes: product.attributes || {},
+        isInventoryTracked: (product as any).isInventoryTracked ?? false
       }
     })
 

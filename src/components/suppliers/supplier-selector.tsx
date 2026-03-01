@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SupplierEditor } from './supplier-editor'
@@ -43,9 +43,30 @@ export function SupplierSelector({
   const [searchQuery, setSearchQuery] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const wrapperRef = useRef<HTMLDivElement>(null)
 
   const userCanCreate = hasPermission('canCreateSuppliers')
   const allowCreate = canCreate && userCanCreate
+
+  const positionDropdown = useCallback(() => {
+    if (!wrapperRef.current) return
+    const rect = wrapperRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const dropdownHeight = 280 // approximate max-height
+    if (spaceBelow >= dropdownHeight || spaceBelow >= 160) {
+      // Open downward
+      setDropdownStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    } else {
+      // Open upward
+      setDropdownStyle({ bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
+    }
+  }, [])
+
+  const openDropdown = useCallback(() => {
+    positionDropdown()
+    setShowDropdown(true)
+  }, [positionDropdown])
 
   // Track client-side mounting for portal
   useEffect(() => {
@@ -107,11 +128,11 @@ export function SupplierSelector({
 
   return (
     <>
-      <div className={`relative ${className}`}>
+      <div ref={wrapperRef} className={`relative ${className}`}>
         <div className="relative">
           <button
             type="button"
-            onClick={() => setShowDropdown(!showDropdown)}
+            onClick={() => showDropdown ? setShowDropdown(false) : openDropdown()}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-left flex items-center justify-between hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
           >
             <span className="flex items-center gap-2">
@@ -137,33 +158,37 @@ export function SupplierSelector({
             </svg>
           </button>
 
-          {showDropdown && (
-            <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-hidden flex flex-col">
-              {/* Info Banner */}
-              <div className="px-3 py-2 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-200 dark:border-purple-800">
-                <div className="flex items-start gap-2">
-                  <svg className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-xs text-purple-700 dark:text-purple-300">
-                    Suppliers are shared across all businesses of the same type
-                  </p>
-                </div>
-              </div>
-
-              {/* Search */}
-              <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+          {showDropdown && isMounted && createPortal(
+            <div
+              className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-xl max-h-72 overflow-hidden flex flex-col"
+              style={dropdownStyle}
+            >
+              {/* Header: search + create button always visible */}
+              <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2 flex-shrink-0">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search suppliers..."
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
                   autoFocus
                 />
+                {allowCreate && (
+                  <button
+                    type="button"
+                    onClick={handleCreate}
+                    className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded whitespace-nowrap"
+                    title="Create New Supplier"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    New
+                  </button>
+                )}
               </div>
 
-              {/* Options List */}
+              {/* Options List — scrollable */}
               <div className="overflow-y-auto flex-1">
                 {loading ? (
                   <div className="p-4 text-center text-gray-500 dark:text-gray-400">
@@ -220,32 +245,21 @@ export function SupplierSelector({
                       </div>
                     )}
 
-                    {/* Create New Option */}
-                    {allowCreate && (
-                      <button
-                        type="button"
-                        onClick={handleCreate}
-                        className="w-full px-3 py-2 text-left hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 font-medium text-sm border-t border-gray-200 dark:border-gray-700 flex items-center gap-2"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Create New Supplier
-                      </button>
-                    )}
                   </>
                 )}
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
 
-        {/* Click outside to close */}
-        {showDropdown && (
+        {/* Click outside to close — behind the dropdown portal (z-9998 vs z-9999) */}
+        {showDropdown && isMounted && createPortal(
           <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowDropdown(false)}
-          />
+            className="fixed inset-0 z-[9998]"
+            onClick={() => { setShowDropdown(false); setSearchQuery('') }}
+          />,
+          document.body
         )}
       </div>
 

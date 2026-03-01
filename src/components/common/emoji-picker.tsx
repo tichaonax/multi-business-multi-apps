@@ -199,7 +199,13 @@ export function EmojiPicker({
     ? [selectedEmojiResult, ...sortedLocalResults]
     : sortedLocalResults;
 
-  const allResults = [...resultsWithSelected, ...githubResults];
+  // Deduplicate by emoji character — keep first occurrence (local before github)
+  const seen = new Set<string>();
+  const allResults = [...resultsWithSelected, ...githubResults].filter(result => {
+    if (seen.has(result.emoji)) return false;
+    seen.add(result.emoji);
+    return true;
+  });
 
   // Helper function to get source indicator badge
   const getSourceBadge = (result: EmojiResult) => {
@@ -237,27 +243,34 @@ export function EmojiPicker({
 
   return (
     <div className={compact ? 'space-y-2' : 'space-y-4'}>
-      {/* Search Input */}
-      <div>
+      {/* Search Input + Selected badge on same row in compact mode */}
+      <div className={compact ? 'flex items-center gap-2' : ''}>
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={searchPlaceholder}
           className={`
-            w-full px-3 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm
+            flex-1 px-3 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm
             focus:ring-blue-500 focus:border-blue-500
             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-            ${compact ? 'py-1.5 text-sm' : 'py-2'}
+            ${compact ? 'py-1.5 text-sm' : 'w-full py-2'}
           `}
         />
+        {/* Selected Emoji badge — inline in compact mode */}
+        {compact && selectedEmoji && isSelectedEmojiValid && (
+          <div className="flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-sm">
+            <span className="text-xl">{selectedEmoji}</span>
+            <span className="text-xs font-medium text-blue-800 dark:text-blue-300">Selected</span>
+          </div>
+        )}
       </div>
 
-      {/* Selected Emoji Display */}
-      {selectedEmoji && isSelectedEmojiValid && (
-        <div className={`flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded ${compact ? 'text-sm' : ''}`}>
-          <span className={compact ? 'text-xl' : 'text-2xl'}>{selectedEmoji}</span>
-          <span className={`font-medium text-blue-800 dark:text-blue-300 ${compact ? 'text-xs' : 'text-sm'}`}>Selected</span>
+      {/* Selected Emoji Display — full block in non-compact mode only */}
+      {!compact && selectedEmoji && isSelectedEmojiValid && (
+        <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded">
+          <span className="text-2xl">{selectedEmoji}</span>
+          <span className="text-sm font-medium text-blue-800 dark:text-blue-300">Selected</span>
         </div>
       )}
 
@@ -301,10 +314,7 @@ export function EmojiPicker({
               </div>
             )}
           </div>
-          <div className={`
-            grid gap-2 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-3 bg-gray-50 dark:bg-gray-800
-            ${compact ? 'grid-cols-6 max-h-48' : 'grid-cols-6 sm:grid-cols-8 max-h-64'}
-          `}>
+          <div className="flex flex-nowrap gap-2 overflow-x-auto border border-gray-200 dark:border-gray-600 rounded p-2 bg-gray-50 dark:bg-gray-800">
             {allResults.map((result, index) => (
               <button
                 key={`${result.emoji}-${result.source}-${index}`}
@@ -313,7 +323,7 @@ export function EmojiPicker({
                 title={`${result.name || result.emoji}${result.usageCount ? ` (used ${result.usageCount} times)` : ''}`}
                 className={`
                   ${compact ? 'w-10 h-10 p-1' : 'w-12 h-12 p-2'}
-                  rounded hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors relative flex items-center justify-center border
+                  flex-shrink-0 rounded hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors relative flex items-center justify-center border
                   ${selectedEmoji === result.emoji ? 'bg-blue-200 dark:bg-blue-800 ring-2 ring-blue-500 border-blue-300 dark:border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600'}
                 `}
               >

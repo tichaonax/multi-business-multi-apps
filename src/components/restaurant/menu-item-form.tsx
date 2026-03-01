@@ -106,7 +106,8 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
     isActive: true,
     isAvailable: true,
     isCombo: false,
-    requiresCompanionItem: false
+    requiresCompanionItem: false,
+    barcode: ''
   })
 
   const [images, setImages] = useState<ImageUpload[]>([])
@@ -140,7 +141,8 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
         isActive: item.isActive,
         isAvailable: item.isAvailable,
         isCombo: item.isCombo,
-        requiresCompanionItem: item.requiresCompanionItem || false
+        requiresCompanionItem: item.requiresCompanionItem || false,
+        barcode: (item as any).barcode || ''
       })
 
       // Set existing images
@@ -357,6 +359,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
       // Prepare form data for submission (excluding images for now)
       const submitData = {
         ...formData,
+        barcode: formData.barcode.trim() || undefined,
         originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : null,
         discountPercent: formData.discountPercent ? parseFloat(formData.discountPercent) : null,
         preparationTime: formData.preparationTime ? parseInt(formData.preparationTime) : null,
@@ -578,6 +581,26 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
               )}
               {validationErrors.categoryId && (
                 <p className="text-red-600 text-sm mt-1">{validationErrors.categoryId}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Barcode */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-primary mb-1">
+                Barcode
+              </label>
+              <Input
+                type="text"
+                value={formData.barcode}
+                onChange={(e) => handleInputChange('barcode', e.target.value)}
+                placeholder="e.g., 04963406"
+              />
+              {!item?.id && item && (
+                <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
+                  Cloned item — enter a unique barcode or leave blank to assign later.
+                </p>
               )}
             </div>
           </div>

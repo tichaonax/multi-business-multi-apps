@@ -274,15 +274,17 @@ export default function MenuManagementPage() {
 
   const handleCloneItem = (item: MenuItem) => {
     // Create a copy of the item without the ID (so form treats it as new)
-    // Also remove image IDs and variant IDs since those belong to the original
+    // Strip barcode/barcodes — each product must have a unique barcode
+    const { barcode: _b, barcodes: _bc, ...itemWithoutBarcodes } = item as any
     const clonedItem: MenuItem = {
-      ...item,
+      ...itemWithoutBarcodes,
       id: '', // Empty ID so form treats it as a new item
       name: `${item.name} (Copy)`, // Append " (Copy)" to help identify
       images: [], // Don't copy images - they reference the original
       variants: item.variants?.map(v => ({
         ...v,
         id: '', // Remove variant IDs so new ones are created
+        barcode: undefined, // Clear variant-level barcode too
       })) || []
     }
     setEditingItem(clonedItem)

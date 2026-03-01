@@ -792,18 +792,8 @@ export function UniversalInventoryForm({
 
   // support rendering either as a modal (default) or inline panel
   const panel = (
-    <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full min-h-[60vh] max-h-[90vh] overflow-auto text-gray-900 dark:text-gray-100">
-      {/* Close button (visible on small screens where header may be off-screen) */}
-      <button
-        type="button"
-        onClick={onCancel}
-        disabled={isNavigatingToPOS}
-        aria-label="Close"
-        className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        ×
-      </button>
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+    <div className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full text-gray-900 dark:text-gray-100${renderMode === 'modal' ? ' max-h-[90vh] overflow-auto' : ''}`}>
+      <div className="p-5 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -850,295 +840,298 @@ export function UniversalInventoryForm({
               )}
             </button>
           )}
+
+          {/* Close button — separated clearly from action buttons */}
+          <div className="pl-3 ml-1 border-l border-gray-200 dark:border-gray-600 flex-shrink-0">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isNavigatingToPOS}
+              aria-label="Close"
+              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xl leading-none"
+            >
+              ×
+            </button>
+          </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="p-4">
         {errors.general && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
             <div className="text-red-600 text-sm">{errors.general}</div>
           </div>
         )}
 
-        {/* Basic Information */}
-        <div className="space-y-4">
-          <h3 className="font-medium text-gray-900 dark:text-gray-100">Basic Information</h3>
+        {/* Two-panel layout: basic info left, business-specific + barcode right */}
+        <div className="flex flex-col lg:flex-row lg:gap-5">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Item Name *
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                className={`input-field ${errors.name ? 'border-red-500 border-2' : ''}`}
-                placeholder="Enter item name"
-              />
-              {errors.name && <p className="text-red-600 text-sm mt-1 font-medium">{errors.name}</p>}
-            </div>
+          {/* LEFT PANEL — Basic Information */}
+          <div className="flex-1 min-w-0">
+            <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
 
-            <div>
-              <SKUGenerator
-                businessId={businessId}
-                categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
-                value={formData.sku}
-                onChange={(sku) => handleInputChange('sku', sku)}
-                disabled={loading}
-              />
-              {errors.sku && <p className="text-red-600 text-sm mt-1 font-medium">{errors.sku}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Category *
-              </label>
-              <SearchableSelect
-                options={categories.map(cat => ({
-                  id: cat.id,
-                  name: cat.name,
-                  emoji: cat.emoji,
-                  color: cat.color
-                }))}
-                value={formData.categoryId || ''}
-                onChange={handleCategoryChange}
-                placeholder="Select category..."
-                searchPlaceholder="Search categories..."
-                error={errors.categoryId}
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Subcategory (Optional)
-                </label>
-                {selectedCategory && session?.user && hasUserPermission(session.user, 'canCreateInventorySubcategories') && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSubcategoryEditor(true)}
-                    className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                  >
-                    + Create Subcategory
-                  </button>
-                )}
+              {/* Item Name — full width */}
+              <div className="col-span-2 xl:col-span-3">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Item Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  className={`input-field ${errors.name ? 'border-red-500 border-2' : ''}`}
+                  placeholder="Enter item name"
+                />
+                {errors.name && <p className="text-red-600 text-xs mt-1 font-medium">{errors.name}</p>}
               </div>
-              <SearchableSelect
-                options={availableSubcategories.map(sub => ({
-                  id: sub.id,
-                  name: sub.name,
-                  emoji: sub.emoji
-                }))}
-                value={formData.subcategoryId || ''}
-                onChange={(id) => handleInputChange('subcategoryId', id || '')}
-                placeholder="No subcategory"
-                searchPlaceholder="Search subcategories..."
-                disabled={!selectedCategory}
-                emptyMessage={selectedCategory && availableSubcategories.length === 0 
-                  ? 'No subcategories available. Click "+ Create Subcategory" to add one.' 
-                  : 'Select a category first'}
-              />
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Unit *
-              </label>
-              <input
-                type="text"
-                value={formData.unit}
-                onChange={(e) => handleInputChange('unit', e.target.value)}
-                className={`input-field ${errors.unit ? 'border-red-500 border-2' : ''}`}
-                placeholder="lbs, each, gallons, etc."
-              />
-              {errors.unit && <p className="text-red-600 text-sm mt-1 font-medium">{errors.unit}</p>}
-            </div>
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                <SearchableSelect
+                  options={categories.map(cat => ({
+                    id: cat.id,
+                    name: cat.name,
+                    emoji: cat.emoji,
+                    color: cat.color
+                  }))}
+                  value={formData.categoryId || ''}
+                  onChange={handleCategoryChange}
+                  placeholder="Select category..."
+                  searchPlaceholder="Search categories..."
+                  error={errors.categoryId}
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Current Stock {mode === 'edit' ? '(Calculated from movements)' : '*'}
-              </label>
-              {mode === 'edit' ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={formData.currentStock}
-                      readOnly
-                      className="input-field bg-gray-100 dark:bg-gray-700 cursor-not-allowed flex-1"
-                      placeholder="0"
-                    />
+              {/* Subcategory */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Subcategory</label>
+                  {selectedCategory && session?.user && hasUserPermission(session.user, 'canCreateInventorySubcategories') && (
                     <button
                       type="button"
-                      onClick={async () => {
-                        const adjustment = await prompt({
-                          title: '📦 Adjust Stock',
-                          description: (
-                            <div className="space-y-2">
-                              <p>Current stock: <strong className="text-blue-600 dark:text-blue-400">{formData.currentStock} units</strong></p>
-                              <p className="text-sm">Enter adjustment amount:</p>
-                              <ul className="text-sm list-disc list-inside ml-2 space-y-1">
-                                <li>Positive number to <span className="text-green-600 dark:text-green-400">add stock</span> (e.g., 10)</li>
-                                <li>Negative number to <span className="text-red-600 dark:text-red-400">remove stock</span> (e.g., -5)</li>
-                              </ul>
-                            </div>
-                          ),
-                          placeholder: 'e.g., +10 or -5',
-                          inputType: 'number',
-                          confirmText: 'Adjust Stock',
-                          cancelText: 'Cancel',
-                          validator: (value) => {
-                            if (!value || value.trim() === '') {
-                              return 'Please enter an adjustment amount'
-                            }
-                            const num = parseInt(value)
-                            if (isNaN(num)) {
-                              return 'Please enter a valid number'
-                            }
-                            if (num === 0) {
-                              return 'Adjustment cannot be zero'
-                            }
-                            const newStock = formData.currentStock + num
-                            if (newStock < 0) {
-                              return `Cannot adjust stock below 0 (would result in ${newStock})`
-                            }
-                            return null
-                          }
-                        })
-
-                        if (adjustment !== null) {
-                          const adjustmentAmount = parseInt(adjustment)
-                          const newStock = formData.currentStock + adjustmentAmount
-                          // Store adjustment to be processed on save
-                          handleInputChange('_stockAdjustment', adjustmentAmount)
-                          handleInputChange('currentStock', newStock)
-                        }
-                      }}
-                      className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 whitespace-nowrap text-sm"
+                      onClick={() => setShowSubcategoryEditor(true)}
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                     >
-                      📦 Adjust Stock
+                      + New
                     </button>
-                  </div>
-                  <p className="text-xs text-gray-500">Click "Adjust Stock" to add or remove inventory. Stock is calculated from movements.</p>
+                  )}
                 </div>
-              ) : (
-                <>
-                  <input
-                    type="number"
-                    step="1"
-                    value={formData.currentStock === 0 ? '' : formData.currentStock}
-                    onChange={(e) => handleInputChange('currentStock', e.target.value === '' ? 0 : parseInt(e.target.value))}
-                    className={`input-field ${errors.currentStock ? 'border-red-500 border-2' : ''}`}
-                    placeholder="0"
-                  />
-                  {errors.currentStock && <p className="text-red-600 text-sm mt-1 font-medium">{errors.currentStock}</p>}
-                  <p className="text-xs text-gray-500 mt-1">Initial stock quantity when creating this product</p>
-                </>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Cost Price *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.costPrice === 0 ? '' : formData.costPrice}
-                onChange={(e) => handleInputChange('costPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                className={`input-field ${errors.costPrice ? 'border-red-500 border-2' : ''}`}
-                placeholder="0.00"
-              />
-              {errors.costPrice && <p className="text-red-600 text-sm mt-1 font-medium">{errors.costPrice}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Sell Price
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.sellPrice === 0 ? '' : formData.sellPrice}
-                onChange={(e) => handleInputChange('sellPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                className={`input-field ${errors.sellPrice ? 'border-red-500 border-2' : ''}`}
-                placeholder="0.00"
-              />
-              {errors.sellPrice && <p className="text-red-600 text-sm mt-1 font-medium">{errors.sellPrice}</p>}
-            </div>
-
-            <SupplierSelector
-              businessId={businessId}
-              value={formData.supplierId || null}
-              onChange={(supplierId) => handleInputChange('supplierId', supplierId || undefined)}
-              canCreate={true}
-            />
-
-            <LocationSelector
-              businessId={businessId}
-              value={formData.locationId || null}
-              onChange={(locationId) => handleInputChange('locationId', locationId || undefined)}
-              canCreate={true}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              className="input-field resize-none"
-              rows={3}
-              placeholder="Optional description..."
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="isActive"
-                checked={formData.isActive}
-                onChange={(e) => handleInputChange('isActive', e.target.checked)}
-                className="rounded"
-              />
-              <label htmlFor="isActive" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                Active Item
-              </label>
-            </div>
-
-            {canPrintInventoryLabels && (
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="printOnSave"
-                  checked={printOnSave}
-                  onChange={(e) => setPrintOnSave(e.target.checked)}
-                  className="rounded"
+                <SearchableSelect
+                  options={availableSubcategories.map(sub => ({
+                    id: sub.id,
+                    name: sub.name,
+                    emoji: sub.emoji
+                  }))}
+                  value={formData.subcategoryId || ''}
+                  onChange={(id) => handleInputChange('subcategoryId', id || '')}
+                  placeholder="No subcategory"
+                  searchPlaceholder="Search subcategories..."
+                  disabled={!selectedCategory}
+                  emptyMessage={selectedCategory && availableSubcategories.length === 0
+                    ? 'No subcategories. Click "+ New" to add one.'
+                    : 'Select a category first'}
                 />
-                <label htmlFor="printOnSave" className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1">
-                  🏷️ Print label after saving
-                </label>
               </div>
-            )}
+
+              {/* Unit */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Unit *</label>
+                <input
+                  type="text"
+                  value={formData.unit}
+                  onChange={(e) => handleInputChange('unit', e.target.value)}
+                  className={`input-field ${errors.unit ? 'border-red-500 border-2' : ''}`}
+                  placeholder="lbs, each, gallons…"
+                />
+                {errors.unit && <p className="text-red-600 text-xs mt-1 font-medium">{errors.unit}</p>}
+              </div>
+
+              {/* SKU */}
+              <div className="xl:col-span-2">
+                <SKUGenerator
+                  businessId={businessId}
+                  categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
+                  value={formData.sku}
+                  onChange={(sku) => handleInputChange('sku', sku)}
+                  disabled={loading}
+                />
+                {errors.sku && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sku}</p>}
+              </div>
+
+              {/* Current Stock */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Stock {mode === 'edit' ? '(from movements)' : '*'}
+                </label>
+                {mode === 'edit' ? (
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={formData.currentStock}
+                        readOnly
+                        className="input-field bg-gray-100 dark:bg-gray-700 cursor-not-allowed flex-1"
+                        placeholder="0"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const adjustment = await prompt({
+                            title: '📦 Adjust Stock',
+                            description: (
+                              <div className="space-y-2">
+                                <p>Current stock: <strong className="text-blue-600 dark:text-blue-400">{formData.currentStock} units</strong></p>
+                                <p className="text-sm">Enter adjustment amount:</p>
+                                <ul className="text-sm list-disc list-inside ml-2 space-y-1">
+                                  <li>Positive number to <span className="text-green-600 dark:text-green-400">add stock</span> (e.g., 10)</li>
+                                  <li>Negative number to <span className="text-red-600 dark:text-red-400">remove stock</span> (e.g., -5)</li>
+                                </ul>
+                              </div>
+                            ),
+                            placeholder: 'e.g., +10 or -5',
+                            inputType: 'number',
+                            confirmText: 'Adjust Stock',
+                            cancelText: 'Cancel',
+                            validator: (value) => {
+                              if (!value || value.trim() === '') return 'Please enter an adjustment amount'
+                              const num = parseInt(value)
+                              if (isNaN(num)) return 'Please enter a valid number'
+                              if (num === 0) return 'Adjustment cannot be zero'
+                              const newStock = formData.currentStock + num
+                              if (newStock < 0) return `Cannot adjust stock below 0 (would result in ${newStock})`
+                              return null
+                            }
+                          })
+                          if (adjustment !== null) {
+                            const adjustmentAmount = parseInt(adjustment)
+                            const newStock = formData.currentStock + adjustmentAmount
+                            handleInputChange('_stockAdjustment', adjustmentAmount)
+                            handleInputChange('currentStock', newStock)
+                          }
+                        }}
+                        className="px-2 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 whitespace-nowrap text-xs"
+                      >
+                        📦 Adjust
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="number"
+                      step="1"
+                      value={formData.currentStock === 0 ? '' : formData.currentStock}
+                      onChange={(e) => handleInputChange('currentStock', e.target.value === '' ? 0 : parseInt(e.target.value))}
+                      className={`input-field ${errors.currentStock ? 'border-red-500 border-2' : ''}`}
+                      placeholder="0"
+                    />
+                    {errors.currentStock && <p className="text-red-600 text-xs mt-1 font-medium">{errors.currentStock}</p>}
+                  </>
+                )}
+              </div>
+
+              {/* Cost Price */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Cost Price *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.costPrice === 0 ? '' : formData.costPrice}
+                  onChange={(e) => handleInputChange('costPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                  className={`input-field ${errors.costPrice ? 'border-red-500 border-2' : ''}`}
+                  placeholder="0.00"
+                />
+                {errors.costPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.costPrice}</p>}
+              </div>
+
+              {/* Sell Price */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Sell Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.sellPrice === 0 ? '' : formData.sellPrice}
+                  onChange={(e) => handleInputChange('sellPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                  className={`input-field ${errors.sellPrice ? 'border-red-500 border-2' : ''}`}
+                  placeholder="0.00"
+                />
+                {errors.sellPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sellPrice}</p>}
+              </div>
+
+              {/* Supplier — full width */}
+              <div className="col-span-2 xl:col-span-3">
+                <SupplierSelector
+                  businessId={businessId}
+                  value={formData.supplierId || null}
+                  onChange={(supplierId) => handleInputChange('supplierId', supplierId || undefined)}
+                  canCreate={true}
+                />
+              </div>
+
+              {/* Location — full width */}
+              <div className="col-span-2 xl:col-span-3">
+                <LocationSelector
+                  businessId={businessId}
+                  value={formData.locationId || null}
+                  onChange={(locationId) => handleInputChange('locationId', locationId || undefined)}
+                  canCreate={true}
+                />
+              </div>
+
+              {/* Description — full width */}
+              <div className="col-span-2 xl:col-span-3">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  className="input-field resize-none"
+                  rows={2}
+                  placeholder="Optional description…"
+                />
+              </div>
+
+              {/* Checkboxes — full width, horizontal */}
+              <div className="col-span-2 xl:col-span-3 flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="isActive"
+                    checked={formData.isActive}
+                    onChange={(e) => handleInputChange('isActive', e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Active Item</span>
+                </label>
+                {canPrintInventoryLabels && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      id="printOnSave"
+                      checked={printOnSave}
+                      onChange={(e) => setPrintOnSave(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">🏷️ Print label after saving</span>
+                  </label>
+                )}
+              </div>
+
+            </div>
           </div>
+
+          {/* RIGHT PANEL — Business-specific fields + Barcode */}
+          <div className="lg:w-80 xl:w-96 flex-shrink-0 mt-4 lg:mt-0 lg:border-l lg:border-gray-200 lg:dark:border-gray-700 lg:pl-5 space-y-4">
+            {getBusinessSpecificFields()}
+            <BarcodeManager
+              productId={item?.id}
+              businessId={businessId}
+              barcodes={barcodes}
+              onBarcodesChange={setBarcodes}
+            />
+          </div>
+
         </div>
 
-        {/* Barcode Management */}
-        <BarcodeManager
-          productId={item?.id}
-          businessId={businessId}
-          barcodes={barcodes}
-          onBarcodesChange={setBarcodes}
-        />
-
-        {/* Business-Specific Fields */}
-        {getBusinessSpecificFields()}
-
-        <div className="flex justify-between gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex gap-3">
             <button
               type="button"

@@ -421,24 +421,8 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {/* Emoji - col 1 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Emoji
-                </label>
-                <EmojiPicker
-                  onSelect={viewOnly ? () => {} : (emoji) => handleInputChange('emoji', emoji)}
-                  selectedEmoji={formData.emoji || undefined}
-                  searchPlaceholder="Search supplier emoji..."
-                  compact={true}
-                  businessId={businessId}
-                  context="supplier"
-                  disabled={viewOnly}
-                />
-              </div>
-
-              {/* Supplier Name - cols 2-3 (lg: 3 of 4) */}
-              <div className="md:col-span-2 lg:col-span-3 flex flex-col justify-end">
+              {/* Supplier Name — full width at top */}
+              <div className="md:col-span-3 lg:col-span-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Supplier Name *
                 </label>
@@ -449,6 +433,22 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 read-only:bg-gray-50 dark:read-only:bg-gray-800/50"
                   readOnly={viewOnly}
                   required={!viewOnly}
+                />
+              </div>
+
+              {/* Emoji picker — full width so results row has maximum space */}
+              <div className="md:col-span-3 lg:col-span-4">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Emoji
+                </label>
+                <EmojiPicker
+                  onSelect={viewOnly ? () => {} : (emoji) => handleInputChange('emoji', emoji)}
+                  selectedEmoji={formData.emoji || undefined}
+                  searchPlaceholder="Search supplier emoji..."
+                  compact={true}
+                  businessId={businessId}
+                  context="supplier"
+                  disabled={viewOnly}
                 />
               </div>
 
@@ -481,7 +481,7 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
               </div>
 
               {/* Phone */}
-              <div>
+              <div className="md:col-span-2 lg:col-span-2">
                 <PhoneNumberInput
                   value={formData.phone || ''}
                   onChange={viewOnly ? () => {} : handlePhoneChange}
@@ -587,7 +587,7 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
               </div>
 
               {/* Active Status */}
-              <div className="flex items-center gap-2 pt-6">
+              <div className="flex items-center gap-2 self-end pb-2">
                 <input
                   type="checkbox"
                   id="isActive"
@@ -602,7 +602,7 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
               </div>
 
               {/* Discontinued */}
-              <div className="flex items-center gap-2 pt-6">
+              <div className="flex items-center gap-2 self-end pb-2">
                 <input
                   type="checkbox"
                   id="discontinued"
@@ -618,7 +618,7 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
               </div>
 
               {/* POS Blocked */}
-              <div className="flex items-center gap-2 pt-6">
+              <div className="flex items-center gap-2 self-end pb-2">
                 <input
                   type="checkbox"
                   id="posBlocked"

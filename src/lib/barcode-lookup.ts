@@ -122,35 +122,45 @@ async function lookupProductByBarcode(
   businessId: string
 ): Promise<ProductLookupData | null> {
   try {
-    // Check product_barcodes table
+    // Check product_barcodes table.
+    // A barcode row can be linked via productId (business_product) OR variantId (product_variant),
+    // so we need an OR filter to cover both cases.
     const matchedBarcode = await prisma.productBarcodes.findFirst({
       where: {
         code: barcode,
-        product: {
-          businessId: businessId,
-        },
+        OR: [
+          { business_product: { businessId } },
+          { product_variant: { business_products: { businessId } } },
+        ],
       },
       include: {
-        product: {
+        business_product: {
           include: {
             businesses: {
-              select: {
-                id: true,
-                name: true,
-                shortName: true,
-                businessType: true,
-              },
+              select: { id: true, name: true, shortName: true, type: true },
             },
-            product_categories: {
-              select: {
-                id: true,
-                name: true,
-                emoji: true,
-              },
+            business_categories: {
+              select: { id: true, name: true, emoji: true },
             },
             product_variants: {
+              include: { product_barcodes: true },
+            },
+          },
+        },
+        product_variant: {
+          include: {
+            product_barcodes: true,
+            business_products: {
               include: {
-                variant_barcodes: true,
+                businesses: {
+                  select: { id: true, name: true, shortName: true, type: true },
+                },
+                business_categories: {
+                  select: { id: true, name: true, emoji: true },
+                },
+                product_variants: {
+                  include: { product_barcodes: true },
+                },
               },
             },
           },
@@ -168,7 +178,7 @@ async function lookupProductByBarcode(
         },
         include: {
           businesses: {
-            select: { id: true, name: true, shortName: true, businessType: true },
+            select: { id: true, name: true, shortName: true, type: true },
           },
           business_categories: {
             select: { id: true, name: true, emoji: true },
@@ -187,7 +197,7 @@ async function lookupProductByBarcode(
             description: skuProduct.description,
             basePrice: skuProduct.basePrice,
             sku: skuProduct.sku,
-            businessType: skuProduct.businesses?.businessType,
+            businessType: skuProduct.businesses?.type,
             productType: skuProduct.productType,
             condition: skuProduct.condition,
             category: skuProduct.business_categories
@@ -215,16 +225,86 @@ async function lookupProductByBarcode(
       }
     }
 
+    // Fallback: search by legacy ProductVariants.barcode field
+    if (!matchedBarcode) {
+      const variantByBarcode = await prisma.productVariants.findFirst({
+        where: {
+          barcode: barcode,
+          isActive: true,
+          business_products: { businessId, isActive: true }
+        },
+        include: {
+          business_products: {
+            include: {
+              businesses: { select: { id: true, name: true, shortName: true, type: true } },
+              business_categories: { select: { id: true, name: true, emoji: true } },
+              product_variants: {
+                where: { isActive: true },
+                select: { id: true, name: true, sku: true, price: true, stockQuantity: true, attributes: true, barcode: true }
+              }
+            }
+          }
+        }
+      })
+
+      if (variantByBarcode?.business_products) {
+        const product = variantByBarcode.business_products
+        return {
+          product: {
+            id: product.id,
+            name: product.name,
+            description: product.description,
+            basePrice: product.basePrice,
+            sku: product.sku,
+            businessType: product.businesses?.type,
+            productType: product.productType,
+            condition: product.condition,
+            category: product.business_categories
+              ? { id: product.business_categories.id, name: product.business_categories.name, emoji: product.business_categories.emoji }
+              : null,
+            barcode: barcode,
+            barcodes: [],
+            isActive: product.isActive,
+            variants: product.product_variants?.map((v: any) => ({
+              id: v.id, name: v.name, sku: v.sku, price: v.price,
+              stockQuantity: v.stockQuantity, attributes: v.attributes,
+              barcode: v.barcode, barcodes: [],
+            })),
+          },
+          variantId: variantByBarcode.id,
+          matchedBarcode: {
+            id: 'variant-barcode-field',
+            code: barcode,
+            type: 'CUSTOM',
+            isPrimary: true,
+            isUniversal: false,
+            label: 'Matched by variant barcode',
+            source: 'variant',
+          },
+        }
+      }
+    }
+
     if (matchedBarcode) {
-      const product = matchedBarcode.product;
+      // Resolve the parent product — may come via business_product (productId) or
+      // via product_variant -> business_products (variantId-only barcodes)
+      const product = matchedBarcode.business_product
+        ?? matchedBarcode.product_variant?.business_products
+
+      if (!product) return null
 
       // Check if barcode matches a specific variant
-      let variantId: string | undefined;
-      const matchingVariant = product.product_variants?.find((v) =>
-        v.variant_barcodes?.some((vb) => vb.code === barcode)
-      );
-      if (matchingVariant) {
-        variantId = matchingVariant.id;
+      let variantId: string | undefined
+      // If the barcode row itself points to a variant, use that
+      if (matchedBarcode.variantId) {
+        variantId = matchedBarcode.variantId
+      } else {
+        const matchingVariant = product.product_variants?.find((v) =>
+          v.product_barcodes?.some((vb) => vb.code === barcode)
+        )
+        if (matchingVariant) {
+          variantId = matchingVariant.id
+        }
       }
 
       return {
@@ -234,14 +314,14 @@ async function lookupProductByBarcode(
           description: product.description,
           basePrice: product.basePrice,
           sku: product.sku,
-          businessType: product.businesses?.businessType,
+          businessType: product.businesses?.type,
           productType: product.productType,
           condition: product.condition,
-          category: product.product_categories
+          category: product.business_categories
             ? {
-                id: product.product_categories.id,
-                name: product.product_categories.name,
-                emoji: product.product_categories.emoji,
+                id: product.business_categories.id,
+                name: product.business_categories.name,
+                emoji: product.business_categories.emoji,
               }
             : null,
           barcode: barcode, // For backward compatibility
@@ -267,8 +347,8 @@ async function lookupProductByBarcode(
             price: v.price,
             stockQuantity: v.stockQuantity,
             attributes: v.attributes,
-            barcode: v.variant_barcodes?.[0]?.code,
-            barcodes: v.variant_barcodes?.map((vb) => ({
+            barcode: v.product_barcodes?.[0]?.code,
+            barcodes: v.product_barcodes?.map((vb) => ({
               id: vb.id,
               code: vb.code,
               type: vb.type,
@@ -289,7 +369,7 @@ async function lookupProductByBarcode(
           label: matchedBarcode.label,
           source: matchedBarcode.source,
         },
-      };
+      }
     }
 
     return null;
@@ -320,7 +400,7 @@ async function lookupTemplateByBarcode(
             id: true,
             name: true,
             shortName: true,
-            businessType: true,
+            type: true,
           },
         },
         print_jobs: {
@@ -369,7 +449,7 @@ async function lookupTemplateByBarcode(
         displayValue: template.displayValue,
         businessId: template.businessId,
         businessName: template.business.name,
-        businessType: template.business.businessType || 'general',
+        businessType: template.business.type || 'general',
         customData: customData || {},
       },
       suggestedProduct,

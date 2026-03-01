@@ -265,8 +265,8 @@ export async function POST(
       )
     }
 
-    // Calculate the actual stock change
-    const quantityChange = parseFloat(body.quantity)
+    // Calculate the actual stock change — schema requires Int
+    const quantityChange = Math.round(parseFloat(body.quantity))
 
     // Create stock movement record
     const stockMovement = await prisma.businessStockMovements.create({
@@ -278,7 +278,8 @@ export async function POST(
         unitCost: body.unitCost ? parseFloat(body.unitCost) : null,
         reference: body.referenceNumber || body.reference || null,
         reason: body.reason || null,
-        employeeId: body.employeeId || user.id,
+        // employeeId FK points to Employees table, not Users — only set if explicitly provided
+        employeeId: body.employeeId || null,
         businessType: variant.business_products.businessType,
         attributes: body.scannedBarcode ? {
           scannedBarcode: body.scannedBarcode,
@@ -288,8 +289,8 @@ export async function POST(
       }
     })
 
-    // Update the variant's stock quantity
-    const newStockQuantity = variant.stockQuantity + quantityChange
+    // Update the variant's stock quantity (stockQuantity is Int in schema)
+    const newStockQuantity = Math.round(Number(variant.stockQuantity)) + quantityChange
     await prisma.productVariants.update({
       where: { id: variant.id },
       data: {

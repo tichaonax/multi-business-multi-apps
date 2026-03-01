@@ -87,7 +87,9 @@ export async function GET(
           isUniversal: bc.isUniversal || false,
           isActive: bc.isActive !== false,
           notes: bc.notes || null
-        }))
+        })),
+        isInventoryTracked: (product as any).isInventoryTracked ?? false,
+        reorderLevel: product.product_variants[0]?.reorderLevel ?? 0
       }
     })
 
@@ -206,6 +208,7 @@ export async function PUT(
     if (body.costPrice !== undefined) updateData.costPrice = body.costPrice ? parseFloat(body.costPrice) : null
     if (body.isActive !== undefined) updateData.isActive = body.isActive
     if (body.attributes) updateData.attributes = body.attributes
+    if (body.isInventoryTracked !== undefined) updateData.isInventoryTracked = body.isInventoryTracked
 
     // Validate price is greater than 0 (except for WiFi promotional items)
     const finalPrice = updateData.basePrice ?? existingProduct.basePrice
@@ -253,19 +256,19 @@ export async function PUT(
       }
     })
 
-    // Update default variant price if basePrice was changed
-    if (updateData.basePrice !== undefined) {
+    // Update default variant price and/or reorderLevel if changed
+    if (updateData.basePrice !== undefined || body.reorderLevel !== undefined) {
       const defaultVariant = await prisma.productVariants.findFirst({
         where: { productId: itemId, name: 'Default' }
       })
 
       if (defaultVariant) {
+        const variantData: any = { updatedAt: new Date() }
+        if (updateData.basePrice !== undefined) variantData.price = updateData.basePrice
+        if (body.reorderLevel !== undefined) variantData.reorderLevel = parseInt(body.reorderLevel)
         await prisma.productVariants.update({
           where: { id: defaultVariant.id },
-          data: {
-            price: updateData.basePrice,
-            updatedAt: new Date()
-          }
+          data: variantData
         })
       }
     }

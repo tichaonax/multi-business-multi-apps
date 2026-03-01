@@ -808,19 +808,8 @@ export function BarcodeScanner({
           </div>
         )}
 
-        <div className="bg-gray-50 p-3 rounded-lg">
-          <h4 className="font-medium text-gray-900 mb-2">Demo Barcodes for Testing:</h4>
-          <div className="grid grid-cols-1 gap-1 text-xs text-gray-600">
-            {getBusinessSpecificDemoBarcodes().map(({ barcode, product }) => (
-              <div key={barcode} className="flex justify-between">
-                <code className="bg-gray-100 px-1 rounded">{barcode}</code>
-                <span>{product}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 text-xs text-gray-500">
-            💡 <strong>Troubleshooting:</strong> If scanner doesn't work, check that it's configured to send Enter key after scanning, or use manual entry.
-          </div>
+        <div className="text-xs text-gray-500 px-1">
+          💡 <strong>Tip:</strong> If scanner doesn't work, check that it's configured to send Enter key after scanning, or use manual entry.
         </div>
       </div>
     </div>

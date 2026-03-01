@@ -25,6 +25,7 @@ const UpdateProductSchema = z.object({
   calories: z.number().int().min(0).nullable().optional(),
   dietaryRestrictions: z.array(z.string()).optional(),
   allergens: z.array(z.string()).optional(),
+  isInventoryTracked: z.boolean().optional(),
   images: z.array(z.any()).optional(),
   variants: z.array(z.object({
     id: z.string().optional(),
@@ -250,7 +251,8 @@ export async function PUT(
                 stockQuantity: 0,
                 reorderLevel: 0,
                 isAvailable: variant.isAvailable ?? true,
-                isActive: true
+                isActive: true,
+                updatedAt: new Date()
               }
             })
           }

@@ -9,7 +9,8 @@ import { BusinessProvider } from '@/components/universal'
 import {
   UniversalInventoryForm,
   UniversalInventoryGrid,
-  UniversalInventoryStats
+  UniversalInventoryStats,
+  UniversalStockMovements
 } from '@/components/universal/inventory'
 import { RestaurantRecipeManager } from './components/recipe-manager'
 import { RestaurantPrepTracker } from './components/prep-tracker'
@@ -19,15 +20,21 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useToastContext } from '@/components/ui/toast'
 
 function RestaurantInventoryContent() {
-  const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts'>('ingredients')
+  const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts' | 'receiving'>('ingredients')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [menuOnlyFilter, setMenuOnlyFilter] = useState(false)
+  const [priceFilter, setPriceFilter] = useState<'all' | 'with' | 'without'>('all')
+  const [posTrackedFilter, setPosTrackedFilter] = useState(false)
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
+  const [isInventoryTracked, setIsInventoryTracked] = useState(false)
+  const [reorderLevel, setReorderLevel] = useState(0)
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -40,6 +47,8 @@ function RestaurantInventoryContent() {
     loading: businessLoading,
     businesses
   } = useBusinessPermissionsContext()
+
+  const toast = useToastContext()
 
   // Get user info
   const sessionUser = session?.user as SessionUser
@@ -72,6 +81,17 @@ function RestaurantInventoryContent() {
         })
     }
   }, [searchParams, currentBusinessId, router])
+
+  // Pre-fill inventory tracking fields when editing an existing item
+  useEffect(() => {
+    if (selectedItem) {
+      setIsInventoryTracked(selectedItem.isInventoryTracked ?? false)
+      setReorderLevel(selectedItem.reorderLevel ?? 0)
+    } else {
+      setIsInventoryTracked(false)
+      setReorderLevel(0)
+    }
+  }, [selectedItem])
 
   // Redirect to signin if not authenticated
   useEffect(() => {
@@ -191,6 +211,11 @@ function RestaurantInventoryContent() {
   }
 
   const handleFormSubmit = async (formData: any) => {
+    // Validate reorder level when inventory tracking is enabled
+    if (isInventoryTracked && reorderLevel < 1) {
+      alert('Reorder level must be at least 1 when Track Inventory for POS is enabled. This is the stock level at which the badge turns amber.')
+      return
+    }
     try {
       const method = selectedItem ? 'PUT' : 'POST'
       const url = selectedItem
@@ -200,14 +225,25 @@ function RestaurantInventoryContent() {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, isInventoryTracked, reorderLevel })
       })
 
       if (!response.ok) {
         throw new Error('Failed to save item')
       }
 
+      // Capture before handleItemAdded() nulls selectedItem
+      const justEnabled = isInventoryTracked && !selectedItem?.isInventoryTracked
+      const savedName = formData.name || selectedItem?.name || 'this item'
+
       handleItemAdded()
+
+      if (justEnabled) {
+        toast.push(
+          `Inventory tracking enabled for "${savedName}". Go to Receive Stock to add units.`,
+          { type: 'info', duration: 8000 }
+        )
+      }
     } catch (error) {
       console.error('Error saving item:', error)
       throw error
@@ -238,6 +274,12 @@ function RestaurantInventoryContent() {
       label: 'Alerts',
       icon: '🚨',
       description: 'Expiration and low stock'
+    },
+    {
+      id: 'receiving',
+      label: 'Movements',
+      icon: '📥',
+      description: 'Receiving and stock movements'
     }
   ]
 
@@ -254,11 +296,11 @@ function RestaurantInventoryContent() {
         ]}
         headerActions={
           <div className="flex gap-3">
-            <button 
+            <button
               onClick={() => router.push('/restaurant/inventory/receive')}
               className="btn-secondary"
             >
-              � Receive Stock
+              📥 Receive Stock
             </button>
             <button
               onClick={() => router.push('/restaurant/inventory/add')}
@@ -366,11 +408,76 @@ function RestaurantInventoryContent() {
                     </div>
                   )}
 
+                  {/* Menu & Price Filters */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* In-menu toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <div
+                        onClick={() => setMenuOnlyFilter(!menuOnlyFilter)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          menuOnlyFilter ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                            menuOnlyFilter ? 'translate-x-4' : 'translate-x-1'
+                          }`}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        🍽️ Menu items only
+                      </span>
+                    </label>
+
+                    {/* POS-tracked toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <div
+                        onClick={() => setPosTrackedFilter(!posTrackedFilter)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          posTrackedFilter ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                            posTrackedFilter ? 'translate-x-4' : 'translate-x-1'
+                          }`}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        📲 POS tracked only
+                      </span>
+                    </label>
+
+                    {/* Price filter */}
+                    <select
+                      value={priceFilter}
+                      onChange={(e) => setPriceFilter(e.target.value as 'all' | 'with' | 'without')}
+                      className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">💲 All items</option>
+                      <option value="with">✅ Items with prices</option>
+                      <option value="without">⚠️ Items without prices</option>
+                    </select>
+
+                    {/* Clear all extra filters */}
+                    {(menuOnlyFilter || posTrackedFilter || priceFilter !== 'all') && (
+                      <button
+                        onClick={() => { setMenuOnlyFilter(false); setPosTrackedFilter(false); setPriceFilter('all') }}
+                        className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 underline"
+                      >
+                        Reset filters
+                      </button>
+                    )}
+                  </div>
+
                   {/* Universal Inventory Grid */}
                   <UniversalInventoryGrid
                     businessId={businessId}
                     businessType="restaurant"
                     categoryFilter={selectedCategory || undefined}
+                    menuOnlyFilter={menuOnlyFilter}
+                    posTrackedFilter={posTrackedFilter}
+                    priceFilter={priceFilter}
                     refreshTrigger={refreshTrigger}
                     onItemEdit={(item) => {
                       setSelectedItem(item)
@@ -383,29 +490,65 @@ function RestaurantInventoryContent() {
               {activeTab === 'recipes' && <RestaurantRecipeManager />}
               {activeTab === 'prep' && <RestaurantPrepTracker />}
               {activeTab === 'alerts' && <RestaurantExpirationAlerts />}
+              {activeTab === 'receiving' && (
+                <UniversalStockMovements businessId={businessId} showFilters={true} layout="full" />
+              )}
             </div>
           </div>
 
           {/* Universal Inventory Form Modal */}
           {showAddForm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-                  <h2 className="text-xl font-semibold text-primary">
-                    {selectedItem ? 'Edit Ingredient' : 'Add New Ingredient'}
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setShowAddForm(false)
-                      setSelectedItem(null)
-                    }}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl"
-                  >
-                    ✕
-                  </button>
-                </div>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto"
+              onClick={(e) => { if (e.target === e.currentTarget) { setShowAddForm(false); setSelectedItem(null) } }}
+            >
+              <div className="min-h-full flex items-start justify-center p-4 sm:p-6">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl my-4">
 
-                <div className="p-6">
+                  {/* Compact inventory tracking bar — sits above the form's own header */}
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 rounded-t-lg">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        id="isInventoryTracked"
+                        checked={isInventoryTracked}
+                        onChange={(e) => setIsInventoryTracked(e.target.checked)}
+                        className="rounded"
+                      />
+                      <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                        Track Inventory for POS
+                      </span>
+                      <span className="text-xs text-blue-600 dark:text-blue-400 hidden sm:inline">
+                        — shows live stock badge on menu card
+                      </span>
+                    </label>
+
+                    {isInventoryTracked && (
+                      <label className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                          Reorder at:
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={reorderLevel || ''}
+                          onChange={(e) => setReorderLevel(parseInt(e.target.value) || 0)}
+                          className={`input-field w-20 py-1 text-sm ${
+                            reorderLevel < 1 ? 'border-red-400 dark:border-red-500 ring-1 ring-red-300 dark:ring-red-600' : ''
+                          }`}
+                          placeholder="e.g. 5"
+                        />
+                        <span className="text-xs hidden sm:inline">
+                          {reorderLevel < 1
+                            ? <span className="text-red-500 font-medium">Required — cannot be 0</span>
+                            : <span className="text-gray-500 dark:text-gray-400">units (badge turns amber)</span>
+                          }
+                        </span>
+                      </label>
+                    )}
+                  </div>
+
                   <UniversalInventoryForm
                     businessId={businessId}
                     businessType="restaurant"

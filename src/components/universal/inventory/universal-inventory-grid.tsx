@@ -25,6 +25,7 @@ interface UniversalInventoryItem {
   supplier?: string
   location?: string
   isActive: boolean
+  isInventoryTracked?: boolean
   createdAt: string
   updatedAt: string
   attributes?: Record<string, any>
@@ -46,6 +47,9 @@ interface UniversalInventoryGridProps {
   categoryFilter?: string  // External category filter (from parent component)
   departmentFilter?: string  // External department filter (from parent component)
   conditionFilter?: string   // External condition filter (NEW, USED, etc.)
+  menuOnlyFilter?: boolean   // Only show items on the menu (have a sell price)
+  posTrackedFilter?: boolean  // Only show items tracked for POS stock badge
+  priceFilter?: 'all' | 'with' | 'without'  // Filter by whether prices are set
   onItemEdit?: (item: UniversalInventoryItem) => void
   onItemView?: (item: UniversalInventoryItem) => void
   onItemDelete?: (item: UniversalInventoryItem) => void
@@ -69,6 +73,9 @@ export function UniversalInventoryGrid({
   categoryFilter,  // External filter from parent
   departmentFilter,  // External department filter from parent
   conditionFilter,   // External condition filter from parent
+  menuOnlyFilter,    // External menu-only filter from parent
+  posTrackedFilter,  // External POS-tracked filter from parent
+  priceFilter,       // External price filter from parent
   onItemEdit,
   onItemView,
   onItemDelete,
@@ -137,7 +144,10 @@ export function UniversalInventoryGrid({
           ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
           ...(effectiveCategory !== 'all' && { category: effectiveCategory }),
           ...(departmentFilter && { domainId: departmentFilter }),
-          ...(conditionFilter && conditionFilter !== 'all' && { condition: conditionFilter })
+          ...(conditionFilter && conditionFilter !== 'all' && { condition: conditionFilter }),
+          ...(menuOnlyFilter && { inMenu: 'true' }),
+          ...(posTrackedFilter && { posTracked: 'true' }),
+          ...(priceFilter && priceFilter !== 'all' && { priceFilter }),
         })
 
         const response = await fetch(`/api/inventory/${businessId}/items?${params}`)
@@ -175,7 +185,7 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, refreshTrigger])
+  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, refreshTrigger])
 
   // Filter items by supplier and location
   const filteredItems = items.filter(item => {
@@ -704,7 +714,17 @@ export function UniversalInventoryGrid({
                     )}
                     <td className="p-3">
                       <div>
-                        <div className="font-medium text-primary">{item.name}</div>
+                        <div className="font-medium text-primary flex items-center gap-2 flex-wrap">
+                          {item.name}
+                          {item.isInventoryTracked && (
+                            <span
+                              title="POS inventory tracking enabled — live stock badge shown on menu card"
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 whitespace-nowrap"
+                            >
+                              📦 POS tracked
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-secondary">
                           {item.categoryEmoji && <span className="mr-1">{item.categoryEmoji}</span>}
                           {item.category}

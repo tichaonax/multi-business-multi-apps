@@ -62,6 +62,9 @@ interface MenuItem {
   soldToday?: number
   soldYesterday?: number
   firstSoldTodayAt?: string | null
+  isInventoryTracked?: boolean
+  stockQuantity?: number
+  reorderLevel?: number
 }
 
 interface CartItem extends MenuItem {
@@ -722,7 +725,10 @@ export default function RestaurantPOS() {
                 purchaseCount: purchaseCounts[product.id] || 0,
                 soldToday: soldTodayCounts[product.id] || 0,
                 soldYesterday: soldYesterdayCounts[product.id] || 0,
-                firstSoldTodayAt: firstSoldTodayAtMap[product.id] || null
+                firstSoldTodayAt: firstSoldTodayAtMap[product.id] || null,
+                isInventoryTracked: product.isInventoryTracked ?? false,
+                stockQuantity: product.variants?.[0]?.stockQuantity ?? 0,
+                reorderLevel: product.variants?.[0]?.reorderLevel ?? 0
               }
             })
 
@@ -1461,6 +1467,12 @@ export default function RestaurantPOS() {
     const isR710Token = (item as any).r710Token === true
     const isAnyWiFiToken = isESP32Token || isR710Token
 
+    // Block out-of-stock inventory-tracked items
+    if (item.isInventoryTracked && (item.stockQuantity ?? 0) === 0) {
+      toast.push(`"${item.name}" is out of stock.`, { type: 'warning', duration: 4000 })
+      return
+    }
+
     // Check portal health before adding ESP32 WiFi tokens
     if (isESP32Token) {
       try {
@@ -1906,6 +1918,19 @@ export default function RestaurantPOS() {
           total: total,
           customerName: selectedCustomer?.name || null
         })
+
+        // Optimistic stock update: decrement stockQuantity for sold inventory-tracked items
+        // (cart is still the pre-clear snapshot here — React async closure)
+        const inventorySold = cart.filter(i => i.isInventoryTracked)
+        if (inventorySold.length > 0) {
+          setMenuItems(prev => prev.map(menuItem => {
+            const sold = inventorySold.find(c => c.id === menuItem.id)
+            if (sold) {
+              return { ...menuItem, stockQuantity: Math.max(0, (menuItem.stockQuantity ?? 0) - sold.quantity) }
+            }
+            return menuItem
+          }))
+        }
 
         // Clear cart on POS and global cart
         setCart([])
@@ -2674,7 +2699,8 @@ export default function RestaurantPOS() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4">
               {filteredItems.map(item => {
                 const hasDiscount = !!(item.originalPrice) && Number(item.originalPrice) > 0 && Number(item.originalPrice) > Number(item.price)
-                const isUnavailable = item.isAvailable === false
+                const isOutOfStock = item.isInventoryTracked === true && (item.stockQuantity ?? 0) === 0
+                const isUnavailable = item.isAvailable === false || isOutOfStock
                 const cartItem = cart.find(c => c.id === item.id)
                 const cartQuantity = cartItem?.quantity || 0
                 const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
@@ -2931,9 +2957,22 @@ export default function RestaurantPOS() {
                       </p>
                     )}
 
-                    {isUnavailable && (
+                    {isUnavailable && !isOutOfStock && (
                       <p className="text-xs text-red-500 mt-1 font-medium">Unavailable</p>
                     )}
+
+                    {/* Stock badge — only for inventory-tracked items */}
+                    {item.isInventoryTracked && (() => {
+                      const stock = item.stockQuantity ?? 0
+                      const reorder = item.reorderLevel ?? 0
+                      if (stock === 0) {
+                        return <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 mt-1 block">Out of Stock</span>
+                      } else if (stock <= reorder) {
+                        return <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 mt-1 block">{stock} left</span>
+                      } else {
+                        return <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 mt-1 block">{stock} in stock</span>
+                      }
+                    })()}
 
                     {/* Performance comparison bar — all users, whenever soldToday > 0 */}
                     {showBar && (

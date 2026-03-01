@@ -384,6 +384,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Pre-validate inventory-tracked item stock before creating the order
+    for (const item of items) {
+      const stockProduct = await prisma.businessProducts.findUnique({
+        where: { id: item.id },
+        include: { product_variants: { where: { isActive: true }, take: 1 } }
+      }).catch(() => null)
+
+      if ((stockProduct as any)?.isInventoryTracked && stockProduct!.product_variants.length > 0) {
+        const available = Number(stockProduct!.product_variants[0].stockQuantity) || 0
+        const requested = Number(item.quantity)
+        if (available <= 0) {
+          return NextResponse.json(
+            { success: false, error: `"${item.name}" is out of stock.` },
+            { status: 400 }
+          )
+        }
+        if (available < requested) {
+          return NextResponse.json(
+            { success: false, error: `Only ${available} unit(s) of "${item.name}" available (requested ${requested}).` },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
     // Create the order first using business_orders table
     // If unique constraint fails, add timestamp suffix to make it unique
     let newOrder
@@ -1125,6 +1150,36 @@ export async function POST(req: NextRequest) {
           success: false,
           error: 'Inventory update failed'
         })
+      }
+
+      // Deduct stock for directly inventory-tracked items (e.g. beverages sold as-is)
+      if ((product as any)?.isInventoryTracked && variantId) {
+        try {
+          const variant = product!.product_variants[0]
+          const currentStock = Number(variant?.stockQuantity) || 0
+          const newStock = Math.max(0, currentStock - itemQuantity)
+
+          await prisma.businessStockMovements.create({
+            data: {
+              product_variants: { connect: { id: variantId } },
+              businesses: { connect: { id: businessId } },
+              businessType: (product as any).businessType,
+              quantity: -itemQuantity,
+              movementType: 'SALE',
+              reason: `Sale: order ${orderNumber} - ${item.name}`
+            }
+          })
+
+          await prisma.productVariants.update({
+            where: { id: variantId },
+            data: { stockQuantity: newStock, updatedAt: new Date() }
+          })
+
+          inventoryUpdates.push({ itemId: item.id, quantityUsed: itemQuantity, success: true })
+        } catch (stockError) {
+          console.error(`Stock deduction failed for item ${item.id}:`, stockError)
+          inventoryUpdates.push({ itemId: item.id, success: false, error: 'Stock deduction failed' })
+        }
       }
     }
 

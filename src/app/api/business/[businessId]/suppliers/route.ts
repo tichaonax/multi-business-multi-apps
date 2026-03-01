@@ -227,37 +227,21 @@ export async function POST(
       )
     }
 
-    // Generate supplier number if not provided
+    // Generate a stable unique ID for this record first,
+    // then derive the human-readable supplier number from it (no sequential counter needed)
+    const newId = randomUUID()
     let supplierNumber = body.supplierNumber
     if (!supplierNumber) {
-      // Get the highest supplier number for this businessType
-      const lastSupplier = await prisma.businessSuppliers.findFirst({
-        where: { businessType: business.type },
-        orderBy: { supplierNumber: 'desc' },
-        select: { supplierNumber: true }
-      })
-
-      if (lastSupplier && lastSupplier.supplierNumber) {
-        // Try to extract number from format like "SUP-001"
-        const match = lastSupplier.supplierNumber.match(/(\d+)$/)
-        if (match) {
-          const nextNum = parseInt(match[1]) + 1
-          const prefix = business.type.substring(0, 3).toUpperCase()
-          supplierNumber = `${prefix}-SUP-${String(nextNum).padStart(3, '0')}`
-        } else {
-          const prefix = business.type.substring(0, 3).toUpperCase()
-          supplierNumber = `${prefix}-SUP-001`
-        }
-      } else {
-        const prefix = business.type.substring(0, 3).toUpperCase()
-        supplierNumber = `${prefix}-SUP-001`
-      }
+      const prefix = business.type.substring(0, 3).toUpperCase()
+      // Use first 8 chars of the UUID — unique because it comes from the record's own ID
+      const shortCode = newId.replace(/-/g, '').substring(0, 8).toUpperCase()
+      supplierNumber = `${prefix}-SUP-${shortCode}`
     }
 
     // Create the supplier (shared across all businesses of same type)
     const supplier = await prisma.businessSuppliers.create({
       data: {
-        id: randomUUID(),
+        id: newId,
         businessId,
         supplierNumber,
         name: body.name,
@@ -310,10 +294,12 @@ export async function POST(
 
     // Handle Prisma unique constraint violation
     if (error.code === 'P2002') {
+      const fields: string[] = error.meta?.target ?? []
+      const fieldHint = fields.length > 0 ? ` (conflict on: ${fields.join(', ')})` : ''
       return NextResponse.json(
         {
           error: 'Duplicate supplier',
-          message: 'A supplier with this number already exists for this business type. Suppliers are shared across all businesses of the same type.'
+          message: `A supplier with the same unique value already exists for this business type${fieldHint}. Please adjust the conflicting field and try again.`
         },
         { status: 409 }
       )
