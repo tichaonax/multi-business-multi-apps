@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface BulkEmployee {
   id: string
@@ -15,6 +16,7 @@ interface BulkEmployee {
   primaryBusiness: { id: string; name: string } | null
   jobTitle: { title: string; department: string | null } | null
   isExempt: boolean
+  isActive: boolean
 }
 
 function escHtml(str: string) {
@@ -55,40 +57,89 @@ function buildCardHtml(emp: BulkEmployee, barcodeSvg: string): string {
 }
 
 export default function BulkPrintPage() {
+  const { currentBusinessId, activeBusinesses, loading: contextLoading } = useBusinessPermissionsContext()
+
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
+  const businessInitRef = useRef(false)
+
+  // Initialise business from context once (wait for context to finish loading)
+  useEffect(() => {
+    if (businessInitRef.current || contextLoading) return
+    businessInitRef.current = true
+    if (currentBusinessId) {
+      setSelectedBusinessId(currentBusinessId)
+    } else if (activeBusinesses.length > 0) {
+      const nonDemo = activeBusinesses.find(b => !b.isDemo)
+      setSelectedBusinessId((nonDemo ?? activeBusinesses[0]).businessId)
+    }
+  }, [contextLoading, currentBusinessId, activeBusinesses])
+
   const [employees, setEmployees] = useState<BulkEmployee[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isPrinting, setIsPrinting] = useState(false)
   const [search, setSearch] = useState('')
 
+  // Load employees whenever the selected business changes
   useEffect(() => {
+    if (!selectedBusinessId) return
     const load = async () => {
-      const [todayRes, exemptRes] = await Promise.all([
-        fetch('/api/clock-in/today'),
-        fetch('/api/clock-in/exempt-employees'),
-      ])
-      const [todayData, exemptData] = await Promise.all([todayRes.json(), exemptRes.json()])
+      setIsLoading(true)
+      setSelectedIds(new Set())
+      try {
+        const params = new URLSearchParams()
+        params.set('businessId', selectedBusinessId)
 
-      const active: BulkEmployee[] = (todayData.employees ?? []).map(
+        // Active clock-in employees (non-exempt) + exempt employees
+        const [todayRes, exemptRes, inactiveRes] = await Promise.all([
+          fetch(`/api/clock-in/today?${params}`),
+          fetch(`/api/clock-in/exempt-employees?${params}`),
+          fetch(`/api/employees?businessId=${selectedBusinessId}&status=inactive&limit=500`),
+        ])
+        const [todayData, exemptData, inactiveData] = await Promise.all([
+          todayRes.json(), exemptRes.json(), inactiveRes.json(),
+        ])
+
+        const active: BulkEmployee[] = (todayData.employees ?? []).map(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (e: any) => ({ ...e, isExempt: false, isActive: true }),
+        )
+        const exempt: BulkEmployee[] = (exemptData.employees ?? []).map(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (e: any) => ({ ...e, isExempt: true, isActive: true }),
+        )
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (e: any) => ({ ...e, isExempt: false }),
-      )
-      const exempt: BulkEmployee[] = (exemptData.employees ?? []).map(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (e: any) => ({ ...e, isExempt: true }),
-      )
+        const inactive: BulkEmployee[] = (inactiveData.employees ?? []).map((e: any) => ({
+          id: e.id,
+          fullName: e.fullName,
+          employeeNumber: e.employeeNumber,
+          profilePhotoUrl: e.profilePhotoUrl ?? null,
+          phone: e.phone ?? null,
+          businessContactPhone: e.businessContactPhone ?? null,
+          scheduledStartTime: e.scheduledStartTime ?? null,
+          scheduledEndTime: e.scheduledEndTime ?? null,
+          primaryBusiness: e.primaryBusiness ? { id: e.primaryBusiness.id, name: e.primaryBusiness.name } : null,
+          jobTitle: e.jobTitle ? { title: e.jobTitle.title, department: e.jobTitle.department ?? null } : null,
+          isExempt: false,
+          isActive: false,
+        }))
 
-      // Merge, deduplicate by id, sort by name
-      const seen = new Set<string>()
-      const all = [...active, ...exempt]
-        .filter((e) => { if (seen.has(e.id)) return false; seen.add(e.id); return true })
-        .sort((a, b) => a.fullName.localeCompare(b.fullName))
+        // Merge, deduplicate by id (active wins over inactive if both present), sort: active first then inactive, alpha within each group
+        const seen = new Set<string>()
+        const all = [...active, ...exempt, ...inactive]
+          .filter((e) => { if (seen.has(e.id)) return false; seen.add(e.id); return true })
+          .sort((a, b) => {
+            if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
+            return a.fullName.localeCompare(b.fullName)
+          })
 
-      setEmployees(all)
-      setIsLoading(false)
+        setEmployees(all)
+      } finally {
+        setIsLoading(false)
+      }
     }
     load()
-  }, [])
+  }, [selectedBusinessId])
 
   const filtered = search.trim()
     ? employees.filter(
@@ -98,25 +149,28 @@ export default function BulkPrintPage() {
       )
     : employees
 
-  const allFilteredSelected = filtered.length > 0 && filtered.every((e) => selectedIds.has(e.id))
+  // Only active employees count for "select all"
+  const activeFiltered = filtered.filter(e => e.isActive)
+  const allActiveFilteredSelected = activeFiltered.length > 0 && activeFiltered.every((e) => selectedIds.has(e.id))
 
   const toggleAll = () => {
-    if (allFilteredSelected) {
+    if (allActiveFilteredSelected) {
       setSelectedIds((prev) => {
         const next = new Set(prev)
-        filtered.forEach((e) => next.delete(e.id))
+        activeFiltered.forEach((e) => next.delete(e.id))
         return next
       })
     } else {
       setSelectedIds((prev) => {
         const next = new Set(prev)
-        filtered.forEach((e) => next.add(e.id))
+        activeFiltered.forEach((e) => next.add(e.id))
         return next
       })
     }
   }
 
-  const toggle = (id: string) => {
+  const toggle = (id: string, isActive: boolean) => {
+    if (!isActive) return
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -133,7 +187,6 @@ export default function BulkPrintPage() {
       const JsBarcode = (await import('jsbarcode')).default
 
       const cardRows = selected.map((emp) => {
-        // Generate barcode SVG in memory (no DOM needed)
         const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
         JsBarcode(svgEl, emp.employeeNumber, {
           format: 'CODE128',
@@ -164,6 +217,10 @@ export default function BulkPrintPage() {
     }
   }
 
+  const clockInCount = employees.filter(e => e.isActive && !e.isExempt).length
+  const exemptCount  = employees.filter(e => e.isActive && e.isExempt).length
+  const inactiveCount = employees.filter(e => !e.isActive).length
+
   return (
     <div className="p-6 max-w-3xl mx-auto">
       {/* Header */}
@@ -176,7 +233,33 @@ export default function BulkPrintPage() {
 
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
         Select employees to include. Each card prints twice side-by-side — fold, cut, and glue back-to-back.
+        Only <span className="font-medium text-gray-700 dark:text-gray-300">active employees</span> can be selected for printing.
       </p>
+
+      {/* Business filter */}
+      <div className="flex flex-wrap items-center gap-3 mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Business</label>
+          <select
+            value={selectedBusinessId ?? ''}
+            onChange={(e) => setSelectedBusinessId(e.target.value || null)}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 min-w-[200px]"
+          >
+            <option value="">— Select a business —</option>
+            {activeBusinesses.map((biz) => (
+              <option key={biz.businessId} value={biz.businessId}>{biz.businessName}</option>
+            ))}
+          </select>
+        </div>
+        {!isLoading && selectedBusinessId && employees.length > 0 && (
+          <span className="text-xs text-gray-400">
+            <span className="text-green-600 dark:text-green-400 font-medium">{clockInCount} clock-in</span>
+            {' · '}
+            <span className="text-purple-600 dark:text-purple-400 font-medium">{exemptCount} exempt</span>
+            {inactiveCount > 0 && <> · <span className="text-gray-400">{inactiveCount} inactive</span></>}
+          </span>
+        )}
+      </div>
 
       {/* Search + Print button */}
       <div className="flex gap-3 mb-4">
@@ -196,7 +279,11 @@ export default function BulkPrintPage() {
         </button>
       </div>
 
-      {isLoading ? (
+      {!selectedBusinessId ? (
+        <div className="text-center py-16 text-gray-400">
+          Select a business above to load employees.
+        </div>
+      ) : isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
           <span className="ml-3 text-gray-500">Loading...</span>
@@ -209,15 +296,16 @@ export default function BulkPrintPage() {
                 <th className="px-4 py-3 w-10">
                   <input
                     type="checkbox"
-                    checked={allFilteredSelected}
+                    checked={allActiveFilteredSelected}
                     onChange={toggleAll}
-                    className="rounded"
-                    title="Select all"
+                    disabled={activeFiltered.length === 0}
+                    className="rounded disabled:opacity-40"
+                    title="Select all active"
                   />
                 </th>
                 <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Employee</th>
                 <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Business</th>
-                <th className="px-4 py-3 text-gray-600 dark:text-gray-400 font-medium text-center">Type</th>
+                <th className="px-4 py-3 text-gray-600 dark:text-gray-400 font-medium text-center">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -228,59 +316,114 @@ export default function BulkPrintPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((emp) => (
-                  <tr
-                    key={emp.id}
-                    onClick={() => toggle(emp.id)}
-                    className={`border-b border-gray-100 dark:border-gray-700/50 cursor-pointer transition-colors ${
-                      selectedIds.has(emp.id)
-                        ? 'bg-blue-50 dark:bg-blue-900/10'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                    }`}
-                  >
-                    <td className="px-4 py-3 w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(emp.id)}
-                        onChange={() => toggle(emp.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {emp.profilePhotoUrl ? (
-                          <img src={emp.profilePhotoUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm flex-shrink-0">
-                            👤
+                (() => {
+                  const clockIn  = filtered.filter(e => e.isActive && !e.isExempt)
+                  const exempt   = filtered.filter(e => e.isActive && e.isExempt)
+                  const inactive = filtered.filter(e => !e.isActive)
+
+                  const renderRow = (emp: BulkEmployee) => {
+                    const isSelectable = emp.isActive
+                    const isSelected   = selectedIds.has(emp.id)
+                    return (
+                      <tr
+                        key={emp.id}
+                        onClick={() => toggle(emp.id, isSelectable)}
+                        className={`border-b border-gray-100 dark:border-gray-700/50 transition-colors ${
+                          !isSelectable
+                            ? 'opacity-40 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50'
+                            : isSelected
+                            ? 'bg-blue-50 dark:bg-blue-900/10 cursor-pointer'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer'
+                        }`}
+                      >
+                        <td className="px-4 py-3 w-10">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={!isSelectable}
+                            onChange={() => toggle(emp.id, isSelectable)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            {emp.profilePhotoUrl ? (
+                              <img src={emp.profilePhotoUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm flex-shrink-0">👤</div>
+                            )}
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">{emp.fullName}</div>
+                              <div className="text-xs text-gray-400">
+                                #{emp.employeeNumber}
+                                {emp.jobTitle ? ` · ${emp.jobTitle.title}` : ''}
+                              </div>
+                            </div>
                           </div>
-                        )}
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">{emp.fullName}</div>
-                          <div className="text-xs text-gray-400">
-                            #{emp.employeeNumber}
-                            {emp.jobTitle ? ` · ${emp.jobTitle.title}` : ''}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
-                      {emp.primaryBusiness?.name ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {emp.isExempt ? (
-                        <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-2 py-0.5 rounded-full">
-                          Exempt
-                        </span>
-                      ) : (
-                        <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full">
-                          Active
-                        </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
+                          {emp.primaryBusiness?.name ?? '—'}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {!emp.isActive ? (
+                            <span className="text-xs bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                              Inactive
+                            </span>
+                          ) : emp.isExempt ? (
+                            <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-2 py-0.5 rounded-full">
+                              Exempt
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full">
+                              Active
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  }
+
+                  return (
+                    <>
+                      {/* ── Clock-In Employees ── */}
+                      {clockIn.length > 0 && (
+                        <tr className="bg-green-50 dark:bg-green-900/10 border-b border-green-100 dark:border-green-900/30">
+                          <td colSpan={4} className="px-4 py-2">
+                            <span className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">
+                              📋 Clock-In Employees ({clockIn.length})
+                            </span>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                  </tr>
-                ))
+                      {clockIn.map(renderRow)}
+
+                      {/* ── Exempt Employees ── */}
+                      {exempt.length > 0 && (
+                        <tr className="bg-purple-50 dark:bg-purple-900/10 border-b border-purple-100 dark:border-purple-900/30">
+                          <td colSpan={4} className="px-4 py-2">
+                            <span className="text-xs font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wide">
+                              🏷️ Exempt Employees ({exempt.length}) — Management / Flagged
+                            </span>
+                          </td>
+                        </tr>
+                      )}
+                      {exempt.map(renderRow)}
+
+                      {/* ── Inactive Employees ── */}
+                      {inactive.length > 0 && (
+                        <tr className="bg-gray-100 dark:bg-gray-700/40 border-b border-gray-200 dark:border-gray-600">
+                          <td colSpan={4} className="px-4 py-2">
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                              🚫 Inactive Employees ({inactive.length}) — Cannot print
+                            </span>
+                          </td>
+                        </tr>
+                      )}
+                      {inactive.map(renderRow)}
+                    </>
+                  )
+                })()
               )}
             </tbody>
           </table>

@@ -2000,12 +2000,20 @@ export default function RestaurantPOS() {
                 </Link>
                 {/* Reports - Only for users with report access */}
                 {(isAdmin || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
-                  <Link
-                    href="/restaurant/reports/end-of-day"
-                    className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm font-medium"
-                  >
-                    📊 <span className="hidden sm:inline">Reports</span>
-                  </Link>
+                  <>
+                    <Link
+                      href="/restaurant/reports"
+                      className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm font-medium"
+                    >
+                      📊 <span className="hidden sm:inline">Reports</span>
+                    </Link>
+                    <Link
+                      href="/restaurant/reports/end-of-day"
+                      className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 transition-colors text-xs sm:text-sm font-medium"
+                    >
+                      🌙 <span className="hidden sm:inline">End of Day</span>
+                    </Link>
+                  </>
                 )}
               </div>
             </div>

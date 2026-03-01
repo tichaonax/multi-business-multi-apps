@@ -6,8 +6,10 @@ import { getServerUser } from '@/lib/get-server-user'
 const MANAGER_LEVELS = ['manager', 'senior', 'executive']
 
 // GET /api/clock-in/exempt-employees?businessId=
-// Returns active employees who are exempt from clock-in.
-// Includes: (a) manually flagged isClockInExempt=true, (b) auto-exempt by management job title level
+// Returns employees who are exempt from clock-in.
+// (a) Manually flagged isClockInExempt=true — employee must be active
+// (b) Auto-exempt by management job title level — shown as long as their USER login account is active,
+//     regardless of whether the employee record itself is marked inactive (e.g. no current contract)
 export async function GET(req: NextRequest) {
   try {
     const user = await getServerUser()
@@ -20,12 +22,18 @@ export async function GET(req: NextRequest) {
 
     const employees = await prisma.employees.findMany({
       where: {
-        isActive: true,
         ...(businessId ? { primaryBusinessId: businessId } : {}),
-        // Exempt if manually flagged OR job title is a management level
         OR: [
-          { isClockInExempt: true },
-          { job_titles: { level: { in: MANAGER_LEVELS, mode: 'insensitive' } } },
+          // Management role: include regardless of employee.isActive — only requires active user login
+          {
+            job_titles: { level: { in: MANAGER_LEVELS, mode: 'insensitive' } },
+            users: { isActive: true },
+          },
+          // Manually flagged exempt: employee record must be active
+          {
+            isClockInExempt: true,
+            isActive: true,
+          },
         ],
       },
       select: {
