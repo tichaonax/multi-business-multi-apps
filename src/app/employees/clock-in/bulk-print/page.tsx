@@ -76,60 +76,91 @@ export default function BulkPrintPage() {
     }
   }, [contextLoading, currentBusinessId, activeBusinesses])
 
+  // Business dropdown search & demo filter
+  const [bizSearch, setBizSearch] = useState('')
+  const [bizOpen, setBizOpen] = useState(false)
+  const [demoFilter, setDemoFilter] = useState<'real' | 'demo' | 'all'>('real')
+  // Always strip the umbrella pseudo-business; apply demo filter on top
+  const allRealBusinesses = activeBusinesses.filter(
+    (b) => b.businessName !== 'Umbrella Business Settings',
+  )
+  const filteredByDemo =
+    demoFilter === 'real' ? allRealBusinesses.filter((b) => !b.isDemo) :
+    demoFilter === 'demo' ? allRealBusinesses.filter((b) => b.isDemo) :
+    allRealBusinesses
+  const bizOptions = bizSearch.trim()
+    ? filteredByDemo.filter((b) => b.businessName.toLowerCase().includes(bizSearch.toLowerCase()))
+    : filteredByDemo
+  const selectedBizName = allRealBusinesses.find((b) => b.businessId === selectedBusinessId)?.businessName
+
   const [employees, setEmployees] = useState<BulkEmployee[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isPrinting, setIsPrinting] = useState(false)
   const [search, setSearch] = useState('')
 
-  // Load employees whenever the selected business changes
+  // Load employees whenever the selected business (or business list) changes
   useEffect(() => {
-    if (!selectedBusinessId) return
+    // null = "All Businesses" → load from every business matching the current demo filter
+    const base = activeBusinesses.filter((b) => b.businessName !== 'Umbrella Business Settings')
+    const pool =
+      demoFilter === 'real' ? base.filter((b) => !b.isDemo) :
+      demoFilter === 'demo' ? base.filter((b) => b.isDemo) :
+      base
+    const idsToLoad = selectedBusinessId ? [selectedBusinessId] : pool.map((b) => b.businessId)
+
+    if (idsToLoad.length === 0) { setEmployees([]); return }
+
     const load = async () => {
       setIsLoading(true)
       setSelectedIds(new Set())
       try {
-        const params = new URLSearchParams()
-        params.set('businessId', selectedBusinessId)
+        const perBiz = await Promise.all(
+          idsToLoad.map(async (bizId) => {
+            const params = new URLSearchParams()
+            params.set('businessId', bizId)
 
-        // Active clock-in employees (non-exempt) + exempt employees
-        const [todayRes, exemptRes, inactiveRes] = await Promise.all([
-          fetch(`/api/clock-in/today?${params}`),
-          fetch(`/api/clock-in/exempt-employees?${params}`),
-          fetch(`/api/employees?businessId=${selectedBusinessId}&status=inactive&limit=500`),
-        ])
-        const [todayData, exemptData, inactiveData] = await Promise.all([
-          todayRes.json(), exemptRes.json(), inactiveRes.json(),
-        ])
+            const [todayRes, exemptRes, inactiveRes] = await Promise.all([
+              fetch(`/api/clock-in/today?${params}`),
+              fetch(`/api/clock-in/exempt-employees?${params}`),
+              fetch(`/api/employees?businessId=${bizId}&status=inactive&limit=500`),
+            ])
+            const [todayData, exemptData, inactiveData] = await Promise.all([
+              todayRes.json(), exemptRes.json(), inactiveRes.json(),
+            ])
 
-        const active: BulkEmployee[] = (todayData.employees ?? []).map(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (e: any) => ({ ...e, isExempt: false, isActive: true }),
+            const active: BulkEmployee[] = (todayData.employees ?? []).map(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (e: any) => ({ ...e, isExempt: false, isActive: true }),
+            )
+            const exempt: BulkEmployee[] = (exemptData.employees ?? []).map(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (e: any) => ({ ...e, isExempt: true, isActive: true }),
+            )
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const inactive: BulkEmployee[] = (inactiveData.employees ?? []).map((e: any) => ({
+              id: e.id,
+              fullName: e.fullName,
+              employeeNumber: e.employeeNumber,
+              scanToken: e.scanToken ?? null,
+              profilePhotoUrl: e.profilePhotoUrl ?? null,
+              phone: e.phone ?? null,
+              businessContactPhone: e.businessContactPhone ?? null,
+              scheduledStartTime: e.scheduledStartTime ?? null,
+              scheduledEndTime: e.scheduledEndTime ?? null,
+              primaryBusiness: e.primaryBusiness ? { id: e.primaryBusiness.id, name: e.primaryBusiness.name } : null,
+              jobTitle: e.jobTitle ? { title: e.jobTitle.title, department: e.jobTitle.department ?? null } : null,
+              isExempt: false,
+              isActive: false,
+            }))
+
+            return [...active, ...exempt, ...inactive]
+          }),
         )
-        const exempt: BulkEmployee[] = (exemptData.employees ?? []).map(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (e: any) => ({ ...e, isExempt: true, isActive: true }),
-        )
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const inactive: BulkEmployee[] = (inactiveData.employees ?? []).map((e: any) => ({
-          id: e.id,
-          fullName: e.fullName,
-          employeeNumber: e.employeeNumber,
-          scanToken: e.scanToken ?? null,
-          profilePhotoUrl: e.profilePhotoUrl ?? null,
-          phone: e.phone ?? null,
-          businessContactPhone: e.businessContactPhone ?? null,
-          scheduledStartTime: e.scheduledStartTime ?? null,
-          scheduledEndTime: e.scheduledEndTime ?? null,
-          primaryBusiness: e.primaryBusiness ? { id: e.primaryBusiness.id, name: e.primaryBusiness.name } : null,
-          jobTitle: e.jobTitle ? { title: e.jobTitle.title, department: e.jobTitle.department ?? null } : null,
-          isExempt: false,
-          isActive: false,
-        }))
 
-        // Merge, deduplicate by id (active wins over inactive if both present), sort: active first then inactive, alpha within each group
+        // Flatten, deduplicate by id (active/exempt wins over inactive), sort: active first then alpha
         const seen = new Set<string>()
-        const all = [...active, ...exempt, ...inactive]
+        const all = perBiz.flat()
           .filter((e) => { if (seen.has(e.id)) return false; seen.add(e.id); return true })
           .sort((a, b) => {
             if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
@@ -142,7 +173,7 @@ export default function BulkPrintPage() {
       }
     }
     load()
-  }, [selectedBusinessId])
+  }, [selectedBusinessId, activeBusinesses, demoFilter])
 
   const filtered = search.trim()
     ? employees.filter(
@@ -240,20 +271,77 @@ export default function BulkPrintPage() {
 
       {/* Business filter */}
       <div className="flex flex-wrap items-center gap-3 mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-        <div className="flex items-center gap-2">
+        <div className="relative flex items-center gap-2">
           <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Business</label>
-          <select
-            value={selectedBusinessId ?? ''}
-            onChange={(e) => setSelectedBusinessId(e.target.value || null)}
-            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 min-w-[200px]"
-          >
-            <option value="">— Select a business —</option>
-            {activeBusinesses.map((biz) => (
-              <option key={biz.businessId} value={biz.businessId}>{biz.businessName}</option>
-            ))}
-          </select>
+          <div className="relative min-w-[220px]">
+            <button
+              type="button"
+              onClick={() => { setBizOpen((o) => !o); setBizSearch('') }}
+              className="w-full flex items-center justify-between gap-2 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+            >
+              <span className="truncate">{selectedBizName ?? 'All Businesses'}</span>
+              <svg className="w-4 h-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {bizOpen && (
+              <div className="absolute z-50 mt-1 w-full min-w-[240px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-xl overflow-hidden">
+                <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search businesses…"
+                    value={bizSearch}
+                    onChange={(e) => setBizSearch(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex gap-1 mt-2">
+                    {(['real', 'demo', 'all'] as const).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => { setDemoFilter(f); setSelectedBusinessId(null) }}
+                        className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
+                          demoFilter === f
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        {f === 'real' ? 'Real' : f === 'demo' ? 'Demo' : 'All'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="max-h-52 overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedBusinessId(null); setBizOpen(false) }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                      !selectedBusinessId ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium' : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    All Businesses
+                  </button>
+                  {bizOptions.map((biz) => (
+                    <button
+                      key={biz.businessId}
+                      type="button"
+                      onClick={() => { setSelectedBusinessId(biz.businessId); setBizOpen(false) }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                        selectedBusinessId === biz.businessId ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium' : 'text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {biz.businessName}
+                    </button>
+                  ))}
+                  {bizOptions.length === 0 && (
+                    <div className="px-3 py-3 text-sm text-gray-400 text-center">No businesses found</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          {bizOpen && <div className="fixed inset-0 z-40" onClick={() => setBizOpen(false)} />}
         </div>
-        {!isLoading && selectedBusinessId && employees.length > 0 && (
+        {!isLoading && employees.length > 0 && (
           <span className="text-xs text-gray-400">
             <span className="text-green-600 dark:text-green-400 font-medium">{clockInCount} clock-in</span>
             {' · '}
@@ -281,11 +369,7 @@ export default function BulkPrintPage() {
         </button>
       </div>
 
-      {!selectedBusinessId ? (
-        <div className="text-center py-16 text-gray-400">
-          Select a business above to load employees.
-        </div>
-      ) : isLoading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
           <span className="ml-3 text-gray-500">Loading...</span>
