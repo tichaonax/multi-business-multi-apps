@@ -92,21 +92,28 @@ const expenseAccountsByBusiness = {
   ]
 }
 
+// All hardcoded demo account numbers — used for safe targeted cleanup.
+// IMPORTANT: Real accounts use format EXP-YYYYMMDD-XXXX (e.g. EXP-20251125-0001).
+// Never use a broad pattern like contains:'EXP-' — it would match real accounts too.
+const DEMO_ACCOUNT_NUMBERS = Object.values(expenseAccountsByBusiness)
+  .flat()
+  .map(a => a.accountNumber)
+
 async function seedDemoExpenseAccounts() {
   console.log('💳 Starting demo expense account seeding...\n')
 
   try {
-    // Check for existing demo expense accounts
+    // Check for existing demo expense accounts using EXACT account numbers only
     const existingAccounts = await prisma.expenseAccounts.findMany({
       where: {
         accountNumber: {
-          contains: 'EXP-'
+          in: DEMO_ACCOUNT_NUMBERS
         }
       }
     })
 
     if (existingAccounts.length > 0) {
-      console.log(`⚠️  Found ${existingAccounts.length} existing expense accounts`)
+      console.log(`⚠️  Found ${existingAccounts.length} existing demo expense accounts`)
       console.log('🗑️  Cleaning up existing demo expense accounts...\n')
 
       // Delete deposits first (foreign key constraint)
@@ -127,11 +134,11 @@ async function seedDemoExpenseAccounts() {
         }
       })
 
-      // Delete accounts
+      // Delete accounts — scope to exact demo account numbers, never a broad pattern
       await prisma.expenseAccounts.deleteMany({
         where: {
           accountNumber: {
-            contains: 'EXP-'
+            in: DEMO_ACCOUNT_NUMBERS
           }
         }
       })
@@ -179,7 +186,7 @@ async function seedDemoExpenseAccounts() {
         console.log(`  💳 Creating expense account: ${accountData.accountName}`)
 
         try {
-          // Create expense account
+          // Create expense account — include businessId so cleanup can target by business
           const account = await prisma.expenseAccounts.create({
             data: {
               accountName: accountData.accountName,
@@ -187,6 +194,7 @@ async function seedDemoExpenseAccounts() {
               description: accountData.description,
               balance: accountData.initialBalance,
               isActive: true,
+              businessId: businessId,
               createdBy: creatorUser.id
             }
           })
