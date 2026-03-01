@@ -81,6 +81,7 @@ export function Sidebar() {
   const [r710HasMenuItems, setR710HasMenuItems] = useState(false)
   const [showWiFiPortalLinks, setShowWiFiPortalLinks] = useState(false)
   const [businessCartCounts, setBusinessCartCounts] = useState<Record<string, number>>({})
+  const [pendingPaymentRequestCount, setPendingPaymentRequestCount] = useState(0)
 
   // Get business context
   const {
@@ -144,6 +145,18 @@ export function Sidebar() {
       .then(data => { if (data?.success) setGrantedAccounts(data.data || []) })
       .catch(() => {})
   }, [currentUser])
+
+  // Fetch pending supplier payment request count for badge
+  useEffect(() => {
+    if (!currentBusinessId || !hasPermission('canViewSupplierPaymentQueue')) {
+      setPendingPaymentRequestCount(0)
+      return
+    }
+    fetch(`/api/supplier-payments/requests?businessId=${currentBusinessId}&status=PENDING&limit=1`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { setPendingPaymentRequestCount(data?.pagination?.total ?? 0) })
+      .catch(() => {})
+  }, [currentBusinessId])
 
   // Check if user has WiFi setup permissions (for main WiFi Portal links)
   useEffect(() => {
@@ -1272,6 +1285,11 @@ export function Sidebar() {
             >
               <span className="text-lg">🧾</span>
               <span>Supplier Payments</span>
+              {pendingPaymentRequestCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center leading-tight">
+                  {pendingPaymentRequestCount > 99 ? '99+' : pendingPaymentRequestCount}
+                </span>
+              )}
             </Link>
             <div className="ml-8 space-y-1 mt-1">
               {hasPermission('canViewSupplierPaymentQueue') && (

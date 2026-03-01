@@ -221,6 +221,7 @@ export default function ExpenseAccountDetailPage() {
   const [batchRefreshKey, setBatchRefreshKey] = useState(0)
   const [depositRefreshKey, setDepositRefreshKey] = useState(0)
   const [paymentRefreshKey, setPaymentRefreshKey] = useState(0)
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
@@ -230,6 +231,7 @@ export default function ExpenseAccountDetailPage() {
   const canViewExpenseReports = hasPermission('canViewExpenseReports')
   const canManageLending = isSystemAdmin || hasPermission('canManageLending')
   const canChangeCategory = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
+  const canViewSupplierPaymentQueue = hasPermission('canViewSupplierPaymentQueue')
   const canCreatePayees = canChangeCategory // Only owners, managers, and admins can create payees
   const canEditPayments = canChangeCategory // Same set of roles can edit payments
 
@@ -292,6 +294,15 @@ export default function ExpenseAccountDetailPage() {
       setCountsError('error')
     }
   }
+
+  // Fetch pending supplier payment requests for this account's business
+  useEffect(() => {
+    if (!account?.businessId || !canViewSupplierPaymentQueue) return
+    fetch(`/api/supplier-payments/requests?businessId=${account.businessId}&status=PENDING&limit=1`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { setPendingRequestsCount(data?.pagination?.total ?? 0) })
+      .catch(() => {})
+  }, [account?.businessId, canViewSupplierPaymentQueue])
 
   const handleRefresh = () => {
     loadAccount()
@@ -447,6 +458,20 @@ export default function ExpenseAccountDetailPage() {
           canViewExpenseReports={canViewExpenseReports}
           canEditThreshold={canChangeCategory}
         />
+
+        {/* Pending supplier payment requests notice */}
+        {canViewSupplierPaymentQueue && pendingRequestsCount > 0 && (
+          <Link
+            href={`/supplier-payments?businessId=${account.businessId}`}
+            className="flex items-center gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-sm hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+          >
+            <span className="text-lg">📋</span>
+            <span className="flex-1 font-medium text-amber-800 dark:text-amber-200">
+              {pendingRequestsCount} pending supplier payment {pendingRequestsCount === 1 ? 'request' : 'requests'} awaiting approval
+            </span>
+            <span className="text-amber-600 dark:text-amber-400 text-xs font-semibold shrink-0">Review →</span>
+          </Link>
+        )}
 
         {/* Tabs */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
