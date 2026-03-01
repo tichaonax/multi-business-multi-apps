@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
     const dateTo = searchParams.get('dateTo')
     const employeeId = searchParams.get('employeeId')
     const action = searchParams.get('action')
+    const businessId = searchParams.get('businessId')
 
     const where: any = {}
 
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
 
     if (employeeId) where.employeeId = employeeId
     if (action && VALID_ACTIONS.includes(action)) where.action = action
+    if (businessId) where.employees = { primaryBusinessId: businessId }
 
     const logs = await prisma.employeeLoginLog.findMany({
       where,

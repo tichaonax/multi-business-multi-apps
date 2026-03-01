@@ -107,24 +107,57 @@ async function seedDemoEmployees() {
   console.log('🌱 Starting demo employee seeding with user accounts and permissions...\n');
 
   try {
-    // Check for existing demo employees and optionally clean up
+    // Check for existing demo employees AND users (query both independently — employees may have been
+    // partially deleted in a previous run, leaving orphan users that block re-creation)
     const existingDemoEmployees = await prisma.employees.findMany({
-      where: {
-        email: {
-          contains: '-demo.com'
-        }
-      },
-      include: {
-        users: true
-      }
+      where: { email: { contains: '-demo.com' } },
+      include: { users: true }
+    });
+    const existingDemoUsers = await prisma.users.findMany({
+      where: { email: { contains: '-demo.com' } },
+      select: { id: true, email: true }
     });
 
-    if (existingDemoEmployees.length > 0) {
-      console.log(`⚠️  Found ${existingDemoEmployees.length} existing demo employees`);
+    const hasExistingData = existingDemoEmployees.length > 0 || existingDemoUsers.length > 0;
+
+    if (hasExistingData) {
+      console.log(`⚠️  Found ${existingDemoEmployees.length} existing demo employees, ${existingDemoUsers.length} demo users`);
       console.log('🗑️  Cleaning up existing demo data to ensure fresh seed...\n');
 
-      // Get employee IDs for cleanup
+      // Get employee IDs and user IDs from both sources (handle split state)
       const employeeIds = existingDemoEmployees.map(emp => emp.id);
+      const demoUserIdsFromEmps = existingDemoEmployees.map(emp => emp.userId).filter(Boolean);
+      const demoUserIdsFromUsers = existingDemoUsers.map(u => u.id);
+      const demoUserIds = [...new Set([...demoUserIdsFromEmps, ...demoUserIdsFromUsers])];
+
+      // --- Meal program cleanup (must happen FIRST — references employees AND users via RESTRICT FKs) ---
+      // Find meal program participants linked to these employees
+      const mealParticipants = await prisma.mealProgramParticipants.findMany({
+        where: { employeeId: { in: employeeIds } },
+        select: { id: true }
+      });
+      const participantIds = mealParticipants.map(p => p.id);
+
+      // Delete MealProgramTransactions (references participantId + soldByUserId — both RESTRICT)
+      if (participantIds.length > 0) {
+        await prisma.mealProgramTransactions.deleteMany({ where: { participantId: { in: participantIds } } });
+      }
+      if (demoUserIds.length > 0) {
+        // Catch any remaining transactions where the seller is a demo user
+        await prisma.mealProgramTransactions.deleteMany({ where: { soldByUserId: { in: demoUserIds } } });
+      }
+      // Delete MealProgramEligibleItems (references createdBy user — RESTRICT)
+      if (demoUserIds.length > 0) {
+        await prisma.mealProgramEligibleItems.deleteMany({ where: { createdBy: { in: demoUserIds } } });
+      }
+      // Delete MealProgramParticipants (references registeredBy user — RESTRICT)
+      if (participantIds.length > 0) {
+        await prisma.mealProgramParticipants.deleteMany({ where: { id: { in: participantIds } } });
+      }
+      if (demoUserIds.length > 0) {
+        await prisma.mealProgramParticipants.deleteMany({ where: { registeredBy: { in: demoUserIds } } });
+      }
+      // --- End meal program cleanup ---
 
       // Delete related records that have RESTRICT constraint
       // These MUST be deleted BEFORE employees to avoid foreign key constraint violations
@@ -145,13 +178,19 @@ async function seedDemoEmployees() {
       });
       console.log(`   Deleted ${deletedDisciplinaryActions.count} disciplinary actions (as creator)`);
 
-      // Delete business memberships
-      for (const emp of existingDemoEmployees) {
-        if (emp.userId) {
-          await prisma.businessMemberships.deleteMany({
-            where: { userId: emp.userId }
-          });
-        }
+      // Delete BusinessTransactions created by demo users (order revenue — RESTRICT FK on createdBy)
+      if (demoUserIds.length > 0) {
+        const deletedBizTxns = await prisma.businessTransactions.deleteMany({
+          where: { createdBy: { in: demoUserIds } }
+        });
+        console.log(`   Deleted ${deletedBizTxns.count} business transactions created by demo users`);
+      }
+
+      // Delete business memberships for all demo users
+      if (demoUserIds.length > 0) {
+        await prisma.businessMemberships.deleteMany({
+          where: { userId: { in: demoUserIds } }
+        });
       }
 
       // Delete employees (cascading deletes will handle employee_* tables)
@@ -174,6 +213,34 @@ async function seedDemoEmployees() {
 
       console.log('✅ Cleanup complete\n');
     }
+
+    // Get admin user for contract createdBy
+    const adminUser = await prisma.users.findFirst({
+      where: { email: 'admin@business.local' },
+      select: { id: true }
+    });
+
+    // Schedule config per business type
+    const scheduleByType = {
+      restaurant: { scheduledStartTime: '08:00', scheduledEndTime: '17:00', scheduledDaysPerWeek: 6 },
+      grocery:    { scheduledStartTime: '08:00', scheduledEndTime: '17:00', scheduledDaysPerWeek: 6 },
+      hardware:   { scheduledStartTime: '08:00', scheduledEndTime: '17:00', scheduledDaysPerWeek: 5 },
+      clothing:   { scheduledStartTime: '08:00', scheduledEndTime: '18:00', scheduledDaysPerWeek: 6 },
+    };
+
+    // Monthly base salary by compensation type (used for employment contracts)
+    const salaryByCompType = {
+      'monthly-management': 2500,
+      'monthly-professional': 1500,
+      'monthly-skilled': 1200,
+      'monthly-executive': 5000,
+      'monthly-entry': 700,
+      'base-plus-commission-high': 1500,
+      'base-plus-commission-low': 800,
+      'hourly-skilled': 1200,
+      'hourly-professional': 1800,
+      'hourly-minimum': 700,
+    };
 
     // Get all job titles and compensation types for reference
     const jobTitles = await prisma.jobTitles.findMany();
@@ -209,6 +276,8 @@ async function seedDemoEmployees() {
       }
 
       console.log(`  Business: ${business.name} (${business.type})`);
+
+      const schedule = scheduleByType[business.type.toLowerCase()] || scheduleByType.restaurant;
 
       let employeeNumber = 1;
 
@@ -292,13 +361,43 @@ async function seedDemoEmployees() {
               primaryBusinessId: businessId,
               jobTitleId: jobTitleId || jobTitleMap['General Manager'],
               compensationTypeId: compensationTypeId || 'monthly-entry',
-              hireDate: new Date(),
+              hireDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), // 90 days ago
               isActive: true,
-              employmentStatus: 'active'
+              employmentStatus: 'active',
+              scheduledStartTime: schedule.scheduledStartTime,
+              scheduledEndTime: schedule.scheduledEndTime,
+              scheduledDaysPerWeek: schedule.scheduledDaysPerWeek,
             }
           });
           totalCreated++;
-          console.log(`    ✅ Employee record created: ${employee.employeeNumber}`);
+          console.log(`    ✅ Employee record created: ${employee.employeeNumber} (schedule: ${schedule.scheduledStartTime}–${schedule.scheduledEndTime})`);
+
+          // 2b. Create active employment contract
+          try {
+            const baseSalary = salaryByCompType[empData.compensationType] || 1000;
+            const isCommission = empData.compensationType.includes('commission');
+            const isHourly = empData.compensationType.includes('hourly');
+            await prisma.employeeContracts.create({
+              data: {
+                contractNumber: `CONT-${employee.employeeNumber}`,
+                employeeId: employee.id,
+                primaryBusinessId: businessId,
+                jobTitleId: employee.jobTitleId,
+                compensationTypeId: employee.compensationTypeId,
+                baseSalary,
+                status: 'active',
+                isSalaryBased: !isCommission && !isHourly,
+                isCommissionBased: isCommission,
+                startDate: employee.hireDate,
+                createdBy: adminUser?.id,
+                approvedAt: employee.hireDate,
+                approvedBy: adminUser?.id,
+              }
+            });
+            console.log(`    ✅ Employment contract created: CONT-${employee.employeeNumber} ($${baseSalary}/mo)`);
+          } catch (contractErr) {
+            console.log(`    ⚠️  Contract skipped: ${contractErr.message}`);
+          }
 
           // 3. Create business membership with role-based permissions
           // Map finance-manager to 'manager' for business membership (business roles are limited)

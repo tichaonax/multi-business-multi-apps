@@ -458,15 +458,16 @@ export async function restoreCleanBackup(
     dataSources.push({ source: backupData.deviceData, sourceType: 'device' })
   }
 
-  // === ID REMAPPING for cross-machine restores ===
-  // When restoring from a different machine, reference data (domains, categories, etc.) may exist
-  // on the target with different UUIDs but same unique key values. Instead of deleting target data,
-  // we build a mapping: backup_id → target_id. Then for every record being restored, we remap
-  // FK fields to use the target's IDs. This preserves ALL target data.
+  // === ID REMAPPING for all restores (cross-machine AND same-device re-seeded databases) ===
+  // Reference data (domains, categories, etc.) may exist in the target DB with different IDs
+  // but the same unique key values — this happens after a DB re-seed or cross-machine restore.
+  // We build a mapping: backup_id → target_id. Then for every record being restored, we remap
+  // FK fields to use the target's IDs. This preserves ALL target data and prevents P2002/P2003
+  // errors from ID mismatches in reference tables.
   const idRemap: Map<string, string> = new Map()
 
-  if (!isSameDevice) {
-    console.log('[restore-clean] Cross-machine restore — building ID remap for reference data...')
+  {
+    console.log('[restore-clean] Building ID remap for reference data (same-device and cross-machine)...')
     const bd = backupData.businessData || backupData
 
     // Build remap for tables with single-field unique constraints (name-based)
@@ -508,10 +509,16 @@ export async function restoreCleanBackup(
       'expenseCategories': ['name'],                    // domainId excluded — may be remapped
       'inventorySubcategories': ['name'],               // categoryId excluded — may be remapped
       'expenseSubcategories': ['name'],                 // categoryId excluded — may be remapped
+      // Meal program — participants and eligible items can be re-created with different IDs
+      'mealProgramParticipants': ['businessId', 'employeeId'],  // @@unique([businessId, employeeId])
+      'mealProgramEligibleItems': ['businessId', 'productId'],  // @@unique([businessId, productId])
     }
 
     // Process in dependency order so parent remaps are available for children
-    const REMAP_ORDER = ['businessCategories', 'expenseCategories', 'inventorySubcategories', 'expenseSubcategories']
+    const REMAP_ORDER = [
+      'businessCategories', 'expenseCategories', 'inventorySubcategories', 'expenseSubcategories',
+      'mealProgramParticipants', 'mealProgramEligibleItems',
+    ]
 
     for (const tableName of REMAP_ORDER) {
       const uniqueFields = COMPOSITE_UNIQUE_REMAP[tableName]
@@ -554,6 +561,8 @@ export async function restoreCleanBackup(
         if (tableName === 'expenseSubcategories' && record.categoryId) {
           whereClause.categoryId = idRemap.get(record.categoryId) || record.categoryId
         }
+        // mealProgramParticipants and mealProgramEligibleItems use their own fields directly
+        // (businessId and employeeId/productId are top-level IDs that should match)
 
         if (!hasAllFields) continue
 

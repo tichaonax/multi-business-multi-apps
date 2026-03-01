@@ -13,10 +13,13 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const businessId = searchParams.get('businessId')
+    const dateParam = searchParams.get('date') // YYYY-MM-DD; defaults to today
 
-    const todayStart = new Date()
+    // Build start/end bounds for the requested date (local midnight)
+    const baseDate = dateParam ? new Date(dateParam + 'T00:00:00') : new Date()
+    const todayStart = new Date(baseDate)
     todayStart.setHours(0, 0, 0, 0)
-    const todayEnd = new Date()
+    const todayEnd = new Date(baseDate)
     todayEnd.setHours(23, 59, 59, 999)
 
     // Job title levels that are automatically exempt (kept in sync with exempt-employees route)

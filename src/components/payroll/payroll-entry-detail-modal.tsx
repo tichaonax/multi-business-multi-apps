@@ -1968,17 +1968,22 @@ export function PayrollEntryDetailModal({
                     </div>
                   </div>
                 )}
-                {entry.loanBreakdown && entry.loanBreakdown.length > 0 && (
+                {Number(entry.loanDeductions || 0) > 0 && (
                   <div>
-                    <div className="font-medium text-secondary mb-1">Loans:</div>
-                    {entry.loanBreakdown.map((loan: any, index: number) => (
+                    <div className="font-medium text-secondary mb-1">Loan Repayments:</div>
+                    {entry.loanBreakdown && entry.loanBreakdown.length > 0 ? entry.loanBreakdown.map((loan: any, index: number) => (
                       <div key={index} className="flex justify-between ml-4 text-xs">
                         <span className="text-secondary">{loan.description}</span>
                         <span className="text-red-600">{formatCurrency(loan.amount)}</span>
                       </div>
-                    ))}
+                    )) : (
+                      <div className="flex justify-between ml-4 text-xs">
+                        <span className="text-secondary">Monthly loan repayment</span>
+                        <span className="text-red-600">{formatCurrency(entry.loanDeductions)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between font-medium">
-                      <span className="text-secondary">Total Loans:</span>
+                      <span className="text-secondary">Total Loan Repayments:</span>
                       <span className="text-red-600">{formatCurrency(entry.loanDeductions)}</span>
                     </div>
                   </div>
@@ -2135,7 +2140,7 @@ export function PayrollEntryDetailModal({
               <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold text-teal-800 dark:text-teal-300 text-sm">🏖 Vacation Entitlement</h3>
-                  {!isLocked && entry?.employee?.employmentStatus ?? (entry?.employees as any)?.employmentStatus === 'terminated' && (
+                  {!isLocked && (entry?.employee?.employmentStatus ?? (entry?.employees as any)?.employmentStatus) === 'terminated' && (
                     <button
                       type="button"
                       disabled={calculatingPayout}
@@ -2168,7 +2173,7 @@ export function PayrollEntryDetailModal({
                     <span className="font-semibold text-teal-700 dark:text-teal-400">{formatCurrency(vacationBalance.accrualValue)}</span>
                   </div>
                 </div>
-                {entry?.employee?.employmentStatus ?? (entry?.employees as any)?.employmentStatus === 'terminated' && (
+                {(entry?.employee?.employmentStatus ?? (entry?.employees as any)?.employmentStatus) === 'terminated' && (
                   <div className="mt-2 text-xs text-amber-700 dark:text-amber-400">
                     ⚠ Employee is terminated — use "+ Payout Adjustment" to create a pending vacation payout for manager approval.
                   </div>

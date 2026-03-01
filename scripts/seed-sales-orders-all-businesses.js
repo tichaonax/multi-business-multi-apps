@@ -25,13 +25,14 @@ function randomFloat(min, max, decimals = 2) {
 /**
  * Create sales orders for a business with realistic category distribution
  */
-async function createSalesOrders(businessId, businessType, categories, daysBack = 30) {
+async function createSalesOrders(businessId, businessType, categories, daysBack = 30, systemUserId = null) {
   console.log(`\n📊 Creating sales orders for ${businessType} business (${businessId})...`)
 
   const paymentMethods = ['CASH', 'CARD', 'MOBILE_MONEY']
   const orderStatuses = ['COMPLETED', 'COMPLETED', 'COMPLETED', 'COMPLETED', 'PROCESSING'] // 80% completed
 
   let totalOrders = 0
+  let totalTransactions = 0
   const now = new Date()
 
   // Get employees for this business
@@ -79,6 +80,24 @@ async function createSalesOrders(businessId, businessType, categories, daysBack 
   }
 
   console.log(`  Weighted employee pool size: ${weightedEmployees.length}`)
+
+  // Get starting balance from existing BusinessTransactions (SEED CREDIT + expense DEBIT already created)
+  const CREDIT_TYPES = ['deposit', 'transfer', 'loan_received', 'CREDIT']
+  const DEBIT_TYPES = ['withdrawal', 'loan_disbursement', 'loan_payment', 'DEBIT']
+  const [creditsAgg, debitsAgg] = await Promise.all([
+    prisma.businessTransactions.aggregate({
+      where: { businessId, type: { in: CREDIT_TYPES } },
+      _sum: { amount: true }
+    }),
+    prisma.businessTransactions.aggregate({
+      where: { businessId, type: { in: DEBIT_TYPES } },
+      _sum: { amount: true }
+    })
+  ])
+  let runningBalance = parseFloat(
+    (Number(creditsAgg._sum?.amount ?? 0) - Math.abs(Number(debitsAgg._sum?.amount ?? 0))).toFixed(2)
+  )
+  console.log(`  Starting balance for ${businessType}: $${runningBalance.toFixed(2)}`)
 
   // Create orders for each of the last N days
   for (let dayOffset = 0; dayOffset < daysBack; dayOffset++) {
@@ -179,6 +198,27 @@ async function createSalesOrders(businessId, businessType, categories, daysBack 
 
         totalOrders++
 
+        // Create BusinessTransaction for each completed+paid order (mirrors real POS flow)
+        const transactionCreatorId = salesPerson?.userId || systemUserId
+        if (status === 'COMPLETED' && transactionCreatorId) {
+          runningBalance = parseFloat((runningBalance + totalAmount).toFixed(2))
+          await prisma.businessTransactions.create({
+            data: {
+              businessId,
+              type: 'deposit',
+              amount: totalAmount,
+              description: `Order revenue - ${orderNumber}`,
+              referenceType: 'order',
+              referenceId: order.id,
+              balanceAfter: runningBalance,
+              createdBy: transactionCreatorId,
+              notes: 'Completed order payment received',
+              createdAt: orderTime
+            }
+          })
+          totalTransactions++
+        }
+
         // Create order items with proper product variant links
         for (let i = 0; i < orderItems.length; i++) {
           const item = orderItems[i]
@@ -241,7 +281,17 @@ async function createSalesOrders(businessId, businessType, categories, daysBack 
     }
   }
 
-  console.log(`✅ Created ${totalOrders} sales orders for ${businessType}`)
+  // Update business account balance to reflect all order revenue
+  if (totalTransactions > 0) {
+    await prisma.businessAccounts.updateMany({
+      where: { businessId },
+      data: { balance: runningBalance }
+    })
+    console.log(`✅ Created ${totalOrders} orders (${totalTransactions} revenue transactions) for ${businessType}`)
+    console.log(`   Final business account balance: $${runningBalance.toFixed(2)}`)
+  } else {
+    console.log(`✅ Created ${totalOrders} sales orders for ${businessType}`)
+  }
   return totalOrders
 }
 
@@ -279,16 +329,25 @@ async function seed() {
 
       const orderIds = demoOrders.map(o => o.id)
 
-      // Delete order items first (foreign key constraint)
       if (orderIds.length > 0) {
+        // Delete meal program transactions first (FK references orderId with RESTRICT)
+        await prisma.mealProgramTransactions.deleteMany({
+          where: { orderId: { in: orderIds } }
+        })
+
+        // Delete order items (FK references orderId)
         await prisma.businessOrderItems.deleteMany({
-          where: {
-            orderId: {
-              in: orderIds
-            }
-          }
+          where: { orderId: { in: orderIds } }
         })
       }
+
+      // Delete BusinessTransactions linked to orders (referenceId is a string, no cascade)
+      await prisma.businessTransactions.deleteMany({
+        where: {
+          businessId: { in: demoBusinesses.map(b => b.id) },
+          referenceType: 'order'
+        }
+      })
 
       // Then delete orders
       await prisma.businessOrders.deleteMany({
@@ -302,6 +361,16 @@ async function seed() {
       console.log('✅ Cleanup complete\n')
     } else {
       console.log('✅ No existing demo orders found\n')
+    }
+
+    // Look up admin user for transaction createdBy fallback
+    const adminUser = await prisma.users.findFirst({
+      where: { email: 'admin@business.local' },
+      select: { id: true }
+    })
+    const systemUserId = adminUser?.id || null
+    if (!systemUserId) {
+      console.log('⚠️  Admin user not found - employee userId will be used for transactions')
     }
 
     // ========================================
@@ -323,7 +392,7 @@ async function seed() {
     })
 
     if (restaurantBusiness) {
-      await createSalesOrders(restaurantBusiness.id, 'restaurant', restaurantCategories, 30)
+      await createSalesOrders(restaurantBusiness.id, 'restaurant', restaurantCategories, 30, systemUserId)
     } else {
       console.log('⚠️  No restaurant demo business found, skipping...')
     }
@@ -347,7 +416,7 @@ async function seed() {
     })
 
     if (groceryBusiness) {
-      await createSalesOrders(groceryBusiness.id, 'grocery', groceryCategories, 30)
+      await createSalesOrders(groceryBusiness.id, 'grocery', groceryCategories, 30, systemUserId)
     } else {
       console.log('⚠️  No grocery demo business found, skipping...')
     }
@@ -371,7 +440,7 @@ async function seed() {
     })
 
     if (clothingBusiness) {
-      await createSalesOrders(clothingBusiness.id, 'clothing', clothingCategories, 30)
+      await createSalesOrders(clothingBusiness.id, 'clothing', clothingCategories, 30, systemUserId)
     } else {
       console.log('⚠️  No clothing demo business found, skipping...')
     }
@@ -395,7 +464,7 @@ async function seed() {
     })
 
     if (hardwareBusiness) {
-      await createSalesOrders(hardwareBusiness.id, 'hardware', hardwareCategories, 30)
+      await createSalesOrders(hardwareBusiness.id, 'hardware', hardwareCategories, 30, systemUserId)
     } else {
       console.log('⚠️  No hardware demo business found, skipping...')
     }

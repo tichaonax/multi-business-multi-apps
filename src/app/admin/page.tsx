@@ -12,7 +12,6 @@ import {
   Shield,
   Settings,
   Database,
-  Activity,
   FileText,
   Trash2,
   TestTube,
@@ -469,48 +468,6 @@ export default function AdminPage() {
             </a>
           </div>
 
-          {/* Database Performance Card */}
-          <div className="card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <Database className="h-6 w-6 mr-2 text-amber-500" />
-                <h3 className="text-lg font-semibold text-primary">Database Performance</h3>
-              </div>
-            </div>
-            <p className="text-secondary mb-4">Monitor and optimize database performance</p>
-            <div className="text-sm text-secondary mb-4">
-              • Query performance monitoring
-              <br />
-              • Database health checks
-              <br />
-              • Index optimization
-              <br />
-              • Storage usage analysis
-            </div>
-            <div className="text-xs text-gray-500 italic">Feature coming soon</div>
-          </div>
-
-          {/* System Monitoring Card */}
-          <div className="card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <Activity className="h-6 w-6 mr-2 text-teal-500" />
-                <h3 className="text-lg font-semibold text-primary">System Monitoring</h3>
-              </div>
-            </div>
-            <p className="text-secondary mb-4">Real-time system health and performance monitoring</p>
-            <div className="text-sm text-secondary mb-4">
-              • System health metrics
-              <br />
-              • Performance analytics
-              <br />
-              • Error tracking
-              <br />
-              • Uptime monitoring
-            </div>
-            <div className="text-xs text-gray-500 italic">Feature coming soon</div>
-          </div>
-
           {/* Employee Management Card */}
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
@@ -659,6 +616,18 @@ export default function AdminPage() {
 
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-clothing', label: 'Seed Clothing Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Clothing Demo</button>
 
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-clothing-bales', label: 'Seed Clothing Bales', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Clothing Bales</button>
+
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-attendance', label: 'Seed Attendance (90 days)', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Attendance (90 days)</button>
+
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-customers', label: 'Seed Customers Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Customers Demo</button>
+
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-meal-program', label: 'Seed Meal Program', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Meal Program</button>
+
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-promo-campaigns', label: 'Seed Promo Campaigns', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Promo Campaigns</button>
+
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-expense-payments', label: 'Seed Expense Payments', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded">Seed Expense Payments</button>
+
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/seed-realistic-employees', label: 'Seed Realistic Employees', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded">Seed Realistic Employees</button>
 
               {/* Unseed buttons */}
@@ -669,7 +638,7 @@ export default function AdminPage() {
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/unseed-clothing', label: 'Unseed Clothing Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Clothing Demo</button>
               <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/unseed-hardware', label: 'Unseed Hardware Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Hardware Demo</button>
 
-              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/cleanup-dev-data', label: 'Unseed Restaurant Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Restaurant Demo</button>
+              <button onClick={() => { setModalBusinessId(null); setModalAction({ endpoint: '/api/admin/unseed-restaurant', label: 'Unseed Restaurant Demo', method: 'POST', body: { confirm: true } }); setModalOpen(true) }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded">Unseed Restaurant Demo</button>
             </div>
             {modalAction && (
               <AdminSeedPromptModal
@@ -693,12 +662,18 @@ export default function AdminPage() {
                     if (endpoint.includes('unseed-grocery')) confirmText = `UNSEED-GROCERY-${nowSuffix}`
                     if (endpoint.includes('seed-contractors')) confirmText = `SEED-CONTRACTORS-${nowSuffix}`
                     if (endpoint.includes('unseed-contractors')) confirmText = `UNSEED-CONTRACTORS-${nowSuffix}`
-                    if (endpoint.includes('seed-clothing')) confirmText = `SEED-CLOTHING-${nowSuffix}`
+                    if (endpoint.includes('seed-clothing-bales')) confirmText = `SEED-CLOTHING-BALES-${nowSuffix}`
+                    else if (endpoint.includes('seed-clothing')) confirmText = `SEED-CLOTHING-${nowSuffix}`
                     if (endpoint.includes('unseed-clothing')) confirmText = `UNSEED-CLOTHING-${nowSuffix}`
+                    if (endpoint.includes('seed-attendance')) confirmText = `SEED-ATTENDANCE-${nowSuffix}`
                     if (endpoint.includes('seed-restaurant')) confirmText = `SEED-RESTAURANT-${nowSuffix}`
                     if (endpoint.includes('unseed-restaurant') || endpoint.includes('cleanup-dev-data')) confirmText = `UNSEED-RESTAURANT-${nowSuffix}`
                     if (endpoint.includes('seed-dev-data')) confirmText = `CREATE-DEV-SEED-${nowSuffix}`
                     if (endpoint.includes('seed-realistic-employees')) confirmText = `SEED-REALISTIC-EMPLOYEES-${nowSuffix}`
+                    if (endpoint.includes('seed-customers')) confirmText = `SEED-CUSTOMERS-${nowSuffix}`
+                    if (endpoint.includes('seed-meal-program')) confirmText = `SEED-MEAL-PROGRAM-${nowSuffix}`
+                    if (endpoint.includes('seed-promo-campaigns')) confirmText = `SEED-PROMO-CAMPAIGNS-${nowSuffix}`
+                    if (endpoint.includes('seed-expense-payments')) confirmText = `SEED-EXPENSE-PAYMENTS-${nowSuffix}`
 
                     const body = { ...(modalAction.body || {}), confirm: true, confirmText }
 

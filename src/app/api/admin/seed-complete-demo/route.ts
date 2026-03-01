@@ -52,6 +52,14 @@ export async function POST(request: NextRequest) {
       // STEP 2: Now seed data for those businesses
       { name: 'Demo Employees', script: 'seed-demo-employees.js', required: true },
       { name: 'Sales Orders', script: 'seed-sales-orders-all-businesses.js', required: false },
+      // NOTE: seed-demo-expense-accounts.js is NOT included here — it creates standalone expense accounts
+      // without businessId links, which conflicts with the business-seed expense accounts.
+      // The business seed scripts (steps 1-4) already create the correct linked expense accounts.
+      { name: 'Business Expenses', script: 'seed-demo-business-expenses.js', required: false },
+      { name: 'Demo Customers', script: 'seed-demo-customers-all-businesses.js', required: false },
+      { name: 'Expense Payments', script: 'seed-demo-expense-payments.js', required: false },
+      { name: 'Meal Program', script: 'seed-meal-program-demo.js', required: false },
+      { name: 'Promo Campaigns', script: 'seed-promo-campaigns-demo.js', required: false },
     ];
 
     // Add optional feature scripts
@@ -71,6 +79,7 @@ export async function POST(request: NextRequest) {
 
     if (features.includes('all') || features.includes('payroll')) {
       steps.push(
+        { name: 'Attendance Records', script: 'seed-attendance-demo.js', required: false },
         { name: 'Payroll Accounts', script: 'seed-payroll-accounts-demo.js', required: false },
         { name: 'Payroll Periods', script: 'seed-payroll-demo.js', required: false }
       );

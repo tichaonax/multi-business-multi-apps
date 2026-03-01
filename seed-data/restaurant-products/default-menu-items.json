@@ -1,2210 +1,1126 @@
 [
   {
-    "name": "☕ Tea",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "emoji": "☕",
-      "itemType": "single"
-    }
-  },
-  {
-    "name": "☕🍞 Tea & Bread",
-    "description": "",
+    "name": "Garlic Bread",
+    "description": "Toasted bread with garlic butter and herbs",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Tea",
-          "quantity": 1,
-          "productId": "db270c26-e1d2-4b2c-805a-491a74e58424"
-        },
-        {
-          "name": "Bread",
-          "quantity": 1,
-          "productId": "3cdcd1bd-8ce2-4b9e-88b6-206852bdecaf"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "☕🍞"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Tea",
-        "Bread"
-      ]
-    }
-  },
-  {
-    "name": "Beef Burger & Fries",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 2.00,
+    "costPrice": 0.80,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "posCategory": "Main Courses",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Bell Peppers",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 7,
-      "posCategory": "Vegetables",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Vegetables",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Bottled Water",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Beverages",
-      "storageTemp": "room",
-      "ingredientType": "Beverages",
-      "printToKitchen": true
-    }
+    "attributes": { "emoji": "🍞", "printToKitchen": true, "vegetarian": true }
   },
   {
     "name": "Bruschetta",
-    "description": "",
+    "description": "Toasted bread topped with diced tomatoes, garlic and fresh basil",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 3.50,
+    "costPrice": 1.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "vegetarian": true,
-      "posCategory": "Appetizers",
-      "printToKitchen": true
-    }
+    "attributes": { "emoji": "🍅", "printToKitchen": true, "vegetarian": true }
   },
   {
-    "name": "Butter",
-    "description": "",
+    "name": "Spring Rolls (4pc)",
+    "description": "Crispy fried spring rolls with sweet chili dipping sauce",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 4.50,
+    "costPrice": 1.80,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 30,
-      "posCategory": "Dairy",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Dairy",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Caesar Salad",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "glutenFree": false,
-      "posCategory": "Appetizers",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Carrots",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 14,
-      "posCategory": "Vegetables",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Vegetables",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Cheesecake",
-    "description": "",
-    "categoryName": "Desserts",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "posCategory": "Desserts",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Chicken Breast",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 7,
-      "posCategory": "Proteins",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Proteins",
-      "printToKitchen": true
-    }
+    "attributes": { "emoji": "🥟", "printToKitchen": true }
   },
   {
     "name": "Chicken Wings (8pc)",
-    "description": "",
+    "description": "Spicy peri-peri chicken wings with dip",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 5.50,
+    "costPrice": 2.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "spicy": true,
-      "posCategory": "Appetizers",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Chocolate Brownie",
-    "description": "",
-    "categoryName": "Desserts",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "posCategory": "Desserts",
-      "containsNuts": false,
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Coca-Cola 330ml",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "posCategory": "Beverages",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Coca-Cola Syrup",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 90,
-      "posCategory": "Beverages",
-      "storageTemp": "room",
-      "ingredientType": "Beverages",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Coffee",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "hot": true,
-      "posCategory": "Beverages",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Coffee Beans",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 90,
-      "posCategory": "Beverages",
-      "storageTemp": "room",
-      "ingredientType": "Beverages",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Disposable Cups",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Supplies",
-      "storageTemp": "room",
-      "ingredientType": "Supplies",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Eggs",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 21,
-      "posCategory": "Dairy",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Dairy",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Flour (All-Purpose)",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 180,
-      "posCategory": "Pantry",
-      "storageTemp": "room",
-      "ingredientType": "Pantry",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Garlic",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 60,
-      "posCategory": "Pantry",
-      "storageTemp": "room",
-      "ingredientType": "Pantry",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Garlic Bread",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "vegetarian": true,
-      "posCategory": "Appetizers",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Grilled Chicken Breast",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "glutenFree": true,
-      "posCategory": "Main Courses",
-      "printToKitchen": true,
-      "temperatureZone": "hot"
-    }
-  },
-  {
-    "name": "Grilled Salmon",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "glutenFree": true,
-      "posCategory": "Main Courses",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Ground Beef",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 5,
-      "posCategory": "Proteins",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Proteins",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Heavy Cream",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 14,
-      "posCategory": "Dairy",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Dairy",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Ice Cream Sundae",
-    "description": "",
-    "categoryName": "Desserts",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "posCategory": "Desserts",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Lettuce",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 5,
-      "posCategory": "Vegetables",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Vegetables",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Margherita Pizza",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "vegetarian": true,
-      "posCategory": "Main Courses",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Mozzarella Cheese",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 21,
-      "posCategory": "Dairy",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Dairy",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Mushrooms",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 5,
-      "posCategory": "Vegetables",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Vegetables",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Olive Oil",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 180,
-      "posCategory": "Pantry",
-      "storageTemp": "room",
-      "ingredientType": "Pantry",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Onions",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 30,
-      "posCategory": "Vegetables",
-      "storageTemp": "room",
-      "ingredientType": "Vegetables",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Orange Juice (Fresh)",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 7,
-      "posCategory": "Beverages",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Beverages",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Orange Juice 250ml",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "chilled": true,
-      "posCategory": "Beverages",
-      "printToKitchen": false
-    }
-  },
-  {
-    "name": "Paper Napkins",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Supplies",
-      "storageTemp": "room",
-      "ingredientType": "Supplies",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Paper Plates",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Supplies",
-      "storageTemp": "room",
-      "ingredientType": "Supplies",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Parmesan Cheese",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 60,
-      "posCategory": "Dairy",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Dairy",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Pasta (Spaghetti)",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Pantry",
-      "storageTemp": "room",
-      "ingredientType": "Pantry",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Plastic Utensils",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Supplies",
-      "storageTemp": "room",
-      "ingredientType": "Supplies",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Pork Chops",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 5,
-      "posCategory": "Proteins",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Proteins",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Ribeye Steak 10oz",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "glutenFree": true,
-      "posCategory": "Main Courses",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Rice",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Pantry",
-      "storageTemp": "room",
-      "ingredientType": "Pantry",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Salmon Fillet",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 3,
-      "posCategory": "Proteins",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Proteins",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Salt",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Pantry",
-      "storageTemp": "room",
-      "ingredientType": "Pantry",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Shrimp",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 90,
-      "posCategory": "Proteins",
-      "storageTemp": "frozen",
-      "ingredientType": "Proteins",
-      "printToKitchen": true
-    }
+    "attributes": { "emoji": "🍗", "printToKitchen": true, "spicy": true }
   },
   {
     "name": "Soup of the Day",
-    "description": "",
+    "description": "Ask your server for today's freshly made soup",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 3.50,
+    "costPrice": 1.40,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "vegetarian": true,
-      "posCategory": "Appetizers",
-      "printToKitchen": true
-    }
+    "attributes": { "emoji": "🍲", "printToKitchen": true, "hot": true, "vegetarian": true }
   },
   {
-    "name": "Spaghetti Bolognese",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "vegetarian": false,
-      "posCategory": "Main Courses",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Sparkling Water 500ml",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "posCategory": "Beverages",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Spinach",
-    "description": "",
+    "name": "Samosas (4pc)",
+    "description": "Crispy golden samosas filled with spiced vegetables or meat",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 3.00,
+    "costPrice": 1.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 5,
-      "posCategory": "Vegetables",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Vegetables",
-      "printToKitchen": true
-    }
+    "attributes": { "emoji": "🥟", "printToKitchen": true }
   },
   {
-    "name": "Sugar",
-    "description": "",
+    "name": "Peri-Peri Chicken Livers",
+    "description": "Tender chicken livers in spicy peri-peri sauce with bread",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 5.00,
+    "costPrice": 2.00,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Pantry",
-      "storageTemp": "room",
-      "ingredientType": "Pantry",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Tea Bags",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Beverages",
-      "storageTemp": "room",
-      "ingredientType": "Beverages",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Tiramisu",
-    "description": "",
-    "categoryName": "Desserts",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "posCategory": "Desserts",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "To-Go Containers",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Supplies",
-      "storageTemp": "room",
-      "ingredientType": "Supplies",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Tomato Sauce",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 365,
-      "posCategory": "Pantry",
-      "storageTemp": "room",
-      "ingredientType": "Pantry",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Tomatoes",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 7,
-      "posCategory": "Vegetables",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Vegetables",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Vegetable Stir Fry",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "vegan": true,
-      "vegetarian": true,
-      "posCategory": "Main Courses",
-      "printToKitchen": true
-    }
-  },
-  {
-    "name": "Whole Milk",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "shelfLife": 7,
-      "posCategory": "Dairy",
-      "storageTemp": "refrigerated",
-      "ingredientType": "Dairy",
-      "printToKitchen": true
-    }
+    "attributes": { "emoji": "🍖", "printToKitchen": true, "spicy": true }
   },
   {
     "name": "🌭 Russian",
-    "description": "",
+    "description": "Grilled Russian sausage served in a roll",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 2.00,
+    "costPrice": 0.80,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🌭",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🌭", "printToKitchen": true }
   },
   {
     "name": "🌭🍟 Russian & Chips",
-    "description": "",
+    "description": "Grilled Russian sausage with a side of chips",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Russian",
-          "quantity": 1,
-          "productId": "f838bd4c-cfde-48b8-8266-3a892dd38966"
-        },
-        {
-          "name": "Chips",
-          "quantity": 1,
-          "productId": "318f1e4d-4896-448f-96b5-cf60ddc0c925"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🌭🍟"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Russian",
-        "Chips"
-      ]
-    }
-  },
-  {
-    "name": "🍚 Rice",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 3.50,
+    "costPrice": 1.40,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍚",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🌭🍟", "printToKitchen": true }
   },
   {
-    "name": "🍚🐐 Rice & Goat",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Rice",
-          "quantity": 1,
-          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
-        },
-        {
-          "name": "Goat",
-          "quantity": 1,
-          "productId": "c44c1158-8c8e-4157-9280-b5730cec5176"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍚🐐"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Rice",
-        "Goat"
-      ]
-    }
-  },
-  {
-    "name": "🍚🐓 Rice & Road Runner",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Rice",
-          "quantity": 1,
-          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
-        },
-        {
-          "name": "Road Runner",
-          "quantity": 1,
-          "productId": "a8e5546a-71a0-4522-8c1a-79a2f698b24f"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍚🐓"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Rice",
-        "Road Runner"
-      ]
-    }
-  },
-  {
-    "name": "🍚🐔 Rice & Chicken",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Rice",
-          "quantity": 1,
-          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
-        },
-        {
-          "name": "Chicken",
-          "quantity": 1,
-          "productId": "1f3d47a3-aee2-4b78-a1ca-fa86fd6edea5"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍚🐔"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Rice",
-        "Chicken"
-      ]
-    }
-  },
-  {
-    "name": "🍚🐟 Rice & Fish",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Rice",
-          "quantity": 1,
-          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
-        },
-        {
-          "name": "Fish",
-          "quantity": 1,
-          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍚🐟"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Rice",
-        "Fish"
-      ]
-    }
-  },
-  {
-    "name": "🍚🐟 Rice & Fish (L)",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Rice",
-          "quantity": 1,
-          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
-        },
-        {
-          "name": "Fish",
-          "quantity": 1,
-          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍚🐟"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Rice",
-        "Fish"
-      ]
-    }
-  },
-  {
-    "name": "🍚🥩 Rice & Beef",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Rice",
-          "quantity": 1,
-          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
-        },
-        {
-          "name": "Beef",
-          "quantity": 1,
-          "productId": "ea92cb3d-3d36-43ea-9418-ea4a11880d7f"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍚🥩"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Rice",
-        "Beef"
-      ]
-    }
-  },
-  {
-    "name": "🍚🥩 Rice & Liver",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Rice",
-          "quantity": 1,
-          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
-        },
-        {
-          "name": "Liver",
-          "quantity": 1,
-          "productId": "949b4281-ed87-4079-9c13-2ff736d5b187"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍚🥩"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Rice",
-        "Liver"
-      ]
-    }
-  },
-  {
-    "name": "🍚🫘 Rice & Beans",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Rice",
-          "quantity": 1,
-          "productId": "fe3a2273-8539-4903-bd0b-51b07011586b"
-        },
-        {
-          "name": "Beans",
-          "quantity": 1,
-          "productId": "e0281648-1489-483d-a9c3-fdbd10f5acbb"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍚🫘"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Rice",
-        "Beans"
-      ]
-    }
-  },
-  {
-    "name": "🍛 Curry Rice",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍛",
-      "itemType": "single"
-    }
-  },
-  {
-    "name": "🍝 Spaghetti",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍝",
-      "itemType": "single"
-    }
-  },
-  {
-    "name": "🍝🐐 Spaghetti & Goat",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Spaghetti",
-          "quantity": 1,
-          "productId": "6bbf1304-2282-4c75-acad-a2db033453e2"
-        },
-        {
-          "name": "Goat",
-          "quantity": 1,
-          "productId": "c44c1158-8c8e-4157-9280-b5730cec5176"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍝🐐"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Spaghetti",
-        "Goat"
-      ]
-    }
-  },
-  {
-    "name": "🍝🐔 Spaghetti & Chicken",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Spaghetti",
-          "quantity": 1,
-          "productId": "6bbf1304-2282-4c75-acad-a2db033453e2"
-        },
-        {
-          "name": "Chicken",
-          "quantity": 1,
-          "productId": "1f3d47a3-aee2-4b78-a1ca-fa86fd6edea5"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍝🐔"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Spaghetti",
-        "Chicken"
-      ]
-    }
-  },
-  {
-    "name": "🍝🥩 Spaghetti & Beef",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Spaghetti",
-          "quantity": 1,
-          "productId": "6bbf1304-2282-4c75-acad-a2db033453e2"
-        },
-        {
-          "name": "Beef",
-          "quantity": 1,
-          "productId": "ea92cb3d-3d36-43ea-9418-ea4a11880d7f"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍝🥩"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Spaghetti",
-        "Beef"
-      ]
-    }
-  },
-  {
-    "name": "🍞 Bread",
-    "description": "",
+    "name": "Mini Sliders (3pc)",
+    "description": "Three mini beef sliders with cheese, lettuce and tomato",
     "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 5.50,
+    "costPrice": 2.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍞",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍔", "printToKitchen": true }
   },
+
   {
-    "name": "🍟 Chips",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍟",
-      "itemType": "single"
-    }
-  },
-  {
-    "name": "🍪 Cookies",
-    "description": "",
-    "categoryName": "Desserts",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍪",
-      "itemType": "single"
-    }
-  },
-  {
-    "name": "🍲 Gango",
-    "description": "",
+    "name": "Grilled Chicken Breast & Chips",
+    "description": "Seasoned grilled chicken breast served with golden chips",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 7.50,
+    "costPrice": 3.00,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍲",
-      "itemType": "single"
-    }
+    "attributes": { "printToKitchen": true }
   },
   {
-    "name": "🍹 Beverages",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "Beef Burger & Fries",
+    "description": "Juicy beef patty with lettuce, tomato, cheese and chips",
+    "categoryName": "Main Courses",
+    "basePrice": 8.00,
+    "costPrice": 3.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍹",
-      "itemType": "single"
-    }
+    "attributes": { "printToKitchen": true }
   },
   {
-    "name": "🍽️ Sadza",
-    "description": "",
+    "name": "Spaghetti Bolognese",
+    "description": "Classic spaghetti with rich beef bolognese sauce and parmesan",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 7.00,
+    "costPrice": 2.80,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🍽",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍝", "printToKitchen": true }
   },
   {
-    "name": "🍽️🍲 Sadza & Gango",
-    "description": "",
+    "name": "Margherita Pizza",
+    "description": "Wood-fired pizza with tomato sauce, fresh mozzarella and basil",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 9.00,
+    "costPrice": 3.60,
     "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Gango",
-          "quantity": 1,
-          "productId": "7b259863-b1d2-4d0a-827a-7d405fe22b4b"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🍲"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Gango"
-      ]
-    }
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍕", "printToKitchen": true, "vegetarian": true }
   },
   {
-    "name": "🍽️🐐 Sadza & Goat",
-    "description": "",
+    "name": "Club Sandwich",
+    "description": "Triple-decker sandwich with chicken, bacon, lettuce, tomato and mayo",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 6.00,
+    "costPrice": 2.40,
     "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Goat",
-          "quantity": 1,
-          "productId": "c44c1158-8c8e-4157-9280-b5730cec5176"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🐐"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Goat"
-      ]
-    }
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "printToKitchen": true }
   },
   {
-    "name": "🍽️🐓 Sadza & Road Runner",
-    "description": "",
+    "name": "Chicken Peri-Peri",
+    "description": "Half chicken marinated in our signature peri-peri sauce with chips",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 10.00,
+    "costPrice": 4.00,
     "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Road Runner",
-          "quantity": 1,
-          "productId": "a8e5546a-71a0-4522-8c1a-79a2f698b24f"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🐓"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Road Runner"
-      ]
-    }
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🐔", "printToKitchen": true, "spicy": true }
+  },
+  {
+    "name": "Pasta Carbonara",
+    "description": "Creamy pasta with smoked bacon, egg, and parmesan cheese",
+    "categoryName": "Main Courses",
+    "basePrice": 9.00,
+    "costPrice": 3.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍝", "printToKitchen": true }
   },
   {
     "name": "🍽️🐔 Sadza & Chicken",
-    "description": "",
+    "description": "Sadza served with stewed chicken",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 5.50,
+    "costPrice": 2.20,
     "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Chicken",
-          "quantity": 1,
-          "productId": "1f3d47a3-aee2-4b78-a1ca-fa86fd6edea5"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🐔"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Chicken"
-      ]
-    }
-  },
-  {
-    "name": "🍽️🐟 Sadza & Fish",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Fish",
-          "quantity": 1,
-          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🐟"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Fish"
-      ]
-    }
-  },
-  {
-    "name": "🍽️🐟 Sadza & Fish (L)",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Fish",
-          "quantity": 1,
-          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🐟"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Fish"
-      ]
-    }
-  },
-  {
-    "name": "🍽️🥛 Sadza & Milk",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Milk",
-          "quantity": 1,
-          "productId": "fd78c799-87c4-4de6-ad1a-df2b2d29f998"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🥛"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Milk"
-      ]
-    }
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍽️🐔", "printToKitchen": true }
   },
   {
     "name": "🍽️🥩 Sadza & Beef",
-    "description": "",
+    "description": "Sadza served with stewed beef",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Beef",
-          "quantity": 1,
-          "productId": "ea92cb3d-3d36-43ea-9418-ea4a11880d7f"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🥩"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Beef"
-      ]
-    }
-  },
-  {
-    "name": "🍽️🥩 Sadza & Liver",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Liver",
-          "quantity": 1,
-          "productId": "949b4281-ed87-4079-9c13-2ff736d5b187"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🥩"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Liver"
-      ]
-    }
-  },
-  {
-    "name": "🍽️🧭 Sadza & Guru",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Guru",
-          "quantity": 1,
-          "productId": "17ed8caf-da93-4b60-b6b2-4fcd701c0685"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🧭"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Guru"
-      ]
-    }
-  },
-  {
-    "name": "🍽️🫘 Sadza & Beans",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "️ Sadza",
-          "quantity": 1,
-          "productId": "1a71b66f-e8aa-494f-9adc-83622828ec8f"
-        },
-        {
-          "name": "Beans",
-          "quantity": 1,
-          "productId": "e0281648-1489-483d-a9c3-fdbd10f5acbb"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🍽",
-        "🫘"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "️ Sadza",
-        "Beans"
-      ]
-    }
-  },
-  {
-    "name": "🐂 Beef Restock",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 5.00,
+    "costPrice": 2.00,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🐂",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍽️🥩", "printToKitchen": true }
   },
   {
-    "name": "🐐 Goat",
-    "description": "",
+    "name": "🍽️🐟 Sadza & Fish",
+    "description": "Sadza served with fried or grilled fish",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 5.50,
+    "costPrice": 2.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🐐",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍽️🐟", "printToKitchen": true }
   },
   {
-    "name": "🐓 Road Runner",
-    "description": "",
+    "name": "🍽️🐓 Sadza & Road Runner",
+    "description": "Sadza served with free-range road runner chicken",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 6.50,
+    "costPrice": 2.60,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🐓",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍽️🐓", "printToKitchen": true }
   },
   {
-    "name": "🐔 Chicken",
-    "description": "",
+    "name": "🍽️🐐 Sadza & Goat",
+    "description": "Sadza served with slow-cooked goat stew",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 7.00,
+    "costPrice": 2.80,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🐔",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍽️🐐", "printToKitchen": true }
   },
   {
-    "name": "🐔🍟 Chicken & Chips",
-    "description": "",
+    "name": "🍚🐔 Rice & Chicken",
+    "description": "Steamed rice served with stewed chicken",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Chicken",
-          "quantity": 1,
-          "productId": "1f3d47a3-aee2-4b78-a1ca-fa86fd6edea5"
-        },
-        {
-          "name": "Chips",
-          "quantity": 1,
-          "productId": "318f1e4d-4896-448f-96b5-cf60ddc0c925"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🐔🍟"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Chicken",
-        "Chips"
-      ]
-    }
-  },
-  {
-    "name": "🐟 Fish",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 5.50,
+    "costPrice": 2.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🐟",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍚🐔", "printToKitchen": true }
   },
   {
-    "name": "🐟🍟 Fish & Chips",
-    "description": "",
+    "name": "🍚🥩 Rice & Beef",
+    "description": "Steamed rice served with stewed beef",
     "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "PHYSICAL",
-    "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Fish",
-          "quantity": 1,
-          "productId": "1f3c0441-a0d6-4e27-97e3-7aea2da6385d"
-        },
-        {
-          "name": "Chips",
-          "quantity": 1,
-          "productId": "318f1e4d-4896-448f-96b5-cf60ddc0c925"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🐟🍟"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Fish",
-        "Chips"
-      ]
-    }
-  },
-  {
-    "name": "💰 Loan",
-    "description": "",
-    "categoryName": "Revenue",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 5.00,
+    "costPrice": 2.00,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "💰",
-      "itemType": "revenue",
-      "transactionType": "loan",
-      "isFinancialTransaction": true
-    }
+    "attributes": { "emoji": "🍚🥩", "printToKitchen": true }
   },
   {
-    "name": "🚰 Bottled Water",
-    "description": "",
+    "name": "🍚🐟 Rice & Fish",
+    "description": "Steamed rice served with fried fish",
+    "categoryName": "Main Courses",
+    "basePrice": 5.50,
+    "costPrice": 2.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍚🐟", "printToKitchen": true }
+  },
+  {
+    "name": "🍚🐐 Rice & Goat",
+    "description": "Steamed rice served with slow-cooked goat stew",
+    "categoryName": "Main Courses",
+    "basePrice": 7.00,
+    "costPrice": 2.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍚🐐", "printToKitchen": true }
+  },
+  {
+    "name": "🍝 Spaghetti & Chicken",
+    "description": "Spaghetti served with stewed chicken",
+    "categoryName": "Main Courses",
+    "basePrice": 5.50,
+    "costPrice": 2.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍝🐔", "printToKitchen": true }
+  },
+  {
+    "name": "🍝 Spaghetti & Beef",
+    "description": "Spaghetti served with stewed beef",
+    "categoryName": "Main Courses",
+    "basePrice": 5.00,
+    "costPrice": 2.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍝🥩", "printToKitchen": true }
+  },
+
+  {
+    "name": "🍟 Chips",
+    "description": "Golden crispy chips / french fries",
+    "categoryName": "Sides",
+    "basePrice": 2.50,
+    "costPrice": 0.90,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍟", "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "🥗 Garden Salad",
+    "description": "Fresh garden salad with house dressing",
+    "categoryName": "Sides",
+    "basePrice": 2.50,
+    "costPrice": 1.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥗", "printToKitchen": false, "vegetarian": true, "vegan": true }
+  },
+  {
+    "name": "Coleslaw",
+    "description": "Creamy homemade coleslaw",
+    "categoryName": "Sides",
+    "basePrice": 2.00,
+    "costPrice": 0.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "printToKitchen": false, "vegetarian": true }
+  },
+  {
+    "name": "Onion Rings",
+    "description": "Crispy battered onion rings",
+    "categoryName": "Sides",
+    "basePrice": 2.50,
+    "costPrice": 1.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "🥬 Steamed Vegetables",
+    "description": "Seasonal steamed vegetables with butter",
+    "categoryName": "Sides",
+    "basePrice": 2.00,
+    "costPrice": 0.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥬", "printToKitchen": true, "vegetarian": true, "vegan": true }
+  },
+  {
+    "name": "🍽️ Sadza",
+    "description": "Traditional Zimbabwean sadza (maize meal porridge)",
+    "categoryName": "Sides",
+    "basePrice": 1.50,
+    "costPrice": 0.50,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍽️", "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "🍚 Rice",
+    "description": "Steamed white rice",
+    "categoryName": "Sides",
+    "basePrice": 2.00,
+    "costPrice": 0.70,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍚", "printToKitchen": true, "vegetarian": true, "vegan": true }
+  },
+  {
+    "name": "🍞 Bread Roll",
+    "description": "Freshly baked bread roll with butter",
+    "categoryName": "Sides",
+    "basePrice": 1.00,
+    "costPrice": 0.40,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍞", "printToKitchen": false, "vegetarian": true }
+  },
+
+  {
+    "name": "Caesar Salad",
+    "description": "Romaine lettuce, parmesan, croutons and Caesar dressing",
+    "categoryName": "Salads",
+    "basePrice": 5.50,
+    "costPrice": 2.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "printToKitchen": false, "vegetarian": true }
+  },
+  {
+    "name": "Greek Salad",
+    "description": "Tomatoes, cucumber, olives, feta cheese and red onion",
+    "categoryName": "Salads",
+    "basePrice": 5.00,
+    "costPrice": 2.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "printToKitchen": false, "vegetarian": true }
+  },
+  {
+    "name": "Tomato & Onion Salad",
+    "description": "Fresh sliced tomatoes and onions with vinaigrette",
+    "categoryName": "Salads",
+    "basePrice": 3.00,
+    "costPrice": 1.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "printToKitchen": false, "vegetarian": true, "vegan": true }
+  },
+  {
+    "name": "Chicken Caesar Salad",
+    "description": "Classic Caesar salad topped with grilled chicken breast",
+    "categoryName": "Salads",
+    "basePrice": 7.00,
+    "costPrice": 2.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "printToKitchen": false }
+  },
+  {
+    "name": "Mixed Green Salad",
+    "description": "Mixed seasonal greens with house vinaigrette dressing",
+    "categoryName": "Salads",
+    "basePrice": 4.00,
+    "costPrice": 1.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "printToKitchen": false, "vegetarian": true, "vegan": true }
+  },
+
+  {
+    "name": "Tomato Soup",
+    "description": "Creamy roasted tomato soup served with garlic croutons",
+    "categoryName": "Soups",
+    "basePrice": 3.50,
+    "costPrice": 1.40,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍲", "printToKitchen": true, "hot": true, "vegetarian": true }
+  },
+  {
+    "name": "Chicken Soup",
+    "description": "Hearty chicken and vegetable soup with noodles",
+    "categoryName": "Soups",
+    "basePrice": 4.00,
+    "costPrice": 1.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍲", "printToKitchen": true, "hot": true }
+  },
+  {
+    "name": "Mushroom Cream Soup",
+    "description": "Rich cream of mushroom soup with fresh herbs",
+    "categoryName": "Soups",
+    "basePrice": 4.00,
+    "costPrice": 1.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍄", "printToKitchen": true, "hot": true, "vegetarian": true }
+  },
+  {
+    "name": "Vegetable Soup",
+    "description": "Fresh seasonal vegetable soup with crusty bread",
+    "categoryName": "Soups",
+    "basePrice": 3.50,
+    "costPrice": 1.40,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥕", "printToKitchen": true, "hot": true, "vegetarian": true, "vegan": true }
+  },
+
+  {
+    "name": "Chocolate Brownie",
+    "description": "Warm chocolate brownie served with vanilla ice cream",
+    "categoryName": "Desserts",
+    "basePrice": 4.50,
+    "costPrice": 1.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍫", "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "Cheesecake Slice",
+    "description": "New York style cheesecake with strawberry coulis",
+    "categoryName": "Desserts",
+    "basePrice": 3.50,
+    "costPrice": 1.40,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍰", "printToKitchen": false, "chilled": true, "vegetarian": true }
+  },
+  {
+    "name": "Ice Cream Sundae",
+    "description": "Two scoops of ice cream with chocolate sauce and wafer",
+    "categoryName": "Desserts",
+    "basePrice": 3.00,
+    "costPrice": 1.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍨", "printToKitchen": false, "chilled": true, "vegetarian": true }
+  },
+  {
+    "name": "Tiramisu",
+    "description": "Classic Italian tiramisu with coffee and mascarpone",
+    "categoryName": "Desserts",
+    "basePrice": 4.50,
+    "costPrice": 1.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍰", "printToKitchen": false, "chilled": true, "vegetarian": true }
+  },
+  {
+    "name": "Malva Pudding",
+    "description": "Traditional South African malva pudding with custard sauce",
+    "categoryName": "Desserts",
+    "basePrice": 4.00,
+    "costPrice": 1.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍮", "printToKitchen": true, "hot": true, "vegetarian": true }
+  },
+  {
+    "name": "🍪 Cookies",
+    "description": "Freshly baked chocolate chip cookies (2pc)",
+    "categoryName": "Desserts",
+    "basePrice": 2.00,
+    "costPrice": 0.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍪", "printToKitchen": false, "vegetarian": true }
+  },
+
+  {
+    "name": "☕ Tea",
+    "description": "English breakfast tea served with milk and sugar",
     "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 1.20,
+    "costPrice": 0.40,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🚰",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "☕", "hot": true, "vegetarian": true }
   },
   {
-    "name": "🛜 WIFI",
-    "description": "",
+    "name": "Coffee (Espresso)",
+    "description": "Single shot espresso",
     "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
-    "productType": "SERVICE",
-    "isCombo": false,
-    "comboItemsData": null,
-    "attributes": {
-      "emoji": "🛜",
-      "itemType": "single",
-      "serviceType": "wifi",
-      "requiresCodeGeneration": false
-    }
-  },
-  {
-    "name": "🥗 Salad",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 1.50,
+    "costPrice": 0.60,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🥗",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "☕", "hot": true, "vegetarian": true }
+  },
+  {
+    "name": "Cappuccino",
+    "description": "Espresso with steamed milk and foam",
+    "categoryName": "Beverages",
+    "basePrice": 2.00,
+    "costPrice": 0.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "☕", "hot": true, "vegetarian": true }
+  },
+  {
+    "name": "Latte",
+    "description": "Espresso with steamed milk",
+    "categoryName": "Beverages",
+    "basePrice": 2.20,
+    "costPrice": 0.90,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "☕", "hot": true, "vegetarian": true }
+  },
+  {
+    "name": "Fresh Orange Juice",
+    "description": "Freshly squeezed orange juice",
+    "categoryName": "Beverages",
+    "basePrice": 2.50,
+    "costPrice": 1.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍊", "chilled": true, "vegetarian": true, "vegan": true }
+  },
+  {
+    "name": "Coca-Cola 330ml",
+    "description": "Ice cold Coca-Cola 330ml can",
+    "categoryName": "Beverages",
+    "basePrice": 1.50,
+    "costPrice": 0.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥤", "chilled": true }
+  },
+  {
+    "name": "Fanta 330ml",
+    "description": "Ice cold Fanta orange 330ml can",
+    "categoryName": "Beverages",
+    "basePrice": 1.50,
+    "costPrice": 0.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥤", "chilled": true }
+  },
+  {
+    "name": "Sprite 330ml",
+    "description": "Ice cold Sprite 330ml can",
+    "categoryName": "Beverages",
+    "basePrice": 1.50,
+    "costPrice": 0.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥤", "chilled": true }
+  },
+  {
+    "name": "Sparkling Water 500ml",
+    "description": "Chilled sparkling water 500ml",
+    "categoryName": "Beverages",
+    "basePrice": 1.20,
+    "costPrice": 0.50,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "💧", "chilled": true }
+  },
+  {
+    "name": "🚰 Bottled Water 500ml",
+    "description": "Still bottled water 500ml",
+    "categoryName": "Beverages",
+    "basePrice": 0.80,
+    "costPrice": 0.30,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🚰", "chilled": true }
+  },
+  {
+    "name": "Milkshake",
+    "description": "Thick milkshake — chocolate, vanilla or strawberry",
+    "categoryName": "Beverages",
+    "basePrice": 3.50,
+    "costPrice": 1.40,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥛", "chilled": true, "vegetarian": true }
+  },
+  {
+    "name": "🧃 Revive Juice",
+    "description": "Revive fruit juice 500ml",
+    "categoryName": "Beverages",
+    "basePrice": 1.50,
+    "costPrice": 0.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🧃", "chilled": true }
   },
   {
     "name": "🥛 Milk",
-    "description": "",
+    "description": "Fresh full-cream milk 250ml",
     "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
+    "basePrice": 1.00,
+    "costPrice": 0.40,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🥛",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🥛", "chilled": true, "vegetarian": true }
   },
   {
-    "name": "🥩 Beef",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "🛜 WiFi Token",
+    "description": "1-hour WiFi access token",
+    "categoryName": "Beverages",
+    "basePrice": 1.00,
+    "costPrice": 0.00,
+    "productType": "DIGITAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🛜", "wifiToken": true }
+  },
+
+  {
+    "name": "Full English Breakfast",
+    "description": "Eggs, bacon, sausage, grilled tomato, mushrooms and toast",
+    "categoryName": "Breakfast",
+    "basePrice": 5.50,
+    "costPrice": 2.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🥩",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍳", "printToKitchen": true }
   },
   {
-    "name": "🥩 Liver",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "Omelette",
+    "description": "Three-egg omelette with your choice of filling",
+    "categoryName": "Breakfast",
+    "basePrice": 4.50,
+    "costPrice": 1.80,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🥩",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍳", "printToKitchen": true, "vegetarian": true }
   },
   {
-    "name": "🥩🍟 Beef & Chips",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "French Toast",
+    "description": "Golden French toast with maple syrup and fresh berries",
+    "categoryName": "Breakfast",
+    "basePrice": 4.00,
+    "costPrice": 1.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍞", "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "Pancakes with Syrup",
+    "description": "Stack of three fluffy pancakes with maple syrup and butter",
+    "categoryName": "Breakfast",
+    "basePrice": 3.50,
+    "costPrice": 1.40,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥞", "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "Avocado Toast",
+    "description": "Smashed avocado on toasted sourdough with poached egg",
+    "categoryName": "Breakfast",
+    "basePrice": 4.50,
+    "costPrice": 1.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥑", "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "Fruit Bowl",
+    "description": "Seasonal fresh fruit bowl with yoghurt and honey",
+    "categoryName": "Breakfast",
+    "basePrice": 3.00,
+    "costPrice": 1.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍓", "printToKitchen": false, "vegetarian": true, "chilled": true }
+  },
+  {
+    "name": "Croissant & Butter",
+    "description": "Freshly baked buttery croissant with jam and butter",
+    "categoryName": "Breakfast",
+    "basePrice": 2.50,
+    "costPrice": 1.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥐", "printToKitchen": false, "vegetarian": true }
+  },
+  {
+    "name": "☕🍞 Tea & Bread",
+    "description": "Hot tea served with a bread roll and butter",
+    "categoryName": "Breakfast",
+    "basePrice": 2.50,
+    "costPrice": 1.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "☕🍞", "printToKitchen": false, "vegetarian": true }
+  },
+
+  {
+    "name": "Lunch Combo (Main + Juice)",
+    "description": "Any main course + a 330ml juice — lunchtime saving",
+    "categoryName": "Lunch",
+    "basePrice": 9.50,
+    "costPrice": 3.80,
     "productType": "PHYSICAL",
     "isCombo": true,
-    "comboItemsData": {
-      "items": [
-        {
-          "name": "Beef",
-          "quantity": 1,
-          "productId": "ea92cb3d-3d36-43ea-9418-ea4a11880d7f"
-        },
-        {
-          "name": "Chips",
-          "quantity": 1,
-          "productId": "318f1e4d-4896-448f-96b5-cf60ddc0c925"
-        }
-      ]
-    },
-    "attributes": {
-      "emojis": [
-        "🥩🍟"
-      ],
-      "itemType": "combo",
-      "comboComponents": [
-        "Beef",
-        "Chips"
-      ]
-    }
+    "comboItemsData": null,
+    "attributes": { "emoji": "🌮", "printToKitchen": true, "itemType": "combo" }
   },
   {
-    "name": "🥬 Vegetables",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "Grilled Chicken Lunch Special",
+    "description": "Grilled chicken with rice, coleslaw and a soft drink",
+    "categoryName": "Lunch",
+    "basePrice": 8.50,
+    "costPrice": 3.40,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🥬",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🐔", "printToKitchen": true }
   },
   {
-    "name": "🦚 Transfer In",
-    "description": "",
-    "categoryName": "Revenue",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "Sadza Plate (2 Relishes)",
+    "description": "Sadza served with two relishes of your choice",
+    "categoryName": "Lunch",
+    "basePrice": 6.00,
+    "costPrice": 2.40,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🦚",
-      "itemType": "revenue",
-      "transactionType": "transfer_in",
-      "isFinancialTransaction": true
-    }
+    "attributes": { "emoji": "🍽️", "printToKitchen": true }
   },
   {
-    "name": "🧃 Revive",
-    "description": "",
-    "categoryName": "Beverages",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "Quick Wrap",
+    "description": "Toasted wrap with chicken, salad and sauce",
+    "categoryName": "Lunch",
+    "basePrice": 5.00,
+    "costPrice": 2.00,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🧃",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🌯", "printToKitchen": true }
   },
   {
-    "name": "🧭 Guru",
-    "description": "",
-    "categoryName": "Main Courses",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "Soup & Bread Combo",
+    "description": "Today's soup with a fresh bread roll",
+    "categoryName": "Lunch",
+    "basePrice": 5.50,
+    "costPrice": 2.20,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🧭",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🍲", "printToKitchen": true, "hot": true, "vegetarian": true }
   },
+
   {
-    "name": "🫘 Beans",
-    "description": "",
-    "categoryName": "Appetizers",
-    "basePrice": 0,
-    "costPrice": 0,
+    "name": "T-Bone Steak",
+    "description": "350g T-bone steak with chips, mushroom sauce and grilled tomato",
+    "categoryName": "Dinner",
+    "basePrice": 14.00,
+    "costPrice": 5.60,
     "productType": "PHYSICAL",
     "isCombo": false,
     "comboItemsData": null,
-    "attributes": {
-      "emoji": "🫘",
-      "itemType": "single"
-    }
+    "attributes": { "emoji": "🥩", "printToKitchen": true }
+  },
+  {
+    "name": "Grilled Salmon",
+    "description": "Grilled Atlantic salmon fillet with lemon butter and seasonal vegetables",
+    "categoryName": "Dinner",
+    "basePrice": 12.00,
+    "costPrice": 4.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🐟", "printToKitchen": true }
+  },
+  {
+    "name": "Roast Lamb",
+    "description": "Slow-roasted lamb with roast potatoes, mint jelly and gravy",
+    "categoryName": "Dinner",
+    "basePrice": 13.00,
+    "costPrice": 5.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍖", "printToKitchen": true }
+  },
+  {
+    "name": "Prawn Stir-Fry",
+    "description": "Tiger prawns stir-fried with vegetables in garlic butter served with rice",
+    "categoryName": "Dinner",
+    "basePrice": 11.50,
+    "costPrice": 4.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🦐", "printToKitchen": true }
+  },
+  {
+    "name": "Beef Ribs",
+    "description": "Half rack of slow-cooked beef ribs with BBQ sauce and chips",
+    "categoryName": "Dinner",
+    "basePrice": 13.50,
+    "costPrice": 5.40,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍖", "printToKitchen": true }
+  },
+  {
+    "name": "Ribeye Steak 10oz",
+    "description": "Premium ribeye steak cooked to your liking with chips and salad",
+    "categoryName": "Dinner",
+    "basePrice": 14.00,
+    "costPrice": 5.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥩", "printToKitchen": true }
+  },
+
+  {
+    "name": "Fish & Chips",
+    "description": "Beer-battered hake with chips and tartare sauce",
+    "categoryName": "Seafood",
+    "basePrice": 8.50,
+    "costPrice": 3.40,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🐟", "printToKitchen": true }
+  },
+  {
+    "name": "Grilled Tilapia",
+    "description": "Whole grilled tilapia with lemon, herbs and sadza or chips",
+    "categoryName": "Seafood",
+    "basePrice": 9.00,
+    "costPrice": 3.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🐟", "printToKitchen": true }
+  },
+  {
+    "name": "Prawn Cocktail",
+    "description": "Chilled prawns on lettuce with Marie Rose sauce",
+    "categoryName": "Seafood",
+    "basePrice": 7.50,
+    "costPrice": 3.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🦐", "printToKitchen": false, "chilled": true }
+  },
+  {
+    "name": "Calamari Rings",
+    "description": "Crispy fried calamari rings with lemon and garlic aioli",
+    "categoryName": "Seafood",
+    "basePrice": 8.00,
+    "costPrice": 3.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🦑", "printToKitchen": true }
+  },
+  {
+    "name": "🍽️🐟 Sadza & Fish (Large)",
+    "description": "Sadza with a large portion of fried fish",
+    "categoryName": "Seafood",
+    "basePrice": 7.00,
+    "costPrice": 2.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍽️🐟", "printToKitchen": true }
+  },
+
+  {
+    "name": "Vegetable Curry & Rice",
+    "description": "Fragrant mixed vegetable curry served with steamed rice",
+    "categoryName": "Vegetarian",
+    "basePrice": 6.50,
+    "costPrice": 2.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥬", "printToKitchen": true, "vegetarian": true, "spicy": true }
+  },
+  {
+    "name": "Mushroom Stroganoff",
+    "description": "Creamy mushroom stroganoff served with pasta or rice",
+    "categoryName": "Vegetarian",
+    "basePrice": 7.00,
+    "costPrice": 2.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍄", "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "Veggie Wrap",
+    "description": "Toasted wrap filled with roasted vegetables, hummus and greens",
+    "categoryName": "Vegetarian",
+    "basePrice": 5.00,
+    "costPrice": 2.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🌯", "printToKitchen": true, "vegetarian": true }
+  },
+  {
+    "name": "🍽️🫘 Sadza & Beans",
+    "description": "Sadza served with mixed bean stew",
+    "categoryName": "Vegetarian",
+    "basePrice": 4.00,
+    "costPrice": 1.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍽️🫘", "printToKitchen": true, "vegetarian": true, "vegan": true }
+  },
+  {
+    "name": "Stuffed Bell Peppers",
+    "description": "Bell peppers stuffed with spiced rice, vegetables and cheese",
+    "categoryName": "Vegetarian",
+    "basePrice": 6.50,
+    "costPrice": 2.60,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🫑", "printToKitchen": true, "vegetarian": true }
+  },
+
+  {
+    "name": "Vegan Buddha Bowl",
+    "description": "Brown rice, roasted chickpeas, avocado, cucumber, carrot and tahini",
+    "categoryName": "Vegan",
+    "basePrice": 8.00,
+    "costPrice": 3.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥗", "printToKitchen": true, "vegan": true, "vegetarian": true }
+  },
+  {
+    "name": "Grilled Vegetable Wrap",
+    "description": "Toasted wrap with grilled seasonal vegetables and guacamole",
+    "categoryName": "Vegan",
+    "basePrice": 5.50,
+    "costPrice": 2.20,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🌯", "printToKitchen": true, "vegan": true, "vegetarian": true }
+  },
+  {
+    "name": "Chickpea Curry & Rice",
+    "description": "Spiced chickpea curry with coconut milk served with steamed rice",
+    "categoryName": "Vegan",
+    "basePrice": 7.00,
+    "costPrice": 2.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🫘", "printToKitchen": true, "vegan": true, "vegetarian": true, "spicy": true }
+  },
+  {
+    "name": "Avocado & Tomato Salad",
+    "description": "Fresh avocado, cherry tomatoes, red onion and balsamic glaze",
+    "categoryName": "Vegan",
+    "basePrice": 5.00,
+    "costPrice": 2.00,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🥑", "printToKitchen": false, "vegan": true, "vegetarian": true }
+  },
+
+  {
+    "name": "Breakfast Combo (Full English + Coffee)",
+    "description": "Full English Breakfast with a hot coffee — great value",
+    "categoryName": "Specials",
+    "basePrice": 7.00,
+    "costPrice": 2.80,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": null,
+    "attributes": { "emoji": "⭐", "printToKitchen": true, "itemType": "combo" }
+  },
+  {
+    "name": "Family Deal",
+    "description": "2 Main Courses + 2 Sides + 2 Soft Drinks — serves 2",
+    "categoryName": "Specials",
+    "basePrice": 22.00,
+    "costPrice": 8.80,
+    "productType": "PHYSICAL",
+    "isCombo": true,
+    "comboItemsData": null,
+    "attributes": { "emoji": "👨‍👩‍👧", "printToKitchen": true, "itemType": "combo" }
+  },
+  {
+    "name": "Sunday Roast Special",
+    "description": "Roast of the day with roast potatoes, vegetables, Yorkshire pudding and gravy",
+    "categoryName": "Specials",
+    "basePrice": 12.00,
+    "costPrice": 4.80,
+    "productType": "PHYSICAL",
+    "isCombo": false,
+    "comboItemsData": null,
+    "attributes": { "emoji": "🍖", "printToKitchen": true }
   }
 ]

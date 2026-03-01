@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 interface AttendanceRecord {
@@ -34,18 +34,26 @@ export default function AttendanceReportsPage() {
   const today = new Date().toISOString().split('T')[0]
   const monthStart = today.slice(0, 8) + '01'
 
+  const daysAgo = (n: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() - n)
+    return d.toISOString().split('T')[0]
+  }
+
   const [dateFrom, setDateFrom] = useState(monthStart)
   const [dateTo, setDateTo] = useState(today)
+  const [activePreset, setActivePreset] = useState<string>('month')
+  const [search, setSearch] = useState('')
   const [data, setData] = useState<EmployeeReport[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
 
-  const loadReport = async () => {
+  const loadReport = async (from = dateFrom, to = dateTo) => {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/clock-in/reports?dateFrom=${dateFrom}&dateTo=${dateTo}`)
+      const res = await fetch(`/api/clock-in/reports?dateFrom=${from}&dateTo=${to}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       setData(json.employees)
@@ -55,6 +63,35 @@ export default function AttendanceReportsPage() {
       setIsLoading(false)
     }
   }
+
+  const applyPreset = (preset: string) => {
+    let from = today
+    let to = today
+    if (preset === 'today')     { from = today;        to = today }
+    if (preset === 'yesterday') { from = daysAgo(1);   to = daysAgo(1) }
+    if (preset === '7days')     { from = daysAgo(6);   to = today }
+    if (preset === '30days')    { from = daysAgo(29);  to = today }
+    if (preset === 'month')     { from = monthStart;   to = today }
+    setDateFrom(from)
+    setDateTo(to)
+    setActivePreset(preset)
+    loadReport(from, to)
+  }
+
+  // Auto-load current month on first visit
+  useEffect(() => {
+    loadReport(monthStart, today)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Client-side search filter
+  const q = search.trim().toLowerCase()
+  const filteredData = q
+    ? data.filter((emp) =>
+        emp.employee.fullName.toLowerCase().includes(q) ||
+        emp.employee.employeeNumber.toLowerCase().includes(q)
+      )
+    : data
 
   const exportCsv = () => {
     const rows = [['Employee', 'Emp#', 'Days', 'Late Days', 'Total Hours', 'Punctuality %', 'Avg Late (min)']]
@@ -96,40 +133,80 @@ export default function AttendanceReportsPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-6 flex flex-wrap gap-4 items-end">
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-          />
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-6 space-y-3">
+        {/* Quick presets */}
+        <div className="flex flex-wrap gap-2">
+          {([
+            { key: 'today',     label: 'Today' },
+            { key: 'yesterday', label: 'Yesterday' },
+            { key: '7days',     label: 'Last 7 Days' },
+            { key: '30days',    label: 'Last 30 Days' },
+            { key: 'month',     label: 'This Month' },
+          ] as { key: string; label: string }[]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => applyPreset(key)}
+              disabled={isLoading}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activePreset === key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-          />
-        </div>
-        <button
-          onClick={loadReport}
-          disabled={isLoading}
-          className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50"
-        >
-          {isLoading ? 'Loading...' : 'Generate Report'}
-        </button>
-        {data.length > 0 && (
+
+        {/* Custom date range + search + actions */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              max={today}
+              onChange={(e) => { setDateFrom(e.target.value); setActivePreset('custom') }}
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
+            <input
+              type="date"
+              value={dateTo}
+              max={today}
+              onChange={(e) => { setDateTo(e.target.value); setActivePreset('custom') }}
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            />
+          </div>
           <button
-            onClick={exportCsv}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+            onClick={() => loadReport()}
+            disabled={isLoading}
+            className="px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50"
           >
-            📥 Export CSV
+            {isLoading ? 'Loading…' : 'Refresh'}
           </button>
-        )}
+          {/* Search */}
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Search</label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name or employee number…"
+              className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm placeholder-gray-400"
+            />
+          </div>
+          {data.length > 0 && (
+            <button
+              onClick={exportCsv}
+              className="px-4 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+            >
+              📥 Export CSV
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -140,34 +217,40 @@ export default function AttendanceReportsPage() {
 
       {data.length === 0 && !isLoading && (
         <div className="text-center py-16 text-gray-400">
-          Select a date range and click Generate Report.
+          No attendance records found for the selected period.
         </div>
       )}
 
-      {data.length > 0 && (
+      {data.length > 0 && filteredData.length === 0 && (
+        <div className="text-center py-10 text-gray-400 text-sm">
+          No employees match &quot;{search}&quot;.
+        </div>
+      )}
+
+      {filteredData.length > 0 && (
         <>
-          {/* Summary aggregate */}
+          {/* Summary aggregate — reflects filtered set */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{data.length}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{filteredData.length}</div>
               <div className="text-xs text-gray-500 mt-1">Employees</div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {data.reduce((s, e) => s + e.totalHours, 0).toFixed(1)}h
+                {filteredData.reduce((s, e) => s + e.totalHours, 0).toFixed(1)}h
               </div>
               <div className="text-xs text-gray-500 mt-1">Total Hours</div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-red-500 dark:text-red-400">
-                {data.reduce((s, e) => s + e.lateDays, 0)}
+                {filteredData.reduce((s, e) => s + e.lateDays, 0)}
               </div>
               <div className="text-xs text-gray-500 mt-1">Late Arrivals</div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {data.length > 0
-                  ? Math.round(data.reduce((s, e) => s + e.punctualityScore, 0) / data.length)
+                {filteredData.length > 0
+                  ? Math.round(filteredData.reduce((s, e) => s + e.punctualityScore, 0) / filteredData.length)
                   : 0}%
               </div>
               <div className="text-xs text-gray-500 mt-1">Avg Punctuality</div>
@@ -189,9 +272,9 @@ export default function AttendanceReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((emp) => (
-                  <>
-                    <tr key={emp.employee.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                {filteredData.map((emp) => (
+                  <React.Fragment key={emp.employee.id}>
+                    <tr className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900 dark:text-white">{emp.employee.fullName}</div>
                         <div className="text-xs text-gray-400">#{emp.employee.employeeNumber}</div>
@@ -257,7 +340,7 @@ export default function AttendanceReportsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

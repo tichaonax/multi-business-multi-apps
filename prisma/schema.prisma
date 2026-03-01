@@ -343,6 +343,7 @@ model BusinessSuppliers {
   supplier_payment_requests SupplierPaymentRequests[]
   supplier_ratings          SupplierRatings[]
 
+  @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
 }
 

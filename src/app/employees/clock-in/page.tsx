@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { EmployeeIdCard } from '@/components/clock-in/employee-id-card'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface AttendanceEmployee {
   id: string
@@ -71,12 +72,40 @@ interface ExemptEmployee {
 }
 
 export default function ClockInDashboardPage() {
+  const { currentBusinessId, activeBusinesses, loading: contextLoading } = useBusinessPermissionsContext()
+
   const [activeTab, setActiveTab] = useState<'attendance' | 'exempt' | 'loginTracking'>('attendance')
+
+  // Business & date filter
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [selectedDate, setSelectedDate] = useState(todayStr)
+
+  // Track whether we've resolved the initial business selection
+  const [businessReady, setBusinessReady] = useState(false)
+
+  // Initialise business filter from context once (read from localStorage via context)
+  // Wait for context to finish loading before resolving — prevents "All Businesses" flash
+  const businessInitRef = useRef(false)
+  useEffect(() => {
+    if (businessInitRef.current) return
+    if (contextLoading) return // wait for context to finish loading
+
+    businessInitRef.current = true
+    if (currentBusinessId) {
+      setSelectedBusinessId(currentBusinessId)
+    } else if (activeBusinesses.length > 0) {
+      // No specific business in context — default to first non-demo business, or first overall
+      const nonDemo = activeBusinesses.find(b => !b.isDemo)
+      setSelectedBusinessId((nonDemo ?? activeBusinesses[0]).businessId)
+    }
+    // else: truly no businesses → leave null (will show empty state)
+    setBusinessReady(true)
+  }, [contextLoading, currentBusinessId, activeBusinesses])
 
   // Login Tracking tab state
   const [loginLogs, setLoginLogs] = useState<any[]>([])
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
-  const todayStr = new Date().toISOString().split('T')[0]
   const [logDateFrom, setLogDateFrom] = useState(todayStr)
   const [logDateTo, setLogDateTo] = useState(todayStr)
   const [employees, setEmployees] = useState<AttendanceEmployee[]>([])
@@ -87,6 +116,12 @@ export default function ClockInDashboardPage() {
   const [isRunningAutoClockOut, setIsRunningAutoClockOut] = useState(false)
   const [autoClockOutMessage, setAutoClockOutMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Per-tab search / filter state
+  const [attendanceSearch, setAttendanceSearch] = useState('')
+  const [exemptSearch, setExemptSearch] = useState('')
+  const [logSearch, setLogSearch] = useState('')
+  const [logActivePreset, setLogActivePreset] = useState<string | null>('today')
 
   // Inline schedule/exempt editor
   const [scheduleModal, setScheduleModal] = useState<ScheduleModalState | null>(null)
@@ -112,7 +147,10 @@ export default function ClockInDashboardPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/clock-in/today')
+      const params = new URLSearchParams()
+      if (selectedBusinessId) params.set('businessId', selectedBusinessId)
+      if (selectedDate) params.set('date', selectedDate)
+      const res = await fetch(`/api/clock-in/today?${params}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load attendance')
       setEmployees(data.employees)
@@ -122,12 +160,14 @@ export default function ClockInDashboardPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [selectedBusinessId, selectedDate])
 
   const loadExemptEmployees = useCallback(async () => {
     setIsLoadingExempt(true)
     try {
-      const res = await fetch('/api/clock-in/exempt-employees')
+      const params = new URLSearchParams()
+      if (selectedBusinessId) params.set('businessId', selectedBusinessId)
+      const res = await fetch(`/api/clock-in/exempt-employees?${params}`)
       const data = await res.json()
       if (res.ok) setExemptEmployees(data.employees)
     } catch {
@@ -135,17 +175,20 @@ export default function ClockInDashboardPage() {
     } finally {
       setIsLoadingExempt(false)
     }
-  }, [])
+  }, [selectedBusinessId])
 
   useEffect(() => {
+    if (!businessReady) return // don't fire until business selection is resolved
     loadAttendance()
     loadExemptEmployees()
-  }, [loadAttendance, loadExemptEmployees])
+  }, [loadAttendance, loadExemptEmployees, businessReady])
 
   const loadLoginLogs = async () => {
     setIsLoadingLogs(true)
     try {
-      const res = await fetch(`/api/clock-in/login-log?dateFrom=${logDateFrom}&dateTo=${logDateTo}`)
+      const params = new URLSearchParams({ dateFrom: logDateFrom, dateTo: logDateTo })
+      if (selectedBusinessId) params.set('businessId', selectedBusinessId)
+      const res = await fetch(`/api/clock-in/login-log?${params}`)
       const data = await res.json()
       if (res.ok) setLoginLogs(data.logs || [])
     } catch { /* silent */ }
@@ -155,7 +198,7 @@ export default function ClockInDashboardPage() {
   useEffect(() => {
     if (activeTab === 'loginTracking') loadLoginLogs()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab])
+  }, [activeTab, selectedBusinessId])
 
   const runAutoClockOut = async () => {
     setIsRunningAutoClockOut(true)
@@ -323,7 +366,7 @@ export default function ClockInDashboardPage() {
     setIsSavingManual(true)
     setManualMsg(null)
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = selectedDate
       const toISO = (timeStr: string) => new Date(`${today}T${timeStr}:00`).toISOString()
 
       const res = await fetch('/api/clock-in/action', {
@@ -383,6 +426,48 @@ export default function ClockInDashboardPage() {
     return 'Not In'
   }
 
+  // Date helpers for login-tracking presets
+  const daysAgo = (n: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() - n)
+    return d.toISOString().split('T')[0]
+  }
+  const applyLogPreset = (preset: string) => {
+    const today = todayStr
+    setLogActivePreset(preset)
+    setLogSearch('')
+    switch (preset) {
+      case 'today':     setLogDateFrom(today);          setLogDateTo(today);     break
+      case 'yesterday': { const y = daysAgo(1); setLogDateFrom(y); setLogDateTo(y); break }
+      case '7days':     setLogDateFrom(daysAgo(6));     setLogDateTo(today);     break
+      case '30days':    setLogDateFrom(daysAgo(29));    setLogDateTo(today);     break
+      case 'month':     setLogDateFrom(todayStr.slice(0, 7) + '-01'); setLogDateTo(today); break
+    }
+  }
+
+  // Client-side filtered data for each tab
+  const lc = (s: string) => s.toLowerCase()
+  const filteredEmployees = attendanceSearch
+    ? employees.filter(e =>
+        lc(e.fullName).includes(lc(attendanceSearch)) ||
+        lc(e.employeeNumber).includes(lc(attendanceSearch))
+      )
+    : employees
+
+  const filteredExemptEmployees = exemptSearch
+    ? exemptEmployees.filter(e =>
+        lc(e.fullName).includes(lc(exemptSearch)) ||
+        lc(e.employeeNumber).includes(lc(exemptSearch))
+      )
+    : exemptEmployees
+
+  const filteredLoginLogs = logSearch
+    ? loginLogs.filter((log: any) =>
+        lc(log.employees?.fullName ?? '').includes(lc(logSearch)) ||
+        lc(log.employees?.employeeNumber ?? '').includes(lc(logSearch))
+      )
+    : loginLogs
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
@@ -390,7 +475,8 @@ export default function ClockInDashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">🕐 Clock-In Management</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            Today — {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {selectedDate === todayStr ? 'Today — ' : ''}
+            {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex gap-3">
@@ -438,6 +524,41 @@ export default function ClockInDashboardPage() {
         </div>
       </div>
 
+      {/* Filters: Business & Date */}
+      <div className="flex flex-wrap items-center gap-3 mb-5 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Business</label>
+          <select
+            value={selectedBusinessId ?? ''}
+            onChange={(e) => setSelectedBusinessId(e.target.value || null)}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 min-w-[180px]"
+          >
+            <option value="">All Businesses</option>
+            {activeBusinesses.map((biz) => (
+              <option key={biz.businessId} value={biz.businessId}>{biz.businessName}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Date</label>
+          <input
+            type="date"
+            value={selectedDate}
+            max={todayStr}
+            onChange={(e) => setSelectedDate(e.target.value || todayStr)}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+        {selectedDate !== todayStr && (
+          <button
+            onClick={() => setSelectedDate(todayStr)}
+            className="px-3 py-1.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 font-medium"
+          >
+            ↩ Back to Today
+          </button>
+        )}
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-gray-700">
         <button
@@ -448,7 +569,7 @@ export default function ClockInDashboardPage() {
               : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
           }`}
         >
-          📋 Today&apos;s Attendance
+          {selectedDate === todayStr ? "📋 Today's Attendance" : `📋 ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} Attendance`}
           {summary && <span className="ml-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">{summary.total}</span>}
         </button>
         <button
@@ -509,6 +630,28 @@ export default function ClockInDashboardPage() {
         </div>
       )}
 
+      {/* Attendance name search */}
+      <div className="flex items-center gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="Search by name or employee #…"
+          value={attendanceSearch}
+          onChange={(e) => setAttendanceSearch(e.target.value)}
+          className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-64"
+        />
+        {attendanceSearch && (
+          <button
+            onClick={() => setAttendanceSearch('')}
+            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            ✕ Clear
+          </button>
+        )}
+        {attendanceSearch && (
+          <span className="text-xs text-gray-400">{filteredEmployees.length} of {employees.length} shown</span>
+        )}
+      </div>
+
       {/* Attendance table */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
@@ -530,12 +673,14 @@ export default function ClockInDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {employees.length === 0 ? (
+              {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400">No employees found</td>
+                  <td colSpan={7} className="text-center py-12 text-gray-400">
+                    {attendanceSearch ? 'No employees match your search' : 'No employees found'}
+                  </td>
                 </tr>
               ) : (
-                employees.map((emp) => (
+                filteredEmployees.map((emp) => (
                   <tr key={emp.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -651,13 +796,35 @@ export default function ClockInDashboardPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             These employees are exempt from daily clock-in. <span className="text-blue-600 dark:text-blue-400 font-medium">🏢 Management roles</span> are auto-exempt by their job title. They still have company ID cards that can be printed.
           </p>
+          <div className="flex items-center gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="Search by name or employee #…"
+              value={exemptSearch}
+              onChange={(e) => setExemptSearch(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-64"
+            />
+            {exemptSearch && (
+              <button
+                onClick={() => setExemptSearch('')}
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕ Clear
+              </button>
+            )}
+            {exemptSearch && (
+              <span className="text-xs text-gray-400">{filteredExemptEmployees.length} of {exemptEmployees.length} shown</span>
+            )}
+          </div>
           {isLoadingExempt ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
               <span className="ml-3 text-gray-500">Loading...</span>
             </div>
-          ) : exemptEmployees.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">No exempt employees found.</div>
+          ) : filteredExemptEmployees.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              {exemptSearch ? 'No exempt employees match your search' : 'No exempt employees found.'}
+            </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
@@ -670,7 +837,7 @@ export default function ClockInDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {exemptEmployees.map((emp) => (
+                  {filteredExemptEmployees.map((emp) => (
                     <tr key={emp.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -748,27 +915,67 @@ export default function ClockInDashboardPage() {
       {/* Login Tracking Tab */}
       {activeTab === 'loginTracking' && (
         <div>
-          <div className="flex items-center gap-3 mb-5 flex-wrap">
-            <input
-              type="date"
-              value={logDateFrom}
-              onChange={(e) => setLogDateFrom(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-            <span className="text-gray-500 text-sm">to</span>
-            <input
-              type="date"
-              value={logDateTo}
-              onChange={(e) => setLogDateTo(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
+          <div className="flex flex-wrap items-center gap-3 mb-5 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+            {/* Preset buttons */}
+            {([
+              { key: 'today',     label: 'Today' },
+              { key: 'yesterday', label: 'Yesterday' },
+              { key: '7days',     label: 'Last 7 Days' },
+              { key: '30days',    label: 'Last 30 Days' },
+              { key: 'month',     label: 'This Month' },
+            ] as const).map(p => (
+              <button
+                key={p.key}
+                onClick={() => applyLogPreset(p.key)}
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                  logActivePreset === p.key
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+            <div className="flex items-center gap-2 ml-1">
+              <input
+                type="date"
+                value={logDateFrom}
+                onChange={(e) => { setLogDateFrom(e.target.value); setLogActivePreset(null) }}
+                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+              <span className="text-gray-500 text-sm">to</span>
+              <input
+                type="date"
+                value={logDateTo}
+                onChange={(e) => { setLogDateTo(e.target.value); setLogActivePreset(null) }}
+                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+            </div>
             <button
               onClick={loadLoginLogs}
               disabled={isLoadingLogs}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
             >
-              {isLoadingLogs ? 'Loading…' : 'Load'}
+              {isLoadingLogs ? 'Loading…' : '🔍 Load'}
             </button>
+            {/* Name search */}
+            <div className="flex items-center gap-2 ml-auto">
+              <input
+                type="text"
+                placeholder="Search by name…"
+                value={logSearch}
+                onChange={(e) => setLogSearch(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-48"
+              />
+              {logSearch && (
+                <button
+                  onClick={() => setLogSearch('')}
+                  className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {isLoadingLogs ? (
@@ -776,10 +983,17 @@ export default function ClockInDashboardPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
               <span className="ml-3 text-gray-500">Loading…</span>
             </div>
-          ) : loginLogs.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">No login events found for this period.</div>
+          ) : filteredLoginLogs.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              {logSearch ? 'No login events match your search' : 'No login events found for this period.'}
+            </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+              {logSearch && (
+                <div className="px-4 py-2 text-xs text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                  Showing {filteredLoginLogs.length} of {loginLogs.length} events
+                </div>
+              )}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
@@ -791,7 +1005,7 @@ export default function ClockInDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {loginLogs.map((log: any) => (
+                  {filteredLoginLogs.map((log: any) => (
                     <tr key={log.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -866,7 +1080,7 @@ export default function ClockInDashboardPage() {
             <div className="p-5 space-y-4">
               <p className="text-sm font-medium text-gray-900 dark:text-white">{manualEntry.fullName}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Enter the correct times for today. This will overwrite any existing clock-in/out record.
+                Enter the correct times for {selectedDate === todayStr ? 'today' : selectedDate}. This will overwrite any existing clock-in/out record.
               </p>
 
               <div className="grid grid-cols-2 gap-3">
