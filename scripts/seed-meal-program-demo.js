@@ -41,8 +41,7 @@ async function seedMealProgram() {
 
   const business = await prisma.businesses.findUnique({ where: { id: BUSINESS_ID } })
   if (!business) {
-    console.error(`❌ Business "${BUSINESS_ID}" not found. Run seed-restaurant-demo.js first.`)
-    process.exitCode = 1
+    console.log(`ℹ️  Business "${BUSINESS_ID}" not found — skipping meal program seed (demo data not required).`)
     return
   }
 

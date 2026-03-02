@@ -13,6 +13,14 @@
 --   74 expense_subcategories
 
 -- =============================================================================
+-- ENSURE domain-restaurant EXISTS (safe for fresh installs and production)
+-- =============================================================================
+
+INSERT INTO expense_domains (id, name, emoji, description, "isActive", "createdAt")
+SELECT 'domain-restaurant', 'Restaurant', '🍽️', 'Expense categories for restaurant business operations', true, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM expense_domains WHERE id = 'domain-restaurant');
+
+-- =============================================================================
 -- EXPENSE CATEGORIES — LIVESTOCK & FEEDS
 -- =============================================================================
 

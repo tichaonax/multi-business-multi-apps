@@ -14,6 +14,18 @@
 
 
 -- =============================================================================
+-- ENSURE REQUIRED DOMAINS EXIST (safe for fresh installs and production)
+-- =============================================================================
+
+INSERT INTO expense_domains (id, name, emoji, description, "isActive", "createdAt")
+SELECT 'domain-business', 'Business (General)', '🏢', 'General expense categories for business operations', true, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM expense_domains WHERE id = 'domain-business');
+
+INSERT INTO expense_domains (id, name, emoji, description, "isActive", "createdAt")
+SELECT 'domain-personal', 'Personal Farm', '🌾', 'Personal farm and livestock expense categories', true, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM expense_domains WHERE id = 'domain-personal');
+
+-- =============================================================================
 -- BUSINESS (GENERAL) EXPENSE DOMAIN — domain-business
 -- =============================================================================
 -- =============================================================================
