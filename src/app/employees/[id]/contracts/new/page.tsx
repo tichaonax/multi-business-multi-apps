@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { generateComprehensiveContract, previewContractPDF, downloadComprehensiveContractPDF } from '@/lib/contract-pdf-generator'
 import { ContractTemplate } from '@/components/contracts/contract-template'
 import { DateInput } from '@/components/ui/date-input'
@@ -113,6 +113,7 @@ interface ContractFormData {
 export default function NewContractPage() {
   const { data: session } = useSession()
   const currentUser = session?.user as any
+  const { hasPermission } = useBusinessPermissionsContext()
   const params = useParams()
   const router = useRouter()
   const employeeId = params.id as string
@@ -189,7 +190,7 @@ export default function NewContractPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.primaryBusinessId, businesses])
 
-  const canCreateEmployeeContracts = currentUser && hasPermission(currentUser, 'canCreateEmployeeContracts')
+  const canCreateEmployeeContracts = hasPermission('canCreateEmployeeContracts')
   const toast = useToastContext()
 
   const validateForm = () => {

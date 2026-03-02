@@ -104,13 +104,18 @@ function getMembershipPermissions(membership: any): BusinessPermissions {
   const presetKey = membership.role as BusinessPermissionPreset
   const presetPermissions = BUSINESS_PERMISSION_PRESETS[presetKey] || BUSINESS_PERMISSION_PRESETS['read-only']
 
-  // Merge with any custom permissions stored in the membership
-  const customPermissions = membership.permissions as Partial<BusinessPermissions>
-  
-  return {
-    ...presetPermissions,
-    ...customPermissions
-  } as BusinessPermissions
+  // Merge with any custom permissions stored in the membership.
+  // Custom permissions can only ELEVATE (grant true), not RESTRICT (override preset true with false).
+  // This ensures updated presets propagate without being blocked by stale DB values.
+  const customPermissions = (membership.permissions || {}) as Partial<BusinessPermissions>
+  const merged = { ...presetPermissions }
+  for (const key of Object.keys(customPermissions) as Array<keyof BusinessPermissions>) {
+    if ((customPermissions as any)[key] === true) {
+      (merged as any)[key] = true
+    }
+  }
+
+  return merged as BusinessPermissions
 }
 
 /**

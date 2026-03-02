@@ -311,7 +311,11 @@ export async function POST(req: NextRequest) {
       employmentStatus = 'pendingContract',
       businessAssignments = [],
       annualLeaveDays = 21,
-      sickLeaveDays = 10
+      sickLeaveDays = 10,
+      profilePhotoUrl,
+      driverLicense,
+      driverLicenseNumber: driverLicenseNumberField,
+      driverLicenseTemplateId,
     } = data
 
     // Validation
@@ -427,6 +431,9 @@ export async function POST(req: NextRequest) {
         primaryBusinessId: primaryBusinessId,
         hireDate: new Date(hireDate),
         startDate: startDate ? new Date(startDate) : new Date(hireDate),
+        driverLicenseNumber: driverLicense || driverLicenseNumberField || null,
+        driverLicenseTemplateId: driverLicenseTemplateId || null,
+        profilePhotoUrl: profilePhotoUrl || null,
         customResponsibilities: customResponsibilities || null,
         notes: notes || null,
         createdBy: user.id,

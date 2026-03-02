@@ -329,7 +329,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       customResponsibilities,
       notes,
       userId,
-      isActive
+      isActive,
+      profilePhotoUrl
     } = data
 
     // Check if employee exists
@@ -470,6 +471,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           customResponsibilities: customResponsibilities || null,
           notes: notes || null,
           isActive: newIsActive,
+          profilePhotoUrl: profilePhotoUrl !== undefined ? (profilePhotoUrl || null) : existingEmployee.profilePhotoUrl,
           updatedAt: new Date()
         },
         include: {

@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSettings } from '@/contexts/settings-context'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface DriverLicenseTemplate {
   id: string
@@ -24,6 +26,7 @@ interface DriverLicenseInputProps {
   disabled?: boolean
   showTemplateSelector?: boolean
   autoValidate?: boolean
+  twoColumnLayout?: boolean
 }
 
 // Exported helper so other components can format driver license values for display
@@ -76,8 +79,10 @@ export function DriverLicenseInput({
   error,
   disabled = false,
   showTemplateSelector = true,
-  autoValidate = true
+  autoValidate = true,
+  twoColumnLayout = false
 }: DriverLicenseInputProps) {
+  const { settings } = useSettings()
   const [licenseTemplates, setLicenseTemplates] = useState<DriverLicenseTemplate[]>([])
   const [validationError, setValidationError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -86,6 +91,16 @@ export function DriverLicenseInput({
   useEffect(() => {
     fetchLicenseTemplates()
   }, [])
+
+  // Auto-select default template based on global settings defaultCountryCode when no templateId is provided
+  useEffect(() => {
+    if (!templateId && licenseTemplates.length > 0 && settings.defaultCountryCode) {
+      const defaultTemplate = licenseTemplates.find(t => t.countryCode === settings.defaultCountryCode)
+      if (defaultTemplate) {
+        onChange(value, defaultTemplate.id)
+      }
+    }
+  }, [licenseTemplates, settings.defaultCountryCode])
 
   const fetchLicenseTemplates = async () => {
     setLoading(true)
@@ -165,28 +180,24 @@ export function DriverLicenseInput({
 
   return (
     <div className={className}>
+      <div className={twoColumnLayout && showTemplateSelector ? 'grid grid-cols-2 gap-3 items-start' : undefined}>
       {/* Template Selector */}
       {showTemplateSelector && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-secondary mb-2">
             Driver License Format Template
           </label>
-          <select
+          <SearchableSelect
+            options={licenseTemplates.map(t => ({
+              id: t.id,
+              name: `${t.name} (${t.countryCode ?? ''}) — e.g. ${t.example}`,
+            }))}
             value={templateId || ''}
-            onChange={(e) => handleTemplateChange(e.target.value)}
+            onChange={(val) => handleTemplateChange(val)}
+            placeholder={loading ? 'Loading formats...' : 'Select driver license format...'}
+            searchPlaceholder="Search license formats..."
             disabled={disabled || loading}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <option value="">Select driver license format...</option>
-            {licenseTemplates.map(template => (
-              <option key={template.id} value={template.id}>
-                {template.name} ({template.countryCode}) - Example: {template.example}
-              </option>
-            ))}
-          </select>
-          {loading && (
-            <p className="text-xs text-secondary mt-1">Loading driver license formats...</p>
-          )}
+          />
         </div>
       )}
 
@@ -225,6 +236,7 @@ export function DriverLicenseInput({
         {currentError && (
           <p className="text-xs text-red-600 dark:text-red-400 mt-1">{currentError}</p>
         )}
+      </div>
       </div>
     </div>
   )

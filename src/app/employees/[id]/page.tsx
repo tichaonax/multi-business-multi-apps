@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { generateComprehensiveContract } from '@/lib/contract-pdf-generator'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
@@ -43,6 +43,7 @@ const CONTRACT_STATUS_COLORS = {
 export default function EmployeeDetailPage() {
   const { data: session } = useSession()
   const currentUser = session?.user as any
+  const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const params = useParams()
   const router = useRouter()
   const confirm = useConfirm()
@@ -74,15 +75,15 @@ export default function EmployeeDetailPage() {
     notes: ''
   })
 
-  const canViewEmployees = currentUser && hasPermission(currentUser, 'canViewEmployees')
-  const canEditEmployees = currentUser && hasPermission(currentUser, 'canEditEmployees')
-  const canManageEmployees = currentUser && hasPermission(currentUser, 'canManageEmployees')
-  const canViewEmployeeContracts = currentUser && hasPermission(currentUser, 'canViewEmployeeContracts')
-  const canCreateEmployeeContracts = currentUser && hasPermission(currentUser, 'canCreateEmployeeContracts')
-  const canApproveEmployeeContracts = currentUser && hasPermission(currentUser, 'canApproveEmployeeContracts')
-  const canDeleteContracts = currentUser && isSystemAdmin(currentUser)
-  const canManageUserAccounts = currentUser && hasPermission(currentUser, 'canManageBusinessUsers')
-  const canEditEmployeeContracts = currentUser && hasPermission(currentUser, 'canEditEmployeeContracts')
+  const canViewEmployees = hasPermission('canViewEmployees')
+  const canEditEmployees = hasPermission('canEditEmployees')
+  const canManageEmployees = hasPermission('canManageEmployees')
+  const canViewEmployeeContracts = hasPermission('canViewEmployeeContracts')
+  const canCreateEmployeeContracts = hasPermission('canCreateEmployeeContracts')
+  const canApproveEmployeeContracts = hasPermission('canApproveEmployeeContracts')
+  const canDeleteContracts = isSystemAdmin
+  const canManageUserAccounts = hasPermission('canManageBusinessUsers')
+  const canEditEmployeeContracts = hasPermission('canEditEmployeeContracts')
 
   useEffect(() => {
     if (canViewEmployees && employeeId) {

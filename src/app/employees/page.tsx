@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SalaryIncreaseModal } from '@/components/employees/salary-increase-modal'
 import { PayrollExportModal } from '@/components/payroll/payroll-export-modal'
 import { AddEmployeeModal } from '@/components/employees/add-employee-modal'
@@ -41,6 +41,7 @@ interface Employee {
   leaveBalance?: any
   currentContract?: any | null
   contractCount?: number
+  profilePhotoUrl?: string | null
 }
 
 interface EmployeesResponse {
@@ -72,6 +73,7 @@ const CONTRACT_STATUS_COLORS = {
 export default function EmployeesPage() {
   const { data: session } = useSession()
   const currentUser = session?.user as any
+  const { hasPermission } = useBusinessPermissionsContext()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -111,12 +113,11 @@ export default function EmployeesPage() {
     }, 300)
   }
 
-  const canViewEmployees = currentUser && hasPermission(currentUser, 'canViewEmployees')
-  const canCreateEmployees = currentUser && hasPermission(currentUser, 'canCreateEmployees')
-  const canEditEmployees = currentUser && hasPermission(currentUser, 'canEditEmployees')
-  const canApproveSalaryIncreases = currentUser && hasPermission(currentUser, 'canApproveSalaryIncreases')
-  const canExportPayroll = currentUser && hasPermission(currentUser, 'canExportEmployeeData') &&
-    hasPermission(currentUser, 'canViewEmployeeReports')
+  const canViewEmployees = hasPermission('canViewEmployees')
+  const canCreateEmployees = hasPermission('canCreateEmployees')
+  const canEditEmployees = hasPermission('canEditEmployees')
+  const canApproveSalaryIncreases = hasPermission('canApproveSalaryIncreases')
+  const canExportPayroll = hasPermission('canExportEmployeeData') && hasPermission('canViewEmployeeReports')
 
   // Auto-select business from URL businessType parameter (run first, before fetch)
   useEffect(() => {
@@ -527,10 +528,20 @@ export default function EmployeesPage() {
                     <div key={employee.id} className="card p-4 space-y-3">
                       {/* Header with avatar and name */}
                       <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm">
-                            {employee.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                          </span>
+                        <div className="w-12 h-12 rounded-full flex-shrink-0 overflow-hidden">
+                          {employee.profilePhotoUrl ? (
+                            <img
+                              src={employee.profilePhotoUrl}
+                              alt={employee.fullName}
+                              className="w-12 h-12 rounded-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden') }}
+                            />
+                          ) : null}
+                          <div className={`w-12 h-12 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center ${employee.profilePhotoUrl ? 'hidden' : ''}`}>
+                            <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm">
+                              {employee.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                            </span>
+                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -703,10 +714,20 @@ export default function EmployeesPage() {
                         <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center">
-                                <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm">
-                                  {employee.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                                </span>
+                              <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden">
+                                {employee.profilePhotoUrl ? (
+                                  <img
+                                    src={employee.profilePhotoUrl}
+                                    alt={employee.fullName}
+                                    className="w-10 h-10 rounded-full object-cover"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden') }}
+                                  />
+                                ) : null}
+                                <div className={`w-10 h-10 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center ${employee.profilePhotoUrl ? 'hidden' : ''}`}>
+                                  <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm">
+                                    {employee.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                  </span>
+                                </div>
                               </div>
                               <div className="ml-4">
                                 <div className="flex items-center gap-2">

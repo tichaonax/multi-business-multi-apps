@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSettings } from '@/contexts/settings-context'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface IdFormatTemplate {
   id: string
@@ -25,6 +26,7 @@ interface NationalIdInputProps {
   disabled?: boolean
   showTemplateSelector?: boolean
   autoValidate?: boolean
+  twoColumnLayout?: boolean
 }
 
 export function NationalIdInput({
@@ -39,7 +41,8 @@ export function NationalIdInput({
   error,
   disabled = false,
   showTemplateSelector = true,
-  autoValidate = true
+  autoValidate = true,
+  twoColumnLayout = false
 }: NationalIdInputProps) {
   const { settings } = useSettings()
   const [idTemplates, setIdTemplates] = useState<IdFormatTemplate[]>([])
@@ -202,28 +205,24 @@ export function NationalIdInput({
 
   return (
     <div className={className}>
+      <div className={twoColumnLayout && showTemplateSelector ? 'grid grid-cols-2 gap-3 items-start' : undefined}>
       {/* Template Selector */}
       {showTemplateSelector && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-secondary mb-2">
             ID Format Template
           </label>
-          <select
+          <SearchableSelect
+            options={idTemplates.map(t => ({
+              id: t.id,
+              name: `${t.name} (${t.countryCode ?? ''}) — e.g. ${t.example}`,
+            }))}
             value={templateId || ''}
-            onChange={(e) => handleTemplateChange(e.target.value)}
+            onChange={(val) => handleTemplateChange(val)}
+            placeholder={loading ? 'Loading formats...' : 'Select ID format...'}
+            searchPlaceholder="Search ID formats..."
             disabled={disabled || loading}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <option value="">Select ID format...</option>
-            {idTemplates.map(template => (
-              <option key={template.id} value={template.id}>
-                {template.name} ({template.countryCode}) - Example: {template.example}
-              </option>
-            ))}
-          </select>
-          {loading && (
-            <p className="text-xs text-secondary mt-1">Loading ID formats...</p>
-          )}
+          />
         </div>
       )}
 
@@ -262,6 +261,7 @@ export function NationalIdInput({
         {currentError && (
           <p className="text-xs text-red-600 dark:text-red-400 mt-1">{currentError}</p>
         )}
+      </div>
       </div>
     </div>
   )

@@ -144,9 +144,10 @@ export async function GET() {
 
     return NextResponse.json(transformedMemberships);
   } catch (error) {
-    console.error('Error fetching business memberships:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('Error fetching business memberships:', msg, error);
     return NextResponse.json(
-      { error: 'Failed to fetch business memberships' },
+      { error: 'Failed to fetch business memberships', detail: msg },
       { status: 500 }
     );
   }

@@ -1373,7 +1373,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canViewEmployeeReports: true,
   canExportEmployeeData: true,
   canApproveSalaryIncreases: true,
-  canProcessSalaryIncreases: false,
+  canProcessSalaryIncreases: true,
 
   // Financial Management - Manager access
   canAccessFinancialData: true,
@@ -2256,6 +2256,14 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canEditPayees: false,
 };
 
+export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
+  ...DEFAULT_USER_PERMISSIONS,
+  // Managers can manage contractors (for construction & personal finance modules)
+  canManagePersonalContractors: true,
+  canManagePersonalCategories: true,
+  canDeletePersonalExpenses: true,
+};
+
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   // Personal Finance - Full access
   canAccessPersonalFinance: true,
@@ -2509,7 +2517,7 @@ export type BusinessPermissionPreset = keyof typeof BUSINESS_PERMISSION_PRESETS;
 // User-level permission presets mapping (for role-based user permission defaults)
 export const USER_LEVEL_PERMISSION_PRESETS = {
   'business-owner': ADMIN_USER_PERMISSIONS,
-  'business-manager': DEFAULT_USER_PERMISSIONS,
+  'business-manager': MANAGER_USER_PERMISSIONS,
   'employee': DEFAULT_USER_PERMISSIONS,
   'restaurant-associate': RESTAURANT_ASSOCIATE_USER_PERMISSIONS,
   'grocery-associate': RESTAURANT_ASSOCIATE_USER_PERMISSIONS,   // Same user perms (print receipts)

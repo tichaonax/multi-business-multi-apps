@@ -68,7 +68,16 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
         const signal = controller.signal;
 
         const res = await fetch("/api/user/business-memberships", { signal });
-        if (!res.ok) throw new Error("Failed to fetch business memberships");
+        if (res.status === 401) {
+          // Session is invalid server-side (e.g. after fresh install with new secret)
+          // Redirect to login instead of showing an error
+          router.push('/auth/signin');
+          return;
+        }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(`Failed to fetch business memberships (${res.status}): ${body?.detail || body?.error || 'unknown error'}`);
+        }
         const memberships: BusinessMembership[] = await res.json();
         setBusinesses(memberships);
 

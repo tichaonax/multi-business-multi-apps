@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { hasPermission } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { DriverLicenseInput } from '@/components/ui/driver-license-input'
@@ -49,6 +49,7 @@ interface Employee {
 export default function EmployeeEditPage() {
   const { data: session } = useSession()
   const currentUser = session?.user as any
+  const { hasPermission } = useBusinessPermissionsContext()
   const params = useParams()
   const router = useRouter()
   const employeeId = params.id as string
@@ -62,6 +63,8 @@ export default function EmployeeEditPage() {
   const [error, setError] = useState('')
   
   // Form data
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -81,10 +84,11 @@ export default function EmployeeEditPage() {
     employmentStatus: 'active',
     contractStatus: 'pending_signature',
     supervisorId: '',
-    notes: ''
+    notes: '',
+    profilePhotoUrl: ''
   })
 
-  const canEditEmployees = currentUser && hasPermission(currentUser, 'canEditEmployees')
+  const canEditEmployees = hasPermission('canEditEmployees')
 
   useEffect(() => {
     if (canEditEmployees && employeeId) {
@@ -117,7 +121,8 @@ export default function EmployeeEditPage() {
           hireDateCountryCode: 'ZW',
           employmentStatus: data.employmentStatus || 'active',
           supervisorId: data.supervisor?.id || '',
-          notes: data.notes || ''
+          notes: data.notes || '',
+          profilePhotoUrl: data.profilePhotoUrl || ''
         })
 
         // Load potential supervisors (excluding current employee)
@@ -222,6 +227,33 @@ export default function EmployeeEditPage() {
       setError('Failed to update employee')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingPhoto(true)
+    try {
+      const fd = new FormData()
+      fd.append('files', file)
+      // No expiresInDays — profile photos are permanent
+      const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
+      if (res.ok) {
+        const data = await res.json()
+        const url = data.data?.[0]?.url ?? data.url
+        if (url) {
+          setFormData(prev => ({ ...prev, profilePhotoUrl: url }))
+        }
+      } else {
+        setError('Failed to upload photo')
+      }
+    } catch {
+      setError('Failed to upload photo')
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = '' // reset file input
     }
   }
 
@@ -402,7 +434,57 @@ export default function EmployeeEditPage() {
               {/* Personal Information */}
               <div>
                 <h3 className="text-lg font-semibold text-primary mb-4">Personal Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* Profile Photo */}
+                <div className="flex items-center gap-6 mb-6">
+                  <div className="relative">
+                    {formData.profilePhotoUrl ? (
+                      <img
+                        src={formData.profilePhotoUrl}
+                        alt="Profile photo"
+                        className="w-24 h-24 rounded-full object-cover border-2 border-gray-300 dark:border-gray-600"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/expired-photo.svg' }}
+                      />
+                    ) : (
+                      <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-2 border-gray-300 dark:border-gray-600">
+                        <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    )}
+                    {uploadingPhoto && (
+                      <div className="absolute inset-0 rounded-full bg-black bg-opacity-50 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-primary mb-1">Profile Photo</p>
+                    <p className="text-xs text-secondary mb-2">JPG, PNG or WEBP. Used for identification.</p>
+                    <label className="btn-secondary text-sm cursor-pointer">
+                      {uploadingPhoto ? 'Uploading...' : formData.profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handlePhotoUpload}
+                        disabled={uploadingPhoto}
+                        className="hidden"
+                      />
+                    </label>
+                    {formData.profilePhotoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, profilePhotoUrl: '' }))}
+                        className="ml-2 text-xs text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Row 1: Emp# · First · Last */}
                   <div>
                     <label className="block text-sm font-medium text-secondary mb-2">
                       Employee Number
@@ -413,9 +495,7 @@ export default function EmployeeEditPage() {
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-600 text-primary cursor-not-allowed"
                     />
-                    <p className="text-xs text-secondary mt-1">
-                      System-generated unique identifier
-                    </p>
+                    <p className="text-xs text-secondary mt-1">System-generated unique identifier</p>
                   </div>
 
                   <div>
@@ -446,10 +526,9 @@ export default function EmployeeEditPage() {
                     />
                   </div>
 
+                  {/* Row 2: Email · Phone · Date of Birth */}
                   <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">
-                      Email
-                    </label>
+                    <label className="block text-sm font-medium text-secondary mb-2">Email</label>
                     <input
                       type="email"
                       name="email"
@@ -462,12 +541,7 @@ export default function EmployeeEditPage() {
                   <PhoneNumberInput
                     value={formData.phone}
                     onChange={(fullPhone, countryCode, localNumber) => {
-                      setFormData({
-                        ...formData,
-                        phone: fullPhone,
-                        countryCode,
-                        localNumber
-                      })
+                      setFormData({ ...formData, phone: fullPhone, countryCode, localNumber })
                     }}
                     label="Phone Number"
                     placeholder="77 123 4567"
@@ -475,59 +549,10 @@ export default function EmployeeEditPage() {
                     className=""
                   />
 
-                  <NationalIdInput
-                    value={formData.nationalId}
-                    templateId={formData.idFormatTemplateId}
-                    onChange={(nationalId, templateId) => {
-                      setFormData({
-                        ...formData,
-                        nationalId,
-                        idFormatTemplateId: templateId || ''
-                      })
-                    }}
-                    onTemplateChange={(templateId) => {
-                      setFormData({
-                        ...formData,
-                        idFormatTemplateId: templateId
-                      })
-                    }}
-                    label="National ID"
-                    required
-                    showTemplateSelector={true}
-                    autoValidate={true}
-                  />
-
-                  <DriverLicenseInput
-                    value={formData.driverLicenseNumber}
-                    templateId={formData.driverLicenseTemplateId}
-                    onChange={(driverLicense, templateId) => {
-                      setFormData({
-                        ...formData,
-                        driverLicenseNumber: driverLicense,
-                        driverLicenseTemplateId: templateId || ''
-                      })
-                    }}
-                    onTemplateChange={(templateId) => {
-                      setFormData({
-                        ...formData,
-                        driverLicenseTemplateId: templateId
-                      })
-                    }}
-                    label="Driver License (Optional)"
-                    placeholder="Enter driver license"
-                    required={false}
-                    showTemplateSelector={true}
-                    autoValidate={true}
-                  />
-
                   <DateInput
                     value={formData.dateOfBirth}
                     onChange={(isoDate, countryCode) => {
-                      setFormData({
-                        ...formData,
-                        dateOfBirth: isoDate,
-                        dateOfBirthCountryCode: countryCode
-                      })
+                      setFormData({ ...formData, dateOfBirth: isoDate, dateOfBirthCountryCode: countryCode })
                     }}
                     label="Date of Birth"
                     placeholder="Enter date of birth"
@@ -535,26 +560,62 @@ export default function EmployeeEditPage() {
                     showCountrySelector={false}
                     className=""
                   />
-                </div>
 
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Address
-                  </label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  {/* Row 3: National ID spans 2 cols — template + input side-by-side */}
+                  <NationalIdInput
+                    value={formData.nationalId}
+                    templateId={formData.idFormatTemplateId}
+                    onChange={(nationalId, templateId) => {
+                      setFormData({ ...formData, nationalId, idFormatTemplateId: templateId || '' })
+                    }}
+                    onTemplateChange={(templateId) => {
+                      setFormData({ ...formData, idFormatTemplateId: templateId })
+                    }}
+                    label="National ID"
+                    required
+                    showTemplateSelector={true}
+                    autoValidate={true}
+                    twoColumnLayout={true}
+                    className="md:col-span-2 lg:col-span-2"
                   />
+
+                  {/* Row 4: Driver License spans 2 cols — template + input side-by-side */}
+                  <DriverLicenseInput
+                    value={formData.driverLicenseNumber}
+                    templateId={formData.driverLicenseTemplateId}
+                    onChange={(driverLicense, templateId) => {
+                      setFormData({ ...formData, driverLicenseNumber: driverLicense, driverLicenseTemplateId: templateId || '' })
+                    }}
+                    onTemplateChange={(templateId) => {
+                      setFormData({ ...formData, driverLicenseTemplateId: templateId })
+                    }}
+                    label="Driver License (Optional)"
+                    placeholder="Enter driver license"
+                    required={false}
+                    showTemplateSelector={true}
+                    autoValidate={true}
+                    twoColumnLayout={true}
+                    className="md:col-span-2 lg:col-span-2"
+                  />
+
+                  {/* Row 5: Address — full width */}
+                  <div className="md:col-span-2 lg:col-span-3">
+                    <label className="block text-sm font-medium text-secondary mb-2">Address</label>
+                    <textarea
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Employment Information */}
               <div>
                 <h3 className="text-lg font-semibold text-primary mb-4">Employment Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <DateInput
                     value={formData.hireDate}
                     onChange={(isoDate, countryCode) => {
@@ -663,22 +724,21 @@ export default function EmployeeEditPage() {
                       </p>
                     </div>
                   )}
-                </div>
-              </div>
 
-              {/* Notes */}
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  Notes
-                </label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Additional notes about the employee..."
-                />
+                  <div className="md:col-span-2 lg:col-span-3">
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Notes
+                    </label>
+                    <textarea
+                      name="notes"
+                      value={formData.notes}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Additional notes about the employee..."
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Action Buttons */}

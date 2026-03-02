@@ -31,7 +31,7 @@ export async function GET() {
       }
     })
 
-    const businesses = userMemberships.map(membership => membership.business)
+    const businesses = userMemberships.map(membership => membership.businesses)
     return NextResponse.json(businesses)
   } catch (error) {
     console.error('Error fetching businesses:', error)
