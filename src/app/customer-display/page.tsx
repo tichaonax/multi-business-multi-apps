@@ -101,6 +101,7 @@ function CustomerDisplayContent() {
 
   // Greeting and business info
   const [employeeName, setEmployeeName] = useState<string | null>(null)
+  const [employeePhotoUrl, setEmployeePhotoUrl] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState<string | null>(null)
   const [customerRewardMessage, setCustomerRewardMessage] = useState<string | null>(null)
   const [customerRewardApplied, setCustomerRewardApplied] = useState(false)
@@ -292,6 +293,9 @@ function CustomerDisplayContent() {
         })
         if (message.payload.employeeName) {
           setEmployeeName(message.payload.employeeName)
+        }
+        if (message.payload.employeePhotoUrl) {
+          setEmployeePhotoUrl(message.payload.employeePhotoUrl)
         }
         // Business data (name, phone, customMessage) is ONLY set from API, not from POS broadcast
         break
@@ -629,21 +633,26 @@ function CustomerDisplayContent() {
 
           {/* Employee Greeting & Business Info */}
           <div className="flex items-center justify-between">
-            <div className="flex-1 text-center">
-              {customerName ? (
-                <p className="text-2xl font-bold">
-                  {(() => {
-                    const h = new Date().getHours()
-                    if (h < 12) return `🌅 Good Morning, ${customerName}!`
-                    if (h < 17) return `☀️ Good Afternoon, ${customerName}!`
-                    return `🌙 Good Evening, ${customerName}!`
-                  })()}
-                </p>
-              ) : employeeName ? (
-                <p className="text-xl font-medium">
-                  🙋 {employeeName} is here to help you today
-                </p>
-              ) : null}
+            <div className="flex-1 flex items-center gap-3">
+              {employeePhotoUrl && (
+                <img src={employeePhotoUrl} alt="" className="w-36 h-36 rounded-full object-cover border-2 border-white/40 shadow flex-shrink-0" />
+              )}
+              <div className="flex-1 text-center">
+                {customerName ? (
+                  <p className="text-2xl font-bold">
+                    {(() => {
+                      const h = new Date().getHours()
+                      if (h < 12) return `🌅 Good Morning, ${customerName}!`
+                      if (h < 17) return `☀️ Good Afternoon, ${customerName}!`
+                      return `🌙 Good Evening, ${customerName}!`
+                    })()}
+                  </p>
+                ) : employeeName ? (
+                  <p className="text-xl font-medium">
+                    🙋 {employeeName} is here to help you today
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             {businessPhone && (

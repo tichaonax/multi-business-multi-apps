@@ -14,6 +14,7 @@ import { UniversalProduct } from '@/components/universal/product-card'
 import { useState, useEffect, useRef } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { useSession } from 'next-auth/react'
+
 import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -143,7 +144,6 @@ export default function RestaurantPOS() {
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
   const isAdmin = sessionUser?.role === 'admin'
-
   // Customer rewards hook — must be after currentBusinessId is available
   const { rewards: customerRewards, usedRewards: customerUsedRewards } = useCustomerRewards(
     selectedCustomer?.id ?? null,
@@ -332,6 +332,9 @@ export default function RestaurantPOS() {
           })
         }
 
+        // Fetch employee photo before the delay so it's ready when greeting is sent
+        const photoData = await fetch('/api/employees/my-photo').then(r => r.json()).catch(() => ({}))
+
         // Wait for BroadcastChannel to initialize on BOTH windows
         await new Promise(resolve => setTimeout(resolve, 2000))
 
@@ -340,6 +343,7 @@ export default function RestaurantPOS() {
         // Send employee greeting only (business info comes from customer display API)
         const greetingData = {
           employeeName: sessionUser?.name || 'Staff',
+          employeePhotoUrl: photoData?.profilePhotoUrl || undefined,
           subtotal: 0,
           tax: 0,
           total: 0

@@ -165,7 +165,6 @@ export default function ClothingPOSPage() {
   // Get user info
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
-
   // Check if current business is a clothing business
   const isClothingBusiness = currentBusiness?.businessType === 'clothing'
 
@@ -312,6 +311,9 @@ export default function ClothingPOSPage() {
         })
 
         // Wait longer for BroadcastChannel to initialize on BOTH windows
+        // Fetch employee photo before the delay so it's ready when greeting is sent
+        const photoData = await fetch('/api/employees/my-photo').then(r => r.json()).catch(() => ({}))
+
         console.log('[Clothing POS] Waiting for BroadcastChannel to be ready...')
         await new Promise(resolve => setTimeout(resolve, 2000))
 
@@ -321,6 +323,7 @@ export default function ClothingPOSPage() {
         // Send greeting and business info
         const greetingData = {
           employeeName: sessionUser?.name || 'Staff',
+          employeePhotoUrl: photoData?.profilePhotoUrl || undefined,
           businessName: businessData?.name || businessData?.umbrellaBusinessName || currentBusiness.businessName || '',
           businessPhone: businessData?.phone || businessData?.umbrellaBusinessPhone || '',
           customMessage: businessData?.receiptReturnPolicy || 'All sales are final',

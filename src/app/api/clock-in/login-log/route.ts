@@ -74,13 +74,13 @@ export async function GET(req: NextRequest) {
     if (dateFrom || dateTo) {
       where.createdAt = {}
       if (dateFrom) {
-        const from = new Date(dateFrom)
-        from.setUTCHours(0, 0, 0, 0)
+        const from = new Date(dateFrom + 'T00:00:00')
+        from.setHours(0, 0, 0, 0)
         where.createdAt.gte = from
       }
       if (dateTo) {
-        const to = new Date(dateTo)
-        to.setUTCHours(23, 59, 59, 999)
+        const to = new Date(dateTo + 'T00:00:00')
+        to.setHours(23, 59, 59, 999)
         where.createdAt.lte = to
       }
     }

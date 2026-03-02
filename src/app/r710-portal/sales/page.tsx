@@ -132,31 +132,28 @@ export default function R710SalesPage() {
 
   // Send greeting to customer display when page loads
   useEffect(() => {
-    if (currentBusinessId && businessDetails && session?.user) {
+    if (!currentBusinessId || !businessDetails || !session?.user) return
+    async function sendGreeting() {
       // CRITICAL: Signal which business is active FIRST
-      // This allows customer display to work with multiple businesses
       console.log('[R710 Sales] Signaling active business:', currentBusinessId)
-      sendToDisplay('SET_ACTIVE_BUSINESS', {
-        subtotal: 0,
-        tax: 0,
-        total: 0
-      })
+      sendToDisplay('SET_ACTIVE_BUSINESS', { subtotal: 0, tax: 0, total: 0 })
+
+      // Fetch employee photo alongside greeting
+      const photoData = await fetch('/api/employees/my-photo').then(r => r.json()).catch(() => ({}))
 
       sendToDisplay('SET_GREETING', {
-        employeeName: session.user.name || 'Staff',
+        employeeName: session!.user!.name || 'Staff',
+        employeePhotoUrl: photoData?.profilePhotoUrl || undefined,
         businessName: businessDetails.name || businessDetails.businessName,
         businessPhone: businessDetails.phone || businessDetails.umbrellaBusinessPhone,
         subtotal: 0,
         tax: 0,
         total: 0
       })
-      sendToDisplay('SET_PAGE_CONTEXT', {
-        pageContext: 'pos',
-        subtotal: 0,
-        tax: 0,
-        total: 0
-      })
+      sendToDisplay('SET_PAGE_CONTEXT', { pageContext: 'pos', subtotal: 0, tax: 0, total: 0 })
     }
+    sendGreeting()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBusinessId, businessDetails, session?.user])
 
   // Update customer display when price changes

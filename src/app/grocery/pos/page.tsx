@@ -11,6 +11,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider, useBusinessContext, BarcodeScanner } from '@/components/universal'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useSession } from 'next-auth/react'
+
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -336,7 +337,6 @@ function GroceryPOSContent() {
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
   const isAdmin = sessionUser?.role === 'admin'
-
   // Check if current business is a grocery business
   const isGroceryBusiness = currentBusiness?.businessType === 'grocery'
 
@@ -795,6 +795,9 @@ function GroceryPOSContent() {
           receiptReturnPolicy: businessData?.receiptReturnPolicy
         })
 
+        // Fetch employee photo before the delay so it's ready when greeting is sent
+        const photoData = await fetch('/api/employees/my-photo').then(r => r.json()).catch(() => ({}))
+
         // Wait longer for BroadcastChannel to initialize on BOTH windows
         console.log('[Grocery POS] Waiting for BroadcastChannel to be ready...')
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -805,6 +808,7 @@ function GroceryPOSContent() {
         // Send greeting and business info
         const greetingData = {
           employeeName: sessionUser?.name || 'Staff',
+          employeePhotoUrl: photoData?.profilePhotoUrl || undefined,
           businessName: businessData?.name || businessData?.umbrellaBusinessName || currentBusiness.businessName || '',
           businessPhone: businessData?.phone || businessData?.umbrellaBusinessPhone || '',
           customMessage: businessData?.receiptReturnPolicy || 'All sales are final',

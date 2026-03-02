@@ -79,7 +79,10 @@ export default function ClockInDashboardPage() {
 
   // Business & date filter
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
   const [selectedDate, setSelectedDate] = useState(todayStr)
 
   // Track whether we've resolved the initial business selection

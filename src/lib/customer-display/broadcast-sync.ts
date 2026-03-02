@@ -41,6 +41,7 @@ export interface CartMessage {
     tax: number
     total: number
     employeeName?: string
+    employeePhotoUrl?: string
     businessName?: string
     businessPhone?: string
     customMessage?: string
