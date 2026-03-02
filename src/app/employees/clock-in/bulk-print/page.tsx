@@ -227,12 +227,14 @@ export default function BulkPrintPage() {
           width: 1.2,
           height: 30,
           displayValue: false,
-          margin: 3,
+          margin: 8,
         })
+        svgEl.style.maxWidth = '100%'
+        svgEl.style.display = 'block'
         const barcodeSvg = svgEl.outerHTML
         const card = buildCardHtml(emp, barcodeSvg)
         return `
-          <div style="display:flex;align-items:flex-start;margin-bottom:8px;page-break-inside:avoid;">
+          <div style="display:flex;align-items:flex-start;justify-content:center;margin-bottom:8px;page-break-inside:avoid;">
             ${card}
             <div style="width:0;align-self:stretch;border-left:2px dashed #9ca3af;"></div>
             ${card}
@@ -243,7 +245,7 @@ export default function BulkPrintPage() {
       const printWindow = window.open('', '_blank', 'width=800,height=700')
       if (!printWindow) { alert('Popup blocked — please allow popups for this site.'); return }
 
-      printWindow.document.write(`<!DOCTYPE html><html><head><title>Bulk Print — ID Cards</title><style>body{margin:10mm;background:white;font-family:sans-serif;}@media print{body{margin:5mm;}}</style></head><body>${cardRows}<script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`)
+      printWindow.document.write(`<!DOCTYPE html><html><head><title>Bulk Print — ID Cards</title><style>body{margin:10mm;background:white;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;}@media print{body{margin:5mm;}}</style></head><body>${cardRows}<script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`)
       printWindow.document.close()
     } finally {
       setIsPrinting(false)

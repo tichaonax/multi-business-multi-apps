@@ -241,13 +241,13 @@ export default function ExternalClockInPage() {
     setTimeout(() => {
       const cardEl = document.getElementById('employee-id-card')
       if (!cardEl) return
-      const printWindow = window.open('', '_blank', 'width=720,height=420')
+      const printWindow = window.open('', '_blank', 'width=900,height=460')
       if (!printWindow) return
       const styles = Array.from(document.styleSheets)
         .map((sheet) => { try { return Array.from(sheet.cssRules).map((r) => r.cssText).join('\n') } catch { return '' } })
         .join('\n')
       const cardHtml = cardEl.outerHTML
-      printWindow.document.write(`<!DOCTYPE html><html><head><title>ID Card — ${person.fullName}</title><style>${styles}body{margin:10px;display:flex;justify-content:center;align-items:flex-start;}.card-pair{display:inline-flex;align-items:flex-start;}.fold-guide{width:0;align-self:stretch;border-left:2px dashed #888;}@media print{body{margin:0;padding:10px;}.fold-guide{border-left-color:#bbb;}}</style></head><body><div class="card-pair">${cardHtml}<div class="fold-guide"></div>${cardHtml}</div><script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`)
+      printWindow.document.write(`<!DOCTYPE html><html><head><title>ID Card — ${person.fullName}</title><style>${styles}html,body{height:100%;margin:0;padding:0;}body{display:flex;justify-content:center;align-items:center;min-height:100vh;}.card-pair{display:inline-flex;align-items:flex-start;}.fold-guide{width:0;align-self:stretch;border-left:2px dashed #888;}@media print{html,body{height:100vh;margin:0;padding:0;}.fold-guide{border-left-color:#bbb;}}</style></head><body><div class="card-pair">${cardHtml}<div class="fold-guide"></div>${cardHtml}</div><script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`)
       printWindow.document.close()
     }, 300)
   }

@@ -10,6 +10,7 @@ interface ScanResult {
   attendanceId?: string | null
   employee?: { id: string; fullName: string; profilePhotoUrl: string | null; employeeNumber: string }
   isExempt?: boolean
+  isManagement?: boolean
   clockedIn?: boolean
   alreadyClockedIn?: boolean
   clockedOut?: boolean
@@ -201,6 +202,9 @@ export function CardScanOverlay() {
         }).catch(() => {})
       }
 
+      // For management who can login — keep open for login dialog
+      if (data.found && data.isManagement && data.canLogin) return
+
       // For fresh clock-ins — keep open so user can respond to login prompt
       if (data.found && data.clockedIn) return
 
@@ -248,16 +252,17 @@ export function CardScanOverlay() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [scanState, handleCardScan])
 
-  // Auto-start camera for fresh clock-ins OR exempt users who can login
+  // Auto-start camera for fresh clock-ins, management login, or exempt users who can login
   useEffect(() => {
     if (
       (scanResult?.found && scanResult.clockedIn) ||
+      (scanResult?.found && scanResult.isManagement && scanResult.canLogin) ||
       (scanResult?.found && scanResult.isExempt && scanResult.canLogin)
     ) {
       startCamera()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanResult?.clockedIn, scanResult?.isExempt, scanResult?.canLogin])
+  }, [scanResult?.clockedIn, scanResult?.isManagement, scanResult?.isExempt, scanResult?.canLogin])
 
   // Re-assign stream once cameraActive flips true and the <video> element is in the DOM
   useEffect(() => {
@@ -318,11 +323,14 @@ export function CardScanOverlay() {
   } else {
     const emp = scanResult.employee!
     const isNewClockIn = !!scanResult.clockedIn
+    const isManagementWithLogin = !!scanResult.isManagement && !!scanResult.canLogin
     const isExemptWithLogin = !!scanResult.isExempt && !!scanResult.canLogin
-    const showCameraSection = isNewClockIn || isExemptWithLogin
-    const showLoginPrompt = (isNewClockIn || isExemptWithLogin) && scanResult.canLogin
+    const showCameraSection = isNewClockIn || isManagementWithLogin || isExemptWithLogin
+    const showLoginPrompt = (isNewClockIn || isManagementWithLogin || isExemptWithLogin) && scanResult.canLogin
 
-    const clockMsg = scanResult.isExempt
+    const clockMsg = scanResult.isManagement
+      ? 'Management — no clock-in required'
+      : scanResult.isExempt
       ? 'Clock-in not required for this employee'
       : scanResult.alreadyClockedIn
       ? `Already clocked in at ${formatTime(scanResult.clockInTime)}`
@@ -379,7 +387,7 @@ export function CardScanOverlay() {
             <div className="flex gap-2">
               <button onClick={handleLoginNo} disabled={isLoggingIn}
                 className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                {isExemptWithLogin ? 'No, just scan' : 'No, just clock in'}
+                {isManagementWithLogin || isExemptWithLogin ? 'No, just scan' : 'No, just clock in'}
               </button>
               <button
                 onClick={() => handleLoginYes(scanResult.employee!.employeeNumber)}
@@ -392,7 +400,7 @@ export function CardScanOverlay() {
         )}
 
         {/* Dismiss for non-interactive results */}
-        {!isNewClockIn && !isExemptWithLogin && (
+        {!isNewClockIn && !isManagementWithLogin && !isExemptWithLogin && (
           <button onClick={dismiss}
             className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg">
             Dismiss

@@ -101,7 +101,7 @@ export default function EmployeesPage() {
     setTimeout(() => {
       const cardEl = document.getElementById('employee-id-card')
       if (!cardEl) return
-      const printWindow = window.open('', '_blank', 'width=460,height=360')
+      const printWindow = window.open('', '_blank', 'width=900,height=460')
       if (!printWindow) return
       const styles = Array.from(document.styleSheets)
         .map((sheet) => { try { return Array.from(sheet.cssRules).map((r) => r.cssText).join('\n') } catch { return '' } })

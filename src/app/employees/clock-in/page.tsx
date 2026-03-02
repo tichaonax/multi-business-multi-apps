@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { EmployeeIdCard } from '@/components/clock-in/employee-id-card'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -412,7 +412,7 @@ export default function ClockInDashboardPage() {
   const printDoubleCard = (name: string) => {
     const cardEl = document.getElementById('employee-id-card')
     if (!cardEl) return
-    const printWindow = window.open('', '_blank', 'width=720,height=420')
+    const printWindow = window.open('', '_blank', 'width=900,height=460')
     if (!printWindow) return
     const styles = Array.from(document.styleSheets)
       .map((sheet) => {
@@ -421,7 +421,7 @@ export default function ClockInDashboardPage() {
       })
       .join('\n')
     const cardHtml = cardEl.outerHTML
-    printWindow.document.write(`<!DOCTYPE html><html><head><title>ID Card — ${name}</title><style>${styles}body{margin:10px;display:flex;justify-content:center;align-items:flex-start;}.card-pair{display:inline-flex;align-items:flex-start;}.fold-guide{width:0;align-self:stretch;border-left:2px dashed #888;}@media print{body{margin:0;padding:10px;}.fold-guide{border-left-color:#bbb;}}</style></head><body><div class="card-pair">${cardHtml}<div class="fold-guide"></div>${cardHtml}</div><script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`)
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>ID Card — ${name}</title><style>${styles}html,body{height:100%;margin:0;padding:0;}body{display:flex;justify-content:center;align-items:center;min-height:100vh;}.card-pair{display:inline-flex;align-items:flex-start;}.fold-guide{width:0;align-self:stretch;border-left:2px dashed #888;}@media print{html,body{height:100vh;margin:0;padding:0;}.fold-guide{border-left-color:#bbb;}}</style></head><body><div class="card-pair">${cardHtml}<div class="fold-guide"></div>${cardHtml}</div><script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`)
     printWindow.document.close()
   }
 
@@ -465,26 +465,50 @@ export default function ClockInDashboardPage() {
 
   // Client-side filtered data for each tab
   const lc = (s: string) => s.toLowerCase()
-  const filteredEmployees = attendanceSearch
-    ? employees.filter(e =>
-        lc(e.fullName).includes(lc(attendanceSearch)) ||
-        lc(e.employeeNumber).includes(lc(attendanceSearch))
-      )
-    : employees
 
-  const filteredExemptEmployees = exemptSearch
-    ? exemptEmployees.filter(e =>
-        lc(e.fullName).includes(lc(exemptSearch)) ||
-        lc(e.employeeNumber).includes(lc(exemptSearch))
-      )
-    : exemptEmployees
+  // When a specific business is selected, no extra filtering needed.
+  // When "All Businesses" (null) is selected, restrict to the businesses
+  // visible under the current demoFilter chip (Real / Demo / All).
+  const allowedBizIds = useMemo(() => {
+    if (selectedBusinessId) return null // API already scoped to one business
+    if (demoFilter === 'all') return null // no restriction
+    const pool = demoFilter === 'real'
+      ? allRealBusinesses.filter((b) => !b.isDemo)
+      : allRealBusinesses.filter((b) => b.isDemo)
+    return new Set(pool.map((b) => b.businessId))
+  }, [selectedBusinessId, demoFilter, allRealBusinesses])
 
-  const filteredLoginLogs = logSearch
-    ? loginLogs.filter((log: any) =>
-        lc(log.employees?.fullName ?? '').includes(lc(logSearch)) ||
-        lc(log.employees?.employeeNumber ?? '').includes(lc(logSearch))
-      )
-    : loginLogs
+  const filteredEmployees = useMemo(() => {
+    let base = employees
+    if (allowedBizIds) base = base.filter((e) => e.primaryBusiness && allowedBizIds.has(e.primaryBusiness.id))
+    if (attendanceSearch) base = base.filter(e =>
+      lc(e.fullName).includes(lc(attendanceSearch)) ||
+      lc(e.employeeNumber).includes(lc(attendanceSearch))
+    )
+    return base
+  }, [employees, allowedBizIds, attendanceSearch])
+
+  const filteredExemptEmployees = useMemo(() => {
+    let base = exemptEmployees
+    if (allowedBizIds) base = base.filter((e) => e.primaryBusiness && allowedBizIds.has(e.primaryBusiness.id))
+    if (exemptSearch) base = base.filter(e =>
+      lc(e.fullName).includes(lc(exemptSearch)) ||
+      lc(e.employeeNumber).includes(lc(exemptSearch))
+    )
+    return base
+  }, [exemptEmployees, allowedBizIds, exemptSearch])
+
+  const filteredLoginLogs = useMemo(() => {
+    let base = loginLogs
+    if (allowedBizIds) base = base.filter((log: any) =>
+      log.employees?.primaryBusinessId && allowedBizIds.has(log.employees.primaryBusinessId)
+    )
+    if (logSearch) base = base.filter((log: any) =>
+      lc(log.employees?.fullName ?? '').includes(lc(logSearch)) ||
+      lc(log.employees?.employeeNumber ?? '').includes(lc(logSearch))
+    )
+    return base
+  }, [loginLogs, allowedBizIds, logSearch])
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

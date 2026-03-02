@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
         users: {
           select: { id: true, isActive: true },
         },
+        job_titles: { select: { level: true } },
       },
     })
 
@@ -34,6 +35,31 @@ export async function POST(req: NextRequest) {
 
     // Can this employee log into the app?
     const canLogin = !!(employee.users && employee.users.isActive)
+
+    // Check management status BEFORE clock-in records — managers never clock in via card scan
+    const MANAGER_LEVELS = ['manager', 'senior', 'executive']
+    const jobLevel = ((employee as any).job_titles?.level ?? '').toLowerCase()
+    const isManagement = MANAGER_LEVELS.includes(jobLevel)
+
+    if (isManagement) {
+      return NextResponse.json({
+        found: true,
+        canLogin,
+        isManagement: true,
+        employee: {
+          id: employee.id,
+          fullName: employee.fullName,
+          profilePhotoUrl: employee.profilePhotoUrl,
+          employeeNumber: employee.employeeNumber,
+        },
+        isExempt: employee.isClockInExempt,
+        clockedIn: false,
+        alreadyClockedIn: false,
+        clockedOut: false,
+        clockInTime: null,
+        attendanceId: null,
+      })
+    }
 
     // Clock-in logic — only for non-exempt employees
     let clockedIn = false

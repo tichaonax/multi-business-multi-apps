@@ -32,8 +32,11 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
           width: 1.2,
           height: 30,
           displayValue: false,
-          margin: 3,
+          margin: 8,
         })
+        // Constrain after render — CSS style overrides jsbarcode's fixed width attribute
+        el.style.maxWidth = '100%'
+        el.style.display = 'block'
       } catch {
         // Element may have been replaced between import and render — safe to ignore
       }
@@ -112,7 +115,7 @@ export function PrintIdCardButton({ employee }: EmployeeIdCardProps) {
     const cardEl = document.getElementById('employee-id-card')
     if (!cardEl) return
 
-    const printWindow = window.open('', '_blank', 'width=720,height=420')
+    const printWindow = window.open('', '_blank', 'width=900,height=460')
     if (!printWindow) return
 
     const styles = Array.from(document.styleSheets)
@@ -134,11 +137,12 @@ export function PrintIdCardButton({ employee }: EmployeeIdCardProps) {
           <title>Employee ID Card — ${employee.fullName}</title>
           <style>
             ${styles}
-            body { margin: 20px; display: flex; justify-content: center; align-items: flex-start; }
+            html, body { height: 100%; margin: 0; padding: 0; }
+            body { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
             .card-pair { display: inline-flex; align-items: flex-start; gap: 0; }
             .fold-guide { width: 0; align-self: stretch; border-left: 2px dashed #888; }
             @media print {
-              body { margin: 0; padding: 10px; }
+              html, body { height: 100vh; margin: 0; padding: 0; }
               .fold-guide { border-left-color: #bbb; }
             }
           </style>

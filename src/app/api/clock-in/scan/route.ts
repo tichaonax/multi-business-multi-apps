@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
         primaryBusinessId: true,
         userId: true,
         users: { select: { role: true } },
+        job_titles: { select: { level: true } },
       },
     })
 
@@ -60,9 +61,14 @@ export async function POST(req: NextRequest) {
     // True when the scanned card belongs to the currently logged-in user
     const isOwnCard = !!(employee.userId && employee.userId === user.id)
 
+    const MANAGER_LEVELS = ['manager', 'senior', 'executive']
+    const jobLevel = ((employee as any).job_titles?.level ?? '').toLowerCase()
+    const isManagement = MANAGER_LEVELS.includes(jobLevel)
+
     return NextResponse.json({
       found: true,
       isOwnCard,
+      isManagement,
       scannedUserRole: (employee as any).users?.role ?? null,
       employee,
       clockState,

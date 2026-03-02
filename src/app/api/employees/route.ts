@@ -409,7 +409,7 @@ export async function POST(req: NextRequest) {
       const employeeCreateData: Prisma.EmployeesUncheckedCreateInput = {
         id: randomUUID(),
         employeeNumber: employeeNumber,
-        scanToken: randomUUID(),
+        scanToken: randomBytes(4).toString('hex'),
         userId: userId || null,
         firstName: firstName,
         lastName: lastName,

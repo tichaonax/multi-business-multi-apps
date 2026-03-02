@@ -126,26 +126,18 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
               body: JSON.stringify({ employeeId: clockData.employee.id, action: 'scan', method: 'card' }),
             }).catch(() => {})
           }
-          const scannedRole: string | null = clockData.scannedUserRole ?? null
           const isExempt: boolean = !!clockData.employee?.isClockInExempt
-          const isDifferentAdminOrManager =
-            !clockData.isOwnCard && (scannedRole === 'admin' || scannedRole === 'manager')
+          // Management is determined by job title level, not auth system role
+          const isManagement: boolean = !!clockData.isManagement
 
-          if (isExempt && (isDifferentAdminOrManager || clockData.isOwnCard)) {
-            // Exempt employee (own card or different admin/manager): skip clock-in, show logout prompt
+          if (isManagement) {
+            // Management employees never clock in — always trigger logout prompt
             setLogoutPromptEmployee(clockData.employee)
             setShowLogoutPrompt(true)
-          } else if (isDifferentAdminOrManager && !isExempt) {
-            // Non-exempt admin/manager (different user): clock-in first, then logout prompt after it closes
-            setClockInEmployee(clockData.employee)
-            setClockInState(clockData.clockState)
-            setClockInAttendance(clockData.attendance)
-            setClockInIsOwnCard(false)
-            setLogoutPromptEmployee(clockData.employee)
-            setPendingLogoutAfterClockIn(true)
-            setShowClockInModal(true)
+          } else if (isExempt) {
+            // Exempt non-management: silently skip — no clock-in, no prompt
           } else {
-            // Own card non-exempt, or regular employee: normal clock-in/out flow
+            // Regular employee: normal clock-in/out flow
             setClockInEmployee(clockData.employee)
             setClockInState(clockData.clockState)
             setClockInAttendance(clockData.attendance)
@@ -500,12 +492,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
         isOpen={true}
         onClose={() => {
           setShowClockInModal(false)
-          if (pendingLogoutAfterClockIn) {
-            setPendingLogoutAfterClockIn(false)
-            setShowLogoutPrompt(true)
-          } else {
-            onClose()
-          }
+          onClose()
         }}
         employee={clockInEmployee}
         clockState={clockInState}
@@ -534,7 +521,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
           </div>
           <div className="p-5 space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              <strong>{logoutPromptEmployee?.fullName}</strong> is an admin/manager.
+              <strong>{logoutPromptEmployee?.fullName}</strong> is in management.
               Confirming will sign out the current session.
             </p>
             {/* Camera viewfinder — always rendered so ref exists before stream arrives */}

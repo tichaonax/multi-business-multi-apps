@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
             fullName: true,
             profilePhotoUrl: true,
             employeeNumber: true,
+            primaryBusinessId: true,
           },
         },
       },
