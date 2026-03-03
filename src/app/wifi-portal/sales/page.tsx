@@ -214,6 +214,13 @@ export default function WiFiTokenSalesPage() {
 
     if (!confirmed) return
 
+    // 40-second client-side timeout — the portal client already retries 3× with a
+    // 10 s per-attempt cap, so the server can take up to ~33 s. We add a 40 s
+    // AbortController so the UI always surfaces a message instead of spinning forever
+    // if the production proxy cuts the connection silently.
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 40000)
+
     try {
       setGeneratingToken(true)
       setErrorMessage(null)
@@ -230,7 +237,9 @@ export default function WiFiTokenSalesPage() {
           paymentMethod: saleAmount > 0 ? paymentMethod : null,
           expenseAccountId: expenseAccount.id,
         }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
 
       const data = await response.json()
 
@@ -249,7 +258,12 @@ export default function WiFiTokenSalesPage() {
         setErrorMessage(data.error || data.details || 'Failed to generate token')
       }
     } catch (error: any) {
-      setErrorMessage(error.message || 'Failed to generate token')
+      clearTimeout(timeoutId)
+      if (error?.name === 'AbortError') {
+        setErrorMessage('Request timed out — the WiFi portal may be unreachable. Please try again.')
+      } else {
+        setErrorMessage(error.message || 'Failed to generate token')
+      }
     } finally {
       setGeneratingToken(false)
     }
