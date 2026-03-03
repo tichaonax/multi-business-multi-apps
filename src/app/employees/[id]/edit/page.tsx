@@ -459,7 +459,10 @@ export default function EmployeeEditPage() {
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-primary mb-1">Profile Photo</p>
+                    <p className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-0.5">
+                      {employee.fullName}
+                    </p>
+                    <p className="text-xs font-mono text-blue-500 dark:text-blue-400 mb-2">{employee.employeeNumber}</p>
                     <p className="text-xs text-secondary mb-2">JPG, PNG or WEBP. Used for identification.</p>
                     <label className="btn-secondary text-sm cursor-pointer">
                       {uploadingPhoto ? 'Uploading...' : formData.profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}

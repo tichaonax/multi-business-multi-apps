@@ -105,24 +105,37 @@ export async function generateAndSellR710Token(
   const apiDurationUnit = durationUnitMap[tokenConfig.durationUnit] || 'hour'
   const decryptedPassword = decrypt(deviceRegistry.encryptedAdminPassword)
 
-  const tokenResult = await sessionManager.withSession(
-    {
-      ipAddress: deviceRegistry.ipAddress,
-      adminUsername: deviceRegistry.adminUsername,
-      adminPassword: decryptedPassword
-    },
-    async (r710Service) => {
-      return await r710Service.generateSingleGuestPass({
-        wlanName: tokenConfig.r710_wlans?.ssid || '',
-        username: customUsername,
-        duration: tokenConfig.durationValue,
-        durationUnit: apiDurationUnit,
-        deviceLimit: tokenConfig.deviceLimit || 2
-      })
-    }
-  )
+  const deviceConfig = {
+    ipAddress: deviceRegistry.ipAddress,
+    adminUsername: deviceRegistry.adminUsername,
+    adminPassword: decryptedPassword
+  }
 
+  let tokenResult: { success: boolean; token?: { username: string; password: string; expiresAt: Date }; error?: string }
+  try {
+    tokenResult = await sessionManager.withSession(
+      deviceConfig,
+      async (r710Service) => {
+        return await r710Service.generateSingleGuestPass({
+          wlanName: tokenConfig.r710_wlans?.ssid || '',
+          username: customUsername,
+          duration: tokenConfig.durationValue,
+          durationUnit: apiDurationUnit,
+          deviceLimit: tokenConfig.deviceLimit || 2
+        })
+      }
+    )
+  } catch (deviceError) {
+    // Invalidate the cached session so the next sale attempt re-authenticates
+    // instead of reusing a stale/broken session (e.g. after device reboot).
+    await sessionManager.invalidateSession(deviceRegistry.ipAddress).catch(() => {})
+    throw deviceError
+  }
+
+  // generateSingleGuestPass returns { success: false } on device-side errors (not throws).
+  // Invalidate session in that case too so we don't keep a potentially stale auth.
   if (!tokenResult.success || !tokenResult.token) {
+    await sessionManager.invalidateSession(deviceRegistry.ipAddress).catch(() => {})
     throw new Error(tokenResult.error || 'Failed to generate token on R710 device')
   }
 

@@ -106,6 +106,11 @@ export function ProductPanel({
 
     setRequestingMore(prev => new Set(prev).add(product.tokenConfigId!))
 
+    // 45-second timeout — R710 device sessions can be slow; production proxies may
+    // silently abort after 30 s so we abort ourselves with a friendly message first.
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 45000)
+
     try {
       const isR710 = product.isR710Token
       const apiUrl = isR710 ? '/api/r710/tokens' : '/api/wifi-portal/tokens/bulk'
@@ -117,8 +122,10 @@ export function ProductPanel({
           businessId,
           tokenConfigId: product.tokenConfigId,
           quantity: 5
-        })
+        }),
+        signal: controller.signal
       })
+      clearTimeout(timeoutId)
 
       if (response.ok) {
         toast.success(`Requested 5 more ${isR710 ? 'R710' : 'WiFi'} tokens for "${product.packageName}"`)
@@ -128,7 +135,12 @@ export function ProductPanel({
         toast.error(errorData?.error || 'Failed to request more tokens')
       }
     } catch (err) {
-      toast.error('Failed to request more tokens')
+      clearTimeout(timeoutId)
+      if (err instanceof Error && err.name === 'AbortError') {
+        toast.error('Request timed out — the WiFi device may be unreachable. Try again in a moment.')
+      } else {
+        toast.error('Failed to request more tokens')
+      }
     } finally {
       setRequestingMore(prev => {
         const next = new Set(prev)

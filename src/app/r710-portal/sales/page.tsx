@@ -300,6 +300,12 @@ export default function R710SalesPage() {
       return
     }
 
+    // 45-second timeout — generating a token on the R710 device involves a live HTTP
+    // call to the router. Production reverse-proxies can silently abort connections
+    // after ~30 s; we abort ourselves first so the user gets a clear message.
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 45000)
+
     try {
       setGeneratingToken(true)
       setErrorMessage(null)
@@ -312,8 +318,10 @@ export default function R710SalesPage() {
           tokenConfigId: selectedConfig.id,
           saleAmount: salePrice,
           paymentMethod: salePrice > 0 ? paymentMethod : 'FREE'
-        })
+        }),
+        signal: controller.signal
       })
+      clearTimeout(timeoutId)
 
       const data = await response.json()
 
@@ -339,7 +347,12 @@ export default function R710SalesPage() {
         setErrorMessage(data.error || data.details || 'Failed to sell token')
       }
     } catch (error: any) {
-      setErrorMessage(error.message || 'Failed to sell token')
+      clearTimeout(timeoutId)
+      if (error?.name === 'AbortError') {
+        setErrorMessage('Request timed out — the WiFi device may be unreachable. Please try again.')
+      } else {
+        setErrorMessage(error.message || 'Failed to sell token')
+      }
     } finally {
       setGeneratingToken(false)
     }

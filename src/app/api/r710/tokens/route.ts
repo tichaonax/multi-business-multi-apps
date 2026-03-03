@@ -419,14 +419,21 @@ export async function POST(request: NextRequest) {
     // Store tokens in database
     const now = new Date();
 
-    // Calculate duration in seconds
+    // Calculate duration in seconds (used for validTimeSeconds on the token record)
     const durationMultiplier: { [key: string]: number } = {
       'hour': 3600,
       'day': 86400,
       'week': 604800
     };
     const validTimeSeconds = config.durationValue * (durationMultiplier[apiDurationUnit] || 3600);
-    const expiresAt = new Date(now.getTime() + validTimeSeconds * 1000);
+
+    // Use a 90-day redemption window for expiresAtR710.
+    // The token stays AVAILABLE for purchase for 90 days regardless of session duration.
+    // (validTimeSeconds is the session duration *after* the customer connects, not the
+    //  window in which the token can be sold — confusing these two caused tokens to be
+    //  auto-expired within hours of generation.)
+    const TOKEN_REDEMPTION_WINDOW_DAYS = 90;
+    const expiresAt = new Date(now.getTime() + TOKEN_REDEMPTION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
     const tokensToCreate = generatedTokens.map(token => ({
       businessId,
@@ -459,22 +466,29 @@ export async function POST(request: NextRequest) {
       });
 
       if (existing) {
-        // Update existing token with new password from R710
-        await prisma.r710Tokens.update({
-          where: { id: existing.id },
-          data: {
-            password: tokenData.password,
-            status: 'AVAILABLE', // Reset status since R710 regenerated it
-            createdAtR710: tokenData.createdAtR710,
-            expiresAtR710: tokenData.expiresAtR710,
-            validTimeSeconds: tokenData.validTimeSeconds,
-            firstUsedAt: null,
-            connectedMac: null,
-            lastSyncedAt: new Date()
-          }
-        });
-        updatedCount++;
-        console.log(`[R710 Tokens] 🔄 Updated token: ${tokenData.username} with new password`);
+        // Never overwrite a token that has already been sold or invalidated — doing so
+        // would corrupt the sale record and make the token appear available again.
+        if (existing.status === 'SOLD' || existing.status === 'INVALIDATED') {
+          console.warn(`[R710 Tokens] ⚠️ Skipping token "${tokenData.username}" — already ${existing.status}. R710 returned a duplicate username for a consumed token.`);
+          // Do not count as created or updated; just move on.
+        } else {
+          // Token is AVAILABLE or EXPIRED — safe to refresh credentials from device.
+          await prisma.r710Tokens.update({
+            where: { id: existing.id },
+            data: {
+              password: tokenData.password,
+              status: 'AVAILABLE', // Reset status since R710 regenerated it
+              createdAtR710: tokenData.createdAtR710,
+              expiresAtR710: tokenData.expiresAtR710,
+              validTimeSeconds: tokenData.validTimeSeconds,
+              firstUsedAt: null,
+              connectedMac: null,
+              lastSyncedAt: new Date()
+            }
+          });
+          updatedCount++;
+          console.log(`[R710 Tokens] 🔄 Updated token: ${tokenData.username} with new password`);
+        }
       } else {
         // Create new token
         await prisma.r710Tokens.create({
