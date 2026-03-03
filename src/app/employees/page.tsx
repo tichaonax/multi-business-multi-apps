@@ -582,7 +582,7 @@ export default function EmployeesPage() {
                           {(loggedInIds.has(employee.id) || clockedInIds.has(employee.id)) && (
                             <div className="flex items-center gap-1 mt-0.5">
                               {loggedInIds.has(employee.id) && (
-                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded border border-green-300">
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded border border-blue-300">
                                   👤 LOGGED IN
                                 </span>
                               )}
@@ -775,7 +775,7 @@ export default function EmployeesPage() {
                                 {(loggedInIds.has(employee.id) || clockedInIds.has(employee.id)) && (
                                   <div className="flex items-center gap-1 mt-0.5">
                                     {loggedInIds.has(employee.id) && (
-                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded border border-green-300">
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded border border-blue-300">
                                         👤 LOGGED IN
                                       </span>
                                     )}
