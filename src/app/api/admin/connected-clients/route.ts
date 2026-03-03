@@ -53,6 +53,17 @@ export async function GET(request: NextRequest) {
     // Status filter (only applies to ESP32 which has isOnline field)
     const esp32StatusWhere = status === 'all' ? {} : { isOnline: status === 'online' }
 
+    // Check which systems are configured (scoped to businessId when provided)
+    const integrationWhere = businessId ? { where: { businessId } } : {}
+    const [esp32IntegrationCount, r710IntegrationCount] = await Promise.all([
+      prisma.portalIntegrations.count(integrationWhere),
+      prisma.r710BusinessIntegrations.count(integrationWhere)
+    ])
+    const configuredSystems = {
+      esp32: esp32IntegrationCount > 0,
+      r710: r710IntegrationCount > 0
+    }
+
     // Fetch ESP32 clients
     const esp32Clients =
       system === 'BOTH' || system === 'ESP32'
@@ -204,6 +215,7 @@ export async function GET(request: NextRequest) {
           offset,
           hasMore: offset + limit < total
         },
+        configuredSystems,
         statistics: {
           total,
           online: onlineClients.length,

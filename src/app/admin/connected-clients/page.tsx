@@ -69,6 +69,7 @@ function ConnectedClientsContent() {
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; type: string }>>([])
+  const [configuredSystems, setConfiguredSystems] = useState<{ esp32: boolean; r710: boolean } | null>(null)
 
   // Determine default system filter based on URL parameter or referrer
   const getDefaultSystemFilter = (): 'BOTH' | 'ESP32' | 'R710' => {
@@ -135,6 +136,14 @@ function ConnectedClientsContent() {
         setStatistics(data.data.statistics)
         setTotal(data.data.pagination.total)
         setHasMore(data.data.pagination.hasMore)
+        if (data.data.configuredSystems) {
+          setConfiguredSystems(data.data.configuredSystems)
+          const { esp32, r710 } = data.data.configuredSystems
+          // If the current filter targets an unconfigured system, reset to the best available
+          if (systemFilter === 'ESP32' && !esp32) setSystemFilter(r710 ? 'R710' : 'BOTH')
+          if (systemFilter === 'R710' && !r710) setSystemFilter(esp32 ? 'ESP32' : 'BOTH')
+          if (systemFilter === 'BOTH' && !(esp32 && r710)) setSystemFilter(esp32 ? 'ESP32' : r710 ? 'R710' : 'BOTH')
+        }
       } else {
         setError('Failed to fetch connected clients')
       }
@@ -312,9 +321,15 @@ function ConnectedClientsContent() {
                 }}
                 className="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground"
               >
-                <option value="BOTH">Both (ESP32 + R710)</option>
-                <option value="ESP32">📡 ESP32 Only</option>
-                <option value="R710">📶 R710 Only</option>
+                {(configuredSystems === null || (configuredSystems.esp32 && configuredSystems.r710)) && (
+                  <option value="BOTH">Both (ESP32 + R710)</option>
+                )}
+                {(configuredSystems === null || configuredSystems.esp32) && (
+                  <option value="ESP32">📡 ESP32 Only</option>
+                )}
+                {(configuredSystems === null || configuredSystems.r710) && (
+                  <option value="R710">📶 R710 Only</option>
+                )}
               </select>
             </div>
 
