@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { DriverLicenseInput } from '@/components/ui/driver-license-input'
@@ -61,7 +62,10 @@ export default function EmployeeEditPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  
+
+  // Track initial (saved) form values to detect unsaved changes
+  const [initialFormData, setInitialFormData] = useState<Record<string, string>>({})
+
   // Form data
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
@@ -88,7 +92,23 @@ export default function EmployeeEditPage() {
     profilePhotoUrl: ''
   })
 
+  const confirm = useConfirm()
   const canEditEmployees = hasPermission('canEditEmployees')
+
+  const handleClose = async () => {
+    const editableKeys = ['firstName', 'lastName', 'email', 'phone', 'nationalId', 'idFormatTemplateId', 'driverLicenseNumber', 'driverLicenseTemplateId', 'address', 'dateOfBirth', 'hireDate', 'supervisorId', 'notes', 'profilePhotoUrl']
+    const isDirty = editableKeys.some(k => (formData as any)[k] !== (initialFormData as any)[k])
+    if (isDirty) {
+      const ok = await confirm({
+        title: 'Unsaved changes',
+        description: 'You have unsaved changes. Are you sure you want to close without saving?',
+        confirmText: 'Discard',
+        cancelText: 'Keep editing'
+      })
+      if (!ok) return
+    }
+    router.push('/employees')
+  }
 
   useEffect(() => {
     if (canEditEmployees && employeeId) {
@@ -103,7 +123,7 @@ export default function EmployeeEditPage() {
       if (response.ok) {
         const data = await response.json()
         setEmployee(data)
-        setFormData({
+        const loaded = {
           firstName: data.firstName || '',
           lastName: data.lastName || '',
           email: data.email || '',
@@ -120,10 +140,15 @@ export default function EmployeeEditPage() {
           hireDate: data.hireDate ? data.hireDate.split('T')[0] : '',
           hireDateCountryCode: 'ZW',
           employmentStatus: data.employmentStatus || 'active',
+          contractStatus: 'pending_signature',
           supervisorId: data.supervisor?.id || '',
           notes: data.notes || '',
-          profilePhotoUrl: data.profilePhotoUrl || ''
-        })
+          profilePhotoUrl: data.profilePhotoUrl || '',
+          // Preserve the userId link — must round-trip so saves don't silently clear it
+          userId: data.user?.id || data.userId || null
+        }
+        setFormData(loaded)
+        setInitialFormData(loaded)
 
         // Load potential supervisors (excluding current employee)
         const supervisorsResponse = await fetch('/api/employees?limit=100')
@@ -216,8 +241,8 @@ export default function EmployeeEditPage() {
       })
 
       if (response.ok) {
-        // Use replace instead of push to prevent back button from returning to form
-        router.replace(`/employees/${employeeId}`)
+        // Go back to employee list after saving
+        router.replace('/employees')
       } else {
         const errorData = await response.json()
         setError(errorData.error || 'Failed to update employee')
@@ -464,25 +489,34 @@ export default function EmployeeEditPage() {
                     </p>
                     <p className="text-xs font-mono text-blue-500 dark:text-blue-400 mb-2">{employee.employeeNumber}</p>
                     <p className="text-xs text-secondary mb-2">JPG, PNG or WEBP. Used for identification.</p>
-                    <label className="btn-secondary text-sm cursor-pointer">
-                      {uploadingPhoto ? 'Uploading...' : formData.profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handlePhotoUpload}
-                        disabled={uploadingPhoto}
-                        className="hidden"
-                      />
-                    </label>
-                    {formData.profilePhotoUrl && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="btn-secondary text-sm cursor-pointer">
+                        {uploadingPhoto ? 'Uploading...' : formData.profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handlePhotoUpload}
+                          disabled={uploadingPhoto}
+                          className="hidden"
+                        />
+                      </label>
+                      {formData.profilePhotoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, profilePhotoUrl: '' }))}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      )}
                       <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, profilePhotoUrl: '' }))}
-                        className="ml-2 text-xs text-red-500 hover:text-red-700"
+                        type="submit"
+                        disabled={saving || uploadingPhoto}
+                        className="btn-primary text-sm"
                       >
-                        Remove
+                        {saving ? 'Saving...' : 'Save & Close'}
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
 
@@ -748,7 +782,7 @@ export default function EmployeeEditPage() {
               <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
-                  onClick={() => router.push(`/employees/${employeeId}`)}
+                  onClick={handleClose}
                   className="btn-secondary"
                   disabled={saving}
                 >

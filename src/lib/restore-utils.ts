@@ -60,8 +60,9 @@ function stripNestedRelations(data: any): any {
   }
 
   // Also remove any field that is an array or object (potential relations)
+  // Keep Buffer-like objects ({type:"Buffer",data:[...]}) — they represent bytea columns
   for (const [key, value] of Object.entries(cleaned)) {
-    if (Array.isArray(value) || (value !== null && typeof value === 'object' && !isDateLike(value))) {
+    if (Array.isArray(value) || (value !== null && typeof value === 'object' && !isDateLike(value) && !isBufferLike(value))) {
       delete cleaned[key]
     }
   }
@@ -76,6 +77,27 @@ function isDateLike(obj: any): boolean {
   return obj && typeof obj === 'object' &&
          (obj.hasOwnProperty('toISOString') || obj.hasOwnProperty('$type') ||
           (typeof obj.$date === 'string') || (typeof obj.$date === 'number'))
+}
+
+/**
+ * Check if an object looks like a serialized Buffer ({type:"Buffer",data:[...]})
+ */
+function isBufferLike(obj: any): boolean {
+  return obj && typeof obj === 'object' && obj.type === 'Buffer' && Array.isArray(obj.data)
+}
+
+/**
+ * Convert any Buffer-like objects ({type:"Buffer",data:[...]}) back to real Buffer instances.
+ * This is needed for bytea columns (e.g., images.data) that were serialized via JSON.stringify.
+ */
+function deserializeBuffers(row: any): any {
+  const result = { ...row }
+  for (const [key, value] of Object.entries(result)) {
+    if (isBufferLike(value)) {
+      result[key] = Buffer.from((value as any).data)
+    }
+  }
+  return result
 }
 
 /**
@@ -236,7 +258,7 @@ export async function upsertModelInBatches(
           const row = batch[ri]
           const where = { id: row.id }
           // Strip nested relations outside try so it's accessible in catch
-          const cleanRow = stripNestedRelations(row)
+          const cleanRow = deserializeBuffers(stripNestedRelations(row))
           try {
             // If `id` is not present, fall back to create or skip
             if (!row.id) {
@@ -279,7 +301,7 @@ export async function upsertModelInBatches(
         const row = batch[ri]
         const where = { id: row.id }
         // Strip nested relations outside try so it's accessible in catch
-        const cleanRow = stripNestedRelations(row)
+        const cleanRow = deserializeBuffers(stripNestedRelations(row))
         try {
           if (!row.id) {
             await prisma[resolvedName].create({ data: cleanRow })
@@ -331,6 +353,7 @@ export async function restoreBackupData(
     'users',
     'businesses',
     'businessMemberships',
+    'images',      // Must come before employees (employees reference images via profilePhotoUrl)
     'employees',
     'employeeContracts',
     'businessProducts',

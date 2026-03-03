@@ -34,6 +34,7 @@ export async function getServerUser(): Promise<SessionUser | null> {
         name: true,
         role: true,
         permissions: true,
+        lastAccessedAt: true,
       }
     }),
     prisma.businessMemberships.findMany({
@@ -47,6 +48,12 @@ export async function getServerUser(): Promise<SessionUser | null> {
   ])
 
   if (!dbUser) return null
+
+  // Fire-and-forget: refresh lastAccessedAt at most once every 5 minutes
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+  if (!dbUser.lastAccessedAt || dbUser.lastAccessedAt < fiveMinutesAgo) {
+    prisma.users.update({ where: { id: userId }, data: { lastAccessedAt: new Date() } }).catch(() => {})
+  }
 
   return {
     id: dbUser.id,

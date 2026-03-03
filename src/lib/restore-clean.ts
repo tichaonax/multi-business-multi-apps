@@ -120,6 +120,9 @@ const RESTORE_ORDER = [
   // Persons (for various associations)
   'persons',
 
+  // Images (binary photos — must come before employees which reference them)
+  'images',
+
   // Employees and HR (two-pass: first without supervisorId, then update)
   'employees',
   'employeeContracts',
@@ -660,6 +663,15 @@ export async function restoreCleanBackup(
           // Json columns (e.g. MealProgramTransactions.itemsSummary) store arrays as
           // valid scalar data. Removing all arrays would silently strip those values
           // and cause "Argument X is missing" errors from Prisma.
+
+          // Convert JSON-serialized Buffer objects back to real Buffers
+          // This handles bytea columns (e.g. images.data) that were serialized via JSON.stringify
+          for (const [key, value] of Object.entries(cleaned)) {
+            if (value && typeof value === 'object' && (value as any).type === 'Buffer' && Array.isArray((value as any).data)) {
+              (cleaned as any)[key] = Buffer.from((value as any).data)
+            }
+          }
+
           return cleaned
         })
 

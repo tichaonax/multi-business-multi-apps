@@ -234,6 +234,20 @@ export async function createCleanBackup(
     }
   })
 
+  // Collect employee profile photo image IDs and back them up
+  const employeeImageIds = (businessData.employees as any[])
+    .map((e: any) => e.profilePhotoUrl)
+    .filter((url: any) => typeof url === 'string' && url.startsWith('/api/images/'))
+    .map((url: string) => url.replace('/api/images/', ''))
+  // Prisma returns Bytes as Uint8Array which JSON.stringify turns into {"0":255,"1":216,...}
+  // Converting to Buffer ensures it serializes as {type:"Buffer",data:[...]} which is safe to restore
+  businessData.images = employeeImageIds.length > 0
+    ? (await prisma.images.findMany({ where: { id: { in: employeeImageIds } } })).map((img: any) => ({
+        ...img,
+        data: Buffer.from(img.data)
+      }))
+    : []
+
   businessData.employeeContracts = await prisma.employeeContracts.findMany({
     where: {
       primaryBusinessId: { in: businessIds }

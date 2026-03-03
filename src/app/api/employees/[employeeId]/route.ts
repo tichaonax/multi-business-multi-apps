@@ -445,10 +445,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     // Update the employee with user synchronization
     const result = await prisma.$transaction(async (tx) => {
       // Update employee
+      // Only include userId in the update payload when it was explicitly sent.
+      // Omitting it (undefined) must NOT nullify the existing link — the edit form
+      // does not always include this field, and wiping it would unlink the user account.
+      const userIdUpdate = userId !== undefined ? { userId: userId || null } : {}
+
       const updatedEmployee = await tx.employees.update({
         where: { id: employeeId },
         data: {
-          userId: userId || null,
+          ...userIdUpdate,
           firstName,
           lastName,
           fullName: `${firstName} ${lastName}`,

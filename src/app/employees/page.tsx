@@ -98,6 +98,8 @@ export default function EmployeesPage() {
   const [payrollExportModal, setPayrollExportModal] = useState(false)
   const [addEmployeeModal, setAddEmployeeModal] = useState(false)
   const [printCardEmployee, setPrintCardEmployee] = useState<Employee | null>(null)
+  const [clockedInIds, setClockedInIds] = useState<Set<string>>(new Set())
+  const [loggedInIds, setLoggedInIds] = useState<Set<string>>(new Set())
 
   const printIdCard = (emp: Employee) => {
     setTimeout(() => {
@@ -142,6 +144,7 @@ export default function EmployeesPage() {
     if (canViewEmployees && initialFilterSet) {
       fetchEmployees()
       fetchDepartments()
+      fetchClockInStatus()
     }
   }, [canViewEmployees, initialFilterSet, currentPage, statusFilter, departmentFilter, businessFilter, searchTerm])
   
@@ -254,6 +257,29 @@ export default function EmployeesPage() {
     }
   }
 
+  const fetchClockInStatus = async () => {
+    try {
+      const [clockRes, sessionRes] = await Promise.all([
+        fetch('/api/clock-in/today'),
+        fetch('/api/employees/active-sessions'),
+      ])
+      if (clockRes.ok) {
+        const data = await clockRes.json()
+        setClockedInIds(new Set<string>(
+          (data.employees || [])
+            .filter((e: any) => e.clockState === 'clockedIn')
+            .map((e: any) => e.id)
+        ))
+      }
+      if (sessionRes.ok) {
+        const data = await sessionRes.json()
+        setLoggedInIds(new Set<string>(data.employeeIds || []))
+      }
+    } catch (error) {
+      console.error('Error fetching clock-in/session status:', error)
+    }
+  }
+
   const handleSearch = (value: string) => {
     setSearchTerm(value)
     setCurrentPage(1) // Reset to first page when searching
@@ -354,6 +380,13 @@ export default function EmployeesPage() {
       ]}
       headerActions={
         <div className="flex space-x-3">
+          <button
+            className="btn-secondary"
+            onClick={() => window.location.href = '/employees/clock-in'}
+          >
+            <span className="mr-2">⏱️</span>
+            Clock-In
+          </button>
           {canCreateEmployees && (
             <button
               className="btn-primary"
@@ -480,6 +513,7 @@ export default function EmployeesPage() {
               <div className="min-w-0">
                 <p className="text-xl sm:text-2xl font-bold text-primary">
                   {employees.filter(e => {
+                    if (e.employmentStatus === 'pendingContract') return true
                     const contracts = e.contracts || e.employeeContracts || []
                     return contracts.some((c: any) => c.status === 'pending_signature' || c.status === 'pending_approval' || c.status === 'draft')
                   }).length}
@@ -544,14 +578,21 @@ export default function EmployeesPage() {
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-medium text-primary truncate">{employee.fullName}</h3>
-                            {employee.user && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded border border-green-300 flex-shrink-0">
-                                👤
-                              </span>
-                            )}
-                          </div>
+                          <h3 className="text-sm font-medium text-primary truncate">{employee.fullName}</h3>
+                          {(loggedInIds.has(employee.id) || clockedInIds.has(employee.id)) && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {loggedInIds.has(employee.id) && (
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded border border-green-300">
+                                  👤 LOGGED IN
+                                </span>
+                              )}
+                              {clockedInIds.has(employee.id) && (
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200 rounded border border-emerald-400 font-semibold">
+                                  ● CLOCKED IN
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <p className="text-xs text-secondary">{employee.employeeNumber}</p>
                           {employee.email && (
                             <p className="text-xs text-secondary truncate">{employee.email}</p>
@@ -730,14 +771,21 @@ export default function EmployeesPage() {
                                 </div>
                               </div>
                               <div className="ml-4">
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm font-medium text-primary">{employee.fullName}</div>
-                                  {employee.user && (
-                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded border border-green-300">
-                                      👤
-                                    </span>
-                                  )}
-                                </div>
+                                <div className="text-sm font-medium text-primary">{employee.fullName}</div>
+                                {(loggedInIds.has(employee.id) || clockedInIds.has(employee.id)) && (
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    {loggedInIds.has(employee.id) && (
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded border border-green-300">
+                                        👤 LOGGED IN
+                                      </span>
+                                    )}
+                                    {clockedInIds.has(employee.id) && (
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200 rounded border border-emerald-400 font-semibold">
+                                        ● CLOCKED IN
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                                 <div className="text-sm text-secondary">{employee.employeeNumber}</div>
                                 {employee.email && (
                                   <div className="text-xs text-secondary">{employee.email}</div>

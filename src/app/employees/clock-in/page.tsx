@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { EmployeeIdCard } from '@/components/clock-in/employee-id-card'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -73,6 +74,7 @@ interface ExemptEmployee {
 }
 
 export default function ClockInDashboardPage() {
+  const router = useRouter()
   const { currentBusinessId, activeBusinesses, loading: contextLoading } = useBusinessPermissionsContext()
 
   const [activeTab, setActiveTab] = useState<'attendance' | 'exempt' | 'loginTracking'>('attendance')
@@ -525,6 +527,12 @@ export default function ClockInDashboardPage() {
           </p>
         </div>
         <div className="flex gap-3">
+          <button
+            onClick={() => router.back()}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+          >
+            ← Back
+          </button>
           <Link
             href="/employees/clock-in/bulk-print"
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"

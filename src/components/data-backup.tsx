@@ -1210,6 +1210,15 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
                   {restoreProgress?.modelCounts?.businessOrders?.skipped ? ` (${restoreProgress.modelCounts.businessOrders.skipped} skipped)` : ''}
                 </span>
               </div>
+              {restoreProgress?.modelCounts?.images && (
+                <div className="text-green-800 dark:text-green-200">
+                  <span className="font-medium">Employee Photos:</span>{' '}
+                  <span className="font-bold text-green-900 dark:text-green-100">
+                    {restoreProgress.modelCounts.images.successful ?? 0}
+                    {restoreProgress.modelCounts.images.skipped ? ` (${restoreProgress.modelCounts.images.skipped} skipped)` : ''}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* If progress exists, show overall processed/total and model */}

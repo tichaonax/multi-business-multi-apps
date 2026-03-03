@@ -232,6 +232,33 @@ async function seedMissingReferenceData() {
   }
 }
 
+async function fixEmployeeUserLinks() {
+  try {
+    log('\n🔧 Fixing employee-user account links...')
+    const result = await prisma.$executeRaw`
+      UPDATE employees e
+      SET "userId" = u.id
+      FROM users u
+      WHERE e.email = u.email
+        AND e."userId" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM employees e2
+          WHERE e2."userId" = u.id AND e2.id != e.id
+        )
+    `
+    if (result > 0) {
+      success(`Re-linked ${result} employee(s) to their user accounts`)
+    } else {
+      log('ℹ️  No unlinked employees found — all employee-user links are intact')
+    }
+    return true
+  } catch (err) {
+    warning(`Employee-user link fix encountered an issue: ${err.message}`)
+    warning('Continuing upgrade — this is non-critical and can be run separately')
+    return true  // non-fatal: don't block the deploy
+  }
+}
+
 async function validateUpgrade() {
   log('\n✅ Validating upgrade...')
   
@@ -309,6 +336,9 @@ async function performUpgrade() {
     error('Reference data seeding failed')
     return false
   }
+
+  // Step 6.5: Fix employee-user account links (idempotent data repair)
+  await fixEmployeeUserLinks()
   
   // Step 7: Validate upgrade
   if (!await validateUpgrade()) {
