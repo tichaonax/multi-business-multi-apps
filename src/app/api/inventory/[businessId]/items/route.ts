@@ -90,6 +90,7 @@ export async function GET(
     const inMenu = searchParams.get('inMenu')   // 'true' = items with a sell price (on menu)
     const posTracked = searchParams.get('posTracked') // 'true' = isInventoryTracked items only
     const priceFilter = searchParams.get('priceFilter') // 'with' | 'without'
+    const businessType = searchParams.get('businessType') // e.g. 'restaurant'
     const includeTemplates = searchParams.get('includeTemplates') === 'true' // default false
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -136,34 +137,48 @@ export async function GET(
       where.isInventoryTracked = true
     }
 
-    // Filter by whether items have prices set
+    // Filter by whether items have prices set.
+    // For restaurant: items are prepared menu items — only basePrice matters (no concept of costPrice).
+    //   'with'    → basePrice > 0   (has a menu/selling price)
+    //   'without' → basePrice = 0   (no selling price set yet)
+    // For all other business types:
+    //   'with'    → costPrice > 0 OR basePrice > 0
+    //   'without' → basePrice = 0 AND (costPrice IS NULL OR costPrice = 0)
+    //   Note: Prisma comparison operators (lte/gt) silently exclude NULL, so null must be handled explicitly.
     if (priceFilter === 'with') {
-      // Items with at least a cost price OR a sell price set
-      where.OR = [
-        ...(where.OR || []),
-        { costPrice: { gt: 0 } },
-        { basePrice: { gt: 0 } },
-      ]
-      // Replace OR from search if needed — handle conflict by wrapping
+      const withConditions = businessType === 'restaurant'
+        ? { basePrice: { gt: 0 } }
+        : { OR: [{ costPrice: { gt: 0 } }, { basePrice: { gt: 0 } }] }
+
       if (search) {
-        // Re-apply both filters via AND
         const searchOr = [
           { name: { contains: search, mode: 'insensitive' } },
           { sku: { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } }
         ]
         delete where.OR
-        where.AND = [
-          { OR: searchOr },
-          { OR: [{ costPrice: { gt: 0 } }, { basePrice: { gt: 0 } }] }
-        ]
+        where.AND = [{ OR: searchOr }, withConditions]
       } else {
-        where.OR = [{ costPrice: { gt: 0 } }, { basePrice: { gt: 0 } }]
+        delete where.OR
+        Object.assign(where, withConditions)
       }
     } else if (priceFilter === 'without') {
-      // Items where both costPrice and basePrice are 0 or null
-      where.costPrice = { lte: 0 }
-      where.basePrice = { lte: 0 }
+      const withoutConditions = businessType === 'restaurant'
+        ? { basePrice: { lte: 0 } }
+        : { AND: [{ basePrice: { lte: 0 } }, { OR: [{ costPrice: null }, { costPrice: { lte: 0 } }] }] }
+
+      if (search) {
+        const searchOr = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { sku: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } }
+        ]
+        delete where.OR
+        where.AND = [{ OR: searchOr }, withoutConditions]
+      } else {
+        delete where.OR
+        Object.assign(where, withoutConditions)
+      }
     }
 
     // Note: We'll filter by category/ingredientType after fetching since ingredientType is in JSON

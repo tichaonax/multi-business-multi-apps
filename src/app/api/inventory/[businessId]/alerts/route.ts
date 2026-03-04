@@ -52,11 +52,15 @@ export async function GET(
     let alerts: InventoryAlert[] = []
 
     try {
-      // Get products with their variants to check actual stock levels
+      // Get products with their variants to check actual stock levels.
+      // Only alert on products that have inventory tracking explicitly enabled —
+      // items without tracking (isInventoryTracked: false, the default) have no
+      // meaningful stock level to alert on (e.g. seeded/demo items, menu items).
       const products = await prisma.businessProducts.findMany({
         where: {
           businessId,
-          isActive: true
+          isActive: true,
+          isInventoryTracked: true
         },
         include: {
           product_variants: true,

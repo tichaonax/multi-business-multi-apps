@@ -104,9 +104,10 @@ export function UniversalInventoryStats({
     setError(null)
 
     try {
-      // Fetch current data and historical movements for trend calculation
+      // Fetch current data and historical movements for trend calculation.
+      // Always scope to isActive=true and pass businessType so filters (e.g. priceFilter) are correct.
       const [itemsResponse, reportsResponse, alertsResponse, movementsResponse] = await Promise.all([
-        fetch(`/api/inventory/${businessId}/items?limit=1000`),
+        fetch(`/api/inventory/${businessId}/items?limit=1000&isActive=true&businessType=${businessType}`),
         fetch(`/api/inventory/${businessId}/reports?reportType=inventory_value`),
         fetch(`/api/inventory/${businessId}/alerts?acknowledged=false`),
         fetch(`/api/inventory/${businessId}/movements?limit=1000`)
@@ -499,7 +500,8 @@ export function UniversalInventoryStats({
       const interval = setInterval(fetchStats, refreshInterval)
       return () => clearInterval(interval)
     }
-  }, [refreshInterval])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshInterval, businessId])
 
   const getTrendIcon = (value: number) => {
     if (value > 0) return '📈'

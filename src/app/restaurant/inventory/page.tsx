@@ -29,7 +29,7 @@ function RestaurantInventoryContent() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [menuOnlyFilter, setMenuOnlyFilter] = useState(false)
-  const [priceFilter, setPriceFilter] = useState<'all' | 'with' | 'without'>('all')
+  const [priceFilter, setPriceFilter] = useState<'all' | 'with' | 'without'>('with')
   const [posTrackedFilter, setPosTrackedFilter] = useState(false)
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
@@ -460,9 +460,9 @@ function RestaurantInventoryContent() {
                     </select>
 
                     {/* Clear all extra filters */}
-                    {(menuOnlyFilter || posTrackedFilter || priceFilter !== 'all') && (
+                    {(menuOnlyFilter || posTrackedFilter || priceFilter !== 'with') && (
                       <button
-                        onClick={() => { setMenuOnlyFilter(false); setPosTrackedFilter(false); setPriceFilter('all') }}
+                        onClick={() => { setMenuOnlyFilter(false); setPosTrackedFilter(false); setPriceFilter('with') }}
                         className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 underline"
                       >
                         Reset filters

@@ -142,6 +142,7 @@ export function UniversalInventoryGrid({
         const params = new URLSearchParams({
           page: currentPage.toString(),
           limit: pageSize.toString(),
+          ...(businessType && { businessType }),
           ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
           ...(effectiveCategory !== 'all' && { category: effectiveCategory }),
           ...(departmentFilter && { domainId: departmentFilter }),

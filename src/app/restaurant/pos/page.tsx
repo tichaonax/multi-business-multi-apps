@@ -3920,7 +3920,6 @@ export default function RestaurantPOS() {
           onClose={() => setShowMealProgramDetails(false)}
         />
       )}
-      </div>
     </BusinessTypeRoute>
   )
 }
