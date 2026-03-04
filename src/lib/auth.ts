@@ -15,6 +15,7 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions['adapter'],
   session: {
     strategy: 'jwt',
+    maxAge: 8 * 60 * 60, // 8 hours — one workday; prevents stale sessions persisting
   },
   cookies: {
     sessionToken: {

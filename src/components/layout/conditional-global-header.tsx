@@ -13,8 +13,8 @@ import { GlobalHeader } from './global-header'
 export function ConditionalGlobalHeader() {
   const pathname = usePathname()
 
-  // Hide header on customer display page
-  if (pathname === '/customer-display') {
+  // Hide header on customer display and all auth pages
+  if (pathname === '/customer-display' || pathname.startsWith('/auth')) {
     return null
   }
 

@@ -110,6 +110,7 @@ export function UniversalInventoryGrid({
   const [selectedItemForLabel, setSelectedItemForLabel] = useState<UniversalInventoryItem | null>(null)
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [showBulkLabelPreview, setShowBulkLabelPreview] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
 
   // Printing hooks
   const { canPrintInventoryLabels } = usePrinterPermissions()
@@ -148,6 +149,7 @@ export function UniversalInventoryGrid({
           ...(menuOnlyFilter && { inMenu: 'true' }),
           ...(posTrackedFilter && { posTracked: 'true' }),
           ...(priceFilter && priceFilter !== 'all' && { priceFilter }),
+          ...(showTemplates && { includeTemplates: 'true' }),
         })
 
         const response = await fetch(`/api/inventory/${businessId}/items?${params}`)
@@ -185,7 +187,7 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, refreshTrigger])
+  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, showTemplates, refreshTrigger])
 
   // Filter items by supplier and location
   const filteredItems = items.filter(item => {
@@ -550,6 +552,19 @@ export function UniversalInventoryGrid({
               </div>
             )}
 
+            {/* Show Templates Toggle */}
+            <button
+              onClick={() => setShowTemplates(prev => !prev)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                showTemplates
+                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700'
+                  : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+              title={showTemplates ? 'Currently showing template products — click to hide' : 'Show template/catalogue products'}
+            >
+              {showTemplates ? '📋 Hide Templates' : '📋 Show Templates'}
+            </button>
+
             {/* Reset Filters Button */}
             {hasActiveFilters && (
               <button
@@ -716,6 +731,14 @@ export function UniversalInventoryGrid({
                       <div>
                         <div className="font-medium text-primary flex items-center gap-2 flex-wrap">
                           {item.name}
+                          {(item as any).isProductTemplate && (
+                            <span
+                              title="Template product — no stock or price set yet. Use 'Stock in Current Business' on a barcode scan to activate it."
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 whitespace-nowrap"
+                            >
+                              📋 Template
+                            </span>
+                          )}
                           {item.isInventoryTracked && (
                             <span
                               title="POS inventory tracking enabled — live stock badge shown on menu card"

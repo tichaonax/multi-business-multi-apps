@@ -34,6 +34,7 @@ import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
 import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
+import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 
 interface POSItem {
   id: string
@@ -89,6 +90,8 @@ function GroceryPOSContent() {
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [showScanner, setShowScanner] = useState(false)
+  const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
+  const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
   const [products, setProducts] = useState<POSItem[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
@@ -1902,6 +1905,11 @@ function GroceryPOSContent() {
                                 }
                                 addToCart(posItem)
                               }}
+                              onNotFound={(barcode) => setQuickStockBarcode(barcode)}
+                              onProductNeedsActivation={(product, barcode, variantId) => {
+                                setQuickStockExistingProduct({ id: product.id, name: product.name, variantId })
+                                setQuickStockBarcode(barcode)
+                              }}
                               businessId={currentBusinessId!}
                               showScanner={showScanner}
                               onToggleScanner={() => setShowScanner(!showScanner)}
@@ -1912,6 +1920,49 @@ function GroceryPOSContent() {
                       </div>
                     </div>
               </div>
+
+              {/* Quick Stock from Scan Modal */}
+              {quickStockBarcode && (
+                <QuickStockFromScanModal
+                  isOpen={true}
+                  barcode={quickStockBarcode}
+                  businessId={currentBusinessId!}
+                  businessType="grocery"
+                  existingProduct={quickStockExistingProduct ?? undefined}
+                  suggestedName={quickStockExistingProduct?.name}
+                  onSuccess={async (productId, variantId) => {
+                    setQuickStockBarcode(null)
+                    setQuickStockExistingProduct(null)
+                    try {
+                      const res = await fetch(`/api/universal/products/${productId}`)
+                      if (res.ok) {
+                        const product = await res.json()
+                        const price = variantId && product?.variants?.length
+                          ? parseFloat((product.variants.find((v: any) => v.id === variantId)?.price ?? product.basePrice) || 0)
+                          : parseFloat(product.basePrice || 0)
+                        const posItem: POSItem = {
+                          id: variantId || product.id,
+                          name: product.name,
+                          barcode: product.barcodes?.find((b: any) => b.isPrimary)?.code,
+                          category: product.businessType || 'General',
+                          unitType: 'each',
+                          price,
+                          unit: 'each',
+                          taxable: false,
+                          weightRequired: false
+                        }
+                        addToCart(posItem, 1)
+                      }
+                    } catch {
+                      // Product stocked — user can scan again to add to cart
+                    }
+                  }}
+                  onClose={() => {
+                    setQuickStockBarcode(null)
+                    setQuickStockExistingProduct(null)
+                  }}
+                />
+              )}
 
               {/* PLU Entry */}
               <div>

@@ -490,7 +490,7 @@ export function MobileSidebar() {
               <div className="pt-4 border-t border-gray-700">
                 <button
                   onClick={() => signOut({
-                    callbackUrl: `${window.location.origin}/auth/signin`,
+                    callbackUrl: window.location.origin,
                     redirect: true
                   })}
                   className="block w-full text-left px-4 py-3 rounded hover:bg-gray-700"

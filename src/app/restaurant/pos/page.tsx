@@ -33,6 +33,7 @@ import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
 import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 import { CloseBooksBanner } from '@/components/pos/close-books-banner'
+import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 import { MealProgramPanel } from '@/components/restaurant/meal-program/MealProgramPanel'
 import { MealProgramDetailsModal } from '@/components/restaurant/meal-program/MealProgramDetailsModal'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
@@ -77,6 +78,12 @@ export default function RestaurantPOS() {
   console.log('🚀🚀🚀 [Restaurant POS] COMPONENT RENDERING 🚀🚀🚀')
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  // Ref so the pos:add-to-cart event handler always reads the latest menu items
+  const menuItemsRef = useRef<MenuItem[]>([])
+  useEffect(() => { menuItemsRef.current = menuItems }, [menuItems])
+  // Ref so the pos:add-to-cart event handler can call addToCart without capturing
+  // a TDZ reference (addToCart is declared later in the component body)
+  const addToCartRef = useRef<((item: MenuItem) => void) | null>(null)
   const submitInFlightRef = useRef<{ current: boolean } | any>({ current: false })
   const menuSectionRef = useRef<HTMLDivElement>(null)
   const [orderSubmitting, setOrderSubmitting] = useState(false)
@@ -96,6 +103,8 @@ export default function RestaurantPOS() {
   const [manualSuccessActive, setManualSuccessActive] = useState(false)
   const [manualResetTrigger, setManualResetTrigger] = useState(0)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
+  const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
   const [amountReceived, setAmountReceived] = useState('')
@@ -191,27 +200,73 @@ export default function RestaurantPOS() {
   // Track if cart has been loaded from localStorage to prevent overwriting on mount
   const [cartLoaded, setCartLoaded] = useState(false)
 
+  // Cart validation warning — populated when stale/invalid items are found on load
+  const [cartValidationWarnings, setCartValidationWarnings] = useState<Array<{ name: string; reason: string }>>([])
+  const [showCartWarning, setShowCartWarning] = useState(false)
+
   // Load cart from localStorage on mount (per-business persistence)
   useEffect(() => {
     if (!currentBusinessId) return
 
-    try {
-      const savedCart = localStorage.getItem(`cart-${currentBusinessId}`)
-      if (savedCart) {
-        const parsedCart = JSON.parse(savedCart)
-        setCart(parsedCart)
-        console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
-      } else {
-        // CRITICAL: Clear cart when switching to a business with no saved cart
-        setCart([])
-        console.log('🔄 Switched to business with no saved cart - cart cleared')
+    const doLoad = async () => {
+      try {
+        const savedCart = localStorage.getItem(`cart-${currentBusinessId}`)
+        if (savedCart) {
+          let parsedCart: CartItem[] = JSON.parse(savedCart)
+          console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+
+          // ── Validate cart against DB ──────────────────────────────────────
+          if (parsedCart.length > 0) {
+            try {
+              const res = await fetch('/api/pos/validate-cart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  businessId: currentBusinessId,
+                  items: parsedCart.map(item => ({
+                    id: item.id,
+                    productId: item.id, // restaurant cart uses menuItem.id as productId
+                    variantId: undefined,
+                    name: item.name,
+                    quantity: item.quantity,
+                    attributes: (item as any).attributes,
+                  })),
+                }),
+              })
+              if (res.ok) {
+                const { valid, invalid } = await res.json()
+                if (invalid && invalid.length > 0) {
+                  const validIds = new Set((valid as Array<{ id: string }>).map(v => v.id))
+                  parsedCart = parsedCart.filter(item => validIds.has(item.id))
+                  setCartValidationWarnings(
+                    (invalid as Array<{ item: { id: string; name: string }; reason: string }>).map(({ item, reason }) => ({
+                      name: item.name,
+                      reason,
+                    }))
+                  )
+                  setShowCartWarning(true)
+                }
+              }
+            } catch (valErr) {
+              console.warn('[Cart Validate] Validation request failed, loading cart as-is:', valErr)
+            }
+          }
+
+          setCart(parsedCart)
+        } else {
+          // CRITICAL: Clear cart when switching to a business with no saved cart
+          setCart([])
+          console.log('🔄 Switched to business with no saved cart - cart cleared')
+        }
+      } catch (error) {
+        console.error('Failed to load cart from localStorage:', error)
+        setCart([]) // Clear cart on error
+      } finally {
+        setCartLoaded(true)
       }
-    } catch (error) {
-      console.error('Failed to load cart from localStorage:', error)
-      setCart([]) // Clear cart on error
-    } finally {
-      setCartLoaded(true)
     }
+
+    doLoad()
   }, [currentBusinessId])
 
   // Save cart to localStorage whenever it changes (but only after initial load)
@@ -225,6 +280,33 @@ export default function RestaurantPOS() {
       console.error('Failed to save cart to localStorage:', error)
     }
   }, [cart, currentBusinessId, cartLoaded])
+
+  // Listen for pos:add-to-cart dispatched by GlobalBarcodeModal when a product
+  // is found in this business while on a POS page.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { productId, variantId, productName, price } = (e as CustomEvent).detail
+      if (!productId) return
+      // Try to find the already-loaded menu item first (preserves stock, WiFi token flags, etc.)
+      const itemId = variantId ? `${productId}-${variantId}` : productId
+      const found = menuItemsRef.current.find(m => m.id === itemId || m.id === productId)
+      if (found) {
+        addToCartRef.current?.(found)
+      } else {
+        // Fallback: construct a minimal item from the scan data
+        const scannedItem: MenuItem = {
+          id: itemId,
+          name: productName || 'Scanned Item',
+          price: price || 0,
+          category: 'scanned',
+          isAvailable: true,
+        }
+        addToCartRef.current?.(scannedItem)
+      }
+    }
+    window.addEventListener('pos:add-to-cart', handler)
+    return () => window.removeEventListener('pos:add-to-cart', handler)
+  }, [])
 
   // Auto-apply first available ISSUED reward when customer rewards load (skip if coupon active)
   useEffect(() => {
@@ -1562,6 +1644,8 @@ export default function RestaurantPOS() {
       return newCart
     })
   }
+  // Keep ref current on every render so pos:add-to-cart event handler is never null
+  addToCartRef.current = addToCart
 
   const handleProductScanned = (product: any, variantId?: string) => {
     // Check if product is available
@@ -1986,6 +2070,47 @@ export default function RestaurantPOS() {
   }
   return (
     <BusinessTypeRoute requiredBusinessType="restaurant">
+      {/* ── Cart validation warning dialog ────────────────────────────────── */}
+      {showCartWarning && cartValidationWarnings.length > 0 && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="px-5 py-4 bg-amber-500 dark:bg-amber-600 flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h3 className="text-base font-bold text-white">Stale cart items removed</h3>
+                <p className="text-xs text-amber-100">
+                  {cartValidationWarnings.length} item{cartValidationWarnings.length !== 1 ? 's' : ''} from your saved cart
+                  {cartValidationWarnings.length !== 1 ? ' were' : ' was'} no longer valid and{' '}
+                  {cartValidationWarnings.length !== 1 ? 'have' : 'has'} been removed automatically.
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-2 max-h-64 overflow-y-auto">
+              {cartValidationWarnings.map((w, i) => (
+                <div key={i} className="flex items-start gap-2 py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                  <span className="text-red-500 mt-0.5 shrink-0">✕</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{w.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{w.reason}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 pb-4 pt-2">
+              <button
+                onClick={() => {
+                  setShowCartWarning(false)
+                  setCartValidationWarnings([])
+                }}
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold text-sm"
+              >
+                OK — Continue with valid items
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="min-h-screen page-background bg-white dark:bg-gray-900">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 p-2 lg:p-4">
           <div className="lg:col-span-2 space-y-4">
@@ -2678,10 +2803,50 @@ export default function RestaurantPOS() {
               </div>
               <BarcodeScanner
                 onProductScanned={handleProductScanned}
+                onNotFound={(barcode) => setQuickStockBarcode(barcode)}
+                onProductNeedsActivation={(product, barcode, variantId) => {
+                  setQuickStockExistingProduct({ id: product.id, name: product.name, variantId })
+                  setQuickStockBarcode(barcode)
+                }}
                 businessId={businessId}
                 showScanner={showBarcodeScanner}
                 onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
               />
+              {quickStockBarcode && (
+                <QuickStockFromScanModal
+                  isOpen={true}
+                  barcode={quickStockBarcode}
+                  businessId={businessId}
+                  businessType="restaurant"
+                  existingProduct={quickStockExistingProduct ?? undefined}
+                  suggestedName={quickStockExistingProduct?.name}
+                  onSuccess={async (productId, variantId, productName) => {
+                    setQuickStockBarcode(null)
+                    setQuickStockExistingProduct(null)
+                    try {
+                      const res = await fetch(`/api/universal/products/${productId}`)
+                      if (res.ok) {
+                        const product = await res.json()
+                        const variant = variantId ? product.variants?.find((v: any) => v.id === variantId) : undefined
+                        const menuItem: MenuItem = {
+                          id: variantId ? `${productId}-${variantId}` : productId,
+                          name: productName + (variant?.name ? ` (${variant.name})` : ''),
+                          price: variant?.price || product.basePrice || 0,
+                          category: 'stocked',
+                          isAvailable: true,
+                        }
+                        addToCart(menuItem)
+                      }
+                    } catch {
+                      // Product stocked — user can scan again to add to cart
+                    }
+                  }}
+                  onClose={() => {
+                    setQuickStockBarcode(null)
+                    setQuickStockExistingProduct(null)
+                  }}
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-2">
@@ -3755,6 +3920,7 @@ export default function RestaurantPOS() {
           onClose={() => setShowMealProgramDetails(false)}
         />
       )}
+      </div>
     </BusinessTypeRoute>
   )
 }

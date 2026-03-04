@@ -16,6 +16,7 @@ import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import type { ReceiptData } from '@/types/printing'
+import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 
 interface CartItem {
   id: string
@@ -79,6 +80,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // Ref-based guard to prevent duplicate print calls
   const printInFlightRef = useRef(false)
   const [cart, setCart] = useState<CartItem[]>([])
+  // Always-current ref so async callbacks (barcode scanner, event listeners) never
+  // read a stale cart snapshot from a captured closure
+  const cartRef = useRef<CartItem[]>([])
   const [mode, setMode] = useState<'sale' | 'return' | 'exchange'>('sale')
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [supervisorOverride, setSupervisorOverride] = useState<SupervisorOverride | null>(null)
@@ -104,6 +108,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [showSupervisorModal, setShowSupervisorModal] = useState(false)
   const [printReceipt, setPrintReceipt] = useState(true)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
+  const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
   const [autoAddProcessed, setAutoAddProcessed] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [completedOrderReceipt, setCompletedOrderReceipt] = useState<ReceiptData | null>(null)
@@ -190,6 +196,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       total
     })
   }
+
+  // Keep cartRef in sync with cart state to prevent stale-closure bugs in async callbacks
+  useEffect(() => { cartRef.current = cart }, [cart])
 
   // Fetch business configuration on mount
   useEffect(() => {
@@ -303,6 +312,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [cartLoaded, setCartLoaded] = useState(false)
   const hasImportedFromGlobalCart = useRef(false)
 
+  // Cart validation warning — populated when stale/invalid items are found on load
+  const [cartValidationWarnings, setCartValidationWarnings] = useState<Array<{ name: string; reason: string }>>([])
+  const [showCartWarning, setShowCartWarning] = useState(false)
+
   // Reset import flag when business changes
   useEffect(() => {
     hasImportedFromGlobalCart.current = false
@@ -316,110 +329,147 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     }
     console.log('[Cart Load] Starting cart load for business:', businessId)
 
-    try {
-      // Load saved cart from localStorage
-      const savedCart = localStorage.getItem(`cart-${businessId}`)
-      let existingCart: CartItem[] = []
+    const doLoad = async () => {
+      try {
+        // Load saved cart from localStorage
+        const savedCart = localStorage.getItem(`cart-${businessId}`)
+        let existingCart: CartItem[] = []
 
-      if (savedCart) {
-        existingCart = JSON.parse(savedCart).map((item: any) => {
-          const normalized: any = { ...item }
+        if (savedCart) {
+          existingCart = JSON.parse(savedCart).map((item: any) => {
+            const normalized: any = { ...item }
 
-          // Ensure id exists
-          if (!normalized.id) {
-            normalized.id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            // Ensure id exists
+            if (!normalized.id) {
+              normalized.id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            }
+
+            // Normalize UniversalPOS format (uses `unitPrice`) into AdvancedPOS format (uses `price`)
+            if (normalized.price === undefined && normalized.unitPrice !== undefined) {
+              normalized.price = Number(normalized.unitPrice) || 0
+            }
+
+            // Extract name from nested product object if missing (Basic POS format)
+            if (!normalized.name) {
+              normalized.name =
+                item.product?.name ||
+                item.productName ||
+                item.name ||
+                'Unknown Item'
+            }
+
+            // Extract sku from nested product/variant if missing
+            if (!normalized.sku) {
+              normalized.sku =
+                item.variant?.sku ||
+                item.product?.sku ||
+                item.sku ||
+                normalized.variantId ||
+                normalized.productId ||
+                ''
+            }
+
+            // Extract attributes from nested product if missing (Basic POS stores them in product.attributes)
+            if (!normalized.attributes) {
+              normalized.attributes = item.product?.attributes || undefined
+            }
+
+            return normalized as CartItem
+          })
+        }
+
+        let finalCart: CartItem[] = existingCart
+
+        // Check if global cart has items to merge
+        if (globalCart && globalCart.length > 0) {
+          // Convert global cart items to local cart format
+          const importedItems: CartItem[] = globalCart.map(item => ({
+            id: item.id,
+            productId: item.productId,
+            variantId: item.variantId,
+            name: item.name,
+            sku: item.sku,
+            price: item.price,
+            quantity: item.quantity,
+            attributes: item.attributes
+          }))
+
+          // Merge carts - global cart is the source of truth for price; avoid doubling quantities
+          const mergedCart = [...existingCart]
+          importedItems.forEach(newItem => {
+            // Match by variantId first, then by productId (covers bale items where variantId may differ)
+            const existingIndex = mergedCart.findIndex(item =>
+              (newItem.variantId && item.variantId === newItem.variantId) ||
+              (!newItem.variantId && item.productId === newItem.productId) ||
+              // Bale items: match by baleId attribute or canonical productId
+              (newItem.attributes?.baleId && item.attributes?.baleId === newItem.attributes.baleId) ||
+              (newItem.productId?.startsWith('bale_') && item.productId === newItem.productId)
+            )
+            if (existingIndex >= 0) {
+              // Item exists in both — always take the fresh price from global cart (localStorage may be stale)
+              mergedCart[existingIndex].price = newItem.price
+              mergedCart[existingIndex].name = newItem.name
+              mergedCart[existingIndex].quantity = Math.max(mergedCart[existingIndex].quantity, newItem.quantity)
+            } else {
+              // New item from global cart — add it
+              mergedCart.push(newItem)
+            }
+          })
+
+          finalCart = mergedCart
+          // Clear global cart after importing to prevent re-merge on next load
+          clearGlobalCart()
+        }
+
+        // ── Validate cart against DB before loading ──────────────────────────
+        if (finalCart.length > 0) {
+          try {
+            const res = await fetch('/api/pos/validate-cart', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                businessId,
+                items: finalCart.map(item => ({
+                  id: item.id,
+                  productId: item.productId,
+                  variantId: item.variantId,
+                  name: item.name,
+                  quantity: item.quantity,
+                  attributes: item.attributes,
+                })),
+              }),
+            })
+            if (res.ok) {
+              const { valid, invalid } = await res.json()
+              if (invalid && invalid.length > 0) {
+                const validIds = new Set((valid as CartItem[]).map(v => v.id))
+                finalCart = finalCart.filter(item => validIds.has(item.id))
+                setCartValidationWarnings(
+                  (invalid as Array<{ item: CartItem; reason: string }>).map(({ item, reason }) => ({
+                    name: item.name,
+                    reason,
+                  }))
+                )
+                setShowCartWarning(true)
+              }
+            }
+          } catch (valErr) {
+            console.warn('[Cart Validate] Validation request failed, loading cart as-is:', valErr)
           }
+        }
 
-          // Normalize UniversalPOS format (uses `unitPrice`) into AdvancedPOS format (uses `price`)
-          if (normalized.price === undefined && normalized.unitPrice !== undefined) {
-            normalized.price = Number(normalized.unitPrice) || 0
-          }
-
-          // Extract name from nested product object if missing (Basic POS format)
-          if (!normalized.name) {
-            normalized.name =
-              item.product?.name ||
-              item.productName ||
-              item.name ||
-              'Unknown Item'
-          }
-
-          // Extract sku from nested product/variant if missing
-          if (!normalized.sku) {
-            normalized.sku =
-              item.variant?.sku ||
-              item.product?.sku ||
-              item.sku ||
-              normalized.variantId ||
-              normalized.productId ||
-              ''
-          }
-
-          // Extract attributes from nested product if missing (Basic POS stores them in product.attributes)
-          if (!normalized.attributes) {
-            normalized.attributes = item.product?.attributes || undefined
-          }
-
-          return normalized as CartItem
-        })
+        setCart(finalCart)
+        // Mark as imported to prevent re-importing
+        hasImportedFromGlobalCart.current = true
+      } catch (error) {
+        console.error('Failed to load cart from localStorage:', error)
+        setCart([]) // Clear cart on error
+      } finally {
+        setCartLoaded(true)
       }
-
-      let finalCart: CartItem[] = existingCart
-
-      // Check if global cart has items to merge
-      if (globalCart && globalCart.length > 0) {
-        // Convert global cart items to local cart format
-        const importedItems: CartItem[] = globalCart.map(item => ({
-          id: item.id,
-          productId: item.productId,
-          variantId: item.variantId,
-          name: item.name,
-          sku: item.sku,
-          price: item.price,
-          quantity: item.quantity,
-          attributes: item.attributes
-        }))
-
-        // Merge carts - global cart is the source of truth for price; avoid doubling quantities
-        const mergedCart = [...existingCart]
-        importedItems.forEach(newItem => {
-          // Match by variantId first, then by productId (covers bale items where variantId may differ)
-          const existingIndex = mergedCart.findIndex(item =>
-            (newItem.variantId && item.variantId === newItem.variantId) ||
-            (!newItem.variantId && item.productId === newItem.productId) ||
-            // Bale items: match by baleId attribute or canonical productId
-            (newItem.attributes?.baleId && item.attributes?.baleId === newItem.attributes.baleId) ||
-            (newItem.productId?.startsWith('bale_') && item.productId === newItem.productId)
-          )
-          if (existingIndex >= 0) {
-            // Item exists in both — always take the fresh price from global cart (localStorage may be stale)
-            mergedCart[existingIndex].price = newItem.price
-            mergedCart[existingIndex].name = newItem.name
-            mergedCart[existingIndex].quantity = Math.max(mergedCart[existingIndex].quantity, newItem.quantity)
-          } else {
-            // New item from global cart — add it
-            mergedCart.push(newItem)
-          }
-        })
-
-        finalCart = mergedCart
-        setCart(mergedCart)
-        // Clear global cart after importing to prevent re-merge on next load
-        clearGlobalCart()
-        // Global cart will be cleared after successful payment
-      } else {
-        // No global cart items - just use existing cart
-        setCart(existingCart)
-      }
-
-      // Mark as imported to prevent re-importing
-      hasImportedFromGlobalCart.current = true
-    } catch (error) {
-      console.error('Failed to load cart from localStorage:', error)
-      setCart([]) // Clear cart on error
-    } finally {
-      setCartLoaded(true)
     }
+
+    doLoad()
   }, [businessId, globalCart, clearGlobalCart])
 
   // Save cart to localStorage whenever it changes (but only after initial load)
@@ -780,12 +830,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
     if (!product || !variant) return
 
-    const existingItem = cart.find(item => item.variantId === variantId)
+    const existingItem = cart.find(item => item.productId === productId && item.variantId === variantId)
 
     let newCart: CartItem[]
     if (existingItem) {
       newCart = cart.map(item =>
-        item.variantId === variantId
+        item.productId === productId && item.variantId === variantId
           ? { ...item, quantity: item.quantity + (quantity || 1) }
           : item
       )
@@ -820,10 +870,11 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       item.attributes?.baleId === bale.id ||
       item.variantId === baleVariantId ||
       item.productId === baleVariantId
-    const existingItem = cart.find(isSameBale)
+    const currentCart = cartRef.current
+    const existingItem = currentCart.find(isSameBale)
     let newCart: CartItem[]
     if (existingItem) {
-      newCart = cart.map(item =>
+      newCart = currentCart.map(item =>
         isSameBale(item)
           ? { ...item, quantity: item.quantity + 1 }
           : item
@@ -845,24 +896,33 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         },
         isReturn: false,
       }
-      newCart = [...cart, newItem]
+      newCart = [...currentCart, newItem]
     }
     setCart(newCart)
     broadcastCartState(newCart)
   }
 
   const addToCartFromScanner = (product: any, variantId?: string, quantity: number = 1) => {
-    const variant = variantId ? product.variants?.find((v: any) => v.id === variantId) : undefined
+    // When no specific variantId is given (product-level barcode), resolve to the
+    // first valid variant so the cart item is consistent with quick-add entries
+    const effectiveVariantId = variantId ||
+      product.variants?.find((v: any) => (parseFloat(v.price) || product.basePrice) > 0)?.id
+
+    const variant = effectiveVariantId
+      ? product.variants?.find((v: any) => v.id === effectiveVariantId)
+      : undefined
     const unitPrice = variant?.price ?? product.basePrice
 
-    const existingItem = cart.find(item =>
-      item.productId === product.id && item.variantId === variantId
+    // Use cartRef.current to avoid stale-closure reading an outdated cart snapshot
+    const currentCart = cartRef.current
+    const existingItem = currentCart.find(item =>
+      item.productId === product.id && item.variantId === effectiveVariantId
     )
 
     let newCart: CartItem[]
     if (existingItem) {
-      newCart = cart.map(item =>
-        item.productId === product.id && item.variantId === variantId
+      newCart = currentCart.map(item =>
+        item.productId === product.id && item.variantId === effectiveVariantId
           ? { ...item, quantity: item.quantity + quantity }
           : item
       )
@@ -870,7 +930,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       const newItem: CartItem = {
         id: Date.now().toString(),
         productId: product.id,
-        variantId,
+        variantId: effectiveVariantId,
         name: product.name,
         sku: variant?.sku || product.sku || `SKU-${product.id}`,
         price: unitPrice,
@@ -880,13 +940,35 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         variant,
         isReturn: mode === 'return'
       }
-      newCart = [...cart, newItem]
+      newCart = [...currentCart, newItem]
     }
 
     setCart(newCart)
     // Broadcast updated cart to customer display
     broadcastCartState(newCart)
   }
+
+  // Listen for pos:add-to-cart dispatched by GlobalBarcodeModal when a product
+  // is found in this business while on a POS page. Uses cartRef so the handler
+  // never reads a stale cart snapshot regardless of when it was registered.
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const { productId, variantId } = (e as CustomEvent).detail
+      if (!productId) return
+      try {
+        const res = await fetch(`/api/universal/products/${productId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data) addToCartFromScanner(data, variantId, 1)
+      } catch (err) {
+        console.error('[Clothing POS] pos:add-to-cart handler error:', err)
+      }
+    }
+    window.addEventListener('pos:add-to-cart', handler)
+    return () => window.removeEventListener('pos:add-to-cart', handler)
+  // addToCartFromScanner is defined inside the component but stable via cartRef
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const removeFromCart = (itemId: string) => {
     const newCart = cart.filter(item => item.id !== itemId)
@@ -1280,6 +1362,48 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   ]
 
   return (
+    <>
+      {/* ── Cart validation warning dialog ────────────────────────────────── */}
+      {showCartWarning && cartValidationWarnings.length > 0 && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="px-5 py-4 bg-amber-500 dark:bg-amber-600 flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h3 className="text-base font-bold text-white">Stale cart items removed</h3>
+                <p className="text-xs text-amber-100">
+                  {cartValidationWarnings.length} item{cartValidationWarnings.length !== 1 ? 's' : ''} from your saved cart
+                  {cartValidationWarnings.length !== 1 ? ' were' : ' was'} no longer valid and{' '}
+                  {cartValidationWarnings.length !== 1 ? 'have' : 'has'} been removed automatically.
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-2 max-h-64 overflow-y-auto">
+              {cartValidationWarnings.map((w, i) => (
+                <div key={i} className="flex items-start gap-2 py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                  <span className="text-red-500 mt-0.5 shrink-0">✕</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{w.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{w.reason}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 pb-4 pt-2">
+              <button
+                onClick={() => {
+                  setShowCartWarning(false)
+                  setCartValidationWarnings([])
+                }}
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold text-sm"
+              >
+                OK — Continue with valid items
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start overflow-x-hidden">
       {/* Main POS Interface */}
       <div className="xl:col-span-2 space-y-6">
@@ -1613,10 +1737,42 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         {/* Barcode Scanner */}
         <BarcodeScanner
           onProductScanned={(product, variantId) => addToCartFromScanner(product, variantId)}
+          onNotFound={(barcode) => setQuickStockBarcode(barcode)}
+          onProductNeedsActivation={(product, barcode, variantId) => {
+            setQuickStockExistingProduct({ id: product.id, name: product.name, variantId })
+            setQuickStockBarcode(barcode)
+          }}
           businessId={currentBusiness?.businessId || ''}
           showScanner={showBarcodeScanner}
           onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
         />
+        {quickStockBarcode && (
+          <QuickStockFromScanModal
+            isOpen={true}
+            barcode={quickStockBarcode}
+            businessId={businessId}
+            businessType="clothing"
+            existingProduct={quickStockExistingProduct ?? undefined}
+            suggestedName={quickStockExistingProduct?.name}
+            onSuccess={async (productId, variantId) => {
+              setQuickStockBarcode(null)
+              setQuickStockExistingProduct(null)
+              try {
+                const res = await fetch(`/api/universal/products/${productId}`)
+                if (res.ok) {
+                  const data = await res.json()
+                  addToCartFromScanner(data, variantId, 1)
+                }
+              } catch {
+                // Product stocked — user can scan again to add to cart
+              }
+            }}
+            onClose={() => {
+              setQuickStockBarcode(null)
+              setQuickStockExistingProduct(null)
+            }}
+          />
+        )}
 
         {/* Return Processing */}
         {mode === 'return' && (
@@ -2012,5 +2168,6 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         }}
       />
     </div>
+    </>
   )
 }

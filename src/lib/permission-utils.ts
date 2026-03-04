@@ -824,12 +824,15 @@ export function canAddInventoryFromModal(user: SessionUser | null | undefined, b
   if (!user) return false
   if (isSystemAdmin(user)) return true
 
-  // Must have the user-level permission
-  if (!canStockInventoryFromModal(user)) return false
+  // User-level global modal permission — explicit grant; no further check needed
+  if (canStockInventoryFromModal(user)) return true
 
-  // Get the business membership to check business type
+  // Fall back to business-level inventory management permission for the specific business
   const membership = user.businessMemberships?.find(m => m.businessId === businessId && m.isActive)
   if (!membership) return false
+
+  // Business owners and managers of this specific business always have inventory access
+  if (membership.role === 'business-owner' || membership.role === 'business-manager') return true
 
   const businessType = membership.businessType
 
@@ -842,13 +845,10 @@ export function canAddInventoryFromModal(user: SessionUser | null | undefined, b
     case 'restaurant':
       return hasCustomPermission(user, 'restaurant.canManageKitchenInventory', businessId)
     case 'construction':
-      // Construction businesses don't have inventory management
       return false
     case 'consulting':
-      // Consulting businesses don't have inventory management
       return false
     default:
-      // For other business types, check if they have any inventory permissions
       return hasCustomPermission(user, `${businessType}.canManageInventory`, businessId)
   }
 }

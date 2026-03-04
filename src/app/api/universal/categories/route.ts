@@ -9,6 +9,7 @@ const CreateCategorySchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   parentId: z.string().optional(),
+  domainId: z.string().optional(),
   displayOrder: z.number().int().min(0).default(0),
   businessType: z.string().min(1),
   attributes: z.record(z.string(), z.unknown()).optional()
@@ -37,11 +38,16 @@ export async function GET(request: NextRequest) {
 
     const where: any = { isActive: true }
 
-    if (businessId) {
+    if (businessId && businessType) {
+      // Return global/seed categories for this business type (businessId=null)
+      // PLUS any business-specific categories added by this business
+      where.OR = [
+        { businessId: null, businessType: businessType },
+        { businessId: businessId },
+      ]
+    } else if (businessId) {
       where.businessId = businessId
-    }
-
-    if (businessType) {
+    } else if (businessType) {
       where.businessType = businessType
     }
 

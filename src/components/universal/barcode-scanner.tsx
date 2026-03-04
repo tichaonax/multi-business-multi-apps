@@ -14,6 +14,10 @@ interface BarcodeScannerProps {
   lookupDebounceMs?: number
   /** Callback when a template is found (for creating new products from templates) */
   onTemplateFound?: (templateData: any) => void
+  /** Called when the scanned barcode has no match in this business — opens QuickStockFromScanModal */
+  onNotFound?: (barcode: string) => void
+  /** Called when a product is found but has zero price AND zero stock — prompts user to activate pricing */
+  onProductNeedsActivation?: (product: UniversalProduct, barcode: string, variantId?: string) => void
 }
 
 interface BarcodeMapping {
@@ -30,7 +34,9 @@ export function BarcodeScanner({
   onToggleScanner,
   minBarcodeLength,
   lookupDebounceMs,
-  onTemplateFound
+  onTemplateFound,
+  onNotFound,
+  onProductNeedsActivation,
 }: BarcodeScannerProps) {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null)
@@ -285,7 +291,23 @@ export function BarcodeScanner({
           // Handle product result (Tier 1)
           if (result.type === 'product' && result.data) {
             const { product, variantId, matchedBarcode } = result.data
-            onProductScanned(product as UniversalProduct, variantId, matchedBarcode)
+            const typedProduct = product as UniversalProduct
+            // 3.3 — check if product needs pricing/stock activation
+            const matchedVariant = variantId
+              ? typedProduct.variants?.find((v: any) => v.id === variantId)
+              : typedProduct.variants?.[0]
+            const needsActivation =
+              onProductNeedsActivation &&
+              (typedProduct.basePrice ?? 0) <= 0 &&
+              ((matchedVariant?.stockQuantity ?? 0) <= 0)
+            if (needsActivation) {
+              onProductNeedsActivation!(typedProduct, toLookup, variantId)
+              setLastScannedBarcode(toLookup)
+              setBarcodeInput('')
+              clearLastScanned()
+              return
+            }
+            onProductScanned(typedProduct, variantId, matchedBarcode)
             setLastScannedBarcode(toLookup)
             setMatchedBarcodeInfo(matchedBarcode)
             setBarcodeInput('')
@@ -309,6 +331,14 @@ export function BarcodeScanner({
 
           // Handle not found (Tier 3)
           if (result.type === 'not_found') {
+            // 3.2 — delegate to parent if handler provided; suppress inline error
+            if (onNotFound) {
+              onNotFound(toLookup)
+              setBarcodeInput('')
+              setError(null) // 3.4 — don't show red error alongside the modal
+              setIsLoading(false)
+              return
+            }
             // Fall through to demo mapping below
           }
         } else if (response.status !== 404) {
@@ -378,8 +408,14 @@ export function BarcodeScanner({
           setBarcodeInput('')
           clearLastScanned()
         } else {
-          setError(`Product not found for barcode: ${toLookup}`)
-          setTimeout(() => setError(null), 5000)
+          if (onNotFound) {
+            onNotFound(toLookup)
+            setBarcodeInput('')
+            setError(null)
+          } else {
+            setError(`Product not found for barcode: ${toLookup}`)
+            setTimeout(() => setError(null), 5000)
+          }
         }
       } catch (err: any) {
         // Ignore aborts triggered by new incoming scans

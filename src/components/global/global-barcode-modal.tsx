@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { globalBarcodeService, GlobalBarcodeEvent } from '@/lib/services/global-barcode-service'
 import { useSession, signOut } from 'next-auth/react'
-import { getGlobalBarcodeScanningAccess, canStockInventoryFromModal } from '@/lib/permission-utils'
-import { BusinessSelectionModal, InventoryType, ProductData } from './business-selection-modal'
+import { getGlobalBarcodeScanningAccess } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 import { useToast } from '@/components/ui/use-toast'
 import { useRouter } from 'next/navigation'
 import { ClockInModal } from '@/components/clock-in/clock-in-modal'
@@ -31,10 +32,15 @@ interface GlobalBarcodeModalProps {
   onClose: () => void
   barcode: string
   confidence: 'high' | 'medium' | 'low'
+  /** Current business context — enables "Stock in Current Business" flow */
+  currentBusinessId?: string
+  currentBusinessType?: string
+  currentBusinessName?: string
 }
 
-export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: GlobalBarcodeModalProps) {
+export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, currentBusinessId, currentBusinessType, currentBusinessName }: GlobalBarcodeModalProps) {
   const { data: session } = useSession()
+  const { hasPermission } = useBusinessPermissionsContext()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   // True while the initial card-scan check is in-flight (before we know if it's a card or product)
@@ -47,7 +53,10 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
   const [customSku, setCustomSku] = useState('')
   const [currentBarcode, setCurrentBarcode] = useState(barcode)
   const [currentConfidence, setCurrentConfidence] = useState(confidence)
-  const [showBusinessSelection, setShowBusinessSelection] = useState(false)
+  const [showQuickStock, setShowQuickStock] = useState(false)
+  const [newlyAddedProduct, setNewlyAddedProduct] = useState<{ id: string; variantId: string; name: string } | null>(null)
+  // True when on a POS page and the scanned product exists in other businesses but NOT in the current one
+  const [isPosCrossBiz, setIsPosCrossBiz] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<{ url: string, business: BusinessInventory } | null>(null)
   const [isSwitching, setIsSwitching] = useState(false)
   const { push: showToast } = useToast()
@@ -76,6 +85,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     if (isOpen && barcode) {
       setCurrentBarcode(barcode)
       setCurrentConfidence(confidence)
+      setNewlyAddedProduct(null)
+      setIsPosCrossBiz(false)
       lookupBarcode(barcode)
     }
   }, [isOpen, barcode])
@@ -154,12 +165,9 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
       // Card check complete — not a card scan, switching to product lookup
       setIsIdentifying(false)
 
-      // Check user permissions
+      // Check user permissions — canScan gates cross-business visibility only;
+      // users always get results scoped to their own accessible businesses
       const access = getGlobalBarcodeScanningAccess(session.user as any)
-      if (!access.canScan) {
-        setError('You do not have permission to use global barcode scanning')
-        return
-      }
 
       // Call the inventory lookup API
       const response = await fetch(`/api/global/inventory-lookup/${encodeURIComponent(barcodeToLookup)}`)
@@ -216,7 +224,41 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
 
       setBusinesses(filteredBusinesses)
 
-      // Auto-select the first accessible business
+      // Auto-add to cart on POS pages: when the scanned product is found in the
+      // current business, dispatch an event and close the modal silently.
+      // Clock-in is never affected here because employee-card scans return early
+      // (before this code) via the setCardScanHandled(true) + return path above.
+      const isOnPOSPage =
+        typeof window !== 'undefined' && window.location.pathname.includes('/pos')
+      if (isOnPOSPage && currentBusinessId) {
+        const currentBizMatch = filteredBusinesses.find(
+          b => b.businessId === currentBusinessId && b.hasAccess && b.productId
+        )
+        if (currentBizMatch) {
+          // ✅ Product in current business — add to cart silently
+          window.dispatchEvent(
+            new CustomEvent('pos:add-to-cart', {
+              detail: {
+                productId: currentBizMatch.productId,
+                variantId: currentBizMatch.variantId ?? undefined,
+                productName: currentBizMatch.productName,
+                price: currentBizMatch.price,
+                variantAttributes: currentBizMatch.variantAttributes,
+              },
+            })
+          )
+          onClose()
+          return
+        }
+        // Product NOT in current business — show focused POS cross-biz dialog
+        // (filteredBusinesses.length === 0 means not found anywhere; still opens modal for "add to inventory")
+        if (filteredBusinesses.length > 0) {
+          setIsPosCrossBiz(true)
+        }
+        // Fall through to open modal with POS-specific UI
+      }
+
+      // Auto-select the first accessible business (used by normal non-POS modal flow)
       const firstAccessible = filteredBusinesses.find(biz => biz.hasAccess)
       if (firstAccessible) {
         setSelectedBusiness(firstAccessible.businessId)
@@ -330,10 +372,6 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     }
   }
 
-  const handleAddToInventory = () => {
-    setShowBusinessSelection(true)
-  }
-
   const handleViewProduct = (business: BusinessInventory) => {
     // Get current business from localStorage
     const currentBusinessId = localStorage.getItem('currentBusinessId')
@@ -427,57 +465,6 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
     }
 
     return details
-  }
-
-  const handleBusinessSelectedForInventory = async (businessId: string, inventoryType: InventoryType, productData: ProductData) => {
-    if (!session?.user) return
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/global/inventory-add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          barcode: currentBarcode,
-          businessId,
-          inventoryType,
-          productData
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `Failed to add inventory: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to add inventory')
-      }
-
-      // Show success message
-      showToast(`✅ Product "${productData.name}" added successfully with ${productData.quantity} ${productData.unit}(s) in stock!`)
-
-      // Close both modals
-      setShowBusinessSelection(false)
-      onClose()
-
-      // Reset state
-      setError(null)
-      setBusinesses([])
-      setSelectedBusiness(null)
-
-    } catch (err) {
-      console.error('Error adding inventory:', err)
-      setError(err instanceof Error ? err.message : 'Failed to add inventory. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
   }
 
   if (!isOpen) return null
@@ -596,7 +583,12 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
           <div className="mb-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {isIdentifying ? 'Scanning…' : isLoading ? 'Searching for Product…' : businesses.length === 0 ? 'Product Not Found' : `Product Found in ${businesses.length} Business${businesses.length > 1 ? 'es' : ''}`}
+                {isPosCrossBiz
+                  ? 'Item Not In Your Current POS'
+                  : isIdentifying ? 'Scanning…'
+                  : isLoading ? 'Searching for Product…'
+                  : businesses.length === 0 ? 'Product Not Found'
+                  : `Product Found in ${businesses.length} Business${businesses.length > 1 ? 'es' : ''}`}
               </h2>
               <button
                 onClick={onClose}
@@ -608,7 +600,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
             </div>
 
             {/* Sell this Item button - shown when products are found */}
-            {!isLoading && businesses.length > 0 && businesses.some(biz => biz.hasAccess) && (
+            {!isLoading && businesses.length > 0 && businesses.some(biz => biz.hasAccess) && !isPosCrossBiz && (
               <div className="mt-3">
                 <button
                   onClick={handleSellItem}
@@ -671,27 +663,142 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
             </div>
           )}
 
-          {isLoading ? (
+          {/* ── Success panel: always shown first when a product was just added ── */}
+          {!isLoading && newlyAddedProduct ? (
+            <div className="text-center py-8">
+              <div className="space-y-4">
+                <div className="flex items-center justify-center w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 mx-auto">
+                  <span className="text-3xl">✅</span>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{newlyAddedProduct.name}</p>
+                  <p className="text-sm text-green-600 dark:text-green-400 mt-1">Successfully added to inventory</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                  <button
+                    onClick={() => {
+                      const inventoryPath = currentBusinessType ?? 'clothing'
+                      router.push(`/${inventoryPath}/inventory?businessId=${currentBusinessId}&highlight=${newlyAddedProduct.id}`)
+                      onClose()
+                    }}
+                    className="px-5 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium text-sm"
+                  >
+                    View in Inventory →
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
               <span className="ml-2 text-gray-600 dark:text-gray-400">{isIdentifying ? 'Identifying scan…' : 'Looking up product…'}</span>
+            </div>
+          ) : isPosCrossBiz ? (
+            // ── POS cross-business view: item exists in other businesses but not current POS ──
+            <div className="space-y-4">
+              {/* Warning banner */}
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <p className="font-semibold text-amber-800 dark:text-amber-200">
+                      Not stocked in your current POS
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      This item is carried by{' '}
+                      <strong>{businesses.length} other business{businesses.length !== 1 ? 'es' : ''}</strong>.
+                      Stock it in{' '}
+                      <strong>{currentBusinessName ?? 'your current business'}</strong> to sell it here.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Compact list of businesses that have it */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Found in:
+                </p>
+                {businesses.map((biz) => (
+                  <div
+                    key={biz.businessId}
+                    className="flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white block truncate">
+                        {biz.productName}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
+                        {biz.businessName}
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${
+                          biz.businessType === 'clothing'     ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' :
+                          biz.businessType === 'grocery'      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                          biz.businessType === 'restaurant'   ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                          biz.businessType === 'hardware'     ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' :
+                          'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                        }`}>{biz.businessType}</span>
+                      </span>
+                    </div>
+                    <div className="text-right ml-3 shrink-0">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
+                        ${biz.price.toFixed(2)}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Stock: {biz.stockQuantity}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Primary CTA: stock here and add to cart */}
+              {currentBusinessId && currentBusinessType && hasPermission('canManageMenu') ? (
+                <button
+                  onClick={() => setShowQuickStock(true)}
+                  className="w-full py-3 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 font-semibold flex items-center justify-center gap-2 shadow-sm"
+                >
+                  📦 Stock in {currentBusinessName ?? 'Current Business'} &amp; Add to Cart
+                </button>
+              ) : (
+                <p className="text-sm text-center text-gray-500 dark:text-gray-400 py-2">
+                  You don&apos;t have permission to add inventory to this business.
+                </p>
+              )}
+              <button
+                onClick={onClose}
+                className="w-full py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
             </div>
           ) : businesses.length === 0 ? (
             <div className="text-center py-8">
               <div className="mb-4">
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                  ⚠️ Product not found in any business.
+                  {typeof window !== 'undefined' && window.location.pathname.includes('/pos')
+                    ? '⚠️ This item is not stocked in any business.'
+                    : '⚠️ Product not found in any business.'}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">
-                  This product is not in your inventory. Would you like to add it?
+                  {typeof window !== 'undefined' && window.location.pathname.includes('/pos')
+                    ? 'Add it to your current business inventory to sell it now.'
+                    : 'This product is not in your inventory. Would you like to add it?'}
                 </p>
-                {canStockInventoryFromModal(session?.user as any) && (
+                {currentBusinessId && currentBusinessType && hasPermission('canManageMenu') && (
                   <button
-                    onClick={handleAddToInventory}
+                    onClick={() => setShowQuickStock(true)}
                     disabled={isLoading}
                     className="px-6 py-3 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                   >
-                    📦 Add to Inventory
+                    {typeof window !== 'undefined' && window.location.pathname.includes('/pos')
+                      ? '📦 Add to Inventory & Sell'
+                      : `📦 Add to ${currentBusinessName ?? 'Current Business'} Inventory`}
                   </button>
                 )}
               </div>
@@ -699,6 +806,27 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
           ) : (
             <div className="space-y-3">
               <h3 className="font-medium text-gray-900 dark:text-white">Select Business:</h3>
+
+              {/* 4.3 — Stock Here callout when current business has no match in cross-business results */}
+              {currentBusinessId && currentBusinessType &&
+                !businesses.some(b => b.businessId === currentBusinessId) &&
+                hasPermission('canManageMenu') && (
+                <div className="border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
+                    ℹ️ This barcode is not stocked in your current business.
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-3">
+                    Other businesses below carry this barcode — or stock it in your current business.
+                  </p>
+                  <button
+                    onClick={() => setShowQuickStock(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                  >
+                    📦 Stock in {currentBusinessName ?? 'Current Business'}
+                  </button>
+                </div>
+              )}
+
               {businesses.map((business) => (
                 <div
                   key={business.businessId}
@@ -810,12 +938,42 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence }: Glo
         </div>
       </div>
 
-      <BusinessSelectionModal
-        isOpen={showBusinessSelection}
-        onClose={() => setShowBusinessSelection(false)}
-        onBusinessSelected={handleBusinessSelectedForInventory}
-        barcode={currentBarcode}
-      />
+      {currentBusinessId && currentBusinessType && (
+        <QuickStockFromScanModal
+          isOpen={showQuickStock}
+          barcode={currentBarcode}
+          businessId={currentBusinessId}
+          businessType={currentBusinessType}
+          suggestedName={
+            businesses.find(b => b.businessId === currentBusinessId)?.productName ??
+            // In cross-biz mode the current business has no entry — use the first known name instead
+            businesses[0]?.productName ??
+            ''
+          }
+          onSuccess={(productId, variantId, productName) => {
+            setShowQuickStock(false)
+            if (typeof window !== 'undefined' && window.location.pathname.includes('/pos')) {
+              // On POS page: dispatch directly to cart so the item appears immediately
+              window.dispatchEvent(
+                new CustomEvent('pos:add-to-cart', {
+                  detail: {
+                    productId,
+                    variantId: variantId || undefined,
+                    productName,
+                    price: 0,
+                  },
+                })
+              )
+              onClose()
+            } else {
+              setNewlyAddedProduct({ id: productId, variantId, name: productName })
+              // Refresh the lookup so the newly stocked item appears
+              lookupBarcode(currentBarcode)
+            }
+          }}
+          onClose={() => setShowQuickStock(false)}
+        />
+      )}
 
       {/* Business Switch Confirmation Dialog */}
       {pendingNavigation && (

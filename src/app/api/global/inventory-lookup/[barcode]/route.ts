@@ -25,12 +25,9 @@ export async function GET(
     }
 
     const access = getGlobalBarcodeScanningAccess(user)
-    if (!access.canScan) {
-      return NextResponse.json(
-        { success: false, error: 'Insufficient permissions for global barcode scanning' },
-        { status: 403 }
-      )
-    }
+    // Note: access.canScan only gates cross-business visibility. Any authenticated
+    // business member can look up barcodes within their own businesses.
+    // The accessibleBusinessIds filter below enforces scope automatically.
 
     // Get user's business memberships for filtering
     const businessMemberships = await prisma.businessMemberships.findMany({

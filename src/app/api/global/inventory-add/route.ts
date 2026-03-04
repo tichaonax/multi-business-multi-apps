@@ -1,25 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { canAddInventoryFromModal } from '@/lib/permission-utils'
+import { canAddInventoryFromModal, isSystemAdmin } from '@/lib/permission-utils'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 
 export async function POST(request: NextRequest) {
   try {
-    // TEMPORARY: Skip authentication for testing
-    // const user = await getServerUser()
-    // if (!user) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'Unauthorized' },
-    //     { status: 401 }
-    //   )
-    // }
-
-    // Mock session for testing
-    const session = {
-      user: {
-        id: 'test-user-id',
-        role: 'SYSTEM_ADMIN'
-      }
+    const user = await getServerUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const body = await request.json()
@@ -42,31 +33,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check permissions
-    // TEMPORARY: Skip permission check for testing
-    // if (!canAddInventoryFromModal(user as any, businessId)) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'You do not have permission to add inventory to this business' },
-    //     { status: 403 }
-    //   )
-    // }
+    // Check permissions — user must have inventory management access to this business
+    if (!canAddInventoryFromModal(user, businessId)) {
+      return NextResponse.json(
+        { success: false, error: 'You do not have permission to add inventory to this business' },
+        { status: 403 }
+      )
+    }
 
     // Verify business exists and user has access
-    const business = await prisma.businesses.findFirst({
-      where: {
-        id: businessId,
-        type: inventoryType,
-        // For system admins, skip membership check since they have access to all businesses
-        ...(user.role !== 'SYSTEM_ADMIN' && {
+    let business = null
+    if (isSystemAdmin(user)) {
+      business = await prisma.businesses.findFirst({
+        where: { id: businessId, type: inventoryType }
+      })
+    } else {
+      business = await prisma.businesses.findFirst({
+        where: {
+          id: businessId,
+          type: inventoryType,
           business_memberships: {
             some: {
               userId: user.id,
               isActive: true
             }
           }
-        })
-      }
-    })
+        }
+      })
+    }
 
     if (!business) {
       return NextResponse.json(
@@ -126,6 +120,7 @@ export async function POST(request: NextRequest) {
           basePrice: productData?.sellPrice || 0,
           costPrice: productData?.costPrice || 0,
           isActive: true,
+          isInventoryTracked: true,
           attributes: productData?.size || productData?.color ? { size: productData?.size, color: productData?.color } : null,
           updatedAt: new Date()
         }
@@ -159,6 +154,23 @@ export async function POST(request: NextRequest) {
           variantId: productVariant.id
         }
       })
+
+      // Create initial stock movement for audit trail (R5: PURCHASE_RECEIVED)
+      if ((productData?.quantity ?? 0) > 0) {
+        await tx.businessStockMovements.create({
+          data: {
+            businessId,
+            productVariantId: productVariant.id,
+            businessProductId: businessProduct.id,
+            movementType: 'PURCHASE_RECEIVED',
+            quantity: productData.quantity,
+            unitCost: productData?.costPrice ?? null,
+            reference: 'Barcode Scan — Initial Stock',
+            reason: 'Product added via global barcode modal scan',
+            businessType: inventoryType
+          }
+        })
+      }
 
       return {
         barcodeEntry,

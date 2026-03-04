@@ -203,9 +203,7 @@ export function UniversalSupplierForm({
       newErrors['contact.primaryContact'] = 'Primary contact is required'
     }
 
-    if (!formData.contact?.email?.trim()) {
-      newErrors['contact.email'] = 'Email is required'
-    } else if (!/\S+@\S+\.\S+/.test(formData.contact.email)) {
+    if (formData.contact?.email?.trim() && !/\S+@\S+\.\S+/.test(formData.contact.email)) {
       newErrors['contact.email'] = 'Invalid email format'
     }
 
@@ -213,7 +211,7 @@ export function UniversalSupplierForm({
       newErrors['contact.phone'] = 'Phone is required'
     }
 
-    if (!formData.terms?.minimumOrder || formData.terms.minimumOrder < 0) {
+    if (formData.terms?.minimumOrder !== undefined && formData.terms.minimumOrder < 0) {
       newErrors['terms.minimumOrder'] = 'Minimum order must be 0 or greater'
     }
 
@@ -250,6 +248,16 @@ export function UniversalSupplierForm({
     { id: 'performance', label: 'Performance', icon: '📊' },
     { id: 'additional', label: 'Additional', icon: '⚙️' }
   ]
+
+  // Which error keys belong to each tab — used to show the red dot indicator
+  const tabErrorKeys: Record<string, string[]> = {
+    basic:   ['name', 'category'],
+    contact: ['contact.primaryContact', 'contact.email', 'contact.phone'],
+    terms:   ['terms.minimumOrder', 'terms.leadTimeDays'],
+  }
+
+  const tabHasError = (tabId: string) =>
+    (tabErrorKeys[tabId] ?? []).some(key => !!errors[key])
 
   const getBusinessIcon = (businessType: BusinessType) => {
     const icons = {
@@ -312,6 +320,9 @@ export function UniversalSupplierForm({
             >
               <span>{tab.icon}</span>
               {tab.label}
+              {tabHasError(tab.id) && (
+                <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="This tab has required fields that need attention" />
+              )}
             </button>
           ))}
         </nav>
@@ -434,7 +445,7 @@ export function UniversalSupplierForm({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email *
+                    Email <span className="text-gray-400 font-normal text-xs">(optional)</span>
                   </label>
                   <input
                     type="email"
@@ -546,7 +557,7 @@ export function UniversalSupplierForm({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Minimum Order Amount *
+                    Minimum Order Amount <span className="text-gray-400 font-normal text-xs">(optional)</span>
                   </label>
                   <input
                     type="number"

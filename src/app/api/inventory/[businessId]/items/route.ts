@@ -90,12 +90,16 @@ export async function GET(
     const inMenu = searchParams.get('inMenu')   // 'true' = items with a sell price (on menu)
     const posTracked = searchParams.get('posTracked') // 'true' = isInventoryTracked items only
     const priceFilter = searchParams.get('priceFilter') // 'with' | 'without'
+    const includeTemplates = searchParams.get('includeTemplates') === 'true' // default false
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
     // Build where clause for filtering
     const where: any = {
       businessId: businessId,
+      // By default hide template-only catalogue entries — they have no real stock/price yet.
+      // Pass includeTemplates=true to surface them (e.g. for the "Show Templates" toggle).
+      ...(includeTemplates ? {} : { isProductTemplate: false }),
     }
 
     if (isActive !== null) {
@@ -220,6 +224,7 @@ export async function GET(
         locationId: product.locationId || null,
         condition: product.condition || 'NEW',
         isActive: product.isActive,
+        isProductTemplate: (product as any).isProductTemplate ?? false,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
         barcodes: (product as any).product_barcodes || [],

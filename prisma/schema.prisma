@@ -269,6 +269,7 @@ model BusinessProducts {
   supplierId                  String?
   requiresCompanionItem       Boolean                    @default(false)
   isInventoryTracked          Boolean                    @default(false)
+  isProductTemplate           Boolean                    @default(false)
   business_brands             BusinessBrands?            @relation(fields: [brandId], references: [id])
   businesses                  Businesses                 @relation(fields: [businessId], references: [id])
   business_categories         BusinessCategories         @relation(fields: [categoryId], references: [id])
@@ -2489,7 +2490,7 @@ model Persons {
 
 model ExternalClockIn {
   id          String    @id @default(uuid())
-  type        String    // 'contractor' | 'visitor'
+  type        String // 'contractor' | 'visitor'
   personId    String?
   visitorName String?
   businessId  String
@@ -2502,7 +2503,7 @@ model ExternalClockIn {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  persons     Persons?  @relation(fields: [personId], references: [id])
+  persons Persons? @relation(fields: [personId], references: [id])
 
   @@map("external_clock_in")
 }

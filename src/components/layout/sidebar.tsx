@@ -1729,7 +1729,7 @@ export function Sidebar() {
         </div>
         <button 
           onClick={() => signOut({ 
-            callbackUrl: `${window.location.origin}/auth/signin`,
+            callbackUrl: window.location.origin,
             redirect: true 
           })}
           className="w-full text-left text-sm text-gray-400 hover:text-white transition-colors py-1"

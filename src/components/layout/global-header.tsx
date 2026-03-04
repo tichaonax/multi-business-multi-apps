@@ -871,7 +871,7 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
   const handleSignOut = () => {
     const currentOrigin = window.location.origin
     signOut({
-      callbackUrl: `${currentOrigin}/auth/signin`,
+      callbackUrl: currentOrigin,
       redirect: true
     }).then(() => {
       setTimeout(() => {

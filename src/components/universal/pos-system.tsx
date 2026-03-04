@@ -17,6 +17,7 @@ import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import type { ReceiptData, NetworkPrinter } from '@/types/printing'
+import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 
 interface CartItem {
   productId: string
@@ -80,6 +81,8 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
   const [autoAddProcessed, setAutoAddProcessed] = useState<string | null>(null)
 
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
+  const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [completedOrderReceipt, setCompletedOrderReceipt] = useState<ReceiptData | null>(null)
@@ -771,7 +774,45 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
             )}
           </div>
 
-          {/* Barcode Scanner */}          <BarcodeScanner            onProductScanned={(product, variantId, scannedBarcode) => addToCart(product, variantId, 1, scannedBarcode)}            businessId={businessId}            showScanner={showBarcodeScanner}            onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}          />
+          {/* Barcode Scanner */}
+          <BarcodeScanner
+            onProductScanned={(product, variantId, scannedBarcode) => addToCart(product, variantId, 1, scannedBarcode)}
+            onNotFound={(barcode) => setQuickStockBarcode(barcode)}
+            onProductNeedsActivation={(product, barcode, variantId) => {
+              setQuickStockExistingProduct({ id: product.id, name: product.name, variantId })
+              setQuickStockBarcode(barcode)
+            }}
+            businessId={businessId}
+            showScanner={showBarcodeScanner}
+            onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
+          />
+          {quickStockBarcode && (
+            <QuickStockFromScanModal
+              isOpen={true}
+              barcode={quickStockBarcode}
+              businessId={businessId}
+              businessType={config?.businessType || 'retail'}
+              existingProduct={quickStockExistingProduct ?? undefined}
+              suggestedName={quickStockExistingProduct?.name}
+              onSuccess={async (productId, variantId) => {
+                setQuickStockBarcode(null)
+                setQuickStockExistingProduct(null)
+                try {
+                  const res = await fetch(`/api/universal/products/${productId}`)
+                  if (res.ok) {
+                    const data = await res.json()
+                    addToCart(data, variantId, 1)
+                  }
+                } catch {
+                  // Product stocked — user can scan again to add to cart
+                }
+              }}
+              onClose={() => {
+                setQuickStockBarcode(null)
+                setQuickStockExistingProduct(null)
+              }}
+            />
+          )}
           {/* Cart Items */}
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
