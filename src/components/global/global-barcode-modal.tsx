@@ -94,6 +94,10 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
   // Start/stop camera when logout prompt opens or closes
   useEffect(() => {
     if (showLogoutPrompt) {
+      if (!navigator.mediaDevices) {
+        setLogoutCameraError(true)
+        return
+      }
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
         .then(stream => {
           logoutStreamRef.current = stream
