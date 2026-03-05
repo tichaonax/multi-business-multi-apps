@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { EmployeeIdCard } from '@/components/clock-in/employee-id-card'
+import { EmployeeAttendanceReport, type ReportEmployee } from '@/components/clock-in/employee-attendance-report'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface AttendanceEmployee {
@@ -138,6 +139,17 @@ export default function ClockInDashboardPage() {
   const [isLoadingExempt, setIsLoadingExempt] = useState(false)
   const [isRunningAutoClockOut, setIsRunningAutoClockOut] = useState(false)
   const [autoClockOutMessage, setAutoClockOutMessage] = useState<string | null>(null)
+
+  // Photo preview modal
+  const [photoPreview, setPhotoPreview] = useState<{
+    url: string
+    action: 'Clock In' | 'Clock Out'
+    time: string | null
+    employeeName: string
+  } | null>(null)
+
+  // Employee attendance report modal
+  const [attendanceReport, setAttendanceReport] = useState<{ employee: ReportEmployee; businessId: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Per-tab search / filter state
@@ -794,11 +806,27 @@ export default function ClockInDashboardPage() {
                   <tr key={emp.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        {emp.profilePhotoUrl ? (
-                          <img src={emp.profilePhotoUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm">👤</div>
-                        )}
+                        <button
+                          onClick={() => setAttendanceReport({
+                            employee: {
+                              id: emp.id,
+                              fullName: emp.fullName,
+                              employeeNumber: emp.employeeNumber,
+                              profilePhotoUrl: emp.profilePhotoUrl,
+                              scheduledStartTime: emp.scheduledStartTime,
+                              scheduledEndTime: emp.scheduledEndTime,
+                            },
+                            businessId: selectedBusinessId || emp.primaryBusiness?.id || '',
+                          })}
+                          className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded-full"
+                          title="View attendance report"
+                        >
+                          {emp.profilePhotoUrl ? (
+                            <img src={emp.profilePhotoUrl} alt="" className="w-8 h-8 rounded-full object-cover hover:ring-2 hover:ring-blue-400 hover:scale-110 transition-transform cursor-pointer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm hover:ring-2 hover:ring-blue-400 hover:scale-110 transition-transform cursor-pointer">👤</div>
+                          )}
+                        </button>
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white">{emp.fullName}</div>
                           <div className="text-xs text-gray-400">#{emp.employeeNumber}</div>
@@ -823,12 +851,23 @@ export default function ClockInDashboardPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {emp.attendance?.clockInPhotoUrl && (
-                          <img
-                            src={emp.attendance.clockInPhotoUrl}
-                            alt="Clock-in photo"
-                            className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/expired-photo.svg' }}
-                          />
+                          <button
+                            onClick={() => setPhotoPreview({
+                              url: emp.attendance!.clockInPhotoUrl!,
+                              action: 'Clock In',
+                              time: emp.attendance?.checkIn ?? null,
+                              employeeName: emp.fullName
+                            })}
+                            className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded-full"
+                            title="View clock-in photo"
+                          >
+                            <img
+                              src={emp.attendance.clockInPhotoUrl}
+                              alt="Clock-in photo"
+                              className="w-8 h-8 rounded-full object-cover border-2 border-green-400 hover:border-green-500 hover:scale-110 transition-transform cursor-pointer"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/expired-photo.svg' }}
+                            />
+                          </button>
                         )}
                         <span className={emp.isLate ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-300'}>
                           {formatTime(emp.attendance?.checkIn ?? null)}
@@ -839,12 +878,23 @@ export default function ClockInDashboardPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {emp.attendance?.clockOutPhotoUrl && (
-                          <img
-                            src={emp.attendance.clockOutPhotoUrl}
-                            alt="Clock-out photo"
-                            className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/expired-photo.svg' }}
-                          />
+                          <button
+                            onClick={() => setPhotoPreview({
+                              url: emp.attendance!.clockOutPhotoUrl!,
+                              action: 'Clock Out',
+                              time: emp.attendance?.checkOut ?? null,
+                              employeeName: emp.fullName
+                            })}
+                            className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded-full"
+                            title="View clock-out photo"
+                          >
+                            <img
+                              src={emp.attendance.clockOutPhotoUrl}
+                              alt="Clock-out photo"
+                              className="w-8 h-8 rounded-full object-cover border-2 border-red-400 hover:border-red-500 hover:scale-110 transition-transform cursor-pointer"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/expired-photo.svg' }}
+                            />
+                          </button>
                         )}
                         <span className="text-gray-700 dark:text-gray-300">
                           {formatTime(emp.attendance?.checkOut ?? null)}
@@ -1420,6 +1470,78 @@ export default function ClockInDashboardPage() {
                 className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
               >
                 🖨️ Print
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Employee Attendance Report Modal */}
+      {attendanceReport && (
+        <EmployeeAttendanceReport
+          employee={attendanceReport.employee}
+          businessId={attendanceReport.businessId}
+          onClose={() => setAttendanceReport(null)}
+        />
+      )}
+
+      {/* Photo Preview Modal */}
+      {photoPreview && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] p-4"
+          onClick={() => setPhotoPreview(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between px-4 py-3 ${photoPreview.action === 'Clock In' ? 'bg-green-500' : 'bg-red-500'}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-white text-xl">{photoPreview.action === 'Clock In' ? '🟢' : '🔴'}</span>
+                <div>
+                  <p className="text-white font-semibold text-sm">{photoPreview.action}</p>
+                  <p className="text-white/80 text-xs">{photoPreview.employeeName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPhotoPreview(null)}
+                className="text-white/80 hover:text-white text-lg leading-none"
+              >✕</button>
+            </div>
+
+            {/* Photo */}
+            <div className="p-4 flex justify-center bg-gray-50 dark:bg-gray-900">
+              <img
+                src={photoPreview.url}
+                alt={`${photoPreview.action} photo`}
+                className="w-64 h-64 object-cover rounded-xl shadow-md"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/expired-photo.svg' }}
+              />
+            </div>
+
+            {/* Time */}
+            <div className="px-4 py-3 text-center border-t border-gray-100 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Time</p>
+              <p className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                {photoPreview.time
+                  ? new Date(photoPreview.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                  : '--'}
+              </p>
+              {photoPreview.time && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                  {new Date(photoPreview.time).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+              )}
+            </div>
+
+            {/* Close button */}
+            <div className="px-4 pb-4">
+              <button
+                onClick={() => setPhotoPreview(null)}
+                className="w-full py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
