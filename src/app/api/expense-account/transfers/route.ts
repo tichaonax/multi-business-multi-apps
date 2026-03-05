@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         toAccount: {
           select: { id: true, accountName: true, accountNumber: true },
         },
+        creator: { select: { id: true, name: true, email: true } },
       },
       orderBy: { transferDate: 'desc' },
     })
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
           returnedAmount: Number(t.originalAmount) - Number(t.outstandingAmount),
           transferDate: t.transferDate.toISOString(),
           status: t.status,
+          createdBy: t.creator,
           createdAt: t.createdAt.toISOString(),
         })),
         totalOutstanding,

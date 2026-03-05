@@ -281,6 +281,37 @@ export async function POST(
     // Parse request body
     const body = await request.json()
 
+    // Duplicate rent payment guard: if this is a RENT account and it's a single
+    // (non-batch) payment, check for an existing payment in the current calendar month.
+    if (!Array.isArray(body.payments)) {
+      const isRentAccount = await prisma.businessRentConfig.findFirst({
+        where: { expenseAccountId: accountId, isActive: true },
+        select: { id: true },
+      })
+      if (isRentAccount) {
+        const now = new Date()
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+        const existingPayment = await prisma.expenseAccountPayments.findFirst({
+          where: {
+            expenseAccountId: accountId,
+            paymentDate: { gte: monthStart, lte: monthEnd },
+          },
+          select: { id: true, paymentDate: true, amount: true },
+        })
+        if (existingPayment) {
+          return NextResponse.json(
+            {
+              error: `A rent payment of ${existingPayment.amount} was already recorded this month (${existingPayment.paymentDate.toLocaleDateString('en-GB')}). To record another payment, use the full expense account page.`,
+              isDuplicateRentPayment: true,
+              existingPayment,
+            },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
     // Check if batch payment or single payment
     const isBatch = Array.isArray(body.payments)
     const paymentsToCreate = isBatch ? body.payments : [body]

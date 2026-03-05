@@ -10,6 +10,9 @@ import { isSystemAdmin } from '@/lib/permission-utils'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { RentAccountSetupForm, defaultRentAccountFormData, validateRentAccountFormData, type RentAccountFormData } from '@/components/rent-account/rent-account-setup-form'
+import { RentAccountSetupModal } from '@/components/rent-account/rent-account-setup-modal'
+import { RentAccountManageModal } from '@/components/rent-account/rent-account-manage-modal'
 
 interface Business {
   id: string
@@ -53,6 +56,14 @@ export default function AdminBusinessesPage() {
   const [updating, setUpdating] = useState(false)
   const [message, setMessage] = useState('')
 
+  // Rent account state
+  const [createRentAccount, setCreateRentAccount] = useState(false)
+  const [rentFormData, setRentFormData] = useState<RentAccountFormData>(defaultRentAccountFormData())
+  const [showRentSetupModal, setShowRentSetupModal] = useState(false)
+  const [showRentManageModal, setShowRentManageModal] = useState(false)
+  const [rentModalBusiness, setRentModalBusiness] = useState<Business | null>(null)
+  const [businessRentStatus, setBusinessRentStatus] = useState<Record<string, boolean>>({})
+
   useEffect(() => {
     if (session?.user && isSystemAdmin(session.user)) {
       fetchBusinesses()
@@ -65,6 +76,16 @@ export default function AdminBusinessesPage() {
       if (response.ok) {
         const data = await response.json()
         setBusinesses(data)
+        // Load rent account status for each business in parallel
+        const rentChecks = await Promise.all(
+          data.map((b: Business) =>
+            fetch(`/api/rent-account/${b.id}/balance`)
+              .then(r => r.ok ? r.json() : { hasRentAccount: false })
+              .then((r: any) => [b.id, !!r.hasRentAccount] as [string, boolean])
+              .catch(() => [b.id, false] as [string, boolean])
+          )
+        )
+        setBusinessRentStatus(Object.fromEntries(rentChecks))
       }
     } catch (error) {
       console.error('Failed to fetch businesses:', error)
@@ -78,6 +99,16 @@ export default function AdminBusinessesPage() {
     setCreating(true)
     setMessage('')
 
+    // Validate rent form if enabled
+    if (createRentAccount) {
+      const rentError = validateRentAccountFormData(rentFormData)
+      if (rentError) {
+        setMessage(`Error: ${rentError}`)
+        setCreating(false)
+        return
+      }
+    }
+
     try {
       const response = await fetch('/api/admin/businesses', {
         method: 'POST',
@@ -88,7 +119,28 @@ export default function AdminBusinessesPage() {
       const result = await response.json()
 
       if (response.ok) {
-        setMessage(`Business "${formData.name}" created successfully!`)
+        // Create rent account if requested
+        if (createRentAccount && result.business?.id) {
+          try {
+            await fetch(`/api/rent-account/${result.business.id}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                monthlyRentAmount: parseFloat(rentFormData.monthlyRentAmount),
+                operatingDaysPerMonth: parseInt(rentFormData.operatingDaysPerMonth),
+                rentDueDay: parseInt(rentFormData.rentDueDay),
+                landlordSupplierId: rentFormData.landlordSupplierId,
+                autoTransferOnEOD: rentFormData.autoTransferOnEOD,
+              }),
+            })
+          } catch {
+            // Non-fatal: business was created, rent account creation failed
+            setMessage(`Business "${formData.name}" created but rent account setup failed. Use Edit to retry.`)
+          }
+        }
+        if (!message.includes('rent account setup failed')) {
+          setMessage(`Business "${formData.name}" created successfully!`)
+        }
         setFormData({
           name: '',
           type: 'retail',
@@ -99,6 +151,8 @@ export default function AdminBusinessesPage() {
           taxRate: '',
           taxLabel: ''
         })
+        setCreateRentAccount(false)
+        setRentFormData(defaultRentAccountFormData())
         setShowCreateModal(false)
         fetchBusinesses() // Refresh the list
         await refreshBusinesses() // Update header/sidebar
@@ -172,6 +226,8 @@ export default function AdminBusinessesPage() {
     setShowDetailsModal(false)
     setDetailsModalMode('view')
     setSelectedBusiness(null)
+    setCreateRentAccount(false)
+    setRentFormData(defaultRentAccountFormData())
     setFormData({
       name: '',
       type: 'retail',
@@ -531,6 +587,35 @@ export default function AdminBusinessesPage() {
                   )}
                 </div>
 
+                {/* Rent Account Section */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label htmlFor="createRentAccount" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                        🏠 Create Rent Account
+                      </label>
+                      <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        Automatically save a portion of daily sales towards monthly rent
+                      </span>
+                    </div>
+                    <input
+                      id="createRentAccount"
+                      type="checkbox"
+                      checked={createRentAccount}
+                      onChange={e => setCreateRentAccount(e.target.checked)}
+                      className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                  </div>
+                  {createRentAccount && (
+                    <RentAccountSetupForm
+                      businessType={formData.type}
+                      value={rentFormData}
+                      onChange={setRentFormData}
+                      disabled={creating}
+                    />
+                  )}
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
@@ -739,6 +824,36 @@ export default function AdminBusinessesPage() {
                   )}
                 </div>
 
+                {/* Rent Account Section */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">🏠 Rent Account</h3>
+                  {selectedBusiness && businessRentStatus[selectedBusiness.id] ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRentModalBusiness(selectedBusiness)
+                        setShowRentManageModal(true)
+                      }}
+                      className="w-full px-4 py-2.5 text-sm font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md hover:bg-orange-100 dark:hover:bg-orange-900/30 text-left flex items-center gap-2"
+                    >
+                      <span>⚙️ Manage Rent Account</span>
+                      <span className="ml-auto text-xs text-orange-500">Active ✓</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRentModalBusiness(selectedBusiness)
+                        setShowRentSetupModal(true)
+                      }}
+                      className="w-full px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-left flex items-center gap-2"
+                    >
+                      <span>+ Create Rent Account</span>
+                      <span className="ml-auto text-xs text-gray-400">Not set up</span>
+                    </button>
+                  )}
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
@@ -892,6 +1007,36 @@ export default function AdminBusinessesPage() {
                     />
                   </div>
 
+                  {/* Rent Account Section */}
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">🏠 Rent Account</h3>
+                    {selectedBusiness && businessRentStatus[selectedBusiness.id] ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRentModalBusiness(selectedBusiness)
+                          setShowRentManageModal(true)
+                        }}
+                        className="w-full px-4 py-2.5 text-sm font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md hover:bg-orange-100 dark:hover:bg-orange-900/30 text-left flex items-center gap-2"
+                      >
+                        <span>⚙️ Manage Rent Account</span>
+                        <span className="ml-auto text-xs text-orange-500">Active ✓</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRentModalBusiness(selectedBusiness)
+                          setShowRentSetupModal(true)
+                        }}
+                        className="w-full px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-left flex items-center gap-2"
+                      >
+                        <span>+ Create Rent Account</span>
+                        <span className="ml-auto text-xs text-gray-400">Not set up</span>
+                      </button>
+                    )}
+                  </div>
+
                   {/* Receipt Configuration Section */}
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Receipt Configuration</h3>
@@ -1000,6 +1145,41 @@ export default function AdminBusinessesPage() {
             )}
           </div>
         </div>
+      )}
+      {/* Rent Account Setup Modal (for existing business) */}
+      {showRentSetupModal && rentModalBusiness && (
+        <RentAccountSetupModal
+          businessId={rentModalBusiness.id}
+          businessType={rentModalBusiness.type}
+          businessName={rentModalBusiness.name}
+          onSuccess={() => {
+            setShowRentSetupModal(false)
+            setRentModalBusiness(null)
+            fetchBusinesses()
+          }}
+          onClose={() => {
+            setShowRentSetupModal(false)
+            setRentModalBusiness(null)
+          }}
+        />
+      )}
+
+      {/* Rent Account Manage Modal */}
+      {showRentManageModal && rentModalBusiness && (
+        <RentAccountManageModal
+          businessId={rentModalBusiness.id}
+          businessType={rentModalBusiness.type}
+          businessName={rentModalBusiness.name}
+          onSuccess={() => {
+            setShowRentManageModal(false)
+            setRentModalBusiness(null)
+            fetchBusinesses()
+          }}
+          onClose={() => {
+            setShowRentManageModal(false)
+            setRentModalBusiness(null)
+          }}
+        />
       )}
     </ContentLayout>
   )

@@ -32,6 +32,7 @@ export async function GET(
 
     const transfers = await prisma.businessTransferLedger.findMany({
       where,
+      include: { creator: { select: { id: true, name: true, email: true } } },
       orderBy: { transferDate: 'desc' },
     })
 
@@ -49,6 +50,7 @@ export async function GET(
           transferDate: t.transferDate.toISOString(),
           status: t.status,
           isAutoTransfer: t.isAutoTransfer,
+          createdBy: t.creator,
           createdAt: t.createdAt.toISOString(),
         })),
       },

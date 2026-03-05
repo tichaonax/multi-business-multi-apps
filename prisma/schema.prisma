@@ -344,6 +344,7 @@ model BusinessSuppliers {
   expense_account_payments  ExpenseAccountPayments[]  @relation("ExpensePaymentPayeeSupplier")
   supplier_payment_requests SupplierPaymentRequests[]
   supplier_ratings          SupplierRatings[]
+  rent_configs              BusinessRentConfig[]      @relation("RentLandlord")
 
   @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
@@ -505,6 +506,7 @@ model Businesses {
   outgoing_loans_as_recipient                                              AccountOutgoingLoans[]        @relation("OutgoingLoanBusiness")
   supplier_payment_requests                                                SupplierPaymentRequests[]
   supplier_ratings                                                         SupplierRatings[]
+  rent_config                                                              BusinessRentConfig?           @relation("BusinessRentConfig")
 
   @@map("businesses")
 }
@@ -1345,6 +1347,7 @@ model ExpenseAccounts {
   outgoingLoans              AccountOutgoingLoans[]     @relation("OutgoingLoans")
   incomingTransfers          BusinessTransferLedger[]   @relation("TransferToAccount")
   supplier_payment_requests  SupplierPaymentRequests[]
+  rent_config                BusinessRentConfig?        @relation("RentExpenseAccount")
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1605,6 +1608,7 @@ model BusinessTransferLedger {
 
   toAccount      ExpenseAccounts          @relation("TransferToAccount", fields: [toAccountId], references: [id])
   returnPayments ExpenseAccountPayments[] @relation("TransferReturns")
+  creator        Users                    @relation("BusinessTransferLedgerCreator", fields: [createdBy], references: [id])
 
   @@index([toAccountId, status])
   @@index([status])
@@ -2955,6 +2959,7 @@ model Users {
   customer_layby_creators                                         CustomerLayby[]                  @relation("CustomerLaybyCreator")
   driver_authorizations                                           DriverAuthorizations[]
   employees                                                       Employees?
+  business_transfer_ledgers_created                               BusinessTransferLedger[]         @relation("BusinessTransferLedgerCreator")
   expense_account_deposits_created                                ExpenseAccountDeposits[]         @relation("ExpenseAccountDepositCreator")
   expense_account_payments_created                                ExpenseAccountPayments[]         @relation("ExpensePaymentCreator")
   expense_account_payments_as_payee                               ExpenseAccountPayments[]         @relation("ExpensePaymentPayeeUser")
@@ -3023,6 +3028,7 @@ model Users {
   supplier_payment_requests_denied                                SupplierPaymentRequests[]        @relation("RequestDenier")
   supplier_payment_request_partials_paid                          SupplierPaymentRequestPartials[] @relation("PartialPayer")
   supplier_ratings                                                SupplierRatings[]
+  rent_configs_created                                            BusinessRentConfig[]             @relation("RentConfigCreator")
 
   @@map("users")
 }
@@ -4665,4 +4671,28 @@ model SupplierRatings {
   @@unique([supplierId, businessId, ratedBy])
   @@index([supplierId, businessId])
   @@map("supplier_ratings")
+}
+
+model BusinessRentConfig {
+  id                    String            @id @default(uuid())
+  businessId            String            @unique
+  expenseAccountId      String            @unique
+  landlordSupplierId    String
+  monthlyRentAmount     Decimal           @db.Decimal(12, 2)
+  dailyTransferAmount   Decimal           @db.Decimal(12, 2)
+  operatingDaysPerMonth Int               @default(30)
+  rentDueDay            Int               @default(1)
+  autoTransferOnEOD     Boolean           @default(true)
+  isActive              Boolean           @default(true)
+  createdBy             String
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @default(now()) @updatedAt
+  business              Businesses        @relation("BusinessRentConfig", fields: [businessId], references: [id], onDelete: Cascade)
+  expenseAccount        ExpenseAccounts   @relation("RentExpenseAccount", fields: [expenseAccountId], references: [id])
+  landlordSupplier      BusinessSuppliers @relation("RentLandlord", fields: [landlordSupplierId], references: [id])
+  creator               Users             @relation("RentConfigCreator", fields: [createdBy], references: [id])
+
+  @@index([businessId])
+  @@index([landlordSupplierId])
+  @@map("business_rent_configs")
 }

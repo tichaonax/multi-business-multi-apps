@@ -10,6 +10,7 @@ import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
 import { MiniCart } from '@/components/global/mini-cart'
 import { TestPrintModal } from '@/components/printing/test-print-modal'
 import { useTimeDisplay } from '@/hooks/use-time-display'
+import { useRentIndicator } from '@/hooks/use-rent-indicator'
 
 interface GlobalHeaderProps {
   title?: string
@@ -50,6 +51,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
   const user = session?.user as SessionUser
   const isAdmin = isSystemAdmin(user)
+
+  // Rent account indicator
+  const rentIndicator = useRentIndicator(currentBusiness?.businessId)
 
   // Explicitly close business menu and cancel any pending hover timeouts
   const closeBusinessMenu = () => {
@@ -366,7 +370,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                     }
                   }}
                   className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer ml-2 sm:ml-4"
-                  title={`${currentBusiness.businessName} - ${currentBusiness.businessType}`}
+                  title={
+                    rentIndicator.hasRentAccount
+                      ? `${currentBusiness.businessName} · Rent fund: $${rentIndicator.balance.toFixed(2)} (${rentIndicator.fundingPercent}% of $${rentIndicator.monthlyRentAmount.toFixed(2)}) · Due day ${rentIndicator.rentDueDay}`
+                      : `${currentBusiness.businessName} - ${currentBusiness.businessType}`
+                  }
                   onMouseEnter={handleBusinessMenuEnter}
                   onMouseLeave={handleBusinessMenuLeave}
                 >
@@ -379,6 +387,17 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       {currentBusiness.businessType}
                     </div>
                   </div>
+                  {/* Rent account funding indicator dot */}
+                  {rentIndicator.hasRentAccount && rentIndicator.indicator && (
+                    <span
+                      className={`shrink-0 w-2 h-2 rounded-full ${
+                        rentIndicator.indicator === 'green' ? 'bg-green-500' :
+                        rentIndicator.indicator === 'orange' ? 'bg-orange-400' :
+                        'bg-red-500'
+                      }`}
+                      title={`Rent fund: ${rentIndicator.fundingPercent}%`}
+                    />
+                  )}
                   <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>

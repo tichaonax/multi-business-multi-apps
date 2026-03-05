@@ -11,6 +11,7 @@ import { getCategoryEmoji, getPaymentMethodEmoji } from '@/lib/category-emojis'
 import { PercentageBar } from '@/components/reports/percentage-bar'
 import { PaymentMethodsPieChart } from '@/components/reports/payment-methods-pie-chart'
 import { CategoryPerformanceBarChart } from '@/components/reports/category-performance-bar-chart'
+import { EodRentTransferSection } from '@/components/reports/eod-rent-transfer-section'
 import '@/styles/print-report.css'
 
 export default function EndOfDayReport() {
@@ -26,6 +27,12 @@ export default function EndOfDayReport() {
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Rent account transfer state
+  const [rentConfig, setRentConfig] = useState<any>(null)
+  const [rentTransferAmount, setRentTransferAmount] = useState(0)
+  const [includeRentTransfer, setIncludeRentTransfer] = useState(true)
+  const [rentAlreadyTransferred, setRentAlreadyTransferred] = useState(false)
 
   const {
     currentBusiness,
@@ -86,6 +93,26 @@ export default function EndOfDayReport() {
     checkExistingReport()
   }, [currentBusinessId, dailySales])
 
+  // Load rent account config
+  useEffect(() => {
+    const loadRentConfig = async () => {
+      if (!currentBusinessId) return
+      try {
+        const res = await fetch(`/api/rent-account/${currentBusinessId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.hasRentAccount && data.config?.isActive && data.config?.autoTransferOnEOD) {
+            setRentConfig(data)
+            setRentTransferAmount(data.config.dailyTransferAmount)
+          }
+        }
+      } catch (e) {
+        // rent config optional — ignore errors
+      }
+    }
+    loadRentConfig()
+  }, [currentBusinessId])
+
   // Handle save report
   const handleSaveReport = async () => {
     if (!managerSignature.trim()) {
@@ -96,6 +123,27 @@ export default function EndOfDayReport() {
     try {
       setSaving(true)
       setSaveError(null)
+
+      // Fire EOD rent transfer first (idempotent — safe to call even if already done)
+      if (rentConfig && includeRentTransfer && !rentAlreadyTransferred) {
+        try {
+          const rentRes = await fetch(`/api/rent-account/${currentBusinessId}/eod-transfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: rentTransferAmount,
+              eodDate: dailySales.businessDay.date,
+              note: 'EOD automatic rent allocation',
+            }),
+          })
+          if (rentRes.ok) {
+            setRentAlreadyTransferred(true)
+            window.dispatchEvent(new CustomEvent('rent-transfer-complete', { detail: { businessId: currentBusinessId } }))
+          }
+        } catch (e) {
+          console.warn('Rent transfer failed (non-fatal):', e)
+        }
+      }
 
       const reportData = {
         summary: {
@@ -749,6 +797,19 @@ export default function EndOfDayReport() {
                 <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg p-3">
                   <p className="text-sm text-red-800 dark:text-red-200">{saveError}</p>
                 </div>
+              )}
+
+              {/* Rent Transfer Section */}
+              {rentConfig && (
+                <EodRentTransferSection
+                  defaultAmount={rentConfig.config.dailyTransferAmount}
+                  monthlyRent={rentConfig.config.monthlyRentAmount}
+                  currentBalance={rentConfig.account?.balance ?? 0}
+                  included={includeRentTransfer}
+                  amount={rentTransferAmount}
+                  alreadyTransferred={rentAlreadyTransferred}
+                  onChange={(amt, inc) => { setRentTransferAmount(amt); setIncludeRentTransfer(inc) }}
+                />
               )}
 
               <div className="flex justify-end gap-3">

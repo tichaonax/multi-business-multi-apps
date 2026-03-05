@@ -443,6 +443,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             {transaction.receiptNumber}
                           </div>
                         )}
+                        {transaction.createdBy?.name && (
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                            by {transaction.createdBy.name}
+                          </div>
+                        )}
                       </td>
 
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">

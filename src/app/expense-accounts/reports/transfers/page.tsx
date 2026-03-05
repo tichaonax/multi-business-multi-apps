@@ -19,6 +19,7 @@ interface TransferRecord {
   returnedAmount: number
   transferDate: string
   status: string
+  createdBy?: { id: string; name: string; email: string } | null
 }
 
 function statusBadge(status: string) {
@@ -180,6 +181,9 @@ export default function TransferImbalanceReportPage() {
                         </td>
                         <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400">
                           {new Date(t.transferDate).toLocaleDateString()}
+                          {t.createdBy?.name && (
+                            <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">by {t.createdBy.name}</div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center">{statusBadge(t.status)}</td>
                         {canReturnTransfer && (

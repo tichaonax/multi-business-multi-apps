@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { getDefaultPageOptions } from '@/lib/business-default-pages'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { RentAccountSetupModal } from '@/components/rent-account/rent-account-setup-modal'
+import { RentAccountManageModal } from '@/components/rent-account/rent-account-manage-modal'
 
 interface BusinessCreationModalProps {
   onClose: () => void
@@ -69,6 +71,18 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     showSlogan: initial?.showSlogan !== undefined ? initial.showSlogan : true
   })
   const [loading, setLoading] = useState(false)
+  const [hasRentAccount, setHasRentAccount] = useState(false)
+  const [showRentSetupModal, setShowRentSetupModal] = useState(false)
+  const [showRentManageModal, setShowRentManageModal] = useState(false)
+
+  useEffect(() => {
+    if (method === 'PUT' && id) {
+      fetch(`/api/rent-account/${id}/balance`)
+        .then(r => r.ok ? r.json() : { hasRentAccount: false })
+        .then(data => setHasRentAccount(!!data.hasRentAccount))
+        .catch(() => setHasRentAccount(false))
+    }
+  }, [method, id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -102,8 +116,9 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-neutral-800 text-gray-900 dark:text-neutral-100 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-lg border border-gray-200 dark:border-neutral-700">
+      <div className="bg-white dark:bg-neutral-800 text-gray-900 dark:text-neutral-100 rounded-lg w-full max-w-5xl shadow-lg border border-gray-200 dark:border-neutral-700">
         {/* Sticky Header */}
         <div className="sticky top-0 z-10 bg-white dark:bg-neutral-800 p-6 border-b border-gray-200 dark:border-neutral-700">
           <div className="flex justify-between items-center">
@@ -118,285 +133,326 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
         </div>
 
         <form onSubmit={handleSubmit} className="text-primary">
-          <div className="p-6 space-y-6">
-            {/* Basic Information */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Basic Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-primary mb-1">
-                    Business Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    className="input-field"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Enter business name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-primary mb-1">
-                    Business Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="input-field"
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    required
-                  >
-                    {BUSINESS_TYPES.map(type => (
-                      <option key={type} value={type}>
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-primary mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    className="input-field"
-                    rows={2}
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Brief description of the business"
-                  />
-                </div>
-              </div>
-            </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
 
-            {/* Contact & Location */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Contact & Location</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-primary mb-1">
-                    Business Address
-                  </label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Enter business address"
-                  />
-                </div>
-                <div>
-                  <PhoneNumberInput
-                    value={formData.phone}
-                    onChange={(full) => setFormData({ ...formData, phone: full })}
-                    label="Business Phone"
-                    placeholder="77 123 4567"
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            </div>
+              {/* ── LEFT: Basic Info + Contact + Rent ── */}
+              <div className="space-y-5">
 
-            {/* Features */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Features</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                  <div className="flex-1">
-                    <label htmlFor="ecocashEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                      Accepts Eco-Cash
-                    </label>
-                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                      Show Eco-Cash logo on customer display
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="ecocashEnabled"
-                    checked={formData.ecocashEnabled}
-                    onChange={(e) => setFormData({ ...formData, ecocashEnabled: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                  <div className="flex-1">
-                    <label htmlFor="couponsEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                      Enable Coupons
-                    </label>
-                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                      Allow coupon codes at POS
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="couponsEnabled"
-                    checked={formData.couponsEnabled}
-                    onChange={(e) => setFormData({ ...formData, couponsEnabled: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                  <div className="flex-1">
-                    <label htmlFor="promosEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                      Enable Customer Promos
-                    </label>
-                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                      Allow spend-based campaign rewards
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="promosEnabled"
-                    checked={formData.promosEnabled}
-                    onChange={(e) => setFormData({ ...formData, promosEnabled: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Branding */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Branding</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Basic Information */}
                 <div>
-                  <label className="block text-sm font-medium text-primary mb-1">
-                    Business Slogan
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={200}
-                    className="input-field"
-                    value={formData.slogan}
-                    onChange={(e) => setFormData({ ...formData, slogan: e.target.value })}
-                    placeholder="Where Customer Is King"
-                  />
-                  <div className="flex items-center gap-2 mt-2">
-                    <input
-                      type="checkbox"
-                      id="showSlogan"
-                      checked={formData.showSlogan}
-                      onChange={(e) => setFormData({ ...formData, showSlogan: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600"
-                    />
-                    <label htmlFor="showSlogan" className="text-sm text-gray-700 dark:text-gray-300">
-                      Show on customer display
-                    </label>
-                  </div>
-                </div>
-                {(hasPermission('canChangeDefaultPage') || isSystemAdmin) && (
-                  <div>
-                    <label className="block text-sm font-medium text-primary mb-1">
-                      Default Landing Page
-                    </label>
-                    <select
-                      className="input-field"
-                      value={formData.defaultPage}
-                      onChange={(e) => setFormData({ ...formData, defaultPage: e.target.value })}
-                    >
-                      <option value="">Home (Default)</option>
-                      {getDefaultPageOptions(formData.type).map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.icon} {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Page shown when users select this business
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Receipt & Tax */}
-            <div className="pt-4 border-t border-gray-200 dark:border-neutral-700">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Receipt & Tax</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-primary mb-1">
-                    Return Policy Message
-                  </label>
-                  <textarea
-                    value={formData.receiptReturnPolicy}
-                    onChange={(e) => setFormData({...formData, receiptReturnPolicy: e.target.value})}
-                    rows={2}
-                    className="input-field"
-                    placeholder="All sales are final, returns not accepted"
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                  <div className="flex-1">
-                    <label htmlFor="taxEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                      Enable Tax Calculation
-                    </label>
-                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                      When enabled, tax will be applied to sales
-                    </span>
-                  </div>
-                  <input
-                    id="taxEnabled"
-                    type="checkbox"
-                    checked={formData.taxEnabled}
-                    onChange={(e) => setFormData({...formData, taxEnabled: e.target.checked})}
-                    className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
-                  />
-                </div>
-                {formData.taxEnabled && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                    <div className="flex-1">
-                      <label htmlFor="taxIncluded" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                        Tax Included in Price
-                      </label>
-                      <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                        {formData.taxIncludedInPrice
-                          ? 'Tax is embedded in product prices'
-                          : 'Tax calculated separately at checkout'}
-                      </span>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Basic Information</h3>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-primary mb-1">
+                          Business Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          className="input-field"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          placeholder="Enter business name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-primary mb-1">
+                          Business Type <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          className="input-field"
+                          value={formData.type}
+                          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                          required
+                        >
+                          {BUSINESS_TYPES.map(type => (
+                            <option key={type} value={type}>
+                              {type.charAt(0).toUpperCase() + type.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <input
-                      id="taxIncluded"
-                      type="checkbox"
-                      checked={formData.taxIncludedInPrice}
-                      onChange={(e) => setFormData({...formData, taxIncludedInPrice: e.target.checked})}
-                      className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
-                    />
+                    <div>
+                      <label className="block text-sm font-medium text-primary mb-1">
+                        Description
+                      </label>
+                      <textarea
+                        className="input-field"
+                        rows={2}
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        placeholder="Brief description of the business"
+                      />
+                    </div>
                   </div>
+                </div>
+
+                {/* Contact & Location */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Contact & Location</h3>
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-medium text-primary mb-1">
-                        Tax Rate (%)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="100"
-                        value={formData.taxRate}
-                        onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
-                        className="input-field"
-                        placeholder="e.g., 13.50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-primary mb-1">
-                        Tax Label
+                        Business Address
                       </label>
                       <input
                         type="text"
-                        value={formData.taxLabel}
-                        onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
                         className="input-field"
-                        placeholder="e.g., VAT, Sales Tax, GST"
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        placeholder="Enter business address"
+                      />
+                    </div>
+                    <div>
+                      <PhoneNumberInput
+                        value={formData.phone}
+                        onChange={(full) => setFormData({ ...formData, phone: full })}
+                        label="Business Phone"
+                        placeholder="77 123 4567"
+                        className="w-full"
                       />
                     </div>
                   </div>
                 </div>
+
+                {/* Rent Account - Edit mode only */}
+                {method === 'PUT' && id && (
+                  <div className="pt-4 border-t border-gray-200 dark:border-neutral-700">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">🏠 Rent Account</h3>
+                    {hasRentAccount ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowRentManageModal(true)}
+                        className="w-full px-4 py-2.5 text-sm font-medium text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md hover:bg-orange-100 dark:hover:bg-orange-900/30 text-left flex items-center gap-2"
+                      >
+                        <span>⚙️ Manage Rent Account</span>
+                        <span className="ml-auto text-xs text-orange-500">Active ✓</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowRentSetupModal(true)}
+                        className="w-full px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-neutral-700 border border-dashed border-gray-300 dark:border-neutral-600 rounded-md hover:bg-gray-100 dark:hover:bg-neutral-600 text-left flex items-center gap-2"
+                      >
+                        <span>+ Create Rent Account</span>
+                        <span className="ml-auto text-xs text-gray-400">Not set up</span>
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
+
+              </div>{/* end LEFT */}
+
+              {/* ── RIGHT: Features + Branding + Receipt & Tax ── */}
+              <div className="space-y-5">
+
+                {/* Features */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Features</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="ecocashEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Accepts Eco-Cash
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Show Eco-Cash logo on customer display
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="ecocashEnabled"
+                        checked={formData.ecocashEnabled}
+                        onChange={(e) => setFormData({ ...formData, ecocashEnabled: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="couponsEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Enable Coupons
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Allow coupon codes at POS
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="couponsEnabled"
+                        checked={formData.couponsEnabled}
+                        onChange={(e) => setFormData({ ...formData, couponsEnabled: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="promosEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Enable Customer Promos
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Allow spend-based campaign rewards
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="promosEnabled"
+                        checked={formData.promosEnabled}
+                        onChange={(e) => setFormData({ ...formData, promosEnabled: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Branding */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Branding</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-primary mb-1">
+                        Business Slogan
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={200}
+                        className="input-field"
+                        value={formData.slogan}
+                        onChange={(e) => setFormData({ ...formData, slogan: e.target.value })}
+                        placeholder="Where Customer Is King"
+                      />
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="checkbox"
+                          id="showSlogan"
+                          checked={formData.showSlogan}
+                          onChange={(e) => setFormData({ ...formData, showSlogan: e.target.checked })}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600"
+                        />
+                        <label htmlFor="showSlogan" className="text-sm text-gray-700 dark:text-gray-300">
+                          Show on customer display
+                        </label>
+                      </div>
+                    </div>
+                    {(hasPermission('canChangeDefaultPage') || isSystemAdmin) && (
+                      <div>
+                        <label className="block text-sm font-medium text-primary mb-1">
+                          Default Landing Page
+                        </label>
+                        <select
+                          className="input-field"
+                          value={formData.defaultPage}
+                          onChange={(e) => setFormData({ ...formData, defaultPage: e.target.value })}
+                        >
+                          <option value="">Home (Default)</option>
+                          {getDefaultPageOptions(formData.type).map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.icon} {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Page shown when users select this business
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Receipt & Tax */}
+                <div className="pt-4 border-t border-gray-200 dark:border-neutral-700">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Receipt & Tax</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-primary mb-1">
+                        Return Policy Message
+                      </label>
+                      <textarea
+                        value={formData.receiptReturnPolicy}
+                        onChange={(e) => setFormData({...formData, receiptReturnPolicy: e.target.value})}
+                        rows={2}
+                        className="input-field"
+                        placeholder="All sales are final, returns not accepted"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="taxEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Enable Tax Calculation
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          When enabled, tax will be applied to sales
+                        </span>
+                      </div>
+                      <input
+                        id="taxEnabled"
+                        type="checkbox"
+                        checked={formData.taxEnabled}
+                        onChange={(e) => setFormData({...formData, taxEnabled: e.target.checked})}
+                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
+                      />
+                    </div>
+                    {formData.taxEnabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                        <div className="flex-1">
+                          <label htmlFor="taxIncluded" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                            Tax Included in Price
+                          </label>
+                          <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                            {formData.taxIncludedInPrice
+                              ? 'Tax is embedded in product prices'
+                              : 'Tax calculated separately at checkout'}
+                          </span>
+                        </div>
+                        <input
+                          id="taxIncluded"
+                          type="checkbox"
+                          checked={formData.taxIncludedInPrice}
+                          onChange={(e) => setFormData({...formData, taxIncludedInPrice: e.target.checked})}
+                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-primary mb-1">
+                            Tax Rate (%)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            value={formData.taxRate}
+                            onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
+                            className="input-field"
+                            placeholder="e.g., 13.50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-primary mb-1">
+                            Tax Label
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.taxLabel}
+                            onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
+                            className="input-field"
+                            placeholder="e.g., VAT, Sales Tax, GST"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>{/* end RIGHT */}
+
             </div>
           </div>
-
           {/* Sticky Footer */}
           <div className="sticky bottom-0 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-neutral-700 px-6 py-4 flex justify-end space-x-3">
             <button
@@ -417,5 +473,28 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
         </form>
       </div>
     </div>
+
+    {/* Rent Account modals rendered outside the main modal to avoid z-index clipping */}
+    {method === 'PUT' && id && showRentSetupModal && (
+      <RentAccountSetupModal
+        businessId={id}
+        businessType={formData.type}
+        businessName={formData.name}
+        onSuccess={() => {
+          setShowRentSetupModal(false)
+          setHasRentAccount(true)
+        }}
+        onClose={() => setShowRentSetupModal(false)}
+      />
+    )}
+    {method === 'PUT' && id && showRentManageModal && (
+      <RentAccountManageModal
+        businessId={id}
+        businessType={formData.type}
+        businessName={formData.name}
+        onClose={() => setShowRentManageModal(false)}
+      />
+    )}
+  </>
   )
 }
