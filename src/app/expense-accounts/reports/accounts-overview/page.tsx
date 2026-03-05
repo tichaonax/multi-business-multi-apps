@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { DateInput } from '@/components/ui/date-input'
 import { getEffectivePermissions } from '@/lib/permission-utils'
@@ -38,8 +38,11 @@ export default function AccountsOverviewReportPage() {
   const [accounts, setAccounts] = useState<AccountRow[]>([])
   const [totals, setTotals] = useState<SystemTotals | null>(null)
   const [loading, setLoading] = useState(true)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const searchParams = useSearchParams()
+  const [startDate, setStartDate] = useState(() => searchParams.get('startDate') ?? '')
+  const [endDate, setEndDate] = useState(() => searchParams.get('endDate') ?? '')
+  // Optional: scope to a single business when arriving from a drill-down link
+  const filterBusinessId = searchParams.get('businessId') ?? ''
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -76,6 +79,7 @@ export default function AccountsOverviewReportPage() {
       const params = new URLSearchParams()
       if (startDate) params.append('startDate', startDate)
       if (endDate) params.append('endDate', endDate)
+      if (filterBusinessId) params.append('businessId', filterBusinessId)
       const res = await fetch(`/api/expense-account/reports/accounts-overview?${params}`, { credentials: 'include' })
       if (res.ok) {
         const data = await res.json()
@@ -90,7 +94,13 @@ export default function AccountsOverviewReportPage() {
   }
 
   return (
-    <ContentLayout title="Accounts Overview" subtitle="Balance, deposits and payments across all expense accounts">
+      <ContentLayout
+        title="Accounts Overview"
+        subtitle={filterBusinessId
+          ? 'Expense accounts for your selected business'
+          : 'Balance, deposits and payments across all expense accounts'
+        }
+      >
       <div className="space-y-6">
         <Link href="/expense-accounts/reports" className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>

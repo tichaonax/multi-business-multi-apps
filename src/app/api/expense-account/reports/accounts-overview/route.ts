@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
+    const filterBusinessId = searchParams.get('businessId')
 
     const dateFilter: any = {}
     if (startDate) dateFilter.gte = new Date(startDate)
@@ -31,7 +32,10 @@ export async function GET(request: NextRequest) {
     const hasDateFilter = Object.keys(dateFilter).length > 0
 
     const accounts = await prisma.expenseAccounts.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(filterBusinessId ? { businessId: filterBusinessId } : {}),
+      },
       select: {
         id: true,
         accountNumber: true,

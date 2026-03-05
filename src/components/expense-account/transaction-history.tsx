@@ -38,11 +38,13 @@ interface Transaction {
 
 interface TransactionHistoryProps {
   accountId: string
-  defaultType?: 'DEPOSIT' | 'PAYMENT'
+  defaultType?: 'DEPOSIT' | 'PAYMENT' | ''
   defaultSortOrder?: 'asc' | 'desc'
   pageLimit?: number
   canEditPayments?: boolean
   isAdmin?: boolean
+  initialStartDate?: string
+  initialEndDate?: string
 }
 
 function isWithin7Days(createdAt: string) {
@@ -76,14 +78,16 @@ function shortDescription(transaction: Transaction): string {
   return desc
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState(() => {
+    if (initialStartDate) return initialStartDate
     const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 29)
     return d.toISOString().split('T')[0]
   })
   const [endDate, setEndDate] = useState(() => {
+    if (initialEndDate) return initialEndDate
     const d = new Date(); d.setHours(0, 0, 0, 0)
     return d.toISOString().split('T')[0]
   })
@@ -97,7 +101,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [activeQuickFilter, setActiveQuickFilter] = useState<string>('30 Days')
+  const [activeQuickFilter, setActiveQuickFilter] = useState<string>(
+    initialStartDate ? 'Custom' : '30 Days'
+  )
 
   // Debounce search input
   useEffect(() => {

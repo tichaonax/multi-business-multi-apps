@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
@@ -21,6 +22,8 @@ interface SalesAnalyticsData {
     totalTax: number
     averageOrderValue: number
     totalOrders: number
+    totalExpenses: number
+    grossMargin: number
   }
   topProducts: {
     byUnits: Array<{ productName: string; emoji: string; unitsSold: number }>
@@ -28,7 +31,7 @@ interface SalesAnalyticsData {
   }
   topCategories: Array<{ categoryPath: string; emoji: string; revenue: number }>
   topSalesReps: Array<{ employeeName: string; revenue: number }>
-  dailySales: Array<{ date: string; sales: number; orderCount: number }>
+  dailySales: Array<{ date: string; sales: number; orderCount: number; expenses?: number }>
   productBreakdown: Array<{ productName: string; emoji: string; revenue: number; percentage: number }>
   categoryBreakdown: Array<{ categoryPath: string; emoji: string; revenue: number; percentage: number }>
   salesRepBreakdown: Array<{ employeeName: string; revenue: number; percentage: number }>
@@ -36,11 +39,20 @@ interface SalesAnalyticsData {
 
 export default function RestaurantSalesAnalytics() {
   const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
+  const router = useRouter()
   const dateFormat = useDateFormat()
   const businessType = currentBusiness?.businessType || 'restaurant'
 
-  // Initialize date range to last 30 days
+  // Initialize date range from URL params (drill-down links) or default last 30 days
+  const searchParams = useSearchParams()
   const getInitialDateRange = (): DateRange => {
+    const spStart = searchParams.get('startDate')
+    const spEnd   = searchParams.get('endDate')
+    if (spStart && spEnd) {
+      const start = new Date(spStart + 'T00:00:00')
+      const end   = new Date(spEnd   + 'T00:00:00')
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) return { start, end }
+    }
     const end = new Date()
     const start = new Date()
     start.setDate(end.getDate() - 30)
@@ -101,12 +113,12 @@ export default function RestaurantSalesAnalytics() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       {/* Navigation */}
       <div className="mb-6 flex gap-3 no-print">
-        <Link
-          href={`/${businessType}/pos`}
+        <button
+          onClick={() => router.back()}
           className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
         >
-          ← Back to POS
-        </Link>
+          ← Back
+        </button>
         <Link
           href={`/${businessType}/reports`}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

@@ -8,8 +8,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessProvider } from '@/components/universal'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
+const FALLBACK_BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'hardware-demo-business'
 
 interface Project {
   id: string
@@ -307,8 +308,11 @@ function HardwareProjectsContent() {
 }
 
 export default function HardwareProjectsPage() {
+  const { currentBusinessId, isSystemAdmin, businesses } = useBusinessPermissionsContext()
+  const effectiveBusinessId = currentBusinessId ||
+    (isSystemAdmin ? businesses?.find(b => b.businessType === 'hardware' && b.isActive)?.businessId ?? null : null)
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={effectiveBusinessId ?? FALLBACK_BUSINESS_ID}>
       <BusinessTypeRoute requiredBusinessType="hardware">
         <ContentLayout
           title="Hardware Projects"

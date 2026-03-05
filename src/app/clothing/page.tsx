@@ -11,24 +11,29 @@ import { useState, useEffect } from 'react'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { HomeStatBadge, type OrderSummary } from '@/components/universal/home/HomeStatBadge'
+import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
 
 export default function ClothingPage() {
   const { data: session } = useSession()
   const currentUser = session?.user as any
   const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
 
-  const { currentBusinessId, hasPermission: hasBizPermission, isSystemAdmin: isSysAdmin } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission: hasBizPermission, isSystemAdmin: isSysAdmin, businesses, loading: permLoading } = useBusinessPermissionsContext()
   const canViewOrders = isSysAdmin || hasBizPermission('canEnterManualOrders') || hasBizPermission('canAccessFinancialData')
   const canViewFinancials = isSysAdmin || hasBizPermission('canAccessFinancialData')
+
+  // For admin users, fall back to any active clothing business if currentBusinessId is null
+  const effectiveBusinessId = currentBusinessId ||
+    (isSysAdmin ? businesses?.find(b => b.businessType === 'clothing' && b.isActive)?.businessId ?? null : null)
 
   const [homeStats, setHomeStats] = useState<OrderSummary | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
 
   useEffect(() => {
-    if (!currentBusinessId || !canViewOrders) return
+    if (!effectiveBusinessId || !canViewOrders) return
     let cancelled = false
     setLoadingStats(true)
-    fetch(`/api/universal/orders?businessId=${currentBusinessId}&dateRange=today&page=1&limit=1`)
+    fetch(`/api/universal/orders?businessId=${effectiveBusinessId}&dateRange=today&page=1&limit=1`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!cancelled && data?.meta?.summary) setHomeStats(data.meta.summary)
@@ -36,7 +41,7 @@ export default function ClothingPage() {
       })
       .catch(() => { if (!cancelled) setLoadingStats(false) })
     return () => { cancelled = true }
-  }, [currentBusinessId, canViewOrders])
+  }, [effectiveBusinessId, canViewOrders])
 
   return (
     <BusinessTypeRoute requiredBusinessType="clothing">
@@ -47,6 +52,15 @@ export default function ClothingPage() {
           { label: 'Clothing', isActive: true }
         ]}
       >
+
+        {!permLoading && canViewFinancials && effectiveBusinessId && (
+          <div className="mb-6">
+            <SalesExpenseSnapshot
+              businessId={effectiveBusinessId}
+              businessType="clothing"
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Link href="/clothing/pos" className="block">
@@ -136,6 +150,16 @@ export default function ClothingPage() {
               <p className="text-secondary">Sales analytics and trends</p>
             </div>
           </Link>
+
+          {canViewFinancials && (
+            <Link href="/clothing/reports/financial-insights" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow border-purple-200 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600">
+                <div className="text-4xl mb-4">📈</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Financial Insights</h3>
+                <p className="text-secondary">Margin analysis, cost trends and profit improvement opportunities</p>
+              </div>
+            </Link>
+          )}
         </div>
       </ContentLayout>
     </BusinessTypeRoute>

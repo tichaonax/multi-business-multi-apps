@@ -362,35 +362,64 @@ function RestaurantInventoryContent() {
                     </div>
                   </div>
 
-                  {/* Ingredient Categories - Click to filter */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {[
-                      { name: 'Proteins', icon: '🥩', color: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' },
-                      { name: 'Vegetables', icon: '🥬', color: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' },
-                      { name: 'Dairy', icon: '🥛', color: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' },
-                      { name: 'Pantry', icon: '🏺', color: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300' },
-                      { name: 'Beverages', icon: '🥤', color: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300' },
-                      { name: 'Supplies', icon: '📦', color: 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300' }
-                    ].map((category) => {
-                      const count = categoryCounts[category.name] || 0
-                      return (
-                        <button
-                          key={category.name}
-                          onClick={() => setSelectedCategory(selectedCategory === category.name ? null : category.name)}
-                          className={`card p-4 border-2 ${category.color} hover:shadow-md transition-all cursor-pointer ${
-                            selectedCategory === category.name ? 'ring-2 ring-offset-2 ring-blue-500 scale-105' : ''
-                          } ${count === 0 ? 'opacity-50' : ''}`}
-                          disabled={count === 0}
-                        >
-                          <div className="text-center">
-                            <div className="text-2xl mb-2">{category.icon}</div>
-                            <div className="font-semibold text-sm">{category.name}</div>
-                            <div className="text-xs opacity-75">{count} {count === 1 ? 'item' : 'items'}</div>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {/* Ingredient Categories - Click to filter — built from real data */}
+                  {Object.keys(categoryCounts).length > 0 && (() => {
+                    const KNOWN: Record<string, { icon: string; color: string }> = {
+                      'Proteins':      { icon: '🥩', color: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' },
+                      'Vegetables':    { icon: '🥬', color: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' },
+                      'Dairy':         { icon: '🥛', color: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' },
+                      'Pantry':        { icon: '🏺', color: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300' },
+                      'Beverages':     { icon: '🥤', color: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300' },
+                      'Supplies':      { icon: '📦', color: 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300' },
+                      'Seafood':       { icon: '🦐', color: 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300' },
+                      'Grains':        { icon: '🌾', color: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300' },
+                      'Spices':        { icon: '🌶️', color: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300' },
+                      'Condiments':    { icon: '🍯', color: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300' },
+                      'Oils & Fats':   { icon: '🫙', color: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300' },
+                      'Frozen':        { icon: '🧊', color: 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300' },
+                      'Bakery':        { icon: '🍞', color: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300' },
+                      'Desserts':      { icon: '🍰', color: 'bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800 text-pink-700 dark:text-pink-300' },
+                      'Main Courses':  { icon: '🍽️', color: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300' },
+                      'Appetizers':    { icon: '🥗', color: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' },
+                      'Starters':      { icon: '🥙', color: 'bg-lime-50 dark:bg-lime-900/20 border-lime-200 dark:border-lime-800 text-lime-700 dark:text-lime-300' },
+                      'Soups':         { icon: '🍲', color: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300' },
+                      'Salads':        { icon: '🥗', color: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' },
+                      'Snacks':        { icon: '🍿', color: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300' },
+                      'Sauces':        { icon: '🧴', color: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' },
+                      'Service':       { icon: '🛎️', color: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300' },
+                      'Revenue':       { icon: '💵', color: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' },
+                      'Packaging':     { icon: '🎁', color: 'bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800 text-pink-700 dark:text-pink-300' },
+                      'Cleaning':      { icon: '🧹', color: 'bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300' },
+                      'Equipment':     { icon: '🔧', color: 'bg-slate-50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300' },
+                      'Uncategorized': { icon: '❓', color: 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400' },
+                    }
+                    const FALLBACK = { icon: '🗂️', color: 'bg-slate-50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300' }
+                    const categories = Object.entries(categoryCounts)
+                      .filter(([, count]) => count > 0)
+                      .sort((a, b) => b[1] - a[1]) // sort by item count descending
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {categories.map(([name, count]) => {
+                          const meta = KNOWN[name] ?? FALLBACK
+                          return (
+                            <button
+                              key={name}
+                              onClick={() => setSelectedCategory(selectedCategory === name ? null : name)}
+                              className={`card p-4 border-2 ${meta.color} hover:shadow-md transition-all cursor-pointer ${
+                                selectedCategory === name ? 'ring-2 ring-offset-2 ring-blue-500 scale-105' : ''
+                              }`}
+                            >
+                              <div className="text-center">
+                                <div className="text-2xl mb-2">{meta.icon}</div>
+                                <div className="font-semibold text-sm">{name}</div>
+                                <div className="text-xs opacity-75">{count} {count === 1 ? 'item' : 'items'}</div>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
 
                   {/* Selected Category Indicator */}
                   {selectedCategory && (

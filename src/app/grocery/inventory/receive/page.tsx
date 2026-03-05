@@ -8,8 +8,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-
-const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface InventoryItem {
   id: string
@@ -23,21 +22,23 @@ interface InventoryItem {
 export default function ReceiveGroceryInventoryPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const { currentBusinessId } = useBusinessPermissionsContext()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [items, setItems] = useState<InventoryItem[]>([])
-  const [selectedItems, setSelectedItems] = useState<{[itemId: string]: { quantity: number; batchNumber?: string; expirationDate?: string; costPerUnit?: number }}>({})
+  const [selectedItems, setSelectedItems] = useState<{[itemId: string]: { quantity: number; batchNumber?: string; expirationDate?: string; costPerUnit?: number }}>({}) 
 
   // Fetch existing inventory items
   useEffect(() => {
-    fetchInventoryItems()
-  }, [])
+    if (currentBusinessId) fetchInventoryItems()
+  }, [currentBusinessId])
 
   const fetchInventoryItems = async () => {
+    if (!currentBusinessId) return
     try {
       console.log('Fetching inventory items...')
-      const response = await fetch(`/api/inventory/${BUSINESS_ID}/items`)
+      const response = await fetch(`/api/inventory/${currentBusinessId}/items`)
       if (response.ok) {
         const data = await response.json()
         console.log('Inventory items loaded:', data.items?.length || 0)
@@ -111,8 +112,8 @@ export default function ReceiveGroceryInventoryPage() {
           movementType: 'receive',
           quantity: data.quantity,
           unit: 'units',
-          unitCost: data.costPerUnit ? parseFloat(data.costPerUnit) : item.basePrice,
-          totalCost: data.costPerUnit ? parseFloat(data.costPerUnit) * data.quantity : item.basePrice * data.quantity,
+          unitCost: data.costPerUnit ?? item.basePrice,
+          totalCost: (data.costPerUnit ?? item.basePrice) * data.quantity,
           previousStock: item.currentStock,
           newStock: item.currentStock + data.quantity,
           reason: 'Stock Receipt',
@@ -123,7 +124,7 @@ export default function ReceiveGroceryInventoryPage() {
           location: 'Warehouse'
         }
 
-        const response = await fetch(`/api/inventory/${BUSINESS_ID}/movements`, {
+        const response = await fetch(`/api/inventory/${currentBusinessId}/movements`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

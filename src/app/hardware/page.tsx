@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { HomeStatBadge } from '@/components/universal/home/HomeStatBadge'
+import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
 
 function HardwareContent({ session, businessId, canViewFinancials }: { session: any; businessId: string; canViewFinancials: boolean }) {
   const currentUser = session?.user as any
@@ -123,6 +124,26 @@ function HardwareContent({ session, businessId, canViewFinancials }: { session: 
       </div>
 
       {/* Quick Actions */}
+      {canViewFinancials && (
+        <SalesExpenseSnapshot
+          businessId={businessId}
+          businessType="hardware"
+        />
+      )}
+
+      {canViewFinancials && (
+        <Link href="/hardware/reports/financial-insights" className="block">
+          <div className="p-5 rounded-xl border border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors flex items-center gap-4">
+            <span className="text-3xl">📈</span>
+            <div>
+              <h3 className="font-semibold text-purple-800 dark:text-purple-200">Financial Insights Report</h3>
+              <p className="text-sm text-purple-600 dark:text-purple-400">Margin analysis, cost reduction opportunities, what-if scenarios and profit improvement action plan</p>
+            </div>
+            <span className="ml-auto text-purple-400 text-xl shrink-0">→</span>
+          </div>
+        </Link>
+      )}
+
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-primary mb-4">Hardware Store Operations</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

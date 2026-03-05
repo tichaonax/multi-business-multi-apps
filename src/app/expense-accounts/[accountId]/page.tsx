@@ -5,7 +5,7 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { AccountBalanceCard } from '@/components/expense-account/account-balance-card'
 import { DepositForm } from '@/components/expense-account/deposit-form'
@@ -203,13 +203,18 @@ export default function ExpenseAccountDetailPage() {
   const router = useRouter()
   const params = useParams()
   const accountId = params.accountId as string
+  const searchParams = useSearchParams()
+  const urlTab       = searchParams.get('tab')       ?? ''
+  const urlStartDate = searchParams.get('startDate') ?? ''
+  const urlEndDate   = searchParams.get('endDate')   ?? ''
+  const urlType      = searchParams.get('type')      ?? ''  // 'PAYMENT' | 'DEPOSIT' | ''
 
   const [account, setAccount] = useState<ExpenseAccount | null>(null)
   const [depositsCount, setDepositsCount] = useState<number | null>(null)
   const [paymentsCount, setPaymentsCount] = useState<number | null>(null)
   const [countsError, setCountsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(urlTab || 'overview')
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
   const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
@@ -224,7 +229,7 @@ export default function ExpenseAccountDetailPage() {
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
 
   // Permissions from business context (properly fetched from API)
-  const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
+  const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness, businesses } = useBusinessPermissionsContext()
   const canAccessExpenseAccount = hasPermission('canAccessExpenseAccount')
   const canMakeExpenseDeposits = hasPermission('canMakeExpenseDeposits')
   const canMakeExpensePayments = hasPermission('canMakeExpensePayments')
@@ -619,6 +624,18 @@ export default function ExpenseAccountDetailPage() {
                         📊 Reports
                       </Link>
                     )}
+                    {(isSystemAdmin || canViewExpenseReports) && account?.businessId && (() => {
+                      const bType = businesses?.find(b => b.businessId === account.businessId)?.businessType ?? currentBusiness?.businessType ?? 'restaurant'
+                      return (
+                        <Link
+                          href={`/${bType}/reports/financial-insights`}
+                          className="px-4 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                          title="Analyse profit margins, cost trends and opportunities"
+                        >
+                          📈 Financial Insights
+                        </Link>
+                      )
+                    })()}
                   </div>
                 </div>
 
@@ -695,7 +712,14 @@ export default function ExpenseAccountDetailPage() {
             {/* Transactions Tab */}
             {activeTab === 'transactions' && (
               <div>
-                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} />
+                <TransactionHistory
+                  accountId={accountId}
+                  canEditPayments={canEditPayments}
+                  isAdmin={isSystemAdmin}
+                  initialStartDate={urlStartDate || undefined}
+                  initialEndDate={urlEndDate || undefined}
+                  defaultType={(urlType === 'PAYMENT' || urlType === 'DEPOSIT') ? urlType : ''}
+                />
               </div>
             )}
 

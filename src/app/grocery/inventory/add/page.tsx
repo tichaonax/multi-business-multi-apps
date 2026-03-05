@@ -81,11 +81,16 @@ function AddGroceryInventoryPageContent() {
       return
     }
 
+    if (!currentBusinessId) {
+      setError('No business selected. Please select a grocery business first.')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/inventory/grocery-demo-business/items', {
+      const response = await fetch(`/api/inventory/${currentBusinessId}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

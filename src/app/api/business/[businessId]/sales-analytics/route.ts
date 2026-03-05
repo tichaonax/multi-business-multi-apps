@@ -455,14 +455,59 @@ export async function GET(
         orderCount: s.orderCount
       }));
 
-    // Daily sales array (sorted by date)
-    const dailySales = Object.values(dailySalesMap)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(d => ({
-        date: d.date,
-        sales: Number(d.sales.toFixed(2)),
-        orderCount: d.orderCount
-      }));
+    // ── Daily expenses: fetch from expense accounts belonging to this business ──
+    let dailyExpensesMap: Record<string, number> = {}
+    let totalExpenses = 0
+    try {
+      const expenseAccounts = await prisma.expenseAccounts.findMany({
+        where: { businessId: businessId },
+        select: { id: true },
+      })
+      const expenseAccountIds = expenseAccounts.map((a) => a.id)
+
+      if (expenseAccountIds.length > 0) {
+        const expensePayments = await prisma.expenseAccountPayments.findMany({
+          where: {
+            expenseAccountId: { in: expenseAccountIds },
+            paymentDate: { gte: startDate, lte: endDate },
+            status: { not: 'CANCELLED' },
+          },
+          select: { paymentDate: true, amount: true },
+        })
+
+        expensePayments.forEach((payment) => {
+          // Convert UTC paymentDate to local date string using the request timezone
+          const localDateStr = new Date(payment.paymentDate)
+            .toLocaleDateString('en-CA', { timeZone: timezone }) // YYYY-MM-DD
+          dailyExpensesMap[localDateStr] =
+            (dailyExpensesMap[localDateStr] || 0) + Number(payment.amount)
+          totalExpenses += Number(payment.amount)
+        })
+      }
+    } catch (expErr) {
+      console.error('Error fetching daily expenses for analytics:', expErr)
+    }
+
+    // Daily sales array (sorted by date) — now includes expenses
+    // Collect all dates that appear in either sales or expenses
+    const allDates = new Set([
+      ...Object.keys(dailySalesMap),
+      ...Object.keys(dailyExpensesMap),
+    ])
+
+    const dailySales = Array.from(allDates)
+      .sort()
+      .map((date) => {
+        const salesEntry = dailySalesMap[date]
+        const expenses = Number((dailyExpensesMap[date] || 0).toFixed(2))
+        const sales = Number((salesEntry?.sales || 0).toFixed(2))
+        return {
+          date,
+          sales,
+          orderCount: salesEntry?.orderCount || 0,
+          expenses,
+        }
+      })
 
     // Product breakdown (top 10 for chart)
     const productBreakdown = Object.values(productStats)
@@ -496,13 +541,32 @@ export async function GET(
         percentage: totalSales > 0 ? Number(((s.revenue / totalSales) * 100).toFixed(1)) : 0
       }));
 
+    const totalExpensesRounded = Number(totalExpenses.toFixed(2))
+    const grossMargin = totalSales > 0
+      ? Number((((totalSales - totalExpenses) / totalSales) * 100).toFixed(1))
+      : 0
+
+    // Capture the primary expense account ID for deep-linking
+    let primaryExpenseAccountId: string | null = null
+    try {
+      const firstAccount = await prisma.expenseAccounts.findFirst({
+        where: { businessId: businessId, isActive: true },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      })
+      primaryExpenseAccountId = firstAccount?.id ?? null
+    } catch { /* non-critical */ }
+
     return NextResponse.json({
       success: true,
+      expenseAccountId: primaryExpenseAccountId,
       summary: {
         totalSales: Number(totalSales.toFixed(2)),
         totalTax: Number(totalTax.toFixed(2)),
         averageOrderValue: Number(averageOrderValue.toFixed(2)),
-        totalOrders
+        totalOrders,
+        totalExpenses: totalExpensesRounded,
+        grossMargin,
       },
       topProducts: {
         byUnits: topProductsByUnits,

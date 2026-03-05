@@ -13,6 +13,7 @@ import { useSession } from 'next-auth/react'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { HomeStatBadge, type OrderSummary } from '@/components/universal/home/HomeStatBadge'
+import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
 
 const BUSINESS_ID = process.env.NEXT_PUBLIC_DEMO_BUSINESS_ID || 'grocery-demo-business'
 
@@ -21,18 +22,22 @@ export default function GroceryStorePage() {
   const currentUser = session?.user as any
   const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
 
-  const { currentBusinessId, hasPermission: hasBizPermission, isSystemAdmin: isSysAdmin } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission: hasBizPermission, isSystemAdmin: isSysAdmin, businesses, loading: permLoading } = useBusinessPermissionsContext()
   const canViewOrders = isSysAdmin || hasBizPermission('canEnterManualOrders') || hasBizPermission('canAccessFinancialData')
   const canViewFinancials = isSysAdmin || hasBizPermission('canAccessFinancialData')
+
+  // For admin users, fall back to any active grocery business if currentBusinessId is null
+  const effectiveBusinessId = currentBusinessId ||
+    (isSysAdmin ? businesses?.find(b => b.businessType === 'grocery' && b.isActive)?.businessId ?? null : null)
 
   const [homeStats, setHomeStats] = useState<OrderSummary | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
 
   useEffect(() => {
-    if (!currentBusinessId || !canViewOrders) return
+    if (!effectiveBusinessId || !canViewOrders) return
     let cancelled = false
     setLoadingStats(true)
-    fetch(`/api/universal/orders?businessId=${currentBusinessId}&dateRange=today&page=1&limit=1`)
+    fetch(`/api/universal/orders?businessId=${effectiveBusinessId}&dateRange=today&page=1&limit=1`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!cancelled && data?.meta?.summary) setHomeStats(data.meta.summary)
@@ -40,7 +45,7 @@ export default function GroceryStorePage() {
       })
       .catch(() => { if (!cancelled) setLoadingStats(false) })
     return () => { cancelled = true }
-  }, [currentBusinessId, canViewOrders])
+  }, [effectiveBusinessId, canViewOrders])
 
   const quickActions = [
     {
@@ -139,10 +144,11 @@ export default function GroceryStorePage() {
   const [loadingMetrics, setLoadingMetrics] = useState(true)
   const [loadingAlerts, setLoadingAlerts] = useState(true)
   useEffect(() => {
+    if (!effectiveBusinessId) return
     async function loadData() {
       try {
         // Inventory value report for metrics
-        const reportRes = await fetch(`/api/inventory/${BUSINESS_ID}/reports?reportType=inventory_value`)
+        const reportRes = await fetch(`/api/inventory/${effectiveBusinessId}/reports?reportType=inventory_value`)
         if (reportRes.ok) {
           const json = await reportRes.json()
           const data = json.report?.data || {}
@@ -155,7 +161,7 @@ export default function GroceryStorePage() {
         }
         setLoadingMetrics(false)
 
-        const alertsRes = await fetch(`/api/inventory/${BUSINESS_ID}/alerts?acknowledged=false&limit=5`)
+        const alertsRes = await fetch(`/api/inventory/${effectiveBusinessId}/alerts?acknowledged=false&limit=5`)
         if (alertsRes.ok) {
           const json = await alertsRes.json()
           setAlerts(json.alerts || [])
@@ -170,10 +176,10 @@ export default function GroceryStorePage() {
     }
 
     loadData()
-  }, [])
+  }, [effectiveBusinessId])
 
   return (
-    <BusinessProvider businessId={BUSINESS_ID}>
+    <BusinessProvider businessId={effectiveBusinessId ?? BUSINESS_ID}>
       <BusinessTypeRoute requiredBusinessType="grocery">
         <ContentLayout
           title="🛒 Grocery Store Management"
@@ -184,12 +190,22 @@ export default function GroceryStorePage() {
         >
           <div className="space-y-6">
             {/* Inventory Overview Widget */}
-            <InventoryDashboardWidget
-              businessId={BUSINESS_ID}
-              businessType="grocery"
-              showDetails={true}
-              maxAlerts={3}
-            />
+            {!permLoading && effectiveBusinessId && (
+              <InventoryDashboardWidget
+                businessId={effectiveBusinessId}
+                businessType="grocery"
+                showDetails={true}
+                maxAlerts={3}
+              />
+            )}
+
+            {/* Financial snapshot — only for users with financial access */}
+            {!permLoading && canViewFinancials && effectiveBusinessId && (
+              <SalesExpenseSnapshot
+                businessId={effectiveBusinessId}
+                businessType="grocery"
+              />
+            )}
 
             {/* Key Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -294,6 +310,25 @@ export default function GroceryStorePage() {
                   </div>
                 </Link>
               ))}
+
+              {canViewFinancials && (
+                <Link href="/grocery/reports/financial-insights">
+                  <div className="p-6 rounded-lg border transition-all duration-200 cursor-pointer bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-300">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="text-4xl">📈</div>
+                    </div>
+                    <h3 className="text-lg font-semibold mb-1">Financial Insights</h3>
+                    <p className="text-sm mb-4 opacity-90">Margin analysis, cost trends and profit improvement opportunities</p>
+                    <div className="space-y-1">
+                      {['Profit margin analysis', 'Revenue vs expense trends', 'What-if scenarios', 'Actionable recommendations'].map((f, i) => (
+                        <div key={i} className="flex items-center text-xs opacity-80">
+                          <div className="w-1.5 h-1.5 bg-current rounded-full mr-2" />{f}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Link>
+              )}
             </div>
 
             {/* Grocery-specific Features Overview */}

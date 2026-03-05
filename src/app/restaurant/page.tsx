@@ -11,20 +11,25 @@ import { InventoryDashboardWidget } from '@/components/universal/inventory/inven
 import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { HomeStatBadge, type OrderSummary } from '@/components/universal/home/HomeStatBadge'
+import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
 
 export default function RestaurantPage() {
-  const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission, isSystemAdmin, businesses, loading: permLoading } = useBusinessPermissionsContext()
   const canViewOrders = isSystemAdmin || hasPermission('canEnterManualOrders') || hasPermission('canAccessFinancialData')
   const canViewFinancials = isSystemAdmin || hasPermission('canAccessFinancialData')
+
+  // For admin users, if currentBusinessId is null fall back to any active restaurant business
+  const effectiveBusinessId = currentBusinessId ||
+    (isSystemAdmin ? businesses?.find(b => b.businessType === 'restaurant' && b.isActive)?.businessId ?? null : null)
 
   const [homeStats, setHomeStats] = useState<OrderSummary | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
 
   useEffect(() => {
-    if (!currentBusinessId || !canViewOrders) return
+    if (!effectiveBusinessId || !canViewOrders) return
     let cancelled = false
     setLoadingStats(true)
-    fetch(`/api/universal/orders?businessId=${currentBusinessId}&dateRange=today&page=1&limit=1`)
+    fetch(`/api/universal/orders?businessId=${effectiveBusinessId}&dateRange=today&page=1&limit=1`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!cancelled && data?.meta?.summary) setHomeStats(data.meta.summary)
@@ -32,7 +37,7 @@ export default function RestaurantPage() {
       })
       .catch(() => { if (!cancelled) setLoadingStats(false) })
     return () => { cancelled = true }
-  }, [currentBusinessId, canViewOrders])
+  }, [effectiveBusinessId, canViewOrders])
 
   return (
     <ProtectedRoute>
@@ -45,14 +50,25 @@ export default function RestaurantPage() {
         ]}
       >
         {/* Inventory Overview Widget */}
-        <div className="mb-8">
-          <InventoryDashboardWidget
-            businessId="restaurant-demo"
-            businessType="restaurant"
-            showDetails={true}
-            maxAlerts={3}
-          />
-        </div>
+        {!permLoading && effectiveBusinessId && (
+          <div className="mb-8">
+            <InventoryDashboardWidget
+              businessId={effectiveBusinessId}
+              businessType="restaurant"
+              showDetails={true}
+              maxAlerts={3}
+            />
+          </div>
+        )}
+
+        {!permLoading && canViewFinancials && effectiveBusinessId && (
+          <div className="mb-6">
+            <SalesExpenseSnapshot
+              businessId={effectiveBusinessId}
+              businessType="restaurant"
+            />
+          </div>
+        )}
 
         {/* Quick Actions Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -109,6 +125,16 @@ export default function RestaurantPage() {
               <p className="text-secondary">Sales and financial reports</p>
             </div>
           </Link>
+
+          {canViewFinancials && (
+            <Link href="/restaurant/reports/financial-insights" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow border-purple-200 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600">
+                <div className="text-4xl mb-4">📊</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Financial Insights</h3>
+                <p className="text-secondary">Margin analysis, cost trends and profit improvement opportunities</p>
+              </div>
+            </Link>
+          )}
 
           <Link href="/restaurant/meal-program" className="block">
             <div className="card p-6 hover:shadow-lg transition-shadow">
