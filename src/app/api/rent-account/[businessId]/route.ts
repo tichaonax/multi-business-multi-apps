@@ -51,8 +51,25 @@ export async function GET(request: NextRequest, { params }: Params) {
     const fundingPercent = monthlyRent > 0 ? Math.round((balance / monthlyRent) * 1000) / 10 : 0
     const indicator = computeIndicator(balance, monthlyRent)
 
+    // Calculate how much rent has been paid this calendar month
+    const now = new Date()
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const startOfNextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+    const paymentsThisMonth = await prisma.expenseAccountPayments.aggregate({
+      where: {
+        expenseAccountId: config.expenseAccount.id,
+        paymentDate: { gte: startOfMonth, lt: startOfNextMonth },
+        status: { not: 'CANCELLED' },
+      },
+      _sum: { amount: true },
+    })
+    const paidThisMonth = Number(paymentsThisMonth._sum.amount || 0)
+    const outstanding = Math.max(0, monthlyRent - paidThisMonth)
+
     return NextResponse.json({
       hasRentAccount: true,
+      paidThisMonth,
+      outstanding,
       config: {
         id: config.id,
         businessId: config.businessId,
@@ -147,7 +164,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Landlord supplier not found' }, { status: 404 })
     }
 
-    const dailyTransferAmount = Number(monthlyRentAmount) / Number(operatingDaysPerMonth)
+    const dailyTransferAmount = Math.ceil(Number(monthlyRentAmount) / Number(operatingDaysPerMonth))
 
     // Generate account number
     const count = await prisma.expenseAccounts.count()
@@ -258,7 +275,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     const newMonthly = monthlyRentAmount !== undefined ? Number(monthlyRentAmount) : Number(existing.monthlyRentAmount)
     const newDays = operatingDaysPerMonth !== undefined ? Number(operatingDaysPerMonth) : existing.operatingDaysPerMonth
-    const newDailyTransfer = newMonthly / newDays
+    const newDailyTransfer = Math.ceil(newMonthly / newDays)
 
     if (newMonthly <= 0) return NextResponse.json({ error: 'monthlyRentAmount must be > 0' }, { status: 400 })
     if (newDays < 1 || newDays > 31) return NextResponse.json({ error: 'operatingDaysPerMonth must be 1–31' }, { status: 400 })

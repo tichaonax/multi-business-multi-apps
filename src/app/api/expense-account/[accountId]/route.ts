@@ -93,6 +93,21 @@ export async function GET(
           siblingNumber: account.siblingNumber,
           isSibling: account.isSibling,
           canMerge: account.canMerge,
+          // Landlord info for RENT-type accounts
+          ...(
+            account.accountType === 'RENT' && account.businessId
+              ? await prisma.businessRentConfig.findFirst({
+                  where: { expenseAccountId: accountId, isActive: true },
+                  select: {
+                    landlordSupplierId: true,
+                    landlordSupplier: { select: { name: true } },
+                  },
+                }).then(rc => ({
+                  landlordSupplierId: rc?.landlordSupplierId ?? null,
+                  landlordSupplierName: rc?.landlordSupplier?.name ?? null,
+                }))
+              : { landlordSupplierId: null, landlordSupplierName: null }
+          ),
         },
       },
     })

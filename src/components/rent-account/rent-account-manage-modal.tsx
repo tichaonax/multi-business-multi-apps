@@ -96,7 +96,7 @@ export function RentAccountManageModal({
 
   const newMonthly = parseFloat(monthlyRent) || 0
   const newDays = parseInt(operatingDays) || 0
-  const newDailyTransfer = newMonthly > 0 && newDays > 0 ? newMonthly / newDays : 0
+  const newDailyTransfer = newMonthly > 0 && newDays > 0 ? Math.ceil(newMonthly / newDays) : 0
 
   const handleSave = async () => {
     if (newMonthly <= 0) { setError('Monthly rent must be > 0'); return }
@@ -254,7 +254,7 @@ export function RentAccountManageModal({
               <div>
                 <label className="block text-xs font-medium text-secondary mb-1">Daily Transfer (calculated)</label>
                 <div className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800 text-sm font-mono text-green-700 dark:text-green-400">
-                  {newDailyTransfer > 0 ? newDailyTransfer.toFixed(2) : '—'}
+                  {newDailyTransfer > 0 ? newDailyTransfer.toLocaleString() : '—'}
                 </div>
               </div>
               <div>
@@ -266,9 +266,11 @@ export function RentAccountManageModal({
             <div>
               <label className="block text-xs font-medium text-secondary mb-1">Landlord *</label>
               <LandlordSelect
+                businessId={businessId}
                 businessType={businessType}
                 value={landlordSupplierId}
                 onChange={setLandlordSupplierId}
+                initialSupplier={config?.landlordSupplier ?? null}
               />
             </div>
 

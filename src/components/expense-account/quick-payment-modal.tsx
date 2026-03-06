@@ -215,6 +215,29 @@ function getDefaultDomainName(businessType: string): string {
   return map[businessType] || 'Business'
 }
 
+// ── Rent account category presets ──────────────────────────────────────────
+// Maps: formData.categoryId = domainId, .subcategoryId = categoryId, .subSubcategoryId = subcategoryId
+const RENT_CATEGORY_PRESETS: Record<string, { domainId: string; categoryId: string; subcategoryId: string; displayDomain: string; displayCategory: string }> = {
+  restaurant: {
+    domainId: 'domain-restaurant',
+    categoryId: 'cat-restaurant-general-operating',
+    subcategoryId: 'subcat-restaurant-general-operating-rent',
+    displayDomain: 'Restaurant',
+    displayCategory: 'General Operating',
+  },
+}
+const DEFAULT_RENT_CATEGORY_PRESET = {
+  domainId: 'domain-business',
+  categoryId: 'cat-business-property-facilities',
+  subcategoryId: 'subcat-business-property-facilities-rent',
+  displayDomain: 'Business (General)',
+  displayCategory: 'Property & Facilities',
+}
+function getRentCategoryPreset(businessType?: string) {
+  if (!businessType) return DEFAULT_RENT_CATEGORY_PRESET
+  return RENT_CATEGORY_PRESETS[businessType] ?? DEFAULT_RENT_CATEGORY_PRESET
+}
+
 interface QuickPaymentModalProps {
   isOpen: boolean
   onClose: () => void
@@ -228,6 +251,8 @@ interface QuickPaymentModalProps {
   accountType?: string
   defaultCategoryBusinessType?: string
   businessId?: string
+  /** When set, the payee is locked to this value and shown as read-only (e.g. rent account → landlord) */
+  presetPayee?: { type: string; id: string; name: string } | null
 }
 
 export function QuickPaymentModal({
@@ -243,11 +268,19 @@ export function QuickPaymentModal({
   accountType = 'GENERAL',
   defaultCategoryBusinessType,
   businessId,
+  presetPayee = null,
 }: QuickPaymentModalProps) {
   const isPersonalAccount = accountType === 'PERSONAL'
+  const isRentAccount = accountType === 'RENT'
   const [loading, setLoading] = useState(false)
   const [liveBalance, setLiveBalance] = useState<number | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
+  const [rentDueInfo, setRentDueInfo] = useState<{
+    monthlyRent: number
+    paidThisMonth: number
+    outstanding: number
+  } | null>(null)
+  const [rentDueLoading, setRentDueLoading] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [payeeSearchQuery, setPayeeSearchQuery] = useState('')
@@ -271,7 +304,7 @@ export function QuickPaymentModal({
   const [subSubcategories, setSubSubcategories] = useState<ExpenseSubSubcategory[]>([])
 
   const [formData, setFormData] = useState({
-    payee: null as { type: string; id: string; name: string } | null,
+    payee: presetPayee ?? null as { type: string; id: string; name: string } | null,
     categoryId: '',
     subcategoryId: '',
     subSubcategoryId: '',
@@ -291,8 +324,20 @@ export function QuickPaymentModal({
     if (isOpen) {
       loadCategories()
       fetchLiveBalance()
+      if (isRentAccount && businessId) {
+        fetchRentDueInfo()
+        // Preset the locked category chain (no clearing effects will fire because of guards below)
+        const preset = getRentCategoryPreset(defaultCategoryBusinessType)
+        setFormData(prev => ({
+          ...prev,
+          categoryId: preset.domainId,
+          subcategoryId: preset.categoryId,
+          subSubcategoryId: preset.subcategoryId,
+        }))
+      }
     } else {
       setLiveBalance(null)
+      setRentDueInfo(null)
     }
   }, [isOpen])
 
@@ -313,6 +358,28 @@ export function QuickPaymentModal({
     }
   }
 
+  const fetchRentDueInfo = async () => {
+    if (!businessId) return
+    setRentDueLoading(true)
+    try {
+      const res = await fetch(`/api/rent-account/${businessId}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.hasRentAccount && data.config) {
+          setRentDueInfo({
+            monthlyRent: data.config.monthlyRentAmount,
+            paidThisMonth: data.paidThisMonth ?? 0,
+            outstanding: data.outstanding ?? data.config.monthlyRentAmount,
+          })
+        }
+      }
+    } catch {
+      // Silently fail — rent summary is informational only
+    } finally {
+      setRentDueLoading(false)
+    }
+  }
+
   // Auto-select category matching business type when categories load
   useEffect(() => {
     if (categories.length > 0 && defaultCategoryBusinessType && !formData.categoryId) {
@@ -324,9 +391,10 @@ export function QuickPaymentModal({
     }
   }, [categories, defaultCategoryBusinessType])
 
-  // Load subcategories when category changes
+  // Load subcategories when category changes (skip for RENT — chain is preset and locked)
   useEffect(() => {
     if (formData.categoryId) {
+      if (isRentAccount) return
       loadSubcategories(formData.categoryId)
       setFormData(prev => ({ ...prev, subcategoryId: '', subSubcategoryId: '' }))
       setSubSubcategories([])
@@ -336,9 +404,10 @@ export function QuickPaymentModal({
     }
   }, [formData.categoryId])
 
-  // Load sub-subcategories when subcategory changes
+  // Load sub-subcategories when subcategory changes (skip for RENT — chain is preset and locked)
   useEffect(() => {
     if (formData.subcategoryId) {
+      if (isRentAccount) return
       loadSubSubcategories(formData.subcategoryId)
       setFormData(prev => ({ ...prev, subSubcategoryId: '' }))
     } else {
@@ -584,11 +653,12 @@ export function QuickPaymentModal({
   }
 
   const resetForm = () => {
+    const rentPreset = isRentAccount ? getRentCategoryPreset(defaultCategoryBusinessType) : null
     setFormData({
-      payee: null,
-      categoryId: '',
-      subcategoryId: '',
-      subSubcategoryId: '',
+      payee: presetPayee ?? null,
+      categoryId: rentPreset?.domainId ?? '',
+      subcategoryId: rentPreset?.categoryId ?? '',
+      subSubcategoryId: rentPreset?.subcategoryId ?? '',
       amount: '',
       paymentDate: getTodayLocalDateString(),
       notes: '',
@@ -607,10 +677,10 @@ export function QuickPaymentModal({
 
   const handleCancel = async () => {
     // Check if form has unsaved changes
-    const hasChanges = formData.payee !== null ||
-                       formData.categoryId !== '' ||
-                       formData.amount !== '' ||
-                       formData.notes !== ''
+    // For RENT accounts: payee and category chain are always preset — only treat amount/notes as changes
+    const hasChanges = isRentAccount
+      ? (formData.amount !== '' || formData.notes !== '')
+      : (formData.payee !== null || formData.categoryId !== '' || formData.amount !== '' || formData.notes !== '')
 
     if (hasChanges) {
       const confirmed = await customConfirm(
@@ -741,6 +811,53 @@ export function QuickPaymentModal({
           </p>
         </div>
 
+        {/* Rent Due Summary Banner */}
+        {isRentAccount && (
+          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg">
+            {(() => {
+              // Rent collected this month is due on the 1st of NEXT month
+              const now = new Date()
+              const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+              const dueMonthLabel = dueDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+              return (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base">🏠</span>
+                    <span className="text-sm font-semibold text-orange-800 dark:text-orange-300">
+                      Rent Due — {dueMonthLabel}
+                    </span>
+                    <span className="text-xs text-orange-600 dark:text-orange-400 ml-auto">
+                      collecting for 1st of next month
+                    </span>
+                  </div>
+                  {rentDueLoading ? (
+                    <div className="text-xs text-secondary">Loading rent summary…</div>
+                  ) : rentDueInfo ? (
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-white dark:bg-gray-800 rounded-md py-2 px-1">
+                        <div className="text-xs text-secondary mb-0.5">Monthly Rent</div>
+                        <div className="text-sm font-bold text-primary">${rentDueInfo.monthlyRent.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-md py-2 px-1">
+                        <div className="text-xs text-secondary mb-0.5">Paid This Month</div>
+                        <div className={`text-sm font-bold ${rentDueInfo.paidThisMonth > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                          ${rentDueInfo.paidThisMonth.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-md py-2 px-1">
+                        <div className="text-xs text-secondary mb-0.5">Outstanding</div>
+                        <div className={`text-sm font-bold ${rentDueInfo.outstanding > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                          ${rentDueInfo.outstanding.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )
+            })()}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           {/* ── Payee — full width ───────────────────────────────────── */}
           <div className="mb-4">
@@ -748,7 +865,7 @@ export function QuickPaymentModal({
               <label className="block text-sm font-medium text-secondary">
                 Payee {!isPersonalAccount && <span className="text-red-500">*</span>}
               </label>
-              {isPersonalAccount && (
+              {isPersonalAccount && !isRentAccount && (
                 <label className="flex items-center gap-1.5 text-xs text-secondary cursor-pointer">
                   <input
                     type="checkbox"
@@ -764,7 +881,13 @@ export function QuickPaymentModal({
                 </label>
               )}
             </div>
-            {!skipPayee && (
+            {isRentAccount && presetPayee ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md">
+                <span className="text-lg">🏠</span>
+                <span className="text-sm font-medium text-primary">{presetPayee.name}</span>
+                <span className="ml-auto text-xs text-orange-600 dark:text-orange-400 font-medium">Landlord · Fixed</span>
+              </div>
+            ) : !skipPayee ? (
               <PayeeSelector
                 value={formData.payee}
                 onChange={(payee) => {
@@ -777,7 +900,7 @@ export function QuickPaymentModal({
                 error={errors.payee}
                 refreshTrigger={payeeRefreshTrigger}
               />
-            )}
+            ) : null}
             {payeeErrorMessage && formData.payee && canCreatePayees && (
               <div className="mt-2 flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-md">
                 <span className="text-yellow-600 dark:text-yellow-400 text-xs flex-1">
@@ -801,76 +924,113 @@ export function QuickPaymentModal({
             {/* LEFT column: Category → Subcategory → Sub-Subcategory */}
             <div className="space-y-4">
 
-              {/* Category — hidden for Personal accounts */}
-              {!isPersonalAccount && (
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-1">
-                    Category <span className="text-red-500">*</span>
-                  </label>
-                  {loadingCategories ? (
-                    <div className="text-sm text-secondary">Loading categories...</div>
-                  ) : (
-                    <SearchableCategorySelector
-                      categories={categories}
-                      value={formData.categoryId}
-                      onChange={(categoryId) => {
-                        setFormData({ ...formData, categoryId })
-                        setErrors({ ...errors, categoryId: '' })
-                      }}
-                      error={errors.categoryId}
-                      disabled={!canChangeCategory}
-                    />
+              {isRentAccount ? (
+                // RENT account: show locked category chain badges
+                (() => {
+                  const preset = getRentCategoryPreset(defaultCategoryBusinessType)
+                  return (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">
+                          Category <span className="text-red-500">*</span>
+                        </label>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md">
+                          <span className="text-sm font-medium text-primary">{preset.displayDomain}</span>
+                          <span className="ml-auto text-xs text-orange-600 dark:text-orange-400 font-medium">Fixed</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Subcategory</label>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md">
+                          <span className="text-sm font-medium text-primary">{preset.displayCategory}</span>
+                          <span className="ml-auto text-xs text-orange-600 dark:text-orange-400 font-medium">Fixed</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Sub-Subcategory</label>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md">
+                          <span className="text-lg">🏠</span>
+                          <span className="text-sm font-medium text-primary">Rent</span>
+                          <span className="ml-auto text-xs text-orange-600 dark:text-orange-400 font-medium">Fixed</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()
+              ) : (
+                <>
+                  {/* Category — hidden for Personal accounts */}
+                  {!isPersonalAccount && (
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">
+                        Category <span className="text-red-500">*</span>
+                      </label>
+                      {loadingCategories ? (
+                        <div className="text-sm text-secondary">Loading categories...</div>
+                      ) : (
+                        <SearchableCategorySelector
+                          categories={categories}
+                          value={formData.categoryId}
+                          onChange={(categoryId) => {
+                            setFormData({ ...formData, categoryId })
+                            setErrors({ ...errors, categoryId: '' })
+                          }}
+                          error={errors.categoryId}
+                          disabled={!canChangeCategory}
+                        />
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
 
-              {/* Subcategory */}
-              {(subcategories.length > 0 || formData.categoryId) && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-secondary">
-                      Subcategory {selectedCategory?.requiresSubcategory && <span className="text-red-500">*</span>}
-                    </label>
-                    {formData.categoryId && (
-                      <button type="button" onClick={() => setShowCreateSubcategory(true)}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
-                        + Create New
-                      </button>
-                    )}
-                  </div>
-                  <SearchableSelect
-                    value={formData.subcategoryId}
-                    options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
-                    onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
-                    placeholder="Select a subcategory..."
-                    loading={loadingSubcategories}
-                    disabled={!formData.categoryId}
-                  />
-                </div>
-              )}
+                  {/* Subcategory */}
+                  {(subcategories.length > 0 || formData.categoryId) && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium text-secondary">
+                          Subcategory {selectedCategory?.requiresSubcategory && <span className="text-red-500">*</span>}
+                        </label>
+                        {formData.categoryId && (
+                          <button type="button" onClick={() => setShowCreateSubcategory(true)}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                            + Create New
+                          </button>
+                        )}
+                      </div>
+                      <SearchableSelect
+                        value={formData.subcategoryId}
+                        options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                        onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
+                        placeholder="Select a subcategory..."
+                        loading={loadingSubcategories}
+                        disabled={!formData.categoryId}
+                      />
+                    </div>
+                  )}
 
-              {/* Sub-Subcategory */}
-              {(subSubcategories.length > 0 || formData.subcategoryId) && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-secondary">
-                      Sub-Subcategory
-                    </label>
-                    {formData.subcategoryId && (
-                      <button type="button" onClick={() => setShowCreateSubSubcategory(true)}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
-                        + Create New
-                      </button>
-                    )}
-                  </div>
-                  <SearchableSelect
-                    value={formData.subSubcategoryId}
-                    options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
-                    onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
-                    placeholder="Select a sub-subcategory..."
-                    disabled={!formData.subcategoryId}
-                  />
-                </div>
+                  {/* Sub-Subcategory */}
+                  {(subSubcategories.length > 0 || formData.subcategoryId) && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium text-secondary">
+                          Sub-Subcategory
+                        </label>
+                        {formData.subcategoryId && (
+                          <button type="button" onClick={() => setShowCreateSubSubcategory(true)}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                            + Create New
+                          </button>
+                        )}
+                      </div>
+                      <SearchableSelect
+                        value={formData.subSubcategoryId}
+                        options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                        onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
+                        placeholder="Select a sub-subcategory..."
+                        disabled={!formData.subcategoryId}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

@@ -40,6 +40,9 @@ interface ExpenseAccount {
   siblingNumber: number | null
   isSibling: boolean
   canMerge: boolean
+  // Landlord info for RENT accounts
+  landlordSupplierId?: string | null
+  landlordSupplierName?: string | null
 }
 
 // ─── Recent Deposits Panel ──────────────────────────────────────────────────
@@ -412,6 +415,7 @@ export default function ExpenseAccountDetailPage() {
           <div className="flex-1" />
 
           {/* Action buttons — compact */}
+          {/* RENT accounts only show Deposit, Payment and Reports — Daily/Vehicle are not applicable */}
           <div className="flex flex-wrap gap-1.5 items-center">
             {canMakeExpenseDeposits && (
               <button
@@ -429,7 +433,7 @@ export default function ExpenseAccountDetailPage() {
                 + Payment
               </button>
             )}
-            {canMakeExpensePayments && (
+            {canMakeExpensePayments && account.accountType !== 'RENT' && (
               <button
                 onClick={() => setShowSmartQuickPayModal(true)}
                 className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
@@ -437,7 +441,7 @@ export default function ExpenseAccountDetailPage() {
                 ⚡ Daily
               </button>
             )}
-            {canMakeExpensePayments && (
+            {canMakeExpensePayments && account.accountType !== 'RENT' && (
               <button
                 onClick={() => setShowVehicleExpenseModal(true)}
                 className="px-2.5 py-1 bg-slate-600 text-white rounded text-xs font-medium hover:bg-slate-700"
@@ -793,6 +797,11 @@ export default function ExpenseAccountDetailPage() {
           accountType={account.accountType}
           defaultCategoryBusinessType={currentBusiness?.businessType}
           businessId={account.businessId || currentBusiness?.id}
+          presetPayee={
+            account.accountType === 'RENT' && account.landlordSupplierId && account.landlordSupplierName
+              ? { type: 'SUPPLIER', id: account.landlordSupplierId, name: account.landlordSupplierName }
+              : null
+          }
         />
       )}
 

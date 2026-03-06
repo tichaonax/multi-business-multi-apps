@@ -16,6 +16,7 @@ import { formatDateByFormat } from '@/lib/country-codes';
 import { useDateFormat } from '@/contexts/settings-context';
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface BusinessMember {
   id: string;
@@ -239,7 +240,7 @@ function BusinessManagePageContent() {
           {/* Admin Quick Links */}
           {isSystemAdmin && (
             <div className="card p-4 mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300">System Administrator</h3>
                   <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
@@ -248,17 +249,43 @@ function BusinessManagePageContent() {
                       : 'Access administrative functions (no inactive businesses)'}
                   </p>
                 </div>
-                <button
-                  onClick={() => router.push('/business/inactive')}
-                  disabled={inactiveBusinessCount === 0}
-                  className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                    inactiveBusinessCount === 0
-                      ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link
+                    href="/admin/businesses"
+                    className="px-3 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                  >
+                    🏢 All Businesses
+                  </Link>
+                  <button
+                    onClick={() => router.push('/business/inactive')}
+                    disabled={inactiveBusinessCount === 0}
+                    className={`px-3 py-2 text-sm rounded-lg transition-colors ${
+                      inactiveBusinessCount === 0
+                        ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    🗃️ Inactive Businesses
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* All Businesses link for non-admin users with canEditBusiness */}
+          {!isSystemAdmin && hasPermission('canEditBusiness') && (
+            <div className="card p-4 mb-6 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Business Administration</h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">View and manage all businesses you have access to edit</p>
+                </div>
+                <Link
+                  href="/admin/businesses"
+                  className="px-3 py-2 text-sm rounded-lg bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 text-white transition-colors shrink-0"
                 >
-                  🗃️ View Inactive Businesses
-                </button>
+                  🏢 All Businesses
+                </Link>
               </div>
             </div>
           )}

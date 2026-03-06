@@ -25,7 +25,7 @@ export function RentAccountSetupForm({ businessId, businessType, value, onChange
   useEffect(() => {
     const monthly = parseFloat(value.monthlyRentAmount) || 0
     const days = parseInt(value.operatingDaysPerMonth) || 0
-    setDailyAmount(days > 0 && monthly > 0 ? monthly / days : 0)
+    setDailyAmount(days > 0 && monthly > 0 ? Math.ceil(monthly / days) : 0)
   }, [value.monthlyRentAmount, value.operatingDaysPerMonth])
 
   const set = (field: keyof RentAccountFormData, val: any) => {

@@ -5,6 +5,7 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { formatDateByFormat } from '@/lib/country-codes'
@@ -32,6 +33,7 @@ interface Business {
 
 export default function AdminBusinessesPage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
   const { format: globalDateFormat } = useDateFormat()
   const { refreshBusinesses } = useBusinessPermissionsContext()
   const [businesses, setBusinesses] = useState<Business[]>([])
@@ -56,6 +58,9 @@ export default function AdminBusinessesPage() {
   const [updating, setUpdating] = useState(false)
   const [message, setMessage] = useState('')
 
+  // Live WiFi integration status (fetched when edit modal opens)
+  const [editWifiStatus, setEditWifiStatus] = useState<{ r710: boolean; esp32: boolean } | null>(null)
+
   // Rent account state
   const [createRentAccount, setCreateRentAccount] = useState(false)
   const [rentFormData, setRentFormData] = useState<RentAccountFormData>(defaultRentAccountFormData())
@@ -69,6 +74,15 @@ export default function AdminBusinessesPage() {
       fetchBusinesses()
     }
   }, [session])
+
+  // Auto-open edit modal when ?edit=<businessId> is in the URL
+  useEffect(() => {
+    const editId = searchParams?.get('edit')
+    if (!editId || businesses.length === 0) return
+    const target = businesses.find(b => b.id === editId)
+    if (target) handleEdit(target)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, businesses])
 
   const fetchBusinesses = async () => {
     try {
@@ -178,6 +192,17 @@ export default function AdminBusinessesPage() {
       taxIncludedInPrice: business.taxIncludedInPrice ?? true,
       taxRate: business.taxRate?.toString() || '',
       taxLabel: business.taxLabel || ''
+    })
+    setEditWifiStatus(null) // reset while fetching
+    // Fetch real integration status from actual integration records
+    Promise.all([
+      fetch(`/api/r710/integration?businessId=${business.id}`).then(r => r.ok ? r.json() : { hasIntegration: false }).catch(() => ({ hasIntegration: false })),
+      fetch(`/api/wifi-portal/integration?businessId=${business.id}`).then(r => ({ ok: r.ok })).catch(() => ({ ok: false }))
+    ]).then(([r710Data, esp32Data]) => {
+      setEditWifiStatus({
+        r710: !!r710Data.hasIntegration,
+        esp32: !!(esp32Data as any).ok
+      })
     })
     setShowEditModal(true)
   }
@@ -642,7 +667,7 @@ export default function AdminBusinessesPage() {
       {/* Edit Business Modal */}
       {showEditModal && selectedBusiness && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="card max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="card max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-primary">Edit Business</h2>
@@ -656,175 +681,198 @@ export default function AdminBusinessesPage() {
             </div>
 
             <div className="p-6">
-              <form onSubmit={handleUpdateSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Business Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
+              <form onSubmit={handleUpdateSubmit} className="space-y-6">
+                {/* Two-column layout on desktop */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Business Type *
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({...formData, type: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="retail">Retail</option>
-                    <option value="restaurant">Restaurant</option>
-                    <option value="construction">Construction</option>
-                    <option value="clothing">Clothing</option>
-                    <option value="grocery">Grocery</option>
-                    <option value="technology">Technology</option>
-                    <option value="services">Services</option>
-                    <option value="manufacturing">Manufacturing</option>
-                    <option value="healthcare">Healthcare</option>
-                    <option value="education">Education</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* WiFi Integration Toggle - Only for restaurant and grocery */}
-                {(formData.type === 'restaurant' || formData.type === 'grocery') && (
-                  <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
-                    <div className="flex-1">
-                      <label htmlFor="wifiIntegrationEdit" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                        Enable WiFi Integration
+                  {/* Left column: identity fields */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Business Name *
                       </label>
-                      <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        Allow this {formData.type} to sell WiFi access tokens and manage WiFi portal integration
-                      </span>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
                     </div>
-                    <input
-                      id="wifiIntegrationEdit"
-                      type="checkbox"
-                      checked={formData.wifiIntegrationEnabled}
-                      onChange={(e) => setFormData({...formData, wifiIntegrationEnabled: e.target.checked})}
-                      className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                    />
-                  </div>
-                )}
 
-                {/* Coupons Toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="couponsEnabled" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                      Enable Coupons
-                    </label>
-                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
-                      Allow coupon discounts at POS for this business
-                    </span>
-                  </div>
-                  <input
-                    id="couponsEnabled"
-                    type="checkbox"
-                    checked={formData.couponsEnabled}
-                    onChange={(e) => setFormData({...formData, couponsEnabled: e.target.checked})}
-                    className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                  />
-                </div>
-
-                {/* Receipt Configuration Section */}
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Receipt Configuration</h3>
-
-                  <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">
-                      Return Policy Message
-                    </label>
-                    <textarea
-                      value={formData.receiptReturnPolicy}
-                      onChange={(e) => setFormData({...formData, receiptReturnPolicy: e.target.value})}
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="All sales are final, returns not accepted"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      This message will be printed on all receipts
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
-                    <div className="flex-1">
-                      <label htmlFor="taxIncludedEdit" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                        Tax Included in Price
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Business Type *
                       </label>
-                      <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        When enabled, tax is included in product prices. When disabled, tax will be calculated separately at checkout.
-                      </span>
+                      <select
+                        value={formData.type}
+                        onChange={(e) => setFormData({...formData, type: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="retail">Retail</option>
+                        <option value="restaurant">Restaurant</option>
+                        <option value="construction">Construction</option>
+                        <option value="clothing">Clothing</option>
+                        <option value="grocery">Grocery</option>
+                        <option value="technology">Technology</option>
+                        <option value="services">Services</option>
+                        <option value="manufacturing">Manufacturing</option>
+                        <option value="healthcare">Healthcare</option>
+                        <option value="education">Education</option>
+                        <option value="other">Other</option>
+                      </select>
                     </div>
-                    <input
-                      id="taxIncludedEdit"
-                      type="checkbox"
-                      checked={formData.taxIncludedInPrice}
-                      onChange={(e) => setFormData({...formData, taxIncludedInPrice: e.target.checked})}
-                      className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
-                    />
+
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Description
+                      </label>
+                      <textarea
+                        value={formData.description}
+                        onChange={(e) => setFormData({...formData, description: e.target.value})}
+                        rows={5}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
                   </div>
 
-                  {!formData.taxIncludedInPrice && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-secondary mb-2">
-                          Tax Rate (%)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="100"
-                          value={formData.taxRate}
-                          onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="e.g., 13.50"
-                        />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Enter the tax percentage (e.g., 13.50 for 13.5%)
+                  {/* Right column: toggles & receipt config */}
+                  <div className="space-y-4">
+                    {/* WiFi Integration Status — read-only, derived from actual integration records */}
+                    {(formData.type === 'restaurant' || formData.type === 'grocery') && (
+                      <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">📶 WiFi Integration Status</span>
+                          {editWifiStatus === null && (
+                            <span className="text-xs text-gray-400">Checking…</span>
+                          )}
+                        </div>
+                        {editWifiStatus !== null && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className={`flex items-center gap-2 px-3 py-2 rounded text-xs font-medium ${
+                              editWifiStatus.r710
+                                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600'
+                            }`}>
+                              <span>{editWifiStatus.r710 ? '✓' : '○'}</span>
+                              <span>R710 Portal {editWifiStatus.r710 ? 'Active' : 'Not set up'}</span>
+                            </div>
+                            <div className={`flex items-center gap-2 px-3 py-2 rounded text-xs font-medium ${
+                              editWifiStatus.esp32
+                                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600'
+                            }`}>
+                              <span>{editWifiStatus.esp32 ? '✓' : '○'}</span>
+                              <span>ESP32 Portal {editWifiStatus.esp32 ? 'Active' : 'Not set up'}</span>
+                            </div>
+                          </div>
+                        )}
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Manage integrations from the WiFi Portal pages. Active integrations are configured independently of this setting.
                         </p>
                       </div>
+                    )}
+
+                    {/* Coupons Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                      <div>
+                        <label htmlFor="couponsEnabled" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Enable Coupons
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          Allow coupon discounts at POS for this business
+                        </span>
+                      </div>
+                      <input
+                        id="couponsEnabled"
+                        type="checkbox"
+                        checked={formData.couponsEnabled}
+                        onChange={(e) => setFormData({...formData, couponsEnabled: e.target.checked})}
+                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                      />
+                    </div>
+
+                    {/* Receipt Configuration */}
+                    <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Receipt Configuration</h3>
 
                       <div>
                         <label className="block text-sm font-medium text-secondary mb-2">
-                          Tax Label
+                          Return Policy Message
                         </label>
-                        <input
-                          type="text"
-                          value={formData.taxLabel}
-                          onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
+                        <textarea
+                          value={formData.receiptReturnPolicy}
+                          onChange={(e) => setFormData({...formData, receiptReturnPolicy: e.target.value})}
+                          rows={2}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="e.g., VAT, Sales Tax, GST"
+                          placeholder="All sales are final, returns not accepted"
                         />
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          How the tax will be labeled on receipts (optional)
+                          This message will be printed on all receipts
                         </p>
                       </div>
-                    </>
-                  )}
+
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                        <div className="flex-1">
+                          <label htmlFor="taxIncludedEdit" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                            Tax Included in Price
+                          </label>
+                          <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                            When enabled, tax is included in product prices. When disabled, tax will be calculated separately at checkout.
+                          </span>
+                        </div>
+                        <input
+                          id="taxIncludedEdit"
+                          type="checkbox"
+                          checked={formData.taxIncludedInPrice}
+                          onChange={(e) => setFormData({...formData, taxIncludedInPrice: e.target.checked})}
+                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 ml-3"
+                        />
+                      </div>
+
+                      {!formData.taxIncludedInPrice && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-2">
+                              Tax Rate (%)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              value={formData.taxRate}
+                              onChange={(e) => setFormData({...formData, taxRate: e.target.value})}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="e.g., 13.50"
+                            />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              e.g., 13.50 for 13.5%
+                            </p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-2">
+                              Tax Label
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.taxLabel}
+                              onChange={(e) => setFormData({...formData, taxLabel: e.target.value})}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="e.g., VAT, GST"
+                            />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              Label on receipts (optional)
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Rent Account Section */}
+                {/* Rent Account Section — full width */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">🏠 Rent Account</h3>
                   {selectedBusiness && businessRentStatus[selectedBusiness.id] ? (
@@ -854,7 +902,7 @@ export default function AdminBusinessesPage() {
                   )}
                 </div>
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
                     disabled={updating}

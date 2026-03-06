@@ -41,6 +41,8 @@ interface ExpenseAccount {
   isSibling: boolean
   canMerge: boolean
   accountType?: string
+  landlordSupplierId?: string | null
+  landlordSupplierName?: string | null
   recentDeposits?: RecentTx[]
   recentPayments?: RecentTx[]
   creator?: {
@@ -643,6 +645,12 @@ export function AccountList({
           canChangeCategory={canChangeCategory}
           defaultCategoryBusinessType={businessType}
           businessId={currentBusinessId}
+          accountType={selectedAccount.accountType}
+          presetPayee={
+            selectedAccount.accountType === 'RENT' && selectedAccount.landlordSupplierId && selectedAccount.landlordSupplierName
+              ? { type: 'SUPPLIER', id: selectedAccount.landlordSupplierId, name: selectedAccount.landlordSupplierName }
+              : null
+          }
         />
       )}
     </div>

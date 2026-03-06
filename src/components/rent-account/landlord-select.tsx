@@ -18,9 +18,10 @@ interface LandlordSelectProps {
   value: string
   onChange: (supplierId: string) => void
   disabled?: boolean
+  initialSupplier?: { id: string; name: string } | null
 }
 
-export function LandlordSelect({ businessId, businessType, value, onChange, disabled }: LandlordSelectProps) {
+export function LandlordSelect({ businessId, businessType, value, onChange, disabled, initialSupplier }: LandlordSelectProps) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(false)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
@@ -67,8 +68,12 @@ export function LandlordSelect({ businessId, businessType, value, onChange, disa
     ? suppliers.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
     : suppliers
 
+  // Fall back to initialSupplier for immediate display before the suppliers list loads
   const selectedSupplier = suppliers.find(s => s.id === value)
-  const showDropdown = (search.length > 0 || focused) && filtered.length > 0 && !selectedSupplier
+    ?? (value && initialSupplier?.id === value ? { ...initialSupplier, supplierType: 'LANDLORD' } as Supplier : undefined)
+
+  // Show dropdown when searching (regardless of selection) OR when focused with nothing selected
+  const showDropdown = (search.length > 0 || (focused && !value)) && filtered.length > 0
 
   const handleQuickAddSave = async () => {
     if (!quickAdd.name.trim()) {
@@ -121,10 +126,13 @@ export function LandlordSelect({ businessId, businessType, value, onChange, disa
                 type="text"
                 value={search || selectedSupplier?.name || ''}
                 onChange={e => {
-                  setSearch(e.target.value)
-                  if (!e.target.value) onChange('')
+                  const val = e.target.value
+                  setSearch(val)
+                  // Clear the selection as soon as user starts typing a new search
+                  if (value) onChange('')
+                  if (!val) setSearch('')
                 }}
-                onFocus={() => { setFocused(true); if (selectedSupplier) { onChange(''); setSearch('') } }}
+                onFocus={() => setFocused(true)}
                 onBlur={() => setTimeout(() => setFocused(false), 150)}
                 placeholder="Search suppliers..."
                 disabled={disabled || loading}

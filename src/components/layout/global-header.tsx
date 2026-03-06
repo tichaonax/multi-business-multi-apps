@@ -183,6 +183,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       'ESP32 WiFi Token Sales',
       'WiFi Token Revenue',
       'WiFi Token Sales',
+      'Rent Account',
       'General Expenses',
       'Expense Account',
     ]
@@ -477,11 +478,23 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                   </button>
                                   {showBusinessSwitcher && (
                                     <div className="border-y border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
-                                      {/* Current business indicator */}
+                                      {/* Current business indicator — with edit shortcut for permitted users */}
                                       <div className="flex items-center gap-2 px-6 py-1.5">
                                         <span className="text-green-500 text-xs shrink-0">✓</span>
                                         <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{currentBusiness.businessName}</span>
-                                        <span className="ml-auto text-xs capitalize text-gray-300 dark:text-gray-600 shrink-0">{currentBusiness.businessType}</span>
+                                        <span className="ml-auto capitalize text-gray-300 dark:text-gray-600 text-xs shrink-0">{currentBusiness.businessType}</span>
+                                        {(isSystemAdmin(session.user as SessionUser) || hasPermission('canEditBusiness')) && (
+                                          <Link
+                                            href={`/admin/businesses?edit=${currentBusiness.businessId}`}
+                                            onClick={() => closeBusinessMenu()}
+                                            title="Edit this business"
+                                            className="shrink-0 ml-1 p-0.5 rounded text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z" />
+                                            </svg>
+                                          </Link>
+                                        )}
                                       </div>
                                       {/* Search — only when > 3 other businesses */}
                                       {otherBusinesses.length > 3 && (

@@ -103,7 +103,7 @@ export default function EndOfDayReport() {
           const data = await res.json()
           if (data.hasRentAccount && data.config?.isActive && data.config?.autoTransferOnEOD) {
             setRentConfig(data)
-            setRentTransferAmount(data.config.dailyTransferAmount)
+            setRentTransferAmount(Math.ceil(data.config.dailyTransferAmount))
           }
         }
       } catch (e) {

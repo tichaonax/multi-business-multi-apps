@@ -70,6 +70,29 @@ export async function GET(request: NextRequest) {
 
     // Compute aggregate deposits and payments for each account in a single query using groupBy
     const accountIds = accounts.map((a) => a.id)
+
+    // For RENT-type accounts, fetch the landlord supplier details
+    const rentAccountIds = accounts.filter(a => a.accountType === 'RENT').map(a => a.id)
+    const rentLandlordMap = new Map<string, { landlordSupplierId: string; landlordSupplierName: string }>()
+    if (rentAccountIds.length > 0) {
+      const rentConfigs = await prisma.businessRentConfig.findMany({
+        where: { expenseAccountId: { in: rentAccountIds }, isActive: true },
+        select: {
+          expenseAccountId: true,
+          landlordSupplierId: true,
+          landlordSupplier: { select: { name: true } },
+        },
+      })
+      for (const rc of rentConfigs) {
+        if (rc.landlordSupplierId && rc.landlordSupplier) {
+          rentLandlordMap.set(rc.expenseAccountId, {
+            landlordSupplierId: rc.landlordSupplierId,
+            landlordSupplierName: rc.landlordSupplier.name,
+          })
+        }
+      }
+    }
+
     const depositGroups = await prisma.expenseAccountDeposits.groupBy({
       by: ['expenseAccountId'],
       where: { expenseAccountId: { in: accountIds } },
@@ -240,6 +263,9 @@ export async function GET(request: NextRequest) {
           createdAt: account.createdAt.toISOString(),
           updatedAt: account.updatedAt.toISOString(),
           creator: account.creator,
+          // Landlord data for RENT-type accounts
+          landlordSupplierId: rentLandlordMap.get(account.id)?.landlordSupplierId ?? null,
+          landlordSupplierName: rentLandlordMap.get(account.id)?.landlordSupplierName ?? null,
           depositsTotal: depositMap.get(account.id) ?? 0,
           paymentsTotal: paymentMap.get(account.id) ?? 0,
           depositCount: depositCountMap.get(account.id) ?? 0,

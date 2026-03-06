@@ -197,28 +197,28 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
     <div className="space-y-6">
       {/* Date Range Filter */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[180px]">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Start Date
             </label>
-            <DateInput value={startDate} onChange={setStartDate} />
+            <DateInput value={startDate} onChange={setStartDate} label="" />
           </div>
 
-          <div>
+          <div className="flex-1 min-w-[180px]">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               End Date
             </label>
-            <DateInput value={endDate} onChange={setEndDate} />
+            <DateInput value={endDate} onChange={setEndDate} label="" />
           </div>
 
-          <div className="flex items-end">
+          <div>
             <button
               onClick={() => {
                 setStartDate('')
                 setEndDate('')
               }}
-              className="w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 whitespace-nowrap"
             >
               Reset Filter
             </button>
