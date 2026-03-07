@@ -70,6 +70,13 @@ export default function RestaurantReportsPage() {
       color: 'bg-amber-600 hover:bg-amber-700'
     },
     {
+      title: '💰 Cash Allocation Report',
+      description: 'Daily cash movement checklist — verify and lock end-of-day fund allocations',
+      href: `/${businessType}/reports/cash-allocation`,
+      icon: '💰',
+      color: 'bg-emerald-600 hover:bg-emerald-700'
+    },
+    {
       title: 'Bale Inventory Report',
       description: 'Bale stock levels, sales per bale, BOGO impact, utilization',
       href: `/${businessType}/reports/bale-inventory`,

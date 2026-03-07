@@ -508,6 +508,7 @@ model Businesses {
   supplier_ratings                                                         SupplierRatings[]
   rent_config                                                              BusinessRentConfig?           @relation("BusinessRentConfig")
   auto_deposit_configs                                                     ExpenseAccountAutoDeposit[]   @relation("BusinessAutoDeposits")
+  cash_allocation_reports                                                  CashAllocationReport[]        @relation("BusinessCashAllocationReports")
 
   @@map("businesses")
 }
@@ -1360,6 +1361,7 @@ model ExpenseAccounts {
   supplier_payment_requests  SupplierPaymentRequests[]
   rent_config                BusinessRentConfig?         @relation("RentExpenseAccount")
   auto_deposit_configs       ExpenseAccountAutoDeposit[] @relation("ExpenseAccountAutoDeposits")
+  cash_allocation_line_items CashAllocationLineItem[]
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1425,6 +1427,7 @@ model ExpenseAccountDeposits {
   depositSource         PersonalDepositSources? @relation(fields: [depositSourceId], references: [id])
   fundSource            FundSources?            @relation("PrimaryFundSource", fields: [fundSourceId], references: [id])
   subSource             FundSources?            @relation("SubFundSource", fields: [subSourceId], references: [id])
+  cash_allocation_line_item CashAllocationLineItem?
 
   @@index([expenseAccountId, depositDate])
   @@index([sourceBusinessId])
@@ -3044,6 +3047,9 @@ model Users {
   auto_deposit_configs_created                                    ExpenseAccountAutoDeposit[]      @relation("AutoDepositCreator")
   expense_accounts_cap_set                                        ExpenseAccounts[]                @relation("ExpenseAccountCapSetter")
   expense_accounts_frozen                                         ExpenseAccounts[]                @relation("ExpenseAccountFreezer")
+  cash_allocation_reports_created                                 CashAllocationReport[]           @relation("CashAllocationReportCreator")
+  cash_allocation_reports_locked                                  CashAllocationReport[]           @relation("CashAllocationReportLocker")
+  cash_allocation_items_checked                                   CashAllocationLineItem[]         @relation("CashAllocationItemChecker")
 
   @@map("users")
 }
@@ -4736,3 +4742,50 @@ model ExpenseAccountAutoDeposit {
   @@index([expenseAccountId])
   @@map("expense_account_auto_deposits")
 }
+
+model CashAllocationReport {
+  id         String    @id @default(uuid())
+  businessId String
+  reportDate DateTime  @db.Date
+  status     String    @default("DRAFT")  // DRAFT | IN_PROGRESS | LOCKED
+  createdAt  DateTime  @default(now())
+  createdBy  String
+  lockedAt   DateTime?
+  lockedBy   String?
+  notes      String?
+
+  business  Businesses             @relation("BusinessCashAllocationReports", fields: [businessId], references: [id], onDelete: Cascade)
+  creator   Users                  @relation("CashAllocationReportCreator", fields: [createdBy], references: [id])
+  locker    Users?                 @relation("CashAllocationReportLocker", fields: [lockedBy], references: [id])
+  lineItems CashAllocationLineItem[]
+
+  @@unique([businessId, reportDate])
+  @@index([businessId, reportDate])
+  @@index([reportDate])
+  @@map("cash_allocation_reports")
+}
+
+model CashAllocationLineItem {
+  id               String    @id @default(uuid())
+  reportId         String
+  expenseAccountId String
+  accountName      String
+  sourceType       String    // EOD_RENT_TRANSFER | AUTO_DEPOSIT
+  depositId        String    @unique
+  reportedAmount   Decimal   @db.Decimal(12, 2)
+  actualAmount     Decimal?  @db.Decimal(12, 2)
+  isChecked        Boolean   @default(false)
+  checkedAt        DateTime?
+  checkedBy        String?
+  notes            String?
+  sortOrder        Int       @default(0)
+
+  report         CashAllocationReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  expenseAccount ExpenseAccounts        @relation(fields: [expenseAccountId], references: [id])
+  deposit        ExpenseAccountDeposits @relation(fields: [depositId], references: [id])
+  checker        Users?                 @relation("CashAllocationItemChecker", fields: [checkedBy], references: [id])
+
+  @@index([reportId])
+  @@index([expenseAccountId])
+  @@map("cash_allocation_line_items")
+}

@@ -1415,6 +1415,17 @@ export function Sidebar() {
             <span>HR Reports</span>
           </Link>
         )}
+
+        {/* Cash Allocation Summary - admin / canViewExpenseReports */}
+        {(isSystemAdmin || hasPermission('canManageAllBusinesses') || hasPermission('canViewExpenseReports')) && (
+          <Link
+            href="/admin/reports/cash-allocation-summary"
+            className="sidebar-link flex items-center space-x-3"
+          >
+            <span className="text-lg">💰</span>
+            <span>Cash Allocation</span>
+          </Link>
+        )}
         </>)}
 
         <button

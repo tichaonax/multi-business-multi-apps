@@ -54,6 +54,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/meal-program`,
       icon: '🍱',
       color: 'bg-amber-600 hover:bg-amber-700'
+    },
+    {
+      title: '💰 Cash Allocation Report',
+      description: 'Daily cash movement checklist — verify and lock end-of-day fund allocations',
+      href: `/${businessType}/reports/cash-allocation`,
+      icon: '💰',
+      color: 'bg-emerald-600 hover:bg-emerald-700'
     }
   ]
 
