@@ -492,6 +492,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
         businessId={id}
         businessType={formData.type}
         businessName={formData.name}
+        onSuccess={() => setShowRentManageModal(false)}
         onClose={() => setShowRentManageModal(false)}
       />
     )}

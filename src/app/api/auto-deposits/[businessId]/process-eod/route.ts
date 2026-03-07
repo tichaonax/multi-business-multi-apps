@@ -189,6 +189,27 @@ export async function POST(request: NextRequest, { params }: Params) {
         continue
       }
 
+      // 1a. Loan account: if balance is already at or above $0, freeze and settle
+      if (config.expenseAccount.isLoanAccount) {
+        const currentBalance = Number(config.expenseAccount.balance)
+        if (currentBalance >= 0) {
+          await prisma.expenseAccountAutoDeposit.update({
+            where: { id: config.id },
+            data: { isPausedByCap: true },
+          })
+          await prisma.businessLoan.updateMany({
+            where: { expenseAccountId: config.expenseAccountId, status: { not: 'SETTLED' } },
+            data: { status: 'SETTLED', settledAt: new Date() },
+          })
+          results.push({
+            ...base,
+            status: 'skipped_cap_reached',
+            errorMessage: 'Loan fully repaid — config frozen.',
+          })
+          continue
+        }
+      }
+
       // 2. startDate check
       if (config.startDate && eodDateObj < config.startDate) {
         results.push({
@@ -303,6 +324,15 @@ export async function POST(request: NextRequest, { params }: Params) {
         }
       }
 
+      // 8a. Loan account: cap deposit to abs(balance) so balance never exceeds $0
+      if (config.expenseAccount.isLoanAccount) {
+        const currentBalance = Number(config.expenseAccount.balance)
+        const maxAllowed = Math.abs(currentBalance)
+        if (effectiveAmount > maxAllowed) {
+          effectiveAmount = maxAllowed
+        }
+      }
+
       // 9. Execute deposit transaction
       try {
         let depositId: string | undefined
@@ -368,6 +398,21 @@ export async function POST(request: NextRequest, { params }: Params) {
             where: { id: config.expenseAccountId },
             data: { depositCapReachedAt: new Date() },
           })
+        }
+
+        // Loan account: if new balance = 0, freeze config and settle loan
+        if (config.expenseAccount.isLoanAccount) {
+          const newBalance = Number(config.expenseAccount.balance) + effectiveAmount
+          if (newBalance >= 0) {
+            await prisma.expenseAccountAutoDeposit.update({
+              where: { id: config.id },
+              data: { isPausedByCap: true },
+            })
+            await prisma.businessLoan.updateMany({
+              where: { expenseAccountId: config.expenseAccountId, status: { not: 'SETTLED' } },
+              data: { status: 'SETTLED', settledAt: new Date() },
+            })
+          }
         }
 
         results.push({

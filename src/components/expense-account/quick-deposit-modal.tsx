@@ -22,6 +22,8 @@ interface QuickDepositModalProps {
   accountName: string
   onSuccess: (payload: OnSuccessArg) => void
   onError: (error: string) => void
+  isLoanAccount?: boolean
+  currentBalance?: number
 }
 
 export function QuickDepositModal({
@@ -30,7 +32,9 @@ export function QuickDepositModal({
   accountId,
   accountName,
   onSuccess,
-  onError
+  onError,
+  isLoanAccount = false,
+  currentBalance = 0,
 }: QuickDepositModalProps) {
   const [loading, setLoading] = useState(false)
   const [loadingBusinesses, setLoadingBusinesses] = useState(false)
@@ -119,6 +123,8 @@ export function QuickDepositModal({
       newErrors.amount = 'Amount must be greater than 0'
     } else if (amount > 999999999.99) {
       newErrors.amount = 'Amount exceeds maximum allowed value'
+    } else if (isLoanAccount && amount > Math.abs(currentBalance)) {
+      newErrors.amount = `Exceeds remaining balance. Maximum deposit: $${Math.abs(currentBalance).toFixed(2)}`
     } else if (formData.sourceType === 'BUSINESS' && selectedBusiness && amount > Number(selectedBusiness.balance)) {
       newErrors.amount = `Insufficient business balance. Available: $${Number(selectedBusiness.balance).toFixed(2)}`
     }
@@ -289,6 +295,17 @@ export function QuickDepositModal({
             </div>
           )}
 
+          {/* Loan account capacity banner */}
+          {isLoanAccount && (
+            <div className={`rounded-lg px-3 py-2 text-sm ${Math.abs(currentBalance) <= 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'}`}>
+              {Math.abs(currentBalance) <= 0 ? (
+                <span>✓ Loan fully repaid — no further deposits required</span>
+              ) : (
+                <span>Remaining capacity: <strong>${Math.abs(currentBalance).toFixed(2)}</strong></span>
+              )}
+            </div>
+          )}
+
           {/* Amount */}
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
@@ -309,8 +326,10 @@ export function QuickDepositModal({
                   errors.amount ? 'border-red-500' : 'border-border'
                 }`}
                 min="0"
+                max={isLoanAccount ? Math.abs(currentBalance) : undefined}
                 step="0.01"
                 placeholder="0.00"
+                disabled={isLoanAccount && Math.abs(currentBalance) <= 0}
               />
             </div>
             {errors.amount && (

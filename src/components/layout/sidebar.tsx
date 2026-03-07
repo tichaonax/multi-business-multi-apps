@@ -1123,6 +1123,17 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* Per Diem - Only for users with payroll or employee management permissions */}
+        {(isSystemAdmin(currentUser) || hasPermission('canAccessPayroll') || hasPermission('canManageEmployees')) && (
+          <Link
+            href="/employees/per-diem"
+            className={getLinkClasses('/employees/per-diem')}
+          >
+            <span className="text-lg">🗂️</span>
+            <span>Per Diem</span>
+          </Link>
+        )}
+
         {/* Payroll Account - Only for users with payroll account permissions */}
         {(isSystemAdmin(currentUser) || hasPermission('canAccessPayrollAccount')) && (
           <>
@@ -1378,6 +1389,17 @@ export function Sidebar() {
           >
             <span className="text-lg">👥</span>
             <span>Payee Management</span>
+          </Link>
+        )}
+
+        {/* Loan Repayments - for assigned managers/lenders */}
+        {(hasPermission('canAccessPersonalFinance') || hasPermission('canManageBusinessLoans')) && (
+          <Link
+            href="/loans"
+            className={getLinkClasses('/loans')}
+          >
+            <span className="text-lg">🏦</span>
+            <span>Loan Repayments</span>
           </Link>
         )}
 
@@ -1739,6 +1761,16 @@ export function Sidebar() {
               >
                 <span className="text-lg">💰</span>
                 <span>Business Loans</span>
+              </Link>
+            )}
+
+            {hasPermission('canManageBusinessLoans') && (
+              <Link
+                href="/admin/loans"
+                className="sidebar-link flex items-center space-x-3"
+              >
+                <span className="text-lg">🏦</span>
+                <span>Loan Repayments</span>
               </Link>
             )}
 

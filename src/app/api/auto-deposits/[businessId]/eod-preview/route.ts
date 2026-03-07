@@ -20,6 +20,7 @@ export interface EodPreviewConfig {
   isAutoDepositFrozen: boolean
   alreadyProcessedToday: boolean
   skipReason: string | null  // human-readable reason why row is locked/pre-skipped
+  isLoanAccount?: boolean    // true when this account is a loan repayment account
 }
 
 export interface EodPreviewResponse {
@@ -110,6 +111,8 @@ export async function GET(request: NextRequest, { params }: Params) {
             accountType: true,
             isActive: true,
             isAutoDepositFrozen: true,
+            isLoanAccount: true,
+            balance: true,
             depositCap: true,
             depositCapReachedAt: true,
           },
@@ -158,10 +161,22 @@ export async function GET(request: NextRequest, { params }: Params) {
         skipReason = 'Account is frozen for auto-deposits'
       } else if (config.isPausedByCap) {
         skipReason = 'Deposit cap reached — awaiting manual reactivation'
+      } else if (config.expenseAccount.isLoanAccount && Number(config.expenseAccount.balance) >= 0) {
+        skipReason = 'Loan fully repaid — no further deposits needed'
       } else if (config.startDate && eodDateObj < new Date(config.startDate)) {
         skipReason = 'Deposits start on ' + new Date(config.startDate).toISOString().slice(0, 10)
       } else if (config.endDate && eodDateObj > new Date(config.endDate)) {
         skipReason = 'Deposit period ended on ' + new Date(config.endDate).toISOString().slice(0, 10)
+      }
+
+      // Loan account: cap effective daily amount to abs(balance) to preview correct deposit
+      let effectiveDailyAmount = Number(config.dailyAmount)
+      if (config.expenseAccount.isLoanAccount && !skipReason) {
+        const currentBalance = Number(config.expenseAccount.balance)
+        const maxAllowed = Math.abs(currentBalance)
+        if (effectiveDailyAmount > maxAllowed) {
+          effectiveDailyAmount = maxAllowed
+        }
       }
 
       previewConfigs.push({
@@ -169,7 +184,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         expenseAccountId: config.expenseAccountId,
         accountName: config.expenseAccount.accountName,
         accountNumber: config.expenseAccount.accountNumber,
-        dailyAmount: Number(config.dailyAmount),
+        dailyAmount: effectiveDailyAmount,
         displayOrder: config.displayOrder,
         isRentAccount,
         rentMinimum,
@@ -183,6 +198,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         isAutoDepositFrozen: config.expenseAccount.isAutoDepositFrozen,
         alreadyProcessedToday,
         skipReason,
+        isLoanAccount: config.expenseAccount.isLoanAccount,
       })
     }
 

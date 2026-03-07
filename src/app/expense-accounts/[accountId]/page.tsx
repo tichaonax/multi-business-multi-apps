@@ -33,6 +33,7 @@ interface ExpenseAccount {
   balance: number
   lowBalanceThreshold: number
   isActive: boolean
+  isLoanAccount: boolean
   createdAt: string
   businessId: string | null
   accountType: string
@@ -796,6 +797,8 @@ export default function ExpenseAccountDetailPage() {
           onClose={() => setShowDepositModal(false)}
           accountId={accountId}
           accountName={account.accountName}
+          isLoanAccount={account.isLoanAccount}
+          currentBalance={Number(account.balance)}
           onSuccess={() => {
             loadAccount()
             setShowDepositModal(false)

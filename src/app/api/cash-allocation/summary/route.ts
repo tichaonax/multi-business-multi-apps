@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
       ? businessIdsParam.split(',').map(s => s.trim()).filter(Boolean)
       : undefined
 
+    // 1. Fetch existing reports in range
     const reports = await prisma.cashAllocationReport.findMany({
       where: {
         reportDate: { gte: startDate, lte: endDate },
@@ -102,7 +103,52 @@ export async function GET(request: NextRequest) {
       orderBy: [{ reportDate: 'desc' }, { businessId: 'asc' }],
     })
 
-    const rows = reports.map(r => ({
+    const reportedKeys = new Set(
+      reports.map(r => `${r.businessId}_${r.reportDate.toISOString().split('T')[0]}`)
+    )
+
+    // 2. Find EOD deposits in range for businesses that have no report yet
+    const eodDeposits = await prisma.expenseAccountDeposits.findMany({
+      where: {
+        sourceType: { in: ['EOD_RENT_TRANSFER', 'EOD_AUTO_DEPOSIT'] },
+        depositDate: { gte: startDate, lte: endDate },
+        sourceBusinessId: businessIdFilter
+          ? { in: businessIdFilter }
+          : { not: null },
+      },
+      select: {
+        id: true,
+        sourceBusinessId: true,
+        depositDate: true,
+        amount: true,
+        sourceBusiness: { select: { id: true, name: true, type: true } },
+      },
+      orderBy: { depositDate: 'desc' },
+    })
+
+    // Group deposits by (businessId_date), skip ones already covered by a report
+    const depositGroups = new Map<string, { bId: string; bName: string; bType: string; date: string; count: number; total: number }>()
+    for (const dep of eodDeposits) {
+      if (!dep.sourceBusinessId || !dep.sourceBusiness) continue
+      const date = dep.depositDate.toISOString().split('T')[0]
+      const key = `${dep.sourceBusinessId}_${date}`
+      if (reportedKeys.has(key)) continue
+      if (!depositGroups.has(key)) {
+        depositGroups.set(key, {
+          bId: dep.sourceBusinessId,
+          bName: dep.sourceBusiness.name,
+          bType: dep.sourceBusiness.type,
+          date,
+          count: 0,
+          total: 0,
+        })
+      }
+      const g = depositGroups.get(key)!
+      g.count += 1
+      g.total += Number(dep.amount)
+    }
+
+    const reportRows = reports.map(r => ({
       reportId: r.id,
       businessId: r.businessId,
       businessName: r.business.name,
@@ -111,12 +157,32 @@ export async function GET(request: NextRequest) {
       status: r.status,
       itemCount: r.lineItems.length,
       checkedCount: r.lineItems.filter(li => li.isChecked).length,
-      totalReported: r.lineItems.reduce((sum, li) => sum + Number(li.reportedAmount), 0),
-      totalActual: r.lineItems.reduce((sum, li) => sum + Number(li.actualAmount ?? 0), 0),
+      totalReported: r.lineItems.reduce((sum: number, li) => sum + Number(li.reportedAmount), 0),
+      totalActual: r.lineItems.reduce((sum: number, li) => sum + Number(li.actualAmount ?? 0), 0),
       lineItems: r.lineItems,
     }))
 
-    return NextResponse.json({ rows, range, startDate, endDate })
+    const noneRows = Array.from(depositGroups.values()).map(g => ({
+      reportId: null,
+      businessId: g.bId,
+      businessName: g.bName,
+      businessType: g.bType,
+      date: g.date,
+      status: 'NONE',
+      itemCount: g.count,
+      checkedCount: 0,
+      totalReported: g.total,
+      totalActual: null,
+      lineItems: [],
+    }))
+
+    // Merge: existing reports first, then NONE rows sorted by date desc
+    const rows = [
+      ...reportRows,
+      ...noneRows.sort((a, b) => b.date.localeCompare(a.date)),
+    ]
+
+    return NextResponse.json({ rows, range, startDate: startDate.toISOString().split('T')[0], endDate: endDate.toISOString().split('T')[0] })
   } catch (err) {
     console.error('[GET /api/cash-allocation/summary]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

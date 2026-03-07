@@ -40,11 +40,11 @@ export async function POST(request: NextRequest, { params }: Params) {
     const deposits = await prisma.expenseAccountDeposits.findMany({
       where: {
         sourceBusinessId: businessId,
-        sourceType: { in: ['EOD_RENT_TRANSFER', 'AUTO_DEPOSIT'] },
+        sourceType: { in: ['EOD_RENT_TRANSFER', 'EOD_AUTO_DEPOSIT'] },
         depositDate: { gte: dayStart, lte: dayEnd },
       },
       include: {
-        expenseAccount: { select: { id: true, name: true } },
+        expenseAccount: { select: { id: true, accountName: true } },
       },
       orderBy: [{ sourceType: 'asc' }, { depositDate: 'asc' }],
     })
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       .map((d, idx) => ({
         reportId: report!.id,
         expenseAccountId: d.expenseAccountId,
-        accountName: d.expenseAccount.name,
+        accountName: d.expenseAccount.accountName,
         sourceType: d.sourceType,
         depositId: d.id,
         reportedAmount: d.amount,

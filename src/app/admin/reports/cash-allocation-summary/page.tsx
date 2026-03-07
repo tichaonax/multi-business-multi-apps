@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { ContentLayout } from '@/components/layout/content-layout'
 
 type Range = 'today' | 'yesterday' | '7days' | '30days' | 'custom'
@@ -79,6 +79,9 @@ export default function CashAllocationSummaryPage() {
       setLoading(false)
     }
   }, [range, startDate, endDate])
+
+  // Auto-load on mount with default range (today)
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalLocked = rows.filter(r => r.status === 'LOCKED').length
   const totalReported = rows.reduce((s, r) => s + Number(r.totalReported || 0), 0)
@@ -175,8 +178,8 @@ export default function CashAllocationSummaryPage() {
                 </thead>
                 <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                   {rows.map(row => (
-                    <>
-                      <tr key={row.businessId + row.date}>
+                    <React.Fragment key={row.businessId + row.date}>
+                      <tr>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                           {row.businessName}
                           <span className="ml-2 text-xs text-gray-400 capitalize">{row.businessType}</span>
@@ -239,7 +242,7 @@ export default function CashAllocationSummaryPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -249,7 +252,8 @@ export default function CashAllocationSummaryPage() {
 
         {resultRange && rows.length === 0 && !loading && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            No cash allocation reports found for the selected range ({resultRange.startDate} — {resultRange.endDate}).
+            No EOD deposits or cash allocation reports found for {resultRange.startDate}{resultRange.startDate !== resultRange.endDate ? ` – ${resultRange.endDate}` : ''}.
+            Run an EOD report first to see allocation data here.
           </p>
         )}
       </div>

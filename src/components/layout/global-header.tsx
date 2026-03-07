@@ -9,6 +9,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
 import { MiniCart } from '@/components/global/mini-cart'
 import { TestPrintModal } from '@/components/printing/test-print-modal'
+import { BusinessCreationModal } from '@/components/user-management/business-creation-modal'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { useRentIndicator } from '@/hooks/use-rent-indicator'
 
@@ -25,6 +26,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
   const [showTestPrint, setShowTestPrint] = useState(false)
+  const [showEditBusiness, setShowEditBusiness] = useState(false)
   const [showBusinessSwitcher, setShowBusinessSwitcher] = useState(false)
   const [switchingToBusinessId, setSwitchingToBusinessId] = useState<string | null>(null)
   const [businessSwitcherSearch, setBusinessSwitcherSearch] = useState('')
@@ -47,6 +49,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     hasPermission,
     businesses,
     switchBusiness,
+    refreshBusinesses,
   } = useBusinessPermissionsContext()
 
   const user = session?.user as SessionUser
@@ -484,16 +487,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                         <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{currentBusiness.businessName}</span>
                                         <span className="ml-auto capitalize text-gray-300 dark:text-gray-600 text-xs shrink-0">{currentBusiness.businessType}</span>
                                         {(isSystemAdmin(session.user as SessionUser) || hasPermission('canEditBusiness')) && (
-                                          <Link
-                                            href={`/admin/businesses?edit=${currentBusiness.businessId}`}
-                                            onClick={() => closeBusinessMenu()}
+                                          <button
+                                            onClick={() => { closeBusinessMenu(); setShowEditBusiness(true) }}
                                             title="Edit this business"
                                             className="shrink-0 ml-1 p-0.5 rounded text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                                           >
                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z" />
                                             </svg>
-                                          </Link>
+                                          </button>
                                         )}
                                       </div>
                                       {/* Search — only when > 3 other businesses */}
@@ -699,6 +701,20 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         <TestPrintModal
           businessId={currentBusiness.businessId}
           onClose={() => setShowTestPrint(false)}
+        />
+      )}
+
+      {/* Inline Edit Business Modal — no page navigation needed */}
+      {showEditBusiness && currentBusiness?.businessId && (
+        <BusinessCreationModal
+          method="PUT"
+          id={currentBusiness.businessId}
+          onClose={() => setShowEditBusiness(false)}
+          onSuccess={async () => {
+            setShowEditBusiness(false)
+            await refreshBusinesses()
+          }}
+          onError={() => {}}
         />
       )}
     </>

@@ -192,7 +192,7 @@ export async function POST(
     // Check if expense account exists and is active
     const account = await prisma.expenseAccounts.findUnique({
       where: { id: accountId },
-      select: { id: true, accountName: true, isActive: true, businessId: true },
+      select: { id: true, accountName: true, isActive: true, businessId: true, isLoanAccount: true, balance: true },
     })
 
     if (!account) {
@@ -292,6 +292,27 @@ export async function POST(
         { error: amountValidation.error },
         { status: 400 }
       )
+    }
+
+    // Loan account: post-lock deposit cap — deposit must not push balance above $0
+    if (account.isLoanAccount) {
+      const linkedLoan = await prisma.businessLoan.findFirst({
+        where: { expenseAccountId: accountId },
+        select: { status: true },
+      })
+      if (linkedLoan && linkedLoan.status !== 'RECORDING') {
+        const outstanding = Math.abs(Number(account.balance))
+        if (Number(amount) > outstanding) {
+          return NextResponse.json(
+            {
+              error:
+                `Deposit of $${Number(amount).toFixed(2)} exceeds remaining outstanding ` +
+                `balance of $${outstanding.toFixed(2)}`,
+            },
+            { status: 422 }
+          )
+        }
+      }
     }
 
     // Validate deposit date (cannot be in the future)

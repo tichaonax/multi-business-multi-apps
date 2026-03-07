@@ -12,6 +12,7 @@ interface PayrollEmployeeData {
   vehicleReimbursement?: number
   travelAllowance?: number
   overtime?: number
+  perDiem?: number
   advances?: number
   loans?: number
   benefitsTotal?: number
@@ -42,6 +43,7 @@ export function generatePayrollWorksheet(
     'Vehicle Reimbursement',
     'Travel Allowance',
     'Overtime',
+    'Per Diem',
     'Benefits',
     'Advances',
     'Loans',
@@ -62,6 +64,7 @@ export function generatePayrollWorksheet(
       (emp.vehicleReimbursement || 0) +
       (emp.travelAllowance || 0) +
       (emp.overtime || 0) +
+      (emp.perDiem || 0) +
       (emp.benefitsTotal || 0)
 
     const deductions = (emp.advances || 0) + (emp.loans || 0)
@@ -81,6 +84,7 @@ export function generatePayrollWorksheet(
       emp.vehicleReimbursement || 0,
       emp.travelAllowance || 0,
       emp.overtime || 0,
+      emp.perDiem || 0,
       emp.benefitsTotal || 0,
       emp.advances || 0,
       emp.loans || 0,
@@ -109,6 +113,7 @@ export function generatePayrollWorksheet(
     { wch: 18 }, // Vehicle Reimbursement
     { wch: 15 }, // Travel Allowance
     { wch: 10 }, // Overtime
+    { wch: 12 }, // Per Diem
     { wch: 12 }, // Benefits
     { wch: 10 }, // Advances
     { wch: 10 }, // Loans
@@ -124,8 +129,8 @@ export function generatePayrollWorksheet(
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:P1')
 
   for (let row = 1; row <= range.e.r; row++) {
-    // Format salary columns (F through Q except work days column E)
-    for (let col = 5; col <= 16; col++) {
+    // Format salary columns (F through R except work days column E)
+    for (let col = 5; col <= 17; col++) {
       if (col === 4) continue // Skip work days column
       const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
       if (worksheet[cellAddress]) {
@@ -201,6 +206,7 @@ export function calculatePayrollSummary(employees: PayrollEmployeeData[]): Payro
       (emp.vehicleReimbursement || 0) +
       (emp.travelAllowance || 0) +
       (emp.overtime || 0) +
+      (emp.perDiem || 0) +
       (emp.benefitsTotal || 0)
 
     const deductions = (emp.advances || 0) + (emp.loans || 0)

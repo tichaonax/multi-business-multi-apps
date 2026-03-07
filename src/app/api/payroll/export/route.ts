@@ -100,6 +100,21 @@ export async function GET(req: NextRequest) {
       ]
     })
 
+    // Aggregate per diem totals per employee for this month/year
+    const perDiemTotals = await prisma.perDiemEntries.groupBy({
+      by: ['employeeId'],
+      where: {
+        payrollYear: Number(year),
+        payrollMonth: Number(month),
+        ...(businessId ? { businessId } : {}),
+      },
+      _sum: { amount: true },
+    })
+    const perDiemByEmployee: Record<string, number> = {}
+    perDiemTotals.forEach((row: any) => {
+      perDiemByEmployee[row.employeeId] = parseFloat(row._sum.amount?.toString() || '0')
+    })
+
     // Transform data for payroll export matching Employee-Worksheet format
     const payrollData: PayrollEmployeeData[] = employees.map(employee => {
       const contract = employee.employee_contracts_employee_contracts_employeeIdToemployees[0]
@@ -124,6 +139,7 @@ export async function GET(req: NextRequest) {
         vehicleReimbursement: allowancesByType['vehicle_reimbursement'] || undefined,
         travelAllowance: allowancesByType['travel_allowance'] || undefined,
         overtime: allowancesByType['overtime'] || undefined,
+        perDiem: perDiemByEmployee[employee.id] || undefined,
         advances: allowancesByType['advance'] || undefined,
         loans: allowancesByType['loan_deduction'] || undefined
       }

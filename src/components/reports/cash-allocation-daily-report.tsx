@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 interface LineItem {
   id: string
@@ -21,6 +21,13 @@ interface Report {
   notes: string | null
 }
 
+interface DaySummary {
+  date: string
+  status: 'LOCKED' | 'IN_PROGRESS' | 'DRAFT' | 'NONE'
+  totalReported: number
+  totalActual: number
+}
+
 interface Props {
   businessId: string
 }
@@ -30,7 +37,9 @@ const toNum = (v: number | string | null | undefined) =>
 
 export function CashAllocationDailyReport({ businessId }: Props) {
   const today = new Date().toISOString().split('T')[0]
-  const [date, setDate] = useState(today)
+  // Default to yesterday — most likely to have completed EOD data
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+  const [date, setDate] = useState(yesterday)
   const [report, setReport] = useState<Report | null>(null)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [allChecked, setAllChecked] = useState(false)
@@ -41,7 +50,17 @@ export function CashAllocationDailyReport({ businessId }: Props) {
   // local edits: itemId → actualAmount string
   const [localAmounts, setLocalAmounts] = useState<Record<string, string>>({})
 
+  // 7-day overview state
+  const [weekSummary, setWeekSummary] = useState<DaySummary[]>([])
+  const [weekLoading, setWeekLoading] = useState(false)
+
   const isLocked = report?.status === 'LOCKED'
+
+  // Build last-7-days date list (most recent first)
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(Date.now() - i * 86400000)
+    return d.toISOString().split('T')[0]
+  })
 
   const loadReport = useCallback(async (d: string) => {
     setError(null)
@@ -73,6 +92,46 @@ export function CashAllocationDailyReport({ businessId }: Props) {
     }
   }, [businessId])
 
+  // Auto-load 7-day overview on mount, then load yesterday's detail
+  useEffect(() => {
+    const loadWeek = async () => {
+      setWeekLoading(true)
+      try {
+        const results = await Promise.all(
+          last7Days.map(d => fetch(`/api/cash-allocation/${businessId}?date=${d}`).then(r => r.json()))
+        )
+        const summaries: DaySummary[] = results.map((data, i) => {
+          if (!data.exists) return { date: last7Days[i], status: 'NONE' as const, totalReported: 0, totalActual: 0 }
+          const items: LineItem[] = data.lineItems ?? []
+          return {
+            date: last7Days[i],
+            status: data.report?.status ?? 'DRAFT',
+            totalReported: items.reduce((s, li) => s + toNum(li.reportedAmount), 0),
+            totalActual: items.reduce((s, li) => s + toNum(li.actualAmount), 0),
+          }
+        })
+        setWeekSummary(summaries)
+      } finally {
+        setWeekLoading(false)
+      }
+    }
+    loadWeek()
+    loadReport(yesterday)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId])
+
+  // Refresh a single day in the 7-day overview after a change
+  const refreshWeekRow = useCallback(async (d: string, items: LineItem[], status: Report['status']) => {
+    setWeekSummary(prev => prev.map(row =>
+      row.date === d ? {
+        ...row,
+        status,
+        totalReported: items.reduce((s, li) => s + toNum(li.reportedAmount), 0),
+        totalActual: items.reduce((s, li) => s + toNum(li.actualAmount), 0),
+      } : row
+    ))
+  }, [])
+
   const generate = async () => {
     setError(null)
     setMismatches([])
@@ -93,6 +152,7 @@ export function CashAllocationDailyReport({ businessId }: Props) {
         amounts[li.id] = li.actualAmount !== null ? String(li.actualAmount) : ''
       }
       setLocalAmounts(amounts)
+      refreshWeekRow(date, data.lineItems, data.report?.status ?? 'DRAFT')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
@@ -134,6 +194,7 @@ export function CashAllocationDailyReport({ businessId }: Props) {
       }
       setReport(data.report)
       setLineItems(data.lineItems)
+      refreshWeekRow(date, data.lineItems, data.report?.status ?? 'LOCKED')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
@@ -143,13 +204,65 @@ export function CashAllocationDailyReport({ businessId }: Props) {
 
   const sourceLabel = (t: string) =>
     t === 'EOD_RENT_TRANSFER' ? 'Rent Transfer' :
-    t === 'AUTO_DEPOSIT' ? 'Auto Deposit' : t
+    t === 'EOD_AUTO_DEPOSIT' ? 'Auto Deposit' : t
 
   const totalReported = lineItems.reduce((s, li) => s + toNum(li.reportedAmount), 0)
   const totalActual = lineItems.reduce((s, li) => s + toNum(localAmounts[li.id] !== undefined && localAmounts[li.id] !== '' ? parseFloat(localAmounts[li.id]) : li.actualAmount), 0)
 
+  const statusBadge = (s: DaySummary['status']) => {
+    const map = {
+      LOCKED:      'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+      IN_PROGRESS: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+      DRAFT:       'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+      NONE:        'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300',
+    }
+    const label = { LOCKED: '🔒 Locked', IN_PROGRESS: '⏳ In Progress', DRAFT: '📝 Draft', NONE: '— None' }
+    return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[s]}`}>{label[s]}</span>
+  }
+
   return (
     <div className="space-y-6">
+
+      {/* 7-day overview */}
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Last 7 Days</h3>
+        </div>
+        {weekLoading ? (
+          <div className="px-4 py-4 text-sm text-gray-400 dark:text-gray-500">Loading overview…</div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+            <thead className="bg-white dark:bg-gray-900">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reported</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actual</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
+              {weekSummary.map(row => (
+                <tr
+                  key={row.date}
+                  onClick={() => { setDate(row.date); setReport(null); setLineItems([]); setError(null); loadReport(row.date) }}
+                  className={`cursor-pointer transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/10 ${date === row.date ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                >
+                  <td className="px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-200">{row.date}</td>
+                  <td className="px-4 py-2">{statusBadge(row.status)}</td>
+                  <td className="px-4 py-2 text-right text-sm font-mono text-gray-700 dark:text-gray-300">
+                    {row.totalReported > 0 ? `$${row.totalReported.toFixed(2)}` : '—'}
+                  </td>
+                  <td className="px-4 py-2 text-right text-sm font-mono text-gray-700 dark:text-gray-300">
+                    {row.totalActual > 0 ? `$${row.totalActual.toFixed(2)}` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Date picker + actions */}
       <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

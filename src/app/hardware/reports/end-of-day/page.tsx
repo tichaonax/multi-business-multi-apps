@@ -216,6 +216,17 @@ export default function EndOfDayReport() {
         throw new Error(result.error || 'Failed to save report')
       }
 
+      // Auto-generate cash allocation report for this business/date (fire-and-forget, non-fatal)
+      try {
+        await fetch(`/api/cash-allocation/${currentBusinessId}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: dailySales.businessDay.date }),
+        })
+      } catch (e) {
+        console.warn('Cash allocation auto-generate failed (non-fatal):', e)
+      }
+
       setSaveSuccess(true)
       setExistingReport(result.report)
       setShowSaveModal(false)
@@ -893,7 +904,7 @@ export default function EndOfDayReport() {
               {/* Rent Transfer Section — hidden when rent is already handled by auto-deposit */}
               {rentConfig && !(confirmedDepositEntries?.some(e => e.isRentAccount && !e.skip)) && (
                 <EodRentTransferSection
-                  defaultAmount={rentConfig.config.dailyTransferAmount}
+                  defaultAmount={Math.ceil(rentConfig.config.dailyTransferAmount)}
                   monthlyRent={rentConfig.config.monthlyRentAmount}
                   currentBalance={rentConfig.account?.balance ?? 0}
                   included={includeRentTransfer}

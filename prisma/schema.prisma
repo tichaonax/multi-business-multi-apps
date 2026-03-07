@@ -510,6 +510,7 @@ model Businesses {
   auto_deposit_configs                                                     ExpenseAccountAutoDeposit[]   @relation("BusinessAutoDeposits")
   cash_allocation_reports                                                  CashAllocationReport[]        @relation("BusinessCashAllocationReports")
   petty_cash_requests                                                      PettyCashRequests[]           @relation("BusinessPettyCash")
+  per_diem_entries                                                         PerDiemEntries[]              @relation("PerDiemBusiness")
 
   @@map("businesses")
 }
@@ -1258,6 +1259,7 @@ model Employees {
   outgoing_loans_as_recipient                                               AccountOutgoingLoans[]        @relation("OutgoingLoanEmployee")
   outgoing_loans_approved                                                   AccountOutgoingLoans[]        @relation("OutgoingLoanApprover")
   payroll_slips                                                             PayrollSlips[]
+  per_diem_entries                                                          PerDiemEntries[]              @relation("PerDiemEmployee")
 
   @@map("employees")
 }
@@ -1344,6 +1346,7 @@ model ExpenseAccounts {
   isAutoDepositFrozen        Boolean                     @default(false) @map("is_auto_deposit_frozen") // admin-only: blocks all auto-deposits to this account
   autoDepositFrozenBy        String?                     @map("auto_deposit_frozen_by") // FK to Users (audit)
   autoDepositFrozenAt        DateTime?                   @map("auto_deposit_frozen_at") // when freeze was applied
+  isLoanAccount              Boolean                     @default(false) @map("is_loan_account") // loan tracking: auto-deposits capped at $0; balance may not exceed $0
   business                   Businesses?                 @relation("BusinessExpenseAccounts", fields: [businessId], references: [id])
   depositCapSetter           Users?                      @relation("ExpenseAccountCapSetter", fields: [depositCapSetBy], references: [id])
   autoDepositFreezer         Users?                      @relation("ExpenseAccountFreezer", fields: [autoDepositFrozenBy], references: [id])
@@ -1363,7 +1366,8 @@ model ExpenseAccounts {
   rent_config                BusinessRentConfig?         @relation("RentExpenseAccount")
   auto_deposit_configs       ExpenseAccountAutoDeposit[] @relation("ExpenseAccountAutoDeposits")
   cash_allocation_line_items CashAllocationLineItem[]
-  petty_cash_requests        PettyCashRequests[]      @relation("PettyCashExpenseAccount")
+  petty_cash_requests        PettyCashRequests[]         @relation("PettyCashExpenseAccount")
+  businessLoan               BusinessLoan?               @relation("LoanExpenseAccount")
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1485,6 +1489,8 @@ model ExpenseAccountPayments {
   transferLedger            BusinessTransferLedger?          @relation("TransferReturns", fields: [transferLedgerId], references: [id])
   supplier_payment_partials SupplierPaymentRequestPartials[]
   petty_cash_return         PettyCashRequests?               @relation("PettyCashReturnPayment")
+  withdrawalRequestId       String?                          @unique @map("withdrawal_request_id")
+  withdrawalRequest         LoanWithdrawalRequest?           @relation("WithdrawalPayment")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -1497,6 +1503,115 @@ model ExpenseAccountPayments {
   @@index([paymentDate(sort: Desc)], map: "idx_expense_payments_payment_date")
   @@map("expense_account_payments")
 }
+
+// ─── Business Loan Repayment System (MBM-137) ────────────────────────────────
+
+model BusinessLoan {
+  id                String    @id @default(uuid())
+  loanNumber        String    @unique
+  description       String
+  totalAmount       Decimal   @db.Decimal(12, 2) // original total borrowed (informational)
+  lockedBalance     Decimal?  @db.Decimal(12, 2) // snapshot of balance at lock time (negative)
+  lenderName        String
+  lenderContactInfo String?
+  lenderUserId      String?   @map("lender_user_id") // optional: link to a Users record
+  managedByUserId   String    @map("managed_by_user_id") // assigned user who enters expenses + prior repayments
+  expenseAccountId  String?   @unique @map("expense_account_id")
+  status            String    @default("RECORDING") // RECORDING | LOCK_REQUESTED | LOCKED | SETTLED
+  lockRequestedAt   DateTime? @map("lock_requested_at")
+  lockRequestedBy   String?   @map("lock_requested_by")
+  lockedAt          DateTime? @map("locked_at")
+  lockedBy          String?   @map("locked_by")
+  settledAt         DateTime? @map("settled_at")
+  notes             String?
+  createdBy         String    @map("created_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  expenseAccount     ExpenseAccounts?               @relation("LoanExpenseAccount", fields: [expenseAccountId], references: [id])
+  managedBy          Users                          @relation("LoanManager", fields: [managedByUserId], references: [id])
+  lenderUser         Users?                         @relation("LoanLender", fields: [lenderUserId], references: [id])
+  creator            Users                          @relation("LoanCreator", fields: [createdBy], references: [id])
+  lockRequester      Users?                         @relation("LoanLockRequester", fields: [lockRequestedBy], references: [id])
+  locker             Users?                         @relation("LoanLocker", fields: [lockedBy], references: [id])
+  expenseEntries     BusinessLoanExpense[]
+  preLockRepayments  BusinessLoanPreLockRepayment[]
+  withdrawalRequests LoanWithdrawalRequest[]
+
+  @@index([managedByUserId])
+  @@index([status])
+  @@map("business_loans")
+}
+
+model BusinessLoanExpense {
+  id          String   @id @default(uuid())
+  loanId      String   @map("loan_id")
+  description String
+  amount      Decimal  @db.Decimal(12, 2) // positive; decrements expense account balance
+  expenseDate DateTime @map("expense_date")
+  notes       String?
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  loan    BusinessLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  creator Users        @relation("LoanExpenseCreator", fields: [createdBy], references: [id])
+
+  @@index([loanId])
+  @@map("business_loan_expenses")
+}
+
+model BusinessLoanPreLockRepayment {
+  id            String   @id @default(uuid())
+  loanId        String   @map("loan_id")
+  description   String
+  amount        Decimal  @db.Decimal(12, 2) // positive; increments expense account balance (reduces what is owed)
+  repaymentDate DateTime @map("repayment_date")
+  notes         String?
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  loan    BusinessLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  creator Users        @relation("LoanPreLockRepayCreator", fields: [createdBy], references: [id])
+
+  @@index([loanId])
+  @@map("business_loan_pre_lock_repayments")
+}
+
+model LoanWithdrawalRequest {
+  id              String    @id @default(uuid())
+  loanId          String    @map("loan_id")
+  requestNumber   String    @unique @map("request_number")
+  requestedAmount Decimal   @map("requested_amount") @db.Decimal(12, 2)
+  requestMonth    String    @map("request_month") // "2026-03" — 1-per-month enforcement
+  status          String    @default("PENDING") // PENDING | APPROVED | PAID | REJECTED
+  notes           String?
+  approvedAmount  Decimal?  @map("approved_amount") @db.Decimal(12, 2)
+  approvedBy      String?   @map("approved_by")
+  approvedAt      DateTime? @map("approved_at")
+  rejectedBy      String?   @map("rejected_by")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason")
+  paidAt          DateTime? @map("paid_at")
+  paidBy          String?   @map("paid_by")
+  paymentId       String?   @unique @map("payment_id") // FK to ExpenseAccountPayments
+  createdBy       String    @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  loan     BusinessLoan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  approver Users?                  @relation("WithdrawalApprover", fields: [approvedBy], references: [id])
+  rejector Users?                  @relation("WithdrawalRejector", fields: [rejectedBy], references: [id])
+  payer    Users?                  @relation("WithdrawalPayer", fields: [paidBy], references: [id])
+  payment  ExpenseAccountPayments? @relation("WithdrawalPayment", fields: [paymentId], references: [id])
+  creator  Users                   @relation("WithdrawalRequester", fields: [createdBy], references: [id])
+
+  @@unique([loanId, requestMonth])
+  @@index([loanId])
+  @@index([status])
+  @@map("loan_withdrawal_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 model ExpenseAccountLenders {
   id            String                @id @default(uuid())
@@ -3057,6 +3172,18 @@ model Users {
   petty_cash_requests_approved                                    PettyCashRequests[]              @relation("PettyCashApprover")
   petty_cash_requests_settled                                     PettyCashRequests[]              @relation("PettyCashSettler")
   petty_cash_requests_cancelled                                   PettyCashRequests[]              @relation("PettyCashCanceller")
+  per_diem_entered                                                PerDiemEntries[]                 @relation("PerDiemCashier")
+  business_loans_managed                                          BusinessLoan[]                   @relation("LoanManager")
+  business_loans_as_lender                                        BusinessLoan[]                   @relation("LoanLender")
+  business_loans_created                                          BusinessLoan[]                   @relation("LoanCreator")
+  business_loans_lock_requested                                   BusinessLoan[]                   @relation("LoanLockRequester")
+  business_loans_locked                                           BusinessLoan[]                   @relation("LoanLocker")
+  business_loan_expenses_created                                  BusinessLoanExpense[]            @relation("LoanExpenseCreator")
+  business_loan_pre_lock_repayments_created                       BusinessLoanPreLockRepayment[]   @relation("LoanPreLockRepayCreator")
+  loan_withdrawal_requests_created                                LoanWithdrawalRequest[]          @relation("WithdrawalRequester")
+  loan_withdrawal_requests_approved                               LoanWithdrawalRequest[]          @relation("WithdrawalApprover")
+  loan_withdrawal_requests_rejected                               LoanWithdrawalRequest[]          @relation("WithdrawalRejector")
+  loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]          @relation("WithdrawalPayer")
 
   @@map("users")
 }
@@ -4784,7 +4911,7 @@ model CashAllocationLineItem {
   reportId         String
   expenseAccountId String
   accountName      String
-  sourceType       String // EOD_RENT_TRANSFER | AUTO_DEPOSIT
+  sourceType       String // EOD_RENT_TRANSFER | EOD_AUTO_DEPOSIT
   depositId        String    @unique
   reportedAmount   Decimal   @db.Decimal(12, 2)
   actualAmount     Decimal?  @db.Decimal(12, 2)
@@ -4811,36 +4938,36 @@ model CashAllocationLineItem {
 model PettyCashRequests {
   id               String          @id @default(cuid())
   businessId       String
-  expenseAccountId String          // business primary expense account — resolved at approval
-  requestedBy      String          // FK Users — person who submitted
-  approvedBy       String?         // FK Users — cashier who approved
-  settledBy        String?         // FK Users — cashier who settled
-  cancelledBy      String?         // FK Users — who cancelled
+  expenseAccountId String // business primary expense account — resolved at approval
+  requestedBy      String // FK Users — person who submitted
+  approvedBy       String? // FK Users — cashier who approved
+  settledBy        String? // FK Users — cashier who settled
+  cancelledBy      String? // FK Users — who cancelled
   status           PettyCashStatus @default(PENDING)
   requestedAmount  Decimal         @db.Decimal(12, 2)
   approvedAmount   Decimal?        @db.Decimal(12, 2) // may be less than requestedAmount
   returnAmount     Decimal?        @db.Decimal(12, 2) // unused cash physically returned at settlement
-  purpose          String          // brief description of intended use
+  purpose          String // brief description of intended use
   notes            String?
   requestedAt      DateTime        @default(now())
   approvedAt       DateTime?
   settledAt        DateTime?
   cancelledAt      DateTime?
   // Financial record links set at approval
-  depositId        String?         // FK ExpenseAccountDeposits (PETTY_CASH deposit into expense account)
-  businessTxId     String?         // FK BusinessTransactions (DEBIT from business account)
+  depositId        String? // FK ExpenseAccountDeposits (PETTY_CASH deposit into expense account)
+  businessTxId     String? // FK BusinessTransactions (DEBIT from business account)
   // Financial record links set at settlement (only when returnAmount > 0)
   returnPaymentId  String?         @unique // FK ExpenseAccountPayments (PETTY_CASH_RETURN)
-  returnTxId       String?         // FK BusinessTransactions (CREDIT back to business account)
+  returnTxId       String? // FK BusinessTransactions (CREDIT back to business account)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
-  business       Businesses             @relation("BusinessPettyCash", fields: [businessId], references: [id])
-  expenseAccount ExpenseAccounts        @relation("PettyCashExpenseAccount", fields: [expenseAccountId], references: [id])
-  requester      Users                  @relation("PettyCashRequester", fields: [requestedBy], references: [id])
-  approver       Users?                 @relation("PettyCashApprover", fields: [approvedBy], references: [id])
-  settler        Users?                 @relation("PettyCashSettler", fields: [settledBy], references: [id])
-  canceller      Users?                 @relation("PettyCashCanceller", fields: [cancelledBy], references: [id])
+  business       Businesses              @relation("BusinessPettyCash", fields: [businessId], references: [id])
+  expenseAccount ExpenseAccounts         @relation("PettyCashExpenseAccount", fields: [expenseAccountId], references: [id])
+  requester      Users                   @relation("PettyCashRequester", fields: [requestedBy], references: [id])
+  approver       Users?                  @relation("PettyCashApprover", fields: [approvedBy], references: [id])
+  settler        Users?                  @relation("PettyCashSettler", fields: [settledBy], references: [id])
+  canceller      Users?                  @relation("PettyCashCanceller", fields: [cancelledBy], references: [id])
   returnPayment  ExpenseAccountPayments? @relation("PettyCashReturnPayment", fields: [returnPaymentId], references: [id])
 
   @@index([businessId])
@@ -4848,4 +4975,33 @@ model PettyCashRequests {
   @@index([status])
   @@index([requestedAt(sort: Desc)])
   @@map("petty_cash_requests")
+}
+
+// ============================================================
+// PER DIEM
+// ============================================================
+
+model PerDiemEntries {
+  id           String   @id @default(cuid())
+  employeeId   String
+  businessId   String
+  enteredBy    String
+  date         DateTime
+  amount       Decimal  @db.Decimal(12, 2)
+  purpose      String // Lodging | Meals | Incidentals | Travel | Other
+  notes        String?
+  payrollMonth Int
+  payrollYear  Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee Employees  @relation("PerDiemEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  business Businesses @relation("PerDiemBusiness", fields: [businessId], references: [id])
+  cashier  Users      @relation("PerDiemCashier", fields: [enteredBy], references: [id])
+
+  @@index([employeeId])
+  @@index([businessId])
+  @@index([payrollYear, payrollMonth])
+  @@index([date])
+  @@map("per_diem_entries")
 }

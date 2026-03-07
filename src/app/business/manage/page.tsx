@@ -272,24 +272,6 @@ function BusinessManagePageContent() {
             </div>
           )}
 
-          {/* All Businesses link for non-admin users with canEditBusiness */}
-          {!isSystemAdmin && hasPermission('canEditBusiness') && (
-            <div className="card p-4 mb-6 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Business Administration</h3>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">View and manage all businesses you have access to edit</p>
-                </div>
-                <Link
-                  href="/admin/businesses"
-                  className="px-3 py-2 text-sm rounded-lg bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 text-white transition-colors shrink-0"
-                >
-                  🏢 All Businesses
-                </Link>
-              </div>
-            </div>
-          )}
-
           {/* WiFi Integration */}
           {(currentBusiness?.businessType === 'restaurant' || currentBusiness?.businessType === 'grocery') && currentBusiness?.isActive && (
             <div className="card p-4 mb-6 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">

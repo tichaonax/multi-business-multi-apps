@@ -93,7 +93,8 @@ export async function POST(request: NextRequest, { params }: Params) {
       })
     }
 
-    const transferAmount = Number(amount)
+    // Always round up to nearest whole dollar — no fractional rent deposits
+    const transferAmount = Math.ceil(Number(amount))
 
     // Atomic: balance check + deposit + credit rent account + debit business account + debit transaction
     let deposit: { id: string; amount: Prisma.Decimal; depositDate: Date }

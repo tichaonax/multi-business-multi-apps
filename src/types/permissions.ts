@@ -203,6 +203,7 @@ export interface CoreBusinessPermissions {
   canMergeSiblingAccounts: boolean;
   canManageLending: boolean;           // Create, approve, and manage outgoing loans from expense accounts
   canManageAutoDeposits: boolean;      // Setup and manage EOD auto-deposit configs per business
+  canManageBusinessLoans: boolean;     // Create, lock, and approve withdrawals for business loan repayment accounts (MBM-137)
   canRunCashAllocationReport: boolean; // Run and lock the daily cash allocation report
 
   // Supplier Management
@@ -1303,6 +1304,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canMergeSiblingAccounts: true,
   canManageLending: true,
   canManageAutoDeposits: true,         // ✅ Owner/Admin can configure auto-deposits
+  canManageBusinessLoans: true,        // ✅ Owner/Admin manages business loan accounts
   canRunCashAllocationReport: true,    // ✅ Owner can run cash allocation report
 
   // Supplier Management - Full access
@@ -1446,6 +1448,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canMergeSiblingAccounts: false,   // ❌ Admin only
   canManageLending: true,           // ✅ Managers can approve and manage loans
   canManageAutoDeposits: false,     // ❌ Admin only by default (can be granted)
+  canManageBusinessLoans: false,    // ❌ Admin only
   canRunCashAllocationReport: true,  // ✅ Manager can run cash allocation report
 
   // Supplier Management - Manager access
@@ -1589,6 +1592,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canMergeSiblingAccounts: false,
   canManageLending: false,
   canManageAutoDeposits: false,
+  canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
 
   // Supplier Management - View only
@@ -1730,6 +1734,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canMergeSiblingAccounts: false,
   canManageLending: false,
   canManageAutoDeposits: false,
+  canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
 
   // Supplier Management - View only
@@ -1874,6 +1879,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canMergeSiblingAccounts: false,
   canManageLending: false,
   canManageAutoDeposits: false,
+  canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
 
   // Supplier Management - View only (for ingredient info)
@@ -2018,6 +2024,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canMergeSiblingAccounts: false,
   canManageLending: false,
   canManageAutoDeposits: false,
+  canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
 
   // Supplier Management - No access
@@ -2159,6 +2166,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canMergeSiblingAccounts: true,
   canManageLending: true,
   canManageAutoDeposits: true,         // ✅ Super-admin can configure auto-deposits
+  canManageBusinessLoans: true,        // ✅ Super-admin manages business loan accounts
   canRunCashAllocationReport: true,    // ✅ Super-admin can run cash allocation report
 
   // Supplier Management - Full access
