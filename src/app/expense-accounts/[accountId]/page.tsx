@@ -21,6 +21,7 @@ import { FundPayrollModal } from '@/components/expense-account/fund-payroll-moda
 import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-panel'
 import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-payment-modal'
 import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-modal'
+import { AutoDepositAdminPanel } from '@/components/expense-account/auto-deposit-admin-panel'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -570,6 +571,19 @@ export default function ExpenseAccountDetailPage() {
                   Permissions
                 </button>
               )}
+
+              {isSystemAdmin && (
+                <button
+                  onClick={() => setActiveTab('auto-deposit-settings')}
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === 'auto-deposit-settings'
+                      ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                  }`}
+                >
+                  ⚙ Auto-Deposit Settings
+                </button>
+              )}
             </nav>
           </div>
 
@@ -758,6 +772,13 @@ export default function ExpenseAccountDetailPage() {
             {activeTab === 'permissions' && isSystemAdmin && (
               <div>
                 <AccountPermissionsTab accountId={accountId} />
+              </div>
+            )}
+
+            {/* Auto-Deposit Settings Tab (admin only) */}
+            {activeTab === 'auto-deposit-settings' && isSystemAdmin && (
+              <div className="max-w-2xl">
+                <AutoDepositAdminPanel accountId={accountId} />
               </div>
             )}
           </div>

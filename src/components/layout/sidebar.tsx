@@ -1206,6 +1206,16 @@ export function Sidebar() {
                   </Link>
                 )}
 
+                {(isSystemAdmin(currentUser) || hasPermission('canAccessExpenseAccount')) && (
+                  <Link
+                    href="/expense-accounts/auto-deposits"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>💳</span>
+                    <span>EOD Auto-Deposits</span>
+                  </Link>
+                )}
+
                 {hasPermission('canViewExpenseReports') && (
                   <>
                     <Link
@@ -1271,7 +1281,7 @@ export function Sidebar() {
             href="/business-accounts"
             className={getLinkClasses('/business-accounts')}
           >
-            <span className="text-lg">�</span>
+            <span className="text-lg">🏦</span>
             <span>Business Accounts</span>
           </Link>
         )}

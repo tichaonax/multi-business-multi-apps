@@ -631,7 +631,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 router.push(`/business-accounts/${currentBusiness.businessId}`)
                               }}
                             >
-                              <span>�</span>
+                              <span>🏦</span>
                               <span>Business Account</span>
                             </button>
                           </>

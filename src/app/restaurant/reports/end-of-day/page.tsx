@@ -12,6 +12,7 @@ import { PercentageBar } from '@/components/reports/percentage-bar'
 import { PaymentMethodsPieChart } from '@/components/reports/payment-methods-pie-chart'
 import { CategoryPerformanceBarChart } from '@/components/reports/category-performance-bar-chart'
 import { EodRentTransferSection } from '@/components/reports/eod-rent-transfer-section'
+import { AutoDepositEodSummary, type ConfirmedEntry } from '@/components/reports/auto-deposit-eod-summary'
 import '@/styles/print-report.css'
 
 export default function EndOfDayReport() {
@@ -33,6 +34,13 @@ export default function EndOfDayReport() {
   const [rentTransferAmount, setRentTransferAmount] = useState(0)
   const [includeRentTransfer, setIncludeRentTransfer] = useState(true)
   const [rentAlreadyTransferred, setRentAlreadyTransferred] = useState(false)
+
+  // EOD auto-deposit results
+  const [autoDepositSummary, setAutoDepositSummary] = useState<{ processed: number; totalDeposited: number } | null>(null)
+
+  // Auto-deposit modal wizard state
+  const [modalStep, setModalStep] = useState<'auto-deposits' | 'save-form'>('auto-deposits')
+  const [confirmedDepositEntries, setConfirmedDepositEntries] = useState<ConfirmedEntry[] | null>(null)
 
   const {
     currentBusiness,
@@ -113,6 +121,14 @@ export default function EndOfDayReport() {
     loadRentConfig()
   }, [currentBusinessId])
 
+  // Reset wizard state each time the modal is opened
+  useEffect(() => {
+    if (showSaveModal) {
+      setModalStep('auto-deposits')
+      setConfirmedDepositEntries(null)
+    }
+  }, [showSaveModal])
+
   // Handle save report
   const handleSaveReport = async () => {
     if (!managerSignature.trim()) {
@@ -145,6 +161,26 @@ export default function EndOfDayReport() {
           // Non-fatal — continue saving the report
           console.warn('Rent transfer failed (non-fatal):', e)
         }
+      }
+
+      // Fire EOD auto-deposits (idempotent — processes all active auto-deposit configs)
+      try {
+        const adRes = await fetch(`/api/auto-deposits/${currentBusinessId}/process-eod`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eodDate: dailySales.businessDay.date,
+            ...(confirmedDepositEntries !== null && { entries: confirmedDepositEntries }),
+          }),
+        })
+        if (adRes.ok) {
+          const adData = await adRes.json()
+          if (adData.summary?.processed > 0) {
+            setAutoDepositSummary({ processed: adData.summary.processed, totalDeposited: adData.summary.totalDeposited })
+          }
+        }
+      } catch (e) {
+        console.warn('Auto-deposit processing failed (non-fatal):', e)
       }
 
       const reportData = {
@@ -320,6 +356,12 @@ export default function EndOfDayReport() {
                 </p>
               </div>
             </div>
+            {autoDepositSummary && autoDepositSummary.processed > 0 && (
+              <div className="mt-3 pt-3 border-t border-green-300 dark:border-green-700 flex items-center gap-2 text-sm text-green-800 dark:text-green-200">
+                <span>⚡</span>
+                <span><strong>EOD auto-deposits:</strong> {autoDepositSummary.processed} account{autoDepositSummary.processed !== 1 ? 's' : ''} funded — ${autoDepositSummary.totalDeposited.toFixed(2)} total</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -822,10 +864,59 @@ export default function EndOfDayReport() {
         {/* Save Confirmation Modal */}
         {showSaveModal && (
           <div className="no-print fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                Save & Lock Report
-              </h2>
+            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full mx-4 p-6 ${modalStep === 'auto-deposits' ? 'max-w-lg' : 'max-w-md'}`}>
+              {/* Step 1 — Auto-deposit preview */}
+              {modalStep === 'auto-deposits' && (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Step 1 of 2</p>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Review Auto-Deposits</h2>
+                    </div>
+                    <button
+                      onClick={() => { setShowSaveModal(false); setSaveError(null) }}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl leading-none"
+                      aria-label="Close"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  <AutoDepositEodSummary
+                    businessId={currentBusinessId!}
+                    eodDate={dailySales.businessDay.date}
+                    onConfirm={(entries) => {
+                      setConfirmedDepositEntries(entries)
+                      setModalStep('save-form')
+                    }}
+                    onSkipAll={() => {
+                      setConfirmedDepositEntries([])
+                      setModalStep('save-form')
+                    }}
+                  />
+                </>
+              )}
+
+              {/* Step 2 — Manager name + cash + save form */}
+              {modalStep === 'save-form' && (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    {confirmedDepositEntries !== null && (
+                      <button
+                        onClick={() => setModalStep('auto-deposits')}
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+                      >
+                        ← Back
+                      </button>
+                    )}
+                    <div>
+                      {confirmedDepositEntries !== null && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Step 2 of 2</p>
+                      )}
+                      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                        Save & Lock Report
+                      </h2>
+                    </div>
+                  </div>
 
               <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded-lg p-4">
                 <p className="text-sm text-yellow-900 dark:text-yellow-100">
@@ -875,8 +966,8 @@ export default function EndOfDayReport() {
                 </div>
               )}
 
-              {/* Rent Transfer Section */}
-              {rentConfig && (
+              {/* Rent Transfer Section — hidden when rent is already handled by auto-deposit */}
+              {rentConfig && !(confirmedDepositEntries?.some(e => e.isRentAccount && !e.skip)) && (
                 <EodRentTransferSection
                   defaultAmount={rentConfig.config.dailyTransferAmount}
                   monthlyRent={rentConfig.config.monthlyRentAmount}
@@ -907,6 +998,8 @@ export default function EndOfDayReport() {
                   {saving ? '💾 Saving...' : '💾 Save & Lock'}
                 </button>
               </div>
+                </>
+              )}
             </div>
           </div>
         )}

@@ -22,8 +22,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const filterBusinessId = searchParams.get('businessId')
 
+    const allForSetup = searchParams.get('allForSetup') === 'true'
+
     let whereClause: any = {}
-    if (!isAdmin) {
+    if (isAdmin && filterBusinessId) {
+      // Admins scoped to a specific business via query param
+      whereClause = { businessId: filterBusinessId }
+    } else if (!isAdmin && allForSetup && getEffectivePermissions(user).canManageAutoDeposits) {
+      // Users with auto-deposit setup permission can see all accounts system-wide
+      whereClause = {}
+    } else if (!isAdmin) {
       // Fetch explicit grants for this user
       const grants = await prisma.expenseAccountGrants.findMany({
         where: { userId: user.id },
@@ -63,6 +71,9 @@ export async function GET(request: NextRequest) {
             name: true,
             email: true,
           },
+        },
+        business: {
+          select: { id: true, name: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -252,6 +263,8 @@ export async function GET(request: NextRequest) {
           balance: (depositMap.get(account.id) ?? 0) - (submittedPaymentMap.get(account.id) ?? 0),
           description: account.description,
           isActive: account.isActive,
+          businessId: account.businessId ?? null,
+          businessName: account.business?.name ?? null,
           lowBalanceThreshold: Number(account.lowBalanceThreshold),
           // Sibling-related fields
           parentAccountId: account.parentAccountId,

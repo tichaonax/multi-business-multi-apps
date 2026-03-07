@@ -202,6 +202,7 @@ export interface CoreBusinessPermissions {
   canEnterHistoricalData: boolean;
   canMergeSiblingAccounts: boolean;
   canManageLending: boolean;           // Create, approve, and manage outgoing loans from expense accounts
+  canManageAutoDeposits: boolean;      // Setup and manage EOD auto-deposit configs per business
 
   // Supplier Management
   canViewSuppliers: boolean;
@@ -1058,6 +1059,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canEnterHistoricalData', label: 'Enter Historical Data' },
       { key: 'canMergeSiblingAccounts', label: 'Merge Sibling Accounts' },
       { key: 'canManageLending', label: 'Manage Lending (Outgoing Loans)' },
+      { key: 'canManageAutoDeposits', label: 'Manage EOD Auto-Deposits' },
     ]
   },
   // Payee Management
@@ -1298,6 +1300,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canEnterHistoricalData: true,
   canMergeSiblingAccounts: true,
   canManageLending: true,
+  canManageAutoDeposits: true,         // ✅ Owner/Admin can configure auto-deposits
 
   // Supplier Management - Full access
   canViewSuppliers: true,
@@ -1439,6 +1442,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canEnterHistoricalData: false,    // ❌ Admin only
   canMergeSiblingAccounts: false,   // ❌ Admin only
   canManageLending: true,           // ✅ Managers can approve and manage loans
+  canManageAutoDeposits: false,     // ❌ Admin only by default (can be granted)
 
   // Supplier Management - Manager access
   canViewSuppliers: true,
@@ -1580,6 +1584,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
   canManageLending: false,
+  canManageAutoDeposits: false,
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1719,6 +1724,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
   canManageLending: false,
+  canManageAutoDeposits: false,
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1861,6 +1867,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
   canManageLending: false,
+  canManageAutoDeposits: false,
 
   // Supplier Management - View only (for ingredient info)
   canViewSuppliers: true,
@@ -2003,6 +2010,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canEnterHistoricalData: false,
   canMergeSiblingAccounts: false,
   canManageLending: false,
+  canManageAutoDeposits: false,
 
   // Supplier Management - No access
   canViewSuppliers: false,
@@ -2142,6 +2150,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canEnterHistoricalData: true,
   canMergeSiblingAccounts: true,
   canManageLending: true,
+  canManageAutoDeposits: true,         // ✅ Super-admin can configure auto-deposits
 
   // Supplier Management - Full access
   canViewSuppliers: true,
@@ -2403,6 +2412,7 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canPrintReceipts: false,
   canPrintInventoryLabels: false,
   canViewPrintQueue: false,
+  canSelectPrinters: false,   // No printer selection for drivers
 
   // Global Barcode Scanning - No access for drivers
   canAccessGlobalBarcodeScanning: false,
