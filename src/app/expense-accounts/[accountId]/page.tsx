@@ -129,6 +129,7 @@ interface RecentPayment {
   category?: { name: string; emoji: string } | null
   receiptNumber?: string | null
   status: string
+  paymentType?: string | null
 }
 
 function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; refreshKey: number }) {
@@ -153,6 +154,7 @@ function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; ref
     new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 
   const payeeName = (p: RecentPayment): string => {
+    if (p.paymentType === 'PETTY_CASH_RETURN') return 'Petty Cash Return'
     if (p.payeeType === 'NONE') return 'General'
     if (p.payeeUser) return p.payeeUser.name
     if (p.payeeEmployee) return p.payeeEmployee.fullName
@@ -183,7 +185,9 @@ function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; ref
                   )}
                 </div>
                 <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                  {p.category?.name ?? 'No category'}
+                  {p.paymentType === 'PETTY_CASH_RETURN'
+                    ? 'Unused cash returned'
+                    : (p.category?.name ?? 'No category')}
                   {p.receiptNumber ? ` · #${p.receiptNumber}` : ''}
                 </p>
               </div>

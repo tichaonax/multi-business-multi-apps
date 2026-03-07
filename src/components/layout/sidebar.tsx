@@ -1009,6 +1009,15 @@ export function Sidebar() {
                 <span>Customer Promos</span>
               </Link>
             )}
+
+            {/* Petty Cash — shown for all business types */}
+            <Link
+              href="/petty-cash"
+              className={getLinkClasses('/petty-cash')}
+            >
+              <span className="text-lg">💵</span>
+              <span>Petty Cash</span>
+            </Link>
             </>)}
           </>
         )}
@@ -1644,6 +1653,16 @@ export function Sidebar() {
               >
                 <span className="text-lg">🛠️</span>
                 <span>System Administration</span>
+              </Link>
+            )}
+
+            {isSystemAdmin(currentUser) && (
+              <Link
+                href="/admin/petty-cash-permissions"
+                className="sidebar-link flex items-center space-x-3"
+              >
+                <span className="text-lg">💵</span>
+                <span>Petty Cash Permissions</span>
               </Link>
             )}
 

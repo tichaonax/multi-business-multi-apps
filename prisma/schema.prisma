@@ -509,6 +509,7 @@ model Businesses {
   rent_config                                                              BusinessRentConfig?           @relation("BusinessRentConfig")
   auto_deposit_configs                                                     ExpenseAccountAutoDeposit[]   @relation("BusinessAutoDeposits")
   cash_allocation_reports                                                  CashAllocationReport[]        @relation("BusinessCashAllocationReports")
+  petty_cash_requests                                                      PettyCashRequests[]           @relation("BusinessPettyCash")
 
   @@map("businesses")
 }
@@ -1362,6 +1363,7 @@ model ExpenseAccounts {
   rent_config                BusinessRentConfig?         @relation("RentExpenseAccount")
   auto_deposit_configs       ExpenseAccountAutoDeposit[] @relation("ExpenseAccountAutoDeposits")
   cash_allocation_line_items CashAllocationLineItem[]
+  petty_cash_requests        PettyCashRequests[]      @relation("PettyCashExpenseAccount")
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1482,6 +1484,7 @@ model ExpenseAccountPayments {
   meal_program_transaction  MealProgramTransactions?         @relation("MealProgramExpensePayment")
   transferLedger            BusinessTransferLedger?          @relation("TransferReturns", fields: [transferLedgerId], references: [id])
   supplier_payment_partials SupplierPaymentRequestPartials[]
+  petty_cash_return         PettyCashRequests?               @relation("PettyCashReturnPayment")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -3050,6 +3053,10 @@ model Users {
   cash_allocation_reports_created                                 CashAllocationReport[]           @relation("CashAllocationReportCreator")
   cash_allocation_reports_locked                                  CashAllocationReport[]           @relation("CashAllocationReportLocker")
   cash_allocation_items_checked                                   CashAllocationLineItem[]         @relation("CashAllocationItemChecker")
+  petty_cash_requests_submitted                                   PettyCashRequests[]              @relation("PettyCashRequester")
+  petty_cash_requests_approved                                    PettyCashRequests[]              @relation("PettyCashApprover")
+  petty_cash_requests_settled                                     PettyCashRequests[]              @relation("PettyCashSettler")
+  petty_cash_requests_cancelled                                   PettyCashRequests[]              @relation("PettyCashCanceller")
 
   @@map("users")
 }
@@ -4416,6 +4423,13 @@ enum SupplierPaymentRequestStatus {
   PAID
 }
 
+enum PettyCashStatus {
+  PENDING
+  APPROVED
+  SETTLED
+  CANCELLED
+}
+
 // ============================================================
 // Coupon & Inventory Transfer Models (MBM-123)
 // ============================================================
@@ -4788,4 +4802,50 @@ model CashAllocationLineItem {
   @@index([reportId])
   @@index([expenseAccountId])
   @@map("cash_allocation_line_items")
+}
+
+// ============================================================
+// Petty Cash Management (MBM-136)
+// ============================================================
+
+model PettyCashRequests {
+  id               String          @id @default(cuid())
+  businessId       String
+  expenseAccountId String          // business primary expense account — resolved at approval
+  requestedBy      String          // FK Users — person who submitted
+  approvedBy       String?         // FK Users — cashier who approved
+  settledBy        String?         // FK Users — cashier who settled
+  cancelledBy      String?         // FK Users — who cancelled
+  status           PettyCashStatus @default(PENDING)
+  requestedAmount  Decimal         @db.Decimal(12, 2)
+  approvedAmount   Decimal?        @db.Decimal(12, 2) // may be less than requestedAmount
+  returnAmount     Decimal?        @db.Decimal(12, 2) // unused cash physically returned at settlement
+  purpose          String          // brief description of intended use
+  notes            String?
+  requestedAt      DateTime        @default(now())
+  approvedAt       DateTime?
+  settledAt        DateTime?
+  cancelledAt      DateTime?
+  // Financial record links set at approval
+  depositId        String?         // FK ExpenseAccountDeposits (PETTY_CASH deposit into expense account)
+  businessTxId     String?         // FK BusinessTransactions (DEBIT from business account)
+  // Financial record links set at settlement (only when returnAmount > 0)
+  returnPaymentId  String?         @unique // FK ExpenseAccountPayments (PETTY_CASH_RETURN)
+  returnTxId       String?         // FK BusinessTransactions (CREDIT back to business account)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  business       Businesses             @relation("BusinessPettyCash", fields: [businessId], references: [id])
+  expenseAccount ExpenseAccounts        @relation("PettyCashExpenseAccount", fields: [expenseAccountId], references: [id])
+  requester      Users                  @relation("PettyCashRequester", fields: [requestedBy], references: [id])
+  approver       Users?                 @relation("PettyCashApprover", fields: [approvedBy], references: [id])
+  settler        Users?                 @relation("PettyCashSettler", fields: [settledBy], references: [id])
+  canceller      Users?                 @relation("PettyCashCanceller", fields: [cancelledBy], references: [id])
+  returnPayment  ExpenseAccountPayments? @relation("PettyCashReturnPayment", fields: [returnPaymentId], references: [id])
+
+  @@index([businessId])
+  @@index([requestedBy])
+  @@index([status])
+  @@index([requestedAt(sort: Desc)])
+  @@map("petty_cash_requests")
 }

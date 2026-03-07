@@ -47,6 +47,13 @@ interface TransactionHistoryProps {
   initialEndDate?: string
 }
 
+function localDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function isWithin7Days(createdAt: string) {
   const diffMs = Date.now() - new Date(createdAt).getTime()
   return Math.floor(diffMs / (1000 * 60 * 60 * 24)) <= 7
@@ -57,6 +64,7 @@ function shortDescription(transaction: Transaction): string {
 
   // Auto-transfer labels take priority
   if (transaction.paymentType === 'TRANSFER_OUT') return 'AUTO XFER OUT'
+  if (transaction.paymentType === 'PETTY_CASH_RETURN') return 'PETTY CASH RTN'
   if (transaction.sourceType === 'ACCOUNT_TRANSFER') return 'AUTO XFER IN'
 
   if (transaction.type === 'PAYMENT') {
@@ -83,13 +91,12 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState(() => {
     if (initialStartDate) return initialStartDate
-    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 29)
-    return d.toISOString().split('T')[0]
+    const d = new Date(); d.setDate(d.getDate() - 29)
+    return localDateStr(d)
   })
   const [endDate, setEndDate] = useState(() => {
     if (initialEndDate) return initialEndDate
-    const d = new Date(); d.setHours(0, 0, 0, 0)
-    return d.toISOString().split('T')[0]
+    return localDateStr(new Date())
   })
   const [typeFilter, setTypeFilter] = useState<string>(defaultType)
   const [sourceTypeFilter, setSourceTypeFilter] = useState('')
@@ -181,10 +188,10 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   }
 
   const handleReset = () => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const today = new Date()
     const from = new Date(today); from.setDate(from.getDate() - 29)
-    setStartDate(from.toISOString().split('T')[0])
-    setEndDate(today.toISOString().split('T')[0])
+    setStartDate(localDateStr(from))
+    setEndDate(localDateStr(today))
     setTypeFilter(defaultType)
     setSourceTypeFilter('')
     setSearch('')
@@ -193,24 +200,21 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     setPage(0)
   }
 
-  const toDateStr = (d: Date) => d.toISOString().split('T')[0]
-
   const applyQuickFilter = (days: number | 'today' | 'yesterday', label: string) => {
     const today = new Date()
-    today.setHours(0, 0, 0, 0)
     if (days === 'today') {
-      setStartDate(toDateStr(today))
-      setEndDate(toDateStr(today))
+      setStartDate(localDateStr(today))
+      setEndDate(localDateStr(today))
     } else if (days === 'yesterday') {
       const y = new Date(today)
       y.setDate(y.getDate() - 1)
-      setStartDate(toDateStr(y))
-      setEndDate(toDateStr(y))
+      setStartDate(localDateStr(y))
+      setEndDate(localDateStr(y))
     } else {
       const from = new Date(today)
       from.setDate(from.getDate() - days + 1)
-      setStartDate(toDateStr(from))
-      setEndDate(toDateStr(today))
+      setStartDate(localDateStr(from))
+      setEndDate(localDateStr(today))
     }
     setActiveQuickFilter(label)
     setPage(0)
@@ -467,6 +471,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           <span className="text-emerald-600 dark:text-emerald-400">💵 Payroll Funding</span>
                         ) : transaction.paymentType === 'TRANSFER_RETURN' ? (
                           <span className="text-purple-600 dark:text-purple-400">🔄 Transfer Return</span>
+                        ) : transaction.paymentType === 'PETTY_CASH_RETURN' ? (
+                          <span className="text-amber-600 dark:text-amber-400">💵 Petty Cash Return</span>
                         ) : transaction.sourceType === 'LOAN_REPAYMENT' ? (
                           <span className="text-blue-600 dark:text-blue-400">🤝 Loan Repayment</span>
                         ) : transaction.sourceType === 'LOAN_RECEIVED' ? (

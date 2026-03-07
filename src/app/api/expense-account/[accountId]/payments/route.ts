@@ -188,6 +188,7 @@ export async function GET(
           receiptReason: p.receiptReason,
           isFullPayment: p.isFullPayment,
           batchId: p.batchId,
+          paymentType: p.paymentType,
           status: p.status,
           createdBy: p.creator,
           submittedBy: p.submitter,

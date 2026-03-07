@@ -64,7 +64,11 @@ export async function GET(
     // Build date filter
     const dateFilter: any = {}
     if (startDate) dateFilter.gte = new Date(startDate)
-    if (endDate) dateFilter.lte = new Date(endDate)
+    if (endDate) {
+      const end = new Date(endDate)
+      end.setDate(end.getDate() + 1) // include the full end day
+      dateFilter.lt = end
+    }
 
     // Search filters
     const depositSearchFilter: any = search
