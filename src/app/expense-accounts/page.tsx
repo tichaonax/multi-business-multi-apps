@@ -71,7 +71,8 @@ export default function ExpenseAccountsPage() {
           canCreatePayees={canCreatePayees}
           canChangeCategory={canChangeCategory}
           businessType={currentBusiness?.businessType}
-          currentBusinessId={currentBusiness?.businessId}
+          currentBusinessId={isSystemAdmin ? undefined : currentBusiness?.businessId}
+          isAdmin={isSystemAdmin}
         />
       </div>
     </ContentLayout>

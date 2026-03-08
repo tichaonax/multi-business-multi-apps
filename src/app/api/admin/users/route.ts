@@ -27,6 +27,7 @@ export async function GET() {
               fullName: true,
               employeeNumber: true,
               employmentStatus: true,
+              phone: true,
             },
           },
           business_memberships: {

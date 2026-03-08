@@ -42,7 +42,9 @@ export async function POST(
       return NextResponse.json({ error: 'Loan not found' }, { status: 404 })
     }
 
-    if (loan.managedByUserId !== user.id) {
+    const isManager = loan.managedByUserId === user.id ||
+      !!(await prisma.businessLoanManager.findUnique({ where: { loanId_userId: { loanId: loan.id, userId: user.id } } }))
+    if (!isManager) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

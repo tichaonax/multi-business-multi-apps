@@ -62,6 +62,7 @@ interface AccountListProps {
   canChangeCategory?: boolean
   businessType?: string
   currentBusinessId?: string
+  isAdmin?: boolean
 }
 
 export function AccountList({
@@ -74,7 +75,8 @@ export function AccountList({
   canCreatePayees = false,
   canChangeCategory = true,
   businessType,
-  currentBusinessId
+  currentBusinessId,
+  isAdmin = false
 }: AccountListProps) {
   const router = useRouter()
   const [accounts, setAccounts] = useState<ExpenseAccount[]>([])
@@ -255,9 +257,12 @@ export function AccountList({
 
   // Filter accounts
   const filteredAccounts = accounts.filter((account) => {
-    // Status filter
-    if (filterStatus === 'active' && !account.isActive) return false
-    if (filterStatus === 'inactive' && account.isActive) return false
+    // Non-admins always see only active accounts regardless of filter
+    if (!isAdmin && !account.isActive) return false
+
+    // Status filter (admin only)
+    if (isAdmin && filterStatus === 'active' && !account.isActive) return false
+    if (isAdmin && filterStatus === 'inactive' && account.isActive) return false
 
     // Search filter
     if (searchQuery) {
@@ -313,9 +318,15 @@ export function AccountList({
             onChange={(e) => setFilterStatus(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
+            {isAdmin ? (
+              <>
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </>
+            ) : (
+              <option value="active">Active</option>
+            )}
           </select>
         </div>
       </div>

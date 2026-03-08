@@ -10,6 +10,7 @@ import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
 import { MiniCart } from '@/components/global/mini-cart'
 import { TestPrintModal } from '@/components/printing/test-print-modal'
 import { BusinessCreationModal } from '@/components/user-management/business-creation-modal'
+import { QuickActivityModal } from '@/components/admin/quick-activity-modal'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { useRentIndicator } from '@/hooks/use-rent-indicator'
 
@@ -26,6 +27,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
   const [showTestPrint, setShowTestPrint] = useState(false)
+  const [showQuickActivity, setShowQuickActivity] = useState(false)
   const [showEditBusiness, setShowEditBusiness] = useState(false)
   const [showBusinessSwitcher, setShowBusinessSwitcher] = useState(false)
   const [switchingToBusinessId, setSwitchingToBusinessId] = useState<string | null>(null)
@@ -688,6 +690,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                   user={session.user as SessionUser}
                   showMenu={showUserMenu}
                   setShowMenu={setShowUserMenu}
+                  onQuickActivity={() => setShowQuickActivity(true)}
                 />
               </>
             )}
@@ -701,6 +704,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         <TestPrintModal
           businessId={currentBusiness.businessId}
           onClose={() => setShowTestPrint(false)}
+        />
+      )}
+
+      {/* Quick Activity Simulator — admin only */}
+      {showQuickActivity && (
+        <QuickActivityModal
+          businesses={businesses}
+          onClose={() => setShowQuickActivity(false)}
         />
       )}
 
@@ -875,9 +886,10 @@ interface UserDropdownProps {
   user: SessionUser
   showMenu: boolean
   setShowMenu: (show: boolean) => void
+  onQuickActivity?: () => void
 }
 
-function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
+function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity }: UserDropdownProps) {
   const pathname = usePathname()
   const { hasPermission, currentBusiness } = useBusinessPermissionsContext()
   const userMenuOpenedByClick = useRef(false)
@@ -1060,6 +1072,15 @@ function UserDropdown({ user, showMenu, setShowMenu }: UserDropdownProps) {
                       <span>User Management</span>
                     </div>
                   </Link>
+                  <button
+                    onClick={() => { closeUserMenu(); onQuickActivity?.() }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>⚡</span>
+                      <span>Quick Activity</span>
+                    </div>
+                  </button>
                 </>
               )}
 

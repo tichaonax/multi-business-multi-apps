@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { hasPermission } from '@/lib/permission-utils'
 import { useToastContext } from '@/components/ui/toast'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 
 interface Loan {
   id: string
@@ -19,6 +20,7 @@ interface Loan {
   status: string
   createdAt: string
   managedBy: { id: string; name: string; email: string }
+  managers: { userId: string; user: { id: string; name: string; email: string } }[]
   expenseAccount: { id: string; accountNumber: string; balance: string } | null
   _count: { expenseEntries: number; withdrawalRequests: number }
 }
@@ -27,6 +29,7 @@ interface UserOption {
   id: string
   name: string
   email: string
+  phone: string | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -59,6 +62,9 @@ export default function AdminLoansPage() {
   const [showNewModal, setShowNewModal] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [lenderIsEmployee, setLenderIsEmployee] = useState(false)
+  const [lenderSearch, setLenderSearch] = useState('')
+  const [lenderDropdownOpen, setLenderDropdownOpen] = useState(false)
 
   const [form, setForm] = useState({
     description: '',
@@ -67,6 +73,7 @@ export default function AdminLoansPage() {
     lenderContactInfo: '',
     lenderUserId: '',
     managedByUserId: '',
+    additionalManagerIds: [] as string[],
     notes: '',
   })
 
@@ -99,14 +106,19 @@ export default function AdminLoansPage() {
     try {
       const res = await fetch('/api/admin/users', { credentials: 'include' })
       const json = await res.json()
-      if (res.ok) setUsers((json as UserOption[]).map((u: any) => ({ id: u.id, name: u.name, email: u.email })))
+      if (res.ok) setUsers((json as any[]).map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone ?? u.employees?.phone ?? null,
+      })))
     } catch {}
   }
 
   async function handleCreateLoan(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.description || !form.totalAmount || !form.lenderName || !form.managedByUserId) {
-      toast.error('Description, total amount, lender name, and managed-by user are required')
+    if (!form.description || !form.lenderName || !form.lenderContactInfo || !form.managedByUserId) {
+      toast.error('Description, lender name, lender phone, and managed-by user are required')
       return
     }
     setSubmitting(true)
@@ -117,11 +129,12 @@ export default function AdminLoansPage() {
         credentials: 'include',
         body: JSON.stringify({
           description: form.description,
-          totalAmount: parseFloat(form.totalAmount),
+          totalAmount: form.totalAmount !== '' ? parseFloat(form.totalAmount) : 0,
           lenderName: form.lenderName,
           lenderContactInfo: form.lenderContactInfo || undefined,
           lenderUserId: form.lenderUserId || undefined,
           managedByUserId: form.managedByUserId,
+          additionalManagerIds: form.additionalManagerIds.length > 0 ? form.additionalManagerIds : undefined,
           notes: form.notes || undefined,
         }),
       })
@@ -129,7 +142,10 @@ export default function AdminLoansPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to create loan')
       toast.push('Loan created', { type: 'success' })
       setShowNewModal(false)
-      setForm({ description: '', totalAmount: '', lenderName: '', lenderContactInfo: '', lenderUserId: '', managedByUserId: '', notes: '' })
+      setForm({ description: '', totalAmount: '', lenderName: '', lenderContactInfo: '', lenderUserId: '', managedByUserId: '', additionalManagerIds: [], notes: '' })
+      setLenderIsEmployee(false)
+      setLenderSearch('')
+
       fetchLoans()
     } catch (e: any) {
       toast.error(e.message)
@@ -241,7 +257,15 @@ export default function AdminLoansPage() {
                     <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{loan.loanNumber}</td>
                     <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{loan.lenderName}</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs truncate">{loan.description}</td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{loan.managedBy.name}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                      <div className="flex flex-wrap gap-1">
+                        {(loan.managers ?? [{ userId: loan.managedBy.id, user: loan.managedBy }]).map(m => (
+                          <span key={m.userId} className="inline-flex px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-xs text-gray-700 dark:text-gray-300">
+                            {m.user.name}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[loan.status] ?? 'bg-gray-100 text-gray-600'}`}>
                         {STATUS_LABELS[loan.status] ?? loan.status}
@@ -282,13 +306,14 @@ export default function AdminLoansPage() {
       {/* New Loan Modal */}
       {showNewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">New Business Loan</h2>
               <button onClick={() => setShowNewModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">×</button>
             </div>
             <form onSubmit={handleCreateLoan} className="px-6 py-5 space-y-4">
 
+              {/* Description — full width */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description <span className="text-red-500">*</span></label>
                 <input
@@ -301,83 +326,211 @@ export default function AdminLoansPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Amount Borrowed <span className="text-red-500">*</span></label>
-                <input
-                  type="number"
-                  required
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={form.totalAmount}
-                  onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-                <p className="text-xs text-gray-400 mt-1">Informational — not used in balance calculations</p>
-              </div>
+              {/* Two-column grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lender Name <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Name of the person who lent the money"
-                  value={form.lenderName}
-                  onChange={e => setForm(f => ({ ...f, lenderName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+                {/* LEFT — Lender info */}
+                <div className="space-y-4">
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lender Contact Info</label>
-                <input
-                  type="text"
-                  placeholder="Phone or email (optional)"
-                  value={form.lenderContactInfo}
-                  onChange={e => setForm(f => ({ ...f, lenderContactInfo: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+                  {/* Toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={lenderIsEmployee}
+                      onChange={e => {
+                        setLenderIsEmployee(e.target.checked)
+                        setLenderSearch('')
+                        setForm(f => ({ ...f, lenderName: '', lenderContactInfo: '', lenderUserId: '' }))
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Lender is a system user / employee</span>
+                  </label>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lender User Account (optional)</label>
-                <select
-                  value={form.lenderUserId}
-                  onChange={e => setForm(f => ({ ...f, lenderUserId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="">— None —</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">If set, this user can view their loan&apos;s repayment progress in read-only mode</p>
-              </div>
+                  {/* Lender Name — combobox or free text */}
+                  {lenderIsEmployee ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Lender (System User) <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search by name or email…"
+                          value={lenderSearch}
+                          autoComplete="off"
+                          required={!form.lenderName}
+                          onFocus={() => setLenderDropdownOpen(true)}
+                          onBlur={() => setTimeout(() => setLenderDropdownOpen(false), 150)}
+                          onChange={e => {
+                            setLenderSearch(e.target.value)
+                            setLenderDropdownOpen(true)
+                            // Clear selection if user edits after picking
+                            setForm(f => ({ ...f, lenderName: '', lenderContactInfo: '', lenderUserId: '' }))
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                        {form.lenderName && (
+                          <div className="mt-1 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg flex items-center justify-between">
+                            <span className="text-sm font-medium text-blue-800 dark:text-blue-200">{form.lenderName}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setForm(f => ({ ...f, lenderName: '', lenderContactInfo: '', lenderUserId: '' })); setLenderSearch('') }}
+                              className="text-blue-400 hover:text-blue-600 ml-2"
+                            >×</button>
+                          </div>
+                        )}
+                        {lenderDropdownOpen && !form.lenderName && (
+                          <div className="absolute z-40 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            {users
+                              .filter(u =>
+                                !lenderSearch ||
+                                u.name.toLowerCase().includes(lenderSearch.toLowerCase()) ||
+                                u.email.toLowerCase().includes(lenderSearch.toLowerCase())
+                              )
+                              .map(u => (
+                                <button
+                                  key={u.id}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    setForm(f => ({
+                                      ...f,
+                                      lenderName: u.name,
+                                      lenderContactInfo: u.phone ?? '',
+                                      lenderUserId: u.id,
+                                    }))
+                                    setLenderSearch(u.name)
+                                    setLenderDropdownOpen(false)
+                                  }}
+                                  className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between gap-2"
+                                >
+                                  <div>
+                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{u.name}</span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{u.email}</span>
+                                  </div>
+                                  {u.phone && <span className="text-xs text-gray-400 shrink-0">{u.phone}</span>}
+                                </button>
+                              ))}
+                            {users.filter(u =>
+                              !lenderSearch ||
+                              u.name.toLowerCase().includes(lenderSearch.toLowerCase()) ||
+                              u.email.toLowerCase().includes(lenderSearch.toLowerCase())
+                            ).length === 0 && (
+                              <p className="px-3 py-2 text-sm text-gray-400">No users found</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lender Name <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Name of the person who lent the money"
+                        value={form.lenderName}
+                        onChange={e => setForm(f => ({ ...f, lenderName: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assigned User (manages expenses &amp; repayments) <span className="text-red-500">*</span></label>
-                <select
-                  required
-                  value={form.managedByUserId}
-                  onChange={e => setForm(f => ({ ...f, managedByUserId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="">— Select user —</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                  ))}
-                </select>
-              </div>
+                  <div>
+                    <PhoneNumberInput
+                      label="Lender Phone Number"
+                      required
+                      value={form.lenderContactInfo}
+                      onChange={(fullNumber) => setForm(f => ({ ...f, lenderContactInfo: fullNumber }))}
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-                <textarea
-                  rows={3}
-                  placeholder="Any additional context..."
-                  value={form.notes}
-                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Amount Borrowed</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={form.totalAmount}
+                      onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Informational — can be entered later.</p>
+                  </div>
+
+                  {!lenderIsEmployee && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lender User Account (optional)</label>
+                      <select
+                        value={form.lenderUserId}
+                        onChange={e => setForm(f => ({ ...f, lenderUserId: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="">— None —</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-400 mt-1">Can view repayment progress in read-only mode</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* RIGHT — Manager / access */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Primary Assigned User <span className="text-red-500">*</span></label>
+                    <select
+                      required
+                      value={form.managedByUserId}
+                      onChange={e => setForm(f => ({ ...f, managedByUserId: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">— Select user —</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Manages expenses &amp; repayments</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Additional Managers</label>
+                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg max-h-40 overflow-y-auto bg-white dark:bg-gray-700">
+                      {users
+                        .filter(u => u.id !== form.managedByUserId)
+                        .map(u => (
+                          <label key={u.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.additionalManagerIds.includes(u.id)}
+                              onChange={e => setForm(f => ({
+                                ...f,
+                                additionalManagerIds: e.target.checked
+                                  ? [...f.additionalManagerIds, u.id]
+                                  : f.additionalManagerIds.filter(id => id !== u.id),
+                              }))}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm text-gray-800 dark:text-gray-200">{u.name}</span>
+                          </label>
+                        ))}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">All selected users can add/delete expenses and repayments</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+                    <textarea
+                      rows={4}
+                      placeholder="Any additional context..."
+                      value={form.notes}
+                      onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">

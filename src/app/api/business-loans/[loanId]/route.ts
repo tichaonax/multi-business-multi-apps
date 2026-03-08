@@ -18,8 +18,10 @@ async function resolveLoanAccess(
   const loan = await getLoanFull(loanId)
   if (!loan) return null
 
+  // Assigned manager takes priority over admin permission — so business owners
+  // who are also assigned managers get 'manager' role (with edit access), not 'admin'.
+  if (loan.managedByUserId === userId || loan.managers.some(m => m.userId === userId)) return { loan, role: 'manager' }
   if (isAdmin) return { loan, role: 'admin' }
-  if (loan.managedByUserId === userId) return { loan, role: 'manager' }
   if (loan.lenderUserId === userId) return { loan, role: 'lender' }
   return null
 }
@@ -29,6 +31,7 @@ async function getLoanFull(loanId: string) {
     where: { id: loanId },
     include: {
       managedBy: { select: { id: true, name: true, email: true } },
+      managers: { include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { addedAt: 'asc' } },
       lenderUser: { select: { id: true, name: true, email: true } },
       creator: { select: { id: true, name: true } },
       locker: { select: { id: true, name: true } },
@@ -183,7 +186,36 @@ export async function PUT(
       },
     })
 
-    return NextResponse.json({ loan: updated })
+    // Handle manager additions/removals if provided
+    const { addManagerUserIds, removeManagerUserIds } = body
+
+    if (Array.isArray(addManagerUserIds) && addManagerUserIds.length > 0) {
+      for (const userId of addManagerUserIds) {
+        await prisma.businessLoanManager.upsert({
+          where: { loanId_userId: { loanId, userId } },
+          update: {},
+          create: { loanId, userId, addedBy: user.id },
+        })
+      }
+    }
+
+    if (Array.isArray(removeManagerUserIds) && removeManagerUserIds.length > 0) {
+      // Don't allow removing the primary manager (managedByUserId) — update that field directly if needed
+      const filteredRemove = removeManagerUserIds.filter((uid: string) => uid !== loan.managedByUserId)
+      if (filteredRemove.length > 0) {
+        await prisma.businessLoanManager.deleteMany({
+          where: { loanId, userId: { in: filteredRemove } },
+        })
+      }
+    }
+
+    const managers = await prisma.businessLoanManager.findMany({
+      where: { loanId },
+      include: { user: { select: { id: true, name: true, email: true } } },
+      orderBy: { addedAt: 'asc' },
+    })
+
+    return NextResponse.json({ loan: updated, managers })
   } catch (error) {
     console.error('PUT /api/business-loans/[loanId] error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

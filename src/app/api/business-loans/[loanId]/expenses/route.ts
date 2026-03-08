@@ -35,9 +35,10 @@ export async function POST(
 
     const permissions = getEffectivePermissions(user)
     const isAdmin = permissions.canManageBusinessLoans
-    const isAssigned = loan.managedByUserId === user.id
+    const isManager = loan.managedByUserId === user.id ||
+      !!(await prisma.businessLoanManager.findUnique({ where: { loanId_userId: { loanId: loan.id, userId: user.id } } }))
 
-    if (!isAdmin && !isAssigned) {
+    if (!isAdmin && !isManager) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

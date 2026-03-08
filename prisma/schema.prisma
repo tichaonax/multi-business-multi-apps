@@ -1537,10 +1537,27 @@ model BusinessLoan {
   expenseEntries     BusinessLoanExpense[]
   preLockRepayments  BusinessLoanPreLockRepayment[]
   withdrawalRequests LoanWithdrawalRequest[]
+  managers           BusinessLoanManager[]
 
   @@index([managedByUserId])
   @@index([status])
   @@map("business_loans")
+}
+
+model BusinessLoanManager {
+  id        String   @id @default(uuid())
+  loanId    String   @map("loan_id")
+  userId    String   @map("user_id")
+  addedBy   String   @map("added_by")
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  loan  BusinessLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  user  Users        @relation("LoanManagedByUsers", fields: [userId], references: [id])
+  adder Users        @relation("LoanManagerAdder", fields: [addedBy], references: [id])
+
+  @@unique([loanId, userId])
+  @@index([userId])
+  @@map("business_loan_managers")
 }
 
 model BusinessLoanExpense {
@@ -3178,6 +3195,8 @@ model Users {
   business_loans_created                                          BusinessLoan[]                   @relation("LoanCreator")
   business_loans_lock_requested                                   BusinessLoan[]                   @relation("LoanLockRequester")
   business_loans_locked                                           BusinessLoan[]                   @relation("LoanLocker")
+  business_loan_managers                                          BusinessLoanManager[]             @relation("LoanManagedByUsers")
+  business_loan_managers_added                                    BusinessLoanManager[]             @relation("LoanManagerAdder")
   business_loan_expenses_created                                  BusinessLoanExpense[]            @relation("LoanExpenseCreator")
   business_loan_pre_lock_repayments_created                       BusinessLoanPreLockRepayment[]   @relation("LoanPreLockRepayCreator")
   loan_withdrawal_requests_created                                LoanWithdrawalRequest[]          @relation("WithdrawalRequester")

@@ -608,6 +608,29 @@ export default function ExpenseAccountDetailPage() {
                       ? <span className="text-green-600 dark:text-green-400">✅ Active</span>
                       : <span className="text-red-500">❌ Inactive</span>}
                   </div>
+                  {isSystemAdmin && (
+                    <button
+                      onClick={async () => {
+                        if (!confirm(account.isActive ? 'Deactivate this account? It will be hidden from non-admin users.' : 'Reactivate this account?')) return
+                        const res = await fetch(`/api/expense-account/${accountId}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          body: JSON.stringify({ isActive: !account.isActive }),
+                        })
+                        if (res.ok) {
+                          setAccount(prev => prev ? { ...prev, isActive: !prev.isActive } : prev)
+                        }
+                      }}
+                      className={`px-3 py-1 text-xs font-medium rounded border transition-colors ${
+                        account.isActive
+                          ? 'border-red-400 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                          : 'border-green-400 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                      }`}
+                    >
+                      {account.isActive ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                  )}
                   <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 shrink-0">
                     <span className="opacity-60">Since</span>
                     <span className="font-medium text-gray-900 dark:text-gray-100">{new Date(account.createdAt).toLocaleDateString()}</span>

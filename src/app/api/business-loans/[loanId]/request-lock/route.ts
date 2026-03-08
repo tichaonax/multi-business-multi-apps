@@ -35,10 +35,11 @@ export async function POST(
 
     const permissions = getEffectivePermissions(user)
     const isAdmin = permissions.canManageBusinessLoans
-    const isAssigned = loan.managedByUserId === user.id
+    const isManager = loan.managedByUserId === user.id ||
+      !!(await prisma.businessLoanManager.findUnique({ where: { loanId_userId: { loanId: loan.id, userId: user.id } } }))
 
-    // Only assigned user (or admin) can request a lock
-    if (!isAdmin && !isAssigned) {
+    // Only a manager (or admin) can request a lock
+    if (!isAdmin && !isManager) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

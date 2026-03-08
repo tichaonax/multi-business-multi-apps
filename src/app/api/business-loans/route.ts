@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const loans = await prisma.businessLoan.findMany({
       include: {
         managedBy: { select: { id: true, name: true, email: true } },
+        managers: { include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { addedAt: 'asc' } },
         lenderUser: { select: { id: true, name: true, email: true } },
         creator: { select: { id: true, name: true } },
         expenseAccount: { select: { id: true, accountNumber: true, balance: true } },
@@ -60,23 +61,31 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { description, totalAmount, lenderName, lenderContactInfo, lenderUserId, managedByUserId, notes } = body
+    const { description, totalAmount, lenderName, lenderContactInfo, lenderUserId, managedByUserId, additionalManagerIds, notes } = body
 
-    if (!description || !totalAmount || !lenderName || !managedByUserId) {
+    if (!description || !lenderName || !managedByUserId) {
       return NextResponse.json(
-        { error: 'description, totalAmount, lenderName, and managedByUserId are required' },
+        { error: 'description, lenderName, and managedByUserId are required' },
         { status: 400 }
       )
     }
 
-    if (Number(totalAmount) <= 0) {
-      return NextResponse.json({ error: 'totalAmount must be positive' }, { status: 400 })
+    if (Number(totalAmount) < 0) {
+      return NextResponse.json({ error: 'totalAmount cannot be negative' }, { status: 400 })
     }
 
-    // Verify the assigned user exists
+    // Verify the primary assigned user exists
     const managedByUser = await prisma.users.findUnique({ where: { id: managedByUserId }, select: { id: true } })
     if (!managedByUser) {
       return NextResponse.json({ error: 'managedByUserId refers to a non-existent user' }, { status: 400 })
+    }
+
+    // Collect all manager IDs (primary + additional, deduplicated)
+    const allManagerIds: string[] = [managedByUserId]
+    if (Array.isArray(additionalManagerIds)) {
+      for (const uid of additionalManagerIds) {
+        if (uid && !allManagerIds.includes(uid)) allManagerIds.push(uid)
+      }
     }
 
     // If lenderUserId provided, verify it exists
@@ -128,6 +137,13 @@ export async function POST(request: NextRequest) {
           status: 'RECORDING',
         },
       })
+
+      // Create manager rows for all assigned users
+      for (const userId of allManagerIds) {
+        await tx.businessLoanManager.create({
+          data: { loanId: loan.id, userId, addedBy: user.id },
+        })
+      }
 
       return { loan, expenseAccount }
     })

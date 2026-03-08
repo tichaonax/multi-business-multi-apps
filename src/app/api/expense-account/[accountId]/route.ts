@@ -150,7 +150,15 @@ export async function PATCH(
 
     const { accountId} = await params
     const body = await request.json()
-    const { accountName, description, lowBalanceThreshold } = body
+    const { accountName, description, lowBalanceThreshold, isActive } = body
+
+    // isActive toggle is admin-only
+    if (isActive !== undefined && user.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Only admins can activate or deactivate expense accounts' },
+        { status: 403 }
+      )
+    }
 
     // Check if account exists
     const existing = await prisma.expenseAccounts.findUnique({
@@ -194,6 +202,7 @@ export async function PATCH(
     if (accountName !== undefined) updateData.accountName = accountName.trim()
     if (description !== undefined) updateData.description = description?.trim() || null
     if (lowBalanceThreshold !== undefined) updateData.lowBalanceThreshold = lowBalanceThreshold
+    if (isActive !== undefined) updateData.isActive = Boolean(isActive)
 
     // Update account
     const account = await prisma.expenseAccounts.update({

@@ -41,8 +41,8 @@ export function CreateAccountModal({
     }
 
     // Validate threshold
-    if (formData.lowBalanceThreshold <= 0) {
-      customAlert('Low balance threshold must be greater than $0')
+    if (formData.lowBalanceThreshold < 0) {
+      customAlert('Low balance threshold cannot be negative')
       return
     }
 
@@ -209,7 +209,7 @@ export function CreateAccountModal({
               />
             </div>
             <p className="text-xs text-secondary mt-1">
-              You'll be alerted when the balance falls below this amount. Default: $500
+              You'll be alerted when the balance falls below this amount. Default: $500. Set to $0 to disable.
             </p>
           </div>
 

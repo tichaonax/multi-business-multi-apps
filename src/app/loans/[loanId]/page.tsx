@@ -61,6 +61,7 @@ interface Loan {
   settledAt: string | null
   lockRequestedAt: string | null
   managedBy: { id: string; name: string; email: string }
+  managers: { userId: string; user: { id: string; name: string; email: string } }[]
   lenderUser: { id: string; name: string; email: string } | null
   creator: { id: string; name: string }
   locker: { id: string; name: string } | null
@@ -140,6 +141,10 @@ export default function LoanDetailPage() {
   const [repayForm, setRepayForm] = useState({ description: '', amount: '', repaymentDate: todayISO(), notes: '' })
   const [withdrawForm, setWithdrawForm] = useState({ requestedAmount: '', notes: '' })
 
+  // Manager management (admin only)
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([])
+  const [managerSubmitting, setManagerSubmitting] = useState(false)
+
   // Admin withdrawal action modals
   const [approveModal, setApproveModal] = useState<{ requestId: string; requestedAmount: string } | null>(null)
   const [rejectModal, setRejectModal] = useState<{ requestId: string } | null>(null)
@@ -169,7 +174,50 @@ export default function LoanDetailPage() {
     if (status === 'loading') return
     if (!session) { router.push('/auth/signin'); return }
     fetchLoan()
+    // Fetch user list for admin manager panel
+    const u = session?.user as any
+    if (u?.role === 'admin') {
+      fetch('/api/admin/users', { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => setAllUsers(Array.isArray(data) ? data.map((x: any) => ({ id: x.id, name: x.name, email: x.email })) : []))
+        .catch(() => {})
+    }
   }, [session, status, fetchLoan])
+
+  // ── Manager management ───────────────────────────────────────────────────
+
+  async function addManager(userId: string) {
+    setManagerSubmitting(true)
+    try {
+      const res = await fetch(`/api/business-loans/${loanId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ addManagerUserIds: [userId] }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to add manager')
+      toast.push('Manager added', { type: 'success' })
+      fetchLoan()
+    } catch (e: any) { toast.error(e.message) } finally { setManagerSubmitting(false) }
+  }
+
+  async function removeManager(userId: string, userName: string) {
+    if (!confirm(`Remove ${userName} as a manager?`)) return
+    setManagerSubmitting(true)
+    try {
+      const res = await fetch(`/api/business-loans/${loanId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ removeManagerUserIds: [userId] }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to remove manager')
+      toast.push('Manager removed', { type: 'success' })
+      fetchLoan()
+    } catch (e: any) { toast.error(e.message) } finally { setManagerSubmitting(false) }
+  }
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -306,13 +354,14 @@ export default function LoanDetailPage() {
   if (!loan || !summary) return null
 
   const isAdmin = role === 'admin'
+  const isSystemAdmin = currentUser?.role === 'admin'
   const isManager = role === 'manager'
   const isLender = role === 'lender'
   const isRecording = loan.status === 'RECORDING'
   const isLockRequested = loan.status === 'LOCK_REQUESTED'
   const isLocked = loan.status === 'LOCKED'
   const isSettled = loan.status === 'SETTLED'
-  const canEdit = isManager && isRecording  // only manager in RECORDING can add entries
+  const canEdit = (isManager || isAdmin) && isRecording
 
   // Progress bar for LOCKED/SETTLED
   const progressPct = summary.lockedBalance !== null && summary.lockedBalance !== 0
@@ -428,7 +477,15 @@ export default function LoanDetailPage() {
             <div className="text-right text-sm space-y-1">
               <p className="text-gray-500 dark:text-gray-400">Lender: <span className="font-medium text-gray-900 dark:text-gray-100">{loan.lenderName}</span></p>
               {loan.lenderContactInfo && <p className="text-gray-400 dark:text-gray-500">{loan.lenderContactInfo}</p>}
-              <p className="text-gray-500 dark:text-gray-400">Managed by: <span className="font-medium text-gray-900 dark:text-gray-100">{loan.managedBy.name}</span></p>
+              {isSystemAdmin && (
+                <p className="text-gray-500 dark:text-gray-400">
+                  Managers:{' '}
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {(loan.managers ?? [{ userId: loan.managedBy.id, user: loan.managedBy }])
+                      .map(m => m.user.name).join(', ')}
+                  </span>
+                </p>
+              )}
               <p className="text-gray-500 dark:text-gray-400">Total borrowed: <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{fmt(loan.totalAmount)}</span></p>
             </div>
           </div>
@@ -497,8 +554,8 @@ export default function LoanDetailPage() {
 
         {/* ── Action buttons ───────────────────────────────────────────────── */}
         <div className="flex flex-wrap gap-3">
-          {/* Manager: Request Lock (RECORDING only) */}
-          {isManager && isRecording && (
+          {/* Manager/Admin: Request Lock (RECORDING only) */}
+          {(isManager || isAdmin) && isRecording && (
             <button
               onClick={requestLock}
               className="px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm font-medium hover:bg-yellow-700 transition-colors"
@@ -527,6 +584,53 @@ export default function LoanDetailPage() {
             </Link>
           )}
         </div>
+
+        {/* ── Managers panel (admin only) ──────────────────────────────────── */}
+        {isSystemAdmin && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Assigned Managers</h2>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {(loan.managers ?? [{ userId: loan.managedBy.id, user: loan.managedBy }]).map(m => (
+                <div key={m.userId} className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-full px-3 py-1 text-sm">
+                  <span className="text-blue-800 dark:text-blue-200">{m.user.name}</span>
+                  {m.userId !== loan.managedBy.id && (
+                    <button
+                      onClick={() => removeManager(m.userId, m.user.name)}
+                      disabled={managerSubmitting}
+                      className="text-blue-400 hover:text-red-500 dark:hover:text-red-400 font-bold leading-none disabled:opacity-40"
+                      title="Remove manager"
+                    >
+                      ×
+                    </button>
+                  )}
+                  {m.userId === loan.managedBy.id && (
+                    <span className="text-xs text-blue-400 dark:text-blue-500">(primary)</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {/* Add manager dropdown */}
+            {(() => {
+              const existingIds = new Set((loan.managers ?? [{ userId: loan.managedBy.id }]).map(m => m.userId))
+              const available = allUsers.filter(u => !existingIds.has(u.id))
+              return available.length > 0 ? (
+                <div className="flex items-center gap-2">
+                  <select
+                    defaultValue=""
+                    onChange={e => { if (e.target.value) { addManager(e.target.value); e.target.value = '' } }}
+                    disabled={managerSubmitting}
+                    className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-40"
+                  >
+                    <option value="">+ Add manager…</option>
+                    {available.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null
+            })()}
+          </div>
+        )}
 
         {/* ── Tabs ─────────────────────────────────────────────────────────── */}
         <div className="border-b border-gray-200 dark:border-gray-700 flex gap-0">

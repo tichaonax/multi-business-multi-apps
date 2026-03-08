@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   RentAccountSetupForm,
   defaultRentAccountFormData,
@@ -26,50 +26,87 @@ export function RentAccountSetupModal({
   const [formData, setFormData] = useState<RentAccountFormData>(defaultRentAccountFormData())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'create' | 'update'>('create')
+  const [done, setDone] = useState(false)
+  const submittingRef = useRef(false)
 
   const handleSave = async () => {
+    // Guard against double-click race condition
+    if (submittingRef.current) return
+    submittingRef.current = true
+
     const validationError = validateRentAccountFormData(formData)
     if (validationError) {
       setError(validationError)
+      submittingRef.current = false
       return
     }
 
     setSaving(true)
     setError(null)
 
+    const payload = {
+      monthlyRentAmount: parseFloat(formData.monthlyRentAmount),
+      operatingDaysPerMonth: parseInt(formData.operatingDaysPerMonth),
+      rentDueDay: parseInt(formData.rentDueDay),
+      landlordSupplierId: formData.landlordSupplierId,
+      autoTransferOnEOD: formData.autoTransferOnEOD,
+    }
+
     try {
       const res = await fetch(`/api/rent-account/${businessId}`, {
-        method: 'POST',
+        method: mode === 'update' ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          monthlyRentAmount: parseFloat(formData.monthlyRentAmount),
-          operatingDaysPerMonth: parseInt(formData.operatingDaysPerMonth),
-          rentDueDay: parseInt(formData.rentDueDay),
-          landlordSupplierId: formData.landlordSupplierId,
-          autoTransferOnEOD: formData.autoTransferOnEOD,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to create rent account')
 
+      if (!res.ok) {
+        // If account already exists, auto-switch to update mode
+        if (data.error?.toLowerCase().includes('already exists')) {
+          setMode('update')
+          setError('A rent account already exists for this business. You are now in update mode — adjust the fields and save.')
+          submittingRef.current = false
+          return
+        }
+        throw new Error(data.error || `Failed to ${mode} rent account`)
+      }
+
+      setDone(true)
       onSuccess()
     } catch (err: any) {
       setError(err.message)
+      submittingRef.current = false
     } finally {
       setSaving(false)
     }
   }
+
+  const isCreate = mode === 'create'
+  const buttonLabel = done
+    ? (isCreate ? 'Account Created ✓' : 'Account Updated ✓')
+    : saving
+      ? (isCreate ? 'Creating...' : 'Updating...')
+      : (isCreate ? 'Create Rent Account' : 'Update Rent Account')
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="card max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-primary">🏠 Create Rent Account</h2>
+            <h2 className="text-lg font-semibold text-primary">
+              🏠 {isCreate ? 'Create Rent Account' : 'Update Rent Account'}
+            </h2>
             <p className="text-xs text-secondary mt-0.5">{businessName}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg">✕</button>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -84,22 +121,22 @@ export function RentAccountSetupModal({
             businessType={businessType}
             value={formData}
             onChange={setFormData}
-            disabled={saving}
+            disabled={saving || done}
           />
         </div>
 
         <div className="p-5 border-t border-gray-200 dark:border-gray-700 flex gap-3">
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="btn-primary disabled:opacity-50"
+            disabled={saving || done}
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Creating...' : 'Create Rent Account'}
+            {buttonLabel}
           </button>
           <button
             onClick={onClose}
             disabled={saving}
-            className="btn-secondary"
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>

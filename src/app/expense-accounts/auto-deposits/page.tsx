@@ -2,7 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -67,6 +68,15 @@ export default function AutoDepositsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ dailyAmount: '', notes: '', isActive: true, startDate: '', endDate: '' })
   const [saving, setSaving] = useState(false)
+
+  // Searchable account combobox state
+  const [accountSearch, setAccountSearch] = useState('')
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false)
+  const accountDropdownRef = useRef<HTMLDivElement>(null)
+  const accountInputRef = useRef<HTMLInputElement>(null)
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   // Redirect if no access
   useEffect(() => {
@@ -496,23 +506,85 @@ export default function AutoDepositsPage() {
             ) : (
               <form onSubmit={handleCreate} className="bg-surface border border-border rounded-lg p-4 space-y-3">
                 <div className="font-medium text-primary text-sm">New auto-deposit config</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-secondary mb-1">Expense account *</label>
-                    <select
-                      required
-                      className="w-full bg-input border border-border rounded px-3 py-1.5 text-sm text-primary"
-                      value={createForm.expenseAccountId}
-                      onChange={e => setCreateForm(f => ({ ...f, expenseAccountId: e.target.value }))}
+
+                {/* Expense account — full-width row so dropdown is never clipped by grid siblings */}
+                <div className="relative" ref={accountDropdownRef}>
+                  <label className="block text-xs text-secondary mb-1">Expense account *</label>
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    placeholder={createForm.expenseAccountId
+                      ? (availableAccounts.find(a => a.id === createForm.expenseAccountId)?.accountName ?? 'Select account…')
+                      : 'Search or select account…'}
+                    className="w-full bg-input border border-border rounded px-3 py-1.5 text-sm text-primary placeholder:text-secondary"
+                    value={accountSearch}
+                    onChange={e => {
+                      setAccountSearch(e.target.value)
+                      setShowAccountDropdown(true)
+                      if (!e.target.value) setCreateForm(f => ({ ...f, expenseAccountId: '' }))
+                    }}
+                    ref={accountInputRef}
+                    onFocus={() => {
+                      if (accountInputRef.current) {
+                        const r = accountInputRef.current.getBoundingClientRect()
+                        setDropdownRect({ top: r.bottom, left: r.left, width: r.width })
+                      }
+                      setShowAccountDropdown(true)
+                    }}
+                    onBlur={() => setTimeout(() => setShowAccountDropdown(false), 150)}
+                  />
+                  {mounted && showAccountDropdown && dropdownRect && createPortal(
+                    <ul
+                      style={{
+                        position: 'fixed',
+                        top: dropdownRect.top,
+                        left: dropdownRect.left,
+                        width: dropdownRect.width,
+                        zIndex: 9999,
+                      }}
+                      className="max-h-48 overflow-y-auto bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded shadow-lg"
                     >
-                      <option value="">Select account…</option>
-                      {availableAccounts.map(a => (
-                        <option key={a.id} value={a.id}>
-                          {a.accountName} ({a.accountNumber}){a.businessName && a.businessId !== businessId ? ` — ${a.businessName}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      {availableAccounts
+                        .filter(a => {
+                          const q = accountSearch.toLowerCase()
+                          return !q ||
+                            a.accountName.toLowerCase().includes(q) ||
+                            a.accountNumber.toLowerCase().includes(q) ||
+                            (a.businessName ?? '').toLowerCase().includes(q)
+                        })
+                        .map(a => (
+                          <li
+                            key={a.id}
+                            className="px-3 py-2 text-sm text-primary hover:bg-accent cursor-pointer"
+                            onMouseDown={() => {
+                              setCreateForm(f => ({ ...f, expenseAccountId: a.id }))
+                              setAccountSearch('')
+                              setShowAccountDropdown(false)
+                            }}
+                          >
+                            <span className="font-medium">{a.accountName}</span>
+                            <span className="text-xs text-secondary ml-1">({a.accountNumber})</span>
+                            {a.businessName && a.businessId !== businessId && (
+                              <span className="text-xs text-secondary ml-1">— {a.businessName}</span>
+                            )}
+                          </li>
+                        ))}
+                      {availableAccounts.filter(a => {
+                        const q = accountSearch.toLowerCase()
+                        return !q ||
+                          a.accountName.toLowerCase().includes(q) ||
+                          a.accountNumber.toLowerCase().includes(q) ||
+                          (a.businessName ?? '').toLowerCase().includes(q)
+                      }).length === 0 && (
+                        <li className="px-3 py-2 text-sm text-secondary">No accounts match</li>
+                      )}
+                    </ul>,
+                    document.body
+                  )}
+                  <input type="hidden" required value={createForm.expenseAccountId} />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-secondary mb-1">Daily amount ($) *</label>
                     <input
