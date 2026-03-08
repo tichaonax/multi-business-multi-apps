@@ -33,7 +33,7 @@ export async function POST(
 
     const { requestId } = await params
     const body = await request.json()
-    const { approvedAmount } = body
+    const { approvedAmount, signatureData } = body
 
     if (!approvedAmount || Number(approvedAmount) <= 0) {
       return NextResponse.json({ error: 'approvedAmount must be a positive number' }, { status: 400 })
@@ -123,6 +123,7 @@ export async function POST(
           approvedAt: now,
           depositId: deposit.id,
           businessTxId: businessTx.id,
+          ...(signatureData ? { signatureData } : {}),
         },
         include: {
           business: { select: { id: true, name: true, type: true } },

@@ -4983,6 +4983,8 @@ model PettyCashRequests {
   // Financial record links set at settlement (only when returnAmount > 0)
   returnPaymentId  String?         @unique // FK ExpenseAccountPayments (PETTY_CASH_RETURN)
   returnTxId       String? // FK BusinessTransactions (CREDIT back to business account)
+  // Signature captured at fund handover (base64 PNG data URL, optional)
+  signatureData    String?         @db.Text
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 

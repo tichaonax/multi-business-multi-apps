@@ -1,7 +1,7 @@
 'use client'
 
 export const dynamic = 'force-dynamic'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -46,6 +46,61 @@ export default function PettyCashDetailPage() {
   const [settleNotes, setSettleNotes] = useState('')
   const [settling, setSettling] = useState(false)
 
+  // Signature pad state (approve modal)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const isDrawing = useRef(false)
+  const hasDrawn = useRef(false)
+
+  function getCanvasPos(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current!
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY }
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  function startDraw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+    e.preventDefault()
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx) return
+    isDrawing.current = true
+    hasDrawn.current = true
+    const { x, y } = getCanvasPos(e)
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+  }
+
+  function draw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+    e.preventDefault()
+    if (!isDrawing.current) return
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx) return
+    const { x, y } = getCanvasPos(e)
+    ctx.lineTo(x, y)
+    ctx.strokeStyle = '#1e293b'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.stroke()
+  }
+
+  function stopDraw() { isDrawing.current = false }
+
+  function clearSignature() {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+    hasDrawn.current = false
+  }
+
+  function getSignatureDataURL(): string | null {
+    if (!hasDrawn.current) return null
+    return canvasRef.current?.toDataURL('image/png') ?? null
+  }
+
   const fetchDetail = useCallback(async () => {
     setLoading(true)
     try {
@@ -79,16 +134,21 @@ export default function PettyCashDetailPage() {
     if (Number(approvedAmount) <= 0) { toast.error('Enter a valid approved amount'); return }
     setApproving(true)
     try {
+      const signatureDataURL = getSignatureDataURL()
       const res = await fetch(`/api/petty-cash/requests/${requestId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ approvedAmount: Number(approvedAmount) }),
+        body: JSON.stringify({
+          approvedAmount: Number(approvedAmount),
+          ...(signatureDataURL ? { signatureData: signatureDataURL } : {}),
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to approve')
       toast.push(`Request approved for ${fmt(Number(approvedAmount))}`, { type: 'success' })
       setShowApprove(false)
+      clearSignature()
       fetchDetail()
     } catch (e: any) {
       toast.error(e.message)
@@ -226,6 +286,14 @@ export default function PettyCashDetailPage() {
               <p className="font-medium text-gray-900 dark:text-gray-100">{req.notes}</p>
             </div>
           )}
+          {req.signatureData && (
+            <div className="col-span-2">
+              <p className="text-gray-500 dark:text-gray-400 mb-1">Recipient Signature</p>
+              <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-2 inline-block bg-white">
+                <img src={req.signatureData} alt="Recipient signature" className="max-h-24 max-w-full" />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action buttons */}
@@ -333,8 +401,34 @@ export default function PettyCashDetailPage() {
                 <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
                   This will debit the business account and deposit into the expense account. Physical cash must be handed to the requester.
                 </p>
+
+                {/* Signature pad */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Recipient Signature <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <button type="button" onClick={clearSignature} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 underline">Clear</button>
+                  </div>
+                  <canvas
+                    ref={canvasRef}
+                    width={440}
+                    height={120}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white cursor-crosshair touch-none"
+                    style={{ height: '120px' }}
+                    onMouseDown={startDraw}
+                    onMouseMove={draw}
+                    onMouseUp={stopDraw}
+                    onMouseLeave={stopDraw}
+                    onTouchStart={startDraw}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDraw}
+                  />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Have the recipient sign above before issuing cash</p>
+                </div>
+
                 <div className="flex gap-3 pt-1">
-                  <button type="button" onClick={() => setShowApprove(false)} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+                  <button type="button" onClick={() => { setShowApprove(false); clearSignature() }} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
                   <button type="submit" disabled={approving} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                     {approving ? 'Processing...' : 'Approve & Issue'}
                   </button>

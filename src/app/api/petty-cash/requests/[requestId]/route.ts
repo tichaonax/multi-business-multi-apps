@@ -96,6 +96,7 @@ export async function GET(
           businessTxId: pcRequest.businessTxId,
           returnPaymentId: pcRequest.returnPaymentId,
           returnTxId: pcRequest.returnTxId,
+          signatureData: pcRequest.signatureData ?? null,
           returnPayment: pcRequest.returnPayment
             ? { ...pcRequest.returnPayment, amount: Number(pcRequest.returnPayment.amount) }
             : null,
