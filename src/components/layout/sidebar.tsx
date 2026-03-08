@@ -171,7 +171,7 @@ export function Sidebar() {
         setPendingLoanLockCount(data.loanLockRequests?.length ?? 0)
         setPendingPettyCashCount(data.pendingPettyCash?.length ?? 0)
         setPendingCashAllocCount(data.pendingCashAllocations?.length ?? 0)
-        setPendingPaymentRequestCount(data.pendingPaymentRequests?.length ?? 0)
+        setPendingPaymentRequestCount((data.pendingPaymentBatches?.length ?? 0) + (data.pendingPaymentRequests?.length ?? 0))
       })
       .catch(() => {})
   }, [currentUser])
@@ -1285,6 +1285,21 @@ export function Sidebar() {
                   >
                     <span>💳</span>
                     <span>EOD Auto-Deposits</span>
+                  </Link>
+                )}
+
+                {(isSystemAdmin(currentUser) || hasPermission('canSubmitPaymentBatch')) && (
+                  <Link
+                    href="/expense-accounts/payment-batches"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>📋</span>
+                    <span>Payment Batches</span>
+                    {pendingPaymentRequestCount > 0 && (
+                      <span className="ml-auto bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                        {pendingPaymentRequestCount}
+                      </span>
+                    )}
                   </Link>
                 )}
 

@@ -892,7 +892,7 @@ export function PaymentForm({
       if (response.ok) {
         customAlert({
           title: 'Success',
-          description: `Successfully submitted ${batchPayments.length} payment(s)`,
+          description: `${batchPayments.length} payment${batchPayments.length !== 1 ? 's' : ''} added to queue`,
         })
 
         // Clear batch

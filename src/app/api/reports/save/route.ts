@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { createEODPaymentBatches } from '@/lib/eod-payment-batch-utils'
 
 /**
  * POST /api/reports/save
@@ -177,7 +178,21 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    // 11. Return success response
+    // 11. Batch any queued expense payments into an EOD payment batch for cashier review
+    let eodPaymentBatch: { batchId: string; paymentCount: number } | null = null
+    if (reportType === 'END_OF_DAY') {
+      try {
+        const batchResult = await createEODPaymentBatches(businessId, new Date(reportDate))
+        if (batchResult.batchId) {
+          eodPaymentBatch = { batchId: batchResult.batchId, paymentCount: batchResult.paymentCount }
+        }
+      } catch (batchError) {
+        // Non-fatal — log but don't fail the EOD save
+        console.error('createEODPaymentBatches error (non-fatal):', batchError)
+      }
+    }
+
+    // 12. Return success response
     return NextResponse.json({
       success: true,
       reportId: savedReport.id,
@@ -191,7 +206,8 @@ export async function POST(req: NextRequest) {
         totalSales: savedReport.totalSales,
         totalOrders: savedReport.totalOrders,
         isLocked: savedReport.isLocked
-      }
+      },
+      eodPaymentBatch,
     })
 
   } catch (error: any) {

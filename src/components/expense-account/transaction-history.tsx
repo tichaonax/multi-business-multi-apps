@@ -45,6 +45,7 @@ interface TransactionHistoryProps {
   isAdmin?: boolean
   initialStartDate?: string
   initialEndDate?: string
+  refreshKey?: number
 }
 
 function localDateStr(d: Date): string {
@@ -86,7 +87,7 @@ function shortDescription(transaction: Transaction): string {
   return desc
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState(() => {
@@ -124,7 +125,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
   useEffect(() => {
     loadTransactions()
-  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch])
+  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey])
   // also refetch when sortOrder changes
   useEffect(() => {
     setPage(0)

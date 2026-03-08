@@ -104,13 +104,27 @@ export async function GET() {
       })
     }
 
-    // Pending payment batch requests — for users with canSubmitPaymentBatch
-    // Returns distinct expense accounts that have at least 1 REQUEST payment
+    // Pending EOD payment batches — for users with canSubmitPaymentBatch
+    // Each item is a PENDING_REVIEW EODPaymentBatch waiting for cashier review
+    let pendingPaymentBatches: object[] = []
+    // Also keep legacy QUEUED/REQUEST count for backward compat with older sidebar code
     let pendingPaymentRequests: object[] = []
     if (sysAdmin || permissions.canSubmitPaymentBatch) {
+      pendingPaymentBatches = await prisma.eODPaymentBatch.findMany({
+        where: { status: 'PENDING_REVIEW' },
+        select: {
+          id: true,
+          eodDate: true,
+          business: { select: { id: true, name: true, type: true } },
+          _count: { select: { payments: true } },
+        },
+        orderBy: { eodDate: 'asc' },
+      })
+
+      // Legacy: accounts with QUEUED/REQUEST payments not yet batched
       const grouped = await prisma.expenseAccountPayments.groupBy({
         by: ['expenseAccountId'],
-        where: { status: 'REQUEST' },
+        where: { status: { in: ['QUEUED', 'REQUEST'] } },
         _count: { id: true },
       })
       if (grouped.length > 0) {
@@ -136,9 +150,18 @@ export async function GET() {
       (pendingSupplierPayments as unknown[]).length +
       (pendingPettyCash as unknown[]).length +
       (pendingCashAllocations as unknown[]).length +
+      (pendingPaymentBatches as unknown[]).length +
       (pendingPaymentRequests as unknown[]).length
 
-    return NextResponse.json({ loanLockRequests, pendingSupplierPayments, pendingPettyCash, pendingCashAllocations, pendingPaymentRequests, total })
+    return NextResponse.json({
+      loanLockRequests,
+      pendingSupplierPayments,
+      pendingPettyCash,
+      pendingCashAllocations,
+      pendingPaymentBatches,
+      pendingPaymentRequests,
+      total,
+    })
   } catch (error) {
     console.error('GET /api/admin/pending-actions error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

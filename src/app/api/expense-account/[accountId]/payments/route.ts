@@ -313,6 +313,12 @@ export async function POST(
       }
     }
 
+    // Determine default status before validation loop so balance checks can use it.
+    // All payments go to QUEUED and are processed at EOD.
+    // Only system admins (role=admin) bypass the queue and go directly to SUBMITTED.
+    const defaultPaymentStatus = user.role === 'admin' ? 'SUBMITTED' : 'QUEUED'
+    const isQueuedFlow = defaultPaymentStatus === 'QUEUED'
+
     // Check if batch payment or single payment
     const isBatch = Array.isArray(body.payments)
     const paymentsToCreate = isBatch ? body.payments : [body]
@@ -385,11 +391,11 @@ export async function POST(
         )
       }
 
-      // Validate amount format
-      const amountValidation = validatePaymentAmount(
-        Number(payment.amount),
-        Number(account.balance)
-      )
+      // Validate amount format.
+      // Balance check is skipped for QUEUED payments — funds are only checked at EOD batch approval.
+      const amountValidation = isQueuedFlow
+        ? validatePaymentAmount(Number(payment.amount), Number.MAX_SAFE_INTEGER) // skip balance check
+        : validatePaymentAmount(Number(payment.amount), Number(account.balance))
       if (!amountValidation.valid) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: ${amountValidation.error}`, index: i },
@@ -626,13 +632,13 @@ export async function POST(
       }
     }
 
-    // Calculate total payment amount (only for SUBMITTED status)
-    const totalAmount = paymentsToCreate
-      .filter((p) => (p.status || 'SUBMITTED') === 'SUBMITTED')
-      .reduce((sum, p) => sum + Number(p.amount), 0)
+    // Calculate total payment amount.
+    // For QUEUED flow: totalAmount is used only for reference — no balance check at creation.
+    // For SUBMITTED flow (admin only): balance is checked before proceeding.
+    const totalAmount = paymentsToCreate.reduce((sum, p) => sum + Number(p.amount), 0)
 
-    // Check expense account balance for submitted payments
-    if (totalAmount > 0) {
+    // Balance check only applies for SUBMITTED payments (admin bypass flow)
+    if (totalAmount > 0 && !isQueuedFlow) {
       const batchValidation = await validateBatchPaymentTotal(accountId, totalAmount)
       if (!batchValidation.valid) {
         return NextResponse.json(
@@ -646,17 +652,13 @@ export async function POST(
       }
     }
 
-    // Cashiers (canSubmitPaymentBatch) default to SUBMITTED; others default to REQUEST
-    const defaultPaymentStatus = (permissions.canSubmitPaymentBatch || user.role === 'admin') ? 'SUBMITTED' : 'REQUEST'
-
     // Create payments in transaction
     const result = await prisma.$transaction(async (tx) => {
       const createdPayments = []
 
       // Authoritative balance check INSIDE the transaction using SUM calculation.
-      // This protects against: (1) restored data leaving the balance column out of sync,
-      // (2) race conditions where two concurrent requests both pass the pre-transaction check.
-      if (totalAmount > 0) {
+      // Skipped for QUEUED payments — balance is checked at EOD batch approval time instead.
+      if (totalAmount > 0 && !isQueuedFlow) {
         const depositsAgg = await tx.expenseAccountDeposits.aggregate({
           where: { expenseAccountId: accountId },
           _sum: { amount: true },
@@ -674,7 +676,8 @@ export async function POST(
       }
 
       for (const payment of paymentsToCreate) {
-        const paymentStatus = payment.status || defaultPaymentStatus
+        // Always use server-determined status — ignore any status sent from the client
+        const paymentStatus = defaultPaymentStatus
         const paymentDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date()
 
         // Create payment

@@ -3,7 +3,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -23,6 +23,7 @@ import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-pay
 import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-modal'
 import { AutoDepositAdminPanel } from '@/components/expense-account/auto-deposit-admin-panel'
 import { PaymentBatchModal } from '@/components/expense-account/payment-batch-modal'
+import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -185,8 +186,11 @@ function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; ref
                   {p.status === 'DRAFT' && (
                     <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">DRAFT</span>
                   )}
-                  {p.status === 'REQUEST' && (
-                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-medium">PENDING</span>
+                  {(p.status === 'REQUEST' || p.status === 'QUEUED') && (
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-medium">IN QUEUE</span>
+                  )}
+                  {p.status === 'APPROVED' && (
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">APPROVED</span>
                   )}
                 </div>
                 <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
@@ -206,6 +210,199 @@ function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; ref
           ))}
         </div>
       )}
+    </div>
+  )
+}
+// ────────────────────────────────────────────────────────────────────────────
+
+// ─── My Payment Queue Panel ─────────────────────────────────────────────────
+interface QueuedPayment {
+  id: string
+  amount: number
+  paymentDate: string
+  description?: string | null
+  status: string
+  payeeUser?: { name: string } | null
+  payeeEmployee?: { fullName: string } | null
+  payeePerson?: { fullName: string } | null
+  payeeBusiness?: { name: string } | null
+  payeeSupplier?: { name: string } | null
+  payeeType: string
+  category?: { name: string; emoji: string } | null
+}
+
+function MyQueuePanel({
+  accountId,
+  refreshKey,
+  onActionDone,
+}: {
+  accountId: string
+  refreshKey: number
+  onActionDone: () => void
+}) {
+  const confirm = useConfirm()
+  const alert = useAlert()
+  const [queued, setQueued] = useState<QueuedPayment[]>([])
+  const [pendingApproval, setPendingApproval] = useState<QueuedPayment[]>([])
+  const [approved, setApproved] = useState<QueuedPayment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [actionId, setActionId] = useState<string | null>(null)
+  const pendingApprovalRef = useRef<QueuedPayment[]>([])
+
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    const [q, pa, a] = await Promise.all([
+      fetch(`/api/expense-account/${accountId}/payment-requests`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null).then(d => d?.data ?? []),
+      fetch(`/api/expense-account/${accountId}/payments?status=PENDING_APPROVAL&sortBy=createdAt&limit=20`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null).then(d => d?.data?.payments ?? []),
+      fetch(`/api/expense-account/${accountId}/payments?status=APPROVED&sortBy=createdAt&limit=20`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null).then(d => d?.data?.payments ?? []),
+    ])
+    setQueued(q)
+    setPendingApproval(pa)
+    pendingApprovalRef.current = pa
+    setApproved(a)
+    if (!silent) setLoading(false)
+  }, [accountId])
+
+  // Initial load
+  useEffect(() => { fetchAll() }, [fetchAll, refreshKey])
+
+  // Auto-poll every 10s while any payments are PENDING_APPROVAL (cashier reviewing)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (pendingApprovalRef.current.length > 0) {
+        fetchAll(true)
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [fetchAll])
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+
+  const payeeName = (p: QueuedPayment): string => {
+    if (p.payeeType === 'NONE') return 'General'
+    if (p.payeeUser) return p.payeeUser.name
+    if (p.payeeEmployee) return p.payeeEmployee.fullName
+    if (p.payeePerson) return p.payeePerson.fullName
+    if (p.payeeBusiness) return p.payeeBusiness.name
+    if (p.payeeSupplier) return p.payeeSupplier.name
+    return 'Unknown'
+  }
+
+  const handleCancel = async (paymentId: string) => {
+    const ok = await confirm({ title: 'Cancel Payment', description: 'Cancel this payment request?', confirmText: 'Yes, Cancel', cancelText: 'Keep' })
+    if (!ok) return
+    setActionId(paymentId)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (res.ok) {
+        setQueued(prev => prev.filter(p => p.id !== paymentId))
+        onActionDone()
+      } else {
+        const d = await res.json()
+        await alert({ title: 'Error', description: d.error ?? 'Failed to cancel payment' })
+      }
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const handleMarkPaid = async (paymentId: string) => {
+    const ok = await confirm({ title: 'Mark as Paid', description: 'Confirm physical handover and mark this payment as submitted?', confirmText: 'Yes, Mark as Paid' })
+    if (!ok) return
+    setActionId(paymentId)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}/submit`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (res.ok) {
+        setApproved(prev => prev.filter(p => p.id !== paymentId))
+        onActionDone()
+      } else {
+        const d = await res.json()
+        await alert({ title: 'Error', description: d.error ?? 'Failed to mark payment as paid' })
+      }
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  if (loading) return null
+  if (queued.length === 0 && pendingApproval.length === 0 && approved.length === 0) return null
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border">
+        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">My Payment Queue</span>
+      </div>
+      <div className="divide-y divide-border">
+        {pendingApproval.map(p => (
+          <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
+                <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-medium">AWAITING CASHIER</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
+            </div>
+            <div className="shrink-0">
+              <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
+            </div>
+          </div>
+        ))}
+        {approved.map(p => (
+          <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-green-50/50 dark:bg-green-900/10">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
+                <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">APPROVED</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
+              <button
+                onClick={() => handleMarkPaid(p.id)}
+                disabled={actionId === p.id}
+                className="px-2 py-0.5 text-[10px] font-semibold bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {actionId === p.id ? '…' : '✓ Mark as Paid'}
+              </button>
+            </div>
+          </div>
+        ))}
+        {queued.map(p => (
+          <div key={p.id} className="flex items-center gap-2 px-3 py-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
+                <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">IN QUEUE</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
+              <button
+                onClick={() => handleCancel(p.id)}
+                disabled={actionId === p.id}
+                className="px-2 py-0.5 text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 rounded hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50"
+              >
+                {actionId === p.id ? '…' : '✕ Cancel'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -333,6 +530,16 @@ export default function ExpenseAccountDetailPage() {
       .then(data => { setPendingBatchCount(data?.data?.length ?? 0) })
       .catch(() => {})
   }, [accountId, canSubmitPaymentBatch, paymentRefreshKey, batchRefreshKey])
+
+  const refreshBalanceSilent = async () => {
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setAccount(data.data.account)
+      }
+    } catch {}
+  }
 
   const handleRefresh = () => {
     loadAccount()
@@ -503,19 +710,6 @@ export default function ExpenseAccountDetailPage() {
           canEditThreshold={canChangeCategory}
         />
 
-        {/* Pending payment batch requests notice */}
-        {canSubmitPaymentBatch && pendingBatchCount > 0 && (
-          <button
-            onClick={() => setShowBatchModal(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
-          >
-            <span className="text-lg">📦</span>
-            <span className="flex-1 text-left font-medium text-indigo-800 dark:text-indigo-200">
-              {pendingBatchCount} payment {pendingBatchCount === 1 ? 'request' : 'requests'} awaiting batch submission
-            </span>
-            <span className="text-indigo-600 dark:text-indigo-400 text-xs font-semibold shrink-0">Submit Batch →</span>
-          </button>
-        )}
 
         {/* Pending supplier payment requests notice */}
         {canViewSupplierPaymentQueue && pendingRequestsCount > 0 && (
@@ -728,7 +922,16 @@ export default function ExpenseAccountDetailPage() {
                   </div>
                 </div>
 
-                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} />
+                <MyQueuePanel
+                  accountId={accountId}
+                  refreshKey={paymentRefreshKey}
+                  onActionDone={() => {
+                    refreshBalanceSilent()
+                    setPaymentRefreshKey(k => k + 1)
+                  }}
+                />
+
+                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} />
               </div>
             )}
 

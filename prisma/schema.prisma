@@ -511,6 +511,7 @@ model Businesses {
   cash_allocation_reports                                                  CashAllocationReport[]        @relation("BusinessCashAllocationReports")
   petty_cash_requests                                                      PettyCashRequests[]           @relation("BusinessPettyCash")
   payment_batch_submissions                                                PaymentBatchSubmissions[]     @relation("BusinessPaymentBatches")
+  eod_payment_batches                                                      EODPaymentBatch[]             @relation("BusinessEODPaymentBatches")
   per_diem_entries                                                         PerDiemEntries[]              @relation("PerDiemBusiness")
 
   @@map("businesses")
@@ -1495,6 +1496,10 @@ model ExpenseAccountPayments {
   withdrawalRequest         LoanWithdrawalRequest?           @relation("WithdrawalPayment")
   batchSubmissionId         String?                          @map("batch_submission_id")
   batchSubmission           PaymentBatchSubmissions?         @relation(fields: [batchSubmissionId], references: [id])
+  eodBatchId                String?                          @map("eod_batch_id")
+  eodBatch                  EODPaymentBatch?                 @relation("EODPaymentBatchItems", fields: [eodBatchId], references: [id])
+  adHoc                     Boolean                          @default(false) @map("ad_hoc")
+  cancelledAt               DateTime?                        @map("cancelled_at")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -3189,6 +3194,7 @@ model Users {
   cash_allocation_reports_created                                 CashAllocationReport[]           @relation("CashAllocationReportCreator")
   cash_allocation_reports_locked                                  CashAllocationReport[]           @relation("CashAllocationReportLocker")
   payment_batch_submissions_as_cashier                            PaymentBatchSubmissions[]        @relation("PaymentBatchCashier")
+  eod_payment_batches_reviewed                                    EODPaymentBatch[]                @relation("EODPaymentBatchReviewer")
   cash_allocation_items_checked                                   CashAllocationLineItem[]         @relation("CashAllocationItemChecker")
   petty_cash_requests_submitted                                   PettyCashRequests[]              @relation("PettyCashRequester")
   petty_cash_requests_approved                                    PettyCashRequests[]              @relation("PettyCashApprover")
@@ -5043,14 +5049,48 @@ model PaymentBatchSubmissions {
   businessTxId     String?
   paymentCount     Int      @default(0)
   notes            String?
+  eodBatchId       String?  @unique @map("eod_batch_id")
   createdAt        DateTime @default(now())
 
   business       Businesses             @relation("BusinessPaymentBatches", fields: [businessId], references: [id])
   expenseAccount ExpenseAccounts        @relation(fields: [expenseAccountId], references: [id])
   cashier        Users                  @relation("PaymentBatchCashier", fields: [submittedBy], references: [id])
   payments       ExpenseAccountPayments[]
+  eodBatch       EODPaymentBatch?       @relation("EODToBatchSubmission", fields: [eodBatchId], references: [id])
 
   @@index([businessId])
   @@index([expenseAccountId])
   @@map("payment_batch_submissions")
+}
+
+// ============================================================
+// EOD Payment Batch (MBM-141)
+// ============================================================
+
+model EODPaymentBatch {
+  id                String    @id @default(cuid())
+  businessId        String
+  eodDate           DateTime  @db.Date
+  status            String    @default("PENDING_REVIEW")
+  // PENDING_REVIEW = awaiting cashier review
+  // REVIEWED       = cashier has submitted their review
+  // CANCELLED      = voided before review
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  approvedCount     Int       @default(0)
+  rejectedCount     Int       @default(0)
+  totalApproved     Decimal?  @db.Decimal(12, 2)
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  business          Businesses              @relation("BusinessEODPaymentBatches", fields: [businessId], references: [id])
+  reviewer          Users?                  @relation("EODPaymentBatchReviewer", fields: [reviewedBy], references: [id])
+  payments          ExpenseAccountPayments[] @relation("EODPaymentBatchItems")
+  batchSubmission   PaymentBatchSubmissions? @relation("EODToBatchSubmission")
+
+  @@index([businessId])
+  @@index([eodDate])
+  @@index([status])
+  @@map("eod_payment_batches")
 }

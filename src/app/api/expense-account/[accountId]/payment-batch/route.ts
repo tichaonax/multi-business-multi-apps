@@ -5,18 +5,19 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
 /**
+ * @deprecated Use POST /api/eod-payment-batches/[batchId]/review instead.
+ *
+ * This route is retained for backward compatibility only.
+ * New payments use status=QUEUED and are batched at EOD via createEODPaymentBatches().
+ * The new cashier workflow is: EOD → EODPaymentBatch (PENDING_REVIEW) → /eod-payment-batches/[batchId]/review.
+ *
+ * This route still handles legacy REQUEST status payments that were created before MBM-141.
+ * Do NOT remove until all REQUEST-status payments have been processed.
+ *
  * POST /api/expense-account/[accountId]/payment-batch
  * Cashier submits a batch of REQUEST payments.
  *
  * Body: { paymentIds: string[], notes?: string }
- *
- * Steps:
- * 1. Validate all paymentIds belong to this account and have REQUEST status
- * 2. Check business primary account has sufficient funds
- * 3. Debit business account → deposit into expense account
- * 4. Transition payments REQUEST → SUBMITTED
- * 5. Create PaymentBatchSubmissions record
- * 6. Return print data
  */
 export async function POST(
   request: NextRequest,

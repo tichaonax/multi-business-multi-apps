@@ -50,6 +50,13 @@ interface PendingCashAllocation {
   _count: { lineItems: number }
 }
 
+interface PendingPaymentBatch {
+  id: string
+  eodDate: string
+  business: { id: string; name: string; type: string } | null
+  _count: { payments: number }
+}
+
 interface PendingPaymentRequest {
   id: string
   accountName: string
@@ -68,6 +75,7 @@ export default function PendingActionsPage() {
   const [pendingSupplierPayments, setPendingSupplierPayments] = useState<PendingSupplierPayment[]>([])
   const [pendingPettyCash, setPendingPettyCash] = useState<PendingPettyCash[]>([])
   const [pendingCashAllocations, setPendingCashAllocations] = useState<PendingCashAllocation[]>([])
+  const [pendingPaymentBatches, setPendingPaymentBatches] = useState<PendingPaymentBatch[]>([])
   const [pendingPaymentRequests, setPendingPaymentRequests] = useState<PendingPaymentRequest[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -83,6 +91,7 @@ export default function PendingActionsPage() {
         setPendingSupplierPayments(json.pendingSupplierPayments || [])
         setPendingPettyCash(json.pendingPettyCash || [])
         setPendingCashAllocations(json.pendingCashAllocations || [])
+        setPendingPaymentBatches(json.pendingPaymentBatches || [])
         setPendingPaymentRequests(json.pendingPaymentRequests || [])
         setTotal(json.total ?? 0)
       }
@@ -272,6 +281,42 @@ export default function PendingActionsPage() {
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* EOD Payment Batches awaiting cashier review */}
+            {pendingPaymentBatches.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>📋</span> EOD Payment Batches
+                  <span className="bg-amber-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {pendingPaymentBatches.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {pendingPaymentBatches.map(item => (
+                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-900 dark:text-white">{item.business?.name ?? 'Unknown Business'}</span>
+                          <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-medium px-2 py-0.5 rounded">
+                            {item._count.payments} payment{item._count.payments !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                          EOD Date: {new Date(item.eodDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}
+                          {item.business?.type && <span className="capitalize ml-2">· {item.business.type}</span>}
+                        </p>
+                      </div>
+                      <Link
+                        href={`/expense-accounts/payment-batches/${item.id}/review`}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      >
+                        Review Batch
+                      </Link>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

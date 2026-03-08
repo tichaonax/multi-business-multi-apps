@@ -736,3 +736,206 @@ export const generateCashAllocationPDF = (
     pdf.save(fileName)
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payment Batch Voucher PDF (MBM-141)
+// Toner-friendly — no background fills, borders only.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PaymentBatchVoucherItem {
+  payeeName: string
+  categoryName: string
+  expenseAccount: string
+  amount: number
+  notes: string | null
+  requestedBy: string
+  adHoc: boolean
+}
+
+export interface PaymentBatchVoucherData {
+  batchId: string
+  businessName: string
+  cashierName: string
+  reviewedAt: string       // ISO string
+  totalApproved: number
+  approvedCount: number
+  rejectedCount: number
+  payments: PaymentBatchVoucherItem[]
+}
+
+export const generatePaymentBatchVoucher = (
+  data: PaymentBatchVoucherData,
+  action: 'save' | 'print' = 'save',
+): void => {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 15
+  const contentWidth = pageWidth - 2 * margin
+  let y = margin
+
+  const fmt = (n: number) => `$${n.toFixed(2)}`
+
+  const drawLine = (yPos: number, light = false) => {
+    pdf.setDrawColor(light ? 150 : 0, light ? 150 : 0, light ? 150 : 0)
+    pdf.line(margin, yPos, pageWidth - margin, yPos)
+  }
+
+  // ── Header ───────────────────────────────────────────────────────────────
+  pdf.setFontSize(15)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(0, 0, 0)
+  pdf.text('PAYMENT BATCH APPROVAL VOUCHER', pageWidth / 2, y, { align: 'center' })
+  y += 7
+
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'normal')
+  pdf.text(data.businessName, pageWidth / 2, y, { align: 'center' })
+  y += 5
+
+  const reviewedDate = new Date(data.reviewedAt)
+  pdf.setFontSize(9)
+  pdf.text(
+    `Date: ${reviewedDate.toLocaleDateString()}  |  Time: ${reviewedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}  |  Approved by: ${data.cashierName}`,
+    pageWidth / 2, y, { align: 'center' }
+  )
+  y += 4
+
+  pdf.setFontSize(8)
+  pdf.setTextColor(100, 100, 100)
+  pdf.text(`Batch ID: ${data.batchId}`, pageWidth / 2, y, { align: 'center' })
+  pdf.setTextColor(0, 0, 0)
+  y += 5
+  drawLine(y)
+  y += 6
+
+  // ── Summary ───────────────────────────────────────────────────────────────
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('SUMMARY', margin, y)
+  y += 5
+
+  pdf.setFont('helvetica', 'normal')
+  const summaryItems = [
+    { label: 'Payments Approved', value: String(data.approvedCount) },
+    { label: 'Payments Returned to Queue', value: String(data.rejectedCount) },
+    { label: 'Total Approved', value: fmt(data.totalApproved) },
+  ]
+  for (const item of summaryItems) {
+    pdf.text(item.label, margin + 2, y)
+    pdf.text(item.value, pageWidth - margin, y, { align: 'right' })
+    y += 5
+  }
+  y += 2
+  drawLine(y)
+  y += 6
+
+  // ── Payment Detail Table ──────────────────────────────────────────────────
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('APPROVED PAYMENTS', margin, y)
+  y += 5
+
+  // Column positions
+  const col = {
+    payee:    margin,
+    account:  margin + 52,
+    reqBy:    margin + 92,
+    amount:   pageWidth - margin,
+  }
+
+  // Table header
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('Payee / Notes', col.payee, y)
+  pdf.text('Account', col.account, y)
+  pdf.text('Requested By', col.reqBy, y)
+  pdf.text('Amount', col.amount, y, { align: 'right' })
+  y += 3
+  drawLine(y)
+  y += 4
+
+  pdf.setFont('helvetica', 'normal')
+
+  for (const p of data.payments) {
+    // Check for page overflow
+    if (y > 260) {
+      pdf.addPage()
+      y = margin
+    }
+
+    // Payee row — clip long names
+    let payeeDisplay = p.payeeName
+    while (pdf.getTextWidth(payeeDisplay) > 48 && payeeDisplay.length > 5) {
+      payeeDisplay = payeeDisplay.slice(0, -4) + '...'
+    }
+    pdf.text(payeeDisplay, col.payee, y)
+
+    let acctDisplay = p.expenseAccount
+    while (pdf.getTextWidth(acctDisplay) > 36 && acctDisplay.length > 5) {
+      acctDisplay = acctDisplay.slice(0, -4) + '...'
+    }
+    pdf.text(acctDisplay, col.account, y)
+
+    let reqByDisplay = p.requestedBy
+    while (pdf.getTextWidth(reqByDisplay) > 36 && reqByDisplay.length > 5) {
+      reqByDisplay = reqByDisplay.slice(0, -4) + '...'
+    }
+    pdf.text(reqByDisplay, col.reqBy, y)
+    pdf.text(fmt(p.amount), col.amount, y, { align: 'right' })
+    y += 4
+
+    // Sub-row: category + notes + ad-hoc badge
+    pdf.setTextColor(100, 100, 100)
+    pdf.setFontSize(7)
+    const sub = [
+      p.categoryName !== '—' ? p.categoryName : null,
+      p.notes || null,
+      p.adHoc ? '[Ad-hoc]' : null,
+    ].filter(Boolean).join('  ·  ')
+    if (sub) {
+      pdf.text(sub, col.payee + 1, y)
+      y += 3.5
+    }
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFontSize(8)
+
+    drawLine(y, true)
+    y += 3
+  }
+
+  y += 2
+  // Total row
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('TOTAL APPROVED', margin, y)
+  pdf.text(fmt(data.totalApproved), pageWidth - margin, y, { align: 'right' })
+  y += 8
+
+  // ── Signature Lines ───────────────────────────────────────────────────────
+  drawLine(y)
+  y += 8
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  const sigY = y + 10
+  pdf.line(margin, sigY, margin + 60, sigY)
+  pdf.line(pageWidth - margin - 60, sigY, pageWidth - margin, sigY)
+  y = sigY + 4
+  pdf.setFontSize(8)
+  pdf.text('Cashier / Approver', margin, y)
+  pdf.text('Business Representative', pageWidth - margin - 60, y)
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  y += 12
+  pdf.setFontSize(7)
+  pdf.setTextColor(150, 150, 150)
+  pdf.text(`Printed ${new Date().toLocaleString()}`, pageWidth / 2, y, { align: 'center' })
+
+  const fileName = `payment-batch-${data.batchId.slice(-8)}-${reviewedDate.toISOString().split('T')[0]}.pdf`
+
+  if (action === 'print') {
+    pdf.autoPrint()
+    window.open(pdf.output('bloburl'), '_blank')
+  } else {
+    pdf.save(fileName)
+  }
+}

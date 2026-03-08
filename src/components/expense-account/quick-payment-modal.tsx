@@ -528,9 +528,6 @@ export function QuickPaymentModal({
       newErrors.amount = 'Amount must be greater than 0'
     } else if (amount > 999999999.99) {
       newErrors.amount = 'Amount exceeds maximum allowed value'
-    } else if (amount > (liveBalance ?? currentBalance)) {
-      const displayBalance = liveBalance ?? currentBalance
-      newErrors.amount = `Insufficient funds. Available balance: $${displayBalance.toFixed(2)}`
     } else if (formData.payee?.type === 'PERSON') {
       // Validate payment amount for individuals without national ID
       try {
@@ -624,10 +621,10 @@ export function QuickPaymentModal({
 
       // Success
       setPayeeErrorMessage(null)
-      toast.push('Payment created successfully')
+      toast.push('Payment added to queue')
       try {
         onSuccess({
-          message: 'Payment created successfully',
+          message: 'Payment added to queue',
           id: result.data?.payments?.[0]?.id,
           refresh: true
         })
@@ -1064,6 +1061,11 @@ export function QuickPaymentModal({
                 {errors.amount && (
                   <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
                 )}
+                {!errors.amount && formData.amount && parseFloat(formData.amount) > (liveBalance ?? currentBalance) && (
+                  <p className="text-xs text-yellow-500 mt-1">
+                    Warning: Insufficient funds. Available balance: ${(liveBalance ?? currentBalance).toFixed(2)}. The check will be done on approval.
+                  </p>
+                )}
               </div>
 
               {/* Date */}
@@ -1112,8 +1114,7 @@ export function QuickPaymentModal({
             <button
               type="submit"
               className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading || (liveBalance ?? currentBalance) < 0}
-              title={(liveBalance ?? currentBalance) < 0 ? 'Cannot create payment: account balance is negative' : undefined}
+              disabled={loading}
             >
               {loading ? 'Creating...' : 'Create Payment'}
             </button>
