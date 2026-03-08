@@ -492,3 +492,247 @@ export const generatePayrollEntryFileName = (
   const timestamp = new Date().toISOString().split('T')[0]
   return `PayrollEntry_${employeeNumber}_${monthStr}${year}_${sanitizedName}_${timestamp}.pdf`
 }
+
+// ─── Cash Allocation Report PDF ────────────────────────────────────────────
+
+export interface CashAllocationLineItemPDF {
+  accountName: string
+  sourceType: string
+  reportedAmount: number
+  actualAmount: number | null
+}
+
+export interface CashAllocationPDFData {
+  businessName?: string
+  reportDate: string           // YYYY-MM-DD
+  lockedAt?: string            // ISO string
+  lockerName?: string          // cashier who locked the report
+  cashTendered: number | null
+  rentConfig: { accountName: string; dailyTransferAmount: number } | null
+  lineItems: CashAllocationLineItemPDF[]
+  businessKeeps: number | null
+}
+
+export const generateCashAllocationPDF = (
+  data: CashAllocationPDFData,
+  fileName: string,
+  action: 'save' | 'print' = 'save',
+): void => {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 15
+  const contentWidth = pageWidth - 2 * margin
+  const amountX = pageWidth - margin
+  let y = margin
+
+  const fmt = (n: number) => `$${n.toFixed(2)}`
+
+  // Single draw-color: dark gray for all lines — no fills anywhere (save toner)
+  const drawLine = (yPos: number) => {
+    pdf.setDrawColor(0, 0, 0)
+    pdf.line(margin, yPos, pageWidth - margin, yPos)
+  }
+  const drawThinLine = (yPos: number) => {
+    pdf.setDrawColor(150, 150, 150)
+    pdf.line(margin, yPos, pageWidth - margin, yPos)
+  }
+
+  // ── Header ──────────────────────────────────────────────────────────────
+  pdf.setFontSize(16)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(0, 0, 0)
+  pdf.text('CASH ALLOCATION REPORT', pageWidth / 2, y, { align: 'center' })
+  y += 7
+
+  if (data.businessName) {
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(data.businessName, pageWidth / 2, y, { align: 'center' })
+    y += 5
+  }
+
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'normal')
+  pdf.text(`Report Date: ${data.reportDate}`, pageWidth / 2, y, { align: 'center' })
+  y += 4
+
+  if (data.lockedAt) {
+    const lockedStr = new Date(data.lockedAt).toLocaleString()
+    const lockerPart = data.lockerName ? `  |  Closed by: ${data.lockerName}` : ''
+    pdf.text(`Locked: ${lockedStr}${lockerPart}`, pageWidth / 2, y, { align: 'center' })
+    y += 4
+  }
+
+  y += 2
+  drawLine(y)
+  y += 6
+
+  // ── Cash Distribution Summary ────────────────────────────────────────────
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('CASH DISTRIBUTION', margin, y)
+  y += 6
+
+  pdf.setFontSize(9)
+
+  // Cash tendered
+  if (data.cashTendered !== null) {
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Cash Tendered (from EOD report)', margin + 2, y)
+    pdf.text(fmt(data.cashTendered), amountX - 2, y, { align: 'right' })
+  } else {
+    pdf.setFont('helvetica', 'italic')
+    pdf.text('Cash Tendered: not recorded in EOD report', margin + 2, y)
+  }
+  y += 5
+
+  // Rent deduction
+  if (data.rentConfig) {
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(`Less: Rent Transfer — ${data.rentConfig.accountName}`, margin + 2, y)
+    pdf.text(`-${fmt(data.rentConfig.dailyTransferAmount)}`, amountX - 2, y, { align: 'right' })
+    y += 5
+  }
+
+  // Auto-deposit deductions
+  const nonRent = data.lineItems.filter(li => li.sourceType !== 'EOD_RENT_TRANSFER')
+  for (const li of nonRent) {
+    const amt = li.actualAmount !== null ? li.actualAmount : li.reportedAmount
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(`Less: ${li.accountName}`, margin + 2, y)
+    pdf.text(`-${fmt(amt)}`, amountX - 2, y, { align: 'right' })
+    y += 5
+  }
+
+  drawThinLine(y)
+  y += 5
+
+  // Business keeps — bold, boxed with border only (no fill)
+  if (data.businessKeeps !== null) {
+    pdf.setDrawColor(0, 0, 0)
+    pdf.rect(margin, y - 4, contentWidth, 8) // border only, no fill
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Business Keeps', margin + 3, y + 1)
+    pdf.text(fmt(data.businessKeeps), amountX - 3, y + 1, { align: 'right' })
+    y += 12
+  } else {
+    y += 4
+  }
+
+  drawLine(y)
+  y += 8
+
+  // ── Allocation Detail Table ───────────────────────────────────────────────
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('ALLOCATION DETAIL', margin, y)
+  y += 6
+
+  const col = {
+    account: margin,
+    type: margin + 68,
+    reported: pageWidth - margin - 30,
+    actual: pageWidth - margin,
+  }
+
+  // Table header — underlined, no fill
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('Account', col.account + 1, y)
+  pdf.text('Type', col.type, y)
+  pdf.text('Reported', col.reported, y, { align: 'right' })
+  pdf.text('Actual', col.actual, y, { align: 'right' })
+  y += 2
+  drawLine(y)
+  y += 4
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8)
+
+  const allItems: CashAllocationLineItemPDF[] = [
+    ...(data.rentConfig
+      ? [{ accountName: data.rentConfig.accountName, sourceType: 'EOD_RENT_TRANSFER', reportedAmount: data.rentConfig.dailyTransferAmount, actualAmount: data.rentConfig.dailyTransferAmount }]
+      : []),
+    ...nonRent,
+  ]
+
+  let totalReported = 0
+  let totalActual = 0
+
+  for (const li of allItems) {
+    const reported = li.reportedAmount
+    const actual = li.actualAmount !== null ? li.actualAmount : reported
+    totalReported += reported
+    totalActual += actual
+
+    const typeLabel = li.sourceType === 'EOD_RENT_TRANSFER' ? 'Rent Transfer' : 'Auto Deposit'
+
+    // Clip long account names
+    const maxW = col.type - col.account - 4
+    let displayName = li.accountName
+    while (pdf.getTextWidth(displayName) > maxW && displayName.length > 5) {
+      displayName = displayName.slice(0, -4) + '...'
+    }
+
+    pdf.text(displayName, col.account + 1, y)
+    pdf.text(typeLabel, col.type, y)
+    pdf.text(fmt(reported), col.reported, y, { align: 'right' })
+    pdf.text(fmt(actual), col.actual, y, { align: 'right' })
+    y += 5
+
+    if (y > pageHeight - 25) { pdf.addPage(); y = margin }
+  }
+
+  // Total withdrawn
+  drawThinLine(y)
+  y += 4
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('TOTAL WITHDRAWN', col.account + 1, y)
+  pdf.text(fmt(totalReported), col.reported, y, { align: 'right' })
+  pdf.text(fmt(totalActual), col.actual, y, { align: 'right' })
+  y += 6
+
+  // Business keeps row
+  if (data.businessKeeps !== null) {
+    drawThinLine(y)
+    y += 4
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('REMAINS IN BUSINESS CASH DRAWER', col.account + 1, y)
+    pdf.text(fmt(data.businessKeeps), col.actual, y, { align: 'right' })
+    y += 6
+  }
+  y += 2
+
+  // ── Signature line ────────────────────────────────────────────────────────
+  if (data.lockerName) {
+    drawThinLine(y)
+    y += 5
+    pdf.setFontSize(8)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(`Closed by: ${data.lockerName}`, margin, y)
+    if (data.lockedAt) {
+      pdf.text(new Date(data.lockedAt).toLocaleString(), amountX - 2, y, { align: 'right' })
+    }
+    y += 8
+  }
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  pdf.setFontSize(7)
+  pdf.setFont('helvetica', 'italic')
+  pdf.setTextColor(100, 100, 100)
+  pdf.text(
+    `Generated ${new Date().toLocaleString()} — MBM Cash Allocation System`,
+    pageWidth / 2,
+    pageHeight - 8,
+    { align: 'center' },
+  )
+
+  if (action === 'print') {
+    pdf.autoPrint()
+    window.open(pdf.output('bloburl'), '_blank')
+  } else {
+    pdf.save(fileName)
+  }
+}

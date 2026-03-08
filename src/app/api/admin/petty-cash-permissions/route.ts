@@ -15,9 +15,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Get both permission IDs
+    const SYSTEM_PERMS = ['petty_cash.request', 'petty_cash.approve', 'cash_allocation.approve']
+
+    // Get permission IDs
     const permissions = await prisma.permissions.findMany({
-      where: { name: { in: ['petty_cash.request', 'petty_cash.approve'] } },
+      where: { name: { in: SYSTEM_PERMS } },
     })
     const permMap: Record<string, string> = {}
     permissions.forEach((p: any) => { permMap[p.name] = p.id })
@@ -28,11 +30,11 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
     })
 
-    // Get all granted petty cash user permissions
+    // Get all granted system user permissions
     const granted = await prisma.userPermissions.findMany({
       where: {
         granted: true,
-        permission: { name: { in: ['petty_cash.request', 'petty_cash.approve'] } },
+        permission: { name: { in: SYSTEM_PERMS } },
       },
       include: { permission: true },
     })
@@ -45,6 +47,7 @@ export async function GET(request: NextRequest) {
       email: u.email,
       canRequest: grantedSet.has(`${u.id}:petty_cash.request`),
       canApprove: grantedSet.has(`${u.id}:petty_cash.approve`),
+      canApproveCashAllocation: grantedSet.has(`${u.id}:cash_allocation.approve`),
     }))
 
     return NextResponse.json({ users: result, permMap })
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'userId, permissionName, and grant (boolean) are required' }, { status: 400 })
     }
 
-    if (!['petty_cash.request', 'petty_cash.approve'].includes(permissionName)) {
+    if (!['petty_cash.request', 'petty_cash.approve', 'cash_allocation.approve'].includes(permissionName)) {
       return NextResponse.json({ error: 'Invalid permission name' }, { status: 400 })
     }
 

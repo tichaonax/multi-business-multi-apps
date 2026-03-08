@@ -6,6 +6,64 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 
 type Params = { params: Promise<{ businessId: string }> }
 
+/** Finds or creates a CashAllocationReport for the given EOD date and upserts deposit line items. */
+async function autoGenerateCashAllocationReport(
+  db: typeof prisma,
+  businessId: string,
+  eodDate: string,
+  dayStart: Date,
+  dayEnd: Date,
+  userId: string,
+) {
+  const reportDate = new Date(eodDate)
+  const deposits = await db.expenseAccountDeposits.findMany({
+    where: {
+      sourceBusinessId: businessId,
+      sourceType: { in: ['EOD_RENT_TRANSFER', 'EOD_AUTO_DEPOSIT'] },
+      depositDate: { gte: dayStart, lte: dayEnd },
+    },
+    include: { expenseAccount: { select: { id: true, accountName: true } } },
+    orderBy: [{ sourceType: 'desc' }, { depositDate: 'asc' }], // 'desc' puts EOD_RENT_TRANSFER (R) before EOD_AUTO_DEPOSIT (A)
+  })
+  if (deposits.length === 0) return
+
+  let report = await db.cashAllocationReport.findUnique({
+    where: { businessId_reportDate: { businessId, reportDate } },
+  })
+  if (!report) {
+    report = await db.cashAllocationReport.create({
+      data: { businessId, reportDate, status: 'IN_PROGRESS', createdBy: userId },
+    })
+  }
+  if (report.status === 'LOCKED') return
+
+  const existing = await db.cashAllocationLineItem.findMany({
+    where: { reportId: report.id },
+    select: { depositId: true },
+  })
+  const existingIds = new Set(existing.map(li => li.depositId))
+  const toCreate = deposits
+    .filter(d => !existingIds.has(d.id))
+    .map((d, idx) => {
+      const isRent = d.sourceType === 'EOD_RENT_TRANSFER'
+      return {
+        reportId: report!.id,
+        expenseAccountId: d.expenseAccountId,
+        accountName: d.expenseAccount.accountName,
+        sourceType: d.sourceType,
+        depositId: d.id,
+        reportedAmount: d.amount,
+        // Rent items are pre-confirmed — auto-check with actual = reported
+        isChecked: isRent,
+        actualAmount: isRent ? d.amount : null,
+        sortOrder: existing.length + idx,
+      }
+    })
+  if (toCreate.length > 0) {
+    await db.cashAllocationLineItem.createMany({ data: toCreate })
+  }
+}
+
 export interface UserEntry {
   configId: string
   amount: number
@@ -147,6 +205,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     if (configs.length === 0) {
+      // Still auto-generate the cash allocation report if rent transfer deposits exist for this date
+      try {
+        await autoGenerateCashAllocationReport(prisma, businessId, eodDate, dayStart, dayEnd, user.id)
+      } catch (e) {
+        console.error('[EOD] Failed to auto-generate cash allocation report (no-configs path):', e)
+      }
       return NextResponse.json({
         success: true,
         message: 'No active auto-deposit configs found',
@@ -441,6 +505,13 @@ export async function POST(request: NextRequest, { params }: Params) {
           console.error('[EOD auto-deposit] Config ' + config.id + ' failed:', err)
         }
       }
+    }
+
+    // Auto-generate the cash allocation report for this EOD date (non-fatal)
+    try {
+      await autoGenerateCashAllocationReport(prisma, businessId, eodDate, dayStart, dayEnd, user.id)
+    } catch (cashAllocErr) {
+      console.error('[EOD] Failed to auto-generate cash allocation report:', cashAllocErr)
     }
 
     const summary = {

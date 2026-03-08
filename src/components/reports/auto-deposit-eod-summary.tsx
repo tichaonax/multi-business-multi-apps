@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { EodPreviewConfig } from '@/app/api/auto-deposits/[businessId]/eod-preview/route'
+import type { EodPreviewConfig, EodRentTransferPreview } from '@/app/api/auto-deposits/[businessId]/eod-preview/route'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -91,6 +91,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
   const [configs, setConfigs] = useState<EodPreviewConfig[]>([])
   const [entries, setEntries] = useState<EntryState[]>([])
   const [showSkipRentConfirm, setShowSkipRentConfirm] = useState(false)
+  const [rentTransfer, setRentTransfer] = useState<EodRentTransferPreview | null>(null)
 
   // ── Fetch preview on mount ─────────────────────────────────────────────────
 
@@ -108,6 +109,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
         setDepositAccountBalance(data.depositAccountBalance)
         if (propNetSales === undefined) setNetSales(data.todayNetSales)
         setConfigs(data.configs)
+        setRentTransfer(data.rentTransfer ?? null)
 
         // If nothing to do, skip immediately
         const actionable = (data.configs as EodPreviewConfig[]).filter(
@@ -321,6 +323,31 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {/* Rent transfer — separate process, read-only info row */}
+            {rentTransfer && (
+              <tr className={rentTransfer.alreadyProcessedToday ? 'bg-gray-50 dark:bg-gray-800/40 opacity-60' : 'bg-orange-50 dark:bg-orange-900/20'}>
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <span>🏠</span>
+                    <span className={`font-medium ${rentTransfer.alreadyProcessedToday ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
+                      {rentTransfer.accountName}
+                    </span>
+                  </div>
+                  {rentTransfer.alreadyProcessedToday
+                    ? <span className="text-xs text-green-600 dark:text-green-400 font-medium">✓ Done today</span>
+                    : <span className="text-xs text-orange-600 dark:text-orange-400">Separate rent process — runs automatically</span>
+                  }
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <span className={`font-medium text-sm ${rentTransfer.alreadyProcessedToday ? 'text-gray-400 dark:text-gray-500' : 'text-orange-700 dark:text-orange-300'}`}>
+                    {formatCurrency(rentTransfer.dailyAmount)}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium whitespace-nowrap">🔒 auto</span>
+                </td>
+              </tr>
+            )}
             {configs.map((config, i) => {
               const entry = entries[i]
               if (!entry) return null
@@ -411,6 +438,24 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
               </td>
               <td />
             </tr>
+            {rentTransfer && !rentTransfer.alreadyProcessedToday && (
+              <tr className="bg-orange-50 dark:bg-orange-900/20 border-t border-orange-200 dark:border-orange-800">
+                <td className="px-3 py-1.5 text-xs text-orange-700 dark:text-orange-300">🏠 + Rent transfer (separate)</td>
+                <td className="px-3 py-1.5 text-right text-xs font-medium text-orange-700 dark:text-orange-300">
+                  {formatCurrency(rentTransfer.dailyAmount)}
+                </td>
+                <td />
+              </tr>
+            )}
+            {rentTransfer && !rentTransfer.alreadyProcessedToday && (
+              <tr className="bg-orange-100 dark:bg-orange-900/30 border-t border-orange-300 dark:border-orange-700">
+                <td className="px-3 py-2 text-sm font-bold text-orange-900 dark:text-orange-200">Total withdrawn from business</td>
+                <td className="px-3 py-2 text-right text-sm font-bold text-orange-900 dark:text-orange-200">
+                  {formatCurrency(runningTotal + rentTransfer.dailyAmount)}
+                </td>
+                <td />
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>

@@ -64,7 +64,7 @@ export async function POST(
       data: {
         status: 'LOCK_REQUESTED',
         lockRequestedAt: new Date(),
-        lockRequestedByUserId: user.id,
+        lockRequestedBy: user.id,
       },
     })
 

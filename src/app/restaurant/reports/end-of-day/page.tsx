@@ -3,7 +3,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-format'
@@ -26,6 +26,7 @@ export default function EndOfDayReport() {
   const [existingReport, setExistingReport] = useState<any>(null)
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false) // synchronous guard against double-click before React re-render
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -135,6 +136,9 @@ export default function EndOfDayReport() {
       setSaveError('Manager name is required')
       return
     }
+    // Synchronous guard — prevents double-fire before React re-render disables the button
+    if (savingRef.current) return
+    savingRef.current = true
 
     try {
       setSaving(true)
@@ -243,6 +247,7 @@ export default function EndOfDayReport() {
       setSaveError(error.message || 'Failed to save report')
     } finally {
       setSaving(false)
+      savingRef.current = false
     }
   }
 

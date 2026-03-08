@@ -22,6 +22,7 @@ import { LowBalanceAlert } from '@/components/expense-account/low-balance-alert'
 import { R710AlertsWidget } from '@/components/r710/r710-alerts-widget'
 import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
 import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
+import { LoanPendingActionsWidget } from '@/components/loans/loan-pending-actions-widget'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -828,6 +829,9 @@ function DashboardContent() {
             </div>
           </div>
         )}
+
+        {/* Pending Actions Widget — self-hides when nothing to action */}
+        <LoanPendingActionsWidget />
 
         {/* Expense Account Low Balance Alerts - only for roles with financial data access */}
         {hasPermission('canAccessFinancialData') && (

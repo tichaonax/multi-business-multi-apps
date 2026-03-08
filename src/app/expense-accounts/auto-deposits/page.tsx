@@ -55,6 +55,7 @@ export default function AutoDepositsPage() {
   const canManage = isAdmin || hasPermission('canManageAutoDeposits')
   const canAccess = isAdmin || hasPermission('canAccessExpenseAccount')
 
+  const [rentConfig, setRentConfig] = useState<{ dailyTransferAmount: number; accountName: string; isActive: boolean } | null>(null)
   const [configs, setConfigs] = useState<AutoDepositConfig[]>([])
   const [accounts, setAccounts] = useState<ExpenseAccountOption[]>([])
   const [businessBalance, setBusinessBalance] = useState<number | null>(null)
@@ -90,14 +91,29 @@ export default function AutoDepositsPage() {
     if (!businessId) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/auto-deposits/${businessId}`, { credentials: 'include' })
-      const data = await res.json()
-      if (res.ok) {
+      const [autoRes, rentRes] = await Promise.all([
+        fetch(`/api/auto-deposits/${businessId}`, { credentials: 'include' }),
+        fetch(`/api/rent-account/${businessId}`, { credentials: 'include' }),
+      ])
+      const data = await autoRes.json()
+      if (autoRes.ok) {
         setConfigs(data.data?.configs ?? [])
         setBusinessBalance(data.data?.businessBalance ?? null)
         setTotalDailyCommitment(data.data?.totalDailyCommitment ?? 0)
       } else {
         toast.error(data.error || 'Failed to load auto-deposit configs')
+      }
+      if (rentRes.ok) {
+        const rentData = await rentRes.json()
+        if (rentData.hasRentAccount && rentData.config?.isActive) {
+          setRentConfig({
+            dailyTransferAmount: rentData.config.dailyTransferAmount,
+            accountName: rentData.account?.accountName ?? 'Rent Account',
+            isActive: rentData.config.isActive,
+          })
+        } else {
+          setRentConfig(null)
+        }
       }
     } catch { toast.error('Failed to load auto-deposit configs') }
     finally { setLoading(false) }
@@ -311,7 +327,7 @@ export default function AutoDepositsPage() {
         {/* Configs list */}
         {loading ? (
           <div className="text-secondary text-sm">Loading configs…</div>
-        ) : configs.length === 0 ? (
+        ) : configs.length === 0 && !rentConfig ? (
           <div className="bg-surface border border-border rounded-lg p-8 text-center text-secondary">
             <div className="text-3xl mb-3">⚡</div>
             <div className="font-medium mb-1">No auto-deposit configs yet</div>
@@ -319,6 +335,30 @@ export default function AutoDepositsPage() {
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Rent transfer — always first, read-only */}
+            {rentConfig && (
+              <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-300 dark:border-orange-700 rounded-lg p-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                        ⚡ Active
+                      </span>
+                      <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-orange-200 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300">
+                        🏠 Rent Transfer
+                      </span>
+                      <span className="font-medium text-primary truncate">{rentConfig.accountName}</span>
+                    </div>
+                    <div className="text-xs text-orange-700 dark:text-orange-400 mt-1">
+                      Fixed daily transfer — cannot be removed or paused
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-semibold text-primary">${rentConfig.dailyTransferAmount.toFixed(2)}<span className="text-xs text-secondary font-normal">/day</span></div>
+                  </div>
+                </div>
+              </div>
+            )}
             {configs.map(config => (
               <div
                 key={config.id}

@@ -22,6 +22,7 @@ import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-
 import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-payment-modal'
 import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-modal'
 import { AutoDepositAdminPanel } from '@/components/expense-account/auto-deposit-admin-panel'
+import { PaymentBatchModal } from '@/components/expense-account/payment-batch-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -184,6 +185,9 @@ function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; ref
                   {p.status === 'DRAFT' && (
                     <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">DRAFT</span>
                   )}
+                  {p.status === 'REQUEST' && (
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-medium">PENDING</span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                   {p.paymentType === 'PETTY_CASH_RETURN'
@@ -231,11 +235,13 @@ export default function ExpenseAccountDetailPage() {
   const [showFundPayrollModal, setShowFundPayrollModal] = useState(false)
   const [showSmartQuickPayModal, setShowSmartQuickPayModal] = useState(false)
   const [showVehicleExpenseModal, setShowVehicleExpenseModal] = useState(false)
+  const [showBatchModal, setShowBatchModal] = useState(false)
   const [loansRefreshKey, setLoansRefreshKey] = useState(0)
   const [batchRefreshKey, setBatchRefreshKey] = useState(0)
   const [depositRefreshKey, setDepositRefreshKey] = useState(0)
   const [paymentRefreshKey, setPaymentRefreshKey] = useState(0)
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
+  const [pendingBatchCount, setPendingBatchCount] = useState(0)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness, businesses } = useBusinessPermissionsContext()
@@ -246,6 +252,7 @@ export default function ExpenseAccountDetailPage() {
   const canManageLending = isSystemAdmin || hasPermission('canManageLending')
   const canChangeCategory = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
   const canViewSupplierPaymentQueue = hasPermission('canViewSupplierPaymentQueue')
+  const canSubmitPaymentBatch = isSystemAdmin || hasPermission('canSubmitPaymentBatch')
   const canCreatePayees = canChangeCategory // Only owners, managers, and admins can create payees
   const canEditPayments = canChangeCategory // Same set of roles can edit payments
 
@@ -317,6 +324,15 @@ export default function ExpenseAccountDetailPage() {
       .then(data => { setPendingRequestsCount(data?.pagination?.total ?? 0) })
       .catch(() => {})
   }, [account?.businessId, canViewSupplierPaymentQueue])
+
+  // Fetch pending REQUEST payments count for cashier batch button
+  useEffect(() => {
+    if (!accountId || !canSubmitPaymentBatch) return
+    fetch(`/api/expense-account/${accountId}/payment-requests`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { setPendingBatchCount(data?.data?.length ?? 0) })
+      .catch(() => {})
+  }, [accountId, canSubmitPaymentBatch, paymentRefreshKey, batchRefreshKey])
 
   const handleRefresh = () => {
     loadAccount()
@@ -455,6 +471,19 @@ export default function ExpenseAccountDetailPage() {
                 🚗 Vehicle
               </button>
             )}
+            {canSubmitPaymentBatch && (
+              <button
+                onClick={() => setShowBatchModal(true)}
+                className="relative px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700"
+              >
+                Submit Batch
+                {pendingBatchCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {pendingBatchCount > 9 ? '9+' : pendingBatchCount}
+                  </span>
+                )}
+              </button>
+            )}
             {canViewExpenseReports && (
               <Link
                 href={`/expense-accounts/${accountId}/reports`}
@@ -473,6 +502,20 @@ export default function ExpenseAccountDetailPage() {
           canViewExpenseReports={canViewExpenseReports}
           canEditThreshold={canChangeCategory}
         />
+
+        {/* Pending payment batch requests notice */}
+        {canSubmitPaymentBatch && pendingBatchCount > 0 && (
+          <button
+            onClick={() => setShowBatchModal(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+          >
+            <span className="text-lg">📦</span>
+            <span className="flex-1 text-left font-medium text-indigo-800 dark:text-indigo-200">
+              {pendingBatchCount} payment {pendingBatchCount === 1 ? 'request' : 'requests'} awaiting batch submission
+            </span>
+            <span className="text-indigo-600 dark:text-indigo-400 text-xs font-semibold shrink-0">Submit Batch →</span>
+          </button>
+        )}
 
         {/* Pending supplier payment requests notice */}
         {canViewSupplierPaymentQueue && pendingRequestsCount > 0 && (
@@ -907,6 +950,22 @@ export default function ExpenseAccountDetailPage() {
           onSuccess={() => {
             setShowSmartQuickPayModal(false)
             setActiveTab('payments')
+          }}
+        />
+      )}
+
+      {/* Payment Batch Modal — cashier submits REQUEST payments */}
+      {showBatchModal && account && canSubmitPaymentBatch && (
+        <PaymentBatchModal
+          accountId={accountId}
+          accountName={account.accountName}
+          businessId={account.businessId ?? ''}
+          onClose={() => setShowBatchModal(false)}
+          onSuccess={() => {
+            setShowBatchModal(false)
+            loadAccount()
+            setPaymentRefreshKey(k => k + 1)
+            setPendingBatchCount(0)
           }}
         />
       )}

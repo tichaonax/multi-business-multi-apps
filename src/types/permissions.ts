@@ -204,7 +204,8 @@ export interface CoreBusinessPermissions {
   canManageLending: boolean;           // Create, approve, and manage outgoing loans from expense accounts
   canManageAutoDeposits: boolean;      // Setup and manage EOD auto-deposit configs per business
   canManageBusinessLoans: boolean;     // Create, lock, and approve withdrawals for business loan repayment accounts (MBM-137)
-  canRunCashAllocationReport: boolean; // Run and lock the daily cash allocation report
+  canRunCashAllocationReport: boolean;    // Run and lock the daily cash allocation report (EOD creator)
+  canApproveCashAllocationReport: boolean; // Receive bell notification and reconcile/approve the cash allocation report (cashier/manager)
 
   // Supplier Management
   canViewSuppliers: boolean;
@@ -242,6 +243,7 @@ export interface CoreBusinessPermissions {
   // Manual Transaction Entry & Book Closing
   canEnterManualOrders: boolean;           // Enter backdated manual transactions from book records
   canCloseBooks: boolean;                  // Close books for a day (manager+ only, blocks further manual entries)
+  canSubmitPaymentBatch: boolean;          // Cashier: submit batched expense payment requests & fund from business account
 }
 
 // Business-Type-Specific Permission Modules
@@ -1051,6 +1053,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canCreateExpenseAccount', label: 'Create Expense Accounts' },
       { key: 'canMakeExpenseDeposits', label: 'Make Deposits' },
       { key: 'canMakeExpensePayments', label: 'Make Payments' },
+      { key: 'canSubmitPaymentBatch', label: 'Submit Payment Batch (Cashier)' },
       { key: 'canViewExpenseReports', label: 'View Reports' },
       { key: 'canCreateIndividualPayees', label: 'Create Individual Payees' },
       { key: 'canDeleteExpenseAccounts', label: 'Delete Expense Accounts' },
@@ -1063,6 +1066,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canManageLending', label: 'Manage Lending (Outgoing Loans)' },
       { key: 'canManageAutoDeposits', label: 'Manage EOD Auto-Deposits' },
       { key: 'canRunCashAllocationReport', label: 'Run Cash Allocation Report' },
+      { key: 'canApproveCashAllocationReport', label: 'Approve / Reconcile Cash Allocation Report' },
     ]
   },
   // Payee Management
@@ -1306,6 +1310,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canManageAutoDeposits: true,         // ✅ Owner/Admin can configure auto-deposits
   canManageBusinessLoans: true,        // ✅ Owner/Admin manages business loan accounts
   canRunCashAllocationReport: true,    // ✅ Owner can run cash allocation report
+  canApproveCashAllocationReport: false, // ❌ Owner creates EOD — doesn't need to reconcile it
 
   // Supplier Management - Full access
   canViewSuppliers: true,
@@ -1339,6 +1344,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canManageCoupons: true,
   canEnterManualOrders: true,
   canCloseBooks: true,
+  canSubmitPaymentBatch: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1449,7 +1455,8 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canManageLending: true,           // ✅ Managers can approve and manage loans
   canManageAutoDeposits: false,     // ❌ Admin only by default (can be granted)
   canManageBusinessLoans: false,    // ❌ Admin only
-  canRunCashAllocationReport: true,  // ✅ Manager can run cash allocation report
+  canRunCashAllocationReport: true,     // ✅ Manager can run cash allocation report
+  canApproveCashAllocationReport: false, // ❌ Requires explicit cash_allocation.approve system permission — not granted by role
 
   // Supplier Management - Manager access
   canViewSuppliers: true,
@@ -1483,6 +1490,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canManageCoupons: true,
   canEnterManualOrders: true,
   canCloseBooks: true,
+  canSubmitPaymentBatch: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -1594,6 +1602,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canManageAutoDeposits: false,
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
+  canApproveCashAllocationReport: false,
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1627,6 +1636,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canManageCoupons: false,
   canEnterManualOrders: true,
   canCloseBooks: false,
+  canSubmitPaymentBatch: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -1736,6 +1746,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageAutoDeposits: false,
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
+  canApproveCashAllocationReport: false,
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1769,6 +1780,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageCoupons: false,
   canEnterManualOrders: false,
   canCloseBooks: false,
+  canSubmitPaymentBatch: false,
 };
 
 // Restaurant Associate permissions - Food prep and POS operations
@@ -1881,6 +1893,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canManageAutoDeposits: false,
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
+  canApproveCashAllocationReport: false,
 
   // Supplier Management - View only (for ingredient info)
   canViewSuppliers: true,
@@ -1914,6 +1927,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canManageCoupons: false,
   canEnterManualOrders: true,  // ✅ Can enter backdated manual orders
   canCloseBooks: false,
+  canSubmitPaymentBatch: false,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
@@ -2026,6 +2040,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canManageAutoDeposits: false,
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
+  canApproveCashAllocationReport: false,
 
   // Supplier Management - No access
   canViewSuppliers: false,
@@ -2059,6 +2074,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canManageCoupons: false,
   canEnterManualOrders: true,
   canCloseBooks: false,
+  canSubmitPaymentBatch: false,
 };
 
 // System admin permissions (cross-business)
@@ -2168,6 +2184,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canManageAutoDeposits: true,         // ✅ Super-admin can configure auto-deposits
   canManageBusinessLoans: true,        // ✅ Super-admin manages business loan accounts
   canRunCashAllocationReport: true,    // ✅ Super-admin can run cash allocation report
+  canApproveCashAllocationReport: true, // ✅ Super-admin can also reconcile
 
   // Supplier Management - Full access
   canViewSuppliers: true,
@@ -2201,6 +2218,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canManageCoupons: true,
   canEnterManualOrders: true,
   canCloseBooks: true,
+  canSubmitPaymentBatch: true,
 };
 
 // User-Level Permission Presets

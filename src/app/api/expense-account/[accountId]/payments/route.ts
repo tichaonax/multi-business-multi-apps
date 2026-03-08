@@ -646,6 +646,9 @@ export async function POST(
       }
     }
 
+    // Cashiers (canSubmitPaymentBatch) default to SUBMITTED; others default to REQUEST
+    const defaultPaymentStatus = (permissions.canSubmitPaymentBatch || user.role === 'admin') ? 'SUBMITTED' : 'REQUEST'
+
     // Create payments in transaction
     const result = await prisma.$transaction(async (tx) => {
       const createdPayments = []
@@ -671,7 +674,7 @@ export async function POST(
       }
 
       for (const payment of paymentsToCreate) {
-        const paymentStatus = payment.status || 'SUBMITTED'
+        const paymentStatus = payment.status || defaultPaymentStatus
         const paymentDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date()
 
         // Create payment

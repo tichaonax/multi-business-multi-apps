@@ -23,12 +23,19 @@ export interface EodPreviewConfig {
   isLoanAccount?: boolean    // true when this account is a loan repayment account
 }
 
+export interface EodRentTransferPreview {
+  accountName: string
+  dailyAmount: number
+  alreadyProcessedToday: boolean
+}
+
 export interface EodPreviewResponse {
   configs: EodPreviewConfig[]
   depositAccountBalance: number
   todayNetSales: number
   totalConfiguredAmount: number  // sum of dailyAmount for non-already-done configs
   canProcess: boolean            // depositAccountBalance >= totalConfiguredAmount
+  rentTransfer: EodRentTransferPreview | null  // rent is a separate process — shown read-only
 }
 
 /**
@@ -223,6 +230,29 @@ export async function GET(request: NextRequest, { params }: Params) {
       todayNetSales = 0
     }
 
+    // Rent transfer preview — separate process from auto-deposits, shown read-only
+    let rentTransfer: EodRentTransferPreview | null = null
+    if (rentConfig?.isActive && rentConfig.autoTransferOnEOD && rentConfig.expenseAccountId) {
+      const rentAccount = await prisma.expenseAccounts.findUnique({
+        where: { id: rentConfig.expenseAccountId },
+        select: { accountName: true },
+      })
+      const rentDoneToday = await prisma.expenseAccountDeposits.findFirst({
+        where: {
+          expenseAccountId: rentConfig.expenseAccountId,
+          sourceType: 'EOD_RENT_TRANSFER',
+          sourceBusinessId: businessId,
+          depositDate: { gte: dayStart, lte: dayEnd },
+        },
+        select: { id: true },
+      })
+      rentTransfer = {
+        accountName: rentAccount?.accountName ?? 'Rent Account',
+        dailyAmount: Number(rentConfig.dailyTransferAmount),
+        alreadyProcessedToday: !!rentDoneToday,
+      }
+    }
+
     // Total configured = sum of daily amounts for configs not already processed today
     const totalConfiguredAmount = previewConfigs
       .filter(c => !c.alreadyProcessedToday)
@@ -236,6 +266,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       todayNetSales,
       totalConfiguredAmount,
       canProcess,
+      rentTransfer,
     }
 
     return NextResponse.json({ success: true, data: response })

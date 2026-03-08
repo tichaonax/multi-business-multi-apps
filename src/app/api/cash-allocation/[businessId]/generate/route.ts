@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       include: {
         expenseAccount: { select: { id: true, accountName: true } },
       },
-      orderBy: [{ sourceType: 'asc' }, { depositDate: 'asc' }],
+      orderBy: [{ sourceType: 'desc' }, { depositDate: 'asc' }], // 'desc' puts EOD_RENT_TRANSFER (R) before EOD_AUTO_DEPOSIT (A)
     })
 
     // Find or create the report
@@ -87,15 +87,21 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const toCreate = deposits
       .filter(d => !existingDepositIds.has(d.id))
-      .map((d, idx) => ({
-        reportId: report!.id,
-        expenseAccountId: d.expenseAccountId,
-        accountName: d.expenseAccount.accountName,
-        sourceType: d.sourceType,
-        depositId: d.id,
-        reportedAmount: d.amount,
-        sortOrder: existingDepositIds.size + idx,
-      }))
+      .map((d, idx) => {
+        const isRent = d.sourceType === 'EOD_RENT_TRANSFER'
+        return {
+          reportId: report!.id,
+          expenseAccountId: d.expenseAccountId,
+          accountName: d.expenseAccount.accountName,
+          sourceType: d.sourceType,
+          depositId: d.id,
+          reportedAmount: d.amount,
+          // Rent items are pre-confirmed — auto-check with actual = reported
+          isChecked: isRent,
+          actualAmount: isRent ? d.amount : null,
+          sortOrder: existingDepositIds.size + idx,
+        }
+      })
 
     if (toCreate.length > 0) {
       await prisma.cashAllocationLineItem.createMany({ data: toCreate })

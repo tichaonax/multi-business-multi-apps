@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     const { businessId } = await params
 
     const permissions = getEffectivePermissions(user, businessId)
-    if (!permissions.canViewReports && user.role !== 'admin') {
+    if (!permissions.canViewReports && !permissions.canRunCashAllocationReport && user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

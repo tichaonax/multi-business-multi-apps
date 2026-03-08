@@ -33,6 +33,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       where: { businessId_reportDate: { businessId, reportDate } },
       include: {
         lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
+        locker: { select: { name: true } },
       },
     })
 
@@ -43,7 +44,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     const allChecked = report.lineItems.length > 0 &&
       report.lineItems.every(item => item.isChecked && item.actualAmount !== null)
 
-    return NextResponse.json({ exists: true, report, lineItems: report.lineItems, allChecked })
+    return NextResponse.json({
+      exists: true,
+      report: { ...report, lockerName: report.locker?.name ?? null },
+      lineItems: report.lineItems,
+      allChecked,
+    })
   } catch (err) {
     console.error('[GET /api/cash-allocation]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

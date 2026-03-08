@@ -7,6 +7,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-modal'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -128,6 +129,7 @@ export default function LoanDetailPage() {
   const params = useParams()
   const loanId = params?.loanId as string
   const toast = useToastContext()
+  const confirm = useConfirm()
 
   const [loan, setLoan] = useState<Loan | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -136,9 +138,15 @@ export default function LoanDetailPage() {
   const [activeTab, setActiveTab] = useState<'expenses' | 'repayments' | 'withdrawals'>('expenses')
   const [submitting, setSubmitting] = useState(false)
 
-  // Forms
-  const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', expenseDate: todayISO(), notes: '' })
-  const [repayForm, setRepayForm] = useState({ description: '', amount: '', repaymentDate: todayISO(), notes: '' })
+  // Bulk entry row types
+  type ExpenseRow = { description: string; amount: string; expenseDate: string; notes: string }
+  type RepayRow   = { description: string; amount: string; repaymentDate: string; notes: string }
+
+  const blankExpense = (): ExpenseRow => ({ description: '', amount: '', expenseDate: todayISO(), notes: '' })
+  const blankRepay   = (): RepayRow   => ({ description: '', amount: '', repaymentDate: todayISO(), notes: '' })
+
+  const [expenseRows, setExpenseRows] = useState<ExpenseRow[]>([blankExpense()])
+  const [repayRows,   setRepayRows]   = useState<RepayRow[]>([blankRepay()])
   const [withdrawForm, setWithdrawForm] = useState({ requestedAmount: '', notes: '' })
 
   // Manager management (admin only)
@@ -203,7 +211,7 @@ export default function LoanDetailPage() {
   }
 
   async function removeManager(userId: string, userName: string) {
-    if (!confirm(`Remove ${userName} as a manager?`)) return
+    if (!await confirm({ title: 'Remove Manager', description: `Remove ${userName} as a manager?` })) return
     setManagerSubmitting(true)
     try {
       const res = await fetch(`/api/business-loans/${loanId}`, {
@@ -221,26 +229,32 @@ export default function LoanDetailPage() {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  async function addExpense(e: React.FormEvent) {
+  async function addExpenses(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
     try {
+      const items = expenseRows.map(r => ({
+        description: r.description,
+        amount: parseFloat(r.amount),
+        expenseDate: r.expenseDate,
+        notes: r.notes || undefined,
+      }))
       const res = await fetch(`/api/business-loans/${loanId}/expenses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ description: expenseForm.description, amount: parseFloat(expenseForm.amount), expenseDate: expenseForm.expenseDate, notes: expenseForm.notes || undefined }),
+        body: JSON.stringify({ items }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to add expense')
-      toast.push('Expense added', { type: 'success' })
-      setExpenseForm({ description: '', amount: '', expenseDate: todayISO(), notes: '' })
+      if (!res.ok) throw new Error(json.error || 'Failed to add expenses')
+      toast.push(`${json.count} expense${json.count !== 1 ? 's' : ''} added`, { type: 'success' })
+      setExpenseRows([blankExpense()])
       fetchLoan()
     } catch (e: any) { toast.error(e.message) } finally { setSubmitting(false) }
   }
 
   async function deleteExpense(expenseId: string) {
-    if (!confirm('Remove this expense entry?')) return
+    if (!await confirm({ title: 'Remove Expense', description: 'Remove this expense entry?' })) return
     try {
       const res = await fetch(`/api/business-loans/${loanId}/expenses/${expenseId}`, { method: 'DELETE', credentials: 'include' })
       const json = await res.json()
@@ -250,26 +264,32 @@ export default function LoanDetailPage() {
     } catch (e: any) { toast.error(e.message) }
   }
 
-  async function addRepayment(e: React.FormEvent) {
+  async function addRepayments(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
     try {
+      const items = repayRows.map(r => ({
+        description: r.description,
+        amount: parseFloat(r.amount),
+        repaymentDate: r.repaymentDate,
+        notes: r.notes || undefined,
+      }))
       const res = await fetch(`/api/business-loans/${loanId}/pre-lock-repayments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ description: repayForm.description, amount: parseFloat(repayForm.amount), repaymentDate: repayForm.repaymentDate, notes: repayForm.notes || undefined }),
+        body: JSON.stringify({ items }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to add repayment')
-      toast.push('Prior repayment added', { type: 'success' })
-      setRepayForm({ description: '', amount: '', repaymentDate: todayISO(), notes: '' })
+      if (!res.ok) throw new Error(json.error || 'Failed to add repayments')
+      toast.push(`${json.count} repayment${json.count !== 1 ? 's' : ''} added`, { type: 'success' })
+      setRepayRows([blankRepay()])
       fetchLoan()
     } catch (e: any) { toast.error(e.message) } finally { setSubmitting(false) }
   }
 
   async function deleteRepayment(repayId: string) {
-    if (!confirm('Remove this repayment entry?')) return
+    if (!await confirm({ title: 'Remove Repayment', description: 'Remove this repayment entry?' })) return
     try {
       const res = await fetch(`/api/business-loans/${loanId}/pre-lock-repayments/${repayId}`, { method: 'DELETE', credentials: 'include' })
       const json = await res.json()
@@ -280,7 +300,11 @@ export default function LoanDetailPage() {
   }
 
   async function requestLock() {
-    if (!confirm('Request to lock this loan?\n\nThis cannot be undone. Once locked, no more expenses or prior repayments can be added. The admin will then review and approve the lock.')) return
+    if (!await confirm({
+      title: 'Request Lock',
+      description: 'This cannot be undone. Once locked, no more expenses or prior repayments can be added. The admin will then review and approve the lock.',
+      confirmText: 'Request Lock',
+    })) return
     try {
       const res = await fetch(`/api/business-loans/${loanId}/request-lock`, { method: 'POST', credentials: 'include' })
       const json = await res.json()
@@ -291,7 +315,11 @@ export default function LoanDetailPage() {
   }
 
   async function approveLock() {
-    if (!confirm('Approve lock? This will snapshot the current balance and prevent any further entries.')) return
+    if (!await confirm({
+      title: 'Approve Lock',
+      description: 'This will snapshot the current balance and prevent any further entries.',
+      confirmText: 'Approve Lock',
+    })) return
     try {
       const res = await fetch(`/api/business-loans/${loanId}/approve-lock`, { method: 'POST', credentials: 'include' })
       const json = await res.json()
@@ -659,52 +687,76 @@ export default function LoanDetailPage() {
         {/* ── Expenses tab ─────────────────────────────────────────────────── */}
         {activeTab === 'expenses' && (
           <div className="space-y-4">
-            {/* Add form — manager only in RECORDING */}
+            {/* Bulk add form — manager/admin in RECORDING */}
             {canEdit && (
-              <form onSubmit={addExpense} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Add Expense</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input
-                    required
-                    type="date"
-                    value={expenseForm.expenseDate}
-                    onChange={e => setExpenseForm(f => ({ ...f, expenseDate: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    required
-                    type="text"
-                    placeholder="Description"
-                    value={expenseForm.description}
-                    onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))}
-                    className="md:col-span-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    required
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    placeholder="Amount"
-                    value={expenseForm.amount}
-                    onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+              <form onSubmit={addExpenses} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Add Expenses</h3>
+                  <span className="text-xs text-gray-400">{expenseRows.length} row{expenseRows.length !== 1 ? 's' : ''}</span>
                 </div>
-                <div className="flex gap-3 items-center">
-                  <input
-                    type="text"
-                    placeholder="Notes (optional)"
-                    value={expenseForm.notes}
-                    onChange={e => setExpenseForm(f => ({ ...f, notes: e.target.value }))}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors whitespace-nowrap"
-                  >
-                    {submitting ? 'Adding…' : '+ Add Expense'}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-gray-500 dark:text-gray-400">
+                        <th className="pb-1 text-left font-medium w-32">Date</th>
+                        <th className="pb-1 text-left font-medium">Description</th>
+                        <th className="pb-1 text-left font-medium w-28">Amount</th>
+                        <th className="pb-1 text-left font-medium">Notes</th>
+                        <th className="pb-1 w-6" />
+                      </tr>
+                    </thead>
+                    <tbody className="space-y-1">
+                      {expenseRows.map((row, i) => (
+                        <tr key={i}>
+                          <td className="pr-2 py-1">
+                            <input required type="date" value={row.expenseDate}
+                              onChange={e => setExpenseRows(rows => rows.map((r, j) => j === i ? { ...r, expenseDate: e.target.value } : r))}
+                              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                          </td>
+                          <td className="pr-2 py-1">
+                            <input required type="text" placeholder="Description" value={row.description}
+                              onChange={e => setExpenseRows(rows => rows.map((r, j) => j === i ? { ...r, description: e.target.value } : r))}
+                              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                          </td>
+                          <td className="pr-2 py-1">
+                            <input required type="number" min="0.01" step="0.01" placeholder="0.00" value={row.amount}
+                              onChange={e => setExpenseRows(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))}
+                              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                          </td>
+                          <td className="pr-2 py-1">
+                            <input type="text" placeholder="Optional" value={row.notes}
+                              onChange={e => setExpenseRows(rows => rows.map((r, j) => j === i ? { ...r, notes: e.target.value } : r))}
+                              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                          </td>
+                          <td className="py-1 text-center">
+                            {expenseRows.length > 1 && (
+                              <button type="button" onClick={() => setExpenseRows(rows => rows.filter((_, j) => j !== i))}
+                                className="text-gray-400 hover:text-red-500 text-lg leading-none">×</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <button type="button" onClick={() => setExpenseRows(rows => [...rows, blankExpense()])}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                    + Add row
                   </button>
+                  <div className="flex items-center gap-3">
+                    {expenseRows.length > 1 && (
+                      <span className="text-xs text-gray-500">
+                        Total: <strong className="font-mono text-red-600 dark:text-red-400">
+                          ${expenseRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0).toFixed(2)}
+                        </strong>
+                      </span>
+                    )}
+                    <button type="submit" disabled={submitting}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+                      {submitting ? 'Saving…' : `Save ${expenseRows.length > 1 ? `${expenseRows.length} Expenses` : 'Expense'}`}
+                    </button>
+                  </div>
                 </div>
               </form>
             )}
@@ -761,51 +813,77 @@ export default function LoanDetailPage() {
         {activeTab === 'repayments' && (
           <div className="space-y-4">
             {canEdit && (
-              <form onSubmit={addRepayment} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Add Prior Repayment</h3>
-                <p className="text-xs text-gray-400">Record cash that was already returned to the lender before this system was set up.</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input
-                    required
-                    type="date"
-                    value={repayForm.repaymentDate}
-                    onChange={e => setRepayForm(f => ({ ...f, repaymentDate: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    required
-                    type="text"
-                    placeholder="Description (e.g. Cash paid Jan)"
-                    value={repayForm.description}
-                    onChange={e => setRepayForm(f => ({ ...f, description: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    required
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    placeholder="Amount"
-                    value={repayForm.amount}
-                    onChange={e => setRepayForm(f => ({ ...f, amount: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+              <form onSubmit={addRepayments} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Add Prior Repayments</h3>
+                    <p className="text-xs text-gray-400">Record cash already returned to the lender before this system was set up.</p>
+                  </div>
+                  <span className="text-xs text-gray-400">{repayRows.length} row{repayRows.length !== 1 ? 's' : ''}</span>
                 </div>
-                <div className="flex gap-3 items-center">
-                  <input
-                    type="text"
-                    placeholder="Notes (optional)"
-                    value={repayForm.notes}
-                    onChange={e => setRepayForm(f => ({ ...f, notes: e.target.value }))}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap"
-                  >
-                    {submitting ? 'Adding…' : '+ Add Repayment'}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-gray-500 dark:text-gray-400">
+                        <th className="pb-1 text-left font-medium w-32">Date</th>
+                        <th className="pb-1 text-left font-medium">Description</th>
+                        <th className="pb-1 text-left font-medium w-28">Amount</th>
+                        <th className="pb-1 text-left font-medium">Notes</th>
+                        <th className="pb-1 w-6" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {repayRows.map((row, i) => (
+                        <tr key={i}>
+                          <td className="pr-2 py-1">
+                            <input required type="date" value={row.repaymentDate}
+                              onChange={e => setRepayRows(rows => rows.map((r, j) => j === i ? { ...r, repaymentDate: e.target.value } : r))}
+                              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                          </td>
+                          <td className="pr-2 py-1">
+                            <input required type="text" placeholder="e.g. Cash paid Jan" value={row.description}
+                              onChange={e => setRepayRows(rows => rows.map((r, j) => j === i ? { ...r, description: e.target.value } : r))}
+                              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                          </td>
+                          <td className="pr-2 py-1">
+                            <input required type="number" min="0.01" step="0.01" placeholder="0.00" value={row.amount}
+                              onChange={e => setRepayRows(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))}
+                              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                          </td>
+                          <td className="pr-2 py-1">
+                            <input type="text" placeholder="Optional" value={row.notes}
+                              onChange={e => setRepayRows(rows => rows.map((r, j) => j === i ? { ...r, notes: e.target.value } : r))}
+                              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                          </td>
+                          <td className="py-1 text-center">
+                            {repayRows.length > 1 && (
+                              <button type="button" onClick={() => setRepayRows(rows => rows.filter((_, j) => j !== i))}
+                                className="text-gray-400 hover:text-red-500 text-lg leading-none">×</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <button type="button" onClick={() => setRepayRows(rows => [...rows, blankRepay()])}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                    + Add row
                   </button>
+                  <div className="flex items-center gap-3">
+                    {repayRows.length > 1 && (
+                      <span className="text-xs text-gray-500">
+                        Total: <strong className="font-mono text-green-600 dark:text-green-400">
+                          ${repayRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0).toFixed(2)}
+                        </strong>
+                      </span>
+                    )}
+                    <button type="submit" disabled={submitting}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+                      {submitting ? 'Saving…' : `Save ${repayRows.length > 1 ? `${repayRows.length} Repayments` : 'Repayment'}`}
+                    </button>
+                  </div>
                 </div>
               </form>
             )}
@@ -957,7 +1035,7 @@ export default function LoanDetailPage() {
                             )}
                             {w.status === 'APPROVED' && (
                               <button
-                                onClick={() => { if (confirm(`Mark this withdrawal as paid?\nAmount: $${Number(w.approvedAmount).toFixed(2)}`)) adminWithdrawalAction(w.id, 'pay') }}
+                                onClick={async () => { if (await confirm({ title: 'Mark as Paid', description: `Mark this withdrawal as paid? Amount: $${Number(w.approvedAmount).toFixed(2)}`, confirmText: 'Mark Paid' })) adminWithdrawalAction(w.id, 'pay') }}
                                 className="px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
                               >
                                 Mark Paid

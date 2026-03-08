@@ -9,6 +9,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { hasPermission } from '@/lib/permission-utils'
 import { useToastContext } from '@/components/ui/toast'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { useConfirm } from '@/components/ui/confirm-modal'
 
 interface Loan {
   id: string
@@ -55,6 +56,7 @@ export default function AdminLoansPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const toast = useToastContext()
+  const confirm = useConfirm()
 
   const [loans, setLoans] = useState<Loan[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
@@ -155,7 +157,11 @@ export default function AdminLoansPage() {
   }
 
   async function handleApproveLock(loanId: string, loanNumber: string) {
-    if (!confirm(`Approve lock for ${loanNumber}? This cannot be undone. The current balance will be snapshot and no further expense entries will be allowed.`)) return
+    if (!await confirm({
+      title: `Approve Lock — ${loanNumber}`,
+      description: 'This cannot be undone. The current balance will be snapshot and no further expense entries will be allowed.',
+      confirmText: 'Approve Lock',
+    })) return
     setApprovingId(loanId)
     try {
       const res = await fetch(`/api/business-loans/${loanId}/approve-lock`, {

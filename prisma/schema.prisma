@@ -510,6 +510,7 @@ model Businesses {
   auto_deposit_configs                                                     ExpenseAccountAutoDeposit[]   @relation("BusinessAutoDeposits")
   cash_allocation_reports                                                  CashAllocationReport[]        @relation("BusinessCashAllocationReports")
   petty_cash_requests                                                      PettyCashRequests[]           @relation("BusinessPettyCash")
+  payment_batch_submissions                                                PaymentBatchSubmissions[]     @relation("BusinessPaymentBatches")
   per_diem_entries                                                         PerDiemEntries[]              @relation("PerDiemBusiness")
 
   @@map("businesses")
@@ -1352,6 +1353,7 @@ model ExpenseAccounts {
   autoDepositFreezer         Users?                      @relation("ExpenseAccountFreezer", fields: [autoDepositFrozenBy], references: [id])
   deposits                   ExpenseAccountDeposits[]
   payments                   ExpenseAccountPayments[]
+  paymentBatchSubmissions    PaymentBatchSubmissions[]
   creator                    Users                       @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
   portal_integrations        PortalIntegrations[]        @relation("PortalIntegrationExpenseAccount")
   r710_business_integrations R710BusinessIntegrations[]  @relation("R710IntegrationExpenseAccount")
@@ -1491,6 +1493,8 @@ model ExpenseAccountPayments {
   petty_cash_return         PettyCashRequests?               @relation("PettyCashReturnPayment")
   withdrawalRequestId       String?                          @unique @map("withdrawal_request_id")
   withdrawalRequest         LoanWithdrawalRequest?           @relation("WithdrawalPayment")
+  batchSubmissionId         String?                          @map("batch_submission_id")
+  batchSubmission           PaymentBatchSubmissions?         @relation(fields: [batchSubmissionId], references: [id])
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -3184,6 +3188,7 @@ model Users {
   expense_accounts_frozen                                         ExpenseAccounts[]                @relation("ExpenseAccountFreezer")
   cash_allocation_reports_created                                 CashAllocationReport[]           @relation("CashAllocationReportCreator")
   cash_allocation_reports_locked                                  CashAllocationReport[]           @relation("CashAllocationReportLocker")
+  payment_batch_submissions_as_cashier                            PaymentBatchSubmissions[]        @relation("PaymentBatchCashier")
   cash_allocation_items_checked                                   CashAllocationLineItem[]         @relation("CashAllocationItemChecker")
   petty_cash_requests_submitted                                   PettyCashRequests[]              @relation("PettyCashRequester")
   petty_cash_requests_approved                                    PettyCashRequests[]              @relation("PettyCashApprover")
@@ -5023,4 +5028,27 @@ model PerDiemEntries {
   @@index([payrollYear, payrollMonth])
   @@index([date])
   @@map("per_diem_entries")
+}
+
+model PaymentBatchSubmissions {
+  id               String   @id @default(cuid())
+  businessId       String
+  expenseAccountId String
+  submittedBy      String
+  submittedAt      DateTime @default(now())
+  totalAmount      Decimal  @db.Decimal(12, 2)
+  depositId        String?
+  businessTxId     String?
+  paymentCount     Int      @default(0)
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  business       Businesses             @relation("BusinessPaymentBatches", fields: [businessId], references: [id])
+  expenseAccount ExpenseAccounts        @relation(fields: [expenseAccountId], references: [id])
+  cashier        Users                  @relation("PaymentBatchCashier", fields: [submittedBy], references: [id])
+  payments       ExpenseAccountPayments[]
+
+  @@index([businessId])
+  @@index([expenseAccountId])
+  @@map("payment_batch_submissions")
 }

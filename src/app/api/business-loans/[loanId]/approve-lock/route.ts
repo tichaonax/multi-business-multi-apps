@@ -55,7 +55,7 @@ export async function POST(
         status: 'LOCKED',
         lockedBalance,
         lockedAt: new Date(),
-        lockedByUserId: user.id,
+        lockedBy: user.id,
       },
     })
 

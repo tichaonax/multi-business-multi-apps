@@ -97,6 +97,10 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
   // User-level permissions (business-agnostic)
   const [userLevelPermissions, setUserLevelPermissions] = useState<Partial<UserLevelPermissions>>({})
 
+  // System permissions (petty cash, cash allocation etc.) — toggled live via their own API
+  const [systemPerms, setSystemPerms] = useState({ canRequest: false, canApprove: false, canApproveCashAllocation: false })
+  const [togglingSystemPerm, setTogglingSystemPerm] = useState<string | null>(null)
+
   // Business memberships
   const [businessMemberships, setBusinessMemberships] = useState<BusinessMembershipEdit[]>([])
   const [availableBusinesses, setAvailableBusinesses] = useState<any[]>([])
@@ -180,7 +184,38 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
     // Load available businesses and permission templates
     loadAvailableBusinesses()
     loadPermissionTemplates()
+
+    // Load system permissions for this user
+    fetch('/api/admin/petty-cash-permissions', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const found = data?.users?.find((u: any) => u.id === user.id)
+        if (found) setSystemPerms({ canRequest: found.canRequest, canApprove: found.canApprove, canApproveCashAllocation: found.canApproveCashAllocation ?? false })
+      })
+      .catch(() => {})
   }, [user])
+
+  async function toggleSystemPerm(permissionName: 'petty_cash.request' | 'petty_cash.approve' | 'cash_allocation.approve', grant: boolean) {
+    setTogglingSystemPerm(permissionName)
+    try {
+      const res = await fetch('/api/admin/petty-cash-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId: user.id, permissionName, grant }),
+      })
+      if (res.ok) {
+        setSystemPerms(prev => ({
+          ...prev,
+          canRequest: permissionName === 'petty_cash.request' ? grant : prev.canRequest,
+          canApprove: permissionName === 'petty_cash.approve' ? grant : prev.canApprove,
+          canApproveCashAllocation: permissionName === 'cash_allocation.approve' ? grant : prev.canApproveCashAllocation,
+        }))
+      }
+    } catch { /* ignore */ } finally {
+      setTogglingSystemPerm(null)
+    }
+  }
 
   const handleSave = async () => {
     // Validate password if being changed
@@ -481,6 +516,44 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
                 </div>
               </div>
             )}
+          </div>
+
+          {/* System Permissions — Petty Cash */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">💵</span>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Petty Cash Permissions</h3>
+              <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full">System-level</span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              These permissions apply system-wide and are not tied to a specific business.
+            </p>
+            <div className="space-y-3">
+              {([
+                { key: 'petty_cash.request' as const, label: 'Can Request Petty Cash', desc: 'Allows this user to submit petty cash requests', field: 'canRequest' as const },
+                { key: 'petty_cash.approve' as const, label: 'Can Approve & Handle Petty Cash', desc: 'Allows this user to approve requests, issue cash, and settle (cashier role)', field: 'canApprove' as const },
+                { key: 'cash_allocation.approve' as const, label: 'Can Approve Cash Allocation Report', desc: 'Receives bell notification and reconciles the daily cash allocation report', field: 'canApproveCashAllocation' as const },
+              ]).map(perm => (
+                <label key={perm.key} className="flex items-start gap-3 cursor-pointer">
+                  <div className="relative mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={systemPerms[perm.field]}
+                      disabled={togglingSystemPerm === perm.key}
+                      onChange={e => toggleSystemPerm(perm.key, e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{perm.label}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{perm.desc}</p>
+                  </div>
+                  {togglingSystemPerm === perm.key && (
+                    <span className="text-xs text-gray-400 ml-auto">Saving…</span>
+                  )}
+                </label>
+              ))}
+            </div>
           </div>
 
           {/* Business Memberships */}

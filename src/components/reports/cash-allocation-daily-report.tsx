@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import Link from 'next/link'
+import { generateCashAllocationPDF } from '@/lib/pdf-utils'
 
 interface LineItem {
   id: string
@@ -18,6 +20,7 @@ interface Report {
   reportDate: string
   lockedAt: string | null
   lockedBy: string | null
+  lockerName: string | null
   notes: string | null
 }
 
@@ -30,25 +33,41 @@ interface DaySummary {
 
 interface Props {
   businessId: string
+  businessType?: string           // e.g. 'restaurant' — used to build EOD report link
+  lockedDate?: string | null      // passed from page — makes date read-only
+  businessIdOverride?: string | null // passed from page — admin reconciling a specific business
 }
 
 const toNum = (v: number | string | null | undefined) =>
   v === null || v === undefined ? 0 : Number(v)
 
-export function CashAllocationDailyReport({ businessId }: Props) {
+export function CashAllocationDailyReport({ businessId: propBusinessId, businessType, lockedDate, businessIdOverride }: Props) {
+  const businessId = businessIdOverride || propBusinessId
+
   const today = new Date().toISOString().split('T')[0]
   // Default to yesterday — most likely to have completed EOD data
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-  const [date, setDate] = useState(yesterday)
+  const [date, setDate] = useState(lockedDate ?? yesterday)
   const [report, setReport] = useState<Report | null>(null)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [allChecked, setAllChecked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [locking, setLocking] = useState(false)
+  const [pdfGenerating, setPdfGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mismatches, setMismatches] = useState<string[]>([])
   // local edits: itemId → actualAmount string
   const [localAmounts, setLocalAmounts] = useState<Record<string, string>>({})
+
+  // Rent config — always shown as fixed read-only row so cashier knows how much to put in rent cash box
+  const [rentConfig, setRentConfig] = useState<{ dailyTransferAmount: number; accountName: string } | null>(null)
+
+  // EOD report for this date — provides cashCounted (cash tendered to cashier) + link to reprint
+  const [eodReport, setEodReport] = useState<{
+    id: string
+    cashCounted: number | null
+    expectedCash: number | null
+  } | null>(null)
 
   // 7-day overview state
   const [weekSummary, setWeekSummary] = useState<DaySummary[]>([])
@@ -73,10 +92,10 @@ export function CashAllocationDailyReport({ businessId }: Props) {
         setReport(data.report)
         setLineItems(data.lineItems)
         setAllChecked(data.allChecked)
-        // Seed local amounts from saved values
+        // Seed local amounts — use saved actualAmount if set, else default to reportedAmount
         const amounts: Record<string, string> = {}
         for (const li of data.lineItems as LineItem[]) {
-          amounts[li.id] = li.actualAmount !== null ? String(li.actualAmount) : ''
+          amounts[li.id] = li.actualAmount !== null ? String(li.actualAmount) : String(li.reportedAmount)
         }
         setLocalAmounts(amounts)
       } else {
@@ -90,6 +109,42 @@ export function CashAllocationDailyReport({ businessId }: Props) {
     } finally {
       setLoading(false)
     }
+  }, [businessId])
+
+  // Fetch locked EOD report for the selected date to show cash tendered amount
+  useEffect(() => {
+    if (!businessId || !date) return
+    setEodReport(null)
+    fetch(`/api/reports/save?businessId=${businessId}&reportType=END_OF_DAY&reportDate=${date}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.existingReport) {
+          setEodReport({
+            id: d.existingReport.id,
+            cashCounted: d.existingReport.cashCounted !== null ? Number(d.existingReport.cashCounted) : null,
+            expectedCash: d.existingReport.expectedCash !== null ? Number(d.existingReport.expectedCash) : null,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [businessId, date])
+
+  // Fetch rent config independently — shown as fixed read-only row so cashier knows cash box amount
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/rent-account/${businessId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.hasRentAccount && d.config?.isActive) {
+          setRentConfig({
+            dailyTransferAmount: Number(d.config.dailyTransferAmount),
+            accountName: d.account?.accountName ?? 'Rent Account',
+          })
+        } else {
+          setRentConfig(null)
+        }
+      })
+      .catch(() => {})
   }, [businessId])
 
   // Auto-load 7-day overview on mount, then load yesterday's detail
@@ -116,7 +171,7 @@ export function CashAllocationDailyReport({ businessId }: Props) {
       }
     }
     loadWeek()
-    loadReport(yesterday)
+    loadReport(lockedDate ?? yesterday)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId])
 
@@ -149,7 +204,7 @@ export function CashAllocationDailyReport({ businessId }: Props) {
       setAllChecked(data.allChecked)
       const amounts: Record<string, string> = {}
       for (const li of data.lineItems as LineItem[]) {
-        amounts[li.id] = li.actualAmount !== null ? String(li.actualAmount) : ''
+        amounts[li.id] = li.actualAmount !== null ? String(li.actualAmount) : String(li.reportedAmount)
       }
       setLocalAmounts(amounts)
       refreshWeekRow(date, data.lineItems, data.report?.status ?? 'DRAFT')
@@ -202,12 +257,45 @@ export function CashAllocationDailyReport({ businessId }: Props) {
     }
   }
 
+  const buildPDFData = () => ({
+    reportDate: date,
+    lockedAt: report?.lockedAt ?? undefined,
+    lockerName: report?.lockerName ?? undefined,
+    cashTendered,
+    rentConfig,
+    lineItems: lineItems.map(li => ({
+      accountName: li.accountName,
+      sourceType: li.sourceType,
+      reportedAmount: toNum(li.reportedAmount),
+      actualAmount: li.actualAmount !== null ? toNum(li.actualAmount) : null,
+    })),
+    businessKeeps,
+  })
+
+  const handleExportPDF = (action: 'save' | 'print') => {
+    if (!report) return
+    setPdfGenerating(true)
+    try {
+      generateCashAllocationPDF(buildPDFData(), `CashAllocation_${date}.pdf`, action)
+    } finally {
+      setPdfGenerating(false)
+    }
+  }
+
   const sourceLabel = (t: string) =>
     t === 'EOD_RENT_TRANSFER' ? 'Rent Transfer' :
     t === 'EOD_AUTO_DEPOSIT' ? 'Auto Deposit' : t
 
-  const totalReported = lineItems.reduce((s, li) => s + toNum(li.reportedAmount), 0)
-  const totalActual = lineItems.reduce((s, li) => s + toNum(localAmounts[li.id] !== undefined && localAmounts[li.id] !== '' ? parseFloat(localAmounts[li.id]) : li.actualAmount), 0)
+  const rentAmount = rentConfig ? Number(rentConfig.dailyTransferAmount) : 0
+  const nonRentItems = lineItems.filter(li => li.sourceType !== 'EOD_RENT_TRANSFER')
+  const totalReported = rentAmount + nonRentItems.reduce((s, li) => s + toNum(li.reportedAmount), 0)
+  const checkedDepositTotal = nonRentItems.reduce((s, li) =>
+    li.isChecked ? s + toNum(localAmounts[li.id] !== '' ? parseFloat(localAmounts[li.id]) : li.actualAmount) : s, 0)
+  const totalActual = rentAmount + checkedDepositTotal
+
+  // Cash distribution: cashTendered − rent − checked deposits = business keeps
+  const cashTendered = eodReport?.cashCounted ?? null
+  const businessKeeps = cashTendered !== null ? cashTendered - rentAmount - checkedDepositTotal : null
 
   const statusBadge = (s: DaySummary['status']) => {
     const map = {
@@ -225,8 +313,9 @@ export function CashAllocationDailyReport({ businessId }: Props) {
 
       {/* 7-day overview */}
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Last 7 Days</h3>
+          <span className="text-xs text-gray-400 dark:text-gray-500">Click a row to view · use date picker for older reports</span>
         </div>
         {weekLoading ? (
           <div className="px-4 py-4 text-sm text-gray-400 dark:text-gray-500">Loading overview…</div>
@@ -244,8 +333,8 @@ export function CashAllocationDailyReport({ businessId }: Props) {
               {weekSummary.map(row => (
                 <tr
                   key={row.date}
-                  onClick={() => { setDate(row.date); setReport(null); setLineItems([]); setError(null); loadReport(row.date) }}
-                  className={`cursor-pointer transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/10 ${date === row.date ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                  onClick={lockedDate ? undefined : () => { setDate(row.date); setReport(null); setLineItems([]); setError(null); loadReport(row.date) }}
+                  className={`transition-colors ${!lockedDate ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/10' : 'cursor-default'} ${date === row.date ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
                 >
                   <td className="px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-200">{row.date}</td>
                   <td className="px-4 py-2">{statusBadge(row.status)}</td>
@@ -272,13 +361,18 @@ export function CashAllocationDailyReport({ businessId }: Props) {
             type="date"
             value={date}
             max={today}
-            onChange={e => {
+            readOnly={!!lockedDate}
+            disabled={!!lockedDate}
+            onChange={lockedDate ? undefined : e => {
               setDate(e.target.value)
               setReport(null)
               setLineItems([])
               setError(null)
             }}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500
+              ${lockedDate
+                ? 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'}`}
           />
         </div>
         <button
@@ -305,9 +399,45 @@ export function CashAllocationDailyReport({ businessId }: Props) {
       )}
 
       {isLocked && (
-        <div className="rounded-md bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 p-3 text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
-          <span className="font-semibold">🔒 Report Locked</span>
-          <span className="text-gray-500 dark:text-gray-400">— read-only</span>
+        <div className="rounded-md bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
+              <span className="font-semibold">🔒 Report Locked</span>
+              {report?.lockedAt && (
+                <span className="text-gray-500 dark:text-gray-400">
+                  — {new Date(report.lockedAt).toLocaleString()}
+                  {report.lockerName && ` · by ${report.lockerName}`}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {eodReport?.id && businessType && (
+                <Link
+                  href={`/${businessType}/reports/saved/${eodReport.id}`}
+                  className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300 rounded-md text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                >
+                  📋 View EOD Report
+                </Link>
+              )}
+              <button
+                onClick={() => handleExportPDF('print')}
+                disabled={pdfGenerating}
+                className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 rounded-md text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50"
+              >
+                {pdfGenerating ? '⏳' : '🖨️'} Print
+              </button>
+              <button
+                onClick={() => handleExportPDF('save')}
+                disabled={pdfGenerating}
+                className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 rounded-md text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50"
+              >
+                {pdfGenerating ? '⏳' : '📄'} Save PDF
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            To reprint: click any date in the overview above to reload a past report, then use Print / Save PDF.
+          </p>
         </div>
       )}
 
@@ -317,7 +447,85 @@ export function CashAllocationDailyReport({ businessId }: Props) {
         </p>
       )}
 
-      {lineItems.length > 0 && (
+      {/* Cash distribution summary — shows cash tendered and where it all goes */}
+      {(cashTendered !== null || rentConfig || lineItems.length > 0) && (
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Cash Distribution</h3>
+          </div>
+          <div className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
+            {/* Cash tendered */}
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-gray-600 dark:text-gray-400">💵 Cash Tendered (from EOD report)</span>
+              <span className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100">
+                {cashTendered !== null ? `$${cashTendered.toFixed(2)}` : <span className="text-gray-400 italic">No EOD report locked for {date}</span>}
+              </span>
+            </div>
+            {/* Rent deduction */}
+            {rentConfig && (
+              <div className="flex items-center justify-between px-4 py-3 bg-orange-50 dark:bg-orange-900/10">
+                <span className="text-sm text-orange-700 dark:text-orange-300">🏠 Less: Rent Transfer ({rentConfig.accountName})</span>
+                <span className="text-sm font-mono font-semibold text-orange-700 dark:text-orange-300">
+                  −${rentAmount.toFixed(2)}
+                </span>
+              </div>
+            )}
+            {/* Auto-deposit deductions (only checked items) */}
+            {nonRentItems.filter(li => li.isChecked).map(li => {
+              const amt = localAmounts[li.id] !== '' ? parseFloat(localAmounts[li.id] || '0') : toNum(li.actualAmount)
+              return (
+                <div key={li.id} className="flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/10">
+                  <span className="text-sm text-blue-700 dark:text-blue-300">🏦 Less: {li.accountName}</span>
+                  <span className="text-sm font-mono font-semibold text-blue-700 dark:text-blue-300">
+                    −${amt.toFixed(2)}
+                  </span>
+                </div>
+              )
+            })}
+            {/* Divider + Business Keeps */}
+            <div className={`flex items-center justify-between px-4 py-3 ${
+              businessKeeps === null ? 'bg-gray-50 dark:bg-gray-800' :
+              businessKeeps >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'
+            }`}>
+              <span className={`text-sm font-semibold ${
+                businessKeeps === null ? 'text-gray-500 dark:text-gray-400' :
+                businessKeeps >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'
+              }`}>
+                {businessKeeps === null ? '= Business Keeps' : businessKeeps >= 0 ? '✅ Business Keeps' : '⚠ Business Keeps'}
+              </span>
+              <span className={`text-base font-mono font-bold ${
+                businessKeeps === null ? 'text-gray-400' :
+                businessKeeps >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'
+              }`}>
+                {businessKeeps !== null ? `$${businessKeeps.toFixed(2)}` : '—'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {nonRentItems.length > 0 && !isLocked && !allChecked && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => {
+              const updates = nonRentItems
+                .filter(li => !li.isChecked)
+                .map(li => {
+                  const rep = toNum(li.reportedAmount)
+                  const amt = localAmounts[li.id] || String(rep)
+                  setLocalAmounts(prev => ({ ...prev, [li.id]: amt }))
+                  return updateItem(li.id, true, amt)
+                })
+              Promise.all(updates).catch(() => {})
+            }}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md"
+          >
+            ✅ Mark all amounts done
+          </button>
+        </div>
+      )}
+
+      {(lineItems.length > 0 || rentConfig) && (
         <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -331,7 +539,34 @@ export function CashAllocationDailyReport({ businessId }: Props) {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {lineItems.map(item => {
+              {/* Rent row — always first, always read-only, tells cashier how much to move to rent cash box */}
+              {rentConfig && (
+                <tr className="bg-orange-50 dark:bg-orange-900/10">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {rentConfig.accountName}
+                    <span className="ml-2 text-xs text-orange-600 dark:text-orange-400 font-normal">🏠 move to rent cash box</span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-orange-600 dark:text-orange-400">
+                    Rent Transfer
+                  </td>
+                  <td className="px-4 py-3 text-sm text-right font-mono font-semibold text-orange-700 dark:text-orange-300">
+                    ${Number(rentConfig.dailyTransferAmount).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span title="Rent is a fixed physical cash move" className="text-orange-500 text-sm">🏠</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="text-sm font-mono font-semibold text-orange-700 dark:text-orange-300">
+                      ${Number(rentConfig.dailyTransferAmount).toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-orange-600 dark:text-orange-400">
+                    Fixed — put in rent cash box
+                  </td>
+                </tr>
+              )}
+              {lineItems.filter(item => item.sourceType !== 'EOD_RENT_TRANSFER').map(item => {
+                const isRent = item.sourceType === 'EOD_RENT_TRANSFER'
                 const localAmt = localAmounts[item.id] ?? (item.actualAmount !== null ? String(item.actualAmount) : '')
                 const parsedActual = localAmt !== '' ? parseFloat(localAmt) : null
                 const reported = toNum(item.reportedAmount)
@@ -339,9 +574,10 @@ export function CashAllocationDailyReport({ businessId }: Props) {
                 const mismatch = parsedActual !== null && !matches
 
                 return (
-                  <tr key={item.id} className={item.isChecked ? 'bg-green-50 dark:bg-green-900/10' : ''}>
+                  <tr key={item.id} className={isRent ? 'bg-orange-50 dark:bg-orange-900/10' : item.isChecked ? 'bg-green-50 dark:bg-green-900/10' : ''}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                       {item.accountName}
+                      {isRent && <span className="ml-2 text-xs text-orange-600 dark:text-orange-400 font-normal">🏠 cash box</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                       {sourceLabel(item.sourceType)}
@@ -350,19 +586,27 @@ export function CashAllocationDailyReport({ businessId }: Props) {
                       ${reported.toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={item.isChecked}
-                        disabled={isLocked}
-                        onChange={e => {
-                          const checked = e.target.checked
-                          updateItem(item.id, checked, localAmt || null)
-                        }}
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
-                      />
+                      {isRent ? (
+                        <span title="Rent is pre-confirmed" className="text-orange-500 text-sm">🏠</span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={item.isChecked}
+                          disabled={isLocked}
+                          onChange={e => {
+                            const checked = e.target.checked
+                            updateItem(item.id, checked, localAmt || null)
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                        />
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {isLocked ? (
+                      {isRent ? (
+                        <span className="text-sm font-mono text-orange-700 dark:text-orange-300 font-semibold">
+                          ${reported.toFixed(2)}
+                        </span>
+                      ) : isLocked ? (
                         <span className={`text-sm font-mono ${matches ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
                           {parsedActual !== null ? `$${parsedActual.toFixed(2)}` : '—'}
                         </span>
@@ -388,7 +632,7 @@ export function CashAllocationDailyReport({ businessId }: Props) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                      {item.notes ?? ''}
+                      {isRent ? <span className="text-orange-600 dark:text-orange-400 text-xs">Fixed — put in rent cash box</span> : (item.notes ?? '')}
                     </td>
                   </tr>
                 )
@@ -396,18 +640,25 @@ export function CashAllocationDailyReport({ businessId }: Props) {
             </tbody>
             <tfoot className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Total
-                </td>
-                <td className="px-4 py-3 text-right text-sm font-semibold font-mono text-gray-900 dark:text-gray-100">
-                  ${totalReported.toFixed(2)}
-                </td>
+                <td colSpan={2} className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">Total Withdrawn</td>
+                <td className="px-4 py-2 text-right text-sm font-semibold font-mono text-gray-900 dark:text-gray-100">${totalReported.toFixed(2)}</td>
                 <td />
-                <td className="px-4 py-3 text-right text-sm font-semibold font-mono text-gray-900 dark:text-gray-100">
-                  ${totalActual.toFixed(2)}
-                </td>
+                <td className="px-4 py-2 text-right text-sm font-semibold font-mono text-gray-900 dark:text-gray-100">${totalActual.toFixed(2)}</td>
                 <td />
               </tr>
+              {businessKeeps !== null && (
+                <tr className="bg-blue-50 dark:bg-blue-900/20 border-t-2 border-blue-300 dark:border-blue-700">
+                  <td colSpan={2} className="px-4 py-3 text-sm font-bold text-blue-800 dark:text-blue-200">
+                    🏦 Remains in Business Cash Drawer
+                  </td>
+                  <td />
+                  <td />
+                  <td className="px-4 py-3 text-right text-sm font-bold font-mono text-blue-800 dark:text-blue-200">
+                    ${businessKeeps.toFixed(2)}
+                  </td>
+                  <td />
+                </tr>
+              )}
             </tfoot>
           </table>
         </div>

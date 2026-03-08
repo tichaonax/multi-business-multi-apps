@@ -82,6 +82,9 @@ export function Sidebar() {
   const [showWiFiPortalLinks, setShowWiFiPortalLinks] = useState(false)
   const [businessCartCounts, setBusinessCartCounts] = useState<Record<string, number>>({})
   const [pendingPaymentRequestCount, setPendingPaymentRequestCount] = useState(0)
+  const [pendingLoanLockCount, setPendingLoanLockCount] = useState(0)
+  const [pendingPettyCashCount, setPendingPettyCashCount] = useState(0)
+  const [pendingCashAllocCount, setPendingCashAllocCount] = useState(0)
 
   // Get business context
   const {
@@ -157,6 +160,21 @@ export function Sidebar() {
       .then(data => { setPendingPaymentRequestCount(data?.pagination?.total ?? 0) })
       .catch(() => {})
   }, [currentBusinessId])
+
+  // Fetch pending loan lock + petty cash counts for sidebar badges
+  useEffect(() => {
+    if (!currentUser) return
+    fetch('/api/admin/pending-actions', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        setPendingLoanLockCount(data.loanLockRequests?.length ?? 0)
+        setPendingPettyCashCount(data.pendingPettyCash?.length ?? 0)
+        setPendingCashAllocCount(data.pendingCashAllocations?.length ?? 0)
+        setPendingPaymentRequestCount(data.pendingPaymentRequests?.length ?? 0)
+      })
+      .catch(() => {})
+  }, [currentUser])
 
   // Check if user has WiFi setup permissions (for main WiFi Portal links)
   useEffect(() => {
@@ -661,6 +679,12 @@ export function Sidebar() {
                     <span>Sales Reports</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && (
+                  <Link href="/restaurant/reports/cash-allocation" className={getLinkClasses('/restaurant/reports/cash-allocation')}>
+                    <span className="text-lg">💰</span>
+                    <span>Cash Allocation</span>
+                  </Link>
+                )}
                 {/* Menu Management - Only for managers/admins who can manage menu */}
                 {(isSystemAdmin(currentUser) || hasPermission('canManageMenu')) && (
                   <Link href="/restaurant/menu" className={getLinkClasses('/restaurant/menu')}>
@@ -737,6 +761,12 @@ export function Sidebar() {
                     <span>Sales Reports</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && (
+                  <Link href="/grocery/reports/cash-allocation" className={getLinkClasses('/grocery/reports/cash-allocation')}>
+                    <span className="text-lg">💰</span>
+                    <span>Cash Allocation</span>
+                  </Link>
+                )}
                 <Link href="/grocery/products" className={getLinkClasses('/grocery/products')}>
                   <span className="text-lg">📦</span>
                   <span>Products</span>
@@ -801,6 +831,12 @@ export function Sidebar() {
                     <span>Sales Reports</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && (
+                  <Link href="/clothing/reports/cash-allocation" className={getLinkClasses('/clothing/reports/cash-allocation')}>
+                    <span className="text-lg">💰</span>
+                    <span>Cash Allocation</span>
+                  </Link>
+                )}
                 <Link href="/clothing/products" className={getLinkClasses('/clothing/products')}>
                   <span className="text-lg">👗</span>
                   <span>Products</span>
@@ -863,6 +899,12 @@ export function Sidebar() {
                   <Link href="/hardware/reports" className={getLinkClasses('/hardware/reports')}>
                     <span className="text-lg">📊</span>
                     <span>Sales Reports</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && (
+                  <Link href="/hardware/reports/cash-allocation" className={getLinkClasses('/hardware/reports/cash-allocation')}>
+                    <span className="text-lg">💰</span>
+                    <span>Cash Allocation</span>
                   </Link>
                 )}
                 <Link href="/hardware/products" className={getLinkClasses('/hardware/products')}>
@@ -1017,6 +1059,11 @@ export function Sidebar() {
             >
               <span className="text-lg">💵</span>
               <span>Petty Cash</span>
+              {pendingPettyCashCount > 0 && (
+                <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center leading-tight">
+                  {pendingPettyCashCount > 99 ? '99+' : pendingPettyCashCount}
+                </span>
+              )}
             </Link>
             </>)}
           </>
@@ -1201,6 +1248,11 @@ export function Sidebar() {
             >
               <span className="text-lg">💳</span>
               <span>Expense Accounts</span>
+              {pendingPaymentRequestCount > 0 && (
+                <span className="ml-auto bg-indigo-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center leading-tight">
+                  {pendingPaymentRequestCount > 99 ? '99+' : pendingPaymentRequestCount}
+                </span>
+              )}
             </Link>
 
             {/* Expense Accounts Sub-menu - Always visible when Finance & Ops is expanded */}
@@ -1455,6 +1507,11 @@ export function Sidebar() {
           >
             <span className="text-lg">💰</span>
             <span>Cash Allocation</span>
+            {pendingCashAllocCount > 0 && (
+              <span className="ml-auto bg-blue-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center leading-tight">
+                {pendingCashAllocCount > 99 ? '99+' : pendingCashAllocCount}
+              </span>
+            )}
           </Link>
         )}
         </>)}
@@ -1771,6 +1828,11 @@ export function Sidebar() {
               >
                 <span className="text-lg">🏦</span>
                 <span>Loan Repayments</span>
+                {pendingLoanLockCount > 0 && (
+                  <span className="ml-auto bg-yellow-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center leading-tight">
+                    {pendingLoanLockCount > 99 ? '99+' : pendingLoanLockCount}
+                  </span>
+                )}
               </Link>
             )}
 

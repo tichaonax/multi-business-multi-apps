@@ -6,7 +6,9 @@ import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 
 /**
  * POST /api/business-loans/[loanId]/expenses
- * Record a new loan expense. Access: assigned user only while status is RECORDING.
+ * Record one or more loan expenses.
+ * Body: { items: [{ description, amount, expenseDate, notes? }] }
+ * Access: assigned manager or admin while status is RECORDING.
  */
 export async function POST(
   request: NextRequest,
@@ -22,12 +24,7 @@ export async function POST(
 
     const loan = await prisma.businessLoan.findUnique({
       where: { id: loanId },
-      select: {
-        id: true,
-        status: true,
-        managedByUserId: true,
-        expenseAccountId: true,
-      },
+      select: { id: true, status: true, managedByUserId: true, expenseAccountId: true },
     })
     if (!loan) {
       return NextResponse.json({ error: 'Loan not found' }, { status: 404 })
@@ -50,52 +47,55 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { description, amount, expenseDate, notes } = body
+    const items: { description: string; amount: number; expenseDate: string; notes?: string }[] = body.items
 
-    if (!description || !amount || !expenseDate) {
-      return NextResponse.json(
-        { error: 'description, amount, and expenseDate are required' },
-        { status: 400 }
-      )
+    if (!Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ error: 'items array is required and must not be empty' }, { status: 400 })
     }
 
-    const parsedAmount = Number(amount)
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      return NextResponse.json({ error: 'amount must be a positive number' }, { status: 400 })
+    for (const [i, item] of items.entries()) {
+      if (!item.description || !item.amount || !item.expenseDate) {
+        return NextResponse.json({ error: `Item ${i + 1}: description, amount, and expenseDate are required` }, { status: 400 })
+      }
+      if (isNaN(Number(item.amount)) || Number(item.amount) <= 0) {
+        return NextResponse.json({ error: `Item ${i + 1}: amount must be a positive number` }, { status: 400 })
+      }
     }
 
-    const { expense, newBalance } = await prisma.$transaction(async (tx) => {
-      const expense = await tx.businessLoanExpense.create({
-        data: {
-          loanId,
-          description,
-          amount: parsedAmount,
-          expenseDate: new Date(expenseDate),
-          notes: notes ?? null,
-          createdByUserId: user.id,
-        },
-      })
-
-      // Mirror into ExpenseAccountPayments so balance calculation stays consistent
-      await tx.expenseAccountPayments.create({
-        data: {
-          expenseAccountId: loan.expenseAccountId,
-          paymentType: 'LOAN_EXPENSE',
-          amount: parsedAmount,
-          paymentDate: new Date(expenseDate),
-          payeeType: 'OTHER',
-          status: 'SUBMITTED',
-          receiptNumber: expense.id,
-          description: `Loan expense: ${description}`,
-          createdByUserId: user.id,
-        },
-      })
-
+    const { expenses, newBalance } = await prisma.$transaction(async (tx) => {
+      const expenses = []
+      for (const item of items) {
+        const parsedAmount = Number(item.amount)
+        const expense = await tx.businessLoanExpense.create({
+          data: {
+            loan: { connect: { id: loanId } },
+            description: item.description,
+            amount: parsedAmount,
+            expenseDate: new Date(item.expenseDate),
+            notes: item.notes ?? null,
+            creator: { connect: { id: user.id } },
+          },
+        })
+        await tx.expenseAccountPayments.create({
+          data: {
+            expenseAccountId: loan.expenseAccountId,
+            paymentType: 'LOAN_EXPENSE',
+            amount: parsedAmount,
+            paymentDate: new Date(item.expenseDate),
+            payeeType: 'OTHER',
+            status: 'SUBMITTED',
+            receiptNumber: expense.id,
+            notes: `Loan expense: ${item.description}`,
+            createdBy: user.id,
+          },
+        })
+        expenses.push(expense)
+      }
       const newBalance = await updateExpenseAccountBalanceTx(tx, loan.expenseAccountId)
-      return { expense, newBalance }
+      return { expenses, newBalance }
     })
 
-    return NextResponse.json({ expense, newBalance }, { status: 201 })
+    return NextResponse.json({ expenses, newBalance, count: expenses.length }, { status: 201 })
   } catch (error) {
     console.error('POST /api/business-loans/[loanId]/expenses error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

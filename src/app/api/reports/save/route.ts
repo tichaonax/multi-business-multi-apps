@@ -262,7 +262,9 @@ export async function GET(req: NextRequest) {
         signedAt: true,
         isLocked: true,
         totalSales: true,
-        totalOrders: true
+        totalOrders: true,
+        cashCounted: true,
+        expectedCash: true,
       }
     })
 
