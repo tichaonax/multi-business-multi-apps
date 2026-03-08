@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import React, { useState, useCallback, useEffect } from 'react'
+import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 
 type Range = 'today' | 'yesterday' | '7days' | '30days' | 'custom'
@@ -202,14 +203,24 @@ export default function CashAllocationSummaryPage() {
                           {row.status === 'NONE' ? '—' : fmt(row.totalActual)}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {row.status !== 'NONE' && row.lineItems.length > 0 && (
-                            <button
-                              onClick={() => setExpandedId(id => id === row.reportId ? null : row.reportId)}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                              {expandedId === row.reportId ? 'Hide' : 'Show'}
-                            </button>
-                          )}
+                          <div className="flex items-center justify-center gap-2">
+                            {row.status !== 'NONE' && row.lineItems.length > 0 && (
+                              <button
+                                onClick={() => setExpandedId(id => id === row.reportId ? null : row.reportId)}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                {expandedId === row.reportId ? 'Hide' : 'Show'}
+                              </button>
+                            )}
+                            {row.status !== 'NONE' && (
+                              <Link
+                                href={`/${row.businessType}/reports/cash-allocation?date=${row.date}&businessId=${row.businessId}`}
+                                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                              >
+                                Open
+                              </Link>
+                            )}
+                          </div>
                         </td>
                       </tr>
                       {expandedId === row.reportId && row.lineItems.length > 0 && (
