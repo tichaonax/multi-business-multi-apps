@@ -16,7 +16,7 @@ export async function GET(
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    if (!hasPermission(user, 'canAccessPayroll') && !isSystemAdmin(user)) {
+    if (!hasPermission(user, 'canAccessPerDiem') && !hasPermission(user, 'canAccessPayroll') && !isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

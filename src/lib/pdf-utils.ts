@@ -1209,3 +1209,168 @@ export const generatePaymentBatchVoucher = (
     pdf.save(fileName)
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per Diem Claim PDF — actual entries for a submitted period
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PerDiemClaimEntry {
+  date: string
+  amount: number
+  purpose: string
+  notes?: string | null
+  cashier?: { name: string } | null
+}
+
+export interface PerDiemClaimPDFData {
+  employee: {
+    fullName: string
+    employeeNumber: string
+    jobTitle?: string | null
+    business?: { name: string } | null
+  }
+  period: { month: number; year: number }
+  entries: PerDiemClaimEntry[]
+  total: number
+}
+
+const MONTHS_CLAIM = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+export const generatePerDiemClaimPDF = (
+  data: PerDiemClaimPDFData,
+  action: 'save' | 'print' = 'save',
+): void => {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 15
+  let y = margin
+
+  const fmt = (n: number) => `$${n.toFixed(2)}`
+  const monthName = MONTHS_CLAIM[data.period.month - 1] ?? ''
+
+  const drawLine = (yPos: number, light = false) => {
+    pdf.setDrawColor(light ? 150 : 0, light ? 150 : 0, light ? 150 : 0)
+    pdf.line(margin, yPos, pageWidth - margin, yPos)
+  }
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  if (data.employee.business?.name) {
+    pdf.setFontSize(13)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(0, 0, 0)
+    pdf.text(data.employee.business.name.toUpperCase(), pageWidth / 2, y, { align: 'center' })
+    y += 6
+  }
+
+  pdf.setFontSize(14)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(0, 0, 0)
+  pdf.text('PER DIEM CLAIM FORM', pageWidth / 2, y, { align: 'center' })
+  y += 5
+
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(80, 80, 80)
+  pdf.text(`${monthName} ${data.period.year}`, pageWidth / 2, y, { align: 'center' })
+  y += 5
+
+  drawLine(y)
+  y += 6
+
+  // ── Employee Info ─────────────────────────────────────────────────────────
+  pdf.setFontSize(9)
+  pdf.setTextColor(0, 0, 0)
+  const col2 = pageWidth / 2 + 5
+
+  const infoRow = (label: string, value: string, x: number, yPos: number) => {
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(label, x, yPos)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(value, x + 30, yPos)
+  }
+
+  infoRow('Employee:', data.employee.fullName, margin, y)
+  infoRow('Employee #:', data.employee.employeeNumber, col2, y)
+  y += 5
+  if (data.employee.jobTitle) {
+    infoRow('Job Title:', data.employee.jobTitle, margin, y)
+    y += 5
+  }
+  y += 2
+  drawLine(y, true)
+  y += 6
+
+  // ── Entries Table ─────────────────────────────────────────────────────────
+  const dateX    = margin
+  const purposeX = margin + 28
+  const amountX  = margin + 65
+  const notesX   = margin + 85
+  const cashierX = pageWidth - margin - 30
+
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(60, 60, 60)
+  pdf.text('Date',       dateX,    y)
+  pdf.text('Purpose',    purposeX, y)
+  pdf.text('Amount',     amountX,  y, { align: 'right' })
+  pdf.text('Notes',      notesX,   y)
+  pdf.text('Entered by', cashierX, y)
+  y += 2
+  drawLine(y)
+  y += 4
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(0, 0, 0)
+  const notesWidth = cashierX - notesX - 2
+
+  data.entries.forEach(entry => {
+    const dateStr = new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    pdf.setFontSize(8)
+    pdf.text(dateStr, dateX, y)
+    pdf.text(entry.purpose, purposeX, y)
+    pdf.text(fmt(entry.amount), amountX, y, { align: 'right' })
+    pdf.text(pdf.splitTextToSize(entry.notes || '—', notesWidth)[0], notesX, y)
+    pdf.text(entry.cashier?.name || '—', cashierX, y)
+    y += 5
+    drawLine(y, true)
+    y += 3
+  })
+
+  y += 1
+  drawLine(y)
+  y += 5
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.text('TOTAL', margin, y)
+  pdf.text(fmt(data.total), amountX, y, { align: 'right' })
+  y += 3
+  drawLine(y)
+  y += 10
+
+  // ── Signatures ────────────────────────────────────────────────────────────
+  ;[{ label: 'Employee Signature' }, { label: 'Cashier Signature' }, { label: 'Approved by' }].forEach(({ label }) => {
+    pdf.setFontSize(8)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setTextColor(80, 80, 80)
+    pdf.text(label, margin, y)
+    pdf.text('Date', col2, y)
+    y += 6
+    pdf.setDrawColor(100, 100, 100)
+    pdf.line(margin, y, margin + 70, y)
+    pdf.line(col2, y, col2 + 50, y)
+    y += 8
+  })
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  pdf.setFontSize(7)
+  pdf.setTextColor(150, 150, 150)
+  pdf.text(`Printed ${new Date().toLocaleString()}`, pageWidth / 2, y, { align: 'center' })
+
+  const fileName = `per-diem-claim-${data.employee.employeeNumber}-${monthName}-${data.period.year}.pdf`
+  if (action === 'print') {
+    pdf.autoPrint()
+    window.open(pdf.output('bloburl'), '_blank')
+  } else {
+    pdf.save(fileName)
+  }
+}
