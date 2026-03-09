@@ -1303,6 +1303,26 @@ export function Sidebar() {
                   </Link>
                 )}
 
+                {(isSystemAdmin(currentUser) || hasPermission('canSubmitPaymentBatch')) && (
+                  <Link
+                    href="/cash-bucket"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>🪣</span>
+                    <span>Cash Bucket</span>
+                  </Link>
+                )}
+
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCashBucketReport')) && (
+                  <Link
+                    href="/cash-bucket/report"
+                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  >
+                    <span>📊</span>
+                    <span>Cash Bucket Report</span>
+                  </Link>
+                )}
+
                 {hasPermission('canViewExpenseReports') && (
                   <>
                     <Link

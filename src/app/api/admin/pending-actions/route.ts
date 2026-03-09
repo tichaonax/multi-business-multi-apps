@@ -90,7 +90,7 @@ export async function GET() {
     let pendingCashAllocations: object[] = []
     if (canApproveCashAllocation) {
       pendingCashAllocations = await prisma.cashAllocationReport.findMany({
-        where: { status: { in: ['DRAFT', 'IN_PROGRESS'] } },
+        where: { status: { in: ['DRAFT', 'IN_PROGRESS'] }, lineItems: { some: {} } },
         select: {
           id: true,
           reportDate: true,

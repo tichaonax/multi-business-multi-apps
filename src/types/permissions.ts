@@ -244,6 +244,7 @@ export interface CoreBusinessPermissions {
   canEnterManualOrders: boolean;           // Enter backdated manual transactions from book records
   canCloseBooks: boolean;                  // Close books for a day (manager+ only, blocks further manual entries)
   canSubmitPaymentBatch: boolean;          // Cashier: submit batched expense payment requests & fund from business account
+  canViewCashBucketReport: boolean;        // View cash bucket report (managers, owners, admins)
 }
 
 // Business-Type-Specific Permission Modules
@@ -1054,6 +1055,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canMakeExpenseDeposits', label: 'Make Deposits' },
       { key: 'canMakeExpensePayments', label: 'Make Payments' },
       { key: 'canSubmitPaymentBatch', label: 'Submit Payment Batch (Cashier)' },
+      { key: 'canViewCashBucketReport', label: 'View Cash Bucket Report' },
       { key: 'canViewExpenseReports', label: 'View Reports' },
       { key: 'canCreateIndividualPayees', label: 'Create Individual Payees' },
       { key: 'canDeleteExpenseAccounts', label: 'Delete Expense Accounts' },
@@ -1345,6 +1347,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canEnterManualOrders: true,
   canCloseBooks: true,
   canSubmitPaymentBatch: true,
+  canViewCashBucketReport: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1491,6 +1494,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canEnterManualOrders: true,
   canCloseBooks: true,
   canSubmitPaymentBatch: true,
+  canViewCashBucketReport: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -1637,6 +1641,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canEnterManualOrders: true,
   canCloseBooks: false,
   canSubmitPaymentBatch: false,
+  canViewCashBucketReport: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -1781,6 +1786,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canEnterManualOrders: false,
   canCloseBooks: false,
   canSubmitPaymentBatch: false,
+  canViewCashBucketReport: false,
 };
 
 // Restaurant Associate permissions - Food prep and POS operations
@@ -1928,6 +1934,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canEnterManualOrders: true,  // ✅ Can enter backdated manual orders
   canCloseBooks: false,
   canSubmitPaymentBatch: false,
+  canViewCashBucketReport: false,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
@@ -2075,6 +2082,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canEnterManualOrders: true,
   canCloseBooks: false,
   canSubmitPaymentBatch: false,
+  canViewCashBucketReport: false,
 };
 
 // System admin permissions (cross-business)
@@ -2219,6 +2227,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canEnterManualOrders: true,
   canCloseBooks: true,
   canSubmitPaymentBatch: true,
+  canViewCashBucketReport: true,
 };
 
 // User-Level Permission Presets

@@ -13,7 +13,7 @@ import { BusinessCreationModal } from '@/components/user-management/business-cre
 import { QuickActivityModal } from '@/components/admin/quick-activity-modal'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { useRentIndicator } from '@/hooks/use-rent-indicator'
-import { usePendingActionsCount } from '@/hooks/use-pending-actions-count'
+import { usePendingActionsCount, usePendingActions } from '@/hooks/use-pending-actions-count'
 
 interface GlobalHeaderProps {
   title?: string
@@ -58,6 +58,10 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const user = session?.user as SessionUser
   const isAdmin = isSystemAdmin(user)
   const pendingCount = usePendingActionsCount()
+  const pendingActions = usePendingActions()
+  const [showBellPreview, setShowBellPreview] = useState(false)
+  const bellRef = useRef<HTMLDivElement>(null)
+  const bellHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Rent account indicator
   const rentIndicator = useRentIndicator(currentBusiness?.businessId)
@@ -670,22 +674,97 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
             )}
             {session?.user && (
               <>
-                {/* Pending Actions Bell — shown when user has any pending actions */}
+                {/* Pending Actions Bell — hover to preview, click to navigate */}
                 {pendingCount > 0 && (
-                  <Link
-                    href="/admin/pending-actions"
-                    className="relative p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    title={pendingCount > 0 ? `${pendingCount} pending action${pendingCount !== 1 ? 's' : ''}` : 'No pending actions'}
+                  <div
+                    ref={bellRef}
+                    className="relative"
+                    onMouseEnter={() => {
+                      if (bellHideTimer.current) clearTimeout(bellHideTimer.current)
+                      setShowBellPreview(true)
+                    }}
+                    onMouseLeave={() => {
+                      bellHideTimer.current = setTimeout(() => setShowBellPreview(false), 150)
+                    }}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    {pendingCount > 0 && (
+                    <Link
+                      href="/admin/pending-actions"
+                      className="relative flex p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
                       <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                         {pendingCount > 9 ? '9+' : pendingCount}
                       </span>
+                    </Link>
+
+                    {/* Hover preview dropdown */}
+                    {showBellPreview && pendingActions && (
+                      <div className="absolute right-0 top-full mt-1 w-72 rounded-lg border border-border bg-white dark:bg-gray-800 shadow-xl z-50 overflow-hidden">
+                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border flex items-center justify-between">
+                          <span className="text-xs font-semibold text-primary">Pending Actions</span>
+                          <span className="text-xs text-secondary">{pendingCount} total</span>
+                        </div>
+                        <div className="divide-y divide-border max-h-80 overflow-y-auto">
+                          {pendingActions.pendingPaymentBatches?.map((b: any) => (
+                            <Link key={b.id} href={`/expense-accounts/payment-batches/${b.id}/review`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                              <span className="mt-0.5 shrink-0">📋</span>
+                              <div className="min-w-0">
+                                <p className="font-medium text-primary truncate">Payment Batch — {b.business?.name ?? '—'}</p>
+                                <p className="text-secondary">{b.eodDate} · {b._count?.payments ?? 0} payments</p>
+                              </div>
+                            </Link>
+                          ))}
+                          {pendingActions.pendingPettyCash?.map((p: any) => (
+                            <Link key={p.id} href={`/petty-cash/${p.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                              <span className="mt-0.5 shrink-0">🪙</span>
+                              <div className="min-w-0">
+                                <p className="font-medium text-primary truncate">Petty Cash — {p.requester?.name ?? '—'}</p>
+                                <p className="text-secondary">{p.purpose} · ${Number(p.requestedAmount ?? 0).toFixed(2)}</p>
+                              </div>
+                            </Link>
+                          ))}
+                          {pendingActions.pendingCashAllocations?.map((r: any) => {
+                            const reportDate = r.reportDate ? r.reportDate.split('T')[0] : ''
+                            const cashAllocUrl = `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${reportDate}&businessId=${r.business?.id ?? ''}`
+                            return (
+                              <Link key={r.id} href={cashAllocUrl} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                                <span className="mt-0.5 shrink-0">📊</span>
+                                <div className="min-w-0">
+                                  <p className="font-medium text-primary truncate">Cash Allocation — {r.business?.name ?? '—'}</p>
+                                  <p className="text-secondary">{reportDate ? new Date(reportDate + 'T00:00:00').toLocaleDateString() : '—'}</p>
+                                </div>
+                              </Link>
+                            )
+                          })}
+                          {pendingActions.pendingSupplierPayments?.map((s: any) => (
+                            <Link key={s.id} href="/supplier-payments" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                              <span className="mt-0.5 shrink-0">🏭</span>
+                              <div className="min-w-0">
+                                <p className="font-medium text-primary truncate">Supplier Payment — {s.supplier?.name ?? '—'}</p>
+                                <p className="text-secondary">${Number(s.amount ?? 0).toFixed(2)}</p>
+                              </div>
+                            </Link>
+                          ))}
+                          {pendingActions.pendingPaymentRequests?.map((r: any) => (
+                            <Link key={r.id} href={`/expense-accounts/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                              <span className="mt-0.5 shrink-0">💳</span>
+                              <div className="min-w-0">
+                                <p className="font-medium text-primary truncate">Payment Requests — {r.accountName ?? '—'}</p>
+                                <p className="text-secondary">{r.pendingCount ?? r._count ?? 0} pending</p>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                        <div className="px-3 py-2 border-t border-border bg-gray-50 dark:bg-gray-700/50">
+                          <Link href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                            View all pending actions →
+                          </Link>
+                        </div>
+                      </div>
                     )}
-                  </Link>
+                  </div>
                 )}
                 {/* Mini Cart */}
                 <MiniCart />

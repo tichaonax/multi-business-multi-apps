@@ -207,6 +207,28 @@ export async function POST(request: NextRequest, { params }: Params) {
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     })
 
+    // Record OUTFLOW entries in cash bucket — one per line item
+    try {
+      const now = new Date()
+      for (const item of finalLineItems) {
+        await prisma.cashBucketEntry.create({
+          data: {
+            businessId,
+            entryType: 'CASH_ALLOCATION',
+            direction: 'OUTFLOW',
+            amount: Number(item.reportedAmount),
+            referenceType: 'ALLOCATION',
+            referenceId: reportId,
+            notes: item.accountName,
+            entryDate: now,
+            createdBy: user.id,
+          },
+        })
+      }
+    } catch (bucketErr) {
+      console.error('[cash-allocation/lock] Cash bucket OUTFLOW failed (non-fatal):', bucketErr)
+    }
+
     return NextResponse.json({
       report: { ...lockedReport, lockerName: user.name },
       lineItems: finalLineItems,

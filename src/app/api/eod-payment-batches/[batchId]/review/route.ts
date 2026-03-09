@@ -107,6 +107,24 @@ export async function POST(
           { status: 400 }
         )
       }
+
+      // Verify business has sufficient cash in the physical cash bucket
+      const bucketRows = await prisma.cashBucketEntry.groupBy({
+        by: ['direction'],
+        where: { businessId: batch.businessId },
+        _sum: { amount: true },
+      })
+      const bucketInflow = Number(bucketRows.find(r => r.direction === 'INFLOW')?._sum.amount ?? 0)
+      const bucketOutflow = Number(bucketRows.find(r => r.direction === 'OUTFLOW')?._sum.amount ?? 0)
+      const bucketBalance = bucketInflow - bucketOutflow
+      if (bucketBalance < totalApproved) {
+        return NextResponse.json(
+          {
+            error: `Insufficient cash in bucket for ${batch.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${totalApproved.toFixed(2)}`,
+          },
+          { status: 400 }
+        )
+      }
     }
 
     const now = new Date()
@@ -142,6 +160,21 @@ export async function POST(
             createdBy: user.id,
             referenceType: 'EXPENSE_DEPOSIT',
             referenceId: batchId,
+          },
+        })
+
+        // Debit cash bucket for this business
+        await tx.cashBucketEntry.create({
+          data: {
+            businessId: batch.businessId,
+            entryType: 'PAYMENT_APPROVAL',
+            direction: 'OUTFLOW',
+            amount: totalApproved,
+            referenceType: 'EOD_BATCH',
+            referenceId: batchId,
+            notes: `${approvedPayments.length} payment(s) approved`,
+            entryDate: now,
+            createdBy: user.id,
           },
         })
 

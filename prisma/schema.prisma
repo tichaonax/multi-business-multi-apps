@@ -512,6 +512,7 @@ model Businesses {
   petty_cash_requests                                                      PettyCashRequests[]           @relation("BusinessPettyCash")
   payment_batch_submissions                                                PaymentBatchSubmissions[]     @relation("BusinessPaymentBatches")
   eod_payment_batches                                                      EODPaymentBatch[]             @relation("BusinessEODPaymentBatches")
+  cash_bucket_entries                                                      CashBucketEntry[]             @relation("BusinessCashBucket")
   per_diem_entries                                                         PerDiemEntries[]              @relation("PerDiemBusiness")
 
   @@map("businesses")
@@ -3195,6 +3196,7 @@ model Users {
   cash_allocation_reports_locked                                  CashAllocationReport[]           @relation("CashAllocationReportLocker")
   payment_batch_submissions_as_cashier                            PaymentBatchSubmissions[]        @relation("PaymentBatchCashier")
   eod_payment_batches_reviewed                                    EODPaymentBatch[]                @relation("EODPaymentBatchReviewer")
+  cash_bucket_entries_created                                     CashBucketEntry[]                @relation("CashBucketEntryCreator")
   cash_allocation_items_checked                                   CashAllocationLineItem[]         @relation("CashAllocationItemChecker")
   petty_cash_requests_submitted                                   PettyCashRequests[]              @relation("PettyCashRequester")
   petty_cash_requests_approved                                    PettyCashRequests[]              @relation("PettyCashApprover")
@@ -5093,4 +5095,35 @@ model EODPaymentBatch {
   @@index([eodDate])
   @@index([status])
   @@map("eod_payment_batches")
+}
+
+// ============================================================
+// Physical Cash Bucket (MBM-142)
+// ============================================================
+
+model CashBucketEntry {
+  id            String   @id @default(uuid())
+  businessId    String
+  entryType     String
+  // EOD_RECEIPT       — manager brings EOD cash in
+  // PAYMENT_APPROVAL  — cashier approves payment batch
+  // PETTY_CASH        — petty cash withdrawal
+  // CASH_ALLOCATION   — cash allocation (rent, loan, etc.)
+  direction     String
+  // INFLOW | OUTFLOW
+  amount        Decimal  @db.Decimal(12, 2)
+  referenceType String?
+  referenceId   String?
+  notes         String?
+  entryDate     DateTime
+  createdAt     DateTime @default(now())
+  createdBy     String
+
+  business Businesses @relation("BusinessCashBucket", fields: [businessId], references: [id])
+  creator  Users      @relation("CashBucketEntryCreator", fields: [createdBy], references: [id])
+
+  @@index([businessId, entryDate])
+  @@index([entryDate])
+  @@index([direction])
+  @@map("cash_bucket_entries")
 }
