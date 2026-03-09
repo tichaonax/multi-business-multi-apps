@@ -63,10 +63,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     // Check if all items in the report are now done
     const allItems = await prisma.cashAllocationLineItem.findMany({
       where: { reportId: item.report.id },
-      select: { isChecked: true, actualAmount: true },
+      select: { isChecked: true, actualAmount: true, sourceType: true },
     })
-    const allChecked = allItems.length > 0 &&
-      allItems.every(i => i.isChecked && i.actualAmount !== null)
+    const nonRentItems = allItems.filter(i => i.sourceType !== 'EOD_RENT_TRANSFER')
+    const allChecked = nonRentItems.length > 0 &&
+      nonRentItems.every(i => i.isChecked && i.actualAmount !== null)
 
     return NextResponse.json({ item: updatedItem, allChecked })
   } catch (err) {

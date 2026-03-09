@@ -121,8 +121,9 @@ export async function POST(request: NextRequest, { params }: Params) {
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     })
 
-    const allChecked = lineItems.length > 0 &&
-      lineItems.every(item => item.isChecked && item.actualAmount !== null)
+    const nonRentLineItems = lineItems.filter(item => item.sourceType !== 'EOD_RENT_TRANSFER')
+    const allChecked = nonRentLineItems.length > 0 &&
+      nonRentLineItems.every(item => item.isChecked && item.actualAmount !== null)
 
     return NextResponse.json({ report, lineItems, allChecked, newItemsAdded: toCreate.length })
   } catch (err) {

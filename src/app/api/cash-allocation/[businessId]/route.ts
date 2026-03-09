@@ -41,8 +41,9 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ exists: false })
     }
 
-    const allChecked = report.lineItems.length > 0 &&
-      report.lineItems.every(item => item.isChecked && item.actualAmount !== null)
+    const nonRentItems = report.lineItems.filter(item => item.sourceType !== 'EOD_RENT_TRANSFER')
+    const allChecked = nonRentItems.length > 0 &&
+      nonRentItems.every(item => item.isChecked && item.actualAmount !== null)
 
     return NextResponse.json({
       exists: true,
