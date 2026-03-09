@@ -8,10 +8,12 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useToastContext } from '@/components/ui/toast'
 import { generatePerDiemClaimPDF } from '@/lib/pdf-utils'
 import Link from 'next/link'
+import React from 'react'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-export default function PerDiemClaimFormPage({ params }: { params: { employeeId: string } }) {
+export default function PerDiemClaimFormPage({ params }: { params: Promise<{ employeeId: string }> }) {
+  const { employeeId } = React.use(params)
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -31,7 +33,7 @@ export default function PerDiemClaimFormPage({ params }: { params: { employeeId:
   }, [session, status, router])
 
   const fetchData = useCallback(async () => {
-    if (!params.employeeId || !payrollMonth || !payrollYear) return
+    if (!employeeId || !payrollMonth || !payrollYear) return
     setLoading(true)
     try {
       const p = new URLSearchParams({
@@ -39,7 +41,7 @@ export default function PerDiemClaimFormPage({ params }: { params: { employeeId:
         payrollYear: String(payrollYear),
         ...(businessIdParam ? { businessId: businessIdParam } : {}),
       })
-      const res = await fetch(`/api/per-diem/form/${params.employeeId}?${p}`, { credentials: 'include' })
+      const res = await fetch(`/api/per-diem/form/${employeeId}?${p}`, { credentials: 'include' })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load')
       setData(json.data)
@@ -48,7 +50,7 @@ export default function PerDiemClaimFormPage({ params }: { params: { employeeId:
     } finally {
       setLoading(false)
     }
-  }, [params.employeeId, payrollMonth, payrollYear, businessIdParam, toast])
+  }, [employeeId, payrollMonth, payrollYear, businessIdParam, toast])
 
   useEffect(() => { fetchData() }, [fetchData])
 
