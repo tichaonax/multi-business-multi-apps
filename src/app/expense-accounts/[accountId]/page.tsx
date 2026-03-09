@@ -422,6 +422,7 @@ export default function ExpenseAccountDetailPage() {
   const [account, setAccount] = useState<ExpenseAccount | null>(null)
   const [depositsCount, setDepositsCount] = useState<number | null>(null)
   const [paymentsCount, setPaymentsCount] = useState<number | null>(null)
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number>(0)
   const [countsError, setCountsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState(urlTab || 'overview')
@@ -506,6 +507,7 @@ export default function ExpenseAccountDetailPage() {
       const data = await res.json()
       setDepositsCount(data?.data?.depositCount ?? 0)
       setPaymentsCount(data?.data?.paymentCount ?? 0)
+      setPendingPaymentsCount(data?.data?.pendingPayments ?? 0)
       setCountsError(null)
     } catch (err) {
       console.error('Error fetching counts', err)
@@ -553,6 +555,7 @@ export default function ExpenseAccountDetailPage() {
 
   const handlePaymentSuccess = () => {
     loadAccount()
+    fetchCounts()
     setPaymentRefreshKey(k => k + 1)
   }
 
@@ -756,13 +759,18 @@ export default function ExpenseAccountDetailPage() {
               {canMakeExpensePayments && (
                 <button
                   onClick={() => setActiveTab('payments')}
-                  className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
                     activeTab === 'payments'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                   }`}
                 >
                   Payments
+                  {pendingPaymentsCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                      {pendingPaymentsCount}
+                    </span>
+                  )}
                 </button>
               )}
 

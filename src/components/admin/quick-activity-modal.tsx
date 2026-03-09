@@ -107,22 +107,30 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
     const prodData = await prodRes.json()
     const allProducts: any[] = prodData.data || []
 
-    type SellableItem = { productVariantId: string | null; productId: string; name: string; price: number }
+    const isPhysical = (p: any) => !p.productType || p.productType === 'PHYSICAL' || p.productType === 'COMBO'
+
+    type SellableItem = { productVariantId: string | null; productId: string; name: string; price: number; physical: boolean }
+    // localStock tracks remaining qty per variantId for physical variants so we don't re-order depleted items mid-run
+    const localStock = new Map<string, number>()
     const sellable: SellableItem[] = []
+
     for (const p of allProducts) {
       const basePrice = Number(p.basePrice ?? 0)
       if (basePrice <= 0) continue
+      const physical = isPhysical(p)
 
       const variants: any[] = p.variants || []
       if (variants.length === 0) {
-        // No variants (e.g. restaurant menu items) — order with productVariantId: null
-        sellable.push({ productVariantId: null, productId: p.id, name: p.name, price: basePrice })
+        // No variants (e.g. restaurant menu items / services) — order with productVariantId: null
+        sellable.push({ productVariantId: null, productId: p.id, name: p.name, price: basePrice, physical })
       } else {
         for (const v of variants) {
           const price = Number(v.price ?? basePrice)
-          if (price > 0 && v.isAvailable !== false) {
-            sellable.push({ productVariantId: v.id, productId: p.id, name: p.name, price })
-          }
+          if (price <= 0 || v.isAvailable === false) continue
+          // Skip physical variants with no stock upfront
+          if (physical && (v.stockQuantity ?? 0) <= 0) continue
+          if (physical) localStock.set(v.id, Number(v.stockQuantity))
+          sellable.push({ productVariantId: v.id, productId: p.id, name: p.name, price, physical })
         }
       }
     }
@@ -132,13 +140,15 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
       return
     }
 
-    const minPrice = Math.min(...sellable.map(s => s.price))
+    // Active pool — items are removed as their stock is exhausted
+    const pool = [...sellable]
+    const getMinPrice = () => pool.length ? Math.min(...pool.map(s => s.price)) : Infinity
     let remaining = budget
     let budgetExhausted = false
 
-    while (remaining >= minPrice && runningRef.current) {
-      // Only pick items we can afford at least 1 unit of
-      const affordable = sellable.filter(s => s.price <= remaining)
+    while (remaining >= getMinPrice() && runningRef.current) {
+      // Only pick items we can afford at least 1 unit of, and have stock remaining
+      const affordable = pool.filter(s => s.price <= remaining)
       if (affordable.length === 0) { budgetExhausted = true; break }
 
       const itemCount = randBetween(1, cfg.maxItems)
@@ -149,8 +159,13 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
         const item = pick(affordable)
         // Skip if this variant is already in the order (orders API validates unique variants)
         if (item.productVariantId && orderItems.some(o => o.productVariantId === item.productVariantId)) continue
+        // For physical items cap qty to local stock remainder
+        const maxQty = item.physical && item.productVariantId
+          ? Math.min(3, localStock.get(item.productVariantId) ?? 1)
+          : 3
+        if (maxQty <= 0) continue
         // First item always qty=1 to guarantee at least one item is added; extras get random qty
-        const qty = orderItems.length === 0 ? 1 : randBetween(1, 3)
+        const qty = orderItems.length === 0 ? 1 : randBetween(1, maxQty)
         const lineTotal = item.price * qty
         // After the first item is secured, don't overshoot the budget
         if (orderItems.length > 0 && orderTotal + lineTotal > remaining * 1.15) break
@@ -189,6 +204,21 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
         const total       = Number(orderData.data?.totalAmount ?? orderTotal)
         const itemSummary = orderItems.map(i => `${i.name} x${i.quantity}`).join(', ')
         remaining -= total
+        // Decrement local stock tracker so we don't over-order physical variants
+        for (const i of orderItems) {
+          if (i.productVariantId) {
+            const prev = localStock.get(i.productVariantId) ?? 0
+            const next = prev - i.quantity
+            if (next <= 0) {
+              localStock.delete(i.productVariantId)
+              // Remove exhausted variant from pool so it won't be picked again
+              const idx = pool.findIndex(s => s.productVariantId === i.productVariantId)
+              if (idx !== -1) pool.splice(idx, 1)
+            } else {
+              localStock.set(i.productVariantId, next)
+            }
+          }
+        }
         updateSalesRun(cfg.businessId, prev => ({
           count:   prev.count + 1,
           spent:   prev.spent + total,
@@ -197,6 +227,22 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
             ...prev.entries,
           ].slice(0, 50),
         }))
+      } else if (orderData.error === 'Insufficient stock' && orderData.details?.length) {
+        // Stock ran out for specific variants — remove them from the pool and continue
+        for (const issue of orderData.details) {
+          if (issue.productVariantId) {
+            const idx = pool.findIndex(s => s.productVariantId === issue.productVariantId)
+            if (idx !== -1) pool.splice(idx, 1)
+            localStock.delete(issue.productVariantId)
+          }
+        }
+        updateSalesRun(cfg.businessId, prev => ({
+          entries: [
+            { id: String(Date.now()), label: `Skipped — stock exhausted for some items, retrying with remaining stock`, amount: 0, success: false },
+            ...prev.entries,
+          ].slice(0, 50),
+        }))
+        // Don't break — continue the loop with remaining pool items
       } else {
         updateSalesRun(cfg.businessId, prev => ({
           status:  'done',
@@ -209,7 +255,7 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
         return
       }
 
-      if (remaining < minPrice) { budgetExhausted = true; break }
+      if (remaining < getMinPrice()) { budgetExhausted = true; break }
       await sleep(2000)
     }
 

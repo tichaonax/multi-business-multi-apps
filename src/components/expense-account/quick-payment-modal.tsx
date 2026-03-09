@@ -995,7 +995,7 @@ export function QuickPaymentModal({
                       </div>
                       <SearchableSelect
                         value={formData.subcategoryId}
-                        options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                        options={subcategories.map(s => ({ value: s.id, label: `${s.emoji} ${s.name}` }))}
                         onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
                         placeholder="Select a subcategory..."
                         loading={loadingSubcategories}
@@ -1020,7 +1020,7 @@ export function QuickPaymentModal({
                       </div>
                       <SearchableSelect
                         value={formData.subSubcategoryId}
-                        options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                        options={subSubcategories.map(s => ({ value: s.id, label: `${s.emoji} ${s.name}` }))}
                         onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
                         placeholder="Select a sub-subcategory..."
                         disabled={!formData.subcategoryId}

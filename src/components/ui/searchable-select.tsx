@@ -32,7 +32,7 @@ export function SearchableSelect({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const selected = options.find(o => o.value === value)
-  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+  const filtered = options.filter(o => (o.label ?? '').toLowerCase().includes(search.toLowerCase()))
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {

@@ -297,7 +297,9 @@ export default function SmartQuickPaymentModal({
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true)
     try {
-      const res = await fetch(`/api/expense-account/${accountId}/payment-templates`, { credentials: 'include' })
+      const params = new URLSearchParams()
+      if (defaultCategoryBusinessType) params.set('businessType', defaultCategoryBusinessType)
+      const res = await fetch(`/api/expense-account/${accountId}/payment-templates?${params}`, { credentials: 'include' })
       if (res.ok) {
         const json = await res.json()
         const templates: PaymentTemplate[] = json.data ?? []
@@ -316,7 +318,7 @@ export default function SmartQuickPaymentModal({
       }
     } catch { /* non-fatal */ }
     finally { setLoadingTemplates(false) }
-  }, [accountId])
+  }, [accountId, defaultCategoryBusinessType])
 
   useEffect(() => {
     if (isOpen) {

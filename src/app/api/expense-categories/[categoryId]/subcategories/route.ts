@@ -27,7 +27,7 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const includeUserCreated = searchParams.get('includeUserCreated') !== 'false';
 
-    // categoryId is actually domainId now
+    // First try: treat as a domainId (domain-backed categories)
     const domainId = categoryId;
 
     // Verify domain exists
@@ -40,7 +40,72 @@ export async function GET(
     });
 
     if (!domain) {
-      return NextResponse.json({ error: 'Domain not found' }, { status: 404 });
+      // Fallback: treat as a global ExpenseCategory ID — return its ExpenseSubcategories
+      const globalCategory = await prisma.expenseCategories.findUnique({
+        where: { id: categoryId },
+        select: { id: true, name: true },
+      });
+
+      if (!globalCategory) {
+        return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+      }
+
+      const subcategories = await prisma.expenseSubcategories.findMany({
+        where: {
+          categoryId,
+          ...(includeUserCreated ? {} : { isUserCreated: false }),
+        },
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+          description: true,
+          isDefault: true,
+          isUserCreated: true,
+          createdAt: true,
+          createdBy: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      // If no subcategories found, check if this global category maps to a domain
+      // (e.g. "Business Expenses" → domain-business categories)
+      if (subcategories.length === 0) {
+        const GLOBAL_CATEGORY_DOMAIN_MAP: Record<string, string> = {
+          'category-business-expenses': 'domain-business',
+        }
+        const mappedDomainId = GLOBAL_CATEGORY_DOMAIN_MAP[categoryId]
+        if (mappedDomainId) {
+          const domainCategories = await prisma.expenseCategories.findMany({
+            where: {
+              domainId: mappedDomainId,
+              ...(includeUserCreated ? {} : { isUserCreated: false }),
+            },
+            select: {
+              id: true,
+              name: true,
+              emoji: true,
+              description: true,
+              isDefault: true,
+              isUserCreated: true,
+              createdAt: true,
+              createdBy: true,
+            },
+            orderBy: { name: 'asc' },
+          })
+          return NextResponse.json({
+            category: globalCategory,
+            subcategories: domainCategories,
+            count: domainCategories.length,
+          })
+        }
+      }
+
+      return NextResponse.json({
+        category: globalCategory,
+        subcategories,
+        count: subcategories.length,
+      });
     }
 
     // Fetch categories for this domain

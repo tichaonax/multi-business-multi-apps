@@ -1099,10 +1099,14 @@ export function QuickStockFromScanModal({
                   type="button"
                   onClick={() => setSelectedDef(d)}
                   className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
-                    selectedDef?.id === d.id ? 'bg-blue-50 dark:bg-blue-900/30 border-l-2 border-l-blue-500' : ''
+                    selectedDef?.id === d.id
+                      ? 'bg-blue-100 dark:bg-blue-800/50 border-l-4 border-l-blue-500'
+                      : ''
                   }`}
                 >
-                  <div className="font-medium text-sm text-gray-900 dark:text-white">{d.name}</div>
+                  <div className={`font-medium text-sm ${selectedDef?.id === d.id ? 'text-blue-700 dark:text-blue-200' : 'text-gray-900 dark:text-white'}`}>
+                    {selectedDef?.id === d.id && <span className="mr-1.5">✓</span>}{d.name}
+                  </div>
                   {d.sku && <div className="text-xs text-gray-400 mt-0.5">SKU: {d.sku}</div>}
                   {d.category && <div className="text-xs text-gray-400">{d.category.emoji} {d.category.name}</div>}
                 </button>
@@ -1126,9 +1130,12 @@ export function QuickStockFromScanModal({
 
             {/* Selected definition details */}
             {selectedDef && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-md px-4 py-3 text-sm">
-                <p className="font-medium text-gray-900 dark:text-white">Selected: {selectedDef.name}</p>
-                {selectedDef.sku && <p className="text-gray-500 dark:text-gray-400 text-xs">SKU: {selectedDef.sku}</p>}
+              <div className="bg-blue-600 dark:bg-blue-500 rounded-md px-4 py-3 text-sm flex items-start gap-3">
+                <span className="text-white text-lg leading-none mt-0.5">✓</span>
+                <div>
+                  <p className="font-semibold text-white">Selected: {selectedDef.name}</p>
+                  {selectedDef.sku && <p className="text-blue-100 text-xs mt-0.5">SKU: {selectedDef.sku}</p>}
+                </div>
               </div>
             )}
 

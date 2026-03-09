@@ -12,8 +12,22 @@ import { getServerUser } from '@/lib/get-server-user'
  * Payee data is intentionally excluded — the user must select a payee fresh
  * each time to prevent incorrect payment attribution.
  */
+// Maps business type slug to domain name in ExpenseDomains
+const BUSINESS_TYPE_DOMAIN_MAP: Record<string, string> = {
+  restaurant:   'Restaurant',
+  grocery:      'Groceries',
+  clothing:     'Clothing',
+  hardware:     'Hardware',
+  construction: 'Construction',
+  vehicles:     'Vehicle',
+  consulting:   'Business (General)',
+  services:     'Business (General)',
+  retail:       'Business (General)',
+  other:        'Business (General)',
+}
+
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ accountId: string }> }
 ) {
   try {
@@ -24,6 +38,7 @@ export async function GET(
 
     const permissions = getEffectivePermissions(user)
     const { accountId } = await params
+    const businessType = request.nextUrl.searchParams.get('businessType') ?? ''
 
     if (!permissions.canAccessExpenseAccount && user.role !== 'admin') {
       if (!(await canUserViewAccount(user.id, accountId))) {
@@ -46,12 +61,25 @@ export async function GET(
       )
     }
 
+    // Resolve the domain name for this business type (if known)
+    const domainName = BUSINESS_TYPE_DOMAIN_MAP[businessType] ?? null
+
     // Fetch recent payments ordered newest-first. We scan up to 100 to find
     // 7 distinct category+subcategory combos without a heavy GROUP BY query.
+    // Filter by business domain: allow global categories (domainId null) +
+    // categories belonging to the current business's domain only.
     const recentPayments = await prisma.expenseAccountPayments.findMany({
       where: {
         expenseAccountId: accountId,
         categoryId: { not: null },
+        ...(domainName ? {
+          category: {
+            OR: [
+              { domainId: null },                        // global categories always allowed
+              { domain: { name: domainName } },          // business-specific domain
+            ],
+          },
+        } : {}),
       },
       orderBy: { paymentDate: 'desc' },
       take: 100,
