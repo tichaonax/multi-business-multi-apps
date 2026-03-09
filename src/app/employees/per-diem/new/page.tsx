@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import Link from 'next/link'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -47,20 +48,17 @@ export default function PerDiemBatchEntryPage() {
   }, [session, status, router])
 
   const fetchEmployees = useCallback(async () => {
-    if (!currentBusinessId) return
     try {
-      const res = await fetch(`/api/employees?businessId=${currentBusinessId}&isActive=true`, { credentials: 'include' })
+      const res = await fetch('/api/per-diem/employees', { credentials: 'include' })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load employees')
-      const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : [])
-      setEmployees(list)
-      if (list.length > 0) setEmployeeId(list[0].id)
+      setEmployees(json.data ?? [])
     } catch (e: any) {
       toast.error(e.message)
     }
-  }, [currentBusinessId, toast])
+  }, [toast])
 
-  useEffect(() => { fetchEmployees() }, [fetchEmployees])
+  useEffect(() => { if (status === 'authenticated') fetchEmployees() }, [status, fetchEmployees])
 
   function addRow() {
     setRows(r => [...r, newRow(todayStr)])
@@ -148,16 +146,12 @@ export default function PerDiemBatchEntryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Employee</label>
-              <select
+              <SearchableSelect
+                options={employees.map((emp: any) => ({ value: emp.id, label: `${emp.fullName} (${emp.employeeNumber})` }))}
                 value={employeeId}
-                onChange={e => setEmployeeId(e.target.value)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {employees.length === 0 && <option value="">No employees found</option>}
-                {employees.map(emp => (
-                  <option key={emp.id} value={emp.id}>{emp.fullName} ({emp.employeeNumber})</option>
-                ))}
-              </select>
+                onChange={setEmployeeId}
+                placeholder={employees.length === 0 ? 'Loading employees…' : 'Search employee…'}
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Month</label>
@@ -277,7 +271,7 @@ export default function PerDiemBatchEntryPage() {
           </Link>
           <button
             onClick={handleSubmit}
-            disabled={submitting || employees.length === 0}
+            disabled={submitting || !employeeId}
             className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Saving...' : `Save ${rows.length} ${rows.length === 1 ? 'Entry' : 'Entries'}`}

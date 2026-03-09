@@ -101,9 +101,14 @@ export default function PerDiemListPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Per Diem</h1>
             {currentBusiness && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{currentBusiness.businessName}</p>}
           </div>
-          <Link href="/employees/per-diem/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-            + New Entry
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/employees/per-diem/request-form" className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700">
+              🖨 Request Form
+            </Link>
+            <Link href="/employees/per-diem/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+              + New Entry
+            </Link>
+          </div>
         </div>
 
         {/* Period filter */}

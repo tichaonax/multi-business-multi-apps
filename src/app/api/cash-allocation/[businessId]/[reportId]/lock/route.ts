@@ -143,9 +143,21 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Cannot lock an empty report' }, { status: 400 })
     }
 
-    // Validate all items are checked with matching amounts
+    // Auto-confirm any rent items that weren't created with isChecked=true (data fix)
+    for (const item of report.lineItems) {
+      if (item.sourceType === 'EOD_RENT_TRANSFER' && (!item.isChecked || item.actualAmount === null)) {
+        await prisma.cashAllocationLineItem.update({
+          where: { id: item.id },
+          data: { isChecked: true, actualAmount: item.reportedAmount, checkedAt: new Date(), checkedBy: user.id },
+        })
+      }
+    }
+
+    // Validate all non-rent items are checked with matching amounts
+    // Rent items are auto-confirmed and excluded from this check
     const mismatches: string[] = []
     for (const item of report.lineItems) {
+      if (item.sourceType === 'EOD_RENT_TRANSFER') continue
       if (!item.isChecked) {
         mismatches.push(`"${item.accountName}" is not checked`)
         continue

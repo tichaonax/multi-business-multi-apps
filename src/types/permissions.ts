@@ -160,6 +160,9 @@ export interface CoreBusinessPermissions {
   canExportCustomerData: boolean;
   canLinkCustomerAccounts: boolean;
 
+  // Per Diem
+  canAccessPerDiem: boolean; // Access per diem request form and entry workflow (cashiers, managers, owners)
+
   // Payroll Management
   canAccessPayroll: boolean;
   canManagePayroll: boolean;
@@ -1269,6 +1272,9 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canExportCustomerData: true,
   canLinkCustomerAccounts: true,
 
+  // Per Diem
+  canAccessPerDiem: true,
+
   // Payroll Management - Full access
   canAccessPayroll: true,
   canManagePayroll: true,
@@ -1413,6 +1419,9 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canViewCustomerReports: true,
   canExportCustomerData: true,
   canLinkCustomerAccounts: true,
+
+  // Per Diem
+  canAccessPerDiem: true,
 
   // Payroll Management - Manager access
   // ⚠️ CRITICAL: Export, Reset, Delete, and Print are FALSE by default
@@ -1561,6 +1570,9 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canExportCustomerData: false,
   canLinkCustomerAccounts: false,
 
+  // Per Diem
+  canAccessPerDiem: true, // Employees (cashiers) can access per diem request workflow
+
   // Payroll Management - No access
   // ⚠️ Employees can be granted custom payroll permissions for specific tasks
   // but will NEVER see Export/Reset/Delete/Print options in UI
@@ -1707,6 +1719,9 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewCustomerReports: true,
   canExportCustomerData: false,
   canLinkCustomerAccounts: false,
+
+  // Per Diem
+  canAccessPerDiem: false,
 
   // Payroll Management - View-only access
   canAccessPayroll: true,
@@ -1856,6 +1871,9 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canExportCustomerData: false,
   canLinkCustomerAccounts: false,
 
+  // Per Diem
+  canAccessPerDiem: false,
+
   // Payroll Management - No access
   canAccessPayroll: false,
   canManagePayroll: false,
@@ -2004,6 +2022,9 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canExportCustomerData: false,
   canLinkCustomerAccounts: false,
 
+  // Per Diem
+  canAccessPerDiem: false,
+
   // Payroll Management - No access
   canAccessPayroll: false,
   canManagePayroll: false,
@@ -2148,6 +2169,9 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canViewCustomerReports: true,
   canExportCustomerData: true,
   canLinkCustomerAccounts: true,
+
+  // Per Diem
+  canAccessPerDiem: true,
 
   // Payroll Management - Full access
   canAccessPayroll: true,

@@ -1170,17 +1170,6 @@ export function Sidebar() {
           </Link>
         )}
 
-        {/* Per Diem - Only for users with payroll or employee management permissions */}
-        {(isSystemAdmin(currentUser) || hasPermission('canAccessPayroll') || hasPermission('canManageEmployees')) && (
-          <Link
-            href="/employees/per-diem"
-            className={getLinkClasses('/employees/per-diem')}
-          >
-            <span className="text-lg">🗂️</span>
-            <span>Per Diem</span>
-          </Link>
-        )}
-
         {/* Payroll Account - Only for users with payroll account permissions */}
         {(isSystemAdmin(currentUser) || hasPermission('canAccessPayrollAccount')) && (
           <>
@@ -1742,6 +1731,16 @@ export function Sidebar() {
               >
                 <span className="text-lg">🕐</span>
                 <span>Clock-In Management</span>
+              </Link>
+            )}
+
+            {(isSystemAdmin(currentUser) || hasPermission('canAccessPerDiem') || hasPermission('canAccessPayroll')) && (
+              <Link
+                href="/employees/per-diem"
+                className={getLinkClasses('/employees/per-diem')}
+              >
+                <span className="text-lg">🗂️</span>
+                <span>Per Diem</span>
               </Link>
             )}
             </>)}

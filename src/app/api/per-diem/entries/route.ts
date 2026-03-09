@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    if (!hasPermission(user, 'canAccessPayroll') && !isSystemAdmin(user)) {
+    if (!hasPermission(user, 'canAccessPerDiem') && !hasPermission(user, 'canAccessPayroll') && !isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    if (!hasPermission(user, 'canAccessPayroll') && !isSystemAdmin(user)) {
+    if (!hasPermission(user, 'canAccessPerDiem') && !hasPermission(user, 'canAccessPayroll') && !isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

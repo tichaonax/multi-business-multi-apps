@@ -7,7 +7,7 @@ export interface PendingActionsData {
   pendingPettyCash: { id: string; purpose?: string; requestedAmount?: number; requesterName?: string }[]
   pendingCashAllocations: { id: string; reportDate?: string; businessName?: string }[]
   pendingPaymentBatches: { id: string; eodDate?: string; businessName?: string; paymentCount?: number }[]
-  pendingPaymentRequests: { id: string; accountName?: string; pendingCount?: number }[]
+  pendingPaymentRequests: { id: string; accountName?: string; requestCount?: number }[]
 }
 
 /**

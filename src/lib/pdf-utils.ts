@@ -738,6 +738,276 @@ export const generateCashAllocationPDF = (
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Per Diem Request Form — blank printable template
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PerDiemFormPrefill {
+  employeeName?: string
+  employeeNumber?: string
+  jobTitle?: string
+  department?: string
+  month?: string   // e.g. "March"
+  year?: string    // e.g. "2026"
+}
+
+export const generatePerDiemRequestFormPDF = (
+  action: 'save' | 'print' = 'save',
+  prefill?: PerDiemFormPrefill,
+): void => {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 15
+  const contentWidth = pageWidth - 2 * margin
+  let y = margin
+
+  const drawLine = (yPos: number, light = false) => {
+    pdf.setDrawColor(light ? 180 : 0, light ? 180 : 0, light ? 180 : 0)
+    pdf.line(margin, yPos, pageWidth - margin, yPos)
+  }
+  const drawFieldLine = (x: number, yPos: number, w: number) => {
+    pdf.setDrawColor(0, 0, 0)
+    pdf.line(x, yPos, x + w, yPos)
+  }
+  const sectionHeader = (text: string) => {
+    pdf.setFontSize(8)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(80, 80, 80)
+    pdf.text(text, margin, y)
+    pdf.setTextColor(0, 0, 0)
+    y += 2
+    drawLine(y)
+    y += 5
+  }
+
+  // ── Title ─────────────────────────────────────────────────────────────────
+  pdf.setFontSize(16)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(0, 0, 0)
+  pdf.text('PER DIEM REQUEST FORM', pageWidth / 2, y, { align: 'center' })
+  y += 6
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'italic')
+  pdf.setTextColor(100, 100, 100)
+  pdf.text('Submit to your manager for approval — do not submit without receipts where required', pageWidth / 2, y, { align: 'center' })
+  pdf.setTextColor(0, 0, 0)
+  y += 4
+  drawLine(y)
+  y += 7
+
+  // ── Employee Information ──────────────────────────────────────────────────
+  sectionHeader('EMPLOYEE INFORMATION')
+
+  const fieldW = (contentWidth - 10) / 2
+  const col2X = margin + fieldW + 10
+
+  const labelField = (label: string, x: number, w: number, value?: string) => {
+    pdf.setFontSize(7)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setTextColor(80, 80, 80)
+    pdf.text(label, x, y)
+    drawFieldLine(x, y + 5, w)
+    if (value) {
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(8.5)
+      pdf.setTextColor(0, 0, 0)
+      pdf.text(value, x, y + 4)
+    }
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7)
+  }
+
+  labelField('Full Name', margin, fieldW, prefill?.employeeName)
+  labelField('Employee #', col2X, fieldW, prefill?.employeeNumber)
+  y += 10
+
+  labelField('Job Title / Position', margin, fieldW, prefill?.jobTitle)
+  labelField('Department / Business Unit', col2X, fieldW, prefill?.department)
+  y += 10
+
+  const thirdW = (contentWidth - 8) / 3
+  labelField('Claim Period — Month', margin, thirdW, prefill?.month)
+  labelField('Year', margin + thirdW + 4, thirdW, prefill?.year)
+  labelField('Date Submitted', margin + (thirdW + 4) * 2, thirdW)
+  y += 10
+
+  // ── Eligible Categories ───────────────────────────────────────────────────
+  sectionHeader('ELIGIBLE PER DIEM CATEGORIES')
+
+  const cats = [
+    { name: 'Lodging',      desc: 'Hotel, accommodation\ncosts during approved\ntravel' },
+    { name: 'Meals',        desc: 'Breakfast, lunch, dinner\nduring work travel\nor duties' },
+    { name: 'Incidentals',  desc: 'Tips, phone calls,\nlaundry while\ntravelling' },
+    { name: 'Travel',       desc: 'Airfare, taxi, fuel,\ntolls, parking for\nwork purposes' },
+    { name: 'Other',        desc: 'Any other approved\nwork-related expense\n(manager pre-approval)' },
+  ]
+  const catW = (contentWidth - 4) / 5
+  cats.forEach((cat, i) => {
+    const cx = margin + i * (catW + 1)
+    pdf.setDrawColor(0, 0, 0)
+    pdf.rect(cx, y - 3, catW, 18)
+    pdf.setFontSize(8)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(cat.name, cx + 2, y + 2)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(6.5)
+    pdf.setTextColor(80, 80, 80)
+    const lines = cat.desc.split('\n')
+    lines.forEach((line, li) => pdf.text(line, cx + 2, y + 7 + li * 3.5))
+    pdf.setTextColor(0, 0, 0)
+  })
+  y += 22
+
+  // ── Daily Entries Table ───────────────────────────────────────────────────
+  sectionHeader('DAILY EXPENSE ENTRIES')
+
+  const col = { num: margin, date: margin + 7, cat: margin + 35, desc: margin + 63, amt: pageWidth - margin - 16, rec: pageWidth - margin }
+  const rowH = 7
+
+  // Header row
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFillColor(230, 230, 230)
+  pdf.rect(margin, y - 3, contentWidth, rowH, 'FD')
+  pdf.text('#', col.num + 1, y + 1)
+  pdf.text('Date', col.date + 1, y + 1)
+  pdf.text('Category', col.cat + 1, y + 1)
+  pdf.text('Description / Notes', col.desc + 1, y + 1)
+  pdf.text('Amount ($)', col.amt, y + 1, { align: 'right' })
+  pdf.text('Receipt', col.rec, y + 1, { align: 'right' })
+  y += rowH + 1
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7)
+  for (let i = 1; i <= 12; i++) {
+    pdf.setDrawColor(180, 180, 180)
+    pdf.rect(margin, y - 3, contentWidth, rowH)
+    pdf.setTextColor(160, 160, 160)
+    pdf.text(String(i), col.num + 1, y + 1)
+    pdf.setTextColor(0, 0, 0)
+    // vertical separators
+    ;[col.date, col.cat, col.desc, col.amt - 2, col.rec - 18].forEach(cx => {
+      pdf.setDrawColor(180, 180, 180)
+      pdf.line(cx, y - 3, cx, y - 3 + rowH)
+    })
+    y += rowH
+  }
+  y += 4
+
+  // ── Summary + Office Use ──────────────────────────────────────────────────
+  const halfW = (contentWidth - 6) / 2
+  const rightColX = margin + halfW + 6
+
+  // Summary header
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(80, 80, 80)
+  pdf.text('SUMMARY BY CATEGORY', margin, y)
+  pdf.text('FOR OFFICE USE ONLY', rightColX, y)
+  pdf.setTextColor(0, 0, 0)
+  y += 2
+  pdf.setDrawColor(0, 0, 0)
+  pdf.line(margin, y, margin + halfW, y)
+  pdf.line(rightColX, y, rightColX + halfW, y)
+  y += 5
+
+  const summaryRows = ['Lodging', 'Meals', 'Incidentals', 'Travel', 'Other']
+  const officeRows = ['Amount Approved ($)', 'Approved by', 'Payroll Month', 'Date Entered', 'Entered by']
+  const sumRowH = 6.5
+
+  summaryRows.forEach((cat, i) => {
+    const ry = y + i * sumRowH
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setDrawColor(180, 180, 180)
+    pdf.rect(margin, ry - 3, halfW, sumRowH)
+    pdf.text(cat, margin + 2, ry + 0.5)
+    pdf.text('$', margin + halfW - 2, ry + 0.5, { align: 'right' })
+  })
+
+  // Total row
+  const totalY = y + summaryRows.length * sumRowH
+  pdf.setFillColor(220, 220, 220)
+  pdf.setDrawColor(0, 0, 0)
+  pdf.rect(margin, totalY - 3, halfW, sumRowH, 'FD')
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('TOTAL CLAIMED', margin + 2, totalY + 0.5)
+  pdf.text('$', margin + halfW - 2, totalY + 0.5, { align: 'right' })
+
+  officeRows.forEach((field, i) => {
+    const ry = y + i * sumRowH
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setDrawColor(180, 180, 180)
+    pdf.rect(rightColX, ry - 3, halfW, sumRowH)
+    pdf.setTextColor(80, 80, 80)
+    pdf.text(field, rightColX + 2, ry + 0.5)
+    pdf.setTextColor(0, 0, 0)
+  })
+
+  y = totalY + sumRowH + 6
+
+  // ── Declaration + Signatures ──────────────────────────────────────────────
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(80, 80, 80)
+  pdf.text('DECLARATION', margin, y)
+  pdf.setTextColor(0, 0, 0)
+  y += 2
+  drawLine(y)
+  y += 5
+
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'italic')
+  pdf.setTextColor(60, 60, 60)
+  const declaration = 'I certify that the expenses listed above were incurred by me in the performance of my official duties, that they are correctly stated, and that I have not previously been reimbursed for these expenses. I understand that false claims may result in disciplinary action.'
+  const declLines = pdf.splitTextToSize(declaration, contentWidth)
+  pdf.text(declLines, margin, y)
+  pdf.setTextColor(0, 0, 0)
+  y += declLines.length * 4 + 4
+
+  const sigW = (contentWidth - 10) / 2
+  const sig2X = margin + sigW + 10
+  const sigLineY = y + 8
+
+  pdf.setDrawColor(0, 0, 0)
+  pdf.line(margin, sigLineY, margin + sigW, sigLineY)
+  pdf.line(sig2X, sigLineY, sig2X + sigW, sigLineY)
+
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('Employee Signature', margin, sigLineY + 4)
+  pdf.text('Manager / Approver Signature', sig2X, sigLineY + 4)
+
+  const dateLineY = sigLineY + 10
+  pdf.setFont('helvetica', 'normal')
+  pdf.line(margin, dateLineY, margin + sigW / 2, dateLineY)
+  pdf.line(sig2X, dateLineY, sig2X + sigW / 2, dateLineY)
+  pdf.setTextColor(100, 100, 100)
+  pdf.setFontSize(7)
+  pdf.text('Date', margin, dateLineY + 3.5)
+  pdf.text('Date', sig2X, dateLineY + 3.5)
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  pdf.setFontSize(7)
+  pdf.setFont('helvetica', 'italic')
+  pdf.setTextColor(150, 150, 150)
+  pdf.text(
+    'Per Diem Request Form  ·  Return completed form with receipts to Payroll',
+    pageWidth / 2, pageHeight - 8, { align: 'center' },
+  )
+
+  if (action === 'print') {
+    pdf.autoPrint()
+    window.open(pdf.output('bloburl'), '_blank')
+  } else {
+    pdf.save('PerDiemRequestForm.pdf')
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Payment Batch Voucher PDF (MBM-141)
 // Toner-friendly — no background fills, borders only.
 // ─────────────────────────────────────────────────────────────────────────────

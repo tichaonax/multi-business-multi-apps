@@ -752,7 +752,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               <span className="mt-0.5 shrink-0">💳</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">Payment Requests — {r.accountName ?? '—'}</p>
-                                <p className="text-secondary">{r.pendingCount ?? r._count ?? 0} pending</p>
+                                <p className="text-secondary">{r.requestCount ?? r.pendingCount ?? 0} pending</p>
                               </div>
                             </Link>
                           ))}
