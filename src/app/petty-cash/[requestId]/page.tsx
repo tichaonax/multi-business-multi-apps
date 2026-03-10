@@ -21,6 +21,9 @@ function fmt(n: number) {
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
+function todayISO() {
+  return new Date().toISOString().split('T')[0]
+}
 
 export default function PettyCashDetailPage() {
   const { data: session, status } = useSession()
@@ -45,6 +48,21 @@ export default function PettyCashDetailPage() {
   const [returnAmount, setReturnAmount] = useState('')
   const [settleNotes, setSettleNotes] = useState('')
   const [settling, setSettling] = useState(false)
+
+  // Transactions state
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [txSummary, setTxSummary] = useState<{ approvedAmount: number; spentAmount: number; remainingBalance: number } | null>(null)
+  const [loadingTx, setLoadingTx] = useState(false)
+
+  // Record Spend modal state
+  const [showSpend, setShowSpend] = useState(false)
+  const [spendAmount, setSpendAmount] = useState('')
+  const [spendDesc, setSpendDesc] = useState('')
+  const [spendDate, setSpendDate] = useState(todayISO())
+  const [spendCategoryId, setSpendCategoryId] = useState('')
+  const [spendPayeeType, setSpendPayeeType] = useState('NONE')
+  const [submittingSpend, setSubmittingSpend] = useState(false)
+  const [categories, setCategories] = useState<{ id: string; name: string; emoji: string }[]>([])
 
   // Signature pad state (approve modal)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -101,6 +119,23 @@ export default function PettyCashDetailPage() {
     return canvasRef.current?.toDataURL('image/png') ?? null
   }
 
+  const fetchTransactions = useCallback(async () => {
+    setLoadingTx(true)
+    try {
+      const res = await fetch(`/api/petty-cash/requests/${requestId}/transactions`, { credentials: 'include' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to load transactions')
+      setTransactions(json.data.transactions)
+      setTxSummary(json.data.summary)
+      // Pre-fill settle returnAmount from remaining balance
+      setReturnAmount(String(json.data.summary.remainingBalance.toFixed(2)))
+    } catch {
+      // Non-fatal — transactions panel just stays empty
+    } finally {
+      setLoadingTx(false)
+    }
+  }, [requestId])
+
   const fetchDetail = useCallback(async () => {
     setLoading(true)
     try {
@@ -111,7 +146,6 @@ export default function PettyCashDetailPage() {
       if (json.data.request?.requestedAmount) {
         setApprovedAmount(String(json.data.request.requestedAmount))
       }
-      setReturnAmount('0')
     } catch (e: any) {
       toast.error(e.message)
     } finally {
@@ -127,7 +161,25 @@ export default function PettyCashDetailPage() {
       .then(r => r.json())
       .then(j => { setCanRequest(j.canRequest ?? false); setCanApprove(j.canApprove ?? false) })
       .catch(() => {})
+    // Load categories for Record Spend modal
+    fetch('/api/expense-categories', { credentials: 'include' })
+      .then(r => r.json())
+      .then(j => {
+        const cats: { id: string; name: string; emoji: string }[] = []
+        ;(j.domains || j || []).forEach((domain: any) => {
+          ;(domain.categories || []).forEach((c: any) => cats.push({ id: c.id, name: c.name, emoji: c.emoji || '💰' }))
+        })
+        setCategories(cats)
+      })
+      .catch(() => {})
   }, [status, session, router, fetchDetail])
+
+  // Fetch transactions whenever the request is APPROVED
+  useEffect(() => {
+    if (data?.request?.status === 'APPROVED') {
+      fetchTransactions()
+    }
+  }, [data?.request?.status, fetchTransactions])
 
   async function handleApprove(e: React.FormEvent) {
     e.preventDefault()
@@ -195,15 +247,56 @@ export default function PettyCashDetailPage() {
     }
   }
 
+  async function handleRecordSpend(e: React.FormEvent) {
+    e.preventDefault()
+    if (Number(spendAmount) <= 0) { toast.error('Enter a valid amount'); return }
+    if (!spendDesc.trim()) { toast.error('Description is required'); return }
+    setSubmittingSpend(true)
+    try {
+      const res = await fetch(`/api/petty-cash/requests/${requestId}/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount: Number(spendAmount),
+          description: spendDesc.trim(),
+          transactionDate: spendDate || todayISO(),
+          payeeType: spendPayeeType,
+          ...(spendCategoryId ? { categoryId: spendCategoryId } : {}),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to record spend')
+      toast.push('Spend recorded', { type: 'success' })
+      setShowSpend(false)
+      setSpendAmount('')
+      setSpendDesc('')
+      setSpendDate(todayISO())
+      setSpendCategoryId('')
+      setSpendPayeeType('NONE')
+      fetchTransactions()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setSubmittingSpend(false)
+    }
+  }
+
   if (status === 'loading' || loading) {
     return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-gray-900 dark:border-gray-100" /></div>
   }
   if (!data) return null
 
   const req = data.request
-  const payments = data.recentPayments || []
   const approvedAmt = req.approvedAmount ?? 0
   const returnAmt = req.returnAmount ?? 0
+  const remaining = txSummary?.remainingBalance ?? (approvedAmt - (req.spentAmount ?? 0))
+  const spentAmt = txSummary?.spentAmount ?? (req.spentAmount ?? 0)
+  const isApproved = req.status === 'APPROVED'
+
+  // Determine if current user is the requester (can record spends)
+  const isRequester = session?.user && (session.user as any).id === req.requestedBy
+  const canRecordSpend = isApproved && (isRequester || canApprove)
 
   return (
     <ContentLayout title="Petty Cash Request">
@@ -221,6 +314,29 @@ export default function PettyCashDetailPage() {
             {req.status}
           </span>
         </div>
+
+        {/* Balance card — shown while APPROVED */}
+        {isApproved && txSummary && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-3">💵 Petty Cash Balance</h2>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Approved</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{fmt(txSummary.approvedAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Spent</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400">{fmt(txSummary.spentAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Remaining</p>
+                <p className={`text-lg font-bold ${txSummary.remainingBalance > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                  {fmt(txSummary.remainingBalance)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Details card */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 grid grid-cols-2 gap-4 text-sm">
@@ -318,50 +434,66 @@ export default function PettyCashDetailPage() {
           </div>
         )}
 
-        {req.status === 'APPROVED' && canApprove && (
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowSettle(true)}
-              className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
-            >
-              Settle Request
-            </button>
+        {isApproved && (
+          <div className="flex gap-3 flex-wrap">
+            {canRecordSpend && (
+              <button
+                onClick={() => setShowSpend(true)}
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
+                + Record Spend
+              </button>
+            )}
+            {canApprove && (
+              <button
+                onClick={() => setShowSettle(true)}
+                className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+              >
+                Settle Request
+              </button>
+            )}
           </div>
         )}
 
-        {/* Expense account payments context panel */}
-        {req.status === 'APPROVED' && (
+        {/* Spending history panel */}
+        {isApproved && (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="font-semibold text-gray-800 dark:text-gray-200">Expense Account Activity (since approval)</h2>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{payments.length} payments</span>
+              <h2 className="font-semibold text-gray-800 dark:text-gray-200">Spending History</h2>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{transactions.length} transaction{transactions.length !== 1 ? 's' : ''}</span>
             </div>
-            {payments.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-gray-400 dark:text-gray-500 text-center">No payments recorded yet in this expense account since approval.</p>
+            {loadingTx ? (
+              <p className="px-5 py-6 text-sm text-gray-400 dark:text-gray-500 text-center">Loading...</p>
+            ) : transactions.length === 0 ? (
+              <p className="px-5 py-6 text-sm text-gray-400 dark:text-gray-500 text-center">No spends recorded yet.{canRecordSpend ? ' Use "Record Spend" to track each expense.' : ''}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700">
                   <tr>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Date</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Notes</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Description</th>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Category</th>
                     <th className="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                  {payments.map((p: any) => (
-                    <tr key={p.id}>
-                      <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">{new Date(p.paymentDate).toLocaleDateString()}</td>
-                      <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{p.notes || '—'}</td>
-                      <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">{p.category ? `${p.category.emoji || ''} ${p.category.name}` : '—'}</td>
-                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-gray-900 dark:text-gray-100">{fmt(p.amount)}</td>
+                  {transactions.map((t: any) => (
+                    <tr key={t.id}>
+                      <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        {new Date(t.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{t.description}</td>
+                      <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">
+                        {t.category ? `${t.category.emoji} ${t.category.name}` : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-red-600 dark:text-red-400">{fmt(t.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                   <tr>
-                    <td colSpan={3} className="px-4 py-2.5 font-medium text-gray-700 dark:text-gray-300">Total spent from account</td>
-                    <td className="px-4 py-2.5 text-right font-bold tabular-nums text-gray-900 dark:text-gray-100">{fmt(data.summary?.totalSpentFromAccount || 0)}</td>
+                    <td colSpan={3} className="px-4 py-2.5 font-medium text-gray-700 dark:text-gray-300">Total spent</td>
+                    <td className="px-4 py-2.5 text-right font-bold tabular-nums text-red-600 dark:text-red-400">{fmt(spentAmt)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -386,10 +518,7 @@ export default function PettyCashDetailPage() {
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">$</span>
                     <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      max={req.requestedAmount}
+                      type="number" min="0.01" step="0.01" max={req.requestedAmount}
                       value={approvedAmount}
                       onChange={e => setApprovedAmount(e.target.value)}
                       className="w-full pl-8 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -401,7 +530,6 @@ export default function PettyCashDetailPage() {
                 <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
                   This will debit the business account and deposit into the expense account. Physical cash must be handed to the requester.
                 </p>
-
                 {/* Signature pad */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -411,26 +539,119 @@ export default function PettyCashDetailPage() {
                     <button type="button" onClick={clearSignature} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 underline">Clear</button>
                   </div>
                   <canvas
-                    ref={canvasRef}
-                    width={440}
-                    height={120}
+                    ref={canvasRef} width={440} height={120}
                     className="w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white cursor-crosshair touch-none"
                     style={{ height: '120px' }}
-                    onMouseDown={startDraw}
-                    onMouseMove={draw}
-                    onMouseUp={stopDraw}
-                    onMouseLeave={stopDraw}
-                    onTouchStart={startDraw}
-                    onTouchMove={draw}
-                    onTouchEnd={stopDraw}
+                    onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                    onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}
                   />
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Have the recipient sign above before issuing cash</p>
                 </div>
-
                 <div className="flex gap-3 pt-1">
                   <button type="button" onClick={() => { setShowApprove(false); clearSignature() }} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
                   <button type="submit" disabled={approving} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                     {approving ? 'Processing...' : 'Approve & Issue'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Record Spend modal */}
+        {showSpend && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 my-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Record Spend</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Remaining balance: <span className="font-semibold text-green-600 dark:text-green-400">{fmt(txSummary?.remainingBalance ?? remaining)}</span>
+              </p>
+              <form onSubmit={handleRecordSpend} className="space-y-4">
+                {/* Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Amount <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">$</span>
+                    <input
+                      type="number" min="0.01" step="0.01"
+                      max={txSummary?.remainingBalance ?? remaining}
+                      value={spendAmount}
+                      onChange={e => setSpendAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full pl-8 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={spendDesc}
+                    onChange={e => setSpendDesc(e.target.value)}
+                    placeholder="e.g. Office supplies — 3 reams paper"
+                    maxLength={200}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+
+                {/* Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={spendDate}
+                    onChange={e => setSpendDate(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Category <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
+                  </label>
+                  <select
+                    value={spendCategoryId}
+                    onChange={e => setSpendCategoryId(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                  >
+                    <option value="">— No category —</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Payee type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Payee type <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
+                  </label>
+                  <select
+                    value={spendPayeeType}
+                    onChange={e => setSpendPayeeType(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                  >
+                    <option value="NONE">None / General</option>
+                    <option value="SUPPLIER">Supplier</option>
+                    <option value="EMPLOYEE">Employee</option>
+                    <option value="USER">User</option>
+                    <option value="PERSON">Person</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button type="button" onClick={() => setShowSpend(false)} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+                  <button type="submit" disabled={submittingSpend} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                    {submittingSpend ? 'Recording...' : 'Record Spend'}
                   </button>
                 </div>
               </form>
@@ -446,14 +667,25 @@ export default function PettyCashDetailPage() {
               <form onSubmit={handleSettle} className="space-y-4">
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-gray-400">Approved amount</span>
+                    <span className="text-gray-500 dark:text-gray-400">Approved</span>
                     <span className="font-semibold text-gray-900 dark:text-gray-100">{fmt(approvedAmt)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-gray-400">Total spent (from account)</span>
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">{fmt(data.summary?.totalSpentFromAccount || 0)}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Spent (tracked)</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">{fmt(spentAmt)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
+                    <span className="text-gray-600 dark:text-gray-300 font-medium">Calculated return</span>
+                    <span className="font-bold text-green-600 dark:text-green-400">{fmt(remaining)}</span>
                   </div>
                 </div>
+
+                {transactions.length === 0 && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2">
+                    No spends were tracked via "Record Spend". Enter the return amount manually below.
+                  </p>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Cash Returned to Cashier <span className="text-red-500">*</span>
@@ -461,18 +693,16 @@ export default function PettyCashDetailPage() {
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">$</span>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      max={approvedAmt}
+                      type="number" min="0" step="0.01" max={approvedAmt}
                       value={returnAmount}
                       onChange={e => setReturnAmount(e.target.value)}
                       className="w-full pl-8 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 outline-none"
                       required
                     />
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Enter 0 if all cash was spent</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Pre-filled from tracked spends. Edit if physical cash differs.</p>
                 </div>
+
                 {Number(returnAmount) > 0 && (
                   <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-sm">
                     <div className="flex justify-between text-green-800 dark:text-green-300">
@@ -480,10 +710,11 @@ export default function PettyCashDetailPage() {
                       <span className="font-semibold">{fmt(approvedAmt - Number(returnAmount))}</span>
                     </div>
                     <p className="text-green-700 dark:text-green-400 mt-1 text-xs">
-                      {fmt(Number(returnAmount))} will be credited back to the business account.
+                      {fmt(Number(returnAmount))} will be credited back to the business account and cash bucket.
                     </p>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Settlement Notes <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span></label>
                   <textarea

@@ -115,9 +115,24 @@ export async function POST(
           },
         })
         returnTxId = businessTx.id
+
+        // 4. Credit the physical cash bucket — cash is back in hand
+        await tx.cashBucketEntry.create({
+          data: {
+            businessId: pcRequest.businessId,
+            entryType: 'PETTY_CASH_RETURN',
+            direction: 'INFLOW',
+            amount: returnAmount,
+            referenceType: 'PETTY_CASH_RETURN',
+            referenceId: requestId,
+            notes: `Petty cash return: ${pcRequest.purpose}`,
+            entryDate: now,
+            createdBy: user.id,
+          },
+        })
       }
 
-      // 4. Settle the request
+      // 5. Settle the request
       const updated = await tx.pettyCashRequests.update({
         where: { id: requestId },
         data: {

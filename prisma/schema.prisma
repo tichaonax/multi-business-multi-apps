@@ -511,6 +511,7 @@ model Businesses {
   cash_allocation_reports                                                  CashAllocationReport[]        @relation("BusinessCashAllocationReports")
   grouped_eod_runs                                                         GroupedEODRun[]
   petty_cash_requests                                                      PettyCashRequests[]           @relation("BusinessPettyCash")
+  petty_cash_transactions                                                  PettyCashTransaction[]        @relation("PettyCashTransactionBusiness")
   payment_batch_submissions                                                PaymentBatchSubmissions[]     @relation("BusinessPaymentBatches")
   eod_payment_batches                                                      EODPaymentBatch[]             @relation("BusinessEODPaymentBatches")
   cash_bucket_entries                                                      CashBucketEntry[]             @relation("BusinessCashBucket")
@@ -1229,7 +1230,7 @@ model Employees {
   employee_allowances_employee_allowances_approvedByToemployees             EmployeeAllowances[]          @relation("employee_allowances_approvedByToemployees")
   employee_allowances_employee_allowances_employeeIdToemployees             EmployeeAllowances[]          @relation("employee_allowances_employeeIdToemployees")
   employee_attendance                                                       EmployeeAttendance[]
-  employee_absences                                                        EmployeeAbsences[]
+  employee_absences                                                         EmployeeAbsences[]
   employee_benefits                                                         EmployeeBenefits[]
   employee_login_logs                                                       EmployeeLoginLog[]
   employee_bonuses_employee_bonuses_approvedByToemployees                   EmployeeBonuses[]             @relation("employee_bonuses_approvedByToemployees")
@@ -1305,6 +1306,7 @@ model ExpenseCategories {
   expense_subcategories    ExpenseSubcategories[]
   personal_expenses        PersonalExpenses[]
   supplier_payment_items   SupplierPaymentRequestItems[] @relation("SupplierPaymentItemCategory")
+  petty_cash_transactions  PettyCashTransaction[]        @relation("PettyCashTransactionCategory")
 
   @@unique([domainId, name])
   @@index([updatedAt(sort: Desc)], map: "idx_expense_categories_updated_at")
@@ -1378,6 +1380,7 @@ model ExpenseAccounts {
   auto_deposit_configs       ExpenseAccountAutoDeposit[] @relation("ExpenseAccountAutoDeposits")
   cash_allocation_line_items CashAllocationLineItem[]
   petty_cash_requests        PettyCashRequests[]         @relation("PettyCashExpenseAccount")
+  petty_cash_transactions    PettyCashTransaction[]      @relation("PettyCashTransactionExpense")
   businessLoan               BusinessLoan?               @relation("LoanExpenseAccount")
 
   @@index([isActive], map: "idx_expense_accounts_active")
@@ -1500,6 +1503,7 @@ model ExpenseAccountPayments {
   transferLedger            BusinessTransferLedger?          @relation("TransferReturns", fields: [transferLedgerId], references: [id])
   supplier_payment_partials SupplierPaymentRequestPartials[]
   petty_cash_return         PettyCashRequests?               @relation("PettyCashReturnPayment")
+  petty_cash_transaction    PettyCashTransaction?            @relation("PettyCashTransactionPayment")
   withdrawalRequestId       String?                          @unique @map("withdrawal_request_id")
   withdrawalRequest         LoanWithdrawalRequest?           @relation("WithdrawalPayment")
   batchSubmissionId         String?                          @map("batch_submission_id")
@@ -1562,11 +1566,11 @@ model BusinessLoan {
 }
 
 model BusinessLoanManager {
-  id        String   @id @default(uuid())
-  loanId    String   @map("loan_id")
-  userId    String   @map("user_id")
-  addedBy   String   @map("added_by")
-  addedAt   DateTime @default(now()) @map("added_at")
+  id      String   @id @default(uuid())
+  loanId  String   @map("loan_id")
+  userId  String   @map("user_id")
+  addedBy String   @map("added_by")
+  addedAt DateTime @default(now()) @map("added_at")
 
   loan  BusinessLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
   user  Users        @relation("LoanManagedByUsers", fields: [userId], references: [id])
@@ -3210,6 +3214,7 @@ model Users {
   petty_cash_requests_approved                                    PettyCashRequests[]              @relation("PettyCashApprover")
   petty_cash_requests_settled                                     PettyCashRequests[]              @relation("PettyCashSettler")
   petty_cash_requests_cancelled                                   PettyCashRequests[]              @relation("PettyCashCanceller")
+  petty_cash_transactions_created                                 PettyCashTransaction[]           @relation("PettyCashTransactionCreator")
   per_diem_entered                                                PerDiemEntries[]                 @relation("PerDiemCashier")
   absence_records_entered                                         EmployeeAbsences[]               @relation("AbsenceRecordedBy")
   business_loans_managed                                          BusinessLoan[]                   @relation("LoanManager")
@@ -3217,8 +3222,8 @@ model Users {
   business_loans_created                                          BusinessLoan[]                   @relation("LoanCreator")
   business_loans_lock_requested                                   BusinessLoan[]                   @relation("LoanLockRequester")
   business_loans_locked                                           BusinessLoan[]                   @relation("LoanLocker")
-  business_loan_managers                                          BusinessLoanManager[]             @relation("LoanManagedByUsers")
-  business_loan_managers_added                                    BusinessLoanManager[]             @relation("LoanManagerAdder")
+  business_loan_managers                                          BusinessLoanManager[]            @relation("LoanManagedByUsers")
+  business_loan_managers_added                                    BusinessLoanManager[]            @relation("LoanManagerAdder")
   business_loan_expenses_created                                  BusinessLoanExpense[]            @relation("LoanExpenseCreator")
   business_loan_pre_lock_repayments_created                       BusinessLoanPreLockRepayment[]   @relation("LoanPreLockRepayCreator")
   loan_withdrawal_requests_created                                LoanWithdrawalRequest[]          @relation("WithdrawalRequester")
@@ -4938,7 +4943,7 @@ model CashAllocationReport {
 
   // Grouped EOD catch-up
   groupedRunId String?
-  isGrouped    Boolean @default(false)
+  isGrouped    Boolean        @default(false)
   groupedRun   GroupedEODRun? @relation(fields: [groupedRunId], references: [id])
 
   business  Businesses               @relation("BusinessCashAllocationReports", fields: [businessId], references: [id], onDelete: Cascade)
@@ -4993,6 +4998,7 @@ model PettyCashRequests {
   status           PettyCashStatus @default(PENDING)
   requestedAmount  Decimal         @db.Decimal(12, 2)
   approvedAmount   Decimal?        @db.Decimal(12, 2) // may be less than requestedAmount
+  spentAmount      Decimal         @db.Decimal(12, 2) @default(0) // running total from PettyCashTransactions; updated atomically
   returnAmount     Decimal?        @db.Decimal(12, 2) // unused cash physically returned at settlement
   purpose          String // brief description of intended use
   notes            String?
@@ -5018,12 +5024,42 @@ model PettyCashRequests {
   settler        Users?                  @relation("PettyCashSettler", fields: [settledBy], references: [id])
   canceller      Users?                  @relation("PettyCashCanceller", fields: [cancelledBy], references: [id])
   returnPayment  ExpenseAccountPayments? @relation("PettyCashReturnPayment", fields: [returnPaymentId], references: [id])
+  transactions   PettyCashTransaction[]  @relation("PettyCashTransactions")
 
   @@index([businessId])
   @@index([requestedBy])
   @@index([status])
   @@index([requestedAt(sort: Desc)])
   @@map("petty_cash_requests")
+}
+
+model PettyCashTransaction {
+  id               String   @id @default(cuid())
+  requestId        String
+  businessId       String
+  expenseAccountId String
+  amount           Decimal  @db.Decimal(12, 2)
+  description      String   // what it was spent on
+  categoryId       String?
+  payeeType        String   @default("NONE") // mirrors ExpenseAccountPayments.payeeType
+  payeeSupplierId  String?
+  payeeEmployeeId  String?
+  payeeUserId      String?
+  transactionDate  DateTime @default(now())
+  paymentId        String?  @unique // FK ExpenseAccountPayments created alongside
+  createdBy        String
+  createdAt        DateTime @default(now())
+
+  request        PettyCashRequests       @relation("PettyCashTransactions", fields: [requestId], references: [id])
+  business       Businesses              @relation("PettyCashTransactionBusiness", fields: [businessId], references: [id])
+  expenseAccount ExpenseAccounts         @relation("PettyCashTransactionExpense", fields: [expenseAccountId], references: [id])
+  category       ExpenseCategories?      @relation("PettyCashTransactionCategory", fields: [categoryId], references: [id])
+  payment        ExpenseAccountPayments? @relation("PettyCashTransactionPayment", fields: [paymentId], references: [id])
+  creator        Users                   @relation("PettyCashTransactionCreator", fields: [createdBy], references: [id])
+
+  @@index([requestId])
+  @@index([businessId])
+  @@map("petty_cash_transactions")
 }
 
 // ============================================================
@@ -5069,11 +5105,11 @@ model PaymentBatchSubmissions {
   eodBatchId       String?  @unique @map("eod_batch_id")
   createdAt        DateTime @default(now())
 
-  business       Businesses             @relation("BusinessPaymentBatches", fields: [businessId], references: [id])
-  expenseAccount ExpenseAccounts        @relation(fields: [expenseAccountId], references: [id])
-  cashier        Users                  @relation("PaymentBatchCashier", fields: [submittedBy], references: [id])
+  business       Businesses               @relation("BusinessPaymentBatches", fields: [businessId], references: [id])
+  expenseAccount ExpenseAccounts          @relation(fields: [expenseAccountId], references: [id])
+  cashier        Users                    @relation("PaymentBatchCashier", fields: [submittedBy], references: [id])
   payments       ExpenseAccountPayments[]
-  eodBatch       EODPaymentBatch?       @relation("EODToBatchSubmission", fields: [eodBatchId], references: [id])
+  eodBatch       EODPaymentBatch?         @relation("EODToBatchSubmission", fields: [eodBatchId], references: [id])
 
   @@index([businessId])
   @@index([expenseAccountId])
@@ -5085,26 +5121,26 @@ model PaymentBatchSubmissions {
 // ============================================================
 
 model EODPaymentBatch {
-  id                String    @id @default(cuid())
-  businessId        String
-  eodDate           DateTime  @db.Date
-  status            String    @default("PENDING_REVIEW")
+  id            String    @id @default(cuid())
+  businessId    String
+  eodDate       DateTime  @db.Date
+  status        String    @default("PENDING_REVIEW")
   // PENDING_REVIEW = awaiting cashier review
   // REVIEWED       = cashier has submitted their review
   // CANCELLED      = voided before review
-  reviewedBy        String?
-  reviewedAt        DateTime?
-  approvedCount     Int       @default(0)
-  rejectedCount     Int       @default(0)
-  totalApproved     Decimal?  @db.Decimal(12, 2)
-  notes             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  approvedCount Int       @default(0)
+  rejectedCount Int       @default(0)
+  totalApproved Decimal?  @db.Decimal(12, 2)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  business          Businesses              @relation("BusinessEODPaymentBatches", fields: [businessId], references: [id])
-  reviewer          Users?                  @relation("EODPaymentBatchReviewer", fields: [reviewedBy], references: [id])
-  payments          ExpenseAccountPayments[] @relation("EODPaymentBatchItems")
-  batchSubmission   PaymentBatchSubmissions? @relation("EODToBatchSubmission")
+  business        Businesses               @relation("BusinessEODPaymentBatches", fields: [businessId], references: [id])
+  reviewer        Users?                   @relation("EODPaymentBatchReviewer", fields: [reviewedBy], references: [id])
+  payments        ExpenseAccountPayments[] @relation("EODPaymentBatchItems")
+  batchSubmission PaymentBatchSubmissions? @relation("EODToBatchSubmission")
 
   @@index([businessId])
   @@index([eodDate])
@@ -5152,7 +5188,7 @@ model GroupedEODRun {
   businessId        String
   managerName       String
   notes             String?
-  totalCashReceived Float?   // lump sum handed over by manager to cashier
+  totalCashReceived Float? // lump sum handed over by manager to cashier
   runDate           DateTime @default(now())
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -5169,10 +5205,10 @@ model GroupedEODRun {
 model GroupedEODRunDate {
   id                  String   @id @default(cuid())
   groupedRunId        String
-  date                String   // "YYYY-MM-DD"
+  date                String // "YYYY-MM-DD"
   totalSales          Float
   cashCounted         Float
-  allocationBreakdown Json?    // { rent: 1000, autoDeposit: 5000, pettyCash: 500, ... }
+  allocationBreakdown Json? // { rent: 1000, autoDeposit: 5000, pettyCash: 500, ... }
   createdAt           DateTime @default(now())
 
   groupedRun GroupedEODRun @relation(fields: [groupedRunId], references: [id])
@@ -5182,22 +5218,21 @@ model GroupedEODRunDate {
 }
 
 model EmployeeAbsences {
-  id          String     @id @default(uuid())
-  businessId  String
-  employeeId  String
-  date        DateTime   @db.Date
-  recordedBy  String
-  notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @default(now()) @updatedAt
+  id         String   @id @default(uuid())
+  businessId String
+  employeeId String
+  date       DateTime @db.Date
+  recordedBy String
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
 
-  businesses  Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  employees   Employees  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  users       Users      @relation("AbsenceRecordedBy", fields: [recordedBy], references: [id])
+  businesses Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  employees  Employees  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  users      Users      @relation("AbsenceRecordedBy", fields: [recordedBy], references: [id])
 
   @@unique([employeeId, date])
   @@index([businessId, date])
   @@index([employeeId])
   @@map("employee_absences")
 }
-

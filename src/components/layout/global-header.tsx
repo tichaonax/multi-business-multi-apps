@@ -725,6 +725,24 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
+                          {(pendingActions.outstandingPettyCash?.length ?? 0) > 0 && (
+                            <>
+                              <div className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 border-t border-border">
+                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                                  💵 Cash In-Hand — {pendingActions.outstandingPettyCash!.length} request{pendingActions.outstandingPettyCash!.length !== 1 ? 's' : ''} · ${Number(pendingActions.outstandingPettyCashTotal ?? 0).toFixed(2)} outstanding
+                                </span>
+                              </div>
+                              {pendingActions.outstandingPettyCash!.map((r) => (
+                                <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/10 text-xs">
+                                  <span className="mt-0.5 shrink-0">💵</span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium text-primary truncate">{r.requesterName} — {r.purpose}</p>
+                                    <p className="text-secondary">{r.businessName} · <span className="text-amber-600 dark:text-amber-400 font-medium">${r.remainingBalance.toFixed(2)} remaining</span></p>
+                                  </div>
+                                </Link>
+                              ))}
+                            </>
+                          )}
                           {pendingActions.pendingCashAllocations?.map((r: any) => {
                             const reportDate = r.reportDate ? r.reportDate.split('T')[0] : ''
                             const cashAllocUrl = `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${reportDate}&businessId=${r.business?.id ?? ''}`

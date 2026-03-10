@@ -84,6 +84,45 @@ export async function GET() {
       })
     }
 
+    // APPROVED petty cash requests with remaining balance — cashier needs to settle these
+    let outstandingPettyCash: object[] = []
+    let outstandingPettyCashTotal = 0
+    if (canApprovePettyCash) {
+      const approved = await prisma.pettyCashRequests.findMany({
+        where: { status: 'APPROVED' },
+        select: {
+          id: true,
+          purpose: true,
+          approvedAmount: true,
+          spentAmount: true,
+          approvedAt: true,
+          requester: { select: { id: true, name: true } },
+          business: { select: { id: true, name: true } },
+        },
+        orderBy: { approvedAt: 'asc' },
+      })
+      // Only include requests that still have cash outstanding
+      type OutstandingItem = {
+        id: string; purpose: string; requesterName: string; businessName: string
+        approvedAmount: number; spentAmount: number; remainingBalance: number; approvedAt: string | null
+      }
+      const mapped: OutstandingItem[] = approved.map((r: typeof approved[number]) => ({
+        id: r.id,
+        purpose: r.purpose,
+        requesterName: r.requester?.name ?? '—',
+        businessName: r.business?.name ?? '—',
+        approvedAmount: Number(r.approvedAmount ?? 0),
+        spentAmount: Number(r.spentAmount),
+        remainingBalance: Number(r.approvedAmount ?? 0) - Number(r.spentAmount),
+        approvedAt: r.approvedAt?.toISOString() ?? null,
+      }))
+      outstandingPettyCash = mapped.filter((r) => r.remainingBalance > 0)
+      outstandingPettyCashTotal = (outstandingPettyCash as OutstandingItem[]).reduce(
+        (sum, r) => sum + r.remainingBalance,
+        0
+      )
+    }
+
     // Pending cash allocation reports — only for users with explicit cash_allocation.approve system permission
     // (excludes business owners/managers who run EOD but don't reconcile)
     const canApproveCashAllocation = sysAdmin || await hasSystemPermission(user.id, 'cash_allocation.approve')
@@ -149,6 +188,7 @@ export async function GET() {
       (loanLockRequests as unknown[]).length +
       (pendingSupplierPayments as unknown[]).length +
       (pendingPettyCash as unknown[]).length +
+      (outstandingPettyCash as unknown[]).length +
       (pendingCashAllocations as unknown[]).length +
       (pendingPaymentBatches as unknown[]).length +
       (pendingPaymentRequests as unknown[]).length
@@ -157,6 +197,8 @@ export async function GET() {
       loanLockRequests,
       pendingSupplierPayments,
       pendingPettyCash,
+      outstandingPettyCash,
+      outstandingPettyCashTotal,
       pendingCashAllocations,
       pendingPaymentBatches,
       pendingPaymentRequests,

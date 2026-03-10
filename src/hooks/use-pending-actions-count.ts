@@ -5,6 +5,17 @@ export interface PendingActionsData {
   total: number
   pendingSupplierPayments: { id: string; supplierName?: string; amount?: number }[]
   pendingPettyCash: { id: string; purpose?: string; requestedAmount?: number; requesterName?: string }[]
+  outstandingPettyCash: {
+    id: string
+    purpose: string
+    requesterName: string
+    businessName: string
+    approvedAmount: number
+    spentAmount: number
+    remainingBalance: number
+    approvedAt: string | null
+  }[]
+  outstandingPettyCashTotal: number
   pendingCashAllocations: { id: string; reportDate?: string; businessName?: string }[]
   pendingPaymentBatches: { id: string; eodDate?: string; businessName?: string; paymentCount?: number }[]
   pendingPaymentRequests: { id: string; accountName?: string; requestCount?: number }[]
