@@ -209,6 +209,16 @@ export function MiniCart() {
     removeFromCart(itemId)
   }
 
+  // Hover-to-preview (same pattern as bell notification)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleMouseEnter = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    setIsOpen(true)
+  }
+  const handleMouseLeave = () => {
+    hideTimer.current = setTimeout(() => setIsOpen(false), 150)
+  }
+
   const itemCount = getCartItemCount()
   const subtotal = getCartSubtotal()
 
@@ -234,7 +244,7 @@ export function MiniCart() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       {/* Cart Icon Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -275,6 +285,8 @@ export function MiniCart() {
           <div
             className="fixed left-1 right-1 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[60] max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
