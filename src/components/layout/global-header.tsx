@@ -34,6 +34,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [switchingToBusinessId, setSwitchingToBusinessId] = useState<string | null>(null)
   const [businessSwitcherSearch, setBusinessSwitcherSearch] = useState('')
   const { useServerTime, toggleTimeDisplay } = useTimeDisplay()
+  const [clockNow, setClockNow] = useState<Date | null>(null)
   const businessMenuOpenedByClick = useRef(false)
   const businessMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const businessMenuOpenedAt = useRef(0)
@@ -44,6 +45,13 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     setShowUserMenu(false)
     setShowThemeMenu(false)
   }, [pathname])
+
+  // Live clock
+  useEffect(() => {
+    setClockNow(new Date())
+    const id = setInterval(() => setClockNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // Business permissions context
   const {
@@ -355,6 +363,21 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
               <span className="hidden sm:inline text-xl font-bold text-gray-900 dark:text-white">Business Hub</span>
             </Link>
 
+            {/* Live date & time — desktop only */}
+            {clockNow && (
+              <div className="hidden lg:flex flex-col items-start leading-tight ml-4 border-l border-gray-200 dark:border-gray-700 pl-4">
+                <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                  {useServerTime
+                    ? clockNow.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' })
+                    : clockNow.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
+                </span>
+                <span className="text-base font-bold text-gray-900 dark:text-white tabular-nums tracking-tight">
+                  {useServerTime
+                    ? clockNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC' })
+                    : clockNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              </div>
+            )}
             {showBreadcrumb && <div className="hidden sm:block"><Breadcrumb pathname={pathname} title={title} /></div>}
           </div>
 

@@ -99,9 +99,13 @@ function CustomerDisplayContent() {
     total: 0
   })
 
-  // Greeting and business info
-  const [employeeName, setEmployeeName] = useState<string | null>(null)
-  const [employeePhotoUrl, setEmployeePhotoUrl] = useState<string | null>(null)
+  // Greeting and business info — restored from localStorage on refresh
+  const [employeeName, setEmployeeName] = useState<string | null>(() => {
+    try { return localStorage.getItem('cd_employeeName') || null } catch { return null }
+  })
+  const [employeePhotoUrl, setEmployeePhotoUrl] = useState<string | null>(() => {
+    try { return localStorage.getItem('cd_employeePhotoUrl') || null } catch { return null }
+  })
   const [customerName, setCustomerName] = useState<string | null>(null)
   const [customerRewardMessage, setCustomerRewardMessage] = useState<string | null>(null)
   const [customerRewardApplied, setCustomerRewardApplied] = useState(false)
@@ -115,6 +119,14 @@ function CustomerDisplayContent() {
   const [taxRate, setTaxRate] = useState<number>(0)
   const [taxLabel, setTaxLabel] = useState<string>('Tax')
   const [ecocashEnabled, setEcocashEnabled] = useState<boolean>(false)
+
+  // Live clock
+  const [clockNow, setClockNow] = useState<Date | null>(null)
+  useEffect(() => {
+    setClockNow(new Date())
+    const id = setInterval(() => setClockNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // Payment state
   const [paymentState, setPaymentState] = useState<{
@@ -293,9 +305,11 @@ function CustomerDisplayContent() {
         })
         if (message.payload.employeeName) {
           setEmployeeName(message.payload.employeeName)
+          try { localStorage.setItem('cd_employeeName', message.payload.employeeName) } catch { /* ignore */ }
         }
         if (message.payload.employeePhotoUrl) {
           setEmployeePhotoUrl(message.payload.employeePhotoUrl)
+          try { localStorage.setItem('cd_employeePhotoUrl', message.payload.employeePhotoUrl) } catch { /* ignore */ }
         }
         // Business data (name, phone, customMessage) is ONLY set from API, not from POS broadcast
         break
@@ -510,6 +524,22 @@ function CustomerDisplayContent() {
               setEmployeeName('Our Staff')
               console.log('[CustomerDisplay] No user name in session, using default')
             }
+
+            // Fetch employee profile photo directly (same session = same device as POS)
+            // This ensures the photo persists across display refreshes without needing POS to re-broadcast
+            if (sessionData.user) {
+              try {
+                const photoRes = await fetch(`${baseUrl}/api/employees/my-photo`)
+                if (photoRes.ok) {
+                  const photoData = await photoRes.json()
+                  if (photoData.profilePhotoUrl) {
+                    setEmployeePhotoUrl(photoData.profilePhotoUrl)
+                    try { localStorage.setItem('cd_employeePhotoUrl', photoData.profilePhotoUrl) } catch { /* ignore */ }
+                    console.log('[CustomerDisplay] Employee photo loaded from API')
+                  }
+                }
+              } catch { /* ignore - photo is optional */ }
+            }
           } else {
             console.log('[CustomerDisplay] No active session, using default employee name')
             setEmployeeName('Our Staff')
@@ -621,12 +651,24 @@ function CustomerDisplayContent() {
       {/* Business Info Banner */}
       <div className="z-30 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-8 shadow-lg flex-shrink-0">
         <div className="max-w-7xl mx-auto">
-          {/* Business Name */}
+          {/* Business Name + Live Clock */}
           {businessName && (
-            <div className="text-center mb-2">
-              <p className="text-3xl font-bold">{businessName}</p>
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex-1 text-center">
+                <p className="text-3xl font-bold">{businessName}</p>
               {showSlogan && slogan && (
                 <p className="text-sm italic text-white/90 mt-1">"{slogan}"</p>
+              )}
+              </div>
+              {clockNow && (
+                <div className="flex-shrink-0 text-right ml-6">
+                  <p className="text-xs font-medium text-white/70 uppercase tracking-widest">
+                    {clockNow.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                  </p>
+                  <p className="text-2xl font-bold tabular-nums leading-tight">
+                    {clockNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </p>
+                </div>
               )}
             </div>
           )}
