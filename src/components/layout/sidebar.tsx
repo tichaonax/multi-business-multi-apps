@@ -1734,6 +1734,16 @@ export function Sidebar() {
               </Link>
             )}
 
+            {(hasPermission('canManageEmployees') || hasPermission('canEditEmployees')) && (
+              <Link
+                href="/employees/absences"
+                className={getLinkClasses('/employees/absences')}
+              >
+                <span className="text-lg">📋</span>
+                <span>Absences</span>
+              </Link>
+            )}
+
             {(isSystemAdmin(currentUser) || hasPermission('canAccessPerDiem') || hasPermission('canAccessPayroll')) && (
               <Link
                 href="/employees/per-diem"

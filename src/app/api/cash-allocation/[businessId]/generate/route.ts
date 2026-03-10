@@ -50,8 +50,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     })
 
     // Find or create the report
-    let report = await prisma.cashAllocationReport.findUnique({
-      where: { businessId_reportDate: { businessId, reportDate } },
+    let report = await prisma.cashAllocationReport.findFirst({
+      where: { businessId, reportDate },
     })
 
     if (!report) {

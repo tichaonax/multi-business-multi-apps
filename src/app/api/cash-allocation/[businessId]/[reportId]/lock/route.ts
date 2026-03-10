@@ -187,8 +187,11 @@ export async function POST(request: NextRequest, { params }: Params) {
     })
 
     // Ensure rent transfer deposit exists and upsert its line item into the report
+    // Skip for grouped reports — rent was already transferred per-date during grouped-run execution
     try {
-      const rent = await ensureRentTransfer(businessId, report.reportDate, user.id)
+      const rent = report.isGrouped || !report.reportDate
+        ? null
+        : await ensureRentTransfer(businessId, report.reportDate, user.id)
       if (rent) {
         const alreadyHasRentItem = lockedReport.lineItems.some(
           li => li.sourceType === 'EOD_RENT_TRANSFER'

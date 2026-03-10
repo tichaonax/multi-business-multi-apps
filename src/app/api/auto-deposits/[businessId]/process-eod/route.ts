@@ -1,96 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import {
+  autoGenerateCashAllocationReport,
+  processAutoDeposits,
+  UserEntry,
+  AutoDepositResult,
+} from '@/lib/eod-utils'
 
 type Params = { params: Promise<{ businessId: string }> }
 
-/** Finds or creates a CashAllocationReport for the given EOD date and upserts deposit line items. */
-async function autoGenerateCashAllocationReport(
-  db: typeof prisma,
-  businessId: string,
-  eodDate: string,
-  dayStart: Date,
-  dayEnd: Date,
-  userId: string,
-) {
-  const reportDate = new Date(eodDate)
-  const deposits = await db.expenseAccountDeposits.findMany({
-    where: {
-      sourceBusinessId: businessId,
-      sourceType: { in: ['EOD_RENT_TRANSFER', 'EOD_AUTO_DEPOSIT'] },
-      depositDate: { gte: dayStart, lte: dayEnd },
-    },
-    include: { expenseAccount: { select: { id: true, accountName: true } } },
-    orderBy: [{ sourceType: 'desc' }, { depositDate: 'asc' }], // 'desc' puts EOD_RENT_TRANSFER (R) before EOD_AUTO_DEPOSIT (A)
-  })
-  if (deposits.length === 0) return
-
-  let report = await db.cashAllocationReport.findUnique({
-    where: { businessId_reportDate: { businessId, reportDate } },
-  })
-  if (!report) {
-    report = await db.cashAllocationReport.create({
-      data: { businessId, reportDate, status: 'IN_PROGRESS', createdBy: userId },
-    })
-  }
-  if (report.status === 'LOCKED') return
-
-  const existing = await db.cashAllocationLineItem.findMany({
-    where: { reportId: report.id },
-    select: { depositId: true },
-  })
-  const existingIds = new Set(existing.map(li => li.depositId))
-  const toCreate = deposits
-    .filter(d => !existingIds.has(d.id))
-    .map((d, idx) => {
-      const isRent = d.sourceType === 'EOD_RENT_TRANSFER'
-      return {
-        reportId: report!.id,
-        expenseAccountId: d.expenseAccountId,
-        accountName: d.expenseAccount.accountName,
-        sourceType: d.sourceType,
-        depositId: d.id,
-        reportedAmount: d.amount,
-        // Rent items are pre-confirmed — auto-check with actual = reported
-        isChecked: isRent,
-        actualAmount: isRent ? d.amount : null,
-        sortOrder: existing.length + idx,
-      }
-    })
-  if (toCreate.length > 0) {
-    await db.cashAllocationLineItem.createMany({ data: toCreate })
-  }
-}
-
-export interface UserEntry {
-  configId: string
-  amount: number
-  skip: boolean
-}
-
-export interface AutoDepositResult {
-  configId: string
-  expenseAccountId: string
-  accountName: string
-  accountNumber: string
-  dailyAmount: number
-  actualDepositAmount?: number
-  status:
-    | 'processed'
-    | 'skipped_already_done'
-    | 'skipped_insufficient_funds'
-    | 'skipped_inactive_account'
-    | 'skipped_cap_reached'
-    | 'skipped_account_frozen'
-    | 'skipped_before_start'
-    | 'skipped_after_end'
-    | 'skipped_user_selected'
-    | 'failed'
-  depositId?: string
-  errorMessage?: string
-}
+export type { UserEntry, AutoDepositResult }
 
 export async function POST(request: NextRequest, { params }: Params) {
   try {
@@ -116,12 +37,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     // Optional user-selected entries (from interactive EOD preview step)
-    // When undefined: auto-process all active configs (backward compat)
-    // When array: only process entries where skip=false, using user-supplied amounts
     const entries: UserEntry[] | undefined =
       Array.isArray(body.entries) ? (body.entries as UserEntry[]) : undefined
-    const entryMap: Map<string, UserEntry> | null =
-      entries !== undefined ? new Map(entries.map(e => [e.configId, e])) : null
 
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },
@@ -136,30 +53,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
-    const eodDateObj = new Date(eodDate + 'T00:00:00Z')
-    const dayStart = new Date(eodDate + 'T00:00:00Z')
-    const dayEnd = new Date(eodDate + 'T23:59:59.999Z')
-
-    const configs = await prisma.expenseAccountAutoDeposit.findMany({
-      where: { businessId, isActive: true },
-      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
-      include: {
-        expenseAccount: {
-          select: {
-            id: true,
-            accountName: true,
-            accountNumber: true,
-            balance: true,
-            isActive: true,
-            isAutoDepositFrozen: true,
-            depositCap: true,
-            depositCapReachedAt: true,
-          },
-        },
-      },
-    })
-
-    // When entries provided: server-side pre-validation before processing
+    // Server-side pre-validation when user entries provided
     if (entries !== undefined) {
       const nonSkipped = entries.filter(e => !e.skip)
       if (nonSkipped.length > 0) {
@@ -181,11 +75,14 @@ export async function POST(request: NextRequest, { params }: Params) {
           select: { expenseAccountId: true, dailyTransferAmount: true, isActive: true },
         })
         if (rentConfig?.isActive && rentConfig.expenseAccountId) {
-          const rentAutoConfig = configs.find(
-            (c: { expenseAccountId: string | null }) => c.expenseAccountId === rentConfig.expenseAccountId
-          )
+          const configs = await prisma.expenseAccountAutoDeposit.findMany({
+            where: { businessId, isActive: true },
+            select: { id: true, expenseAccountId: true },
+          })
+          const entryMap = new Map(entries.map(e => [e.configId, e]))
+          const rentAutoConfig = configs.find((c: { id: string; expenseAccountId: string | null }) => c.expenseAccountId === rentConfig.expenseAccountId)
           if (rentAutoConfig) {
-            const rentEntry = entryMap?.get(rentAutoConfig.id)
+            const rentEntry = entryMap.get(rentAutoConfig.id)
             if (rentEntry && !rentEntry.skip) {
               const rentMinimum = Number(rentConfig.dailyTransferAmount)
               if (rentEntry.amount < rentMinimum) {
@@ -204,330 +101,14 @@ export async function POST(request: NextRequest, { params }: Params) {
       }
     }
 
-    if (configs.length === 0) {
-      // Still auto-generate the cash allocation report if rent transfer deposits exist for this date
-      try {
-        await autoGenerateCashAllocationReport(prisma, businessId, eodDate, dayStart, dayEnd, user.id)
-      } catch (e) {
-        console.error('[EOD] Failed to auto-generate cash allocation report (no-configs path):', e)
-      }
-      return NextResponse.json({
-        success: true,
-        message: 'No active auto-deposit configs found',
-        results: [],
-        summary: {
-          processed: 0,
-          skippedAlreadyDone: 0,
-          skippedInsufficientFunds: 0,
-          skippedInactiveAccount: 0,
-          skippedCapReached: 0,
-          skippedFrozen: 0,
-          skippedBeforeStart: 0,
-          skippedAfterEnd: 0,
-          failed: 0,
-          totalDeposited: 0,
-        },
-      })
-    }
+    // Run auto-deposits via shared utility
+    const { results, summary } = await processAutoDeposits(businessId, eodDate, user.id, entries)
 
-    const results: AutoDepositResult[] = []
-    let insufficientFundsReached = false
-
-    for (const config of configs) {
-      const dailyAmount = Number(config.dailyAmount)
-      const base = {
-        configId: config.id,
-        expenseAccountId: config.expenseAccountId,
-        accountName: config.expenseAccount.accountName,
-        accountNumber: config.expenseAccount.accountNumber,
-        dailyAmount,
-      }
-
-      // 1. Config paused by cap — requires manual reactivation
-      if (config.isPausedByCap) {
-        results.push({
-          ...base,
-          status: 'skipped_cap_reached',
-          errorMessage: 'Config paused — account deposit cap reached. Requires manual reactivation.',
-        })
-        continue
-      }
-
-      // 1a. Loan account: if balance is already at or above $0, freeze and settle
-      if (config.expenseAccount.isLoanAccount) {
-        const currentBalance = Number(config.expenseAccount.balance)
-        if (currentBalance >= 0) {
-          await prisma.expenseAccountAutoDeposit.update({
-            where: { id: config.id },
-            data: { isPausedByCap: true },
-          })
-          await prisma.businessLoan.updateMany({
-            where: { expenseAccountId: config.expenseAccountId, status: { not: 'SETTLED' } },
-            data: { status: 'SETTLED', settledAt: new Date() },
-          })
-          results.push({
-            ...base,
-            status: 'skipped_cap_reached',
-            errorMessage: 'Loan fully repaid — config frozen.',
-          })
-          continue
-        }
-      }
-
-      // 2. startDate check
-      if (config.startDate && eodDateObj < config.startDate) {
-        results.push({
-          ...base,
-          status: 'skipped_before_start',
-          errorMessage: 'Deposits start on ' + config.startDate.toISOString().slice(0, 10),
-        })
-        continue
-      }
-
-      // 3. endDate check
-      if (config.endDate && eodDateObj > config.endDate) {
-        results.push({
-          ...base,
-          status: 'skipped_after_end',
-          errorMessage: 'Deposit period ended on ' + config.endDate.toISOString().slice(0, 10),
-        })
-        continue
-      }
-
-      // 4. Account freeze check
-      if (config.expenseAccount.isAutoDepositFrozen) {
-        results.push({
-          ...base,
-          status: 'skipped_account_frozen',
-          errorMessage: 'Target account is frozen for auto-deposits.',
-        })
-        continue
-      }
-
-      // 5. Account inactive check
-      if (!config.expenseAccount.isActive) {
-        results.push({ ...base, status: 'skipped_inactive_account' })
-        continue
-      }
-
-      // 5a. User-selected skip (only when entries array was provided)
-      if (entryMap !== null) {
-        const entry = entryMap.get(config.id)
-        if (!entry || entry.skip) {
-          results.push({ ...base, status: 'skipped_user_selected' })
-          continue
-        }
-      }
-
-      // 6. Cascade: prior config exhausted funds
-      if (insufficientFundsReached) {
-        results.push({
-          ...base,
-          status: 'skipped_insufficient_funds',
-          errorMessage: 'Business account balance exhausted by prior config',
-        })
-        continue
-      }
-
-      // 7. Idempotency check
-      const existingDeposit = await prisma.expenseAccountDeposits.findFirst({
-        where: {
-          expenseAccountId: config.expenseAccountId,
-          sourceType: 'EOD_AUTO_DEPOSIT',
-          sourceBusinessId: businessId,
-          depositDate: { gte: dayStart, lte: dayEnd },
-        },
-      })
-      if (existingDeposit) {
-        results.push({ ...base, status: 'skipped_already_done', depositId: existingDeposit.id })
-        continue
-      }
-
-      // 8. Cap aggregate check
-      const depositCap = config.expenseAccount.depositCap
-        ? Number(config.expenseAccount.depositCap)
-        : null
-      // Use user-supplied amount when entries provided; fall back to configured dailyAmount
-      const requestedAmount =
-        entryMap !== null ? (entryMap.get(config.id)?.amount ?? dailyAmount) : dailyAmount
-      let effectiveAmount = requestedAmount
-      let capNowReached = false
-
-      if (depositCap !== null) {
-        const { _sum } = await prisma.expenseAccountDeposits.aggregate({
-          where: { expenseAccountId: config.expenseAccountId },
-          _sum: { amount: true },
-        })
-        const totalDeposited = Number(_sum.amount ?? 0)
-        const remaining = depositCap - totalDeposited
-
-        if (remaining <= 0) {
-          // Cap already reached — mark config paused
-          await prisma.expenseAccountAutoDeposit.update({
-            where: { id: config.id },
-            data: { isPausedByCap: true },
-          })
-          if (!config.expenseAccount.depositCapReachedAt) {
-            await prisma.expenseAccounts.update({
-              where: { id: config.expenseAccountId },
-              data: { depositCapReachedAt: new Date() },
-            })
-          }
-          results.push({
-            ...base,
-            status: 'skipped_cap_reached',
-            errorMessage:
-              'Cap of $' + depositCap.toFixed(2) + ' reached (total: $' + totalDeposited.toFixed(2) + ')',
-          })
-          continue
-        }
-
-        if (remaining < requestedAmount) {
-          effectiveAmount = remaining
-          capNowReached = true
-        }
-      }
-
-      // 8a. Loan account: cap deposit to abs(balance) so balance never exceeds $0
-      if (config.expenseAccount.isLoanAccount) {
-        const currentBalance = Number(config.expenseAccount.balance)
-        const maxAllowed = Math.abs(currentBalance)
-        if (effectiveAmount > maxAllowed) {
-          effectiveAmount = maxAllowed
-        }
-      }
-
-      // 9. Execute deposit transaction
-      try {
-        let depositId: string | undefined
-        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          const biz = await tx.businessAccounts.findUnique({
-            where: { businessId },
-            select: { balance: true },
-          })
-          const currentBalance = Number(biz?.balance ?? 0)
-          if (currentBalance < effectiveAmount) {
-            throw new Error('INSUFFICIENT_FUNDS:' + currentBalance.toFixed(2))
-          }
-
-          const deposit = await tx.expenseAccountDeposits.create({
-            data: {
-              expenseAccountId: config.expenseAccountId,
-              sourceType: 'EOD_AUTO_DEPOSIT',
-              sourceBusinessId: businessId,
-              amount: effectiveAmount,
-              depositDate: eodDateObj,
-              autoGeneratedNote: capNowReached
-                ? 'EOD auto-deposit (partial — cap) to ' +
-                  config.expenseAccount.accountName +
-                  ' on ' +
-                  eodDate
-                : 'EOD auto-deposit to ' + config.expenseAccount.accountName + ' on ' + eodDate,
-              createdBy: user.id,
-            },
-          })
-          depositId = deposit.id
-
-          await tx.expenseAccounts.update({
-            where: { id: config.expenseAccountId },
-            data: { balance: { increment: effectiveAmount }, updatedAt: new Date() },
-          })
-          await tx.businessAccounts.update({
-            where: { businessId },
-            data: { balance: { decrement: effectiveAmount } },
-          })
-          await tx.businessTransactions.create({
-            data: {
-              businessId,
-              type: 'DEBIT',
-              amount: -effectiveAmount,
-              description: capNowReached
-                ? 'EOD auto-deposit (partial/cap) → ' + config.expenseAccount.accountName
-                : 'EOD auto-deposit → ' + config.expenseAccount.accountName,
-              balanceAfter: currentBalance - effectiveAmount,
-              createdBy: user.id,
-              referenceType: 'EXPENSE_DEPOSIT',
-              referenceId: config.expenseAccountId,
-            },
-          })
-        })
-
-        // After successful transaction: mark cap reached if applicable
-        if (capNowReached) {
-          await prisma.expenseAccountAutoDeposit.update({
-            where: { id: config.id },
-            data: { isPausedByCap: true },
-          })
-          await prisma.expenseAccounts.update({
-            where: { id: config.expenseAccountId },
-            data: { depositCapReachedAt: new Date() },
-          })
-        }
-
-        // Loan account: if new balance = 0, freeze config and settle loan
-        if (config.expenseAccount.isLoanAccount) {
-          const newBalance = Number(config.expenseAccount.balance) + effectiveAmount
-          if (newBalance >= 0) {
-            await prisma.expenseAccountAutoDeposit.update({
-              where: { id: config.id },
-              data: { isPausedByCap: true },
-            })
-            await prisma.businessLoan.updateMany({
-              where: { expenseAccountId: config.expenseAccountId, status: { not: 'SETTLED' } },
-              data: { status: 'SETTLED', settledAt: new Date() },
-            })
-          }
-        }
-
-        results.push({
-          ...base,
-          status: 'processed',
-          depositId,
-          actualDepositAmount: effectiveAmount,
-          errorMessage: capNowReached
-            ? 'Partial $' + effectiveAmount.toFixed(2) + ' — cap reached. Config paused.'
-            : undefined,
-        })
-      } catch (err: any) {
-        if (err?.message?.startsWith('INSUFFICIENT_FUNDS:')) {
-          insufficientFundsReached = true
-          results.push({
-            ...base,
-            status: 'skipped_insufficient_funds',
-            errorMessage:
-              'Available: $' +
-              err.message.split(':')[1] +
-              ', Required: $' +
-              effectiveAmount.toFixed(2),
-          })
-        } else {
-          results.push({ ...base, status: 'failed', errorMessage: err?.message || 'Unknown error' })
-          console.error('[EOD auto-deposit] Config ' + config.id + ' failed:', err)
-        }
-      }
-    }
-
-    // Auto-generate the cash allocation report for this EOD date (non-fatal)
+    // Auto-generate the cash allocation report (non-fatal)
     try {
-      await autoGenerateCashAllocationReport(prisma, businessId, eodDate, dayStart, dayEnd, user.id)
+      await autoGenerateCashAllocationReport(businessId, eodDate, user.id)
     } catch (cashAllocErr) {
       console.error('[EOD] Failed to auto-generate cash allocation report:', cashAllocErr)
-    }
-
-    const summary = {
-      processed: results.filter(r => r.status === 'processed').length,
-      skippedAlreadyDone: results.filter(r => r.status === 'skipped_already_done').length,
-      skippedInsufficientFunds: results.filter(r => r.status === 'skipped_insufficient_funds').length,
-      skippedInactiveAccount: results.filter(r => r.status === 'skipped_inactive_account').length,
-      skippedCapReached: results.filter(r => r.status === 'skipped_cap_reached').length,
-      skippedFrozen: results.filter(r => r.status === 'skipped_account_frozen').length,
-      skippedBeforeStart: results.filter(r => r.status === 'skipped_before_start').length,
-      skippedAfterEnd: results.filter(r => r.status === 'skipped_after_end').length,
-      skippedUserSelected: results.filter(r => r.status === 'skipped_user_selected').length,
-      failed: results.filter(r => r.status === 'failed').length,
-      totalDeposited: results
-        .filter(r => r.status === 'processed')
-        .reduce((sum, r) => sum + (r.actualDepositAmount ?? r.dailyAmount), 0),
     }
 
     return NextResponse.json({ success: true, eodDate, results, summary })

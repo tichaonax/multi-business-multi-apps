@@ -1711,6 +1711,20 @@ export function PayrollEntryDetailModal({
                     disabled={isLocked}
                   />
                 </div>
+                {entry.absenceDaysFromRecords > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-1">Absences (from records)</label>
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 px-3 py-2 border border-border rounded-md bg-muted text-primary font-medium">
+                        {entry.absenceDaysFromRecords}
+                      </span>
+                      {entry.absenceDaysFromRecords === formData.absenceDays
+                        ? <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">auto</span>
+                        : <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">overridden</span>
+                      }
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-secondary mb-1">Absence Days</label>

@@ -8,7 +8,8 @@ type Params = { params: Promise<{ businessId: string }> }
 
 /**
  * GET /api/cash-allocation/[businessId]?date=YYYY-MM-DD
- * Returns the cash allocation report for a specific date, or { exists: false }.
+ *   OR ?reportId=xxx  (for grouped reports that have no single date)
+ * Returns the cash allocation report, or { exists: false }.
  */
 export async function GET(request: NextRequest, { params }: Params) {
   try {
@@ -23,17 +24,30 @@ export async function GET(request: NextRequest, { params }: Params) {
     }
 
     const dateParam = request.nextUrl.searchParams.get('date')
-    if (!dateParam) {
-      return NextResponse.json({ error: 'date query parameter is required (YYYY-MM-DD)' }, { status: 400 })
+    const reportIdParam = request.nextUrl.searchParams.get('reportId')
+
+    if (!dateParam && !reportIdParam) {
+      return NextResponse.json({ error: 'date or reportId query parameter is required' }, { status: 400 })
     }
 
-    const reportDate = new Date(dateParam)
+    const where = reportIdParam
+      ? { id: reportIdParam, businessId }
+      : { businessId, reportDate: new Date(dateParam!) }
 
-    const report = await prisma.cashAllocationReport.findUnique({
-      where: { businessId_reportDate: { businessId, reportDate } },
+    const report = await prisma.cashAllocationReport.findFirst({
+      where,
       include: {
         lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
         locker: { select: { name: true } },
+        groupedRun: {
+          select: {
+            id: true,
+            managerName: true,
+            totalCashReceived: true,
+            runDate: true,
+            dates: { orderBy: { date: 'asc' }, select: { date: true, totalSales: true, allocationBreakdown: true } },
+          },
+        },
       },
     })
 
@@ -41,9 +55,9 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ exists: false })
     }
 
-    const nonRentItems = report.lineItems.filter(item => item.sourceType !== 'EOD_RENT_TRANSFER')
+    const nonRentItems = report.lineItems.filter((item: { sourceType: string }) => item.sourceType !== 'EOD_RENT_TRANSFER')
     const allChecked = nonRentItems.length > 0 &&
-      nonRentItems.every(item => item.isChecked && item.actualAmount !== null)
+      nonRentItems.every((item: { isChecked: boolean; actualAmount: unknown }) => item.isChecked && item.actualAmount !== null)
 
     return NextResponse.json({
       exists: true,

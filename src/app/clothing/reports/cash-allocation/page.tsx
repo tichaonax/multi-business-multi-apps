@@ -5,12 +5,14 @@ export const dynamic = 'force-dynamic'
 import { useSearchParams } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { CashAllocationDailyReport } from '@/components/reports/cash-allocation-daily-report'
+import { CashAllocationGroupedReport } from '@/components/reports/cash-allocation-grouped-report'
 import { ContentLayout } from '@/components/layout/content-layout'
 
 export default function ClothingCashAllocation() {
   const { currentBusinessId, businesses, isSystemAdmin } = useBusinessPermissionsContext()
   const searchParams = useSearchParams()
   const lockedDate = searchParams.get('date')
+  const reportId = searchParams.get('reportId')
   const businessIdOverride = searchParams.get('businessId')
 
   const businessId = currentBusinessId ||
@@ -28,12 +30,16 @@ export default function ClothingCashAllocation() {
         { label: 'Cash Allocation', isActive: true },
       ]}
     >
-      <CashAllocationDailyReport
-        businessId={businessId}
-        businessType="clothing"
-        lockedDate={lockedDate}
-        businessIdOverride={businessIdOverride}
-      />
+      {reportId ? (
+        <CashAllocationGroupedReport businessId={businessIdOverride || businessId} reportId={reportId} />
+      ) : (
+        <CashAllocationDailyReport
+          businessId={businessId}
+          businessType="clothing"
+          lockedDate={lockedDate}
+          businessIdOverride={businessIdOverride}
+        />
+      )}
     </ContentLayout>
   )
 }

@@ -13,6 +13,7 @@ import { PaymentMethodsPieChart } from '@/components/reports/payment-methods-pie
 import { CategoryPerformanceBarChart } from '@/components/reports/category-performance-bar-chart'
 import { EodRentTransferSection } from '@/components/reports/eod-rent-transfer-section'
 import { AutoDepositEodSummary, type ConfirmedEntry } from '@/components/reports/auto-deposit-eod-summary'
+import { GroupedEODCatchup } from '@/components/eod/grouped-eod-catchup'
 import '@/styles/print-report.css'
 
 export default function EndOfDayReport() {
@@ -42,6 +43,9 @@ export default function EndOfDayReport() {
   // Auto-deposit modal wizard state
   const [modalStep, setModalStep] = useState<'auto-deposits' | 'save-form'>('auto-deposits')
   const [confirmedDepositEntries, setConfirmedDepositEntries] = useState<ConfirmedEntry[] | null>(null)
+
+  // Grouped EOD catch-up wizard
+  const [showCatchupWizard, setShowCatchupWizard] = useState(false)
 
   const {
     currentBusiness,
@@ -446,8 +450,27 @@ export default function EndOfDayReport() {
             >
               🖨️ Print Report
             </button>
+            <button
+              onClick={() => setShowCatchupWizard(true)}
+              className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm whitespace-nowrap"
+            >
+              📅 Catch Up Previous Days
+            </button>
           </div>
         </div>
+
+        {/* Grouped EOD Catch-Up Wizard */}
+        {showCatchupWizard && currentBusinessId && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-8 px-4">
+            <div className="w-full max-w-2xl">
+              <GroupedEODCatchup
+                businessId={currentBusinessId}
+                cashAllocationPath="/restaurant/reports/cash-allocation"
+                onClose={() => setShowCatchupWizard(false)}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Printable Report */}
         <div id="end-of-day-report" className="max-w-4xl mx-auto bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg print:bg-white">

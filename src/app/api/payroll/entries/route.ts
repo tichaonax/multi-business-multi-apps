@@ -223,6 +223,16 @@ export async function POST(req: NextRequest) {
     // Use provided workDays or calculated workDays
     const finalWorkDays = workDays !== undefined ? workDays : calculatedWorkDays
 
+    // Auto-count absence records for this employee in the payroll period
+    const recordedAbsences = await prisma.employeeAbsences.count({
+      where: {
+        employeeId,
+        date: { gte: period.periodStart, lte: period.periodEnd }
+      }
+    })
+    // Use caller-supplied value if provided, otherwise auto-populate from records
+    const finalAbsenceDays = absenceDays !== undefined ? absenceDays : recordedAbsences
+
     // Calculate compensation
     const baseSalary = new Decimal(proratedBaseSalary || 0)
     const commissionAmount = new Decimal(commission || 0)
@@ -285,7 +295,8 @@ export async function POST(req: NextRequest) {
         workDays: finalWorkDays,
         sickDays: sickDays || 0,
         leaveDays: leaveDays || 0,
-        absenceDays: absenceDays || 0,
+        absenceDays: finalAbsenceDays,
+        absenceDaysFromRecords: recordedAbsences,
         overtimeHours: overtimeHours || 0,
         baseSalary: baseSalary.toNumber(),
         commission: commissionAmount.toNumber(),
