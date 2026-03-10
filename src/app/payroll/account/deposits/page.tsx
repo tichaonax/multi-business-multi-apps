@@ -124,7 +124,6 @@ function DepositsContent() {
 
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout
           title="💰 Payroll Deposits"
           description="Transfer funds from business accounts to payroll account"
@@ -298,7 +297,6 @@ function DepositsContent() {
             </div>
           </div>
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

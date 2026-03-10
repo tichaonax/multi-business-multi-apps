@@ -37,11 +37,9 @@ interface WiFiStats {
 export default function WiFiManagementPage() {
   return (
     <ProtectedRoute>
-      <MainLayout>
-        <ContentLayout>
-          <WiFiManagementContent />
-        </ContentLayout>
-      </MainLayout>
+      <ContentLayout>
+        <WiFiManagementContent />
+      </ContentLayout>
     </ProtectedRoute>
   )
 }

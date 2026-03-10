@@ -267,7 +267,6 @@ function BatchPaymentsContent() {
 
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout
           title="💸 Batch Payment Processing"
           description="Process payments for multiple employees simultaneously"
@@ -465,7 +464,6 @@ function BatchPaymentsContent() {
             )}
           </div>
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

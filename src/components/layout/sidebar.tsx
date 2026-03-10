@@ -1635,6 +1635,17 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* Customer Reports */}
+        {(hasPermission('canAccessCustomers') || hasPermission('canManageCustomers')) && (
+          <Link
+            href="/customers/reports"
+            className={getLinkClasses('/customers/reports')}
+          >
+            <span className="text-lg">📊</span>
+            <span>Customer Reports</span>
+          </Link>
+        )}
+
         {/* Layby Management - Cross-business functionality */}
         {hasPermission('canManageLaybys') && (
           <Link

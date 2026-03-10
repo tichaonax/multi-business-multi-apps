@@ -106,7 +106,6 @@ function PayrollAccountContent() {
 
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout
           title="💼 Payroll Account"
           description="Manage payroll deposits and employee payments"
@@ -282,7 +281,6 @@ function PayrollAccountContent() {
             </div>
           </div>
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

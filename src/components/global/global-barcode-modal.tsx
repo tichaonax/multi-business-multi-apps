@@ -27,6 +27,11 @@ interface BusinessInventory {
   variantAttributes?: any
 }
 
+interface ScannedCustomer {
+  id: string; customerNumber: string; name: string; phone?: string
+  customerType: string; businessId: string; businessType: string; businessName: string
+}
+
 interface GlobalBarcodeModalProps {
   isOpen: boolean
   onClose: () => void
@@ -80,6 +85,10 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
   const logoutStreamRef = useRef<MediaStream | null>(null)
   const [logoutCameraActive, setLogoutCameraActive] = useState(false)
   const [logoutCameraError, setLogoutCameraError] = useState(false)
+
+  // Customer card scan state (Step 2 — between employee check and product lookup)
+  const [scannedCustomer, setScannedCustomer] = useState<ScannedCustomer | null>(null)
+  const [showCustomerConfirm, setShowCustomerConfirm] = useState(false)
 
   useEffect(() => {
     if (isOpen && barcode) {
@@ -166,7 +175,54 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
         }
       }
       // --- End employee clock-in intercept ---
-      // Card check complete — not a card scan, switching to product lookup
+
+      // --- Step 2: Customer loyalty card check ---
+      // Customer numbers match pattern: XXX-CUST-NNNNNN (e.g. RES-CUST-000001)
+      const isCustomerNumber = /^[A-Z]{2,5}-CUST-\d{4,8}$/i.test(barcodeToLookup)
+      if (isCustomerNumber) {
+        try {
+          const custRes = await fetch(`/api/customers/scan-lookup?barcode=${encodeURIComponent(barcodeToLookup)}`)
+          if (custRes.ok) {
+            const custData = await custRes.json()
+            if (custData.found && custData.customer) {
+              const customer: ScannedCustomer = custData.customer
+              const posRoutes: Record<string, string> = {
+                restaurant: '/restaurant/pos',
+                grocery: '/grocery/pos',
+                clothing: '/clothing/pos',
+                hardware: '/hardware/pos',
+              }
+              const targetPosPath = posRoutes[customer.businessType] ?? '/universal/pos'
+              const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+              const isOnCorrectPOS = currentPath.startsWith(targetPosPath) && currentBusinessId === customer.businessId
+              const isOnAnyPOS = currentPath.includes('/pos')
+
+              if (isOnCorrectPOS) {
+                // Scenario A: already on the right POS — dispatch event to pre-select customer
+                window.dispatchEvent(new CustomEvent('pos:select-customer', { detail: customer }))
+                onClose()
+              } else if (isOnAnyPOS && currentBusinessId && currentBusinessId !== customer.businessId) {
+                // Scenario C: on a different business's POS — ask for confirmation
+                setScannedCustomer(customer)
+                setShowCustomerConfirm(true)
+              } else {
+                // Scenario B: navigate to correct POS with customer in URL params
+                const params = new URLSearchParams({ customerId: customer.id, customerNumber: customer.customerNumber, customerName: customer.name })
+                if (customer.phone) params.set('customerPhone', customer.phone)
+                router.push(`${targetPosPath}?${params.toString()}`)
+                onClose()
+              }
+              setCardScanHandled(true)
+              setIsLoading(false)
+              setIsIdentifying(false)
+              return
+            }
+          }
+        } catch { /* non-fatal — fall through to product lookup */ }
+      }
+      // --- End customer card check ---
+
+      // Not a card — proceed to product lookup
       setIsIdentifying(false)
 
       // Check user permissions — canScan gates cross-business visibility only;
@@ -568,6 +624,51 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                 className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700"
               >
                 Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Route: customer cross-business confirmation (Scenario C) ─────────────
+  if (showCustomerConfirm && scannedCustomer) {
+    const posRoutes: Record<string, string> = {
+      restaurant: '/restaurant/pos', grocery: '/grocery/pos',
+      clothing: '/clothing/pos', hardware: '/hardware/pos',
+    }
+    const targetPosPath = posRoutes[scannedCustomer.businessType] ?? '/universal/pos'
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+          <div className="px-6 py-4 bg-teal-600">
+            <h3 className="text-lg font-semibold text-white">Load Customer?</h3>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              <strong>{scannedCustomer.name}</strong> is a customer of{' '}
+              <strong>{scannedCustomer.businessName}</strong>.
+              Navigate to that POS with this customer?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowCustomerConfirm(false); setScannedCustomer(null); onClose() }}
+                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams({ customerId: scannedCustomer.id, customerNumber: scannedCustomer.customerNumber, customerName: scannedCustomer.name })
+                  if (scannedCustomer.phone) params.set('customerPhone', scannedCustomer.phone)
+                  router.push(`${targetPosPath}?${params.toString()}`)
+                  setShowCustomerConfirm(false)
+                  onClose()
+                }}
+                className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700"
+              >
+                Go to POS
               </button>
             </div>
           </div>

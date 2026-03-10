@@ -125,7 +125,6 @@ export default function UmbrellaBusinessManagement() {
 
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout
           title="☂️ Umbrella Business Management"
           subtitle="Manage the details of your umbrella business that appears on all employee contracts"
@@ -269,7 +268,6 @@ export default function UmbrellaBusinessManagement() {
             </div>
           </div>
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

@@ -168,7 +168,6 @@ export default function PayeesPage() {
   if (!session?.user || !canView) {
     return (
       <ProtectedRoute>
-        <MainLayout>
           <ContentLayout
             title="Access Denied"
             subtitle="You don't have permission to view payees"
@@ -186,14 +185,12 @@ export default function PayeesPage() {
               </Link>
             </div>
           </ContentLayout>
-        </MainLayout>
       </ProtectedRoute>
     )
   }
 
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout
           title="Payee Management"
           subtitle="View and manage all payees across the system"
@@ -398,7 +395,6 @@ export default function PayeesPage() {
             />
           )}
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

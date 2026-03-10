@@ -744,25 +744,25 @@ export default function NewExpensePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Description *
               </label>
               <input
                 type="text"
                 value={formData.description}
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="What was this expense for?"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                 Payment Type *
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                <label className="flex items-center p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                   <input
                     type="radio"
                     name="paymentType"
@@ -773,10 +773,10 @@ export default function NewExpensePage() {
                   />
                   <div>
                     <div className="font-medium text-sm sm:text-base">💰 Category Expense</div>
-                    <div className="text-xs sm:text-sm text-gray-500">Regular categorized expenses</div>
+                    <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Regular categorized expenses</div>
                   </div>
                 </label>
-                <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                <label className="flex items-center p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                   <input
                     type="radio"
                     name="paymentType"
@@ -787,10 +787,10 @@ export default function NewExpensePage() {
                   />
                   <div>
                     <div className="font-medium text-sm sm:text-base">🏗️ Project Payment</div>
-                    <div className="text-xs sm:text-sm text-gray-500">Materials, labor, or contractor payments for projects</div>
+                    <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Materials, labor, or contractor payments for projects</div>
                   </div>
                 </label>
-                <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                <label className="flex items-center p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                   <input
                     type="radio"
                     name="paymentType"
@@ -801,10 +801,10 @@ export default function NewExpensePage() {
                   />
                   <div>
                     <div className="font-medium text-sm sm:text-base">👷 Individual Contractor</div>
-                    <div className="text-xs sm:text-sm text-gray-500">Direct payment to contractor (not tied to a project)</div>
+                    <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Direct payment to contractor (not tied to a project)</div>
                   </div>
                 </label>
-                <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                <label className="flex items-center p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                   <input
                     type="radio"
                     name="paymentType"
@@ -815,7 +815,7 @@ export default function NewExpensePage() {
                   />
                   <div>
                     <div className="font-medium text-sm sm:text-base">🏦 Business Loan</div>
-                    <div className="text-xs sm:text-sm text-gray-500">Loan to or from businesses</div>
+                    <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Loan to or from businesses</div>
                   </div>
                 </label>
               </div>
@@ -848,7 +848,7 @@ export default function NewExpensePage() {
               <div className="space-y-4">
                 {/* Business Type Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Business Type *
                   </label>
                   <select
@@ -877,7 +877,7 @@ export default function NewExpensePage() {
                 {/* Project Type Selection for Projects */}
                 {formData.businessType && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Project Type *
                     </label>
                     <select
@@ -910,7 +910,7 @@ export default function NewExpensePage() {
                 {formData.businessType && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Project *
                       </label>
                       {hasUserPermission(session?.user, 'canAddPersonalExpenses') && (
@@ -945,11 +945,11 @@ export default function NewExpensePage() {
                 {/* Project Sub-Type Selection */}
                 {formData.projectId && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Payment Category *
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                      <label className="flex items-center p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                         <input
                           type="radio"
                           name="projectSubType"
@@ -960,10 +960,10 @@ export default function NewExpensePage() {
                         />
                         <div>
                           <div className="font-medium text-sm sm:text-base">🛒 General Project Expense</div>
-                          <div className="text-xs sm:text-sm text-gray-500">Materials, supplies, fuel, equipment</div>
+                          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Materials, supplies, fuel, equipment</div>
                         </div>
                       </label>
-                      <label className="flex items-center p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                      <label className="flex items-center p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                         <input
                           type="radio"
                           name="projectSubType"
@@ -974,7 +974,7 @@ export default function NewExpensePage() {
                         />
                         <div>
                           <div className="font-medium text-sm sm:text-base">👷 Contractor Payment</div>
-                          <div className="text-xs sm:text-sm text-gray-500">Payment to specific project contractor</div>
+                          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Payment to specific project contractor</div>
                         </div>
                       </label>
                     </div>
@@ -987,7 +987,7 @@ export default function NewExpensePage() {
             {formData.paymentType === 'contractor' && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Contractor *
                   </label>
                   {hasUserPermission(session?.user, 'canManagePersonalContractors') && (
@@ -1020,7 +1020,7 @@ export default function NewExpensePage() {
             {formData.paymentType === 'project' && formData.projectSubType === 'contractor' && formData.projectId && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Project Contractor *
                   </label>
                   {hasUserPermission(session?.user, 'canManagePersonalContractors') && (
@@ -1060,7 +1060,7 @@ export default function NewExpensePage() {
             {formData.paymentType === 'loan' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                     Loan Type *
                   </label>
                   <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -1105,7 +1105,7 @@ export default function NewExpensePage() {
                       </p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                         Loan Recipient Type *
                       </label>
                       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
@@ -1147,7 +1147,7 @@ export default function NewExpensePage() {
 
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                           Select {formData.recipientType === 'business' ? 'Business' : formData.recipientType === 'employee' ? 'Employee' : 'Individual'} *
                         </label>
                         {formData.recipientType === 'person' && hasUserPermission(session?.user, 'canManagePersonalContractors') && (
@@ -1239,7 +1239,7 @@ export default function NewExpensePage() {
 
                 {formData.loanType === 'existing' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Select Existing Loan *
                     </label>
                     <select
@@ -1299,7 +1299,7 @@ export default function NewExpensePage() {
                   required={formData.paymentType !== 'category'}
                 />
                 {formData.paymentType === 'project' && (
-                  <div className="mt-2 text-sm text-gray-500">
+                  <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                     💡 {formData.projectSubType === 'contractor'
                       ? 'Include details about the work performed, hours, completion status, etc.'
                       : 'Include item descriptions, quantities, supplier info, receipt numbers, etc.'}

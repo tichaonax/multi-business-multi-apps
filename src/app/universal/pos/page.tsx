@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -30,6 +31,7 @@ import type { ReceiptData } from '@/types/printing'
  */
 export default function UniversalPOS() {
   const { currentBusiness, currentBusinessId } = useBusinessPermissionsContext()
+  const searchParams = useSearchParams()
   const globalCart = useGlobalCart()
   const hasImportedGlobalCart = useRef(false)
 
@@ -100,6 +102,33 @@ export default function UniversalPOS() {
       setDiscount(appliedCoupon ? appliedCoupon.discountAmount : 0)
     }
   }
+
+  // Pre-select customer from URL params (barcode scan navigation) or pos:select-customer event
+  useEffect(() => {
+    const customerId = searchParams.get('customerId')
+    const customerNumber = searchParams.get('customerNumber')
+    const customerName = searchParams.get('customerName')
+    if (customerId && customerNumber && customerName) {
+      handleSelectCustomer({
+        id: customerId,
+        customerNumber,
+        name: customerName,
+        phone: searchParams.get('customerPhone') ?? undefined,
+        customerType: 'INDIVIDUAL',
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customer = (e as CustomEvent).detail
+      if (customer?.id) handleSelectCustomer(customer)
+    }
+    window.addEventListener('pos:select-customer', handler)
+    return () => window.removeEventListener('pos:select-customer', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleApplyReward = (reward: CustomerReward) => {
     if (appliedCoupon) {
@@ -456,6 +485,7 @@ export default function UniversalPOS() {
           isProcessing={isProcessing}
           onCheckout={handleCheckout}
           businessId={currentBusinessId || undefined}
+          businessName={currentBusiness?.name || undefined}
           onProductsReload={reloadProducts}
           {...(config.features.coupons && currentBusiness?.couponsEnabled ? {
             appliedCoupon,

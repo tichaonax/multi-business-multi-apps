@@ -204,7 +204,7 @@ export function ProductPanel({
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
@@ -263,7 +263,7 @@ export function ProductPanel({
       </div>
 
       {/* Product Display */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="p-4">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">

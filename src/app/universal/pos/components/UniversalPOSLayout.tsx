@@ -42,6 +42,7 @@ interface UniversalPOSLayoutProps {
 
   // Business info
   businessId?: string
+  businessName?: string
   onProductsReload?: () => void
 
   // Coupon (optional)
@@ -79,6 +80,7 @@ export function UniversalPOSLayout({
   isProcessing,
   onCheckout,
   businessId,
+  businessName,
   onProductsReload,
   appliedCoupon,
   isValidatingCoupon,
@@ -100,9 +102,9 @@ export function UniversalPOSLayout({
   const showCustomerSection = !!businessId && !!onSelectCustomer
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-200px)]">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* Left Column - Products */}
-      <div className="lg:col-span-7 h-full">
+      <div className="lg:col-span-7">
         <ProductPanel
           products={products}
           config={config}
@@ -114,15 +116,16 @@ export function UniversalPOSLayout({
         />
       </div>
 
-      {/* Right Column - Customer + Cart + Payment */}
-      <div className="lg:col-span-5 h-full flex flex-col gap-4">
+      {/* Right Column - Customer + Cart + Payment — sticky so it floats as products scroll */}
+      <div className="lg:col-span-5 flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
 
         {/* Customer Section */}
         {showCustomerSection && (
-          <div className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4 space-y-3">
             {showQuickRegister ? (
               <CustomerQuickRegister
                 businessId={businessId!}
+                businessName={businessName}
                 onCreated={(c) => { onSelectCustomer?.(c); setShowQuickRegister(false) }}
                 onCancel={() => setShowQuickRegister(false)}
               />
@@ -231,31 +234,27 @@ export function UniversalPOSLayout({
           </div>
         )}
 
-        <div className="flex-1 overflow-hidden">
-          <CartPanel
-            cart={cart}
-            totals={totals}
-            onUpdateQuantity={onUpdateQuantity}
-            onRemoveItem={onRemoveItem}
-            onClearCart={onClearCart}
-            appliedCoupon={appliedCoupon}
-            isValidatingCoupon={isValidatingCoupon}
-            couponError={couponError}
-            onApplyCoupon={onApplyCoupon}
-            onRemoveCoupon={onRemoveCoupon}
-            onClearCouponError={onClearCouponError}
-          />
-        </div>
+        <CartPanel
+          cart={cart}
+          totals={totals}
+          onUpdateQuantity={onUpdateQuantity}
+          onRemoveItem={onRemoveItem}
+          onClearCart={onClearCart}
+          appliedCoupon={appliedCoupon}
+          isValidatingCoupon={isValidatingCoupon}
+          couponError={couponError}
+          onApplyCoupon={onApplyCoupon}
+          onRemoveCoupon={onRemoveCoupon}
+          onClearCouponError={onClearCouponError}
+        />
 
-        <div className="flex-shrink-0">
-          <PaymentPanel
-            config={config}
-            totals={totals}
-            isProcessing={isProcessing}
-            onCheckout={onCheckout}
-            disabled={cart.length === 0}
-          />
-        </div>
+        <PaymentPanel
+          config={config}
+          totals={totals}
+          isProcessing={isProcessing}
+          onCheckout={onCheckout}
+          disabled={cart.length === 0}
+        />
       </div>
     </div>
   )

@@ -117,6 +117,27 @@ function GroceryPOSContent() {
   const [skipRewardThisTime, setSkipRewardThisTime] = useState(false)
   const autoAppliedForRef = useRef<string | null>(null)
 
+  // Pre-select customer from URL params (barcode scan navigation) or pos:select-customer event
+  useEffect(() => {
+    const customerId = searchParams.get('customerId')
+    const customerNumber = searchParams.get('customerNumber')
+    const customerName = searchParams.get('customerName')
+    if (customerId && customerNumber && customerName) {
+      setSelectedCustomer({ id: customerId, customerNumber, name: customerName, phone: searchParams.get('customerPhone') ?? undefined, customerType: 'INDIVIDUAL' })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const c = (e as CustomEvent).detail
+      if (c?.id) { setSelectedCustomer(c); setAppliedReward(null); setSkipRewardThisTime(true) }
+    }
+    window.addEventListener('pos:select-customer', handler)
+    return () => window.removeEventListener('pos:select-customer', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // WiFi integration states
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
   const [r710IntegrationEnabled, setR710IntegrationEnabled] = useState(false)
@@ -161,6 +182,8 @@ function GroceryPOSContent() {
 
   // Global cart context for mini cart sync
   const { clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
+  // Only clear global cart when POS cart goes from non-empty → empty (order completed).
+  const posHadItemsRef = useRef(false)
 
   // Get or create terminal ID for this POS instance
   const [terminalId] = useState(() => {
@@ -251,6 +274,16 @@ function GroceryPOSContent() {
     }
   }, [cart, currentBusinessId, cartLoaded])
 
+  // Notify customer display when selected customer changes
+  useEffect(() => {
+    sendToDisplay('SET_CUSTOMER', {
+      customerName: selectedCustomer?.name || null,
+      rewardMessage: null,
+      rewardApplied: false,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCustomer])
+
   // Auto-apply first available reward when customer rewards load
   useEffect(() => {
     if (!selectedCustomer || appliedReward || customerRewards.length === 0) return
@@ -266,17 +299,23 @@ function GroceryPOSContent() {
     if (!currentBusinessId || !cartLoaded) return
 
     try {
-      // Replace global cart to match POS cart exactly
-      const globalCartItems = cart.map(item => ({
-        productId: item.id,
-        variantId: item.id, // Grocery items don't have variants
-        name: item.name,
-        sku: item.barcode || item.pluCode || item.id,
-        price: item.price,
-        quantity: item.quantity,
-        attributes: {}
-      }))
-      replaceGlobalCart(globalCartItems)
+      if (cart.length > 0) {
+        posHadItemsRef.current = true
+        const globalCartItems = cart.map(item => ({
+          productId: item.id,
+          variantId: item.id, // Grocery items don't have variants
+          name: item.name,
+          sku: item.barcode || item.pluCode || item.id,
+          price: item.price,
+          quantity: item.quantity,
+          attributes: {}
+        }))
+        replaceGlobalCart(globalCartItems)
+      } else if (posHadItemsRef.current) {
+        // Cart went from non-empty → empty (order completed) — clear mini cart too
+        replaceGlobalCart([])
+      }
+      // else: POS mounted with empty cart — leave mini cart untouched
     } catch (error) {
       console.error('❌ [Grocery POS] Failed to sync to global cart:', error)
     }

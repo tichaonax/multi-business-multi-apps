@@ -449,7 +449,6 @@ function PaymentHistoryContent() {
 
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout
           title="📜 Payment History"
           description="View and manage all payroll payments"
@@ -875,7 +874,6 @@ function PaymentHistoryContent() {
             </div>
           </div>
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

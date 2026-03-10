@@ -16,6 +16,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { useSession } from 'next-auth/react'
 
 import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { usePrintPreferences } from '@/hooks/use-print-preferences'
@@ -77,6 +78,7 @@ export default function RestaurantPOS() {
   // IMMEDIATE LOG - This will show when component renders
   console.log('🚀🚀🚀 [Restaurant POS] COMPONENT RENDERING 🚀🚀🚀')
 
+  const searchParams = useSearchParams()
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   // Ref so the pos:add-to-cart event handler always reads the latest menu items
   const menuItemsRef = useRef<MenuItem[]>([])
@@ -89,11 +91,41 @@ export default function RestaurantPOS() {
   const [orderSubmitting, setOrderSubmitting] = useState(false)
   // Ref-based guard to prevent duplicate print calls (more reliable than state)
   const printInFlightRef = useRef(false)
+  // Stable ref to sendToDisplay so barcode-scan handler (empty-deps effect) always calls the latest version
+  const sendToDisplayRef = useRef<((type: string, payload: Record<string, unknown>) => void) | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; customerType: string } | null>(null)
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
   const [skipRewardThisTime, setSkipRewardThisTime] = useState(true)
   const autoAppliedForRef = useRef<string | null>(null)
+
+  // Pre-select customer from URL params (barcode scan navigation) or pos:select-customer event
+  useEffect(() => {
+    const customerId = searchParams.get('customerId')
+    const customerNumber = searchParams.get('customerNumber')
+    const customerName = searchParams.get('customerName')
+    if (customerId && customerNumber && customerName) {
+      setSelectedCustomer({ id: customerId, customerNumber, name: customerName, phone: searchParams.get('customerPhone') ?? undefined, customerType: 'INDIVIDUAL' })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const c = (e as CustomEvent).detail
+      if (c?.id) {
+        setSelectedCustomer(c)
+        setAppliedReward(null)
+        setSkipRewardThisTime(true)
+        // Directly notify the display immediately (ref is always current)
+        sendToDisplayRef.current?.('SET_CUSTOMER', { customerName: c.name, rewardMessage: null, rewardApplied: false })
+      }
+    }
+    window.addEventListener('pos:select-customer', handler)
+    return () => window.removeEventListener('pos:select-customer', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [showQuickRegister, setShowQuickRegister] = useState(false)
   const [showRewardHistory, setShowRewardHistory] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -174,6 +206,9 @@ export default function RestaurantPOS() {
   // Global cart context for mini cart sync
   const { cart: globalCart, clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
   const syncingFromPOS = useRef(false)
+  // Only clear global cart when POS cart goes from non-empty → empty (order completed).
+  // Prevents wiping mini-cart items when POS mounts with an empty cart-${businessId}.
+  const posHadItemsRef = useRef(false)
 
   // Get or create terminal ID for this POS instance
   const [terminalId] = useState(() => {
@@ -189,10 +224,13 @@ export default function RestaurantPOS() {
   const { send: sendToDisplay } = useCustomerDisplaySync({
     businessId: currentBusinessId || '',
     terminalId,
-    mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
+    mode: SyncMode.BROADCAST,
     autoConnect: true,
     onError: (error) => console.error('[Customer Display] Sync error:', error)
   })
+
+  // Keep sendToDisplayRef in sync so the barcode-scan handler always calls the latest version
+  sendToDisplayRef.current = sendToDisplay as unknown as (type: string, payload: Record<string, unknown>) => void
 
   // Open Customer Display utility
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
@@ -324,23 +362,30 @@ export default function RestaurantPOS() {
     if (!currentBusinessId || !cartLoaded) return
 
     try {
-      syncingFromPOS.current = true
-      // Replace global cart to match POS cart exactly
-      const globalCartItems = cart.map(item => ({
-        productId: item.id,
-        variantId: item.variants?.[0]?.id || item.id, // Use first variant or item id
-        name: item.name,
-        sku: item.variants?.[0]?.sku || item.barcode || item.id, // Use variant SKU, barcode, or fallback to ID
-        price: item.price,
-        quantity: item.quantity,
-        attributes: {},
-
-        imageUrl: item.imageUrl,
-        // Include combo data for mini cart display
-        isCombo: (item as any).isCombo || false,
-        comboItems: (item as any).comboItems || null
-      }))
-      replaceGlobalCart(globalCartItems)
+      if (cart.length > 0) {
+        posHadItemsRef.current = true
+        syncingFromPOS.current = true
+        // Replace global cart to match POS cart exactly
+        const globalCartItems = cart.map(item => ({
+          productId: item.id,
+          variantId: item.variants?.[0]?.id || item.id, // Use first variant or item id
+          name: item.name,
+          sku: item.variants?.[0]?.sku || item.barcode || item.id, // Use variant SKU, barcode, or fallback to ID
+          price: item.price,
+          quantity: item.quantity,
+          attributes: {},
+          imageUrl: item.imageUrl,
+          // Include combo data for mini cart display
+          isCombo: (item as any).isCombo || false,
+          comboItems: (item as any).comboItems || null
+        }))
+        replaceGlobalCart(globalCartItems)
+      } else if (posHadItemsRef.current) {
+        // Cart went from non-empty → empty (order completed) — clear mini cart too
+        syncingFromPOS.current = true
+        replaceGlobalCart([])
+      }
+      // else: POS mounted with empty cart (no prior session) — leave mini cart untouched
     } catch (error) {
       console.error('❌ [Restaurant POS] Failed to sync to global cart:', error)
     } finally {
@@ -3284,6 +3329,7 @@ export default function RestaurantPOS() {
                 {showQuickRegister ? (
                   <CustomerQuickRegister
                     businessId={currentBusinessId}
+                    businessName={currentBusiness?.name || undefined}
                     onCreated={(c) => { setSelectedCustomer(c); setShowQuickRegister(false) }}
                     onCancel={() => setShowQuickRegister(false)}
                   />
@@ -3465,7 +3511,7 @@ export default function RestaurantPOS() {
                   removeCoupon()
                   window.dispatchEvent(new Event('coupon-removed'))
                 }}
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 && !selectedCustomer}
                 className="w-full py-3 sm:py-2 mt-2 bg-gray-500 dark:bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
               >
                 Cancel Order

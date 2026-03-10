@@ -52,11 +52,9 @@ interface Statistics {
 export default function ConnectedClientsPage() {
   return (
     <ProtectedRoute requiredPermission="canManageWifiPortal">
-      <MainLayout>
-        <ContentLayout>
-          <ConnectedClientsContent />
-        </ContentLayout>
-      </MainLayout>
+      <ContentLayout>
+        <ConnectedClientsContent />
+      </ContentLayout>
     </ProtectedRoute>
   )
 }

@@ -233,9 +233,16 @@ export function MiniCart() {
     setIsOpen(false)
     // If already on a POS page, just close the mini-cart so the user can
     // complete the purchase using the POS's own checkout flow.
-    // Navigating to /universal/pos would unmount the current POS and lose the sale.
     if (!isOnPOSPage) {
-      router.push('/universal/pos')
+      // Route to the business-type-specific POS when one exists
+      const type = currentBusiness?.businessType
+      const posRoutes: Record<string, string> = {
+        restaurant: '/restaurant/pos',
+        grocery: '/grocery/pos',
+        clothing: '/clothing/pos',
+        hardware: '/hardware/pos',
+      }
+      router.push(posRoutes[type ?? ''] ?? '/universal/pos')
     }
   }
 

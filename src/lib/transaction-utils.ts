@@ -74,7 +74,7 @@ export async function createExpenseWithTransaction(data: ExpenseCreationData): P
         data: {
           id: randomUUID(),
           userId: data.userId,
-          amount: -data.amount, // Negative because it's an expense
+          amount: data.amount, // Positive — the balance calculation subtracts non-deposit entries
           description: `Expense: ${data.description}`,
           type: 'expense'
         }

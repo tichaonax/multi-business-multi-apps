@@ -2614,6 +2614,7 @@ export interface BusinessMembership {
   permissions: BusinessPermissions;
   isActive: boolean;
   isDemo?: boolean; // Flag to indicate demo business
+  isUmbrellaBusiness?: boolean; // Flag to indicate the umbrella/parent business
   address?: string; // Business address for receipts
   phone?: string; // Business phone for receipts
   couponsEnabled?: boolean; // Whether coupons are enabled for this business

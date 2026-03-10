@@ -210,11 +210,18 @@ export function CustomerLookup({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // Barcode scanners type fast then press Enter — trigger immediately
+                if (e.key === 'Enter' && searchQuery.trim().length >= 2) {
+                  e.preventDefault()
+                  searchCustomers(searchQuery.trim())
+                }
+              }}
               onFocus={() => {
                 updateDropdownPosition()
                 setShowDropdown(true)
               }}
-              placeholder="Search by name or customer ID..."
+              placeholder="Search by name, ID or scan loyalty card..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-primary focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {loading && (

@@ -28,6 +28,7 @@ export async function GET() {
           description: true,
           isActive: true,
           isDemo: true,
+          isUmbrellaBusiness: true,
           address: true,
           phone: true,
           defaultPage: true,
@@ -68,6 +69,7 @@ export async function GET() {
         },
         isActive: business.isActive, // Use actual business active status
         isDemo: business.isDemo, // Include demo flag
+        isUmbrellaBusiness: business.isUmbrellaBusiness ?? false,
         address: business.address, // Business address for receipts
         phone: business.phone, // Business phone for receipts
         defaultPage: business.defaultPage, // Default landing page

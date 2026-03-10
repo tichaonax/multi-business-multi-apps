@@ -277,7 +277,6 @@ function SalaryAdvanceContent() {
 
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout
           title="⚡ Salary Advance"
           description="Process individual advance payments for employees"
@@ -550,7 +549,6 @@ function SalaryAdvanceContent() {
             </div>
           </div>
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }
