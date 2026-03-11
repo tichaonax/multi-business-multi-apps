@@ -1034,6 +1034,14 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity }: UserDrop
   const userMenuOpenedByClick = useRef(false)
   const userMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const userMenuOpenedAt = useRef(0)
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/user/profile', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.profilePhotoUrl) setProfilePhotoUrl(data.profilePhotoUrl) })
+      .catch(() => {})
+  }, [user.id])
 
   const closeUserMenu = () => {
     if (userMenuTimeoutRef.current) {
@@ -1124,8 +1132,17 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity }: UserDrop
         onMouseLeave={handleUserMenuLeave}
         className="flex items-center space-x-1 sm:space-x-3 text-sm rounded-md p-1 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       >
-        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm shrink-0">
-          {getInitials(user.name || user.email || 'User')}
+        <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden bg-blue-600 flex items-center justify-center text-white font-medium text-sm">
+          {profilePhotoUrl ? (
+            <img
+              src={profilePhotoUrl}
+              alt={user.name || 'User'}
+              className="w-full h-full object-cover"
+              onError={() => setProfilePhotoUrl(null)}
+            />
+          ) : (
+            getInitials(user.name || user.email || 'User')
+          )}
         </div>
         <div className="hidden md:block text-left">
           <p className="text-gray-900 dark:text-white font-medium">{user.name}</p>

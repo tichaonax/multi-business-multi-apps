@@ -31,10 +31,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 })
     }
 
-    // Fetch active employees for this business
+    // Check if this is the umbrella business — if so, fetch all employees across all businesses
+    const business = await prisma.businesses.findUnique({
+      where: { id: businessId },
+      select: { isUmbrellaBusiness: true },
+    })
+    const isUmbrella = business?.isUmbrellaBusiness ?? false
+
+    // Fetch active employees — no business filter for umbrella (all businesses)
     const employees = await prisma.employees.findMany({
       where: {
-        primaryBusinessId: businessId,
+        ...(isUmbrella ? {} : { primaryBusinessId: businessId }),
         isActive: true,
       },
       select: {
@@ -46,7 +53,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (employees.length === 0) {
-      return NextResponse.json([])
+      return NextResponse.json({ employees: [], batchNote: null })
     }
 
     // Fetch existing absence records for this business on this date

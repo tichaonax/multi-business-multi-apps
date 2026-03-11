@@ -11,6 +11,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Look up linked employee photo
+    const linkedEmployee = await prisma.employees.findFirst({
+      where: { userId: user.id },
+      select: { profilePhotoUrl: true },
+    })
+
     const dbUser = await prisma.users.findUnique({
       where: { id: user.id
       },
@@ -52,9 +58,10 @@ export async function GET() {
     // Transform snake_case to camelCase for frontend
     const responseData = {
       ...user,
-      businessMemberships: user.businessMemberships
+      businessMemberships: user.businessMemberships,
+      profilePhotoUrl: linkedEmployee?.profilePhotoUrl ?? null,
     }
-    
+
     // Remove the snake_case version
     delete (responseData as any).business_memberships
 

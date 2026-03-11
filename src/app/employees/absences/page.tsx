@@ -25,8 +25,9 @@ export default function AbsencesPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const toast = useToastContext()
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, businesses } = useBusinessPermissionsContext()
 
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
   const [date, setDate] = useState(todayISO())
   const [employees, setEmployees] = useState<AbsenceEmployee[]>([])
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
@@ -43,13 +44,20 @@ export default function AbsencesPage() {
     if (!session) { router.push('/auth/signin'); return }
   }, [session, status, router])
 
+  // Default selected business to currentBusinessId once loaded
+  useEffect(() => {
+    if (currentBusinessId && !selectedBusinessId) {
+      setSelectedBusinessId(currentBusinessId)
+    }
+  }, [currentBusinessId, selectedBusinessId])
+
   const fetchAbsences = useCallback(async () => {
-    if (!currentBusinessId || !date) return
+    if (!selectedBusinessId || !date) return
     setLoading(true)
     setIsLocked(false)
     setLockedMessage('')
     try {
-      const params = new URLSearchParams({ businessId: currentBusinessId, date })
+      const params = new URLSearchParams({ businessId: selectedBusinessId, date })
       const res = await fetch(`/api/employees/absences?${params}`, { credentials: 'include' })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load absences')
@@ -73,16 +81,16 @@ export default function AbsencesPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, date, toast])
+  }, [selectedBusinessId, date, toast])
 
   useEffect(() => { fetchAbsences() }, [fetchAbsences])
 
   // Check payroll period lock status separately from the GET (which doesn't block reads)
   const checkLockStatus = useCallback(async () => {
-    if (!currentBusinessId || !date) return
+    if (!selectedBusinessId || !date) return
     try {
       const [year, month] = date.split('-').map(Number)
-      const params = new URLSearchParams({ businessId: currentBusinessId, year: String(year), month: String(month) })
+      const params = new URLSearchParams({ businessId: selectedBusinessId, year: String(year), month: String(month) })
       const res = await fetch(`/api/payroll/periods?${params}`, { credentials: 'include' })
       const json = await res.json()
       if (res.ok && json.periods) {
@@ -95,7 +103,7 @@ export default function AbsencesPage() {
     } catch {
       // non-blocking — if we can't check, just allow edits
     }
-  }, [currentBusinessId, date])
+  }, [selectedBusinessId, date])
 
   useEffect(() => { checkLockStatus() }, [checkLockStatus])
 
@@ -125,7 +133,7 @@ export default function AbsencesPage() {
     [...originalIds].some((id) => !checkedIds.has(id))
 
   async function handleSave() {
-    if (!currentBusinessId) return
+    if (!selectedBusinessId) return
     setSaving(true)
     try {
       const res = await fetch('/api/employees/absences', {
@@ -133,7 +141,7 @@ export default function AbsencesPage() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessId: currentBusinessId,
+          businessId: selectedBusinessId,
           date,
           absentEmployeeIds: [...checkedIds],
           notes: batchNote || null,
@@ -195,6 +203,24 @@ export default function AbsencesPage() {
             )}
           </div>
         </div>
+
+        {/* Business selector */}
+        {businesses.length > 1 && (
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-secondary whitespace-nowrap">Business:</label>
+            <select
+              value={selectedBusinessId ?? ''}
+              onChange={(e) => setSelectedBusinessId(e.target.value)}
+              className="flex-1 px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {businesses.map((b) => (
+                <option key={b.businessId} value={b.businessId}>
+                  {b.isUmbrellaBusiness ? 'All' : b.businessName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Lock banner */}
         {isLocked && (

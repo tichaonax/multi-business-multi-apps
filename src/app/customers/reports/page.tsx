@@ -168,7 +168,7 @@ export default function CustomerReportsPage() {
           >
             {businesses.map((b: any, i: number) => (
               <option key={b.businessId ?? i} value={b.isUmbrellaBusiness ? 'all' : b.businessId}>
-                {b.isUmbrellaBusiness ? 'All Businesses' : b.businessName}
+                {b.isUmbrellaBusiness ? 'All' : b.businessName}
               </option>
             ))}
           </select>

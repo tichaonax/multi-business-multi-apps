@@ -62,6 +62,7 @@ export function Sidebar() {
   const { navigateTo } = useNavigation()
   // normalize session user early to avoid repeating casts later
   const currentUser = session?.user as any
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null)
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [businessGroups, setBusinessGroups] = useState<BusinessGroup[]>([])
   const [expandedBusinessTypes, setExpandedBusinessTypes] = useState<Set<string>>(new Set())
@@ -100,6 +101,15 @@ export function Sidebar() {
 
   // Get global cart for real-time sidebar badge updates
   const { getCartItemCount: getGlobalCartCount } = useGlobalCart()
+
+  // Fetch user profile photo from linked employee record
+  useEffect(() => {
+    if (!currentUser?.id) return
+    fetch('/api/user/profile', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.profilePhotoUrl) setProfilePhotoUrl(data.profilePhotoUrl) })
+      .catch(() => {})
+  }, [currentUser?.id])
 
   // Use businesses from BusinessPermissionsContext instead of separate API call
   useEffect(() => {
@@ -1908,8 +1918,17 @@ export function Sidebar() {
       
       <div className="p-4 border-t border-gray-700">
         <div className="flex items-center space-x-3 mb-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
-            {currentUser?.name?.[0]?.toUpperCase()}
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-sm font-medium shrink-0">
+            {profilePhotoUrl ? (
+              <img
+                src={profilePhotoUrl}
+                alt={currentUser?.name || 'User'}
+                className="w-full h-full object-cover"
+                onError={() => setProfilePhotoUrl(null)}
+              />
+            ) : (
+              currentUser?.name?.[0]?.toUpperCase()
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{currentUser?.name}</p>
