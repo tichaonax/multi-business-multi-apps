@@ -89,6 +89,9 @@ export function useCustomerDisplaySync(
   const mountedRef = useRef(true)
   const onMessageRef = useRef(onMessage)
   const onErrorRef = useRef(onError)
+  // Queue messages sent before the channel is ready — flushed on connect
+  const pendingQueueRef = useRef<Array<{ type: CartMessageType; payload: CartMessage['payload'] }>>([])
+  const channelReadyRef = useRef(false)
 
   // Update refs when callbacks change
   useEffect(() => {
@@ -131,9 +134,18 @@ export function useCustomerDisplaySync(
       },
       onConnected: () => {
         if (mountedRef.current) {
+          channelReadyRef.current = true
           setIsConnected(true)
           setError(null)
           console.log('[useCustomerDisplaySync] Connected')
+          // Flush any messages that were sent before the channel was ready
+          const pending = pendingQueueRef.current.splice(0)
+          for (const msg of pending) {
+            try {
+              syncManagerRef.current?.send(msg.type, msg.payload)
+              console.log(`[useCustomerDisplaySync] Flushed queued message: ${msg.type}`)
+            } catch { /* ignore */ }
+          }
         }
       },
       onDisconnected: () => {
@@ -181,6 +193,8 @@ export function useCustomerDisplaySync(
    * Disconnect from sync
    */
   const disconnect = useCallback(() => {
+    channelReadyRef.current = false
+    pendingQueueRef.current = []
     if (syncManagerRef.current) {
       syncManagerRef.current.disconnect()
       syncManagerRef.current = null
@@ -197,17 +211,19 @@ export function useCustomerDisplaySync(
    * Send a message through sync
    */
   const send = useCallback((type: CartMessageType, payload: CartMessage['payload']) => {
-    console.log(`[useCustomerDisplaySync] send() called - type: ${type}, isConnected: ${isConnected}, hasManager: ${!!syncManagerRef.current}`)
-
-    if (!syncManagerRef.current) {
-      console.warn('[useCustomerDisplaySync] Cannot send, sync manager not initialized')
+    // If channel not ready yet, queue the message — it will be flushed on connect
+    if (!channelReadyRef.current || !syncManagerRef.current) {
+      console.log(`[useCustomerDisplaySync] Channel not ready, queuing message: ${type}`)
+      // Keep only the latest SET_CUSTOMER in the queue (replace stale ones)
+      if (type === 'SET_CUSTOMER') {
+        const idx = pendingQueueRef.current.findIndex(m => m.type === 'SET_CUSTOMER')
+        if (idx !== -1) pendingQueueRef.current.splice(idx, 1)
+      }
+      pendingQueueRef.current.push({ type, payload })
       return
     }
 
-    // Don't check isConnected for BroadcastChannel - it's always ready
-    // The state update might lag behind actual connection
     console.log(`[useCustomerDisplaySync] Sending message type: ${type}`)
-
     try {
       syncManagerRef.current.send(type, payload)
       console.log(`[useCustomerDisplaySync] Message sent successfully: ${type}`)
@@ -217,7 +233,7 @@ export function useCustomerDisplaySync(
       setError(error)
       onError?.(error)
     }
-  }, [isConnected, onError])
+  }, [onError])
 
   /**
    * Auto-connect on mount if enabled

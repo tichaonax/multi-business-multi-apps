@@ -145,6 +145,7 @@ model BusinessCustomers {
   isActive         Boolean           @default(true)
   businessType     String
   attributes       Json?
+  photoUrl         String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime
   businesses       Businesses        @relation(fields: [businessId], references: [id])
@@ -4998,7 +4999,7 @@ model PettyCashRequests {
   status           PettyCashStatus @default(PENDING)
   requestedAmount  Decimal         @db.Decimal(12, 2)
   approvedAmount   Decimal?        @db.Decimal(12, 2) // may be less than requestedAmount
-  spentAmount      Decimal         @db.Decimal(12, 2) @default(0) // running total from PettyCashTransactions; updated atomically
+  spentAmount      Decimal         @default(0) @db.Decimal(12, 2) // running total from PettyCashTransactions; updated atomically
   returnAmount     Decimal?        @db.Decimal(12, 2) // unused cash physically returned at settlement
   purpose          String // brief description of intended use
   notes            String?
@@ -5039,7 +5040,7 @@ model PettyCashTransaction {
   businessId       String
   expenseAccountId String
   amount           Decimal  @db.Decimal(12, 2)
-  description      String   // what it was spent on
+  description      String // what it was spent on
   categoryId       String?
   payeeType        String   @default("NONE") // mirrors ExpenseAccountPayments.payeeType
   payeeSupplierId  String?

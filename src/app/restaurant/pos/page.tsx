@@ -508,6 +508,9 @@ export default function RestaurantPOS() {
 
   // Notify customer display when selected customer, reward, or reward opt-in changes
   useEffect(() => {
+    // Don't send null — greeting persists until explicitly cleared (Cancel Order / Payment Complete)
+    if (!selectedCustomer) return
+
     let rewardMessage: string | null = null
     let rewardApplied = false
     if (appliedReward) {
@@ -524,7 +527,7 @@ export default function RestaurantPOS() {
       }
     }
     sendToDisplay('SET_CUSTOMER', {
-      customerName: selectedCustomer?.name || null,
+      customerName: selectedCustomer.name,
       rewardMessage,
       rewardApplied,
     })
@@ -3510,6 +3513,8 @@ export default function RestaurantPOS() {
                   // Clear any coupon applied via mini-cart
                   removeCoupon()
                   window.dispatchEvent(new Event('coupon-removed'))
+                  // Explicitly clear customer greeting on display
+                  sendToDisplayRef.current?.('SET_CUSTOMER', { customerName: null, clearCustomer: true, rewardMessage: null, rewardApplied: false })
                 }}
                 disabled={cart.length === 0 && !selectedCustomer}
                 className="w-full py-3 sm:py-2 mt-2 bg-gray-500 dark:bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"

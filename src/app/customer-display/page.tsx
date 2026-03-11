@@ -14,7 +14,7 @@
  * Example URL: /customer-display?businessId=biz_123&terminalId=terminal-1
  */
 
-import { Suspense, useState, useEffect, useCallback } from 'react'
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
@@ -75,6 +75,8 @@ function CustomerDisplayContent() {
   // Active business tracking - can change dynamically when POS switches business
   // Start with initialBusinessId from URL if provided, otherwise null
   const [currentActiveBusinessId, setCurrentActiveBusinessId] = useState<string | null>(initialBusinessId)
+  // Ref mirrors state so the message filter check is always current (avoids React batching lag)
+  const activeBusinessIdRef = useRef<string | null>(initialBusinessId)
 
   // Use initialBusinessId for display even if no active business signaled yet
   // This allows showing business info and marketing content immediately
@@ -170,11 +172,12 @@ function CustomerDisplayContent() {
 
     // Handle SET_ACTIVE_BUSINESS - always process to potentially switch businesses
     if (message.type === 'SET_ACTIVE_BUSINESS') {
-      if (message.businessId !== currentActiveBusinessId) {
+      if (message.businessId !== activeBusinessIdRef.current) {
         console.log('🔄 [CustomerDisplay] Business switch detected:', {
-          from: currentActiveBusinessId,
+          from: activeBusinessIdRef.current,
           to: message.businessId
         })
+        activeBusinessIdRef.current = message.businessId  // sync update — immediate
         setCurrentActiveBusinessId(message.businessId)
         // Clear cart when switching businesses
         setCart({
@@ -188,10 +191,11 @@ function CustomerDisplayContent() {
     }
 
     // Filter messages by active business (ignore messages from other businesses)
-    if (message.businessId !== currentActiveBusinessId) {
+    // Use ref (not state) so the check is always current even when rapid messages arrive
+    if (activeBusinessIdRef.current !== null && message.businessId !== activeBusinessIdRef.current) {
       console.log('⏭️ [CustomerDisplay] Ignoring message from different business:', {
         messageBusinessId: message.businessId,
-        currentActiveBusinessId
+        activeBusinessId: activeBusinessIdRef.current
       })
       return
     }
@@ -315,8 +319,14 @@ function CustomerDisplayContent() {
         break
 
       case 'SET_CUSTOMER':
-        // Update customer name, reward message, and applied state
-        setCustomerName(message.payload.customerName || null)
+        // Update customer name — only clear it if explicitly flagged (clearCustomer: true)
+        // This prevents accidental SET_CUSTOMER(null) from POS useEffect initial fires hiding the greeting
+        if (message.payload.customerName) {
+          setCustomerName(message.payload.customerName)
+        } else if (message.payload.clearCustomer) {
+          setCustomerName(null)
+        }
+        // Always update reward state
         setCustomerRewardMessage(message.payload.rewardMessage || null)
         setCustomerRewardApplied(!!message.payload.rewardApplied)
         break
@@ -679,8 +689,13 @@ function CustomerDisplayContent() {
               {employeePhotoUrl && (
                 <img src={employeePhotoUrl} alt="" className="w-36 h-36 rounded-full object-cover border-2 border-white/40 shadow flex-shrink-0" />
               )}
-              <div className="flex-1 text-center">
-                {customerName ? (
+              <div className="flex-1 text-center space-y-1">
+                {employeeName && (
+                  <p className="text-xl font-medium">
+                    🙋 {employeeName} is here to help you today
+                  </p>
+                )}
+                {customerName && (
                   <p className="text-2xl font-bold">
                     {(() => {
                       const h = new Date().getHours()
@@ -689,11 +704,7 @@ function CustomerDisplayContent() {
                       return `🌙 Good Evening, ${customerName}!`
                     })()}
                   </p>
-                ) : employeeName ? (
-                  <p className="text-xl font-medium">
-                    🙋 {employeeName} is here to help you today
-                  </p>
-                ) : null}
+                )}
               </div>
             </div>
 

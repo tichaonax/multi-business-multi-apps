@@ -209,9 +209,10 @@ export function MiniCart() {
     removeFromCart(itemId)
   }
 
-  // Hover-to-preview (same pattern as bell notification)
+  // Hover-to-preview — only opens on hover when cart has items
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleMouseEnter = () => {
+    if (isCartEmpty) return
     if (hideTimer.current) clearTimeout(hideTimer.current)
     setIsOpen(true)
   }

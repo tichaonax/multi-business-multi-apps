@@ -139,6 +139,11 @@ export default function ClockInDashboardPage() {
   const [isLoadingExempt, setIsLoadingExempt] = useState(false)
   const [isRunningAutoClockOut, setIsRunningAutoClockOut] = useState(false)
   const [autoClockOutMessage, setAutoClockOutMessage] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    setIsMobile(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1)
+  }, [])
 
   // Photo preview modal
   const [photoPreview, setPhotoPreview] = useState<{
@@ -1028,10 +1033,28 @@ export default function ClockInDashboardPage() {
                         <div className="flex items-center gap-3">
                           {/* Photo Upload */}
                           <label
-                            className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 font-medium cursor-pointer"
-                            title="Upload Photo"
+                            className="text-xs text-teal-600 hover:text-teal-800 dark:hover:text-teal-400 font-medium cursor-pointer"
+                            title="Take photo with camera"
                           >
-                            {uploadingExemptPhotoId === emp.id ? '⏳' : '📸'}
+                            {uploadingExemptPhotoId === emp.id ? '⏳' : '📷'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              {...(isMobile ? { capture: 'environment' } : {})}
+                              className="hidden"
+                              disabled={uploadingExemptPhotoId === emp.id}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) handleExemptPhotoUpload(emp, file)
+                                e.target.value = ''
+                              }}
+                            />
+                          </label>
+                          <label
+                            className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 font-medium cursor-pointer"
+                            title="Upload from gallery"
+                          >
+                            🖼
                             <input
                               type="file"
                               accept="image/*"
@@ -1308,8 +1331,23 @@ export default function ClockInDashboardPage() {
                   ) : (
                     <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xl border border-gray-200 dark:border-gray-600">👤</div>
                   )}
-                  <label className={`px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${isUploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                    {isUploadingPhoto ? 'Uploading...' : '📸 Upload Photo'}
+                  <label className={`px-3 py-1.5 border border-teal-500 bg-teal-600 text-white rounded-lg text-xs cursor-pointer hover:bg-teal-700 ${isUploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`} title="Take photo with camera">
+                    {isUploadingPhoto ? '⏳' : '📷'} Camera
+                    <input
+                      type="file"
+                      accept="image/*"
+                      {...(isMobile ? { capture: 'environment' } : {})}
+                      className="hidden"
+                      disabled={isUploadingPhoto}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handlePhotoUpload(file)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                  <label className={`px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${isUploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`} title="Upload from gallery">
+                    🖼 Gallery
                     <input
                       type="file"
                       accept="image/*"
@@ -1318,6 +1356,7 @@ export default function ClockInDashboardPage() {
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) handlePhotoUpload(file)
+                        e.target.value = ''
                       }}
                     />
                   </label>

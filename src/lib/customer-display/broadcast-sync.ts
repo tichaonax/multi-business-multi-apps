@@ -52,6 +52,11 @@ export interface CartMessage {
     discountAmount?: number
     discountLabel?: string
     rewardAvailableMessage?: string
+    // Customer greeting fields
+    customerName?: string | null
+    clearCustomer?: boolean  // When true, explicitly clears the customer greeting
+    rewardMessage?: string | null
+    rewardApplied?: boolean
     // Payment fields
     amountTendered?: number
     changeDue?: number

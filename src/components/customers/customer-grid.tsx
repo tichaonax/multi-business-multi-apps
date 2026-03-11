@@ -14,6 +14,7 @@ interface Customer {
   address?: string | null
   city?: string | null
   isActive: boolean
+  photoUrl?: string | null
   businesses?: { id: string; name: string; type: string } | null
 }
 
@@ -26,6 +27,9 @@ interface CustomerGridProps {
 // ─── Print helpers ────────────────────────────────────────────────────────────
 
 function buildCardHtml(customer: Customer, barcodeSvg: string): string {
+  const photoHtml = customer.photoUrl
+    ? `<img src="${customer.photoUrl}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid #99f6e4;" />`
+    : `<div style="flex-shrink:0;width:56px;height:56px;border-radius:8px;background:#f0fdfa;border:1px solid #99f6e4;display:flex;align-items:center;justify-content:center;font-size:24px;">🛍️</div>`
   return `
     <div style="display:inline-block;background:#fff;border:2px solid #0d9488;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.12);width:314px;font-family:sans-serif;vertical-align:top;">
       <div style="background:#0d9488;padding:6px 12px;display:flex;align-items:center;justify-content:space-between;">
@@ -33,7 +37,7 @@ function buildCardHtml(customer: Customer, barcodeSvg: string): string {
         ${customer.businesses?.name ? `<span style="color:#99f6e4;font-size:11px;max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${customer.businesses.name}</span>` : ''}
       </div>
       <div style="padding:12px;display:flex;gap:12px;align-items:center;">
-        <div style="flex-shrink:0;width:56px;height:56px;border-radius:8px;background:#f0fdfa;border:1px solid #99f6e4;display:flex;align-items:center;justify-content:center;font-size:24px;">🛍️</div>
+        <div style="flex-shrink:0;">${photoHtml}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:14px;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${customer.name}</div>
           <div style="color:#0d9488;font-size:11px;font-weight:500;margin-top:2px;font-family:monospace;">${customer.customerNumber}</div>
@@ -217,6 +221,13 @@ export function CustomerGrid({ customers, loading, onRefresh }: CustomerGridProp
                     : <Square className="h-4 w-4" />
                   }
                 </button>
+
+                {/* Photo avatar */}
+                <div className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center cursor-pointer" onClick={() => setSelectedCustomerId(customer.id)}>
+                  {customer.photoUrl
+                    ? <img src={customer.photoUrl} alt={customer.name} className="w-full h-full object-cover" />
+                    : <User className="h-5 w-5 text-gray-400" />}
+                </div>
 
                 {/* Name + number */}
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedCustomerId(customer.id)}>
