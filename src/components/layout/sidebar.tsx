@@ -1075,6 +1075,65 @@ export function Sidebar() {
                 </span>
               )}
             </Link>
+
+            {/* Chicken Run */}
+            {hasPermission('canManageChickenRun') && (
+              <>
+                <Link
+                  href="/chicken-run"
+                  className={getLinkClasses('/chicken-run')}
+                >
+                  <span className="text-lg">🐔</span>
+                  <span>Chicken Run</span>
+                </Link>
+                {pathname.startsWith('/chicken-run') && (
+                  <div className="ml-4 space-y-0.5">
+                    <Link
+                      href="/chicken-run"
+                      className={getLinkClasses('/chicken-run')}
+                    >
+                      <span className="text-base">📊</span>
+                      <span>Dashboard</span>
+                    </Link>
+                    <Link
+                      href="/chicken-run/batches/new"
+                      className={getLinkClasses('/chicken-run/batches/new')}
+                    >
+                      <span className="text-base">➕</span>
+                      <span>New Batch</span>
+                    </Link>
+                    <Link
+                      href="/chicken-run/inventory"
+                      className={getLinkClasses('/chicken-run/inventory')}
+                    >
+                      <span className="text-base">🧊</span>
+                      <span>Inventory</span>
+                    </Link>
+                    <Link
+                      href="/chicken-run/reports"
+                      className={getLinkClasses('/chicken-run/reports')}
+                    >
+                      <span className="text-base">📈</span>
+                      <span>Reports</span>
+                    </Link>
+                    <Link
+                      href="/chicken-run/costs"
+                      className={getLinkClasses('/chicken-run/costs')}
+                    >
+                      <span className="text-base">💰</span>
+                      <span>Costs</span>
+                    </Link>
+                    <Link
+                      href="/chicken-run/settings"
+                      className={getLinkClasses('/chicken-run/settings')}
+                    >
+                      <span className="text-base">⚙️</span>
+                      <span>Settings</span>
+                    </Link>
+                  </div>
+                )}
+              </>
+            )}
             </>)}
           </>
         )}

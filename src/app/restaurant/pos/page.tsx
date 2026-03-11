@@ -94,7 +94,7 @@ export default function RestaurantPOS() {
   // Stable ref to sendToDisplay so barcode-scan handler (empty-deps effect) always calls the latest version
   const sendToDisplayRef = useRef<((type: string, payload: Record<string, unknown>) => void) | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; customerType: string } | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; address?: string; city?: string; customerType: string } | null>(null)
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
   const [skipRewardThisTime, setSkipRewardThisTime] = useState(true)
   const autoAppliedForRef = useRef<string | null>(null)
@@ -1368,6 +1368,8 @@ export default function RestaurantPOS() {
       footerMessage: order.footerMessage || 'Thank you for dining with us!',
       customerName: order.customerName || (order.attributes?.mealProgram ? order.attributes?.participantName : undefined),
       customerPhone: order.customerPhone,
+      customerAddress: order.customerAddress,
+      customerCity: order.customerCity,
       mealProgram: order.attributes?.mealProgram
         ? {
             participantName: order.attributes.participantName || '',
@@ -2011,7 +2013,9 @@ export default function RestaurantPOS() {
           r710Tokens: result.r710Tokens || [],  // R710 tokens
           businessInfo: result.businessInfo,    // Business details (address, phone)
           customerName: selectedCustomer?.name,
-          customerPhone: selectedCustomer?.phone
+          customerPhone: selectedCustomer?.phone,
+          customerAddress: selectedCustomer?.address,
+          customerCity: selectedCustomer?.city
         }
 
         // Post-checkout: run campaign eligibility for attached customer

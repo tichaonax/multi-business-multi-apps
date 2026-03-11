@@ -378,7 +378,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                 </span>
               </div>
             )}
-            {showBreadcrumb && <div className="hidden sm:block"><Breadcrumb pathname={pathname} title={title} /></div>}
+            {showBreadcrumb && <div className="hidden sm:block min-w-0 overflow-hidden"><Breadcrumb pathname={pathname} title={title} /></div>}
           </div>
 
           {/* Right side - Business context, Theme toggle and User menu */}
@@ -888,36 +888,44 @@ function Breadcrumb({ pathname, title }: BreadcrumbProps) {
     )
   }
 
-  const breadcrumbItems = segments.map((segment, index) => {
-    const href = '/' + segments.slice(0, index + 1).join('/')
-    const isLast = index === segments.length - 1
-    const displayName = title && isLast ? title : formatSegmentName(segment)
+  // UUID pattern — skip these segments entirely (use the segment before them as context)
+  const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+  // Also skip purely numeric IDs and long opaque tokens (>20 chars with no spaces)
+  const isOpaqueId = (s: string) => /^\d+$/.test(s) || (!s.includes('-') && s.length > 20)
 
-    return {
-      href,
-      name: displayName,
-      isLast
-    }
-  })
+  const breadcrumbItems = segments
+    .map((segment, index) => {
+      if (isUuid(segment) || isOpaqueId(segment)) return null
+      const href = '/' + segments.slice(0, index + 1).join('/')
+      const isLast = index === segments.length - 1
+      const displayName = title && isLast ? title : formatSegmentName(segment)
+      return { href, name: displayName, isLast: false }
+    })
+    .filter(Boolean) as Array<{ href: string; name: string; isLast: boolean }>
+
+  // Mark the actual last visible item
+  if (breadcrumbItems.length > 0) {
+    breadcrumbItems[breadcrumbItems.length - 1].isLast = true
+  }
 
   if (breadcrumbItems.length === 0) return null
 
   return (
-    <nav className="flex items-center space-x-2 text-sm">
-      <Link href="/dashboard" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+    <nav className="flex items-center space-x-2 text-sm min-w-0 overflow-hidden">
+      <Link href="/dashboard" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 shrink-0">
         Home
       </Link>
       {breadcrumbItems.map((item, index) => (
-        <div key={item.href} className="flex items-center space-x-2">
-          <span className="text-gray-300 dark:text-gray-600">/</span>
+        <div key={item.href} className="flex items-center space-x-2 min-w-0 shrink">
+          <span className="text-gray-300 dark:text-gray-600 shrink-0">/</span>
           {item.isLast ? (
-            <span className="text-gray-900 dark:text-white font-medium">
+            <span className="text-gray-900 dark:text-white font-medium truncate max-w-[180px]">
               {item.name}
             </span>
           ) : (
             <Link 
               href={item.href}
-              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 truncate max-w-[120px]"
             >
               {item.name}
             </Link>

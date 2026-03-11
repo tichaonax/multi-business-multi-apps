@@ -346,6 +346,9 @@ model BusinessSuppliers {
   supplier_payment_requests SupplierPaymentRequests[]
   supplier_ratings          SupplierRatings[]
   rent_configs              BusinessRentConfig[]      @relation("RentLandlord")
+  chicken_batches           ChickenBatch[]            @relation("ChickenBatchSupplier")
+  chicken_feed_logs         ChickenFeedLog[]          @relation("ChickenFeedSupplier")
+  chicken_inventory         ChickenInventory[]        @relation("ChickenInventorySupplier")
 
   @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
@@ -518,6 +521,12 @@ model Businesses {
   cash_bucket_entries                                                      CashBucketEntry[]             @relation("BusinessCashBucket")
   per_diem_entries                                                         PerDiemEntries[]              @relation("PerDiemBusiness")
   employee_absences                                                        EmployeeAbsences[]
+  chickenBatches                                                           ChickenBatch[]
+  chickenInventory                                                         ChickenInventory[]
+  chickenVaccinationSchedules                                              ChickenVaccinationSchedule[]
+  chickenUtilityCosts                                                      ChickenUtilityCost[]
+  chickenLaborLogs                                                         ChickenLaborLog[]
+  chickenRunSettings                                                       ChickenRunSettings?
 
   @@map("businesses")
 }
@@ -5236,4 +5245,322 @@ model EmployeeAbsences {
   @@index([businessId, date])
   @@index([employeeId])
   @@map("employee_absences")
+}
+
+// ============================================================
+// Chicken Run Management System (MBM-145)
+// ============================================================
+
+enum ChickenBatchStatus {
+  GROWING
+  CULLING
+  COMPLETED
+}
+
+enum ChickenMortalityReason {
+  DISEASE
+  INJURY
+  PREDATOR
+  UNKNOWN
+  OTHER
+}
+
+enum ChickenInventorySource {
+  RAISED
+  PURCHASED
+}
+
+enum ChickenMovementType {
+  FREEZER_IN
+  KITCHEN_OUT
+  BUSINESS_TRANSFER
+}
+
+enum ChickenWeightEntryMode {
+  INDIVIDUAL
+  BULK_TOTAL
+  BULK_LIST
+}
+
+enum ChickenWeighingStatus {
+  OPEN
+  CLOSED
+}
+
+model ChickenBatch {
+  id                       String             @id @default(cuid())
+  batchNumber              String             @unique
+  businessId               String
+  purchaseDate             DateTime
+  initialCount             Int
+  currentAliveCount        Int
+  supplierId               String?
+  purchaseCostTotal        Decimal            @db.Decimal(10, 2)
+  costPerChick             Decimal            @db.Decimal(10, 2)
+  purchaseExpensePaymentId String?
+  expectedCullDate         DateTime?
+  status                   ChickenBatchStatus @default(GROWING)
+  notes                    String?
+  createdBy                String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  business        Businesses               @relation(fields: [businessId], references: [id])
+  supplier        BusinessSuppliers?       @relation("ChickenBatchSupplier", fields: [supplierId], references: [id])
+  mortalityLogs   ChickenMortality[]
+  feedLogs        ChickenFeedLog[]
+  medicationLogs  ChickenMedicationLog[]
+  weightLogs      ChickenWeightLog[]
+  vaccinationLogs ChickenVaccinationLog[]
+  cullingRecords  ChickenCulling[]
+
+  @@index([businessId])
+  @@index([status])
+  @@map("chicken_batches")
+}
+
+model ChickenMortality {
+  id        String                 @id @default(cuid())
+  batchId   String
+  date      DateTime
+  count     Int
+  reason    ChickenMortalityReason @default(UNKNOWN)
+  notes     String?
+  createdBy String?
+  createdAt DateTime               @default(now())
+
+  batch ChickenBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@map("chicken_mortalities")
+}
+
+model ChickenFeedLog {
+  id               String   @id @default(cuid())
+  batchId          String
+  date             DateTime
+  feedType         String
+  quantityKg       Decimal  @db.Decimal(10, 3)
+  costPerKg        Decimal  @db.Decimal(10, 2)
+  totalCost        Decimal  @db.Decimal(10, 2)
+  supplierId       String?
+  expensePaymentId String?
+  notes            String?
+  createdBy        String?
+  createdAt        DateTime @default(now())
+
+  batch    ChickenBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  supplier BusinessSuppliers? @relation("ChickenFeedSupplier", fields: [supplierId], references: [id])
+
+  @@index([batchId])
+  @@map("chicken_feed_logs")
+}
+
+model ChickenMedicationLog {
+  id               String   @id @default(cuid())
+  batchId          String
+  date             DateTime
+  medicationName   String
+  quantityMl       Decimal? @db.Decimal(10, 3)
+  quantityG        Decimal? @db.Decimal(10, 3)
+  totalCost        Decimal  @db.Decimal(10, 2)
+  administeredBy   String?
+  expensePaymentId String?
+  notes            String?
+  createdBy        String?
+  createdAt        DateTime @default(now())
+
+  batch ChickenBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@map("chicken_medication_logs")
+}
+
+model ChickenWeightLog {
+  id          String   @id @default(cuid())
+  batchId     String
+  date        DateTime
+  weekAge     Int
+  sampleSize  Int
+  avgWeightKg Decimal  @db.Decimal(10, 3)
+  notes       String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  batch ChickenBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@map("chicken_weight_logs")
+}
+
+model ChickenVaccinationSchedule {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  dayAge     Int
+  notes      String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  business Businesses              @relation(fields: [businessId], references: [id])
+  logs     ChickenVaccinationLog[]
+
+  @@index([businessId])
+  @@map("chicken_vaccination_schedules")
+}
+
+model ChickenVaccinationLog {
+  id             String   @id @default(cuid())
+  batchId        String
+  scheduleId     String?
+  date           DateTime
+  vaccineName    String
+  administeredBy String?
+  notes          String?
+  createdBy      String?
+  createdAt      DateTime @default(now())
+
+  batch    ChickenBatch                @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  schedule ChickenVaccinationSchedule? @relation(fields: [scheduleId], references: [id])
+
+  @@index([batchId])
+  @@map("chicken_vaccination_logs")
+}
+
+model ChickenCulling {
+  id              String                @id @default(cuid())
+  batchId         String
+  cullingDate     DateTime
+  weighingStatus  ChickenWeighingStatus  @default(OPEN)
+  weightEntryMode ChickenWeightEntryMode @default(INDIVIDUAL)
+  quantityCulled  Int
+  totalWeightKg   Decimal               @db.Decimal(10, 3)
+  avgWeightKg     Decimal               @db.Decimal(10, 3)
+  notes           String?
+  createdBy       String?
+  createdAt       DateTime              @default(now())
+  closedAt        DateTime?
+
+  batch          ChickenBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  inventoryEntry ChickenInventory[]
+  birdWeights    ChickenBirdWeight[]
+
+  @@index([batchId])
+  @@map("chicken_cullings")
+}
+
+model ChickenInventory {
+  id                String                 @id @default(cuid())
+  businessId        String
+  source            ChickenInventorySource
+  cullingId         String?
+  supplierId        String?
+  entryDate         DateTime
+  weighingStatus    ChickenWeighingStatus  @default(OPEN)
+  weightEntryMode   ChickenWeightEntryMode @default(INDIVIDUAL)
+  quantityWhole     Int
+  totalWeightKg     Decimal                @db.Decimal(10, 3)
+  costPerBird       Decimal                @db.Decimal(10, 2)
+  costPerKg         Decimal                @db.Decimal(10, 2)
+  quantityInFreezer Int
+  expensePaymentId  String?
+  notes             String?
+  createdBy         String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  closedAt          DateTime?
+
+  business    Businesses               @relation(fields: [businessId], references: [id])
+  culling     ChickenCulling?          @relation(fields: [cullingId], references: [id])
+  supplier    BusinessSuppliers?       @relation("ChickenInventorySupplier", fields: [supplierId], references: [id])
+  movements   ChickenInventoryMovement[]
+  birdWeights ChickenBirdWeight[]
+
+  @@index([businessId])
+  @@map("chicken_inventory")
+}
+
+model ChickenBirdWeight {
+  id          String   @id @default(cuid())
+  cullingId   String?
+  inventoryId String?
+  weightKg    Decimal  @db.Decimal(6, 3)
+  sequenceNo  Int
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  culling   ChickenCulling?   @relation(fields: [cullingId], references: [id], onDelete: Cascade)
+  inventory ChickenInventory? @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@index([cullingId])
+  @@index([inventoryId])
+  @@map("chicken_bird_weights")
+}
+
+model ChickenInventoryMovement {
+  id                    String              @id @default(cuid())
+  inventoryId           String
+  movementDate          DateTime
+  movementType          ChickenMovementType
+  quantity              Int
+  weightKg              Decimal?            @db.Decimal(10, 3)
+  destinationBusinessId String?
+  purpose               String?
+  notes                 String?
+  createdBy             String?
+  createdAt             DateTime            @default(now())
+
+  inventory ChickenInventory @relation(fields: [inventoryId], references: [id])
+
+  @@index([inventoryId])
+  @@map("chicken_inventory_movements")
+}
+
+model ChickenUtilityCost {
+  id               String   @id @default(cuid())
+  businessId       String
+  date             DateTime
+  utilityType      String
+  totalCost        Decimal  @db.Decimal(10, 2)
+  expensePaymentId String?
+  notes            String?
+  createdBy        String?
+  createdAt        DateTime @default(now())
+
+  business Businesses @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@map("chicken_utility_costs")
+}
+
+model ChickenLaborLog {
+  id               String   @id @default(cuid())
+  businessId       String
+  date             DateTime
+  workerName       String?
+  hoursWorked      Decimal  @db.Decimal(5, 2)
+  hourlyRate       Decimal  @db.Decimal(10, 2)
+  totalCost        Decimal  @db.Decimal(10, 2)
+  expensePaymentId String?
+  notes            String?
+  createdBy        String?
+  createdAt        DateTime @default(now())
+
+  business Businesses @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@map("chicken_labor_logs")
+}
+
+model ChickenRunSettings {
+  id                     String   @id @default(cuid())
+  businessId             String   @unique
+  lowInventoryThreshold  Int      @default(10)
+  highMortalityThreshold Decimal  @db.Decimal(5, 2) @default(5)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  business Businesses @relation(fields: [businessId], references: [id])
+
+  @@map("chicken_run_settings")
 }

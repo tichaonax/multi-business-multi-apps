@@ -217,6 +217,8 @@ export interface ReceiptData {
   // Customer info (when order is linked to a customer)
   customerName?: string;
   customerPhone?: string;
+  customerAddress?: string;
+  customerCity?: string;
 
   // Meal Program metadata (restaurant only)
   mealProgram?: {

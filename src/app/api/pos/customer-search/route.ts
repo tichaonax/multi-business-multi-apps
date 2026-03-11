@@ -82,6 +82,8 @@ export async function GET(request: NextRequest) {
         name: true,
         email: true,
         phone: true,
+        address: true,
+        city: true,
         customerType: true,
       },
       orderBy: { name: 'asc' },

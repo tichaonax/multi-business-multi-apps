@@ -71,10 +71,10 @@ export function ContentLayout({
   }, [showBackButton])
 
   return (
-    <div className={`${maxWidthClasses[maxWidth]} mx-auto px-2 sm:px-0 py-2 min-w-0 w-full`}>
+    <div className={`${maxWidthClasses[maxWidth]} mx-auto px-2 sm:px-0 py-1 min-w-0 w-full`}>
       {/* Breadcrumb Navigation */}
       {breadcrumb && breadcrumb.length > 0 && (
-        <div className="mb-4 overflow-x-auto">
+        <div className="mb-2 overflow-x-auto">
           <nav className="flex whitespace-nowrap min-w-0" aria-label="Breadcrumb">
             <ol className="flex items-center space-x-2 text-sm">
               {breadcrumb.map((item, index) => (
@@ -103,17 +103,17 @@ export function ContentLayout({
 
       {/* Page Header */}
       {(title || headerActions) && (
-        <div className="mb-6">
-          <div className="space-y-4">
+        <div className="mb-3">
+          <div className="space-y-2">
             {/* Title Section */}
             <div className="min-w-0">
               {title && (
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary break-words">
+                <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-primary break-words">
                   {title}
                 </h1>
               )}
               {subtitle && (
-                <p className="mt-1 sm:mt-2 text-sm sm:text-base text-secondary break-words">
+                <p className="mt-0.5 text-sm text-secondary break-words">
                   {subtitle}
                 </p>
               )}
@@ -121,7 +121,7 @@ export function ContentLayout({
 
             {/* Actions Section - Responsive layout */}
             {(headerActions || shouldShowBackButton) && (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
                 {/* Actions take priority on mobile */}
                 {headerActions && (
                   <div className="flex flex-wrap gap-2 sm:gap-3 min-w-0">

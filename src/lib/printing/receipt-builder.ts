@@ -40,6 +40,8 @@ interface OrderData {
   paymentStatus: string
   customerName?: string
   customerPhone?: string
+  customerAddress?: string
+  customerCity?: string
   customerInfo?: any
   employeeName?: string
   employeeId?: string
@@ -194,6 +196,8 @@ export function buildReceiptData(
     discount: order.discountAmount,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
+    customerAddress: order.customerAddress,
+    customerCity: order.customerCity,
     discountLabel: order.attributes?.rewardCode
       ? `Reward (${order.attributes.rewardCode})`
       : order.attributes?.couponCode
