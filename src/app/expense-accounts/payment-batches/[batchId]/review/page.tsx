@@ -447,13 +447,6 @@ export default function BatchReviewPage() {
               )}
               <div className="flex gap-3">
                 <button
-                  onClick={handleSubmitReview}
-                  disabled={submitting || !allDecided || approvedPayments.length === 0 || (batch.businessAccountBalance != null && batch.businessAccountBalance < totalApproved)}
-                  className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-                >
-                  {submitting ? 'Processing…' : `🖨 Process & Print Report — ${fmt(totalApproved)}`}
-                </button>
-                <button
                   onClick={() => {
                     const ids = new Set(pendingPayments.map(p => p.id))
                     setApproved(prev => {
@@ -464,6 +457,13 @@ export default function BatchReviewPage() {
                   className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Toggle All
+                </button>
+                <button
+                  onClick={handleSubmitReview}
+                  disabled={submitting || !allDecided || approvedPayments.length === 0 || (batch.businessAccountBalance != null && batch.businessAccountBalance < totalApproved)}
+                  className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                >
+                  {submitting ? 'Processing…' : `🖨 Process & Print Report — ${fmt(totalApproved)}`}
                 </button>
               </div>
             </div>

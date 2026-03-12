@@ -5,9 +5,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
+
 import { useToastContext } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import Link from 'next/link'
+import { formatDateTimeZim } from '@/lib/date-utils'
 
 interface LockRequest {
   id: string
@@ -236,7 +238,7 @@ export default function PendingActionsPage() {
                           <span>Amount: <span className="font-medium text-gray-700 dark:text-gray-300">${Number(item.requestedAmount).toFixed(2)}</span></span>
                           <span>Requested by: <span className="font-medium text-gray-700 dark:text-gray-300">{item.requester?.name ?? '—'}</span></span>
                           {item.business && <span>Business: <span className="font-medium text-gray-700 dark:text-gray-300">{item.business.name}</span></span>}
-                          <span>At: <span className="font-medium text-gray-700 dark:text-gray-300">{new Date(item.requestedAt).toLocaleString()}</span></span>
+                          <span>At: <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateTimeZim(item.requestedAt)}</span></span>
                         </div>
                       </div>
                       <Link
@@ -297,12 +299,12 @@ export default function PendingActionsPage() {
                               </span></span>
                             ) : (
                               <span>Date: <span className="font-medium text-gray-700 dark:text-gray-300">
-                                {dates[0] ? new Date(dates[0] + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'}
+                                {dates[0] ? formatDateTimeZim(dates[0] + 'T00:00:00') : '—'}
                               </span></span>
                             )}
                             <span>Items: <span className="font-medium text-gray-700 dark:text-gray-300">{item._count.lineItems}</span></span>
                             {isGrouped
-                              ? (item.groupedRun?.totalCashReceived > 0 && (
+                              ? (item.groupedRun && typeof item.groupedRun.totalCashReceived === 'number' && item.groupedRun.totalCashReceived > 0 && (
                                   <span>Total Handed In: <span className="font-semibold text-emerald-600 dark:text-emerald-400">${item.groupedRun.totalCashReceived.toFixed(2)}</span></span>
                                 ))
                               : (item.totalReported > 0 && (

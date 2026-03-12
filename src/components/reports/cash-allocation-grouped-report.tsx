@@ -388,6 +388,17 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
                   </td>
                 </tr>
               ))}
+              {/* Totals row */}
+              <tr className="bg-gray-50 dark:bg-gray-800 font-semibold">
+                <td className="px-4 py-2 text-gray-700 dark:text-gray-300">Total</td>
+                <td className="px-4 py-2 text-right font-mono text-gray-900 dark:text-gray-100">
+                  ${nonRentItems.reduce((sum, li) => sum + toNum(li.reportedAmount), 0).toFixed(2)}
+                </td>
+                <td className="px-4 py-2 text-right font-mono text-gray-900 dark:text-gray-100">
+                  ${nonRentItems.reduce((sum, li) => sum + toNum(li.actualAmount ?? li.reportedAmount), 0).toFixed(2)}
+                </td>
+                <td />
+              </tr>
             </tbody>
           </table>
         </div>
