@@ -60,6 +60,14 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
   const [locking, setLocking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mismatches, setMismatches] = useState<string[]>([])
+  const [canEdit, setCanEdit] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/pending-actions')
+      .then(r => r.json())
+      .then(d => setCanEdit(d.canApproveCashAlloc === true))
+      .catch(() => setCanEdit(false))
+  }, [])
 
   const loadReport = useCallback(async () => {
     setLoading(true)
@@ -145,7 +153,9 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
   }
 
   const totalAllocated = Object.values(accountTotals).reduce((s, a) => s + a.total, 0)
-  const variance = totalCashReceived !== null ? totalCashReceived - totalAllocated : null
+  const totalSales = dates.reduce((s, d) => s + (d.totalSales ?? 0), 0)
+  // Variance = cash handed over vs total expected sales (not vs deposits to expense accounts)
+  const variance = totalCashReceived !== null ? totalCashReceived - totalSales : null
 
   const nonRentItems = lineItems.filter(li => li.sourceType !== 'EOD_RENT_TRANSFER')
   const allConfirmed = nonRentItems.length > 0 && nonRentItems.every(li => li.isChecked && li.actualAmount !== null)
@@ -260,6 +270,15 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
                   </td>
                 </tr>
               )}
+              {/* Total sales row */}
+              <tr className="bg-gray-50 dark:bg-gray-800/60">
+                <td colSpan={dates.length + 1} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 font-medium">
+                  📊 Total Expected Sales
+                </td>
+                <td className="px-4 py-2 text-right font-mono font-semibold text-gray-600 dark:text-gray-400">
+                  ${totalSales.toFixed(2)}
+                </td>
+              </tr>
               {/* Variance row */}
               {variance !== null && (
                 <tr className={Math.abs(variance) < 0.01
@@ -287,12 +306,19 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
         </div>
       )}
 
+      {/* View-only banner */}
+      {!canEdit && !isLocked && (
+        <div className="rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-300">
+          👁️ <span className="font-semibold">View only</span> — you do not have permission to confirm or lock this report.
+        </div>
+      )}
+
       {/* Line items — cashier confirms each deposit */}
       {nonRentItems.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Confirm Deposits</h3>
-            {!isLocked && !allConfirmed && (
+            {!isLocked && !allConfirmed && canEdit && (
               <button
                 onClick={() => {
                   nonRentItems.filter(li => !li.isChecked).forEach(li => {
@@ -324,9 +350,9 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
                     ${toNum(li.reportedAmount).toFixed(2)}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    {isLocked ? (
+                    {isLocked || !canEdit ? (
                       <span className="font-mono text-gray-700 dark:text-gray-300">
-                        ${toNum(li.actualAmount).toFixed(2)}
+                        ${toNum(li.actualAmount ?? li.reportedAmount).toFixed(2)}
                       </span>
                     ) : (
                       <input
@@ -350,11 +376,13 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
                       <input
                         type="checkbox"
                         checked={li.isChecked}
+                        disabled={!canEdit}
                         onChange={e => {
+                          if (!canEdit) return
                           const amt = localAmounts[li.id] ?? String(toNum(li.reportedAmount))
                           updateItem(li.id, e.target.checked, amt)
                         }}
-                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     )}
                   </td>
@@ -366,7 +394,7 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
       )}
 
       {/* Lock button */}
-      {!isLocked && (
+      {!isLocked && canEdit && (
         <div className="flex items-center justify-between gap-4 pt-2">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Confirm all deposits above, then lock to complete the catch-up for all {dates.length} day{dates.length !== 1 ? 's' : ''}.

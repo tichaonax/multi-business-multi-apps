@@ -17,8 +17,9 @@ export interface PendingActionsData {
   }[]
   outstandingPettyCashTotal: number
   pendingCashAllocations: { id: string; reportDate?: string; businessName?: string }[]
-  pendingPaymentBatches: { id: string; eodDate?: string; businessName?: string; paymentCount?: number }[]
-  pendingPaymentRequests: { id: string; accountName?: string; requestCount?: number }[]
+  pendingPaymentBatches: { id: string; eodDate?: string; businessName?: string; paymentCount?: number; totalAmount?: number }[]
+  pendingPaymentRequests: { id: string; accountName?: string; requestCount?: number; totalAmount?: number; business?: { id: string; name: string } | null }[]
+  myPendingPayments: { id: string; accountName?: string; requestCount?: number; totalAmount?: number; business?: { id: string; name: string } | null }[]
 }
 
 /**
@@ -47,7 +48,7 @@ export function usePendingActions(): PendingActionsData | null {
     if (status !== 'authenticated') { setData(null); return }
     fetch('/api/admin/pending-actions', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setData(d) })
+      .then(d => { if (d) setData({ ...d, myPendingPayments: d.myPendingPayments ?? [] }) })
       .catch(() => {})
   }, [status])
 

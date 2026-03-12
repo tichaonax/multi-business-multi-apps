@@ -134,13 +134,53 @@ export async function GET() {
           id: true,
           reportDate: true,
           status: true,
+          isGrouped: true,
           createdAt: true,
           business: { select: { id: true, name: true, type: true } },
+          groupedRun: { select: { id: true, totalCashReceived: true, dates: { select: { date: true } } } },
           _count: { select: { lineItems: true } },
         },
-        orderBy: { reportDate: 'desc' },
+        orderBy: { createdAt: 'desc' },
         take: 50,
       })
+
+      // Sum reportedAmount per report from line items
+      if ((pendingCashAllocations as any[]).length > 0) {
+        const reportIds = (pendingCashAllocations as any[]).map((r: any) => r.id)
+        const lineTotals = await prisma.cashAllocationLineItem.groupBy({
+          by: ['reportId'],
+          where: { reportId: { in: reportIds } },
+          _sum: { reportedAmount: true },
+        })
+        const totalByReport: Record<string, number> = Object.fromEntries(
+          lineTotals.map((t) => [t.reportId, Number(t._sum.reportedAmount ?? 0)])
+        )
+        pendingCashAllocations = (pendingCashAllocations as any[]).map((r: any) => ({
+          ...r,
+          totalReported: totalByReport[r.id] ?? 0,
+        }))
+      }
+    }
+
+    // My own pending payment requests (QUEUED/REQUEST) — always shown so submitters can track their status
+    const myQueuedGrouped = await prisma.expenseAccountPayments.groupBy({
+      by: ['expenseAccountId'],
+      where: { status: { in: ['QUEUED', 'REQUEST'] }, createdBy: user.id },
+      _count: { id: true },
+      _sum: { amount: true },
+    })
+    let myPendingPayments: object[] = []
+    if (myQueuedGrouped.length > 0) {
+      const myAccountIds = myQueuedGrouped.map((g) => g.expenseAccountId)
+      const myAccounts = await prisma.expenseAccounts.findMany({
+        where: { id: { in: myAccountIds } },
+        select: { id: true, accountName: true, accountNumber: true, business: { select: { id: true, name: true } } },
+      })
+      myPendingPayments = myAccounts.map((acct) => ({
+        ...acct,
+        requestCount: myQueuedGrouped.find((g) => g.expenseAccountId === acct.id)?._count.id ?? 0,
+        totalAmount: Number(myQueuedGrouped.find((g) => g.expenseAccountId === acct.id)?._sum.amount ?? 0),
+      }))
     }
 
     // Pending EOD payment batches — for users with canSubmitPaymentBatch
@@ -149,22 +189,33 @@ export async function GET() {
     // Also keep legacy QUEUED/REQUEST count for backward compat with older sidebar code
     let pendingPaymentRequests: object[] = []
     if (sysAdmin || permissions.canSubmitPaymentBatch) {
+      // Only show batches that have payments NOT submitted by the current user
+      // (submitters should not see their own requests in the bell)
       pendingPaymentBatches = await prisma.eODPaymentBatch.findMany({
-        where: { status: 'PENDING_REVIEW' },
+        where: { status: 'PENDING_REVIEW', payments: { some: { createdBy: { not: user.id } } } },
         select: {
           id: true,
           eodDate: true,
           business: { select: { id: true, name: true, type: true } },
           _count: { select: { payments: true } },
+          payments: { select: { amount: true } },
         },
         orderBy: { eodDate: 'asc' },
       })
+      // Compute totalAmount per batch
+      pendingPaymentBatches = (pendingPaymentBatches as any[]).map((b: any) => ({
+        ...b,
+        totalAmount: (b.payments as any[]).reduce((s: number, p: any) => s + Number(p.amount), 0),
+        payments: undefined,
+      }))
 
       // Legacy: accounts with QUEUED/REQUEST payments not yet batched
+      // Exclude payments submitted by the current user — submitters should not see their own requests
       const grouped = await prisma.expenseAccountPayments.groupBy({
         by: ['expenseAccountId'],
-        where: { status: { in: ['QUEUED', 'REQUEST'] } },
+        where: { status: { in: ['QUEUED', 'REQUEST'] }, createdBy: { not: user.id } },
         _count: { id: true },
+        _sum: { amount: true },
       })
       if (grouped.length > 0) {
         const accountIds = grouped.map((g) => g.expenseAccountId)
@@ -180,6 +231,7 @@ export async function GET() {
         pendingPaymentRequests = accounts.map((acct) => ({
           ...acct,
           requestCount: grouped.find((g) => g.expenseAccountId === acct.id)?._count.id ?? 0,
+          totalAmount: Number(grouped.find((g) => g.expenseAccountId === acct.id)?._sum.amount ?? 0),
         }))
       }
     }
@@ -191,7 +243,8 @@ export async function GET() {
       (outstandingPettyCash as unknown[]).length +
       (pendingCashAllocations as unknown[]).length +
       (pendingPaymentBatches as unknown[]).length +
-      (pendingPaymentRequests as unknown[]).length
+      (pendingPaymentRequests as unknown[]).length +
+      (myPendingPayments as unknown[]).length
 
     return NextResponse.json({
       loanLockRequests,
@@ -202,6 +255,9 @@ export async function GET() {
       pendingCashAllocations,
       pendingPaymentBatches,
       pendingPaymentRequests,
+      myPendingPayments,
+      canApprovePettyCash,
+      canApproveCashAlloc: canApproveCashAllocation,
       total,
     })
   } catch (error) {

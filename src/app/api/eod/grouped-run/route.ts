@@ -80,11 +80,50 @@ export async function POST(request: NextRequest) {
       select: { reportDate: true },
     })
     if (alreadyClosed.length > 0) {
-      const closed = alreadyClosed.map((r: { reportDate: Date }) => r.reportDate.toISOString().slice(0, 10))
-      return NextResponse.json(
-        { error: `These dates already have a locked EOD report: ${closed.join(', ')}` },
-        { status: 409 }
-      )
+      // Check if ALL locked reports belong to a prior failed grouped run
+      // (CashAllocationReport exists but has 0 line items → partial failure, safe to retry)
+      const closedReports = await prisma.savedReports.findMany({
+        where: {
+          businessId,
+          reportType: 'END_OF_DAY',
+          isLocked: true,
+          reportDate: { in: dateStrings.map((d: string) => new Date(d)) },
+        },
+        select: { id: true, reportDate: true, groupedRunId: true },
+      })
+
+      const groupedRunIds = [...new Set(closedReports.map(r => r.groupedRunId).filter(Boolean))] as string[]
+      const allFromGroupedRuns = closedReports.every(r => r.groupedRunId != null)
+
+      if (allFromGroupedRuns && groupedRunIds.length > 0) {
+        // Find CashAllocationReports for those runs that have no line items (partial failure)
+        const failedAllocReports = await prisma.cashAllocationReport.findMany({
+          where: { groupedRunId: { in: groupedRunIds }, isGrouped: true },
+          include: { _count: { select: { lineItems: true } } },
+        })
+        const partiallyFailed = failedAllocReports.every(r => r._count.lineItems === 0)
+
+        if (partiallyFailed) {
+          // Clean up partial records so the re-run can proceed
+          await prisma.cashAllocationReport.deleteMany({ where: { id: { in: failedAllocReports.map(r => r.id) } } })
+          await prisma.savedReports.deleteMany({ where: { id: { in: closedReports.map(r => r.id) } } })
+          await prisma.groupedEODRunDate.deleteMany({ where: { groupedRunId: { in: groupedRunIds } } })
+          await prisma.groupedEODRun.deleteMany({ where: { id: { in: groupedRunIds } } })
+          console.log(`[grouped-run] Cleaned up ${groupedRunIds.length} partial failed run(s), retrying…`)
+        } else {
+          const closed = alreadyClosed.map((r: { reportDate: Date }) => r.reportDate.toISOString().slice(0, 10))
+          return NextResponse.json(
+            { error: `These dates already have a locked EOD report: ${closed.join(', ')}` },
+            { status: 409 }
+          )
+        }
+      } else {
+        const closed = alreadyClosed.map((r: { reportDate: Date }) => r.reportDate.toISOString().slice(0, 10))
+        return NextResponse.json(
+          { error: `These dates already have a locked EOD report: ${closed.join(', ')}` },
+          { status: 409 }
+        )
+      }
     }
 
     // ── Sort dates oldest → newest ──────────────────────────────────────────
@@ -207,37 +246,59 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // ── Add line items for every deposit across all dates ───────────────────
-    const allDayStart = new Date(sortedDates[0].date + 'T00:00:00Z')
-    const allDayEnd = new Date(sortedDates[sortedDates.length - 1].date + 'T23:59:59.999Z')
-
+    // ── Add line items for every deposit across all selected dates ──────────
+    // Query per exact date to avoid picking up deposits from days in between
+    // that were not part of this catch-up run.
     const allDeposits = await prisma.expenseAccountDeposits.findMany({
       where: {
         sourceBusinessId: businessId,
         sourceType: { in: ['EOD_RENT_TRANSFER', 'EOD_AUTO_DEPOSIT'] },
-        depositDate: { gte: allDayStart, lte: allDayEnd },
+        OR: sortedDates.map(d => ({
+          depositDate: {
+            gte: new Date(d.date + 'T00:00:00Z'),
+            lte: new Date(d.date + 'T23:59:59.999Z'),
+          },
+        })),
       },
       include: { expenseAccount: { select: { id: true, accountName: true } } },
       orderBy: [{ sourceType: 'desc' }, { depositDate: 'asc' }],
     })
 
     if (allDeposits.length > 0) {
-      await prisma.cashAllocationLineItem.createMany({
-        data: allDeposits.map((dep: typeof allDeposits[number], idx: number) => {
-          const isRent = dep.sourceType === 'EOD_RENT_TRANSFER'
-          return {
-            reportId: cashAllocReport.id,
-            expenseAccountId: dep.expenseAccountId,
-            accountName: dep.expenseAccount.accountName,
-            sourceType: dep.sourceType,
-            depositId: dep.id,
-            reportedAmount: dep.amount,
-            isChecked: isRent,
-            actualAmount: isRent ? dep.amount : null,
-            sortOrder: idx,
-          }
-        }),
+      // Deduplicate by deposit ID (idempotent processAutoDeposits may return existing records)
+      const uniqueDeposits = [...new Map(allDeposits.map((d: typeof allDeposits[number]) => [d.id, d])).values()]
+
+      // Filter out deposits that already have a CashAllocationLineItem (orphaned from prior partial run)
+      const existingLinks = await prisma.cashAllocationLineItem.findMany({
+        where: { depositId: { in: uniqueDeposits.map((d: typeof allDeposits[number]) => d.id) } },
+        select: { depositId: true },
       })
+      const linkedDepositIds = new Set(existingLinks.map((l: { depositId: string | null }) => l.depositId))
+      const depositsToInsert = uniqueDeposits.filter((d: typeof allDeposits[number]) => !linkedDepositIds.has(d.id))
+
+      if (existingLinks.length > 0) {
+        console.warn(`[grouped-run] Skipping ${existingLinks.length} deposit(s) already linked to a CashAllocationLineItem`)
+      }
+
+      if (depositsToInsert.length > 0) {
+        await prisma.cashAllocationLineItem.createMany({
+          skipDuplicates: true,
+          data: depositsToInsert.map((dep: typeof allDeposits[number], idx: number) => {
+            const isRent = dep.sourceType === 'EOD_RENT_TRANSFER'
+            return {
+              reportId: cashAllocReport.id,
+              expenseAccountId: dep.expenseAccountId,
+              accountName: dep.expenseAccount.accountName,
+              sourceType: dep.sourceType,
+              depositId: dep.id,
+              reportedAmount: dep.amount,
+              isChecked: isRent,
+              actualAmount: isRent ? dep.amount : null,
+              sortOrder: idx,
+            }
+          }),
+        })
+      }
     }
 
     return NextResponse.json({

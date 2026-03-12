@@ -59,6 +59,14 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
   // local edits: itemId → actualAmount string
   const [localAmounts, setLocalAmounts] = useState<Record<string, string>>({})
 
+  const [canEdit, setCanEdit] = useState(false)
+  useEffect(() => {
+    fetch('/api/admin/pending-actions')
+      .then(r => r.json())
+      .then(d => setCanEdit(d.canApproveCashAlloc === true))
+      .catch(() => setCanEdit(false))
+  }, [])
+
   // Rent config — always shown as fixed read-only row so cashier knows how much to put in rent cash box
   const [rentConfig, setRentConfig] = useState<{ dailyTransferAmount: number; accountName: string } | null>(null)
 
@@ -504,7 +512,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
         </div>
       )}
 
-      {nonRentItems.length > 0 && !isLocked && !allChecked && (
+      {nonRentItems.length > 0 && !isLocked && !allChecked && canEdit && (
         <div className="flex justify-end">
           <button
             onClick={() => {
@@ -522,6 +530,12 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
           >
             ✅ Mark all amounts done
           </button>
+        </div>
+      )}
+
+      {!canEdit && !isLocked && report && (
+        <div className="rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-300">
+          👁️ <span className="font-semibold">View only</span> — you do not have permission to confirm or lock this report.
         </div>
       )}
 
@@ -592,12 +606,13 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                         <input
                           type="checkbox"
                           checked={item.isChecked}
-                          disabled={isLocked}
+                          disabled={isLocked || !canEdit}
                           onChange={e => {
+                            if (!canEdit) return
                             const checked = e.target.checked
                             updateItem(item.id, checked, localAmt || null)
                           }}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       )}
                     </td>
@@ -606,9 +621,9 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                         <span className="text-sm font-mono text-orange-700 dark:text-orange-300 font-semibold">
                           ${reported.toFixed(2)}
                         </span>
-                      ) : isLocked ? (
-                        <span className={`text-sm font-mono ${matches ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                          {parsedActual !== null ? `$${parsedActual.toFixed(2)}` : '—'}
+                      ) : isLocked || !canEdit ? (
+                        <span className={`text-sm font-mono ${matches ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                          {parsedActual !== null ? `$${parsedActual.toFixed(2)}` : `$${reported.toFixed(2)}`}
                         </span>
                       ) : (
                         <input
@@ -670,7 +685,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
         </ul>
       )}
 
-      {report && !isLocked && allChecked && (
+      {report && !isLocked && allChecked && canEdit && (
         <div className="flex justify-end">
           <button
             onClick={lockReport}

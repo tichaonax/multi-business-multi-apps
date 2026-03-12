@@ -263,9 +263,9 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
           💰 End-of-Day Auto-Deposits
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-          Business balance: <span className="font-medium text-gray-700 dark:text-gray-300">{formatCurrency(depositAccountBalance)}</span>
+          Business balance: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(depositAccountBalance)}</span>
           {netSales > 0 && (
-            <> &nbsp;|&nbsp; Today&apos;s sales: <span className="font-medium text-gray-700 dark:text-gray-300">{formatCurrency(netSales)}</span></>
+            <> &nbsp;|&nbsp; Today&apos;s sales: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(netSales)}</span></>
           )}
         </p>
       </div>

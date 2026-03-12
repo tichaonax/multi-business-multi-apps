@@ -54,6 +54,9 @@ export default function PettyCashDetailPage() {
   const [txSummary, setTxSummary] = useState<{ approvedAmount: number; spentAmount: number; remainingBalance: number } | null>(null)
   const [loadingTx, setLoadingTx] = useState(false)
 
+  // Bucket balance for the request's business
+  const [bucketBalance, setBucketBalance] = useState<number | null>(null)
+
   // Record Spend modal state
   const [showSpend, setShowSpend] = useState(false)
   const [spendAmount, setSpendAmount] = useState('')
@@ -145,6 +148,17 @@ export default function PettyCashDetailPage() {
       setData(json.data)
       if (json.data.request?.requestedAmount) {
         setApprovedAmount(String(json.data.request.requestedAmount))
+      }
+      // Fetch bucket balance for this business
+      if (json.data.request?.businessId) {
+        try {
+          const bucketRes = await fetch(`/api/cash-bucket?businessId=${json.data.request.businessId}`, { credentials: 'include' })
+          const bucketJson = await bucketRes.json()
+          const biz = bucketJson.data?.balances?.find((b: any) => b.businessId === json.data.request.businessId)
+          setBucketBalance(biz ? biz.balance : 0)
+        } catch {
+          // non-fatal
+        }
       }
     } catch (e: any) {
       toast.error(e.message)
@@ -436,10 +450,12 @@ export default function PettyCashDetailPage() {
 
         {isApproved && (
           <div className="flex gap-3 flex-wrap">
-            {canRecordSpend && (
+            {(canRecordSpend || canRequest) && (
               <button
-                onClick={() => setShowSpend(true)}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                onClick={() => canRecordSpend ? setShowSpend(true) : undefined}
+                disabled={!canRecordSpend}
+                title={!canRecordSpend ? 'You need the Petty Cash Approver permission to record spend' : undefined}
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 + Record Spend
               </button>
@@ -511,6 +527,23 @@ export default function PettyCashDetailPage() {
                   <p className="text-gray-500 dark:text-gray-400">Requested amount</p>
                   <p className="font-semibold text-lg text-gray-900 dark:text-gray-100">{fmt(req.requestedAmount)}</p>
                 </div>
+                {bucketBalance !== null && (
+                  <div className={`rounded-lg p-3 text-sm ${
+                    bucketBalance >= Number(approvedAmount || 0)
+                      ? 'bg-green-50 dark:bg-green-900/20'
+                      : 'bg-red-50 dark:bg-red-900/20'
+                  }`}>
+                    <p className="text-gray-500 dark:text-gray-400">Cash available in bucket</p>
+                    <p className={`font-semibold text-lg ${
+                      bucketBalance >= Number(approvedAmount || 0)
+                        ? 'text-green-700 dark:text-green-300'
+                        : 'text-red-700 dark:text-red-300'
+                    }`}>{fmt(bucketBalance)}</p>
+                    {bucketBalance < Number(approvedAmount || 0) && (
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Insufficient — add EOD cash before approving</p>
+                    )}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Approved Amount <span className="text-red-500">*</span>
@@ -549,7 +582,12 @@ export default function PettyCashDetailPage() {
                 </div>
                 <div className="flex gap-3 pt-1">
                   <button type="button" onClick={() => { setShowApprove(false); clearSignature() }} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
-                  <button type="submit" disabled={approving} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                  <button
+                    type="submit"
+                    disabled={approving || (bucketBalance !== null && bucketBalance < Number(approvedAmount || 0))}
+                    title={bucketBalance !== null && bucketBalance < Number(approvedAmount || 0) ? 'Insufficient cash in bucket — add EOD cash first' : undefined}
+                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     {approving ? 'Processing...' : 'Approve & Issue'}
                   </button>
                 </div>

@@ -349,6 +349,10 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     return targetPath
   }
 
+  useEffect(() => {
+    // Removed debug logging for pendingCashAllocations
+  }, [pendingActions])
+
   return (
     <>
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
@@ -735,7 +739,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               <span className="mt-0.5 shrink-0">📋</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">Payment Batch — {b.business?.name ?? '—'}</p>
-                                <p className="text-secondary">{b.eodDate} · {b._count?.payments ?? 0} payments</p>
+                                <p className="text-secondary">{b.eodDate} · {b._count?.payments ?? 0} payments{b.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(b.totalAmount).toFixed(2)}</span></> : ''}</p>
                               </div>
                             </Link>
                           ))}
@@ -744,7 +748,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               <span className="mt-0.5 shrink-0">🪙</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">Petty Cash — {p.requester?.name ?? '—'}</p>
-                                <p className="text-secondary">{p.purpose} · ${Number(p.requestedAmount ?? 0).toFixed(2)}</p>
+                                <p className="text-secondary">{p.business?.name && <span className="font-medium text-primary">{p.business.name} · </span>}{p.purpose} · <span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(p.requestedAmount ?? 0).toFixed(2)}</span></p>
                               </div>
                             </Link>
                           ))}
@@ -760,21 +764,40 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                   <span className="mt-0.5 shrink-0">💵</span>
                                   <div className="min-w-0 flex-1">
                                     <p className="font-medium text-primary truncate">{r.requesterName} — {r.purpose}</p>
-                                    <p className="text-secondary">{r.businessName} · <span className="text-amber-600 dark:text-amber-400 font-medium">${r.remainingBalance.toFixed(2)} remaining</span></p>
+                                    <p className="text-secondary">{r.businessName} · <span className="text-orange-500 dark:text-orange-400 font-medium">${r.remainingBalance.toFixed(2)} remaining</span></p>
                                   </div>
                                 </Link>
                               ))}
                             </>
                           )}
                           {pendingActions.pendingCashAllocations?.map((r: any) => {
-                            const reportDate = r.reportDate ? r.reportDate.split('T')[0] : ''
-                            const cashAllocUrl = `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${reportDate}&businessId=${r.business?.id ?? ''}`
+                            const isGrouped = r.isGrouped === true
+                            const cashAllocUrl = isGrouped
+                              ? `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${r.id}&businessId=${r.business?.id ?? ''}`
+                              : `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${r.reportDate ? r.reportDate.split('T')[0] : ''}&businessId=${r.business?.id ?? ''}`
+                            const dateLabel = isGrouped
+                              ? (() => {
+                                  const dates: string[] = (r.groupedRun?.dates ?? []).map((d: any) => d.date).sort()
+                                  if (dates.length === 0) return `${r._count?.lineItems ?? 0} items`
+                                  const fmt = (s: string) => s.slice(5).replace('-', '/')
+                                  return dates.length === 1 ? fmt(dates[0]) : `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])} (${dates.length} days)`
+                                })()
+                              : r.reportDate ? new Date(r.reportDate.split('T')[0] + 'T00:00:00').toLocaleDateString() : '—'
                             return (
                               <Link key={r.id} href={cashAllocUrl} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
-                                <span className="mt-0.5 shrink-0">📊</span>
+                                <span className="mt-0.5 shrink-0">{isGrouped ? '📅' : '📊'}</span>
                                 <div className="min-w-0">
-                                  <p className="font-medium text-primary truncate">Cash Allocation — {r.business?.name ?? '—'}</p>
-                                  <p className="text-secondary">{reportDate ? new Date(reportDate + 'T00:00:00').toLocaleDateString() : '—'}</p>
+                                  <p className="font-medium text-primary truncate">{isGrouped ? 'Grouped EOD Catch-Up' : 'Cash Allocation'} — {r.business?.name ?? '—'}</p>
+                                  <p className="text-secondary">
+                                    {dateLabel}
+                                    {isGrouped
+                                      ? (r.groupedRun?.totalCashReceived > 0
+                                          ? <><span> · </span><span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(r.groupedRun.totalCashReceived).toFixed(2)}</span></>
+                                          : <><span> · </span><span className="text-emerald-600 dark:text-emerald-400 font-semibold">{r._count?.lineItems ?? 0} items</span></>)
+                                      : (r.totalReported != null && r.totalReported > 0
+                                          ? <><span> · </span><span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(r.totalReported).toFixed(2)}</span></>
+                                          : <><span> · </span><span className="text-emerald-600 dark:text-emerald-400 font-semibold">{r._count?.lineItems ?? 0} items</span></>)}
+                                  </p>
                                 </div>
                               </Link>
                             )
@@ -784,7 +807,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               <span className="mt-0.5 shrink-0">🏭</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">Supplier Payment — {s.supplier?.name ?? '—'}</p>
-                                <p className="text-secondary">${Number(s.amount ?? 0).toFixed(2)}</p>
+                                <p className="text-secondary"><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(s.amount ?? 0).toFixed(2)}</span></p>
                               </div>
                             </Link>
                           ))}
@@ -793,7 +816,16 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               <span className="mt-0.5 shrink-0">💳</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">Payment Requests — {r.accountName ?? '—'}</p>
-                                <p className="text-secondary">{r.requestCount ?? r.pendingCount ?? 0} pending</p>
+                                <p className="text-secondary">{r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}{r.requestCount ?? r.pendingCount ?? 0} pending{r.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}</p>
+                              </div>
+                            </Link>
+                          ))}
+                          {(pendingActions as any).myPendingPayments?.map((r: any) => (
+                            <Link key={r.id} href={`/expense-accounts/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                              <span className="mt-0.5 shrink-0">📤</span>
+                              <div className="min-w-0">
+                                <p className="font-medium text-primary truncate">My Request — {r.accountName ?? '—'}</p>
+                                <p className="text-secondary">{r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}{r.requestCount ?? 0} pending{r.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}</p>
                               </div>
                             </Link>
                           ))}

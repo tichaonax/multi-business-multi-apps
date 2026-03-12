@@ -43,10 +43,13 @@ interface PendingPettyCash {
 
 interface PendingCashAllocation {
   id: string
-  reportDate: string
+  reportDate: string | null
   status: string
+  isGrouped: boolean
   createdAt: string
   business: { id: string; name: string; type: string } | null
+  groupedRun: { id: string; totalCashReceived?: number; dates: { date: string }[] } | null
+  totalReported: number
   _count: { lineItems: number }
 }
 
@@ -55,6 +58,7 @@ interface PendingPaymentBatch {
   eodDate: string
   business: { id: string; name: string; type: string } | null
   _count: { payments: number }
+  totalAmount?: number
 }
 
 interface PendingPaymentRequest {
@@ -62,6 +66,7 @@ interface PendingPaymentRequest {
   accountName: string
   accountNumber: string
   requestCount: number
+  totalAmount?: number
   business: { id: string; name: string } | null
 }
 
@@ -77,6 +82,7 @@ export default function PendingActionsPage() {
   const [pendingCashAllocations, setPendingCashAllocations] = useState<PendingCashAllocation[]>([])
   const [pendingPaymentBatches, setPendingPaymentBatches] = useState<PendingPaymentBatch[]>([])
   const [pendingPaymentRequests, setPendingPaymentRequests] = useState<PendingPaymentRequest[]>([])
+  const [myPendingPayments, setMyPendingPayments] = useState<PendingPaymentRequest[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [approvingId, setApprovingId] = useState<string | null>(null)
@@ -93,6 +99,7 @@ export default function PendingActionsPage() {
         setPendingCashAllocations(json.pendingCashAllocations || [])
         setPendingPaymentBatches(json.pendingPaymentBatches || [])
         setPendingPaymentRequests(json.pendingPaymentRequests || [])
+        setMyPendingPayments(json.myPendingPayments || [])
         setTotal(json.total ?? 0)
       }
     } catch { /* ignore */ } finally {
@@ -104,6 +111,11 @@ export default function PendingActionsPage() {
     if (status === 'unauthenticated') { router.push('/auth/signin'); return }
     if (status === 'authenticated') fetchItems()
   }, [status, fetchItems, router])
+
+  useEffect(() => {
+    // Debug: log pending cash allocations after fetch
+    console.log('PENDING CASH ALLOCATIONS', pendingCashAllocations)
+  }, [pendingCashAllocations])
 
   async function handleApproveLock(loan: LockRequest) {
     if (!await confirm({
@@ -250,12 +262,18 @@ export default function PendingActionsPage() {
                 </h2>
                 <div className="space-y-3">
                   {pendingCashAllocations.map(item => {
-                    const reportDate = item.reportDate.split('T')[0]
-                    const cashAllocUrl = `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${reportDate}&businessId=${item.business?.id ?? ''}`
+                    const isGrouped = item.isGrouped === true
+                    const cashAllocUrl = isGrouped
+                      ? `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${item.id}&businessId=${item.business?.id ?? ''}`
+                      : `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${item.reportDate ? item.reportDate.split('T')[0] : ''}&businessId=${item.business?.id ?? ''}`
+                    const dates = isGrouped
+                      ? (item.groupedRun?.dates ?? []).map(d => d.date).sort()
+                      : item.reportDate ? [item.reportDate.split('T')[0]] : []
                     return (
                       <div key={item.id} className="bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-lg">{isGrouped ? '📅' : '📊'}</span>
                             <span className="font-semibold text-gray-900 dark:text-white">
                               {item.business?.name ?? 'Unknown Business'}
                             </span>
@@ -266,10 +284,30 @@ export default function PendingActionsPage() {
                             }`}>
                               {item.status}
                             </span>
+                            {isGrouped && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                                Grouped Catch-Up
+                              </span>
+                            )}
                           </div>
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                            <span>Date: <span className="font-medium text-gray-700 dark:text-gray-300">{new Date(item.reportDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span></span>
+                            {isGrouped ? (
+                              <span>Days: <span className="font-medium text-gray-700 dark:text-gray-300">
+                                {dates.length === 0 ? '—' : dates.map(d => d.slice(5).replace('-', '/')).join(', ')}
+                              </span></span>
+                            ) : (
+                              <span>Date: <span className="font-medium text-gray-700 dark:text-gray-300">
+                                {dates[0] ? new Date(dates[0] + 'T00:00:00').toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'}
+                              </span></span>
+                            )}
                             <span>Items: <span className="font-medium text-gray-700 dark:text-gray-300">{item._count.lineItems}</span></span>
+                            {isGrouped
+                              ? (item.groupedRun?.totalCashReceived > 0 && (
+                                  <span>Total Handed In: <span className="font-semibold text-emerald-600 dark:text-emerald-400">${item.groupedRun.totalCashReceived.toFixed(2)}</span></span>
+                                ))
+                              : (item.totalReported > 0 && (
+                                  <span>Total: <span className="font-semibold text-emerald-600 dark:text-emerald-400">${item.totalReported.toFixed(2)}</span></span>
+                                ))}
                           </div>
                         </div>
                         <Link
@@ -303,6 +341,11 @@ export default function PendingActionsPage() {
                           <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-medium px-2 py-0.5 rounded">
                             {item._count.payments} payment{item._count.payments !== 1 ? 's' : ''}
                           </span>
+                          {typeof item.totalAmount === 'number' && (
+                            <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-semibold px-2 py-0.5 rounded ml-2">
+                              ${item.totalAmount.toFixed(2)}
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                           EOD Date: {new Date(item.eodDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}
@@ -337,6 +380,9 @@ export default function PendingActionsPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-900 dark:text-white">{item.accountName}</span>
                           <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-2 py-0.5 rounded">{item.requestCount} pending</span>
+                          {item.totalAmount != null && (
+                            <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded">${Number(item.totalAmount).toFixed(2)}</span>
+                          )}
                         </div>
                         {item.business && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{item.business.name} · #{item.accountNumber}</p>}
                       </div>
@@ -345,6 +391,40 @@ export default function PendingActionsPage() {
                         className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded transition-colors shrink-0"
                       >
                         Submit Batch
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* My Pending Payment Requests — own QUEUED payments awaiting cashier batching */}
+            {myPendingPayments.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>📤</span> My Payment Requests
+                  <span className="bg-blue-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {myPendingPayments.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {myPendingPayments.map(item => (
+                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-900 dark:text-white">{item.accountName}</span>
+                          <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-medium px-2 py-0.5 rounded">{item.requestCount} pending</span>
+                          {item.totalAmount != null && (
+                            <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded">${Number(item.totalAmount).toFixed(2)}</span>
+                          )}
+                        </div>
+                        {item.business && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{item.business.name} · #{item.accountNumber}</p>}
+                      </div>
+                      <Link
+                        href={`/expense-accounts/${item.id}`}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      >
+                        View
                       </Link>
                     </div>
                   ))}

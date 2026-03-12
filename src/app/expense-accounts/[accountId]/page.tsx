@@ -440,6 +440,7 @@ export default function ExpenseAccountDetailPage() {
   const [paymentRefreshKey, setPaymentRefreshKey] = useState(0)
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
   const [pendingBatchCount, setPendingBatchCount] = useState(0)
+  const [pendingBatchCountOthers, setPendingBatchCountOthers] = useState(0)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness, businesses } = useBusinessPermissionsContext()
@@ -529,9 +530,17 @@ export default function ExpenseAccountDetailPage() {
     if (!accountId || !canSubmitPaymentBatch) return
     fetch(`/api/expense-account/${accountId}/payment-requests`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { setPendingBatchCount(data?.data?.length ?? 0) })
+      .then(data => {
+        const payments: any[] = data?.data ?? []
+        setPendingBatchCount(payments.length)
+        const currentUserId = (session?.user as any)?.id
+        const othersCount = currentUserId
+          ? payments.filter((p: any) => p.createdBy?.id !== currentUserId).length
+          : payments.length
+        setPendingBatchCountOthers(othersCount)
+      })
       .catch(() => {})
-  }, [accountId, canSubmitPaymentBatch, paymentRefreshKey, batchRefreshKey])
+  }, [accountId, canSubmitPaymentBatch, paymentRefreshKey, batchRefreshKey, session])
 
   const refreshBalanceSilent = async () => {
     try {
@@ -684,7 +693,9 @@ export default function ExpenseAccountDetailPage() {
             {canSubmitPaymentBatch && (
               <button
                 onClick={() => setShowBatchModal(true)}
-                className="relative px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700"
+                disabled={pendingBatchCountOthers === 0}
+                title={pendingBatchCount > 0 && pendingBatchCountOthers === 0 ? 'All queued payments are your own requests — a different user must submit the batch' : undefined}
+                className="relative px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Submit Batch
                 {pendingBatchCount > 0 && (

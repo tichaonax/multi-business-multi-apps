@@ -77,14 +77,19 @@ export function LoanPendingActionsWidget() {
           </div>
           <div className="space-y-2">
             {data.pendingCashAllocations.slice(0, 3).map(item => {
-              const reportDate = item.reportDate.split('T')[0]
-              const url = `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${reportDate}&businessId=${item.business?.id ?? ''}`
+              const isGrouped = item.isGrouped || item.reportDate === null
+              const url = isGrouped
+                ? `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${item.id}&businessId=${item.business?.id ?? ''}`
+                : `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${item.reportDate?.split('T')[0]}&businessId=${item.business?.id ?? ''}`
+              const dateLabel = isGrouped
+                ? 'Grouped Catch-Up'
+                : item.reportDate ? new Date(item.reportDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'
               return (
                 <div key={item.id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded px-3 py-2 border border-blue-200 dark:border-blue-700">
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{item.business?.name ?? 'Unknown'}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(item.reportDate).toLocaleDateString('en-US', { timeZone: 'UTC' })} · {item._count.lineItems} items · {item.status}
+                      {dateLabel} · {item._count.lineItems} items · {item.status}
                     </p>
                   </div>
                   <Link href={url} className="ml-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors shrink-0">Reconcile</Link>

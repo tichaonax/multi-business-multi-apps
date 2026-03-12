@@ -86,6 +86,8 @@ export function Sidebar() {
   const [pendingLoanLockCount, setPendingLoanLockCount] = useState(0)
   const [pendingPettyCashCount, setPendingPettyCashCount] = useState(0)
   const [pendingCashAllocCount, setPendingCashAllocCount] = useState(0)
+  const [canApprovePettyCashSys, setCanApprovePettyCashSys] = useState(false)
+  const [canApproveCashAllocSys, setCanApproveCashAllocSys] = useState(false)
 
   // Get business context
   const {
@@ -182,6 +184,8 @@ export function Sidebar() {
         setPendingPettyCashCount(data.pendingPettyCash?.length ?? 0)
         setPendingCashAllocCount(data.pendingCashAllocations?.length ?? 0)
         setPendingPaymentRequestCount((data.pendingPaymentBatches?.length ?? 0) + (data.pendingPaymentRequests?.length ?? 0))
+        setCanApprovePettyCashSys(data.canApprovePettyCash ?? false)
+        setCanApproveCashAllocSys(data.canApproveCashAlloc ?? false)
       })
       .catch(() => {})
   }, [currentUser])
@@ -689,19 +693,16 @@ export function Sidebar() {
                     <span>Sales Reports</span>
                   </Link>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && canApproveCashAllocSys && (
                   <Link href="/restaurant/reports/cash-allocation" className={getLinkClasses('/restaurant/reports/cash-allocation')}>
                     <span className="text-lg">💰</span>
                     <span>Cash Allocation</span>
                   </Link>
                 )}
-                {/* Menu Management - Only for managers/admins who can manage menu */}
-                {(isSystemAdmin(currentUser) || hasPermission('canManageMenu')) && (
                   <Link href="/restaurant/menu" className={getLinkClasses('/restaurant/menu')}>
                     <span className="text-lg">📋</span>
                     <span>Menu Management</span>
                   </Link>
-                )}
                 {/* Business Services */}
                 <Link href="/services/list" className={getLinkClasses('/services/list')}>
                   <span className="text-lg">🔧</span>
@@ -771,7 +772,7 @@ export function Sidebar() {
                     <span>Sales Reports</span>
                   </Link>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && canApproveCashAllocSys && (
                   <Link href="/grocery/reports/cash-allocation" className={getLinkClasses('/grocery/reports/cash-allocation')}>
                     <span className="text-lg">💰</span>
                     <span>Cash Allocation</span>
@@ -841,7 +842,7 @@ export function Sidebar() {
                     <span>Sales Reports</span>
                   </Link>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && canApproveCashAllocSys && (
                   <Link href="/clothing/reports/cash-allocation" className={getLinkClasses('/clothing/reports/cash-allocation')}>
                     <span className="text-lg">💰</span>
                     <span>Cash Allocation</span>
@@ -911,7 +912,7 @@ export function Sidebar() {
                     <span>Sales Reports</span>
                   </Link>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canRunCashAllocationReport')) && canApproveCashAllocSys && (
                   <Link href="/hardware/reports/cash-allocation" className={getLinkClasses('/hardware/reports/cash-allocation')}>
                     <span className="text-lg">💰</span>
                     <span>Cash Allocation</span>
@@ -1062,19 +1063,21 @@ export function Sidebar() {
               </Link>
             )}
 
-            {/* Petty Cash — shown for all business types */}
-            <Link
-              href="/petty-cash"
-              className={getLinkClasses('/petty-cash')}
-            >
-              <span className="text-lg">💵</span>
-              <span>Petty Cash</span>
-              {pendingPettyCashCount > 0 && (
-                <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center leading-tight">
-                  {pendingPettyCashCount > 99 ? '99+' : pendingPettyCashCount}
-                </span>
-              )}
-            </Link>
+            {/* Petty Cash — shown only for users with petty_cash.approve system permission */}
+            {canApprovePettyCashSys && (
+              <Link
+                href="/petty-cash"
+                className={getLinkClasses('/petty-cash')}
+              >
+                <span className="text-lg">💵</span>
+                <span>Petty Cash</span>
+                {pendingPettyCashCount > 0 && (
+                  <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center leading-tight">
+                    {pendingPettyCashCount > 99 ? '99+' : pendingPettyCashCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {/* Chicken Run */}
             {hasPermission('canManageChickenRun') && (
