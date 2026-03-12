@@ -1038,6 +1038,16 @@ export interface PaymentBatchVoucherData {
 const stripEmoji = (str: string): string =>
   str.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}\u{1F300}-\u{1F9FF}]/gu, '').replace(/\s{2,}/g, ' ').trim()
 
+// dd/mm/yyyy format for ZIM locale
+const fmtDate = (d: Date): string => {
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
+}
+const fmtTime = (d: Date): string =>
+  `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+
 export const generatePaymentBatchVoucher = (
   data: PaymentBatchVoucherData,
   action: 'save' | 'print' = 'save',
@@ -1070,7 +1080,7 @@ export const generatePaymentBatchVoucher = (
   const reviewedDate = new Date(data.reviewedAt)
   pdf.setFontSize(9)
   pdf.text(
-    `Date: ${reviewedDate.toLocaleDateString()}  |  Time: ${reviewedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}  |  Approved by: ${stripEmoji(data.cashierName)}`,
+    `Date: ${fmtDate(reviewedDate)}  |  Time: ${fmtTime(reviewedDate)}  |  Approved by: ${stripEmoji(data.cashierName)}`,
     pageWidth / 2, y, { align: 'center' }
   )
   y += 4
@@ -1213,7 +1223,8 @@ export const generatePaymentBatchVoucher = (
   y += 12
   pdf.setFontSize(7)
   pdf.setTextColor(150, 150, 150)
-  pdf.text(`Printed ${new Date().toLocaleString()}`, pageWidth / 2, y, { align: 'center' })
+  const now = new Date()
+  pdf.text(`Printed ${fmtDate(now)} ${fmtTime(now)}`, pageWidth / 2, y, { align: 'center' })
 
   const fileName = `payment-batch-${data.batchId.slice(-8)}-${reviewedDate.toISOString().split('T')[0]}.pdf`
 
