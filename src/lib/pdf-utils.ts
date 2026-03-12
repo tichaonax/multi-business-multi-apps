@@ -1014,6 +1014,7 @@ export const generatePerDiemRequestFormPDF = (
 
 export interface PaymentBatchVoucherItem {
   payeeName: string
+  payeePhone: string | null
   categoryName: string
   expenseAccount: string
   amount: number
@@ -1032,6 +1033,10 @@ export interface PaymentBatchVoucherData {
   rejectedCount: number
   payments: PaymentBatchVoucherItem[]
 }
+
+// Strip emoji and non-latin characters that most PDF printers can't render
+const stripEmoji = (str: string): string =>
+  str.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}\u{1F300}-\u{1F9FF}]/gu, '').replace(/\s{2,}/g, ' ').trim()
 
 export const generatePaymentBatchVoucher = (
   data: PaymentBatchVoucherData,
@@ -1059,13 +1064,13 @@ export const generatePaymentBatchVoucher = (
 
   pdf.setFontSize(10)
   pdf.setFont('helvetica', 'normal')
-  pdf.text(data.businessName, pageWidth / 2, y, { align: 'center' })
+  pdf.text(stripEmoji(data.businessName), pageWidth / 2, y, { align: 'center' })
   y += 5
 
   const reviewedDate = new Date(data.reviewedAt)
   pdf.setFontSize(9)
   pdf.text(
-    `Date: ${reviewedDate.toLocaleDateString()}  |  Time: ${reviewedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}  |  Approved by: ${data.cashierName}`,
+    `Date: ${reviewedDate.toLocaleDateString()}  |  Time: ${reviewedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}  |  Approved by: ${stripEmoji(data.cashierName)}`,
     pageWidth / 2, y, { align: 'center' }
   )
   y += 4
@@ -1133,20 +1138,30 @@ export const generatePaymentBatchVoucher = (
       y = margin
     }
 
-    // Payee row — clip long names
-    let payeeDisplay = p.payeeName
+    // Payee row — strip emojis, clip long names
+    let payeeDisplay = stripEmoji(p.payeeName)
     while (pdf.getTextWidth(payeeDisplay) > 48 && payeeDisplay.length > 5) {
       payeeDisplay = payeeDisplay.slice(0, -4) + '...'
     }
     pdf.text(payeeDisplay, col.payee, y)
 
-    let acctDisplay = p.expenseAccount
+    // Phone sub-line under payee name
+    if (p.payeePhone) {
+      pdf.setFontSize(7)
+      pdf.setTextColor(100, 100, 100)
+      pdf.text(p.payeePhone, col.payee, y + 3)
+      pdf.setTextColor(0, 0, 0)
+      pdf.setFontSize(8)
+      y += 3.5
+    }
+
+    let acctDisplay = stripEmoji(p.expenseAccount)
     while (pdf.getTextWidth(acctDisplay) > 36 && acctDisplay.length > 5) {
       acctDisplay = acctDisplay.slice(0, -4) + '...'
     }
     pdf.text(acctDisplay, col.account, y)
 
-    let reqByDisplay = p.requestedBy
+    let reqByDisplay = stripEmoji(p.requestedBy)
     while (pdf.getTextWidth(reqByDisplay) > 36 && reqByDisplay.length > 5) {
       reqByDisplay = reqByDisplay.slice(0, -4) + '...'
     }
@@ -1158,10 +1173,10 @@ export const generatePaymentBatchVoucher = (
     pdf.setTextColor(100, 100, 100)
     pdf.setFontSize(7)
     const sub = [
-      p.categoryName !== '—' ? p.categoryName : null,
-      p.notes || null,
+      p.categoryName !== '—' ? stripEmoji(p.categoryName) : null,
+      p.notes ? stripEmoji(p.notes) : null,
       p.adHoc ? '[Ad-hoc]' : null,
-    ].filter(Boolean).join('  ·  ')
+    ].filter(Boolean).join('  .  ')
     if (sub) {
       pdf.text(sub, col.payee + 1, y)
       y += 3.5

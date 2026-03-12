@@ -162,6 +162,39 @@ export async function GET() {
       }
     }
 
+    // My own APPROVED payments — cashier has approved, requester needs to collect cash
+    const myApprovedPayments = await prisma.expenseAccountPayments.findMany({
+      where: { status: 'APPROVED', createdBy: user.id },
+      select: {
+        id: true,
+        amount: true,
+        notes: true,
+        updatedAt: true,
+        category: { select: { name: true } },
+        expenseAccount: { select: { business: { select: { name: true } } } },
+        payeeUser: { select: { name: true } },
+        payeeEmployee: { select: { fullName: true, phone: true } },
+        payeePerson: { select: { fullName: true, phone: true } },
+        payeeSupplier: { select: { name: true, phone: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+    })
+    const myApprovedPaymentsMapped = myApprovedPayments.map((p: any) => {
+      const payeeName = p.payeeEmployee?.fullName ?? p.payeePerson?.fullName ?? p.payeeSupplier?.name ?? p.payeeUser?.name ?? null
+      const payeePhone = p.payeeEmployee?.phone ?? p.payeePerson?.phone ?? p.payeeSupplier?.phone ?? null
+      return {
+        id: p.id,
+        amount: Number(p.amount),
+        notes: p.notes ?? null,
+        categoryName: p.category?.name ?? null,
+        businessName: p.expenseAccount?.business?.name ?? '—',
+        approvedAt: p.updatedAt?.toISOString() ?? null,
+        payeeName,
+        payeePhone,
+      }
+    })
+
     // My own pending payment requests (QUEUED/REQUEST) — always shown so submitters can track their status
     const myQueuedGrouped = await prisma.expenseAccountPayments.groupBy({
       by: ['expenseAccountId'],
@@ -244,7 +277,8 @@ export async function GET() {
       (pendingCashAllocations as unknown[]).length +
       (pendingPaymentBatches as unknown[]).length +
       (pendingPaymentRequests as unknown[]).length +
-      (myPendingPayments as unknown[]).length
+      (myPendingPayments as unknown[]).length +
+      myApprovedPaymentsMapped.length
 
     return NextResponse.json({
       loanLockRequests,
@@ -256,6 +290,7 @@ export async function GET() {
       pendingPaymentBatches,
       pendingPaymentRequests,
       myPendingPayments,
+      myApprovedPayments: myApprovedPaymentsMapped,
       canApprovePettyCash,
       canApproveCashAlloc: canApproveCashAllocation,
       total,

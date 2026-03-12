@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -153,9 +154,11 @@ export async function POST(request: NextRequest, { params }: Params) {
       }
     }
 
+
     // Validate all non-rent items are checked with matching amounts
     // Rent items are auto-confirmed and excluded from this check
     const mismatches: string[] = []
+    let allocationTotal = 0
     for (const item of report.lineItems) {
       if (item.sourceType === 'EOD_RENT_TRANSFER') continue
       if (!item.isChecked) {
@@ -168,9 +171,43 @@ export async function POST(request: NextRequest, { params }: Params) {
       }
       const reported = Number(item.reportedAmount)
       const actual = Number(item.actualAmount)
+      allocationTotal += actual
       if (Math.abs(reported - actual) > 0.009) {
         mismatches.push(`"${item.accountName}": reported $${reported.toFixed(2)} ≠ actual $${actual.toFixed(2)}`)
       }
+    }
+
+    // Overdraft protection: check running cash box balance before this allocation
+    // Get all locked reports for this business except this one
+    const lockedReports = await prisma.cashAllocationReport.findMany({
+      where: { businessId, status: 'LOCKED', id: { not: reportId } },
+      include: { lineItems: true, groupedRun: true },
+    })
+    let totalReceived = 0
+    let totalAllocated = 0
+    for (const r of lockedReports) {
+      if (r.isGrouped && r.groupedRun?.totalCashReceived != null) {
+        totalReceived += Number(r.groupedRun.totalCashReceived)
+      } else if (!r.isGrouped && r.totalReported != null) {
+        totalReceived += Number(r.totalReported)
+      }
+      for (const li of r.lineItems) {
+        if (li.actualAmount != null) totalAllocated += Number(li.actualAmount)
+      }
+    }
+    // Add this report's deposit
+    let thisDeposit = 0
+    if (report.isGrouped && report.groupedRunId && report.groupedRun?.totalCashReceived != null) {
+      thisDeposit = Number(report.groupedRun.totalCashReceived)
+    } else if (!report.isGrouped && report.totalReported != null) {
+      thisDeposit = Number(report.totalReported)
+    }
+    const cashBoxBefore = totalReceived - totalAllocated + thisDeposit
+    if (allocationTotal > cashBoxBefore) {
+      return NextResponse.json({
+        error: 'Cannot lock: allocation would overdraw the cash box. Available: $' + cashBoxBefore.toFixed(2) + ', attempted: $' + allocationTotal.toFixed(2),
+        mismatches: [`Cash box overdraft: available $${cashBoxBefore.toFixed(2)}, attempted allocation $${allocationTotal.toFixed(2)}`],
+      }, { status: 422 })
     }
 
     if (mismatches.length > 0) {
@@ -222,9 +259,41 @@ export async function POST(request: NextRequest, { params }: Params) {
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     })
 
-    // Record OUTFLOW entries in cash bucket — one per line item
+    // Record cash bucket entries: INFLOW for EOD cash counted, OUTFLOW per line item allocation
     try {
       const now = new Date()
+
+      // INFLOW: total cash the cashier counted at EOD for this date
+      let cashCounted: number | null = null
+      if (!report.isGrouped && report.reportDate) {
+        const dayStart = new Date(Date.UTC(report.reportDate.getUTCFullYear(), report.reportDate.getUTCMonth(), report.reportDate.getUTCDate(), 0, 0, 0))
+        const dayEnd   = new Date(Date.UTC(report.reportDate.getUTCFullYear(), report.reportDate.getUTCMonth(), report.reportDate.getUTCDate(), 23, 59, 59, 999))
+        const eodSaved = await prisma.savedReports.findFirst({
+          where: { businessId, reportType: 'END_OF_DAY', reportDate: { gte: dayStart, lte: dayEnd } },
+          select: { cashCounted: true },
+        })
+        if (eodSaved?.cashCounted != null) cashCounted = Number(eodSaved.cashCounted)
+      } else if (report.isGrouped && report.groupedRun?.totalCashReceived != null) {
+        cashCounted = Number(report.groupedRun.totalCashReceived)
+      }
+
+      if (cashCounted != null && cashCounted > 0) {
+        await prisma.cashBucketEntry.create({
+          data: {
+            businessId,
+            entryType: 'EOD_RECEIPT',
+            direction: 'INFLOW',
+            amount: cashCounted,
+            referenceType: 'CASH_ALLOCATION',
+            referenceId: reportId,
+            notes: `EOD cash counted — ${report.reportDate?.toISOString().split('T')[0] ?? 'grouped'}`,
+            entryDate: now,
+            createdBy: user.id,
+          },
+        })
+      }
+
+      // OUTFLOW: one entry per line item allocation (rent, loans, auto-deposits)
       for (const item of finalLineItems) {
         await prisma.cashBucketEntry.create({
           data: {
@@ -241,7 +310,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         })
       }
     } catch (bucketErr) {
-      console.error('[cash-allocation/lock] Cash bucket OUTFLOW failed (non-fatal):', bucketErr)
+      console.error('[cash-allocation/lock] Cash bucket entries failed (non-fatal):', bucketErr)
     }
 
     return NextResponse.json({

@@ -8,6 +8,18 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
 import { generatePaymentBatchVoucher } from '@/lib/pdf-utils'
 
+function useCashBoxBalance(businessId: string) {
+  const [balance, setBalance] = useState<number | null>(null)
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/cash-allocation/${businessId}/summary`)
+      .then(r => r.json())
+      .then(j => setBalance(j.balance ?? null))
+      .catch(() => setBalance(null))
+  }, [businessId])
+  return balance
+}
+
 interface BatchPayment {
   id: string
   status: string
@@ -16,10 +28,10 @@ interface BatchPayment {
   expenseAccount: { id: string; accountName: string; accountNumber: string } | null
   payeeType: string
   payeeUser?: { name: string } | null
-  payeeEmployee?: { fullName: string } | null
-  payeePerson?: { fullName: string } | null
+  payeeEmployee?: { fullName: string; phone?: string | null } | null
+  payeePerson?: { fullName: string; phone?: string | null } | null
   payeeBusiness?: { name: string } | null
-  payeeSupplier?: { name: string } | null
+  payeeSupplier?: { name: string; phone?: string | null } | null
   category?: { name: string; emoji: string } | null
   subcategory?: { name: string } | null
   amount: number
@@ -52,6 +64,10 @@ function payeeName(p: BatchPayment): string {
   return 'General'
 }
 
+function payeePhone(p: BatchPayment): string | null {
+  return p.payeeEmployee?.phone ?? p.payeePerson?.phone ?? p.payeeSupplier?.phone ?? null
+}
+
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
@@ -77,6 +93,8 @@ export default function BatchReviewPage() {
   })
   const [adHocAccounts, setAdHocAccounts] = useState<{ id: string; accountName: string }[]>([])
   const [addingAdHoc, setAddingAdHoc] = useState(false)
+
+  const cashBoxBalance = useCashBoxBalance(batch?.business?.id ?? '')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -153,12 +171,9 @@ export default function BatchReviewPage() {
 
       toast.push(`${approvedPayments.length} approved, ${rejectedPayments.length} returned to queue`, { type: 'success' })
 
-      // Auto-print voucher for cashier to hand to requester
-      if (json.data?.printData && approvedPayments.length > 0) {
-        generatePaymentBatchVoucher(json.data.printData, 'print')
-      }
-
       load()
+      // Refresh bell notification count across the app
+      window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
     } catch (e: any) {
       toast.error(e.message)
     } finally {
@@ -238,6 +253,31 @@ export default function BatchReviewPage() {
               <p className={`font-medium ${batch.businessAccountBalance < totalApproved ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
                 {fmt(batch.businessAccountBalance)}
               </p>
+            </div>
+          )}
+          {/* Total incoming request amount */}
+          <div>
+            <p className="text-gray-500 dark:text-gray-400">Total Requested</p>
+            <p className="font-medium text-blue-600 dark:text-blue-400">
+              {fmt(batch.payments.filter(p => p.status === 'PENDING_APPROVAL').reduce((s, p) => s + p.amount, 0))}
+            </p>
+          </div>
+          {/* Business Cash Bucket Balance */}
+          {batch.business?.id && (
+            <div>
+              <p className="text-gray-500 dark:text-gray-400">Cash Box Balance</p>
+              <span className={`font-medium ${cashBoxBalance !== null && cashBoxBalance < batch.payments.filter(p => p.status === 'PENDING_APPROVAL').reduce((s, p) => s + p.amount, 0) ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                {cashBoxBalance === null ? 'Loading…' : fmt(cashBoxBalance)}
+              </span>
+            </div>
+          )}
+          {/* Cash box balance after current selections */}
+          {batch.business?.id && !isLocked && cashBoxBalance !== null && totalApproved > 0 && (
+            <div>
+              <p className="text-gray-500 dark:text-gray-400">Cash Box After Approval</p>
+              <span className={`font-medium ${cashBoxBalance - totalApproved < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {fmt(cashBoxBalance - totalApproved)}
+              </span>
             </div>
           )}
           {isLocked && batch.reviewer && (
@@ -482,6 +522,7 @@ export default function BatchReviewPage() {
                   rejectedCount: batch.rejectedCount,
                   payments: batch.payments.filter(p => p.status === 'APPROVED' || p.status === 'SUBMITTED').map(p => ({
                     payeeName: payeeName(p),
+                    payeePhone: payeePhone(p),
                     categoryName: p.category ? `${p.category.emoji ?? ''} ${p.category.name}`.trim() : '—',
                     expenseAccount: p.expenseAccount?.accountName ?? '—',
                     amount: p.amount,
@@ -505,6 +546,7 @@ export default function BatchReviewPage() {
                   rejectedCount: batch.rejectedCount,
                   payments: batch.payments.filter(p => p.status === 'APPROVED' || p.status === 'SUBMITTED').map(p => ({
                     payeeName: payeeName(p),
+                    payeePhone: payeePhone(p),
                     categoryName: p.category ? `${p.category.emoji ?? ''} ${p.category.name}`.trim() : '—',
                     expenseAccount: p.expenseAccount?.accountName ?? '—',
                     amount: p.amount,

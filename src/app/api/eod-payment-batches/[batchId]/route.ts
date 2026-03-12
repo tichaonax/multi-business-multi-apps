@@ -32,10 +32,10 @@ export async function GET(
           include: {
             expenseAccount: { select: { id: true, accountName: true, accountNumber: true } },
             payeeUser: { select: { id: true, name: true } },
-            payeeEmployee: { select: { id: true, fullName: true, employeeNumber: true } },
-            payeePerson: { select: { id: true, fullName: true } },
+            payeeEmployee: { select: { id: true, fullName: true, employeeNumber: true, phone: true } },
+            payeePerson: { select: { id: true, fullName: true, phone: true } },
             payeeBusiness: { select: { id: true, name: true } },
-            payeeSupplier: { select: { id: true, name: true } },
+            payeeSupplier: { select: { id: true, name: true, phone: true } },
             category: { select: { id: true, name: true, emoji: true } },
             subcategory: { select: { id: true, name: true } },
             creator: { select: { id: true, name: true } },
