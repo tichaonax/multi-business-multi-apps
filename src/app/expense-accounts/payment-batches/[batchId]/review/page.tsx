@@ -430,6 +430,7 @@ export default function BatchReviewPage() {
                       {p.notes && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{p.notes}</p>}
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                         Requested by {p.creator?.name ?? '—'}
+                        {payeePhone(p) && <span className="ml-2 text-gray-500 dark:text-gray-400 font-medium">{payeePhone(p)}</span>}
                       </p>
                     </div>
 
