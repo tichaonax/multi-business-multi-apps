@@ -1497,6 +1497,7 @@ model ExpenseAccountPayments {
   createdBy                 String
   submittedBy               String?
   submittedAt               DateTime?
+  paidAt                    DateTime?                        @map("paid_at")
   createdAt                 DateTime                         @default(now())
   updatedAt                 DateTime                         @default(now()) @updatedAt
   category                  ExpenseCategories?               @relation("ExpensePaymentCategory", fields: [categoryId], references: [id])
