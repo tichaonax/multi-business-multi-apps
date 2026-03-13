@@ -69,6 +69,7 @@ interface PendingPaymentRequest {
   accountNumber: string
   requestCount: number
   totalAmount?: number
+  awaitingCashier?: boolean
   business: { id: string; name: string } | null
 }
 
@@ -303,7 +304,11 @@ export default function PendingActionsPage() {
                                 {dates[0] ? formatDateTimeZim(dates[0] + 'T00:00:00') : '—'}
                               </span></span>
                             )}
-                            <span>Items: <span className="font-medium text-gray-700 dark:text-gray-300">{item._count.lineItems}</span></span>
+                            {item._count.lineItems === 0 ? (
+                              <span className="text-amber-600 dark:text-amber-400 font-medium">EOD complete · tap Reconcile to generate</span>
+                            ) : (
+                              <span>Items: <span className="font-medium text-gray-700 dark:text-gray-300">{item._count.lineItems}</span></span>
+                            )}
                             {isGrouped
                               ? (item.groupedRun && typeof item.groupedRun.totalCashReceived === 'number' && item.groupedRun.totalCashReceived > 0 && (
                                   <span>Total Handed In: <span className="font-semibold text-emerald-600 dark:text-emerald-400">${item.groupedRun.totalCashReceived.toFixed(2)}</span></span>
@@ -416,7 +421,11 @@ export default function PendingActionsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-900 dark:text-white">{item.accountName}</span>
-                          <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-medium px-2 py-0.5 rounded">{item.requestCount} pending</span>
+                          {item.awaitingCashier ? (
+                            <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-medium px-2 py-0.5 rounded">Awaiting cashier</span>
+                          ) : (
+                            <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-medium px-2 py-0.5 rounded">{item.requestCount} queued</span>
+                          )}
                           {item.totalAmount != null && (
                             <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded">${Number(item.totalAmount).toFixed(2)}</span>
                           )}

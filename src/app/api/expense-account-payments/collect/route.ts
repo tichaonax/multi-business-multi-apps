@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 
 /**
  * POST /api/expense-account-payments/collect
  * Body: { paymentId }
- * Marks an APPROVED payment as SUBMITTED (cash collected by requester).
+ * Marks an APPROVED payment as PAID (cash collected by requester).
+ * Stamps paidAt = now and recalculates expense account balance.
  * Only the original requester can mark their own payment as collected.
  */
 export async function POST(request: NextRequest) {
@@ -18,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     const payment = await prisma.expenseAccountPayments.findUnique({
       where: { id: paymentId },
-      select: { id: true, status: true, createdBy: true, amount: true },
+      select: { id: true, status: true, createdBy: true, expenseAccountId: true },
     })
 
     if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
@@ -27,9 +29,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Payment is ${payment.status}, not APPROVED` }, { status: 400 })
     }
 
-    await prisma.expenseAccountPayments.update({
-      where: { id: paymentId },
-      data: { status: 'SUBMITTED', updatedAt: new Date() },
+    const now = new Date()
+    await prisma.$transaction(async (tx: any) => {
+      await tx.expenseAccountPayments.update({
+        where: { id: paymentId },
+        data: { status: 'PAID', paidAt: now },
+      })
+      await updateExpenseAccountBalanceTx(tx, payment.expenseAccountId)
     })
 
     return NextResponse.json({ success: true })

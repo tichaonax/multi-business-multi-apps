@@ -66,11 +66,9 @@ export async function POST(
 
     const result = await prisma.$transaction(async (tx: any) => {
       let returnPaymentId: string | null = null
-      let returnTxId: string | null = null
-      let newBusinessBalance: number | null = null
 
       if (returnAmount > 0) {
-        // 1. Create ExpenseAccountPayment: money OUT of expense account back to business
+        // 1. Create ExpenseAccountPayment: money OUT of expense account (auto-PAID immediately)
         const returnPayment = await tx.expenseAccountPayments.create({
           data: {
             expenseAccountId: pcRequest.expenseAccountId,
@@ -78,8 +76,9 @@ export async function POST(
             amount: returnAmount,
             paymentDate: now,
             notes: notes || `Petty cash return: ${pcRequest.purpose}`,
-            status: 'SUBMITTED',
+            status: 'PAID',
             paymentType: 'PETTY_CASH_RETURN',
+            paidAt: now,
             createdBy: user.id,
             submittedBy: user.id,
             submittedAt: now,
@@ -87,36 +86,10 @@ export async function POST(
         })
         returnPaymentId = returnPayment.id
 
-        // 2. Update expense account balance
+        // 2. Update expense account balance (debit for the return)
         await updateExpenseAccountBalanceTx(tx, pcRequest.expenseAccountId)
 
-        // 3. Credit the business account back
-        const businessAccount = await tx.businessAccounts.findUnique({
-          where: { businessId: pcRequest.businessId },
-        })
-        if (!businessAccount) throw new Error('Business account not found')
-
-        newBusinessBalance = Number(businessAccount.balance) + returnAmount
-        await tx.businessAccounts.update({
-          where: { businessId: pcRequest.businessId },
-          data: { balance: newBusinessBalance },
-        })
-
-        const businessTx = await tx.businessTransactions.create({
-          data: {
-            businessId: pcRequest.businessId,
-            type: 'CREDIT',
-            amount: returnAmount,
-            description: `Petty cash return: ${pcRequest.purpose}`,
-            balanceAfter: newBusinessBalance,
-            createdBy: user.id,
-            referenceType: 'PETTY_CASH_RETURN',
-            referenceId: requestId,
-          },
-        })
-        returnTxId = businessTx.id
-
-        // 4. Credit the physical cash bucket — cash is back in hand
+        // 3. Credit the physical cash bucket — cash is back in hand
         await tx.cashBucketEntry.create({
           data: {
             businessId: pcRequest.businessId,
@@ -153,7 +126,7 @@ export async function POST(
         },
       })
 
-      return { updated, returnPaymentId, returnTxId, newBusinessBalance }
+      return { updated, returnPaymentId }
     })
 
     const approvedAmt = Number(result.updated.approvedAmount)
@@ -173,9 +146,7 @@ export async function POST(
           settledAt: result.updated.settledAt?.toISOString(),
           settler: result.updated.settler,
           returnPaymentId: result.returnPaymentId,
-          returnTxId: result.returnTxId,
         },
-        businessAccountBalance: result.newBusinessBalance,
       },
     })
   } catch (error) {

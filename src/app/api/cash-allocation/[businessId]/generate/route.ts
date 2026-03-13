@@ -12,6 +12,9 @@ type Params = { params: Promise<{ businessId: string }> }
  * Idempotent: finds or creates the report, then upserts line items
  * for any EOD deposits on that date that are not yet in the report.
  * Never removes existing line items or resets checkbox state.
+ *
+ * Requires canRunCashAllocationReport (owner/manager) or admin role.
+ * The EOD runner calls /notify instead — this is called by the reconciler (Mary).
  */
 export async function POST(request: NextRequest, { params }: Params) {
   try {

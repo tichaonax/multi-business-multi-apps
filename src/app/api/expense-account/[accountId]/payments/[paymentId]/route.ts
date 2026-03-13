@@ -196,6 +196,34 @@ export async function PATCH(
       )
     }
 
+    // --- Mark as Paid action ---
+    // Read body once here; re-used below for the standard edit flow
+    let body: any = {}
+    try { body = await request.json() } catch { /* empty body */ }
+    if (body.action === 'markPaid') {
+      if (existingPayment.status !== 'APPROVED') {
+        return NextResponse.json(
+          { error: `Only APPROVED payments can be marked as paid. Current status: ${existingPayment.status}` },
+          { status: 400 }
+        )
+      }
+      const now = new Date()
+      const paidAt = body.paidAt ? new Date(body.paidAt) : now
+      const updated = await prisma.$transaction(async (tx: any) => {
+        const p = await tx.expenseAccountPayments.update({
+          where: { id: paymentId },
+          data: { status: 'PAID', paidAt },
+        })
+        await updateExpenseAccountBalanceTx(tx, accountId)
+        return p
+      })
+      return NextResponse.json({
+        success: true,
+        message: 'Payment marked as paid',
+        data: { id: updated.id, status: updated.status, paidAt: updated.paidAt },
+      })
+    }
+
     // Auto-transfer (TRANSFER_OUT) payments are system-generated and cannot be edited by anyone
     if (existingPayment.paymentType === 'TRANSFER_OUT') {
       return NextResponse.json(
@@ -216,8 +244,7 @@ export async function PATCH(
     // Note: We now allow editing submitted payments with proper validation
     // to prevent negative balances
 
-    // Parse request body
-    const body = await request.json()
+    // Parse request body (already read above)
     const {
       amount,
       notes,

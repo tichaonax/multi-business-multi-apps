@@ -129,6 +129,7 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
       }
       setReport(data.report)
       setLineItems(data.lineItems)
+      window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {

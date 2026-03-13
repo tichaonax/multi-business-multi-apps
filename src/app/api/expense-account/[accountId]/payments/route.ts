@@ -98,8 +98,14 @@ export async function GET(
       where.subcategoryId = subcategoryId
     }
 
-    if (status) {
+    // Default to PAID (ledger view) — pass status=all to include all statuses,
+    // or status=APPROVED to see approved-but-not-yet-paid payments
+    if (status === 'all') {
+      // no filter — return everything
+    } else if (status) {
       where.status = status
+    } else {
+      where.status = 'PAID'
     }
 
     if (startDate || endDate) {

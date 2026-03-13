@@ -139,8 +139,8 @@ export async function GET(
         ? prisma.expenseAccountPayments.findMany({
             where: {
               expenseAccountId: accountId,
-              status: 'SUBMITTED', // Only submitted payments affect balance
-              ...(Object.keys(dateFilter).length > 0 && { paymentDate: dateFilter }),
+              status: 'PAID', // Only PAID payments appear in the ledger
+              ...(Object.keys(dateFilter).length > 0 && { paidAt: dateFilter }),
               ...paymentSearchFilter,
             },
             include: {
@@ -174,7 +174,7 @@ export async function GET(
                 select: { id: true, name: true, email: true },
               },
             },
-            orderBy: { paymentDate: sortOrder as 'asc' | 'desc' },
+            orderBy: { paidAt: sortOrder as 'asc' | 'desc' },
           })
         : [],
     ])
@@ -279,7 +279,7 @@ export async function GET(
         id: payment.id,
         type: 'PAYMENT',
         amount: -Number(payment.amount), // Negative for payments (debit)
-        date: payment.paymentDate,
+        date: (payment as any).paidAt || payment.paymentDate, // Use paidAt as the ledger date
         description,
         payeeType: payment.payeeType,
         payeeUser: payment.payeeUser,
@@ -330,8 +330,8 @@ export async function GET(
       const paymentsBeforeSum = await prisma.expenseAccountPayments.aggregate({
         where: {
           expenseAccountId: accountId,
-          status: 'SUBMITTED',
-          paymentDate: { lt: paginatedTransactions[0]?.date || new Date() },
+          status: 'PAID',
+          paidAt: { lt: paginatedTransactions[0]?.date || new Date() },
         },
         _sum: { amount: true },
       })

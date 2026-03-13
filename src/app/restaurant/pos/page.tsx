@@ -1393,25 +1393,25 @@ export default function RestaurantPOS() {
       dayBefore.setDate(dayBefore.getDate() - 2)
       const dbStr = dayBefore.toISOString().split('T')[0]
 
-      const [todayRes, yRes, dbRes] = await Promise.all([
+      const [todayRes, yRes, dbRes] = await Promise.allSettled([
         fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}`),
         fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}&date=${yStr}`),
         fetch(`/api/restaurant/daily-sales?businessId=${currentBusinessId}&timezone=${tz}&date=${dbStr}`)
       ])
-      if (todayRes.ok) {
-        const data = await todayRes.json()
+      if (todayRes.status === 'fulfilled' && todayRes.value.ok) {
+        const data = await todayRes.value.json()
         setDailySales(data.data)
       }
-      if (yRes.ok) {
-        const yData = await yRes.json()
+      if (yRes.status === 'fulfilled' && yRes.value.ok) {
+        const yData = await yRes.value.json()
         setYesterdaySales(yData.data)
       }
-      if (dbRes.ok) {
-        const dbData = await dbRes.json()
+      if (dbRes.status === 'fulfilled' && dbRes.value.ok) {
+        const dbData = await dbRes.value.json()
         setDayBeforeYesterdaySales(dbData.data)
       }
     } catch (error) {
-      console.error('Failed to load daily sales:', error)
+      // Non-critical background refresh — keep last known data on error
     }
   }
 

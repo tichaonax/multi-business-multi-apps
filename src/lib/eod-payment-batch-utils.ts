@@ -16,11 +16,13 @@ export async function createEODPaymentBatches(
   businessId: string,
   reportDate: Date
 ): Promise<{ batchId: string | null; paymentCount: number }> {
-  // Find all QUEUED / legacy REQUEST payments whose expense account belongs to this business
+  // Find all QUEUED / legacy REQUEST payments whose expense account belongs to this business.
+  // Exclude PETTY_CASH_SPEND and PETTY_CASH_RETURN — those are handled outside the batch flow.
   const queuedPayments = await prisma.expenseAccountPayments.findMany({
     where: {
       status: { in: ['QUEUED', 'REQUEST'] },
       expenseAccount: { businessId },
+      paymentType: { notIn: ['PETTY_CASH_SPEND', 'PETTY_CASH_RETURN'] },
     },
     select: { id: true },
   })

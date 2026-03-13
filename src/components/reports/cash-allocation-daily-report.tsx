@@ -258,6 +258,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       setReport(data.report)
       setLineItems(data.lineItems)
       refreshWeekRow(date, data.lineItems, data.report?.status ?? 'LOCKED')
+      window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {

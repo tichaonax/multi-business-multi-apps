@@ -226,15 +226,16 @@ export default function EndOfDayReport() {
         throw new Error(result.error || 'Failed to save report')
       }
 
-      // Auto-generate cash allocation report for this business/date (fire-and-forget, non-fatal)
+      // Notify cash allocation approver that EOD is complete (fire-and-forget, non-fatal).
+      // Creates an empty DRAFT stub so it appears in the bell — approver generates line items themselves.
       try {
-        await fetch(`/api/cash-allocation/${currentBusinessId}/generate`, {
+        await fetch(`/api/cash-allocation/${currentBusinessId}/notify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ date: dailySales.businessDay.date }),
         })
       } catch (e) {
-        console.warn('Cash allocation auto-generate failed (non-fatal):', e)
+        console.warn('Cash allocation notify failed (non-fatal):', e)
       }
 
       setSaveSuccess(true)

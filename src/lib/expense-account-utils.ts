@@ -13,11 +13,11 @@ export async function calculateExpenseAccountBalance(accountId: string): Promise
     _sum: { amount: true },
   })
 
-  // Sum all submitted payments only (exclude DRAFT)
+  // Sum only PAID payments — debits post when requester marks payment as paid
   const paymentsSum = await prisma.expenseAccountPayments.aggregate({
     where: {
       expenseAccountId: accountId,
-      status: 'SUBMITTED'
+      status: 'PAID'
     },
     _sum: { amount: true },
   })
@@ -55,7 +55,7 @@ export async function updateExpenseAccountBalanceTx(tx: any, accountId: string) 
   })
 
   const paymentsSum = await tx.expenseAccountPayments.aggregate({
-    where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+    where: { expenseAccountId: accountId, status: 'PAID' },
     _sum: { amount: true },
   })
 
@@ -85,7 +85,7 @@ export async function getExpenseAccountBalanceSummary(accountId: string) {
     prisma.expenseAccountPayments.aggregate({
       where: {
         expenseAccountId: accountId,
-        status: 'SUBMITTED'
+        status: 'PAID'
       },
       _sum: { amount: true },
     }),
@@ -93,7 +93,7 @@ export async function getExpenseAccountBalanceSummary(accountId: string) {
     prisma.expenseAccountPayments.count({
       where: {
         expenseAccountId: accountId,
-        status: 'SUBMITTED'
+        status: 'PAID'
       }
     }),
     prisma.expenseAccountPayments.count({
@@ -407,7 +407,7 @@ export async function validateBatchPaymentTotal(
       _sum: { amount: true },
     }),
     prisma.expenseAccountPayments.aggregate({
-      where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+      where: { expenseAccountId: accountId, status: 'PAID' },
       _sum: { amount: true },
     }),
   ])
@@ -465,7 +465,7 @@ export async function getExpenseAccountStats(
     prisma.expenseAccountPayments.aggregate({
       where: {
         expenseAccountId: accountId,
-        status: 'SUBMITTED',
+        status: 'PAID',
         ...(Object.keys(dateFilter).length > 0 && { paymentDate: dateFilter }),
       },
       _sum: { amount: true },
@@ -475,7 +475,7 @@ export async function getExpenseAccountStats(
       where: { expenseAccountId: accountId, status: 'DRAFT' },
     }),
     prisma.expenseAccountPayments.count({
-      where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+      where: { expenseAccountId: accountId, status: 'PAID' },
     }),
   ])
 
@@ -861,7 +861,7 @@ export async function validateDepositEdit(
     prisma.expenseAccountPayments.findMany({
       where: {
         expenseAccountId: accountId,
-        status: 'SUBMITTED',
+        status: 'PAID',
         paymentDate: { gte: deposit.depositDate }
       },
       orderBy: { paymentDate: 'asc' },
@@ -905,7 +905,7 @@ export async function validateDepositEdit(
     prisma.expenseAccountPayments.aggregate({
       where: {
         expenseAccountId: accountId,
-        status: 'SUBMITTED',
+        status: 'PAID',
         paymentDate: { lt: deposit.depositDate }
       },
       _sum: { amount: true }
@@ -993,7 +993,7 @@ export async function validatePaymentEdit(
     prisma.expenseAccountPayments.aggregate({
       where: {
         expenseAccountId: accountId,
-        status: 'SUBMITTED',
+        status: 'PAID',
         id: { not: paymentId }
       },
       _sum: { amount: true }

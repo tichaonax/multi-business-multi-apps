@@ -128,8 +128,9 @@ export async function GET() {
     const canApproveCashAllocation = sysAdmin || await hasSystemPermission(user.id, 'cash_allocation.approve')
     let pendingCashAllocations: object[] = []
     if (canApproveCashAllocation) {
+      const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
       pendingCashAllocations = await prisma.cashAllocationReport.findMany({
-        where: { status: { in: ['DRAFT', 'IN_PROGRESS'] }, lineItems: { some: {} } },
+        where: { status: { in: ['DRAFT', 'IN_PROGRESS'] }, createdAt: { gte: fourteenDaysAgo } },
         select: {
           id: true,
           reportDate: true,
@@ -209,25 +210,28 @@ export async function GET() {
       }
     })
 
-    // My own pending payment requests (QUEUED/REQUEST) — always shown so submitters can track their status
+    // My own pending payment requests — shown so submitters can track their status.
+    // Includes QUEUED/REQUEST (pre-EOD) and PENDING_APPROVAL (picked up by EOD batch, awaiting cashier).
     const myQueuedGrouped = await prisma.expenseAccountPayments.groupBy({
-      by: ['expenseAccountId'],
-      where: { status: { in: ['QUEUED', 'REQUEST'] }, createdBy: user.id },
+      by: ['expenseAccountId', 'status'],
+      where: { status: { in: ['QUEUED', 'REQUEST', 'PENDING_APPROVAL'] }, createdBy: user.id },
       _count: { id: true },
       _sum: { amount: true },
     })
     let myPendingPayments: object[] = []
     if (myQueuedGrouped.length > 0) {
-      const myAccountIds = myQueuedGrouped.map((g) => g.expenseAccountId)
+      const myAccountIds = [...new Set(myQueuedGrouped.map((g) => g.expenseAccountId))]
       const myAccounts = await prisma.expenseAccounts.findMany({
         where: { id: { in: myAccountIds } },
         select: { id: true, accountName: true, accountNumber: true, business: { select: { id: true, name: true } } },
       })
-      myPendingPayments = myAccounts.map((acct) => ({
-        ...acct,
-        requestCount: myQueuedGrouped.find((g) => g.expenseAccountId === acct.id)?._count.id ?? 0,
-        totalAmount: Number(myQueuedGrouped.find((g) => g.expenseAccountId === acct.id)?._sum.amount ?? 0),
-      }))
+      myPendingPayments = myAccounts.map((acct) => {
+        const rows = myQueuedGrouped.filter((g) => g.expenseAccountId === acct.id)
+        const requestCount = rows.reduce((s, r) => s + r._count.id, 0)
+        const totalAmount = rows.reduce((s, r) => s + Number(r._sum.amount ?? 0), 0)
+        const awaitingCashier = rows.some((r) => r.status === 'PENDING_APPROVAL')
+        return { ...acct, requestCount, totalAmount, awaitingCashier }
+      })
     }
 
     // Pending EOD payment batches — for users with canSubmitPaymentBatch
