@@ -159,20 +159,26 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-primary mb-1">
-                          Business Type <span className="text-red-500">*</span>
+                          Business Type {method !== 'PUT' && <span className="text-red-500">*</span>}
                         </label>
-                        <select
-                          className="input-field"
-                          value={formData.type}
-                          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                          required
-                        >
-                          {BUSINESS_TYPES.map(type => (
-                            <option key={type} value={type}>
-                              {type.charAt(0).toUpperCase() + type.slice(1)}
-                            </option>
-                          ))}
-                        </select>
+                        {method === 'PUT' ? (
+                          <div className="input-field bg-gray-50 dark:bg-neutral-700/50 text-secondary cursor-not-allowed capitalize">
+                            {formData.type}
+                          </div>
+                        ) : (
+                          <select
+                            className="input-field"
+                            value={formData.type}
+                            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                            required
+                          >
+                            {BUSINESS_TYPES.map(type => (
+                              <option key={type} value={type}>
+                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     </div>
                     <div>

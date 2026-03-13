@@ -66,7 +66,7 @@ export default function MyPaymentsPage() {
     >
       <div className="max-w-2xl mx-auto space-y-4">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          These payments have been approved by the cashier. Collect the cash and tap <strong>I Received This Cash</strong> to mark each one complete.
+          These payments have been approved by the cashier. Collect the cash and tap <strong>Payment Made</strong> to mark each one complete.
         </p>
 
         {loading ? (
@@ -111,7 +111,7 @@ export default function MyPaymentsPage() {
                   disabled={collecting === p.id}
                   className="shrink-0 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
                 >
-                  {collecting === p.id ? 'Marking…' : 'I Received This Cash'}
+                  {collecting === p.id ? 'Marking…' : 'Payment Made'}
                 </button>
               </div>
             ))}

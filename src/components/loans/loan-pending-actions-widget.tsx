@@ -6,8 +6,8 @@ import Link from 'next/link'
 interface PendingData {
   loanLockRequests: { id: string; loanNumber: string; description: string; lockRequester: { name: string } | null; managedBy: { name: string } | null; lockRequestedAt: string | null }[]
   pendingPettyCash: { id: string; purpose: string; requestedAmount: string; requester: { name: string } | null; requestedAt: string }[]
-  pendingCashAllocations: { id: string; reportDate: string; status: string; business: { id: string; name: string; type: string } | null; _count: { lineItems: number } }[]
-  pendingPaymentRequests: { id: string; accountName: string; accountNumber: string; requestCount: number; business: { id: string; name: string } | null }[]
+  pendingCashAllocations: { id: string; reportDate: string | null; status: string; isGrouped?: boolean; totalReported?: number; groupedRun?: { totalCashReceived?: number } | null; business: { id: string; name: string; type: string } | null; _count: { lineItems: number } }[]
+  pendingPaymentRequests: { id: string; accountName: string; accountNumber: string; requestCount: number; totalAmount?: number; business: { id: string; name: string } | null }[]
   total: number
 }
 
@@ -90,6 +90,9 @@ export function LoanPendingActionsWidget() {
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{item.business?.name ?? 'Unknown'}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {dateLabel} · {item._count.lineItems} items · {item.status}
+                      {isGrouped
+                        ? (item.groupedRun?.totalCashReceived != null && item.groupedRun.totalCashReceived > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(item.groupedRun.totalCashReceived).toFixed(2)}</span></>)
+                        : (item.totalReported != null && item.totalReported > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(item.totalReported).toFixed(2)}</span></>)}
                     </p>
                   </div>
                   <Link href={url} className="ml-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors shrink-0">Reconcile</Link>
@@ -120,6 +123,7 @@ export function LoanPendingActionsWidget() {
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{item.accountName}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {item.business?.name ?? ''} · {item.requestCount} pending
+                    {item.totalAmount != null && item.totalAmount > 0 && <> · <span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(item.totalAmount).toFixed(2)}</span></>}
                   </p>
                 </div>
                 <Link href={`/expense-accounts/${item.id}`} className="ml-3 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded transition-colors shrink-0">Submit</Link>

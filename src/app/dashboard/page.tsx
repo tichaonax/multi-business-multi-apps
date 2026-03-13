@@ -26,6 +26,7 @@ import { LoanPendingActionsWidget } from '@/components/loans/loan-pending-action
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { usePendingActionsCount } from '@/hooks/use-pending-actions-count'
 
 export default function Dashboard() {
   return (
@@ -41,6 +42,7 @@ function DashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { currentBusiness, switchBusiness, activeBusinesses, loading: businessesLoading, hasPermission, hasPermissionInBusiness, isSystemAdmin: isSysAdmin } = useBusinessPermissionsContext()
+  const pendingActionsCount = usePendingActionsCount()
   const currentUser = session?.user as any
   const businessId = currentBusiness?.businessId
   const [stats, setStats] = useState({
@@ -592,57 +594,106 @@ function DashboardContent() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
-          {/* Business Type Revenue Cards - only for roles with financial data access */}
-          {hasPermission('canAccessFinancialData') && revenueBreakdown ? Object.entries(revenueBreakdown.byType).map(([businessType, typeData]: [string, any]) => (
-            <div
-              key={businessType}
-              className="card p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => {
-                setRevenueBreakdownFilter(businessType)
-                setShowRevenueBreakdown(true)
-                fetchRevenueBreakdown()
-              }}
-            >
-              <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <span className="text-2xl">
-                    {businessType === 'restaurant' ? '🍽️' :
-                     businessType === 'grocery' ? '🛒' :
-                     businessType === 'clothing' ? '👕' :
-                     businessType === 'hardware' ? '🔧' :
-                     '🏪'}
-                  </span>
-                </div>
-                <div className="ml-4 flex-1">
-                  <p className="text-sm font-medium text-secondary capitalize">{businessType}</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {typeData.totalRevenue > 0 ? `$${typeData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00'}
-                  </p>
-                  {typeData.totalRevenue > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <div className="flex items-center space-x-1 text-sm">
-                        <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                        <span className="text-green-600 dark:text-green-400 font-medium">
-                          ${typeData.completedRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} completed
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-1 text-sm">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
-                        <span className="text-orange-600 dark:text-orange-400 font-medium">
-                          ${typeData.pendingRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pending
-                        </span>
-                      </div>
-                    </div>
-                  )}
+          {/* Umbrella "All" totals card */}
+          {hasPermission('canAccessFinancialData') && revenueBreakdown && (
+            <div className="card overflow-hidden">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg shrink-0">
+                    <span className="text-2xl">🏢</span>
+                  </div>
+                  <div className="ml-3 flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-secondary uppercase tracking-wide">All</p>
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">
+                      ${(revenueBreakdown.summary.totalAccountBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-[11px] text-secondary mt-0.5">
+                      Sales: ${(revenueBreakdown.summary.totalRevenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
                 </div>
               </div>
-              {typeData.totalRevenue > 0 && (
-                <div className="mt-2 text-xs text-blue-600">
-                  {typeData.totalOrders} orders • Click for details
+              <div className="bg-gray-50 dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 px-4 py-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-secondary flex items-center gap-1">🪣 Cash Box</span>
+                  <span className={`font-semibold ${(revenueBreakdown.summary.totalCashBoxBalance ?? 0) > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-secondary'}`}>
+                    ${(revenueBreakdown.summary.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
                 </div>
-              )}
+              </div>
             </div>
-          )) : hasPermission('canAccessFinancialData') ? (
+          )}
+
+          {/* Business Type Revenue Cards - only for roles with financial data access */}
+          {hasPermission('canAccessFinancialData') && revenueBreakdown ? Object.entries(revenueBreakdown.byType).map(([businessType, typeData]: [string, any]) => {
+              const rentPct = typeData.totalMonthlyRent > 0
+                ? Math.min(100, Math.round((typeData.totalRentContributed / typeData.totalMonthlyRent) * 100))
+                : 0
+              const rentColor = rentPct >= 100 ? 'text-emerald-600 dark:text-emerald-400' : rentPct >= 75 ? 'text-amber-500 dark:text-amber-400' : 'text-red-500 dark:text-red-400'
+              const rentBarColor = rentPct >= 100 ? 'bg-emerald-500' : rentPct >= 75 ? 'bg-amber-400' : 'bg-red-500'
+              return (
+                <div
+                  key={businessType}
+                  className="card overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => {
+                    setRevenueBreakdownFilter(businessType)
+                    setShowRevenueBreakdown(true)
+                    fetchRevenueBreakdown()
+                  }}
+                >
+                  {/* Main section */}
+                  <div className="p-4 sm:p-5">
+                    <div className="flex items-center">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg shrink-0">
+                        <span className="text-2xl">
+                          {businessType === 'restaurant' ? '🍽️' :
+                           businessType === 'grocery' ? '🛒' :
+                           businessType === 'clothing' ? '👕' :
+                           businessType === 'hardware' ? '🔧' :
+                           '🏪'}
+                        </span>
+                      </div>
+                      <div className="ml-3 flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-secondary uppercase tracking-wide capitalize">{businessType}</p>
+                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">
+                          ${(typeData.totalAccountBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[11px] text-secondary mt-0.5">
+                          Sales: ${typeData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer strip — cash box + rent */}
+                  <div className="bg-gray-50 dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 px-4 py-2.5 space-y-1.5">
+                    {/* Cash Box */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-secondary flex items-center gap-1">🪣 Cash Box</span>
+                      <span className={`font-semibold ${typeData.totalCashBoxBalance > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-secondary'}`}>
+                        ${(typeData.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    {/* Rent — only shown when configured */}
+                    {typeData.hasRentConfig && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-secondary flex items-center gap-1">🏠 Rent</span>
+                          <span className={`font-semibold ${rentColor}`}>
+                            ${typeData.totalRentContributed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className="text-secondary font-normal"> / ${typeData.totalMonthlyRent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                          <div className={`${rentBarColor} h-1 rounded-full transition-all`} style={{ width: `${rentPct}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            }) : hasPermission('canAccessFinancialData') ? (
             // Loading state for revenue cards
             <>
               {['clothing', 'grocery', 'restaurant', 'hardware'].map((businessType) => (
@@ -694,10 +745,7 @@ function DashboardContent() {
           
           <div
             className="card p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => {
-              setShowPendingTasks(true)
-              fetchPendingTasksDetails()
-            }}
+            onClick={() => router.push('/admin/pending-actions')}
           >
             <div className="flex items-center">
               <div className="p-2 bg-yellow-100 rounded-lg">
@@ -706,11 +754,11 @@ function DashboardContent() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-secondary">Pending Tasks</p>
                 <p className="text-2xl font-bold text-primary">
-                  {statsLoading ? '...' : stats.pendingTasks}
+                  {pendingActionsCount}
                 </p>
               </div>
             </div>
-            {stats.pendingTasks > 0 && (
+            {pendingActionsCount > 0 && (
               <div className="mt-2 text-xs text-yellow-600">
                 Click to view details
               </div>
@@ -1182,7 +1230,7 @@ function DashboardContent() {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                Pending Tasks ({stats.pendingTasks})
+                Pending Tasks ({pendingActionsCount})
               </h2>
               <button
                 onClick={() => setShowPendingTasks(false)}

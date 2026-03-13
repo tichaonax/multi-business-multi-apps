@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { getBusinessBalance } from '@/lib/business-balance-utils'
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,90 +18,98 @@ export async function GET(req: NextRequest) {
     if (isSystemAdmin(user)) {
       accessibleBusinesses = await prisma.businesses.findMany({
         where: { isActive: true },
-        select: {
-          id: true,
-          name: true,
-          type: true
-        }
+        select: { id: true, name: true, type: true }
       })
     } else if (userBusinessIds.length > 0) {
-      // Filter businesses where user has financial data access permission
       const businessesWithPermission = await Promise.all(
         userBusinessIds.map(async (businessId) => {
           const hasFinancialAccess = hasPermission(user, 'canAccessFinancialData', businessId)
           if (hasFinancialAccess) {
-            const business = await prisma.businesses.findUnique({
+            return prisma.businesses.findUnique({
               where: { id: businessId, isActive: true },
-              select: {
-                id: true,
-                name: true,
-                type: true
-              }
+              select: { id: true, name: true, type: true }
             })
-            return business
           }
           return null
         })
       )
-      accessibleBusinesses = businessesWithPermission.filter(business => business !== null)
+      accessibleBusinesses = businessesWithPermission.filter(Boolean)
     }
 
-    // Group businesses by type
-    const businessesByType = accessibleBusinesses.reduce((acc, business) => {
-      if (!acc[business.type]) {
-        acc[business.type] = []
-      }
-      acc[business.type].push(business)
-      return acc
-    }, {} as Record<string, typeof accessibleBusinesses>)
+    const allBusinessIds = accessibleBusinesses.map(b => b.id)
 
-    // Calculate revenue for each business
+    // --- Batch fetch cash bucket balances (INFLOW - OUTFLOW per business) ---
+    const cashBucketRows = await prisma.cashBucketEntry.groupBy({
+      by: ['businessId', 'direction'],
+      where: { businessId: { in: allBusinessIds } },
+      _sum: { amount: true },
+    })
+    const cashBoxMap = new Map<string, number>()
+    for (const row of cashBucketRows) {
+      const cur = cashBoxMap.get(row.businessId) ?? 0
+      const amt = Number(row._sum.amount ?? 0)
+      cashBoxMap.set(row.businessId, row.direction === 'INFLOW' ? cur + amt : cur - amt)
+    }
+
+    // --- Batch fetch rent configs + expense account balances ---
+    const rentConfigs = await prisma.businessRentConfig.findMany({
+      where: { businessId: { in: allBusinessIds }, isActive: true },
+      select: {
+        businessId: true,
+        monthlyRentAmount: true,
+        expenseAccount: { select: { balance: true } },
+      },
+    })
+    const rentMap = new Map<string, { monthlyRent: number; contributed: number }>()
+    for (const rc of rentConfigs) {
+      rentMap.set(rc.businessId, {
+        monthlyRent: Number(rc.monthlyRentAmount),
+        contributed: Number(rc.expenseAccount.balance),
+      })
+    }
+
+    // --- Per-business revenue + balance ---
     const revenueByBusiness = await Promise.all(
       accessibleBusinesses.map(async (business) => {
-        // Get completed orders revenue
-        const completedRevenue = await prisma.businessOrders.aggregate({
-          where: {
-            businessId: business.id,
-            status: 'COMPLETED'
-          },
-          _sum: {
-            totalAmount: true
-          },
-          _count: true
-        })
-
-        // Get pending orders revenue
-        const pendingRevenue = await prisma.businessOrders.aggregate({
-          where: {
-            businessId: business.id,
-            status: 'PENDING'
-          },
-          _sum: {
-            totalAmount: true
-          },
-          _count: true
-        })
+        const [completedRevenue, pendingRevenue, balanceInfo] = await Promise.all([
+          prisma.businessOrders.aggregate({
+            where: { businessId: business.id, status: 'COMPLETED' },
+            _sum: { totalAmount: true },
+            _count: true,
+          }),
+          prisma.businessOrders.aggregate({
+            where: { businessId: business.id, status: 'PENDING' },
+            _sum: { totalAmount: true },
+            _count: true,
+          }),
+          getBusinessBalance(business.id),
+        ])
 
         const completedAmount = Number(completedRevenue._sum.totalAmount || 0)
         const pendingAmount = Number(pendingRevenue._sum.totalAmount || 0)
-        const totalRevenue = completedAmount + pendingAmount
-        const totalOrders = completedRevenue._count + pendingRevenue._count
+        const rent = rentMap.get(business.id) ?? null
 
         return {
           businessId: business.id,
           businessName: business.name,
           businessType: business.type,
-          revenue: totalRevenue,
-          orderCount: totalOrders,
+          revenue: completedAmount + pendingAmount,
+          orderCount: completedRevenue._count + pendingRevenue._count,
           completedRevenue: completedAmount,
           pendingRevenue: pendingAmount,
           completedOrders: completedRevenue._count,
-          pendingOrders: pendingRevenue._count
+          pendingOrders: pendingRevenue._count,
+          accountBalance: balanceInfo.balance,
+          hasAccount: balanceInfo.hasAccount,
+          cashBoxBalance: cashBoxMap.get(business.id) ?? 0,
+          monthlyRent: rent?.monthlyRent ?? 0,
+          rentContributed: rent?.contributed ?? 0,
+          hasRentConfig: rent !== null,
         }
       })
     )
 
-    // Group revenue by business type
+    // --- Group by business type ---
     const revenueByType = revenueByBusiness.reduce((acc, item) => {
       if (!acc[item.businessType]) {
         acc[item.businessType] = {
@@ -110,16 +119,27 @@ export async function GET(req: NextRequest) {
           pendingRevenue: 0,
           completedOrders: 0,
           pendingOrders: 0,
-          businesses: []
+          totalAccountBalance: 0,
+          totalCashBoxBalance: 0,
+          totalMonthlyRent: 0,
+          totalRentContributed: 0,
+          hasRentConfig: false,
+          businesses: [],
         }
       }
-      acc[item.businessType].totalRevenue += item.revenue
-      acc[item.businessType].totalOrders += item.orderCount
-      acc[item.businessType].completedRevenue += item.completedRevenue
-      acc[item.businessType].pendingRevenue += item.pendingRevenue
-      acc[item.businessType].completedOrders += item.completedOrders
-      acc[item.businessType].pendingOrders += item.pendingOrders
-      acc[item.businessType].businesses.push({
+      const t = acc[item.businessType]
+      t.totalRevenue += item.revenue
+      t.totalOrders += item.orderCount
+      t.completedRevenue += item.completedRevenue
+      t.pendingRevenue += item.pendingRevenue
+      t.completedOrders += item.completedOrders
+      t.pendingOrders += item.pendingOrders
+      t.totalAccountBalance += item.accountBalance
+      t.totalCashBoxBalance += item.cashBoxBalance
+      t.totalMonthlyRent += item.monthlyRent
+      t.totalRentContributed += item.rentContributed
+      if (item.hasRentConfig) t.hasRentConfig = true
+      t.businesses.push({
         id: item.businessId,
         name: item.businessName,
         type: item.businessType,
@@ -128,47 +148,44 @@ export async function GET(req: NextRequest) {
         completedRevenue: item.completedRevenue,
         pendingRevenue: item.pendingRevenue,
         completedOrders: item.completedOrders,
-        pendingOrders: item.pendingOrders
+        pendingOrders: item.pendingOrders,
+        accountBalance: item.accountBalance,
+        hasAccount: item.hasAccount,
+        cashBoxBalance: item.cashBoxBalance,
+        monthlyRent: item.monthlyRent,
+        rentContributed: item.rentContributed,
+        hasRentConfig: item.hasRentConfig,
       })
       return acc
-    }, {} as Record<string, { totalRevenue: number, totalOrders: number, completedRevenue: number, pendingRevenue: number, completedOrders: number, pendingOrders: number, businesses: any[] }>)
+    }, {} as Record<string, any>)
 
-    // Calculate overall totals
-    const overallTotal = Object.values(revenueByType).reduce((sum, type) => sum + type.totalRevenue, 0)
-    const overallOrders = Object.values(revenueByType).reduce((sum, type) => sum + type.totalOrders, 0)
-    const overallCompletedRevenue = Object.values(revenueByType).reduce((sum, type) => sum + type.completedRevenue, 0)
-    const overallPendingRevenue = Object.values(revenueByType).reduce((sum, type) => sum + type.pendingRevenue, 0)
-    const overallCompletedOrders = Object.values(revenueByType).reduce((sum, type) => sum + type.completedOrders, 0)
-    const overallPendingOrders = Object.values(revenueByType).reduce((sum, type) => sum + type.pendingOrders, 0)
-
-    // Add percentages
+    // Calculate overall totals + percentages
+    const overallTotal = Object.values(revenueByType).reduce((s: number, t: any) => s + t.totalRevenue, 0)
     Object.keys(revenueByType).forEach(type => {
       revenueByType[type].percentage = overallTotal > 0 ? (revenueByType[type].totalRevenue / overallTotal) * 100 : 0
-
-      // Sort businesses by revenue descending
-      revenueByType[type].businesses.sort((a, b) => b.revenue - a.revenue)
+      revenueByType[type].businesses.sort((a: any, b: any) => b.revenue - a.revenue)
     })
 
+    const typeValues = Object.values(revenueByType) as any[]
     return NextResponse.json({
       summary: {
         totalRevenue: overallTotal,
-        totalOrders: overallOrders,
-        completedRevenue: overallCompletedRevenue,
-        pendingRevenue: overallPendingRevenue,
-        completedOrders: overallCompletedOrders,
-        pendingOrders: overallPendingOrders,
+        totalOrders: typeValues.reduce((s, t) => s + t.totalOrders, 0),
+        completedRevenue: typeValues.reduce((s, t) => s + t.completedRevenue, 0),
+        pendingRevenue: typeValues.reduce((s, t) => s + t.pendingRevenue, 0),
+        completedOrders: typeValues.reduce((s, t) => s + t.completedOrders, 0),
+        pendingOrders: typeValues.reduce((s, t) => s + t.pendingOrders, 0),
+        totalAccountBalance: typeValues.reduce((s, t) => s + t.totalAccountBalance, 0),
+        totalCashBoxBalance: typeValues.reduce((s, t) => s + t.totalCashBoxBalance, 0),
         businessTypes: Object.keys(revenueByType).length,
-        businesses: accessibleBusinesses.length
+        businesses: accessibleBusinesses.length,
       },
       byType: revenueByType,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
     })
 
   } catch (error) {
     console.error('Detailed revenue breakdown fetch error:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch detailed revenue breakdown' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch detailed revenue breakdown' }, { status: 500 })
   }
 }

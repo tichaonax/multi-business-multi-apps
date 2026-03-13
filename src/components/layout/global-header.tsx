@@ -816,7 +816,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               <span className="mt-0.5 shrink-0">💳</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">Payment Requests — {r.accountName ?? '—'}</p>
-                                <p className="text-secondary">{r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}{r.requestCount ?? r.pendingCount ?? 0} pending{r.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}</p>
+                                <p className="text-secondary">{r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}{r.requestCount ?? r.pendingCount ?? 0} pending{r.totalAmount != null && r.totalAmount > 0 ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}</p>
                               </div>
                             </Link>
                           ))}
@@ -901,6 +901,10 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         <BusinessCreationModal
           method="PUT"
           id={currentBusiness.businessId}
+          initial={{
+            name: currentBusiness.businessName,
+            type: currentBusiness.businessType,
+          }}
           onClose={() => setShowEditBusiness(false)}
           onSuccess={async () => {
             setShowEditBusiness(false)
