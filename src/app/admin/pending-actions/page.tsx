@@ -85,6 +85,8 @@ export default function PendingActionsPage() {
   const [pendingPaymentBatches, setPendingPaymentBatches] = useState<PendingPaymentBatch[]>([])
   const [pendingPaymentRequests, setPendingPaymentRequests] = useState<PendingPaymentRequest[]>([])
   const [myPendingPayments, setMyPendingPayments] = useState<PendingPaymentRequest[]>([])
+  const [myApprovedPayments, setMyApprovedPayments] = useState<any[]>([])
+  const [myApprovedPettyCash, setMyApprovedPettyCash] = useState<any[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [approvingId, setApprovingId] = useState<string | null>(null)
@@ -102,6 +104,8 @@ export default function PendingActionsPage() {
         setPendingPaymentBatches(json.pendingPaymentBatches || [])
         setPendingPaymentRequests(json.pendingPaymentRequests || [])
         setMyPendingPayments(json.myPendingPayments || [])
+        setMyApprovedPayments(json.myApprovedPayments || [])
+        setMyApprovedPettyCash(json.myApprovedPettyCash || [])
         setTotal(json.total ?? 0)
       }
     } catch { /* ignore */ } finally {
@@ -144,10 +148,7 @@ export default function PendingActionsPage() {
     <ContentLayout title="Pending Actions">
       <div className="max-w-3xl mx-auto py-6 px-4">
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pending Actions</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Items requiring your attention</p>
-          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Items requiring your attention</p>
           {!loading && total > 0 && (
             <span className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1">
               {total}
@@ -427,6 +428,80 @@ export default function PendingActionsPage() {
                         className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors shrink-0"
                       >
                         View
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* My Approved Petty Cash — collect cash */}
+            {myApprovedPettyCash.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>🪙</span> Petty Cash Approved — Collect Cash
+                  <span className="bg-green-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {myApprovedPettyCash.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {myApprovedPettyCash.map((item: any) => (
+                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-900 dark:text-white">{item.purpose}</span>
+                          <span className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-xs font-medium px-2 py-0.5 rounded">Approved</span>
+                          {item.approvedAmount != null && (
+                            <span className="text-green-600 dark:text-green-400 font-semibold">${Number(item.approvedAmount).toFixed(2)}</span>
+                          )}
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                          {item.business && <span>Business: <span className="font-medium text-gray-700 dark:text-gray-300">{item.business.name}</span></span>}
+                          {item.approvedAt && <span>Approved: <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateTimeZim(item.approvedAt)}</span></span>}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/petty-cash/${item.id}`}
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      >
+                        Collect Cash
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* My Approved Payments — collect cash */}
+            {myApprovedPayments.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>✅</span> Payment Approved — Collect Cash
+                  <span className="bg-green-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {myApprovedPayments.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {myApprovedPayments.map((item: any) => (
+                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-900 dark:text-white">${Number(item.amount).toFixed(2)}</span>
+                          <span className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-xs font-medium px-2 py-0.5 rounded">Approved</span>
+                          {item.categoryName && <span className="text-xs text-gray-500 dark:text-gray-400">{item.categoryName}</span>}
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                          <span>Business: <span className="font-medium text-gray-700 dark:text-gray-300">{item.businessName}</span></span>
+                          {item.payeeName && <span>Payee: <span className="font-medium text-gray-700 dark:text-gray-300">{item.payeeName}</span></span>}
+                          {item.approvedAt && <span>Approved: <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateTimeZim(item.approvedAt)}</span></span>}
+                        </div>
+                        {item.notes && <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{item.notes}</p>}
+                      </div>
+                      <Link
+                        href="/expense-accounts/my-payments"
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      >
+                        Collect Cash
                       </Link>
                     </div>
                   ))}

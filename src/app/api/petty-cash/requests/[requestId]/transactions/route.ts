@@ -118,10 +118,12 @@ export async function POST(
       description,
       transactionDate,
       categoryId,
+      subcategoryId,
       payeeType = 'NONE',
       payeeSupplierId,
       payeeEmployeeId,
       payeeUserId,
+      payeePersonId,
     } = body
 
     if (!amount || Number(amount) <= 0) {
@@ -178,9 +180,11 @@ export async function POST(
           paymentType: 'PETTY_CASH_SPEND',
           payeeType,
           ...(categoryId ? { categoryId } : {}),
+          ...(subcategoryId ? { subcategoryId } : {}),
           ...(payeeSupplierId ? { payeeSupplierId } : {}),
           ...(payeeEmployeeId ? { payeeEmployeeId } : {}),
           ...(payeeUserId ? { payeeUserId } : {}),
+          ...(payeePersonId ? { payeePersonId } : {}),
           createdBy: user.id,
           submittedBy: user.id,
           submittedAt: now,
@@ -204,6 +208,7 @@ export async function POST(
           ...(payeeEmployeeId ? { payeeEmployeeId } : {}),
           ...(payeeUserId ? { payeeUserId } : {}),
           transactionDate: txDate,
+          // Note: payeePersonId is stored on ExpenseAccountPayments only (no FK on PettyCashTransaction)
           paymentId: payment.id,
           createdBy: user.id,
         },

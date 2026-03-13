@@ -13,8 +13,8 @@ async function hasPettyCashApprove(userId: string): Promise<boolean> {
 
 /**
  * POST /api/petty-cash/requests/[requestId]/approve
- * Cashier approves the request. Atomically:
- *   1. Debits the business account
+ * Cashier approves the request. Cash comes from the physical cash bucket. Atomically:
+ *   1. Debits the cash bucket (OUTFLOW)
  *   2. Creates an ExpenseAccountDeposit (PETTY_CASH) into the expense account
  *   3. Updates request status to APPROVED
  * Body: { approvedAmount }
@@ -60,20 +60,6 @@ export async function POST(
       )
     }
 
-    // Verify business has sufficient balance
-    const businessAccount = await prisma.businessAccounts.findUnique({
-      where: { businessId: pcRequest.businessId },
-    })
-    if (!businessAccount) {
-      return NextResponse.json({ error: 'Business account not found' }, { status: 404 })
-    }
-    if (Number(businessAccount.balance) < amount) {
-      return NextResponse.json(
-        { error: `Insufficient business account balance. Available: $${Number(businessAccount.balance).toFixed(2)}, Required: $${amount.toFixed(2)}` },
-        { status: 400 }
-      )
-    }
-
     // Verify business has sufficient cash in the physical cash bucket
     const bucketRows = await prisma.cashBucketEntry.groupBy({
       by: ['direction'],
@@ -93,27 +79,7 @@ export async function POST(
     const now = new Date()
 
     const result = await prisma.$transaction(async (tx: any) => {
-      // 1. Debit business account
-      const newBusinessBalance = Number(businessAccount.balance) - amount
-      await tx.businessAccounts.update({
-        where: { businessId: pcRequest.businessId },
-        data: { balance: newBusinessBalance },
-      })
-
-      const businessTx = await tx.businessTransactions.create({
-        data: {
-          businessId: pcRequest.businessId,
-          type: 'DEBIT',
-          amount: -amount,
-          description: `Petty cash issued to ${(await prisma.users.findUnique({ where: { id: pcRequest.requestedBy }, select: { name: true } }))?.name || 'requester'}: ${pcRequest.purpose}`,
-          balanceAfter: newBusinessBalance,
-          createdBy: user.id,
-          referenceType: 'PETTY_CASH',
-          referenceId: requestId,
-        },
-      })
-
-      // 2. Deposit into expense account
+      // 1. Deposit into expense account
       const deposit = await tx.expenseAccountDeposits.create({
         data: {
           expenseAccountId: pcRequest.expenseAccountId,
@@ -126,10 +92,10 @@ export async function POST(
         },
       })
 
-      // 3. Recalculate expense account balance
+      // 2. Recalculate expense account balance
       await updateExpenseAccountBalanceTx(tx, pcRequest.expenseAccountId)
 
-      // 3b. Debit cash bucket for this business
+      // 3. Debit cash bucket — physical cash handed to requester
       await tx.cashBucketEntry.create({
         data: {
           businessId: pcRequest.businessId,
@@ -153,7 +119,6 @@ export async function POST(
           approvedAmount: amount,
           approvedAt: now,
           depositId: deposit.id,
-          businessTxId: businessTx.id,
           ...(signatureData ? { signatureData } : {}),
         },
         include: {
@@ -164,7 +129,7 @@ export async function POST(
         },
       })
 
-      return { updated, businessTxId: businessTx.id, depositId: deposit.id, newBusinessBalance }
+      return { updated, depositId: deposit.id }
     })
 
     return NextResponse.json({
@@ -178,9 +143,7 @@ export async function POST(
           approvedAt: result.updated.approvedAt?.toISOString(),
           approver: result.updated.approver,
           depositId: result.updated.depositId,
-          businessTxId: result.updated.businessTxId,
         },
-        businessAccountBalance: result.newBusinessBalance,
       },
     })
   } catch (error) {

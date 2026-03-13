@@ -839,6 +839,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
+                          {(pendingActions as any).myApprovedPettyCash?.map((r: any) => (
+                            <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-l-2 border-green-400">
+                              <span className="mt-0.5 shrink-0">🪙</span>
+                              <div className="min-w-0">
+                                <p className="font-medium text-green-700 dark:text-green-400 truncate">Petty Cash Approved — Collect Cash</p>
+                                <p className="text-secondary">{r.business?.name} · <span className="text-green-600 dark:text-green-400 font-semibold">${Number(r.approvedAmount).toFixed(2)}</span> · {r.purpose}</p>
+                              </div>
+                            </Link>
+                          ))}
                         </div>
                         <div className="px-3 py-2 border-t border-border bg-gray-50 dark:bg-gray-700/50">
                           <Link href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">

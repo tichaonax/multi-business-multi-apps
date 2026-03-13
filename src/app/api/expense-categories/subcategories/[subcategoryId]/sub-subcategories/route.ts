@@ -14,7 +14,7 @@ import { getServerUser } from '@/lib/get-server-user'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { subcategoryId: string } }
+  { params }: { params: Promise<{ subcategoryId: string }> }
 ) {
   try {
     const user = await getServerUser();
@@ -23,7 +23,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { subcategoryId } = params;
+    const { subcategoryId } = await params;
     const searchParams = request.nextUrl.searchParams;
     const includeUserCreated = searchParams.get('includeUserCreated') !== 'false';
 

@@ -7,6 +7,11 @@ import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-modal'
+import { PayeeSelector } from '@/components/expense-account/payee-selector'
+import { CreateIndividualPayeeModal } from '@/components/expense-account/create-individual-payee-modal'
+import { CreateContractorPayeeModal } from '@/components/expense-account/create-contractor-payee-modal'
+import { SupplierEditor } from '@/components/suppliers/supplier-editor'
+import { formatDateTimeZim } from '@/lib/date-utils'
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING:   'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
@@ -23,6 +28,111 @@ function fmtDate(iso: string) {
 }
 function todayISO() {
   return new Date().toISOString().split('T')[0]
+}
+
+function getDefaultDomainName(businessType: string): string {
+  const map: Record<string, string> = {
+    restaurant: 'Restaurant', grocery: 'Groceries', clothing: 'Clothing',
+    hardware: 'Hardware', construction: 'Construction', vehicles: 'Vehicle',
+  }
+  return map[businessType] || 'Business'
+}
+
+function QuickCreateModal({ isOpen, title, placeholder, onClose, onSubmit, loading }: {
+  isOpen: boolean; title: string; placeholder: string
+  onClose: () => void; onSubmit: (name: string, emoji: string) => void; loading: boolean
+}) {
+  const [name, setName] = useState('')
+  const [emoji, setEmoji] = useState('📂')
+  if (!isOpen) return null
+  const handleSubmit = () => { if (name.trim()) { onSubmit(name.trim(), emoji.trim() || '📂'); setName(''); setEmoji('📂') } }
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">{title}</h3>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input type="text" value={emoji} onChange={e => setEmoji(e.target.value)}
+              className="w-14 px-2 py-2 text-xl text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800" maxLength={2} />
+            <input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+              placeholder={placeholder} maxLength={50} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => { onClose(); setName(''); setEmoji('📂') }} disabled={loading}
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+            <button type="button" onClick={handleSubmit} disabled={loading || !name.trim()}
+              className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {loading ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SearchableSelectInline({
+  value, options, onChange, placeholder = 'Select...', disabled = false, loading = false,
+}: {
+  value: string
+  options: { id: string; label: string }[]
+  onChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  loading?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const selected = options.find(o => o.id === value)
+  const filtered = search ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())) : options
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false); setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSelect = (id: string) => { onChange(id); setIsOpen(false); setSearch('') }
+
+  if (loading) return <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Loading...</div>
+  if (disabled) return <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed">{placeholder}</div>
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button type="button" onClick={() => { setIsOpen(!isOpen); if (!isOpen) setTimeout(() => inputRef.current?.focus(), 0) }}
+        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-left flex items-center justify-between bg-white dark:bg-gray-800">
+        <span className={selected ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'}>{selected ? selected.label : placeholder}</span>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
+          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+            <input ref={inputRef} type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Type to search..."
+              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+          </div>
+          <div className="overflow-y-auto max-h-48">
+            {value && <button type="button" onClick={() => handleSelect('')} className="w-full px-3 py-2 text-left text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">Clear selection</button>}
+            {filtered.length === 0 ? <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No matches found</div> :
+              filtered.map(option => (
+                <button key={option.id} type="button" onClick={() => handleSelect(option.id)}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 ${option.id === value ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-gray-900 dark:text-gray-100'}`}>
+                  {option.label}
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function PettyCashDetailPage() {
@@ -62,10 +172,26 @@ export default function PettyCashDetailPage() {
   const [spendAmount, setSpendAmount] = useState('')
   const [spendDesc, setSpendDesc] = useState('')
   const [spendDate, setSpendDate] = useState(todayISO())
+  const [spendDomainId, setSpendDomainId] = useState('')
   const [spendCategoryId, setSpendCategoryId] = useState('')
-  const [spendPayeeType, setSpendPayeeType] = useState('NONE')
+  const [spendPayee, setSpendPayee] = useState<{ type: string; id: string; name: string } | null>(null)
   const [submittingSpend, setSubmittingSpend] = useState(false)
-  const [categories, setCategories] = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [categoryDomains, setCategoryDomains] = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [spendSubcategories, setSpendSubcategories] = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [loadingSpendSubcats, setLoadingSpendSubcats] = useState(false)
+  const [spendSubSubcategoryId, setSpendSubSubcategoryId] = useState('')
+  const [spendSubSubcategories, setSpendSubSubcategories] = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [loadingSpendSubSubcats, setLoadingSpendSubSubcats] = useState(false)
+  const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)
+  const [showIndividualModal, setShowIndividualModal] = useState(false)
+  const [individualInitialName, setIndividualInitialName] = useState('')
+  const [showSupplierModal, setShowSupplierModal] = useState(false)
+  const [supplierInitialName, setSupplierInitialName] = useState('')
+  const [showContractorModal, setShowContractorModal] = useState(false)
+  const [contractorInitialName, setContractorInitialName] = useState('')
+  const [showCreateSubcat, setShowCreateSubcat] = useState(false)
+  const [showCreateSubSubcat, setShowCreateSubSubcat] = useState(false)
+  const [creatingSubItem, setCreatingSubItem] = useState(false)
 
   // Signature pad state (approve modal)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -175,15 +301,17 @@ export default function PettyCashDetailPage() {
       .then(r => r.json())
       .then(j => { setCanRequest(j.canRequest ?? false); setCanApprove(j.canApprove ?? false) })
       .catch(() => {})
-    // Load categories for Record Spend modal
-    fetch('/api/expense-categories', { credentials: 'include' })
+    // Load category domains for Record Spend modal
+    fetch('/api/expense-categories/hierarchical', { credentials: 'include' })
       .then(r => r.json())
       .then(j => {
-        const cats: { id: string; name: string; emoji: string }[] = []
-        ;(j.domains || j || []).forEach((domain: any) => {
-          ;(domain.categories || []).forEach((c: any) => cats.push({ id: c.id, name: c.name, emoji: c.emoji || '💰' }))
+        const domains: { id: string; name: string; emoji: string }[] = []
+        ;(j.domains || []).forEach((d: any) => {
+          ;(d.expense_categories || []).forEach((c: any) => {
+            if (c.isDomainCategory) domains.push({ id: c.id, name: c.name, emoji: c.emoji || '💰' })
+          })
         })
-        setCategories(cats)
+        setCategoryDomains(domains)
       })
       .catch(() => {})
   }, [status, session, router, fetchDetail])
@@ -194,6 +322,121 @@ export default function PettyCashDetailPage() {
       fetchTransactions()
     }
   }, [data?.request?.status, fetchTransactions])
+
+  // Auto-refresh when tab regains focus — ensures approvers see requester's latest spends
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDetail()
+        if (data?.request?.status === 'APPROVED') fetchTransactions()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleVisibility)
+    }
+  }, [fetchDetail, fetchTransactions, data?.request?.status])
+
+  // Poll every 30 seconds while request is APPROVED — picks up spends recorded by other users
+  useEffect(() => {
+    if (data?.request?.status !== 'APPROVED') return
+    const interval = setInterval(() => {
+      fetchDetail()
+      fetchTransactions()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [data?.request?.status, fetchDetail, fetchTransactions])
+
+  const loadSpendSubcategories = useCallback(async (domainId: string) => {
+    if (!domainId) { setSpendSubcategories([]); return }
+    setLoadingSpendSubcats(true)
+    try {
+      const r = await fetch(`/api/expense-categories/${domainId}/subcategories`, { credentials: 'include' })
+      const j = await r.json()
+      const subs = (j.subcategories || []).sort((a: any, b: any) => a.name.localeCompare(b.name))
+      setSpendSubcategories(subs)
+    } catch { setSpendSubcategories([]) }
+    finally { setLoadingSpendSubcats(false) }
+  }, [])
+
+  async function handleCreateSupplierSuccess(supplierId?: string) {
+    setShowSupplierModal(false)
+    if (!supplierId) { setPayeeRefreshTrigger(t => t + 1); return }
+    let supplierName = 'New Supplier'
+    try {
+      const businessId = data?.request?.businessId
+      if (businessId) {
+        const res = await fetch(`/api/business/${businessId}/suppliers`, { credentials: 'include' })
+        if (res.ok) {
+          const d = await res.json()
+          const found = (d.data || []).find((s: any) => s.id === supplierId)
+          if (found) supplierName = found.name
+        }
+      }
+    } catch { /* ignore */ }
+    setSpendPayee({ type: 'SUPPLIER', id: supplierId, name: supplierName })
+    setPayeeRefreshTrigger(t => t + 1)
+  }
+
+  const loadSpendSubSubcategories = useCallback(async (subcategoryId: string) => {
+    if (!subcategoryId) { setSpendSubSubcategories([]); return }
+    setLoadingSpendSubSubcats(true)
+    try {
+      const r = await fetch(`/api/expense-categories/subcategories/${subcategoryId}/sub-subcategories`, { credentials: 'include' })
+      const j = await r.json()
+      const subs = (j.subSubcategories || []).sort((a: any, b: any) => a.name.localeCompare(b.name))
+      setSpendSubSubcategories(subs)
+    } catch { setSpendSubSubcategories([]) }
+    finally { setLoadingSpendSubSubcats(false) }
+  }, [])
+
+  async function handleCreateSpendSubcategory(name: string, emoji: string) {
+    if (!spendDomainId) return
+    setCreatingSubItem(true)
+    try {
+      const res = await fetch('/api/expense-categories/flat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ name, emoji, color: '#3B82F6', domainId: spendDomainId, requiresSubcategory: false, isUserCreated: true }),
+      })
+      const d = await res.json()
+      if (res.ok && d.data?.category) {
+        await loadSpendSubcategories(spendDomainId)
+        setSpendCategoryId(d.data.category.id)
+        setSpendSubSubcategoryId('')
+        setSpendSubSubcategories([])
+        setShowCreateSubcat(false)
+      } else { toast.error(d.error || 'Failed to create sub-category') }
+    } catch { toast.error('Failed to create sub-category') }
+    finally { setCreatingSubItem(false) }
+  }
+
+  async function handleCreateSpendSubSubcategory(name: string, emoji: string) {
+    if (!spendCategoryId) return
+    setCreatingSubItem(true)
+    try {
+      const res = await fetch('/api/expense-categories/subcategories', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ categoryId: spendCategoryId, name, emoji }),
+      })
+      const d = await res.json()
+      if (res.ok && d.subcategory) {
+        await loadSpendSubSubcategories(spendCategoryId)
+        setSpendSubSubcategoryId(d.subcategory.id)
+        setShowCreateSubSubcat(false)
+      } else { toast.error(d.error || 'Failed to create sub-subcategory') }
+    } catch { toast.error('Failed to create sub-subcategory') }
+    finally { setCreatingSubItem(false) }
+  }
+
+  // Auto-select domain based on the request's business type once both are loaded
+  useEffect(() => {
+    if (!data?.request?.business?.type || categoryDomains.length === 0 || spendDomainId) return
+    const domainName = getDefaultDomainName(data.request.business.type)
+    const match = categoryDomains.find(d => d.name === domainName)
+    if (match) { setSpendDomainId(match.id); loadSpendSubcategories(match.id) }
+  }, [data, categoryDomains, spendDomainId, loadSpendSubcategories])
 
   async function handleApprove(e: React.FormEvent) {
     e.preventDefault()
@@ -216,6 +459,7 @@ export default function PettyCashDetailPage() {
       setShowApprove(false)
       clearSignature()
       fetchDetail()
+      window.dispatchEvent(new Event('pending-actions:refresh'))
     } catch (e: any) {
       toast.error(e.message)
     } finally {
@@ -240,6 +484,7 @@ export default function PettyCashDetailPage() {
       toast.push('Request settled', { type: 'success' })
       setShowSettle(false)
       fetchDetail()
+      window.dispatchEvent(new Event('pending-actions:refresh'))
     } catch (e: any) {
       toast.error(e.message)
     } finally {
@@ -275,8 +520,13 @@ export default function PettyCashDetailPage() {
           amount: Number(spendAmount),
           description: spendDesc.trim(),
           transactionDate: spendDate || todayISO(),
-          payeeType: spendPayeeType,
+          payeeType: spendPayee?.type ?? 'NONE',
           ...(spendCategoryId ? { categoryId: spendCategoryId } : {}),
+          ...(spendSubSubcategoryId ? { subcategoryId: spendSubSubcategoryId } : {}),
+          ...(spendPayee?.type === 'SUPPLIER' ? { payeeSupplierId: spendPayee.id } : {}),
+          ...(spendPayee?.type === 'EMPLOYEE' ? { payeeEmployeeId: spendPayee.id } : {}),
+          ...(spendPayee?.type === 'USER' ? { payeeUserId: spendPayee.id } : {}),
+          ...(spendPayee?.type === 'PERSON' ? { payeePersonId: spendPayee.id } : {}),
         }),
       })
       const json = await res.json()
@@ -287,7 +537,9 @@ export default function PettyCashDetailPage() {
       setSpendDesc('')
       setSpendDate(todayISO())
       setSpendCategoryId('')
-      setSpendPayeeType('NONE')
+      setSpendSubSubcategoryId('')
+      setSpendSubSubcategories([])
+      setSpendPayee(null)
       fetchTransactions()
     } catch (e: any) {
       toast.error(e.message)
@@ -496,7 +748,7 @@ export default function PettyCashDetailPage() {
                   {transactions.map((t: any) => (
                     <tr key={t.id}>
                       <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                        {new Date(t.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {formatDateTimeZim(t.transactionDate)}
                       </td>
                       <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{t.description}</td>
                       <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">
@@ -533,12 +785,24 @@ export default function PettyCashDetailPage() {
                       ? 'bg-green-50 dark:bg-green-900/20'
                       : 'bg-red-50 dark:bg-red-900/20'
                   }`}>
-                    <p className="text-gray-500 dark:text-gray-400">Cash available in bucket</p>
-                    <p className={`font-semibold text-lg ${
-                      bucketBalance >= Number(approvedAmount || 0)
-                        ? 'text-green-700 dark:text-green-300'
-                        : 'text-red-700 dark:text-red-300'
-                    }`}>{fmt(bucketBalance)}</p>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">Cash available in bucket</p>
+                        <p className={`font-semibold text-lg ${
+                          bucketBalance >= Number(approvedAmount || 0)
+                            ? 'text-green-700 dark:text-green-300'
+                            : 'text-red-700 dark:text-red-300'
+                        }`}>{fmt(bucketBalance)}</p>
+                      </div>
+                      {Number(approvedAmount || 0) > 0 && (
+                        <div className="text-right">
+                          <p className="text-gray-500 dark:text-gray-400">After approval</p>
+                          <p className="font-semibold text-lg text-amber-600 dark:text-amber-400">
+                            {fmt(bucketBalance - Number(approvedAmount))}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                     {bucketBalance < Number(approvedAmount || 0) && (
                       <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Insufficient — add EOD cash before approving</p>
                     )}
@@ -561,7 +825,7 @@ export default function PettyCashDetailPage() {
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Cannot exceed requested amount</p>
                 </div>
                 <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
-                  This will debit the business account and deposit into the expense account. Physical cash must be handed to the requester.
+                  Cash will be drawn from the physical cash bucket and deposited into the expense account. Hand the cash to the requester.
                 </p>
                 {/* Signature pad */}
                 <div>
@@ -598,33 +862,76 @@ export default function PettyCashDetailPage() {
 
         {/* Record Spend modal */}
         {showSpend && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 my-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Record Spend</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Remaining balance: <span className="font-semibold text-green-600 dark:text-green-400">{fmt(txSummary?.remainingBalance ?? remaining)}</span>
-              </p>
-              <form onSubmit={handleRecordSpend} className="space-y-4">
-                {/* Amount */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Amount <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">$</span>
+          <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl p-6">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Record Spend</h2>
+                <div className="flex items-center gap-4 text-sm">
+                  {(() => {
+                    const bal = txSummary?.remainingBalance ?? remaining
+                    const amt = Number(spendAmount) || 0
+                    const after = bal - amt
+                    const over = amt > 0 && amt > bal
+                    return (
+                      <>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Remaining: <span className={`font-semibold ${over ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmt(bal)}</span>
+                        </span>
+                        {amt > 0 && (
+                          <span className="text-gray-500 dark:text-gray-400">
+                            After: <span className={`font-semibold ${after < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmt(after)}</span>
+                          </span>
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
+              </div>
+              <form onSubmit={handleRecordSpend} className="mt-4 space-y-4">
+                {/* Row 1: Amount + Date */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Amount <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">$</span>
+                      <input
+                        type="number" min="0.01" step="0.01"
+                        max={txSummary?.remainingBalance ?? remaining}
+                        value={spendAmount}
+                        onChange={e => setSpendAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-8 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
                     <input
-                      type="number" min="0.01" step="0.01"
-                      max={txSummary?.remainingBalance ?? remaining}
-                      value={spendAmount}
-                      onChange={e => setSpendAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full pl-8 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                      required
+                      type="text"
+                      value={spendDate ? spendDate.split('-').reverse().join('/') : ''}
+                      onChange={e => {
+                        const v = e.target.value.replace(/[^0-9/]/g, '')
+                        // Parse DD/MM/YYYY → YYYY-MM-DD for storage
+                        const parts = v.split('/')
+                        if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
+                          setSpendDate(`${parts[2]}-${parts[1]}-${parts[0]}`)
+                        } else {
+                          // Store raw while typing
+                          setSpendDate(v)
+                        }
+                      }}
+                      placeholder="DD/MM/YYYY"
+                      maxLength={10}
+                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
                     />
                   </div>
                 </div>
 
-                {/* Description */}
+                {/* Description — full width */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Description <span className="text-red-500">*</span>
@@ -640,59 +947,99 @@ export default function PettyCashDetailPage() {
                   />
                 </div>
 
-                {/* Date */}
+                {/* Row 2: Locked category domain + searchable sub-category */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                    <div className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 flex items-center gap-2 cursor-not-allowed">
+                      {categoryDomains.find(d => d.id === spendDomainId)
+                        ? <>{categoryDomains.find(d => d.id === spendDomainId)!.emoji} {categoryDomains.find(d => d.id === spendDomainId)!.name}</>
+                        : <span className="text-gray-400 dark:text-gray-500 italic">No domain matched</span>}
+                      <svg className="w-3.5 h-3.5 text-gray-400 ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15l-8-8m8 8l8-8" /></svg>
+                    </div>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Locked to business type</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Sub-category <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
+                      </label>
+                      {spendDomainId && (
+                        <button type="button" onClick={() => setShowCreateSubcat(true)}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline">+ Add new</button>
+                      )}
+                    </div>
+                    <SearchableSelectInline
+                      value={spendCategoryId}
+                      options={spendSubcategories.map(c => ({ id: c.id, label: `${c.emoji} ${c.name}` }))}
+                      onChange={(val) => {
+                        setSpendCategoryId(val)
+                        setSpendSubSubcategoryId('')
+                        setSpendSubSubcategories([])
+                        if (val) loadSpendSubSubcategories(val)
+                      }}
+                      placeholder={loadingSpendSubcats ? 'Loading...' : spendDomainId ? 'Select sub-category...' : 'No domain selected'}
+                      loading={loadingSpendSubcats}
+                      disabled={!spendDomainId}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Sub-subcategory (shown when sub-category selected) */}
+                {spendCategoryId && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-start-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Sub-subcategory <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
+                        </label>
+                        <button type="button" onClick={() => setShowCreateSubSubcat(true)}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline">+ Add new</button>
+                      </div>
+                      <SearchableSelectInline
+                        value={spendSubSubcategoryId}
+                        options={spendSubSubcategories.map(c => ({ id: c.id, label: `${c.emoji} ${c.name}` }))}
+                        onChange={setSpendSubSubcategoryId}
+                        placeholder={loadingSpendSubSubcats ? 'Loading...' : 'Select sub-subcategory...'}
+                        loading={loadingSpendSubSubcats}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Payee — full width */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
-                  <input
-                    type="date"
-                    value={spendDate}
-                    onChange={e => setSpendDate(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Payee <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
+                  </label>
+                  <PayeeSelector
+                    value={spendPayee}
+                    onChange={setSpendPayee}
+                    onCreateIndividual={(q) => { setIndividualInitialName(q || ''); setShowIndividualModal(true) }}
+                    onCreateSupplier={(q) => { setSupplierInitialName(q || ''); setShowSupplierModal(true) }}
+                    onCreateContractor={(q) => { setContractorInitialName(q || ''); setShowContractorModal(true) }}
+                    refreshTrigger={payeeRefreshTrigger}
                   />
-                </div>
-
-                {/* Category */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Category <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
-                  </label>
-                  <select
-                    value={spendCategoryId}
-                    onChange={e => setSpendCategoryId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">— No category —</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Payee type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Payee type <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
-                  </label>
-                  <select
-                    value={spendPayeeType}
-                    onChange={e => setSpendPayeeType(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="NONE">None / General</option>
-                    <option value="SUPPLIER">Supplier</option>
-                    <option value="EMPLOYEE">Employee</option>
-                    <option value="USER">User</option>
-                    <option value="PERSON">Person</option>
-                  </select>
                 </div>
 
                 <div className="flex gap-3 pt-1">
                   <button type="button" onClick={() => setShowSpend(false)} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
-                  <button type="submit" disabled={submittingSpend} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                    {submittingSpend ? 'Recording...' : 'Record Spend'}
-                  </button>
+                  {(() => {
+                    const bal = txSummary?.remainingBalance ?? remaining
+                    const amt = Number(spendAmount) || 0
+                    const insufficient = amt > 0 && amt > bal
+                    return (
+                      <button type="submit"
+                        disabled={submittingSpend || insufficient}
+                        title={insufficient ? `Amount exceeds remaining balance of ${fmt(bal)}` : undefined}
+                        className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {submittingSpend ? 'Recording...' : insufficient ? 'Insufficient Funds' : 'Record Spend'}
+                      </button>
+                    )
+                  })()}
                 </div>
               </form>
+            </div>
             </div>
           </div>
         )}
@@ -774,6 +1121,62 @@ export default function PettyCashDetailPage() {
           </div>
         )}
       </div>
+
+      {showIndividualModal && (
+        <CreateIndividualPayeeModal
+          isOpen={showIndividualModal}
+          onClose={() => setShowIndividualModal(false)}
+          onSuccess={(payload) => {
+            setShowIndividualModal(false)
+            if (payload.payee) {
+              setSpendPayee({ type: 'PERSON', id: payload.payee.id, name: payload.payee.fullName })
+              setPayeeRefreshTrigger(t => t + 1)
+            }
+          }}
+          initialName={individualInitialName}
+        />
+      )}
+
+      {showSupplierModal && data?.request?.businessId && (
+        <SupplierEditor
+          businessId={data.request.businessId}
+          onSave={handleCreateSupplierSuccess}
+          onCancel={() => setShowSupplierModal(false)}
+          initialName={supplierInitialName}
+        />
+      )}
+
+      {showContractorModal && (
+        <CreateContractorPayeeModal
+          isOpen={showContractorModal}
+          onClose={() => setShowContractorModal(false)}
+          onSuccess={(payload) => {
+            setShowContractorModal(false)
+            if (payload.payee) {
+              setSpendPayee({ type: 'CONTRACTOR', id: payload.payee.id, name: payload.payee.fullName })
+              setPayeeRefreshTrigger(t => t + 1)
+            }
+          }}
+          initialName={contractorInitialName}
+        />
+      )}
+
+      <QuickCreateModal
+        isOpen={showCreateSubcat}
+        title="Add Sub-category"
+        placeholder="e.g. Shirts, Dresses..."
+        onClose={() => setShowCreateSubcat(false)}
+        onSubmit={handleCreateSpendSubcategory}
+        loading={creatingSubItem}
+      />
+      <QuickCreateModal
+        isOpen={showCreateSubSubcat}
+        title="Add Sub-subcategory"
+        placeholder="e.g. Cotton Shirts..."
+        onClose={() => setShowCreateSubSubcat(false)}
+        onSubmit={handleCreateSpendSubSubcategory}
+        loading={creatingSubItem}
+      />
     </ContentLayout>
   )
 }

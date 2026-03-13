@@ -128,7 +128,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const report = await prisma.cashAllocationReport.findUnique({
       where: { id: reportId },
-      include: { lineItems: true },
+      include: { lineItems: true, groupedRun: true },
     })
 
     if (!report) {
@@ -260,7 +260,14 @@ export async function POST(request: NextRequest, { params }: Params) {
     })
 
     // Record cash bucket entries: INFLOW for EOD cash counted, OUTFLOW per line item allocation
+    // Idempotency: skip if entries for this report already exist (prevents duplicates on retry)
     try {
+      const alreadyRecorded = await prisma.cashBucketEntry.count({ where: { referenceId: reportId } })
+      if (alreadyRecorded > 0) {
+        console.warn(`[cash-allocation/lock] Bucket entries already exist for report ${reportId}, skipping`)
+        return NextResponse.json({ report: { ...lockedReport, lockerName: user.name }, lineItems: finalLineItems })
+      }
+
       const now = new Date()
 
       // INFLOW: total cash the cashier counted at EOD for this date

@@ -162,6 +162,20 @@ export async function GET() {
       }
     }
 
+    // My own APPROVED petty cash requests — approved by cashier, requester needs to collect cash
+    const myApprovedPettyCash = await prisma.pettyCashRequests.findMany({
+      where: { status: 'APPROVED', requestedBy: user.id },
+      select: {
+        id: true,
+        purpose: true,
+        approvedAmount: true,
+        approvedAt: true,
+        business: { select: { name: true } },
+      },
+      orderBy: { approvedAt: 'desc' },
+      take: 20,
+    })
+
     // My own APPROVED payments — cashier has approved, requester needs to collect cash
     const myApprovedPayments = await prisma.expenseAccountPayments.findMany({
       where: { status: 'APPROVED', createdBy: user.id },
@@ -278,7 +292,8 @@ export async function GET() {
       (pendingPaymentBatches as unknown[]).length +
       (pendingPaymentRequests as unknown[]).length +
       (myPendingPayments as unknown[]).length +
-      myApprovedPaymentsMapped.length
+      myApprovedPaymentsMapped.length +
+      myApprovedPettyCash.length
 
     return NextResponse.json({
       loanLockRequests,
@@ -291,6 +306,7 @@ export async function GET() {
       pendingPaymentRequests,
       myPendingPayments,
       myApprovedPayments: myApprovedPaymentsMapped,
+      myApprovedPettyCash,
       canApprovePettyCash,
       canApproveCashAlloc: canApproveCashAllocation,
       total,

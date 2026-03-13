@@ -21,12 +21,21 @@ export interface PendingActionsData {
   pendingPaymentRequests: { id: string; accountName?: string; requestCount?: number; totalAmount?: number; business?: { id: string; name: string } | null }[]
   myPendingPayments: { id: string; accountName?: string; requestCount?: number; totalAmount?: number; business?: { id: string; name: string } | null }[]
   myApprovedPayments: { id: string; amount: number; notes: string | null; categoryName: string | null; businessName: string; approvedAt: string | null; payeeName: string | null; payeePhone: string | null }[]
+  myApprovedPettyCash: { id: string; purpose: string; approvedAmount: number | null; approvedAt: string | null; business: { name: string } | null }[]
 }
 
+// Module-level promise cache — deduplicates concurrent fetches (e.g. bell + dashboard badge mounting together)
+let _cachedPromise: Promise<PendingActionsData | null> | null = null
+let _cachedAt = 0
+
 function fetchPendingActions(): Promise<PendingActionsData | null> {
-  return fetch('/api/admin/pending-actions', { credentials: 'include' })
+  const now = Date.now()
+  if (_cachedPromise && now - _cachedAt < 5000) return _cachedPromise
+  _cachedAt = now
+  _cachedPromise = fetch('/api/admin/pending-actions', { credentials: 'include' })
     .then(r => r.ok ? r.json() : null)
     .catch(() => null)
+  return _cachedPromise
 }
 
 export function usePendingActionsCount(): number {
