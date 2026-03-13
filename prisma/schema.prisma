@@ -5306,8 +5306,8 @@ model ChickenBatch {
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 
-  business        Businesses               @relation(fields: [businessId], references: [id])
-  supplier        BusinessSuppliers?       @relation("ChickenBatchSupplier", fields: [supplierId], references: [id])
+  business        Businesses              @relation(fields: [businessId], references: [id])
+  supplier        BusinessSuppliers?      @relation("ChickenBatchSupplier", fields: [supplierId], references: [id])
   mortalityLogs   ChickenMortality[]
   feedLogs        ChickenFeedLog[]
   medicationLogs  ChickenMedicationLog[]
@@ -5429,17 +5429,17 @@ model ChickenVaccinationLog {
 }
 
 model ChickenCulling {
-  id              String                @id @default(cuid())
+  id              String                 @id @default(cuid())
   batchId         String
   cullingDate     DateTime
   weighingStatus  ChickenWeighingStatus  @default(OPEN)
   weightEntryMode ChickenWeightEntryMode @default(INDIVIDUAL)
   quantityCulled  Int
-  totalWeightKg   Decimal               @db.Decimal(10, 3)
-  avgWeightKg     Decimal               @db.Decimal(10, 3)
+  totalWeightKg   Decimal                @db.Decimal(10, 3)
+  avgWeightKg     Decimal                @db.Decimal(10, 3)
   notes           String?
   createdBy       String?
-  createdAt       DateTime              @default(now())
+  createdAt       DateTime               @default(now())
   closedAt        DateTime?
 
   batch          ChickenBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
@@ -5471,9 +5471,9 @@ model ChickenInventory {
   updatedAt         DateTime               @updatedAt
   closedAt          DateTime?
 
-  business    Businesses               @relation(fields: [businessId], references: [id])
-  culling     ChickenCulling?          @relation(fields: [cullingId], references: [id])
-  supplier    BusinessSuppliers?       @relation("ChickenInventorySupplier", fields: [supplierId], references: [id])
+  business    Businesses                 @relation(fields: [businessId], references: [id])
+  culling     ChickenCulling?            @relation(fields: [cullingId], references: [id])
+  supplier    BusinessSuppliers?         @relation("ChickenInventorySupplier", fields: [supplierId], references: [id])
   movements   ChickenInventoryMovement[]
   birdWeights ChickenBirdWeight[]
 
@@ -5557,7 +5557,7 @@ model ChickenRunSettings {
   id                     String   @id @default(cuid())
   businessId             String   @unique
   lowInventoryThreshold  Int      @default(10)
-  highMortalityThreshold Decimal  @db.Decimal(5, 2) @default(5)
+  highMortalityThreshold Decimal  @default(5) @db.Decimal(5, 2)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
