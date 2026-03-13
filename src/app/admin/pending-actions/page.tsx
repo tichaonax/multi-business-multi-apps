@@ -49,6 +49,7 @@ interface PendingCashAllocation {
   status: string
   isGrouped: boolean
   createdAt: string
+  cashboxDeposit: number | null
   business: { id: string; name: string; type: string } | null
   groupedRun: { id: string; totalCashReceived?: number; dates: { date: string }[] } | null
   totalReported: number
@@ -309,13 +310,12 @@ export default function PendingActionsPage() {
                             ) : (
                               <span>Items: <span className="font-medium text-gray-700 dark:text-gray-300">{item._count.lineItems}</span></span>
                             )}
-                            {isGrouped
-                              ? (item.groupedRun && typeof item.groupedRun.totalCashReceived === 'number' && item.groupedRun.totalCashReceived > 0 && (
-                                  <span>Total Handed In: <span className="font-semibold text-emerald-600 dark:text-emerald-400">${item.groupedRun.totalCashReceived.toFixed(2)}</span></span>
-                                ))
-                              : (item.totalReported > 0 && (
-                                  <span>Total: <span className="font-semibold text-emerald-600 dark:text-emerald-400">${item.totalReported.toFixed(2)}</span></span>
-                                ))}
+                            {item.cashboxDeposit != null && (
+                              <span>💵 Cashbox: <span className="font-semibold text-blue-600 dark:text-blue-400">${Number(item.cashboxDeposit).toFixed(2)}</span></span>
+                            )}
+                            {item.totalReported > 0 && (
+                              <span>📤 Deposits: <span className="font-semibold text-emerald-600 dark:text-emerald-400">${item.totalReported.toFixed(2)}</span></span>
+                            )}
                           </div>
                         </div>
                         <Link

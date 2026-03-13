@@ -790,13 +790,17 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                   <p className="font-medium text-primary truncate">{isGrouped ? 'Grouped EOD Catch-Up' : 'Cash Allocation'} — {r.business?.name ?? '—'}</p>
                                   <p className="text-secondary">
                                     {dateLabel}
-                                    {isGrouped
-                                      ? (r.groupedRun?.totalCashReceived > 0
-                                          ? <><span> · </span><span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(r.groupedRun.totalCashReceived).toFixed(2)}</span></>
-                                          : <><span> · </span><span className="text-emerald-600 dark:text-emerald-400 font-semibold">{r._count?.lineItems ?? 0} items</span></>)
-                                      : (r.totalReported != null && r.totalReported > 0
-                                          ? <><span> · </span><span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(r.totalReported).toFixed(2)}</span></>
-                                          : <><span> · </span><span className="text-emerald-600 dark:text-emerald-400 font-semibold">{r._count?.lineItems ?? 0} items</span></>)}
+                                    {r._count?.lineItems === 0
+                                      ? <><span> · </span><span className="text-amber-500 dark:text-amber-400">ready to generate</span></>
+                                      : null}
+                                  </p>
+                                  <p className="text-secondary flex flex-wrap gap-x-3 mt-0.5">
+                                    {r.cashboxDeposit != null && (
+                                      <span>💵 <span className="font-semibold text-blue-600 dark:text-blue-400">${Number(r.cashboxDeposit).toFixed(2)}</span></span>
+                                    )}
+                                    {r.totalReported > 0 && (
+                                      <span>📤 <span className="font-semibold text-emerald-600 dark:text-emerald-400">${Number(r.totalReported).toFixed(2)}</span></span>
+                                    )}
                                   </p>
                                 </div>
                               </Link>
@@ -825,7 +829,13 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               <span className="mt-0.5 shrink-0">📤</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">My Request — {r.accountName ?? '—'}</p>
-                                <p className="text-secondary">{r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}{r.requestCount ?? 0} pending{r.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}</p>
+                                <p className="text-secondary">
+                                  {r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}
+                                  {r.awaitingCashier
+                                    ? <span className="text-amber-500 dark:text-amber-400 font-medium">awaiting cashier</span>
+                                    : <span>{r.requestCount ?? 0} queued</span>}
+                                  {r.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}
+                                </p>
                               </div>
                             </Link>
                           ))}

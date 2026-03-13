@@ -139,8 +139,14 @@ export async function GET(
         ? prisma.expenseAccountPayments.findMany({
             where: {
               expenseAccountId: accountId,
-              status: 'PAID', // Only PAID payments appear in the ledger
-              ...(Object.keys(dateFilter).length > 0 && { paidAt: dateFilter }),
+              status: { in: ['PAID', 'SUBMITTED'] }, // Both terminal states appear in the ledger
+              // Date filter: match paidAt if set, otherwise fall back to submittedAt
+              ...(Object.keys(dateFilter).length > 0 && {
+                OR: [
+                  { paidAt: dateFilter },
+                  { paidAt: null, submittedAt: dateFilter },
+                ],
+              }),
               ...paymentSearchFilter,
             },
             include: {
@@ -279,7 +285,7 @@ export async function GET(
         id: payment.id,
         type: 'PAYMENT',
         amount: -Number(payment.amount), // Negative for payments (debit)
-        date: (payment as any).paidAt || payment.paymentDate, // Use paidAt as the ledger date
+        date: (payment as any).paidAt || (payment as any).submittedAt || payment.paymentDate, // Use paidAt, fall back to submittedAt
         description,
         payeeType: payment.payeeType,
         payeeUser: payment.payeeUser,
@@ -330,8 +336,11 @@ export async function GET(
       const paymentsBeforeSum = await prisma.expenseAccountPayments.aggregate({
         where: {
           expenseAccountId: accountId,
-          status: 'PAID',
-          paidAt: { lt: paginatedTransactions[0]?.date || new Date() },
+          status: { in: ['PAID', 'SUBMITTED'] },
+          OR: [
+            { paidAt: { lt: paginatedTransactions[0]?.date || new Date() } },
+            { paidAt: null, submittedAt: { lt: paginatedTransactions[0]?.date || new Date() } },
+          ],
         },
         _sum: { amount: true },
       })

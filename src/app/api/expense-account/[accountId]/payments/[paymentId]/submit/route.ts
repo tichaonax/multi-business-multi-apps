@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 
 /**
  * POST /api/expense-account/[accountId]/payments/[paymentId]/submit
@@ -52,15 +53,21 @@ export async function POST(
       )
     }
 
-    const updated = await prisma.expenseAccountPayments.update({
-      where: { id: paymentId },
-      data: {
-        status: 'SUBMITTED',
-        submittedBy: user.id,
-        submittedAt: new Date(),
-        ...(notes ? { notes } : {}),
-      },
-      select: { id: true, status: true, submittedAt: true, submittedBy: true },
+    const now = new Date()
+    const updated = await prisma.$transaction(async (tx: any) => {
+      const p = await tx.expenseAccountPayments.update({
+        where: { id: paymentId },
+        data: {
+          status: 'PAID',
+          paidAt: now,
+          submittedBy: user.id,
+          submittedAt: now,
+          ...(notes ? { notes } : {}),
+        },
+        select: { id: true, status: true, paidAt: true, submittedAt: true, submittedBy: true },
+      })
+      await updateExpenseAccountBalanceTx(tx, accountId)
+      return p
     })
 
     return NextResponse.json({ success: true, data: updated })

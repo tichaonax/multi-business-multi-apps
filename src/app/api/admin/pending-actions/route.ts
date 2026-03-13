@@ -145,9 +145,10 @@ export async function GET() {
         take: 50,
       })
 
-      // Sum reportedAmount per report from line items
       if ((pendingCashAllocations as any[]).length > 0) {
         const reportIds = (pendingCashAllocations as any[]).map((r: any) => r.id)
+
+        // Sum reportedAmount per report from line items (expense account deposits)
         const lineTotals = await prisma.cashAllocationLineItem.groupBy({
           by: ['reportId'],
           where: { reportId: { in: reportIds } },
@@ -156,10 +157,45 @@ export async function GET() {
         const totalByReport: Record<string, number> = Object.fromEntries(
           lineTotals.map((t) => [t.reportId, Number(t._sum.reportedAmount ?? 0)])
         )
-        pendingCashAllocations = (pendingCashAllocations as any[]).map((r: any) => ({
-          ...r,
-          totalReported: totalByReport[r.id] ?? 0,
-        }))
+
+        // For daily (non-grouped) reports: fetch cashCounted from the matching EOD SavedReport
+        // This is the expected cashbox deposit (cash Letwin hands to cashier)
+        const dailyReports = (pendingCashAllocations as any[]).filter(
+          (r: any) => !r.isGrouped && r.reportDate && r.business?.id
+        )
+        const cashCountedByKey: Record<string, number | null> = {}
+        if (dailyReports.length > 0) {
+          const savedReports = await prisma.savedReports.findMany({
+            where: {
+              reportType: 'END_OF_DAY',
+              OR: dailyReports.map((r: any) => ({
+                businessId: r.business.id,
+                reportDate: new Date(r.reportDate),
+              })),
+            },
+            select: { businessId: true, reportDate: true, cashCounted: true },
+          })
+          savedReports.forEach((sr) => {
+            const key = `${sr.businessId}_${new Date(sr.reportDate).toISOString().split('T')[0]}`
+            cashCountedByKey[key] = sr.cashCounted !== null ? Number(sr.cashCounted) : null
+          })
+        }
+
+        pendingCashAllocations = (pendingCashAllocations as any[]).map((r: any) => {
+          let cashboxDeposit: number | null = null
+          if (r.isGrouped) {
+            // Grouped: totalCashReceived is the cash handed over
+            cashboxDeposit = r.groupedRun?.totalCashReceived ?? null
+          } else if (r.reportDate && r.business?.id) {
+            const key = `${r.business.id}_${new Date(r.reportDate).toISOString().split('T')[0]}`
+            cashboxDeposit = cashCountedByKey[key] ?? null
+          }
+          return {
+            ...r,
+            totalReported: totalByReport[r.id] ?? 0,
+            cashboxDeposit,
+          }
+        })
       }
     }
 

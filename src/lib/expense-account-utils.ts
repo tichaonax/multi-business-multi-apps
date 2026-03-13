@@ -13,11 +13,11 @@ export async function calculateExpenseAccountBalance(accountId: string): Promise
     _sum: { amount: true },
   })
 
-  // Sum only PAID payments — debits post when requester marks payment as paid
+  // Sum PAID + SUBMITTED payments — both are terminal "spent" states
   const paymentsSum = await prisma.expenseAccountPayments.aggregate({
     where: {
       expenseAccountId: accountId,
-      status: 'PAID'
+      status: { in: ['PAID', 'SUBMITTED'] },
     },
     _sum: { amount: true },
   })
@@ -55,7 +55,7 @@ export async function updateExpenseAccountBalanceTx(tx: any, accountId: string) 
   })
 
   const paymentsSum = await tx.expenseAccountPayments.aggregate({
-    where: { expenseAccountId: accountId, status: 'PAID' },
+    where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED'] } },
     _sum: { amount: true },
   })
 
@@ -85,7 +85,7 @@ export async function getExpenseAccountBalanceSummary(accountId: string) {
     prisma.expenseAccountPayments.aggregate({
       where: {
         expenseAccountId: accountId,
-        status: 'PAID'
+        status: { in: ['PAID', 'SUBMITTED'] },
       },
       _sum: { amount: true },
     }),
@@ -93,7 +93,7 @@ export async function getExpenseAccountBalanceSummary(accountId: string) {
     prisma.expenseAccountPayments.count({
       where: {
         expenseAccountId: accountId,
-        status: 'PAID'
+        status: { in: ['PAID', 'SUBMITTED'] },
       }
     }),
     prisma.expenseAccountPayments.count({
@@ -407,7 +407,7 @@ export async function validateBatchPaymentTotal(
       _sum: { amount: true },
     }),
     prisma.expenseAccountPayments.aggregate({
-      where: { expenseAccountId: accountId, status: 'PAID' },
+      where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED'] } },
       _sum: { amount: true },
     }),
   ])
@@ -465,7 +465,7 @@ export async function getExpenseAccountStats(
     prisma.expenseAccountPayments.aggregate({
       where: {
         expenseAccountId: accountId,
-        status: 'PAID',
+        status: { in: ['PAID', 'SUBMITTED'] },
         ...(Object.keys(dateFilter).length > 0 && { paymentDate: dateFilter }),
       },
       _sum: { amount: true },
@@ -475,7 +475,7 @@ export async function getExpenseAccountStats(
       where: { expenseAccountId: accountId, status: 'DRAFT' },
     }),
     prisma.expenseAccountPayments.count({
-      where: { expenseAccountId: accountId, status: 'PAID' },
+      where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED'] } },
     }),
   ])
 
