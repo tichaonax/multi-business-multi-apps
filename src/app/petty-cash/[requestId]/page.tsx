@@ -323,12 +323,23 @@ export default function PettyCashDetailPage() {
     }
   }, [data?.request?.status, fetchTransactions])
 
+  // Silent background refresh — updates balance/transactions without triggering loading states
+  const refreshSilent = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/petty-cash/requests/${requestId}/transactions`, { credentials: 'include' })
+      if (!res.ok) return
+      const json = await res.json()
+      setTransactions(json.data.transactions)
+      setTxSummary(json.data.summary)
+      setReturnAmount(String(json.data.summary.remainingBalance.toFixed(2)))
+    } catch { /* non-fatal */ }
+  }, [requestId])
+
   // Auto-refresh when tab regains focus — ensures approvers see requester's latest spends
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        fetchDetail()
-        if (data?.request?.status === 'APPROVED') fetchTransactions()
+      if (document.visibilityState === 'visible' && data?.request?.status === 'APPROVED') {
+        refreshSilent()
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
@@ -337,17 +348,14 @@ export default function PettyCashDetailPage() {
       document.removeEventListener('visibilitychange', handleVisibility)
       window.removeEventListener('focus', handleVisibility)
     }
-  }, [fetchDetail, fetchTransactions, data?.request?.status])
+  }, [refreshSilent, data?.request?.status])
 
-  // Poll every 30 seconds while request is APPROVED — picks up spends recorded by other users
+  // Poll every 30 seconds while request is APPROVED — silently updates balance data only
   useEffect(() => {
     if (data?.request?.status !== 'APPROVED') return
-    const interval = setInterval(() => {
-      fetchDetail()
-      fetchTransactions()
-    }, 30000)
+    const interval = setInterval(refreshSilent, 30000)
     return () => clearInterval(interval)
-  }, [data?.request?.status, fetchDetail, fetchTransactions])
+  }, [data?.request?.status, refreshSilent])
 
   const loadSpendSubcategories = useCallback(async (domainId: string) => {
     if (!domainId) { setSpendSubcategories([]); return }

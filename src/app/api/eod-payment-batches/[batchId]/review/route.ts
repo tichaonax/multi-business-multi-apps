@@ -12,7 +12,7 @@ import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
  *
  * For APPROVED items (atomic):
  *   - status → APPROVED
- *   - Business account debited (sum of approved amounts)
+ *   - Cash bucket debited (sum of approved amounts)
  *   - ExpenseAccountDeposit created per expense account
  *   - PaymentBatchSubmissions record created per expense account
  *   - Expense account balances recalculated
@@ -90,25 +90,8 @@ export async function POST(
     const rejectedPayments = payments.filter((p) => rejectedPaymentIds.includes(p.id))
     const totalApproved = approvedPayments.reduce((s, p) => s + Number(p.amount), 0)
 
-    // Verify business has sufficient balance for all approved payments
+    // Verify business has sufficient cash in the physical cash bucket
     if (approvedPayments.length > 0) {
-      const businessAccount = await prisma.businessAccounts.findUnique({
-        where: { businessId: batch.businessId },
-        select: { balance: true },
-      })
-      if (!businessAccount) {
-        return NextResponse.json({ error: 'Business account not found' }, { status: 400 })
-      }
-      if (Number(businessAccount.balance) < totalApproved) {
-        return NextResponse.json(
-          {
-            error: `Insufficient business account balance. Available: $${Number(businessAccount.balance).toFixed(2)}, Required: $${totalApproved.toFixed(2)}`,
-          },
-          { status: 400 }
-        )
-      }
-
-      // Verify business has sufficient cash in the physical cash bucket
       const bucketRows = await prisma.cashBucketEntry.groupBy({
         by: ['direction'],
         where: { businessId: batch.businessId },
@@ -141,28 +124,6 @@ export async function POST(
       const batchSubmissions: { id: string; expenseAccountId: string; totalAmount: number }[] = []
 
       if (approvedPayments.length > 0) {
-        // Debit business account once for the total
-        const bizAccount = await tx.businessAccounts.findUnique({
-          where: { businessId: batch.businessId },
-        })
-        const newBizBalance = Number(bizAccount.balance) - totalApproved
-        await tx.businessAccounts.update({
-          where: { businessId: batch.businessId },
-          data: { balance: newBizBalance },
-        })
-        await tx.businessTransactions.create({
-          data: {
-            businessId: batch.businessId,
-            type: 'DEBIT',
-            amount: -totalApproved,
-            description: `EOD payment batch approval — ${approvedPayments.length} payment(s)`,
-            balanceAfter: newBizBalance,
-            createdBy: user.id,
-            referenceType: 'EXPENSE_DEPOSIT',
-            referenceId: batchId,
-          },
-        })
-
         // Debit cash bucket for this business
         await tx.cashBucketEntry.create({
           data: {
