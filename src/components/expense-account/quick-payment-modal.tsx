@@ -288,7 +288,6 @@ export function QuickPaymentModal({
   const [showCreateSubcategory, setShowCreateSubcategory] = useState(false)
   const [showCreateSubSubcategory, setShowCreateSubSubcategory] = useState(false)
   const [creatingSubItem, setCreatingSubItem] = useState(false)
-  const [skipPayee, setSkipPayee] = useState(false)
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingSubcategories, setLoadingSubcategories] = useState(false)
   const [payeeErrorMessage, setPayeeErrorMessage] = useState<string | null>(null)
@@ -513,7 +512,7 @@ export function QuickPaymentModal({
       paymentDate: ''
     }
 
-    if (!skipPayee && !formData.payee) {
+    if (!formData.payee) {
       newErrors.payee = 'Please select a payee'
     }
 
@@ -597,12 +596,12 @@ export function QuickPaymentModal({
     try {
       // Construct the payment payload with correct field names based on payee type
       const payment = {
-        payeeType: skipPayee ? 'NONE' : formData.payee!.type,
-        payeeUserId: !skipPayee && formData.payee?.type === 'USER' ? formData.payee.id : undefined,
-        payeeEmployeeId: !skipPayee && formData.payee?.type === 'EMPLOYEE' ? formData.payee.id : undefined,
-        payeePersonId: !skipPayee && formData.payee?.type === 'PERSON' ? formData.payee.id : undefined,
-        payeeBusinessId: !skipPayee && formData.payee?.type === 'BUSINESS' ? formData.payee.id : undefined,
-        payeeSupplierId: !skipPayee && formData.payee?.type === 'SUPPLIER' ? formData.payee.id : undefined,
+        payeeType: formData.payee!.type,
+        payeeUserId: formData.payee?.type === 'USER' ? formData.payee.id : undefined,
+        payeeEmployeeId: formData.payee?.type === 'EMPLOYEE' ? formData.payee.id : undefined,
+        payeePersonId: formData.payee?.type === 'PERSON' ? formData.payee.id : undefined,
+        payeeBusinessId: formData.payee?.type === 'BUSINESS' ? formData.payee.id : undefined,
+        payeeSupplierId: formData.payee?.type === 'SUPPLIER' ? formData.payee.id : undefined,
         // Form "category" = domain, "subcategory" = actual category, "sub-subcategory" = subcategory
         categoryId: formData.subcategoryId || formData.categoryId,
         subcategoryId: formData.subSubcategoryId || null,
@@ -629,6 +628,9 @@ export function QuickPaymentModal({
           refresh: true
         })
       } catch (e) {}
+
+      // Trigger notification/queue refresh for all listeners (Letwin's issue)
+      window.dispatchEvent(new CustomEvent('pending-actions:refresh'));
 
       onClose()
 
@@ -860,23 +862,8 @@ export function QuickPaymentModal({
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-secondary">
-                Payee {!isPersonalAccount && <span className="text-red-500">*</span>}
+                Payee <span className="text-red-500">*</span>
               </label>
-              {isPersonalAccount && !isRentAccount && (
-                <label className="flex items-center gap-1.5 text-xs text-secondary cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={skipPayee}
-                    onChange={(e) => {
-                      setSkipPayee(e.target.checked)
-                      if (e.target.checked) setFormData(prev => ({ ...prev, payee: null }))
-                      setErrors(prev => ({ ...prev, payee: '' }))
-                    }}
-                    className="rounded"
-                  />
-                  No specific payee
-                </label>
-              )}
             </div>
             {isRentAccount && presetPayee ? (
               <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-md">
@@ -884,7 +871,7 @@ export function QuickPaymentModal({
                 <span className="text-sm font-medium text-primary">{presetPayee.name}</span>
                 <span className="ml-auto text-xs text-orange-600 dark:text-orange-400 font-medium">Landlord · Fixed</span>
               </div>
-            ) : !skipPayee ? (
+            ) : (
               <PayeeSelector
                 value={formData.payee}
                 onChange={(payee) => {
@@ -897,7 +884,7 @@ export function QuickPaymentModal({
                 error={errors.payee}
                 refreshTrigger={payeeRefreshTrigger}
               />
-            ) : null}
+            )}
             {payeeErrorMessage && formData.payee && canCreatePayees && (
               <div className="mt-2 flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-md">
                 <span className="text-yellow-600 dark:text-yellow-400 text-xs flex-1">
@@ -995,7 +982,7 @@ export function QuickPaymentModal({
                       </div>
                       <SearchableSelect
                         value={formData.subcategoryId}
-                        options={subcategories.map(s => ({ value: s.id, label: `${s.emoji} ${s.name}` }))}
+                        options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
                         onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
                         placeholder="Select a subcategory..."
                         loading={loadingSubcategories}

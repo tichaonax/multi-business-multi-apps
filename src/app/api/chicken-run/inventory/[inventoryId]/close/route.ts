@@ -47,7 +47,8 @@ export async function POST(request: NextRequest, { params }: { params: { invento
         const payment = await tx.expenseAccountPayments.create({
           data: {
             expenseAccountId: expenseAccount.id,
-            payeeType: 'OTHER',
+            payeeType: supplierId ? 'SUPPLIER' : 'OTHER',
+            ...(supplierId ? { payeeSupplierId: supplierId } : {}),
             amount: cost,
             paymentDate: inventory.entryDate,
             status: 'SUBMITTED',

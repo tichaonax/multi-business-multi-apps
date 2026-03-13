@@ -345,10 +345,13 @@ export async function POST(
         )
       }
 
-      // NONE payee type — skip all payee ID and existence validation
+      // NONE payee type is not allowed — every payment must have a known payee
       if (payment.payeeType === 'NONE') {
-        // allowed: no payee ID needed
-      } else
+        return NextResponse.json(
+          { error: `Payment ${paymentIndex}: A payee is required — please select a supplier, employee, person, or user`, index: i },
+          { status: 400 }
+        )
+      }
 
       // Validate payee ID based on type
       if (payment.payeeType === 'USER' && !payment.payeeUserId) {

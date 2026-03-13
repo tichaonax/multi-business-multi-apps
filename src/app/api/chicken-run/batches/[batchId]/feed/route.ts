@@ -38,7 +38,8 @@ export async function POST(request: NextRequest, { params }: { params: { batchId
         const payment = await tx.expenseAccountPayments.create({
           data: {
             expenseAccountId: expenseAccount.id,
-            payeeType: 'OTHER',
+            payeeType: supplierId ? 'SUPPLIER' : 'OTHER',
+            ...(supplierId ? { payeeSupplierId: supplierId } : {}),
             amount: parseFloat(totalCost),
             paymentDate: new Date(date),
             status: 'SUBMITTED',
