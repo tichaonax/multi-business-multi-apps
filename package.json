@@ -14,7 +14,7 @@
     "electron:install-startup": "node scripts/create-electron-shortcut.js",
     "electron:uninstall-startup": "scripts\\uninstall-electron-startup.bat",
     "clean": "rimraf .next",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=8192 next build",
     "build:server": "tsc --project tsconfig.server.json",
     "postbuild": "node scripts/mark-build-complete.js",
     "postinstall": "node scripts/postinstall.js",
