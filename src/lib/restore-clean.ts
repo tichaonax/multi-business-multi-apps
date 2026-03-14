@@ -142,6 +142,8 @@ const RESTORE_ORDER = [
   'employeeLoanPayments',
   'contractBenefits',
   'contractRenewals',
+  'employeeAbsences',           // depends on businesses + employees
+  'perDiemEntries',             // depends on businesses + employees + users
 
   // Products and inventory
   'businessProducts',
@@ -179,16 +181,27 @@ const RESTORE_ORDER = [
   // Expense accounts (order matters: grants/lenders/loans before deposits; ledger before payments)
   'expenseAccounts',
   'expenseAccountGrants',       // depends on expenseAccounts + users
+  'expenseAccountAutoDeposits', // depends on expenseAccounts + businesses
+  'businessRentConfigs',        // depends on expenseAccounts + businesses + businessSuppliers
   'personalDepositSources',     // no FK dependencies (reference table)
   'expenseAccountLenders',      // no FK dependencies (reference table)
   'expenseAccountLoans',        // depends on expenseAccounts + expenseAccountLenders
   'fundSources',                // MUST come before expenseAccountDeposits (deposits FK → fundSources)
   'expenseAccountDeposits',     // depends on expenseAccounts + personalDepositSources + expenseAccountLoans + fundSources
   'businessTransferLedger',     // depends on expenseAccounts
-  'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger
+  'groupedEODRuns',             // depends on businesses (no expense account FK)
+  'groupedEODRunDates',         // depends on groupedEODRuns
+  'eodPaymentBatches',          // depends on businesses — MUST come before paymentBatchSubmissions
+  'paymentBatchSubmissions',    // depends on eodPaymentBatches + expenseAccounts + expenseAccountDeposits
+  'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger + paymentBatchSubmissions + eodPaymentBatches
   'supplierPaymentRequests',    // Depends on businesses, businessSuppliers, expenseAccounts, users
   'supplierPaymentRequestItems', // Depends on supplierPaymentRequests, expenseCategories, expenseSubcategories
   'supplierPaymentRequestPartials', // Depends on supplierPaymentRequests, expenseAccountPayments, users
+  'cashAllocationReports',      // depends on businesses + groupedEODRuns
+  'cashAllocationLineItems',    // depends on cashAllocationReports + expenseAccountDeposits
+  'cashBucketEntries',          // depends on businesses + users
+  'pettyCashRequests',          // depends on businesses + expenseAccounts + expenseAccountDeposits + expenseAccountPayments
+  'pettyCashTransactions',      // depends on pettyCashRequests + expenseAccountPayments
 
   // Payroll
   'payrollAccounts',
@@ -197,6 +210,11 @@ const RESTORE_ORDER = [
   'payrollPaymentVouchers',     // Depends on payrollAccountPayments
   'accountOutgoingLoans',       // Depends on expenseAccounts + payrollAccounts
   'accountOutgoingLoanPayments', // Depends on accountOutgoingLoans
+  'businessLoans',              // Depends on expenseAccounts + users (no businessId FK)
+  'businessLoanManagers',       // Depends on businessLoans + users
+  'businessLoanExpenses',       // Depends on businessLoans + users
+  'businessLoanPreLockRepayments', // Depends on businessLoans + users
+  'loanWithdrawalRequests',     // Depends on businessLoans + expenseAccountPayments
   'payrollPeriods',
   'payrollEntries',
   'payrollEntryBenefits',
@@ -288,6 +306,26 @@ const RESTORE_ORDER = [
   'chatMessages',       // Depends on chatRooms, users
   'chatParticipants',   // Depends on chatRooms, users
 
+  // Notifications and POS config
+  'appNotifications',   // Depends on users
+  'posTerminalConfigs', // Depends on businesses
+
+  // Chicken Run Management (MBM-145)
+  'chickenRunSettings',          // Depends on businesses (@unique businessId)
+  'chickenVaccinationSchedules', // Depends on businesses
+  'chickenBatches',              // Depends on businesses + businessSuppliers
+  'chickenMortality',            // Depends on chickenBatches
+  'chickenFeedLogs',             // Depends on chickenBatches + businessSuppliers
+  'chickenMedicationLogs',       // Depends on chickenBatches
+  'chickenWeightLogs',           // Depends on chickenBatches
+  'chickenVaccinationLogs',      // Depends on chickenBatches + chickenVaccinationSchedules
+  'chickenCulling',              // Depends on chickenBatches
+  'chickenInventory',            // Depends on chickenCulling + businesses + businessSuppliers
+  'chickenBirdWeights',          // Depends on chickenCulling + chickenInventory
+  'chickenInventoryMovements',   // Depends on chickenInventory
+  'chickenUtilityCosts',         // Depends on businesses
+  'chickenLaborLogs',            // Depends on businesses
+
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs'           // Depends on users
 ]
@@ -334,7 +372,28 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'coupons': { fields: ['businessId', 'code'] },
 
   // SupplierRatings: unique on (supplierId, businessId, ratedBy)
-  'supplierRatings': { fields: ['supplierId', 'businessId', 'ratedBy'] }
+  'supplierRatings': { fields: ['supplierId', 'businessId', 'ratedBy'] },
+
+  // Business Rent Config: unique on businessId
+  'businessRentConfigs': 'businessId',
+
+  // Expense Account Auto Deposits: unique on (businessId, expenseAccountId)
+  'expenseAccountAutoDeposits': { fields: ['businessId', 'expenseAccountId'] },
+
+  // Business Loan Managers: unique on (loanId, userId)
+  'businessLoanManagers': { fields: ['loanId', 'userId'] },
+
+  // Loan Withdrawal Requests: unique on requestNumber
+  'loanWithdrawalRequests': 'requestNumber',
+
+  // Chicken Run Settings: unique on businessId
+  'chickenRunSettings': 'businessId',
+
+  // Chicken Batches: unique on batchNumber
+  'chickenBatches': 'batchNumber',
+
+  // POS Terminal Config: unique on terminalId
+  'posTerminalConfigs': 'terminalId',
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
@@ -345,7 +404,39 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'customerLaybys': 'customerLayby',
   'customerLaybyPayments': 'customerLaybyPayment',
-  'customerDisplayAds': 'customerDisplayAd'
+  'customerDisplayAds': 'customerDisplayAd',
+  // EOD / Cash Box
+  'eodPaymentBatches': 'eODPaymentBatch',
+  'cashBucketEntries': 'cashBucketEntry',
+  'groupedEODRuns': 'groupedEODRun',
+  'groupedEODRunDates': 'groupedEODRunDate',
+  'cashAllocationReports': 'cashAllocationReport',
+  'cashAllocationLineItems': 'cashAllocationLineItem',
+  // Petty Cash / Per Diem
+  'pettyCashTransactions': 'pettyCashTransaction',
+  // Business Loans
+  'businessLoans': 'businessLoan',
+  'businessLoanManagers': 'businessLoanManager',
+  'businessLoanExpenses': 'businessLoanExpense',
+  'businessLoanPreLockRepayments': 'businessLoanPreLockRepayment',
+  'loanWithdrawalRequests': 'loanWithdrawalRequest',
+  // Expense Account Auto Deposits / Rent Config
+  'expenseAccountAutoDeposits': 'expenseAccountAutoDeposit',
+  'businessRentConfigs': 'businessRentConfig',
+  // Notifications / POS
+  'appNotifications': 'appNotification',
+  'posTerminalConfigs': 'posTerminalConfig',
+  // Chicken Run
+  'chickenBatches': 'chickenBatch',
+  'chickenFeedLogs': 'chickenFeedLog',
+  'chickenMedicationLogs': 'chickenMedicationLog',
+  'chickenWeightLogs': 'chickenWeightLog',
+  'chickenVaccinationSchedules': 'chickenVaccinationSchedule',
+  'chickenVaccinationLogs': 'chickenVaccinationLog',
+  'chickenBirdWeights': 'chickenBirdWeight',
+  'chickenInventoryMovements': 'chickenInventoryMovement',
+  'chickenUtilityCosts': 'chickenUtilityCost',
+  'chickenLaborLogs': 'chickenLaborLog',
 }
 
 /**

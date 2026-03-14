@@ -1068,6 +1068,163 @@ export async function createCleanBackup(
   businessData.chatMessages = await prisma.chatMessages.findMany()
   businessData.chatParticipants = await prisma.chatParticipants.findMany()
 
+  // 37. Employee Absences
+  businessData.employeeAbsences = await prisma.employeeAbsences.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 38. EOD Payment Batches and Cash Box operations
+  businessData.eodPaymentBatches = await prisma.eODPaymentBatch.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.paymentBatchSubmissions = await prisma.paymentBatchSubmissions.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.cashBucketEntries = await prisma.cashBucketEntry.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.groupedEODRuns = await prisma.groupedEODRun.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  const groupedEODRunIds = businessData.groupedEODRuns.map((r: any) => r.id)
+  businessData.groupedEODRunDates = await prisma.groupedEODRunDate.findMany({
+    where: { groupedRunId: { in: groupedEODRunIds } }
+  })
+
+  // 39. Cash Allocation Reports
+  businessData.cashAllocationReports = await prisma.cashAllocationReport.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  const cashAllocationReportIds = businessData.cashAllocationReports.map((r: any) => r.id)
+  businessData.cashAllocationLineItems = await prisma.cashAllocationLineItem.findMany({
+    where: { reportId: { in: cashAllocationReportIds } }
+  })
+
+  // 40. Petty Cash
+  businessData.pettyCashRequests = await prisma.pettyCashRequests.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  const pettyCashRequestIds = businessData.pettyCashRequests.map((r: any) => r.id)
+  businessData.pettyCashTransactions = await prisma.pettyCashTransaction.findMany({
+    where: { requestId: { in: pettyCashRequestIds } }
+  })
+
+  // 41. Per Diem Entries
+  businessData.perDiemEntries = await prisma.perDiemEntries.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 42. Business Loans (global — not scoped to a single business)
+  businessData.businessLoans = await prisma.businessLoan.findMany()
+
+  const businessLoanIds = businessData.businessLoans.map((l: any) => l.id)
+  businessData.businessLoanManagers = await prisma.businessLoanManager.findMany({
+    where: { loanId: { in: businessLoanIds } }
+  })
+
+  businessData.businessLoanExpenses = await prisma.businessLoanExpense.findMany({
+    where: { loanId: { in: businessLoanIds } }
+  })
+
+  businessData.businessLoanPreLockRepayments = await prisma.businessLoanPreLockRepayment.findMany({
+    where: { loanId: { in: businessLoanIds } }
+  })
+
+  businessData.loanWithdrawalRequests = await prisma.loanWithdrawalRequest.findMany({
+    where: { loanId: { in: businessLoanIds } }
+  })
+
+  // 43. Expense Account Auto Deposits and Business Rent Config
+  businessData.expenseAccountAutoDeposits = await prisma.expenseAccountAutoDeposit.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.businessRentConfigs = await prisma.businessRentConfig.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 44. App Notifications
+  businessData.appNotifications = await prisma.appNotification.findMany({
+    where: { userId: { in: userIds } }
+  })
+
+  // 45. POS Terminal Config
+  businessData.posTerminalConfigs = await prisma.posTerminalConfig.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 46. Chicken Run Management
+  businessData.chickenRunSettings = await prisma.chickenRunSettings.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.chickenVaccinationSchedules = await prisma.chickenVaccinationSchedule.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.chickenBatches = await prisma.chickenBatch.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  const chickenBatchIds = businessData.chickenBatches.map((b: any) => b.id)
+
+  businessData.chickenMortality = await prisma.chickenMortality.findMany({
+    where: { batchId: { in: chickenBatchIds } }
+  })
+
+  businessData.chickenFeedLogs = await prisma.chickenFeedLog.findMany({
+    where: { batchId: { in: chickenBatchIds } }
+  })
+
+  businessData.chickenMedicationLogs = await prisma.chickenMedicationLog.findMany({
+    where: { batchId: { in: chickenBatchIds } }
+  })
+
+  businessData.chickenWeightLogs = await prisma.chickenWeightLog.findMany({
+    where: { batchId: { in: chickenBatchIds } }
+  })
+
+  businessData.chickenVaccinationLogs = await prisma.chickenVaccinationLog.findMany({
+    where: { batchId: { in: chickenBatchIds } }
+  })
+
+  businessData.chickenCulling = await prisma.chickenCulling.findMany({
+    where: { batchId: { in: chickenBatchIds } }
+  })
+
+  const chickenCullingIds = businessData.chickenCulling.map((c: any) => c.id)
+  businessData.chickenInventory = await prisma.chickenInventory.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  const chickenInventoryIds = businessData.chickenInventory.map((i: any) => i.id)
+  businessData.chickenBirdWeights = await prisma.chickenBirdWeight.findMany({
+    where: {
+      OR: [
+        { cullingId: { in: chickenCullingIds } },
+        { inventoryId: { in: chickenInventoryIds } }
+      ]
+    }
+  })
+
+  businessData.chickenInventoryMovements = await prisma.chickenInventoryMovement.findMany({
+    where: { inventoryId: { in: chickenInventoryIds } }
+  })
+
+  businessData.chickenUtilityCosts = await prisma.chickenUtilityCost.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.chickenLaborLogs = await prisma.chickenLaborLog.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined
 

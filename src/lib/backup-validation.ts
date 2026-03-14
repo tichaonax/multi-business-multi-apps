@@ -116,12 +116,52 @@ export async function countDatabaseRecords(
 
 /**
  * Model name mappings (backup table names to Prisma model names)
+ * Must be kept in sync with restore-clean.ts TABLE_TO_MODEL_MAPPING
  */
 const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'customerLaybys': 'customerLayby',
   'customerLaybyPayments': 'customerLaybyPayment',
-  'customerDisplayAds': 'customerDisplayAd'
+  'customerDisplayAds': 'customerDisplayAd',
+  // EOD / Cash Box
+  'eodPaymentBatches': 'eODPaymentBatch',
+  'cashBucketEntries': 'cashBucketEntry',
+  'groupedEODRuns': 'groupedEODRun',
+  'groupedEODRunDates': 'groupedEODRunDate',
+  'cashAllocationReports': 'cashAllocationReport',
+  'cashAllocationLineItems': 'cashAllocationLineItem',
+  // Petty Cash / Per Diem
+  'pettyCashTransactions': 'pettyCashTransaction',
+  // Business Loans
+  'businessLoans': 'businessLoan',
+  'businessLoanManagers': 'businessLoanManager',
+  'businessLoanExpenses': 'businessLoanExpense',
+  'businessLoanPreLockRepayments': 'businessLoanPreLockRepayment',
+  'loanWithdrawalRequests': 'loanWithdrawalRequest',
+  // Expense Account Auto Deposits / Rent Config
+  'expenseAccountAutoDeposits': 'expenseAccountAutoDeposit',
+  'businessRentConfigs': 'businessRentConfig',
+  // Notifications / POS
+  'appNotifications': 'appNotification',
+  'posTerminalConfigs': 'posTerminalConfig',
+  // Chicken Run
+  'chickenBatches': 'chickenBatch',
+  'chickenFeedLogs': 'chickenFeedLog',
+  'chickenMedicationLogs': 'chickenMedicationLog',
+  'chickenWeightLogs': 'chickenWeightLog',
+  'chickenVaccinationSchedules': 'chickenVaccinationSchedule',
+  'chickenVaccinationLogs': 'chickenVaccinationLog',
+  'chickenBirdWeights': 'chickenBirdWeight',
+  'chickenInventoryMovements': 'chickenInventoryMovement',
+  'chickenUtilityCosts': 'chickenUtilityCost',
+  'chickenLaborLogs': 'chickenLaborLog',
 }
+
+/**
+ * Tables where the backup intentionally captures only a subset of DB records.
+ * Differences for these tables are expected and should not be flagged as errors.
+ * - images: only employee profile photos are backed up (not clock-in photos, product images, etc.)
+ */
+const KNOWN_PARTIAL_BACKUP_TABLES = new Set(['images'])
 
 /**
  * Tables that have a businessId field but should NOT be scoped by backedUpBusinessIds
@@ -207,6 +247,11 @@ export async function validateBackupRestore(
       status = 'unexpected-mismatch'
       notes = 'Unable to count records in database'
       unexpectedMismatches++
+    } else if (KNOWN_PARTIAL_BACKUP_TABLES.has(tableName)) {
+      // Backup intentionally captures only a subset for this table
+      status = 'expected-difference'
+      notes = `Partial backup by design — backup contains ${backupCount} of ${databaseCount} records`
+      expectedDifferences++
     } else if (restoreStats && backupCount === restoreStats.attempted && databaseCount === restoreStats.successful) {
       // Expected: some records were skipped due to foreign key constraints
       status = 'expected-difference'
