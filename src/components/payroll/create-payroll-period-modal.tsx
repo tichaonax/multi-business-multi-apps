@@ -16,6 +16,13 @@ interface CreatePayrollPeriodModalProps {
   onError: (error: string) => void
 }
 
+function getMonthDates(year: number, month: number) {
+  const firstDay = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const lastDayStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  return { periodStart: firstDay, periodEnd: lastDayStr }
+}
+
 export function CreatePayrollPeriodModal({
   isOpen,
   onClose,
@@ -27,12 +34,11 @@ export function CreatePayrollPeriodModal({
 }: CreatePayrollPeriodModalProps) {
   const [loading, setLoading] = useState(false)
   const toast = useToastContext()
-  const [formData, setFormData] = useState({
-    year: new Date().getFullYear(),
-    month: new Date().getMonth() + 1,
-    periodStart: '',
-    periodEnd: '',
-    notes: ''
+  const now = new Date()
+  const [formData, setFormData] = useState(() => {
+    const year = now.getFullYear()
+    const month = now.getMonth() + 1
+    return { year, month, ...getMonthDates(year, month), notes: '' }
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,13 +56,9 @@ export function CreatePayrollPeriodModal({
       toast.push('Payroll period created successfully')
   try { onSuccess({ message: 'Payroll period created successfully', id: result.id, refresh: false }) } catch (e) { }
       onClose()
-      setFormData({
-        year: new Date().getFullYear(),
-        month: new Date().getMonth() + 1,
-        periodStart: '',
-        periodEnd: '',
-        notes: ''
-      })
+      const resetYear = new Date().getFullYear()
+      const resetMonth = new Date().getMonth() + 1
+      setFormData({ year: resetYear, month: resetMonth, ...getMonthDates(resetYear, resetMonth), notes: '' })
     } catch (error) {
       console.error('Create payroll period error:', error)
       // fetchWithValidation throws an Error with message from backend (body.error || body.message)
@@ -83,7 +85,7 @@ export function CreatePayrollPeriodModal({
               </label>
               <select
                 value={formData.year}
-                onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                onChange={(e) => { const year = parseInt(e.target.value); setFormData({ ...formData, year, ...getMonthDates(year, formData.month) }) }}
                 className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               >
@@ -99,7 +101,7 @@ export function CreatePayrollPeriodModal({
               </label>
               <select
                 value={formData.month}
-                onChange={(e) => setFormData({ ...formData, month: parseInt(e.target.value) })}
+                onChange={(e) => { const month = parseInt(e.target.value); setFormData({ ...formData, month, ...getMonthDates(formData.year, month) }) }}
                 className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               >
@@ -124,37 +126,16 @@ export function CreatePayrollPeriodModal({
                 // AND auto-set periodEnd to last day of that month
                 if (value) {
                   try {
-                    console.log('DateInput onChange received value:', value)
-
-                    // Parse ISO date string directly to avoid timezone issues
-                    // value should be in format "YYYY-MM-DD"
                     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
                     if (match) {
                       const year = parseInt(match[1], 10)
                       const month = parseInt(match[2], 10)
-                      const day = parseInt(match[3], 10)
-
-                      console.log('Parsed year:', year, 'month:', month, 'day:', day)
-
-                      // Calculate last day of the month
-                      const lastDay = new Date(year, month, 0).getDate() // Day 0 of next month = last day of current month
+                      const lastDay = new Date(year, month, 0).getDate()
                       const lastDayOfMonth = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-
-                      console.log('Auto-setting periodEnd to last day of month:', lastDayOfMonth)
-
-                      setFormData({
-                        ...formData,
-                        periodStart: value,
-                        periodEnd: lastDayOfMonth,
-                        year: year,
-                        month: month
-                      })
+                      setFormData({ ...formData, periodStart: value, periodEnd: lastDayOfMonth, year, month })
                       return
                     }
-                  } catch (e) {
-                    // Invalid date, just update periodStart
-                    console.error('Date parsing error:', e)
-                  }
+                  } catch (e) { /* ignore */ }
                 }
                 setFormData({ ...formData, periodStart: value })
               }}

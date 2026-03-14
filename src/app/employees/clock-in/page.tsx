@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { EmployeeIdCard } from '@/components/clock-in/employee-id-card'
 import { EmployeeAttendanceReport, type ReportEmployee } from '@/components/clock-in/employee-attendance-report'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 
 interface AttendanceEmployee {
   id: string
@@ -77,8 +78,10 @@ interface ExemptEmployee {
 export default function ClockInDashboardPage() {
   const router = useRouter()
   const { currentBusinessId, activeBusinesses, loading: contextLoading } = useBusinessPermissionsContext()
+  const confirm = useConfirm()
+  const alert = useAlert()
 
-  const [activeTab, setActiveTab] = useState<'attendance' | 'exempt' | 'loginTracking'>('attendance')
+  const [activeTab, setActiveTab] = useState<'attendance' | 'exempt' | 'loginTracking' | 'monthly'>('attendance')
 
   // Business & date filter
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
@@ -174,6 +177,18 @@ export default function ClockInDashboardPage() {
   const [isSavingManual, setIsSavingManual] = useState(false)
   const [manualMsg, setManualMsg] = useState<string | null>(null)
 
+  // Monthly View
+  const [monthlyEmployees, setMonthlyEmployees] = useState<any[]>([])
+  const [monthlySelectedEmpId, setMonthlySelectedEmpId] = useState<string>('')
+  const [monthlyYear,  setMonthlyYear]  = useState(new Date().getFullYear())
+  const [monthlyMonth, setMonthlyMonth] = useState(new Date().getMonth() + 1)
+  const [monthlyLoading, setMonthlyLoading] = useState(false)
+  const [monthlyData,  setMonthlyData]  = useState<any | null>(null) // selected employee's monthly record
+  const [monthlyMsg,   setMonthlyMsg]   = useState<string | null>(null)
+  // Inline add/edit form: { date, checkIn, checkOut, recordId? }
+  const [monthlyForm,  setMonthlyForm]  = useState<{ date: string; checkIn: string; checkOut: string; recordId?: string } | null>(null)
+  const [monthlySaving, setMonthlySaving] = useState(false)
+
   // Print ID Card
   const [printCardEmp, setPrintCardEmp] = useState<AttendanceEmployee | null>(null)
   const [printExemptEmp, setPrintExemptEmp] = useState<ExemptEmployee | null>(null)
@@ -202,6 +217,21 @@ export default function ClockInDashboardPage() {
     }
   }, [selectedBusinessId, selectedDate])
 
+  const loadMonthlyEmployees = useCallback(async () => {
+    if (!selectedBusinessId) return
+    const params = new URLSearchParams({ businessId: selectedBusinessId, year: String(monthlyYear), month: String(monthlyMonth) })
+    const res = await fetch(`/api/clock-in/monthly?${params}`)
+    const data = await res.json()
+    if (res.ok) {
+      setMonthlyEmployees(data.employees || [])
+      // if a specific employee is selected, update their monthly data
+      if (monthlySelectedEmpId) {
+        const found = (data.employees || []).find((e: any) => e.id === monthlySelectedEmpId)
+        setMonthlyData(found || null)
+      }
+    }
+  }, [selectedBusinessId, monthlyYear, monthlyMonth, monthlySelectedEmpId])
+
   const loadExemptEmployees = useCallback(async () => {
     setIsLoadingExempt(true)
     try {
@@ -218,10 +248,15 @@ export default function ClockInDashboardPage() {
   }, [selectedBusinessId])
 
   useEffect(() => {
-    if (!businessReady) return // don't fire until business selection is resolved
+    if (!businessReady) return
     loadAttendance()
     loadExemptEmployees()
   }, [loadAttendance, loadExemptEmployees, businessReady])
+
+  useEffect(() => {
+    if (!businessReady || activeTab !== 'monthly') return
+    loadMonthlyEmployees()
+  }, [activeTab, businessReady, loadMonthlyEmployees])
 
   const loadLoginLogs = async () => {
     setIsLoadingLogs(true)
@@ -357,14 +392,19 @@ export default function ClockInDashboardPage() {
       if (!saveRes.ok) throw new Error('Failed to save photo')
       await loadExemptEmployees()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Photo upload failed')
+      await alert({ title: 'Upload Failed', description: e instanceof Error ? e.message : 'Photo upload failed' })
     } finally {
       setUploadingExemptPhotoId(null)
     }
   }
 
   const enableClockIn = async (emp: ExemptEmployee) => {
-    if (!confirm(`Remove clock-in exemption for ${emp.fullName}? They will appear in the daily attendance list.`)) return
+    const ok = await confirm({
+      title: 'Remove Clock-In Exemption',
+      description: `Remove clock-in exemption for ${emp.fullName}? They will appear in the daily attendance list.`,
+      confirmText: 'Remove Exemption',
+    })
+    if (!ok) return
     setEnablingClockInId(emp.id)
     try {
       const res = await fetch(`/api/clock-in/employees/${emp.id}/exempt`, {
@@ -376,7 +416,7 @@ export default function ClockInDashboardPage() {
       await loadExemptEmployees()
       await loadAttendance()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to enable clock-in')
+      await alert({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to enable clock-in' })
     } finally {
       setEnablingClockInId(null)
     }
@@ -415,6 +455,7 @@ export default function ClockInDashboardPage() {
         body: JSON.stringify({
           employeeId: manualEntry.employeeId,
           action: 'manualEntry',
+          date: today,
           manualCheckIn: toISO(manualEntry.checkIn),
           manualCheckOut: manualEntry.checkOut ? toISO(manualEntry.checkOut) : undefined,
         }),
@@ -428,6 +469,56 @@ export default function ClockInDashboardPage() {
       setManualMsg(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setIsSavingManual(false)
+    }
+  }
+
+  const clearMonthlyEntry = async (recordId: string) => {
+    const ok = await confirm({
+      title: 'Delete Attendance Record',
+      description: 'Delete this attendance record? This cannot be undone.',
+      confirmText: 'Delete',
+    })
+    if (!ok) return
+    setMonthlyMsg(null)
+    try {
+      const res = await fetch(`/api/clock-in/monthly?recordId=${recordId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setMonthlyMsg('Record cleared')
+      setMonthlyForm(null)
+      await loadMonthlyEmployees()
+    } catch (e) {
+      setMonthlyMsg(e instanceof Error ? e.message : 'Clear failed')
+    }
+  }
+
+  const saveMonthlyEntry = async () => {
+    if (!monthlyForm || !monthlySelectedEmpId) return
+    if (!monthlyForm.checkIn) { setMonthlyMsg('Clock-in time is required'); return }
+    setMonthlySaving(true)
+    setMonthlyMsg(null)
+    try {
+      const toISO = (t: string) => new Date(`${monthlyForm.date}T${t}:00`).toISOString()
+      const res = await fetch('/api/clock-in/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: monthlySelectedEmpId,
+          action: 'manualEntry',
+          date: monthlyForm.date,
+          manualCheckIn: toISO(monthlyForm.checkIn),
+          manualCheckOut: monthlyForm.checkOut ? toISO(monthlyForm.checkOut) : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setMonthlyMsg('Saved')
+      setMonthlyForm(null)
+      await loadMonthlyEmployees()
+    } catch (e) {
+      setMonthlyMsg(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setMonthlySaving(false)
     }
   }
 
@@ -719,6 +810,16 @@ export default function ClockInDashboardPage() {
           }`}
         >
           🔐 Login Tracking
+        </button>
+        <button
+          onClick={() => setActiveTab('monthly')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'monthly'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          📅 Monthly View
         </button>
       </div>
 
@@ -1248,6 +1349,209 @@ export default function ClockInDashboardPage() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Monthly View Tab */}
+      {activeTab === 'monthly' && (
+        <div>
+          {!selectedBusinessId && (
+            <div className="mb-4 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 text-yellow-800 dark:text-yellow-300 text-sm">
+              Please select a specific business from the dropdown above to use Monthly View.
+            </div>
+          )}
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 mb-5 items-end">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Employee</label>
+              <select
+                value={monthlySelectedEmpId}
+                onChange={e => {
+                  const id = e.target.value
+                  setMonthlySelectedEmpId(id)
+                  setMonthlyData(monthlyEmployees.find((emp: any) => emp.id === id) || null)
+                  setMonthlyMsg(null)
+                  setMonthlyForm(null)
+                }}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 min-w-[200px]"
+              >
+                <option value="">— Select employee —</option>
+                {monthlyEmployees.map((emp: any) => (
+                  <option key={emp.id} value={emp.id}>{emp.fullName} ({emp.employeeNumber})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Month</label>
+              <select
+                value={monthlyMonth}
+                onChange={e => { setMonthlyMonth(Number(e.target.value)); setMonthlyData(null); setMonthlyForm(null) }}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => (
+                  <option key={i+1} value={i+1}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Year</label>
+              <input
+                type="number"
+                value={monthlyYear}
+                onChange={e => { setMonthlyYear(Number(e.target.value)); setMonthlyData(null); setMonthlyForm(null) }}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-24"
+              />
+            </div>
+            <button
+              onClick={loadMonthlyEmployees}
+              disabled={monthlyLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              {monthlyLoading ? 'Loading…' : '↻ Load'}
+            </button>
+          </div>
+
+          {monthlyMsg && (
+            <div className="mb-3 p-2 rounded text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">{monthlyMsg}</div>
+          )}
+
+          {/* Monthly attendance grid */}
+          {monthlyData && (() => {
+            const daysInMonth = new Date(monthlyYear, monthlyMonth, 0).getDate()
+            const attendanceByDate: Record<string, any> = {}
+            for (const r of (monthlyData.attendance || [])) attendanceByDate[r.date] = r
+
+            const fmtTime = (iso: string | null) => {
+              if (!iso) return '—'
+              const d = new Date(iso)
+              return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+            }
+
+            return (
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-gray-900 dark:text-white">{monthlyData.fullName}</span>
+                    <span className="ml-2 text-xs text-gray-500">Schedule: {monthlyData.scheduledStartTime || '?'}–{monthlyData.scheduledEndTime || '?'}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    {(monthlyData.attendance || []).length} / {daysInMonth} days recorded
+                  </span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium">Date</th>
+                      <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium">Clock In</th>
+                      <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium">Clock Out</th>
+                      <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium">Hours</th>
+                      <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium">Status</th>
+                      <th className="px-4 py-2 text-right text-xs text-gray-500 font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {Array.from({ length: daysInMonth }, (_, i) => {
+                      const day = i + 1
+                      const dateStr = `${monthlyYear}-${String(monthlyMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+                      const rec = attendanceByDate[dateStr]
+                      const dayName = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })
+                      const isEditing = monthlyForm?.date === dateStr
+
+                      return (
+                        <tr key={dateStr} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isEditing ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                          <td className="px-4 py-2 text-gray-700 dark:text-gray-300 font-medium">
+                            <span className="text-xs text-gray-400 mr-2">{dayName}</span>{dateStr}
+                          </td>
+                          {isEditing ? (
+                            <>
+                              <td colSpan={4} className="px-4 py-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <input
+                                    type="time"
+                                    value={monthlyForm.checkIn}
+                                    onChange={e => setMonthlyForm(f => f ? { ...f, checkIn: e.target.value } : null)}
+                                    className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700"
+                                    placeholder="Clock In *"
+                                  />
+                                  <input
+                                    type="time"
+                                    value={monthlyForm.checkOut}
+                                    onChange={e => setMonthlyForm(f => f ? { ...f, checkOut: e.target.value } : null)}
+                                    className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700"
+                                    placeholder="Clock Out"
+                                  />
+                                  <button
+                                    onClick={saveMonthlyEntry}
+                                    disabled={monthlySaving}
+                                    className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    {monthlySaving ? 'Saving…' : 'Save'}
+                                  </button>
+                                  <button
+                                    onClick={() => setMonthlyForm(null)}
+                                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </td>
+                            </>
+                          ) : rec ? (
+                            <>
+                              <td className="px-4 py-2 text-green-700 dark:text-green-400">{fmtTime(rec.checkIn)}</td>
+                              <td className="px-4 py-2 text-blue-700 dark:text-blue-400">{fmtTime(rec.checkOut)}</td>
+                              <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{rec.hoursWorked != null ? `${rec.hoursWorked}h` : '—'}</td>
+                              <td className="px-4 py-2">
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 capitalize">{rec.status || 'present'}</span>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-4 py-2 text-gray-400">—</td>
+                              <td className="px-4 py-2 text-gray-400">—</td>
+                              <td className="px-4 py-2 text-gray-400">—</td>
+                              <td className="px-4 py-2">
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-700 text-gray-500">No record</span>
+                              </td>
+                            </>
+                          )}
+                          <td className="px-4 py-2 text-right">
+                            {!isEditing && (
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => {
+                                    const ci = rec?.checkIn ? (() => { const d = new Date(rec.checkIn); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` })() : ''
+                                    const co = rec?.checkOut ? (() => { const d = new Date(rec.checkOut); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` })() : ''
+                                    setMonthlyForm({ date: dateStr, checkIn: ci, checkOut: co, recordId: rec?.id })
+                                    setMonthlyMsg(null)
+                                  }}
+                                  className="px-3 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                                >
+                                  {rec ? 'Edit' : '+ Add'}
+                                </button>
+                                {rec && (
+                                  <button
+                                    onClick={() => clearMonthlyEntry(rec.id)}
+                                    className="px-3 py-1 text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-red-900/40"
+                                  >
+                                    Clear
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
+
+          {!monthlySelectedEmpId && (
+            <div className="text-center py-12 text-gray-400 dark:text-gray-500">Select an employee to view their monthly attendance</div>
           )}
         </div>
       )}

@@ -263,19 +263,25 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
     // applied after taxes etc. (i.e., added to totalDeductions).
     let additionsTotal = 0
     let adjustmentsAsDeductions = 0
+    let clockInDeductionAmount = 0
     let absenceDeduction = 0
     try {
         const adjustments = await prisma.payrollAdjustments.findMany({ where: { payrollEntryId: entryId } })
         for (const a of adjustments) {
             const amt = Number(a.amount || 0)
-            if (amt >= 0) additionsTotal += amt
-            else {
+            if (amt >= 0) {
+                // Exclude pending clock-in additions (overtime awaiting approval) from gross
+                const isPendingClockIn = (a as any).isClockInAdjustment && (a as any).status === 'pending'
+                if (!isPendingClockIn) additionsTotal += amt
+            } else {
                 const absAmt = Math.abs(amt)
-                // Treat explicit 'absence' adjustments specially: expose as absenceDeduction
                 const rawType = String(a.adjustmentType || '').toLowerCase()
                 if (rawType === 'absence') {
+                    // Absence is pre-tax — expose separately, not in post-tax deductions
                     absenceDeduction += absAmt
-                    // Do NOT include absence in adjustmentsAsDeductions so it won't be double-counted
+                } else if ((a as any).isClockInAdjustment) {
+                    // Clock-in tardiness is pre-tax — expose separately
+                    clockInDeductionAmount += absAmt
                 } else {
                     adjustmentsAsDeductions += absAmt
                 }
@@ -309,5 +315,5 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
     // Net = Gross (deductions shown separately, NOT subtracted)
     const netPay = grossPay
 
-    return { grossPay, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, overtimePay, hourlyRate, absenceDeduction }
+    return { grossPay, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, clockInDeductionAmount, overtimePay, hourlyRate, absenceDeduction }
 }

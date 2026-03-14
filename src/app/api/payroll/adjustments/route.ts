@@ -175,7 +175,7 @@ export async function PUT(req: NextRequest) {
     if (!hasPermission(user, 'canEditPayrollEntry')) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
     const data = await req.json()
-    const { id, amount, description, isAddition, type, reason } = data
+    const { id, amount, description, isAddition, type, reason, status } = data
     if (!id) return NextResponse.json({ error: 'Adjustment id required' }, { status: 400 })
 
     const existing = await prisma.payrollAdjustments.findUnique({ where: { id }, include: { payroll_entries: { include: { payroll_periods: true } } } })
@@ -208,6 +208,7 @@ export async function PUT(req: NextRequest) {
           // map client description -> reason (DB field is `reason`); keep existing if not provided
           reason: reason !== undefined ? reason : (description !== undefined ? description : existingAny.reason),
           adjustmentType: type !== undefined ? type : existingAny.adjustmentType,
+          ...(status !== undefined ? { status } : {}),
           updatedAt: new Date()
         }
       })
@@ -268,7 +269,10 @@ async function recalcEntryAndPeriod(tx: any, entryId: string) {
   let adjustmentsAsDeductions = 0
   for (const a of (entry.payroll_adjustments || [])) {
     const amt = Number(a.amount || 0)
-    if (amt >= 0) additionsTotal += amt
+    if (amt >= 0) {
+      const isPendingClockIn = (a as any).isClockInAdjustment && (a as any).status === 'pending'
+      if (!isPendingClockIn) additionsTotal += amt
+    }
     else adjustmentsAsDeductions += Math.abs(amt)
   }
 

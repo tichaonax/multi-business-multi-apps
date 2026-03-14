@@ -117,8 +117,10 @@ export default function PayrollPeriodDetailPage() {
     message: string
   } | null>(null)
   const [syncingBenefits, setSyncingBenefits] = useState(false)
+  const [syncingAll, setSyncingAll] = useState(false)
   const [loanSyncNeeded, setLoanSyncNeeded] = useState(false)
   const [syncingLoans, setSyncingLoans] = useState(false)
+  const [perDiemMap, setPerDiemMap] = useState<Record<string, number>>({})
 
   const [addingAllEmployees, setAddingAllEmployees] = useState(false)
   const [availableEmployeesCount, setAvailableEmployeesCount] = useState<number | null>(null)
@@ -191,6 +193,8 @@ export default function PayrollPeriodDetailPage() {
         } catch (e) { /* ignore */ }
         // Loaded period data; UI will consume server-provided mergedBenefits and totals.
         setPeriod(data)
+        // Fetch per diem totals for this period
+        loadPerDiem(data.year, data.month)
         // Auto-sync loan deductions silently on every load for non-approved periods
         if (!['approved', 'exported', 'closed'].includes(data.status)) {
           autoSyncLoans(periodId as string)
@@ -222,6 +226,22 @@ export default function PayrollPeriodDetailPage() {
       }
     } catch {
       // Non-critical — silently ignore
+    }
+  }
+
+  const loadPerDiem = async (year: number, month: number) => {
+    try {
+      const res = await fetch(`/api/per-diem/entries?payrollYear=${year}&payrollMonth=${month}`, { credentials: 'include' })
+      if (!res.ok) return
+      const data = await res.json()
+      const entries: any[] = data?.data?.entries ?? []
+      const map: Record<string, number> = {}
+      entries.forEach(e => {
+        map[e.employeeId] = (map[e.employeeId] ?? 0) + Number(e.amount)
+      })
+      setPerDiemMap(map)
+    } catch {
+      // non-critical
     }
   }
 
@@ -648,20 +668,22 @@ export default function PayrollPeriodDetailPage() {
   }
 
   // Resolve absence deduction value for an entry.
-  // Prefer a value computed/stored by the payroll entry detail modal (entry.absenceDeduction or entry.absenceAmount).
-  // If absent, fall back to a per-day pro-rated computation based on cumulativeAbsenceDays.
+  // Prefer a value stored by the server (absenceDeduction field from API).
+  // If absent, fall back using the same hourly-rate formula as the Edit modal:
+  //   absenceDays × 9 hrs/day × (baseSalary × 12 / 2808)
   const resolveAbsenceDeduction = (entry: PayrollEntry) => {
     try {
       const stored = Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
       if (stored && stored !== 0) return stored
 
-      // Fallback: compute from cumulativeAbsenceDays using client-side pro-rating
-      const absenceDays = Number((entry as any).cumulativeAbsenceDays || 0)
+      // Fallback: same formula as Edit modal — hourly rate × 9 hrs/day × absenceDays
+      // Use entry.absenceDays (this month only), NOT cumulativeAbsenceDays which double-counts
+      // because the period API adds cumulative time-tracking days on top of entry.absenceDays.
+      const absenceDays = Number(entry.absenceDays || 0)
       if (!absenceDays || absenceDays <= 0) return 0
       const baseSalary = Number(entry.baseSalary || 0)
-      const workingDays = period ? getWorkingDaysInMonthClient(period.year, period.month) : 22
-      const perDay = workingDays > 0 ? (baseSalary / workingDays) : 0
-      const deduction = perDay * absenceDays
+      const hourlyRate = (baseSalary * 12) / 2808  // 6 days/wk × 9 hrs/day × 52 wks
+      const deduction = Math.round(absenceDays * 9 * hourlyRate * 100) / 100
       return Number(deduction || 0)
     } catch (e) {
       return 0
@@ -709,6 +731,7 @@ export default function PayrollPeriodDetailPage() {
     if ((!additions || additions === 0) || (!adjAsDeductions || adjAsDeductions === 0)) {
       if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
         const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
+          if ((a as any).isClockInAdjustment && (a as any).status === 'pending') return s
           const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
           const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
           return s + (isAdd ? Math.abs(amt) : 0)
@@ -717,6 +740,7 @@ export default function PayrollPeriodDetailPage() {
           try {
             const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
             if (rawType === 'absence') return s
+            if (a.isClockInAdjustment) return s  // pre-tax — shown in Absence column
             const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
             const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
             return s + (!isAdd ? Math.abs(amt) : 0)
@@ -728,7 +752,9 @@ export default function PayrollPeriodDetailPage() {
     }
 
     const absenceDeduction = resolveAbsenceDeduction(entry)
-    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
+    const clockInDeduction = Number((entry as any).clockInDeductionAmount || 0)
+    // Net Gross: true gross minus pre-tax deductions (absence + clock-in tardiness)
+    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction - clockInDeduction
 
     const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
     const totalDeductions = derivedTotalDeductions
@@ -753,6 +779,7 @@ export default function PayrollPeriodDetailPage() {
       const adjustmentsList = (entry as any).payrollAdjustments || []
       if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
         const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
+          if ((a as any).isClockInAdjustment && (a as any).status === 'pending') return s
           const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
           const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
           return s + (isAdd ? Math.abs(amt) : 0)
@@ -761,6 +788,7 @@ export default function PayrollPeriodDetailPage() {
           try {
             const rawType = String(a.adjustmentType || a.type || '').toLowerCase()
             if (rawType === 'absence') return s
+            if (a.isClockInAdjustment) return s  // pre-tax
             const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
             const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
             return s + (!isAdd ? Math.abs(amt) : 0)
@@ -772,12 +800,12 @@ export default function PayrollPeriodDetailPage() {
     }
 
     const absenceDeduction = resolveAbsenceDeduction(entry)
-    const gross = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
+    const clockInDeduction = Number((entry as any).clockInDeductionAmount || 0)
+    const gross = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction - clockInDeduction
 
     const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
     const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
-    // Prefer the derived total which excludes explicit 'absence' adjustments so the list
-    // and modal remain consistent and absence is shown separately.
+    // Prefer the derived total which excludes absence and clock-in (pre-tax items)
     const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
 
   // Net = Gross (deductions shown separately)
@@ -851,6 +879,30 @@ export default function PayrollPeriodDetailPage() {
               {period.payroll_entries.length > 0 && (
                 <>
                   <button
+                    onClick={async () => {
+                      setSyncingAll(true)
+                      try {
+                        const res = await fetch(`/api/payroll/periods/${period.id}/sync-all`, { method: 'POST' })
+                        const data = await res.json()
+                        if (res.ok) {
+                          showNotification('success', data.message || 'Sync complete')
+                          await loadPeriod()
+                        } else {
+                          showNotification('error', data.error || 'Sync failed')
+                        }
+                      } catch {
+                        showNotification('error', 'Sync failed')
+                      } finally {
+                        setSyncingAll(false)
+                      }
+                    }}
+                    disabled={syncingAll}
+                    className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700 disabled:opacity-50"
+                    title="Sync per diem, absences and clock-in for all employees"
+                  >
+                    {syncingAll ? '↻ Syncing...' : '↻ Sync All'}
+                  </button>
+                  <button
                     onClick={handleClearAllEntries}
                     className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
                   >
@@ -920,7 +972,7 @@ export default function PayrollPeriodDetailPage() {
             </button>
           )}
           {canApprove && period.status === 'review' && (() => {
-            const totalNeeded = Number(period.totalNetPay || 0)
+            const totalNeeded = period.payroll_entries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0)
             const balance = payrollAccountBalance ?? 0
             const insufficientFunds = payrollAccountBalance !== null && balance < totalNeeded
             return (
@@ -1088,14 +1140,17 @@ export default function PayrollPeriodDetailPage() {
       )}
 
       {/* Payroll balance warning for review status */}
-      {period.status === 'review' && payrollAccountBalance !== null && payrollAccountBalance < period.totalNetPay && (
+      {period.status === 'review' && payrollAccountBalance !== null && (() => {
+        const liveTotalNeeded = period.payroll_entries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0)
+        if (payrollAccountBalance >= liveTotalNeeded) return null
+        return (
         <div className="mb-4 p-4 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="font-semibold text-amber-800 dark:text-amber-200">Insufficient Payroll Account Balance</p>
               <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
-                Payroll requires <strong>{formatCurrency(period.totalNetPay)}</strong> but payroll account only has <strong>{formatCurrency(payrollAccountBalance)}</strong>{' '}
-                (short by <strong>{formatCurrency(period.totalNetPay - payrollAccountBalance)}</strong>). Fund the payroll account before approving.
+                Payroll requires <strong>{formatCurrency(liveTotalNeeded)}</strong> but payroll account only has <strong>{formatCurrency(payrollAccountBalance)}</strong>{' '}
+                (short by <strong>{formatCurrency(liveTotalNeeded - payrollAccountBalance)}</strong>). Fund the payroll account before approving.
               </p>
             </div>
             <button
@@ -1106,7 +1161,8 @@ export default function PayrollPeriodDetailPage() {
             </button>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Benefit load error / sync helper */}
       {period?.benefitLoadError && (
@@ -1236,6 +1292,7 @@ export default function PayrollPeriodDetailPage() {
                       {benefit.benefitName}
                     </th>
                   ))}
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Per Diem</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Absence (unearned)</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Deductions</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Gross Pay</th>
@@ -1245,17 +1302,46 @@ export default function PayrollPeriodDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {period.payroll_entries.map((entry) => (
+                {period.payroll_entries.map((entry) => {
+                  const adjs = (entry as any).payrollAdjustments || []
+                  const hasPendingOT = adjs.some((a: any) =>
+                    a.isClockInAdjustment && a.status === 'pending' && (a.adjustmentType || a.type) !== 'clock_in_deduction'
+                  )
+                  const hasPendingTardiness = adjs.some((a: any) =>
+                    a.isClockInAdjustment && a.status === 'pending' && (a.adjustmentType || a.type) === 'clock_in_deduction'
+                  )
+                  const needsAction = hasPendingOT || hasPendingTardiness
+                  // Complete: has at least one adjustment (was reviewed/synced) and nothing is pending
+                  const isComplete = adjs.length > 0 && !needsAction
+                  const rowClass = needsAction
+                    ? 'bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors border-l-4 border-orange-400'
+                    : isComplete
+                    ? 'bg-green-50 dark:bg-green-900/10 hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors border-l-4 border-green-500'
+                    : 'hover:bg-muted transition-colors'
+                  return (
                   <tr
                     key={entry.id}
-                    className="hover:bg-muted transition-colors"
+                    className={rowClass}
                   >
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{makeShortCompanyLabel((entry as any).primaryBusiness?.name || (entry as any).employee?.primaryBusiness?.name)}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeNumber || ''}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.nationalId}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeDateOfBirth ? new Date((entry as any).employeeDateOfBirth).toLocaleDateString() : (entry.dateOfBirth ? new Date(entry.dateOfBirth).toLocaleDateString() : '')}</td>
                     <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeLastName || (() => { const name = entry.employeeName || ''; const parts = name ? name.split(' ') : []; return parts.slice(-1)[0] || '' })()}</td>
-                    <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeFirstName || (() => { const name = entry.employeeName || ''; const parts = name ? name.split(' ') : []; return parts.slice(0, -1).join(' ') || '' })()}</td>
+                    <td className="px-3 py-2 text-sm text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span>{(entry as any).employeeFirstName || (() => { const name = entry.employeeName || ''; const parts = name ? name.split(' ') : []; return parts.slice(0, -1).join(' ') || '' })()}</span>
+                        {hasPendingTardiness && (
+                          <span className="px-1.5 py-0.5 rounded text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 font-semibold">⚠ Late</span>
+                        )}
+                        {hasPendingOT && (
+                          <span className="px-1.5 py-0.5 rounded text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 font-semibold">⚠ OT</span>
+                        )}
+                        {isComplete && (
+                          <span className="px-1.5 py-0.5 rounded text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 font-semibold">✓ Done</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.employee?.jobTitles?.title || ''}</td>
                     <td className="px-3 py-2 text-sm cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
                       {formatContractDateRange(entry) ? (
@@ -1291,6 +1377,8 @@ export default function PayrollPeriodDetailPage() {
                         if ((!additions || additions === 0) || (!deductions || deductions === 0)) {
                           if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
                             const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
+                              // Exclude pending clock-in OT — only show after approval
+                              if ((a as any).isClockInAdjustment && (a as any).status === 'pending') return s
                               const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
                               const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
                               return s + (isAdd ? Math.abs(amt) : 0)
@@ -1341,9 +1429,14 @@ export default function PayrollPeriodDetailPage() {
                     })}
                     {(() => {
                       const totals = computeEntryTotals(entry)
-                      const absenceAmt = resolveAbsenceDeduction(entry)
+                      const absenceAmt = resolveAbsenceDeduction(entry) + Number((entry as any).clockInDeductionAmount || 0)
+                      const empId = (entry as any).employeeId || ''
+                      const perDiemTotal = perDiemMap[empId] ?? 0
                       return (
                         <>
+                          <td className="px-3 py-2 text-sm text-right text-blue-600 dark:text-blue-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                            {perDiemTotal > 0 ? formatCurrency(perDiemTotal) : <span className="text-border">–</span>}
+                          </td>
                           <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{absenceAmt && absenceAmt !== 0 ? `-${formatCurrency(Math.abs(absenceAmt))}` : formatCurrency(0)}</td>
                           <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.totalDeductions)}</td>
                           <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.grossInclBenefits)}</td>
@@ -1364,7 +1457,8 @@ export default function PayrollPeriodDetailPage() {
                       </td>
                     )}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -1387,6 +1481,11 @@ export default function PayrollPeriodDetailPage() {
           isOpen={!!selectedEntryId}
           onClose={() => setSelectedEntryId(null)}
           entryId={selectedEntryId}
+          perDiemTotal={selectedEntryId ? (() => {
+            const entry = period?.payroll_entries.find(e => e.id === selectedEntryId)
+            const empId = (entry as any)?.employeeId || ''
+            return perDiemMap[empId] ?? 0
+          })() : 0}
           onSuccess={(payload) => {
             const p: any = payload
             const message = typeof p === 'string' ? p : (p && p.message) || ''
@@ -1469,7 +1568,7 @@ export default function PayrollPeriodDetailPage() {
       {/* Fund Payroll From Accounts Modal */}
       {showFundPayrollModal && (
         <FundPayrollFromAccountsModal
-          totalRequired={period.totalNetPay}
+          totalRequired={period.payroll_entries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0)}
           currentPayrollBalance={payrollAccountBalance ?? 0}
           onSuccess={() => {
             setShowFundPayrollModal(false)

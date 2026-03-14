@@ -69,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { batchI
     if (!permissions.canManageChickenRun) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json()
-    const { status, notes, expectedCullDate } = body
+    const { status, notes, expectedCullDate, supplierId } = body
 
     const batch = await prisma.chickenBatch.update({
       where: { id: params.batchId },
@@ -77,6 +77,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { batchI
         ...(status && { status }),
         ...(notes !== undefined && { notes }),
         ...(expectedCullDate !== undefined && { expectedCullDate: expectedCullDate ? new Date(expectedCullDate) : null }),
+        ...(supplierId !== undefined && { supplierId: supplierId || null }),
       }
     })
 

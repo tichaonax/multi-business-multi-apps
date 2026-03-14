@@ -6,10 +6,10 @@ import { getGlobalPayrollAccount } from '@/lib/payroll-account-utils'
 
 /**
  * POST /api/payroll/account/fund
- * Batch fund payroll account from multiple expense accounts
+ * Fund payroll account from business cash boxes.
  *
  * Body:
- * - transfers: Array<{ expenseAccountId: string, amount: number }>
+ * - transfers: Array<{ businessId: string, amount: number }>
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const validTransfers = transfers.filter(
-      (t: any) => t.expenseAccountId && Number(t.amount) > 0
+      (t: any) => t.businessId && Number(t.amount) > 0
     )
     if (validTransfers.length === 0) {
       return NextResponse.json({ error: 'No valid transfers with amount > 0' }, { status: 400 })
@@ -41,97 +41,80 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payroll account not found' }, { status: 404 })
     }
 
-    // Validate all expense accounts exist and have sufficient balance
-    const accountIds = validTransfers.map((t: any) => t.expenseAccountId)
-    const accounts = await prisma.expenseAccounts.findMany({
-      where: { id: { in: accountIds }, isActive: true },
-      select: { id: true, accountName: true, balance: true, businessId: true },
+    // Validate each business has sufficient cashbox balance
+    const businessIds = validTransfers.map((t: any) => t.businessId)
+    const bucketTotals = await prisma.cashBucketEntry.groupBy({
+      by: ['businessId', 'direction'],
+      where: { businessId: { in: businessIds } },
+      _sum: { amount: true },
+    })
+
+    const businesses = await prisma.businesses.findMany({
+      where: { id: { in: businessIds } },
+      select: { id: true, name: true },
     })
 
     for (const t of validTransfers) {
-      const acc = accounts.find((a: (typeof accounts)[number]) => a.id === t.expenseAccountId)
-      if (!acc) {
-        return NextResponse.json({ error: `Account ${t.expenseAccountId} not found or inactive` }, { status: 404 })
+      const biz = businesses.find((b) => b.id === t.businessId)
+      if (!biz) {
+        return NextResponse.json({ error: `Business ${t.businessId} not found` }, { status: 404 })
       }
-      if (!acc.businessId) {
-        return NextResponse.json({ error: `Account ${acc.accountName} has no associated business` }, { status: 400 })
-      }
-      if (Number(acc.balance) < Number(t.amount)) {
+      const inflow = Number(bucketTotals.find((r) => r.businessId === t.businessId && r.direction === 'INFLOW')?._sum.amount ?? 0)
+      const outflow = Number(bucketTotals.find((r) => r.businessId === t.businessId && r.direction === 'OUTFLOW')?._sum.amount ?? 0)
+      const balance = inflow - outflow
+      if (balance < Number(t.amount)) {
         return NextResponse.json({
-          error: `Insufficient balance in ${acc.accountName}. Available: $${Number(acc.balance).toFixed(2)}, Requested: $${Number(t.amount).toFixed(2)}`,
+          error: `Insufficient cash box balance for ${biz.name}. Available: $${balance.toFixed(2)}, Requested: $${Number(t.amount).toFixed(2)}`,
         }, { status: 400 })
       }
     }
 
-    // Find or create "Payroll Funding" expense category
-    let payrollFundingCategory = await prisma.expenseCategories.findFirst({
-      where: { name: 'Payroll Funding', isDefault: true },
-    })
-    if (!payrollFundingCategory) {
-      payrollFundingCategory = await prisma.expenseCategories.create({
-        data: {
-          name: 'Payroll Funding',
-          emoji: '💵',
-          isDefault: true,
-          isUserCreated: false,
-          description: 'Transfer from expense account to payroll account',
-        },
-      })
-    }
-
     const totalTransferred = validTransfers.reduce((s: number, t: any) => s + Number(t.amount), 0)
+    const now = new Date()
 
     await prisma.$transaction(async (tx: any) => {
       for (const transfer of validTransfers) {
-        const acc = accounts.find((a: (typeof accounts)[number]) => a.id === transfer.expenseAccountId)!
+        const biz = businesses.find((b) => b.id === transfer.businessId)!
         const amount = Number(transfer.amount)
 
-        // Create expense payment
-        const payment = await tx.expenseAccountPayments.create({
+        // Debit cashbox — OUTFLOW entry
+        await tx.cashBucketEntry.create({
           data: {
-            expenseAccountId: transfer.expenseAccountId,
-            payeeType: 'PAYROLL',
+            businessId: transfer.businessId,
+            entryType: 'PAYROLL_FUNDING',
+            direction: 'OUTFLOW',
             amount,
-            paymentDate: new Date(),
+            referenceType: 'PAYROLL_ACCOUNT',
+            referenceId: payrollAccount.id,
             notes: `💵 Payroll funding — $${amount.toFixed(2)}`,
-            isFullPayment: false,
-            status: 'SUBMITTED',
-            paymentType: 'PAYROLL_FUNDING',
-            categoryId: payrollFundingCategory!.id,
+            entryDate: now,
             createdBy: user.id,
           },
         })
 
-        // Debit expense account
-        await tx.expenseAccounts.update({
-          where: { id: transfer.expenseAccountId },
-          data: { balance: { decrement: amount }, updatedAt: new Date() },
-        })
-
-        // Create payroll deposit
+        // Credit payroll account — deposit record
         await tx.payrollAccountDeposits.create({
           data: {
             payrollAccountId: payrollAccount.id,
-            businessId: acc.businessId!,
+            businessId: transfer.businessId,
             amount,
             transactionType: 'PAYROLL_FUNDING',
-            autoGeneratedNote: `Funded from expense account: ${acc.accountName}`,
+            autoGeneratedNote: `Funded from ${biz.name} cash box`,
             createdBy: user.id,
-            expenseId: payment.id,
           },
         })
       }
 
-      // Credit payroll account balance (single update for total)
+      // Credit payroll account balance
       await tx.payrollAccounts.update({
         where: { id: payrollAccount.id },
-        data: { balance: { increment: totalTransferred }, updatedAt: new Date() },
+        data: { balance: { increment: totalTransferred }, updatedAt: now },
       })
     })
 
     return NextResponse.json({
       success: true,
-      message: `$${totalTransferred.toFixed(2)} transferred to payroll account from ${validTransfers.length} account(s)`,
+      message: `$${totalTransferred.toFixed(2)} transferred to payroll account from ${validTransfers.length} cash box(es)`,
       data: { totalTransferred, transferCount: validTransfers.length },
     }, { status: 201 })
   } catch (error) {

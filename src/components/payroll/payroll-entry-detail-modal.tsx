@@ -61,17 +61,132 @@ interface PayrollEntryDetailModalProps {
   isOpen: boolean
   onClose: () => void
   entryId: string
+  perDiemTotal?: number
   onSuccess: (payload: OnSuccessArg) => void
   onError: (msg: string) => void
 }
 
 // Standardized payload for onSuccess callbacks used across modals.
 
+function PendingOvertimeRow({ adj, entryId, onApproved }: { adj: any; entryId: string; onApproved: () => void }) {
+  const [approveAmount, setApproveAmount] = useState<string>(String(Number(adj.amount || 0).toFixed(2)))
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleApprove = async () => {
+    setSaving(true)
+    setErr(null)
+    try {
+      const amt = parseFloat(approveAmount)
+      if (isNaN(amt) || amt < 0) { setErr('Invalid amount'); setSaving(false); return }
+      const res = await fetch('/api/payroll/adjustments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: adj.id, amount: amt, isAddition: true, status: 'approved' }),
+      })
+      if (!res.ok) { const d = await res.json(); setErr(d.error || 'Failed'); setSaving(false); return }
+      await onApproved()
+    } catch (e: any) {
+      setErr(e.message || 'Failed')
+      setSaving(false)
+    }
+  }
+
+  const label = adj.adjustmentType === 'overtime_credit' ? 'Overtime credit (≤30 min)' : 'Overtime (>30 min)'
+
+  return (
+    <div className="flex items-center gap-2 mb-2 flex-wrap">
+      <span className="text-xs text-gray-600 dark:text-gray-400 flex-1 min-w-[120px]">{label}: {adj.reason || ''}</span>
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-gray-500">$</span>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={approveAmount}
+          onChange={e => setApproveAmount(e.target.value)}
+          className="w-20 px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+        />
+      </div>
+      <button
+        onClick={handleApprove}
+        disabled={saving}
+        className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded disabled:opacity-50"
+      >
+        {saving ? '…' : '✓ Approve'}
+      </button>
+      {err && <span className="text-xs text-red-500">{err}</span>}
+    </div>
+  )
+}
+
+function PendingTardinessRow({ adj, entryId, onSaved }: { adj: any; entryId: string; onSaved: () => void }) {
+  const [editAmount, setEditAmount] = useState<string>(String(Number(adj.amount || 0).toFixed(2)))
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const isApproved = adj.status === 'approved'
+  const fmtAmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+
+  const handleOverride = async () => {
+    setSaving(true)
+    setErr(null)
+    try {
+      const amt = parseFloat(editAmount)
+      if (isNaN(amt) || amt < 0) { setErr('Invalid amount'); setSaving(false); return }
+      const res = await fetch('/api/payroll/adjustments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: adj.id, amount: amt, isAddition: false, status: 'approved' }),
+      })
+      if (!res.ok) { const d = await res.json(); setErr(d.error || 'Failed'); setSaving(false); return }
+      await onSaved()
+    } catch (e: any) {
+      setErr(e.message || 'Failed')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-xs text-secondary flex-1">
+        Clock-in tardiness:
+        {isApproved && <span className="ml-1 text-green-600 dark:text-green-400">🔒</span>}
+      </span>
+      {isApproved ? (
+        <span className="text-xs text-red-600 font-medium">-{fmtAmt(Number(adj.amount || 0))}</span>
+      ) : (
+        <>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-500">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={editAmount}
+              onChange={e => setEditAmount(e.target.value)}
+              className="w-20 px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <button
+            onClick={handleOverride}
+            disabled={saving}
+            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-50"
+          >
+            {saving ? '…' : '🔒 Override & Lock'}
+          </button>
+          {err && <span className="text-xs text-red-500">{err}</span>}
+        </>
+      )}
+    </div>
+  )
+}
 
 export function PayrollEntryDetailModal({
   isOpen,
   onClose,
   entryId,
+  perDiemTotal = 0,
   onSuccess,
   onError
 }: PayrollEntryDetailModalProps) {
@@ -135,6 +250,7 @@ export function PayrollEntryDetailModal({
 
   // Clock-in sync state
   const [syncingClockIn, setSyncingClockIn] = useState(false)
+  const [syncingAbsences, setSyncingAbsences] = useState(false)
   const [clockInAnalysis, setClockInAnalysis] = useState<{
     lateCount: number
     earlyCount: number
@@ -175,8 +291,24 @@ export function PayrollEntryDetailModal({
 
   useEffect(() => {
     if (isOpen && entryId) {
-      loadEntry()
-      loadBenefitTypes()
+      const init = async () => {
+        await loadEntry()
+        loadBenefitTypes()
+        // Auto-sync clock-in on open so deduction info is always fresh
+        // The API returns 400 silently if period is locked, so no client-side guard needed
+        try {
+          setSyncingClockIn(true)
+          const res = await fetch(`/api/payroll/entries/${entryId}/sync-clock-in`, { method: 'POST' })
+          if (res.ok) {
+            const data = await res.json()
+            setClockInAnalysis(data)
+            await loadEntry()
+          }
+        } catch { /* best-effort — ignore failures */ } finally {
+          setSyncingClockIn(false)
+        }
+      }
+      init()
     }
   }, [isOpen, entryId])
 
@@ -218,7 +350,7 @@ export function PayrollEntryDetailModal({
               benefitTypeId: mb.benefitType?.id || mb.benefitTypeId || '',
               benefitName: name,
               amount: Number(mb.amount || 0),
-              isActive: mb.source && String(mb.source).toLowerCase().includes('manual') ? (mb.isActive !== false) : false,
+              isActive: mb.isActive !== false,
               deactivatedReason: mb.deactivatedReason || undefined,
               source: mb.source || 'merged',
               benefitType: mb.benefitType || undefined
@@ -347,8 +479,8 @@ export function PayrollEntryDetailModal({
         }
 
         // Recompute negative adjustments (deductions) from the normalized payrollAdjustments list
-        // Exclude explicit 'absence' adjustments from the computed deductions so they are not double-counted
-        const adjAsDeductionsFromList = payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
+        // Exclude 'absence' and clock-in adjustments (both are pre-tax, shown in Compensation Breakdown)
+        const adjAsDeductionsFromList = payrollAdjustments.filter((a: any) => !a.isAddition && !(a as any).isClockInAdjustment && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
         const advances = Number(data.advanceDeductions || 0)
         const loans = Number(data.loanDeductions || 0)
         const misc = Number(data.miscDeductions || 0)
@@ -584,8 +716,14 @@ export function PayrollEntryDetailModal({
 
   // Compute totals locally for display to ensure adjustments (positive vs negative) are applied correctly
   const computeEntryTotalsLocal = (entry: any, payrollAdjustments: any[], benefitsList: any[]) => {
-    const benefitsTotal = Number(entry.benefitsTotal ?? entry.totalBenefitsAmount ?? 0) ||
-      (Array.isArray(benefitsList) ? benefitsList.filter(b => b.isActive !== false).reduce((s, b) => s + Number(b.amount || 0), 0) : 0)
+    // Always compute from live benefitsList — server entry.benefitsTotal may be stale
+    // (e.g. only reflects newly-persisted manual benefit, misses contract benefits)
+    const computedFromList = Array.isArray(benefitsList)
+      ? benefitsList.filter(b => b.isActive !== false).reduce((s, b) => s + Number(b.amount || 0), 0)
+      : 0
+    const benefitsTotal = computedFromList > 0
+      ? computedFromList
+      : Number(entry.benefitsTotal ?? entry.totalBenefitsAmount ?? 0)
 
     const baseSalary = Number(entry.baseSalary || 0)
     // Prefer the live form value for commission so changes are reflected immediately
@@ -595,16 +733,23 @@ export function PayrollEntryDetailModal({
 
     const overtime = computeOvertimeForModal(entry)
 
-    // additions: positive adjustments (either from server additionsTotal or derived from payrollAdjustments)
-    const additionsFromServer = Number((entry as any).adjustmentsTotal || 0)
-    const additionsFromList = payrollAdjustments.filter(a => a.isAddition).reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
-    const additions = additionsFromServer && additionsFromServer !== 0 ? additionsFromServer : additionsFromList
+    // Clock-in additions (OT) only count when explicitly approved — null/pending both excluded
+    const additions = payrollAdjustments
+      .filter(a => a.isAddition && (!(a as any).isClockInAdjustment || (a as any).status === 'approved'))
+      .reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
 
-    // negative adjustments treated as deductions applied after taxes
-    const adjAsDeductionsFromServer = Number((entry as any).adjustmentsAsDeductions || 0)
-    // Exclude explicit 'absence' adjustments from adjustmentsAsDeductions so they are not double-counted
-    const adjAsDeductionsFromList = payrollAdjustments.filter(a => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
-    const adjAsDeductions = adjAsDeductionsFromServer && adjAsDeductionsFromServer !== 0 ? adjAsDeductionsFromServer : adjAsDeductionsFromList
+    // Clock-in deduction: use ONE record only (pending preferred over approved) to prevent double-counting
+    const clockInDeductionRecords = payrollAdjustments.filter(a => (a as any).isClockInAdjustment && !a.isAddition)
+    const primaryClockInRecord = clockInDeductionRecords.find(a => (a as any).status === 'pending') || clockInDeductionRecords[0]
+    const clockInDeductionFromList = primaryClockInRecord
+      ? Math.abs(Number((primaryClockInRecord.storedAmount !== undefined && primaryClockInRecord.storedAmount !== null) ? primaryClockInRecord.storedAmount : primaryClockInRecord.amount || 0))
+      : 0
+    const clockInDeduction = clockInDeductionFromList || Number((entry as any).clockInDeductionAmount || 0)
+
+    // negative adjustments treated as post-tax deductions (exclude absence and clock-in)
+    const adjAsDeductions = payrollAdjustments
+      .filter(a => !a.isAddition && !(a as any).isClockInAdjustment && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence')
+      .reduce((s: number, a: any) => s + Math.abs(Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : a.amount || 0)), 0)
 
     // Compute absence deduction: combine whole days + fraction and convert to hours
     const fraction = parseFloat(String(formData.absenceFraction || '0')) || 0
@@ -614,18 +759,17 @@ export function PayrollEntryDetailModal({
     const absenceHours = totalAbsentDays * hoursPerDay
     const absenceDeduction = Math.round(absenceHours * hourlyRate * 100) / 100
 
-    const gross = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction
+    // Net Gross: true gross minus pre-tax deductions (absence + clock-in tardiness)
+    const gross = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction - clockInDeduction
 
     // Prefer live misc value from the form while editing so UI shows immediate effect
     const miscVal = typeof formData.miscDeductions === 'number' ? Number(formData.miscDeductions) : Number(entry.miscDeductions || 0)
 
-    // Build a derived total from visible deduction components (excluding absence)
-    // Always prefer the derived total for UI display so Total Deductions equals the sum
-    // of the visible Other Deductions (advances, loans, misc, and non-absence adjustments).
+    // Post-tax deductions: advances, loans, misc, and other (non-clock-in) negative adjustments
     const totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + miscVal + adjAsDeductions
 
     const net = gross - totalDeductions
-    return { benefitsTotal, gross, totalDeductions, net, absenceDeduction, overtimePay: overtime }
+    return { benefitsTotal, gross, totalDeductions, net, absenceDeduction, clockInDeduction, overtimePay: overtime }
   }
 
   const loadBenefits = async () => {
@@ -1108,10 +1252,10 @@ export function PayrollEntryDetailModal({
         })
       }
 
-      // Add adjustments to benefits if positive
+      // Add adjustments to benefits if positive (exclude pending clock-in OT awaiting approval)
       const additionsFromServer = Number((entry as any).adjustmentsTotal || 0)
       const additionsFromList = (entry?.payrollAdjustments || [])
-        .filter((a: any) => a.isAddition)
+        .filter((a: any) => a.isAddition && !((a as any).isClockInAdjustment && (a as any).status === 'pending'))
         .reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
       const additions = additionsFromServer && additionsFromServer !== 0 ? additionsFromServer : additionsFromList
 
@@ -1363,11 +1507,29 @@ export function PayrollEntryDetailModal({
       const data = await res.json()
       if (!res.ok) { onError(data.error || 'Clock-in sync failed'); return }
       setClockInAnalysis(data)
-      await loadEntry()
+      const freshEntry = await loadEntry()
+      // Push updated entry to parent table immediately so the Absence column reflects new clock-in deduction
+      if (freshEntry) {
+        try { onSuccess({ message: '', refresh: false, updatedEntry: freshEntry }) } catch (e) { /* ignore */ }
+      }
     } catch {
       onError('Failed to sync clock-in deduction')
     } finally {
       setSyncingClockIn(false)
+    }
+  }
+
+  const handleSyncAbsences = async () => {
+    setSyncingAbsences(true)
+    try {
+      const res = await fetch(`/api/payroll/entries/${entryId}/sync-absences`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { onError(data.error || 'Absence sync failed'); return }
+      await loadEntry()
+    } catch {
+      onError('Failed to sync absences')
+    } finally {
+      setSyncingAbsences(false)
     }
   }
 
@@ -1627,7 +1789,7 @@ export function PayrollEntryDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-6xl xl:max-w-7xl max-h-[95vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-primary">Payroll Entry Details</h2>
@@ -1671,7 +1833,7 @@ export function PayrollEntryDetailModal({
             {/* Attendance */}
             <div>
               <h3 className="font-semibold text-primary mb-3">Attendance & Hours</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-x-8 md:gap-y-6">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-1">Work Days</label>
                   <input
@@ -1728,16 +1890,29 @@ export function PayrollEntryDetailModal({
                 <div className="flex items-center gap-2">
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-secondary mb-1">Absence Days</label>
-                    <input
-                      type="number"
-                      value={formData.absenceDays}
-                      onChange={(e) => handleNumberInput(e.target.value, 'absenceDays')}
-                      onBlur={() => flushAutosave()}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                      min="0"
-                      max="31"
-                      disabled={isLocked}
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={formData.absenceDays}
+                        onChange={(e) => handleNumberInput(e.target.value, 'absenceDays')}
+                        onBlur={() => flushAutosave()}
+                        className="flex-1 px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                        min="0"
+                        max="31"
+                        disabled={isLocked}
+                      />
+                      {!isLocked && (
+                        <button
+                          type="button"
+                          onClick={handleSyncAbsences}
+                          disabled={syncingAbsences}
+                          className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-50 whitespace-nowrap"
+                          title="Sync absences from attendance records"
+                        >
+                          {syncingAbsences ? '…' : '↻ Sync'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="w-28">
                     <label className="block text-sm font-medium text-secondary mb-1">Fraction</label>
@@ -1801,9 +1976,10 @@ export function PayrollEntryDetailModal({
             </div>
 
             {/* Compensation Breakdown */}
-            <div>
-              <h3 className="font-semibold text-primary mb-3">Compensation Breakdown</h3>
-              <div className="bg-muted p-4 rounded-lg border border-border space-y-2 text-sm">
+            <div className="flex flex-col md:flex-row gap-8 items-stretch">
+              <div className="h-full">
+                <h3 className="font-semibold text-primary mb-3">Compensation Breakdown</h3>
+                <div className="bg-muted p-4 rounded-lg border border-border space-y-2 text-sm h-full">
                 {entry.baseSalary > 0 && (
                   <div className="flex justify-between">
                     <span className="text-secondary">Base Salary:</span>
@@ -1910,11 +2086,11 @@ export function PayrollEntryDetailModal({
                             </div>
                           ))}
 
-                          {/* Show positive adjustments (single summed entry) */}
+                          {/* Show positive adjustments (single summed entry, exclude pending clock-in OT) */}
                           {(() => {
-                            const additionsFromServer = Number((entry as any).adjustmentsTotal || 0)
-                            const additionsFromList = (entry?.payrollAdjustments || []).filter((a: any) => a.isAddition).reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
-                            const additions = additionsFromServer && additionsFromServer !== 0 ? additionsFromServer : additionsFromList
+                            const additions = (entry?.payrollAdjustments || [])
+                              .filter((a: any) => a.isAddition && (!(a as any).isClockInAdjustment || (a as any).status === 'approved'))
+                              .reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
                             if (additions > 0) {
                               return (
                                 <div className="flex justify-between ml-4 text-xs">
@@ -1929,7 +2105,7 @@ export function PayrollEntryDetailModal({
                           <div className="flex justify-between font-medium">
                             <span className="text-secondary">Total Benefits:</span>
                             <span className="text-primary">
-                              {formatCurrency(displayed.reduce((sum, b) => sum + Number(b.amount || 0), 0) + ((entry && Number((entry as any).adjustmentsTotal || 0)) ? Number((entry as any).adjustmentsTotal || 0) : (entry?.payrollAdjustments || []).filter((a: any) => a.isAddition).reduce((s: number, a: any) => s + Number(a.amount || 0), 0)))}
+                              {formatCurrency(displayed.reduce((sum, b) => sum + Number(b.amount || 0), 0) + (entry?.payrollAdjustments || []).filter((a: any) => a.isAddition && (!(a as any).isClockInAdjustment || (a as any).status === 'approved')).reduce((s: number, a: any) => s + Number(a.amount || 0), 0))}
                             </span>
                           </div>
                         </>
@@ -1943,30 +2119,66 @@ export function PayrollEntryDetailModal({
                     <span className="text-primary">{formatCurrency(0)}</span>
                   </div>
                 )}
+                {perDiemTotal > 0 && (
+                  <div className="flex justify-between ml-4 text-xs">
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">Per Diem:</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">+{formatCurrency(perDiemTotal)}</span>
+                  </div>
+                )}
                 {(() => {
                   const totals = computeEntryTotalsLocal(entry, entry.payrollAdjustments || [], benefits)
                   return (
                     <>
-                      {totals.absenceDeduction && totals.absenceDeduction > 0 && (
-                        <div className="flex justify-between ml-4 text-xs">
-                          <span className="text-secondary">Absence (unearned):</span>
-                          <span className="text-red-600">-{formatCurrency(totals.absenceDeduction)}</span>
+                      {(totals.absenceDeduction > 0 || totals.clockInDeduction > 0) && (
+                        <div className="ml-4 space-y-0.5">
+                          {totals.absenceDeduction > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-secondary">Absence (unearned):</span>
+                              <span className="text-red-600">-{formatCurrency(totals.absenceDeduction)}</span>
+                            </div>
+                          )}
+                          {totals.clockInDeduction > 0 && (() => {
+                            const tardinessAdj = (entry.payrollAdjustments || []).find(
+                              (a: any) => a.isClockInAdjustment && (a.adjustmentType || a.type) === 'clock_in_deduction'
+                            )
+                            if (tardinessAdj) {
+                              return (
+                                <PendingTardinessRow
+                                  key={tardinessAdj.id}
+                                  adj={tardinessAdj}
+                                  entryId={entryId}
+                                  onSaved={async () => {
+                                    const freshEntry = await loadEntry()
+                                    if (freshEntry) {
+                                      try { onSuccess({ message: '', refresh: false, updatedEntry: freshEntry }) } catch (e) { /* ignore */ }
+                                    }
+                                  }}
+                                />
+                              )
+                            }
+                            return (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-secondary">Clock-in tardiness:</span>
+                                <span className="text-red-600">-{formatCurrency(totals.clockInDeduction)}</span>
+                              </div>
+                            )
+                          })()}
                         </div>
                       )}
-                      <div className="border-t pt-2 flex justify-between font-semibold">
-                        <span className="text-primary">Gross Pay:</span>
+                      <div className="flex justify-between font-medium text-sm pt-1 border-t border-border mt-1">
+                        <span className="text-primary">Net Gross (pre-tax):</span>
                         <span className="text-primary">{formatCurrency(totals.gross)}</span>
                       </div>
                     </>
                   )
                 })()}
+                </div>
               </div>
-            </div>
 
             {/* Deductions */}
-            <div>
-              <h3 className="font-semibold text-primary mb-3">Deductions</h3>
-              <div className="bg-muted p-4 rounded-lg border border-border space-y-2 text-sm">
+              <div className="h-full">
+                <h3 className="font-semibold text-primary mb-3">Deductions</h3>
+                <div className="bg-muted p-4 rounded-lg border border-border space-y-2 text-sm h-full">
                 {entry.advanceBreakdown && entry.advanceBreakdown.length > 0 && (
                   <div>
                     <div className="font-medium text-secondary mb-1">Advances:</div>
@@ -2107,11 +2319,36 @@ export function PayrollEntryDetailModal({
                     </button>
                   </div>
                 )}
-                {/* Show payroll adjustments that are deductions as individual line items */}
-                {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').length > 0 && (
+                {/* Pending overtime — approval required */}
+                {(() => {
+                  const pendingOT = (entry?.payrollAdjustments || []).filter((a: any) =>
+                    a.isClockInAdjustment && a.status === 'pending' && a.isAddition && Number(a.amount || 0) > 0
+                  )
+                  if (pendingOT.length === 0) return null
+                  return (
+                    <div className="mt-3 border-t border-orange-200 dark:border-orange-700 pt-3">
+                      <div className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-2">⚠ Overtime Pending Approval</div>
+                      {pendingOT.map((adj: any) => (
+                        <PendingOvertimeRow
+                          key={adj.id}
+                          adj={adj}
+                          entryId={entryId}
+                          onApproved={async () => {
+                            const freshEntry = await loadEntry()
+                            if (freshEntry) {
+                              try { onSuccess({ message: '', refresh: false, updatedEntry: freshEntry }) } catch (e) { /* ignore */ }
+                            }
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )
+                })()}
+                {/* Show payroll adjustments that are post-tax deductions (exclude clock-in and absence — those are pre-tax) */}
+                {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => !a.isAddition && !a.isClockInAdjustment && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').length > 0 && (
                   <div>
                     <div className="font-medium text-secondary mb-1">Other Deductions:</div>
-                    {entry.payrollAdjustments.filter((a: any) => !a.isAddition && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').map((adj: any) => (
+                    {entry.payrollAdjustments.filter((a: any) => !a.isAddition && !a.isClockInAdjustment && String((a.adjustmentType || a.type || '').toLowerCase()) !== 'absence').map((adj: any) => (
                       <div key={adj.id} className="flex justify-between ml-4 text-xs items-center">
                         {/* Show type and description */}
                         <div className="text-secondary">
@@ -2146,6 +2383,7 @@ export function PayrollEntryDetailModal({
                     </div>
                   )
                 })()}
+                </div>
               </div>
             </div>
 
@@ -2195,8 +2433,11 @@ export function PayrollEntryDetailModal({
               </div>
             )}
 
+            {/* Adjustments & Benefits — side by side on desktop */}
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+
             {/* Adjustments */}
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-primary">Adjustments</h3>
                 {!isLocked && (
@@ -2419,7 +2660,7 @@ export function PayrollEntryDetailModal({
             </div>
 
             {/* Benefits */}
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-primary">Benefits</h3>
                 {!isLocked && (
@@ -2810,6 +3051,8 @@ export function PayrollEntryDetailModal({
               </div>
             </div>
 
+            </div>{/* end Adjustments & Benefits flex row */}
+
             {/* Deactivation Modal */}
             {deactivatingBenefit && (
               <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60]">
@@ -2961,7 +3204,7 @@ export function PayrollEntryDetailModal({
               return (
                 <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-primary">Net Gross:</span>
+                    <span className="text-lg font-semibold text-primary">Net Gross (taxable base):</span>
                     <span className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totals.gross)}</span>
                   </div>
                 </div>

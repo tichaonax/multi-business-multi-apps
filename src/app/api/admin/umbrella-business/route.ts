@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to manage business settings
-    if (!isSystemAdmin(user) && !hasPermission(user, 'canManageBusinessSettings')) {
+    // Payroll users need the umbrella ID to run cross-business payroll; allow read for them too
+    if (!isSystemAdmin(user) && !hasPermission(user, 'canManageBusinessSettings') && !hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

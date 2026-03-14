@@ -1221,15 +1221,7 @@ export function Sidebar() {
         {/* Individual Access Items - Only for actual managers and system admins, NOT promoted drivers */}
 
         {/* Employees - Only for users with management permissions, not just viewing */}
-        {(hasPermission('canManageEmployees') || hasPermission('canEditEmployees') || hasPermission('canManageBusinessUsers')) && (
-          <Link
-            href="/employees"
-            className="sidebar-link flex items-center space-x-3"
-          >
-            <span className="text-lg">👤</span>
-            <span>Employees</span>
-          </Link>
-        )}
+        {/* Employees link moved to Employee Management submenu */}
 
         {/* Payroll - Only for users with payroll permissions */}
         {(isSystemAdmin(currentUser) || hasPermission('canAccessPayroll')) && (
@@ -1768,6 +1760,15 @@ export function Sidebar() {
             </button>
 
             {employeeSectionExpanded && (<>
+                        {(hasPermission('canManageEmployees') || hasPermission('canEditEmployees') || hasPermission('canManageBusinessUsers')) && (
+                          <Link
+                            href="/employees"
+                            className="sidebar-link flex items-center space-x-3"
+                          >
+                            <span className="text-lg">👤</span>
+                            <span>Employees</span>
+                          </Link>
+                        )}
             {hasPermission('canManageJobTitles') && (
               <Link
                 href="/admin/job-titles"
@@ -1827,6 +1828,7 @@ export function Sidebar() {
                 <span>Absences</span>
               </Link>
             )}
+
 
             {(isSystemAdmin(currentUser) || hasPermission('canAccessPerDiem') || hasPermission('canAccessPayroll')) && (
               <Link

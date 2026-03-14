@@ -249,6 +249,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       // Expose the adjustments accounting breakdown for the UI
       adjustmentsTotal: totals.additionsTotal ?? 0,
       adjustmentsAsDeductions: totals.adjustmentsAsDeductions ?? 0,
+      clockInDeductionAmount: totals.clockInDeductionAmount ?? 0,
       // Normalize payroll adjustments for display (isAddition + absolute amount)
       payrollAdjustments: (mappedEntry.payroll_adjustments || []).map((a: any) => ({
         ...a,

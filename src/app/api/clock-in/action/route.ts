@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { employeeId, action, photoUrl, manualTime, manualCheckIn, manualCheckOut } = await req.json()
+    const { employeeId, action, photoUrl, manualTime, manualCheckIn, manualCheckOut, date } = await req.json()
     if (!employeeId || !action) {
       return NextResponse.json({ error: 'employeeId and action are required' }, { status: 400 })
     }
@@ -22,15 +22,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'action must be clockIn, clockOut, or manualEntry' }, { status: 400 })
     }
 
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const todayEnd = new Date()
-    todayEnd.setHours(23, 59, 59, 999)
+    // Use provided date for manualEntry, otherwise default to today
+    // Use T00:00:00 suffix to parse as local time (not UTC), matching how today API reads dates
+    const baseDate = date ? new Date(date + 'T00:00:00') : new Date()
+    const dayStart = new Date(baseDate)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(baseDate)
+    dayEnd.setHours(23, 59, 59, 999)
 
     const existing = await prisma.employeeAttendance.findFirst({
       where: {
         employeeId,
-        date: { gte: todayStart, lte: todayEnd },
+        date: { gte: dayStart, lte: dayEnd },
       },
     })
 
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
         attendance = await prisma.employeeAttendance.update({ where: { id: existing.id }, data })
       } else {
         attendance = await prisma.employeeAttendance.create({
-          data: { employeeId, date: todayStart, ...data },
+          data: { employeeId, date: dayStart, ...data },
         })
       }
       return NextResponse.json({ success: true, attendance })
@@ -79,7 +82,7 @@ export async function POST(req: NextRequest) {
         attendance = await prisma.employeeAttendance.create({
           data: {
             employeeId,
-            date: todayStart,
+            date: dayStart,
             checkIn: now,
             clockInPhotoUrl: photoUrl ?? null,
             status: 'present',

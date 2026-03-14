@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 
-interface FundingSource {
-  id: string
-  accountName: string
-  accountNumber: string
+interface CashBoxSource {
+  id: string          // businessId
+  accountName: string // e.g. "HXI Eats Cash Box"
   balance: number
   businessId: string
   business: { id: string; name: string; type: string } | null
@@ -19,6 +18,37 @@ interface FundPayrollFromAccountsModalProps {
   onClose: () => void
 }
 
+/** Distribute `needed` across sources proportionally, using floor for whole numbers.
+ *  Any remainder (due to flooring) is added to the source with the highest balance. */
+function proportionalFill(sources: CashBoxSource[], needed: number): Record<string, number> {
+  if (sources.length === 0 || needed <= 0) return {}
+  const totalAvail = sources.reduce((s, b) => s + b.balance, 0)
+  // Round UP to nearest whole dollar — no pennies
+  const target = Math.min(Math.ceil(needed), Math.floor(totalAvail))
+
+  const amounts: Record<string, number> = {}
+  let allocated = 0
+
+  for (const src of sources) {
+    const share = Math.floor(target * (src.balance / totalAvail))
+    amounts[src.id] = share
+    allocated += share
+  }
+
+  // Distribute remaining whole dollars (from flooring) to highest-balance sources
+  let remainder = target - allocated
+  const sorted = [...sources].sort((a, b) => b.balance - a.balance)
+  for (const src of sorted) {
+    if (remainder <= 0) break
+    if (amounts[src.id] < src.balance) {
+      amounts[src.id] += 1
+      remainder -= 1
+    }
+  }
+
+  return amounts
+}
+
 export function FundPayrollFromAccountsModal({
   totalRequired,
   currentPayrollBalance,
@@ -26,8 +56,8 @@ export function FundPayrollFromAccountsModal({
   onClose,
 }: FundPayrollFromAccountsModalProps) {
   const toast = useToastContext()
-  const [sources, setSources] = useState<FundingSource[]>([])
-  const [amounts, setAmounts] = useState<Record<string, string>>({})
+  const [sources, setSources] = useState<CashBoxSource[]>([])
+  const [amounts, setAmounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
@@ -39,7 +69,10 @@ export function FundPayrollFromAccountsModal({
         const res = await fetch('/api/payroll/account/funding-sources', { credentials: 'include' })
         if (res.ok) {
           const data = await res.json()
-          setSources(data.data?.accounts ?? [])
+          const loaded: CashBoxSource[] = data.data?.accounts ?? []
+          setSources(loaded)
+          // Auto-prefill proportionally to cover exactly the shortfall
+          setAmounts(proportionalFill(loaded, shortfall))
         }
       } catch { /* ignore */ }
       setLoading(false)
@@ -47,24 +80,25 @@ export function FundPayrollFromAccountsModal({
     load()
   }, [])
 
-  const totalEntered = Object.values(amounts).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+  const totalEntered = Object.values(amounts).reduce((s, v) => s + (v || 0), 0)
   const newPayrollBalance = currentPayrollBalance + totalEntered
+  const totalAvailable = sources.reduce((s, b) => s + b.balance, 0)
+  const isCovering = newPayrollBalance >= totalRequired
 
   const handleSubmit = async () => {
     const transfers = sources
-      .map((s) => ({ expenseAccountId: s.id, amount: parseFloat(amounts[s.id] || '0') || 0 }))
+      .map((s) => ({ businessId: s.id, amount: amounts[s.id] || 0 }))
       .filter((t) => t.amount > 0)
 
     if (transfers.length === 0) {
-      toast.error('Enter an amount for at least one account')
+      toast.error('No amounts to transfer')
       return
     }
 
-    // Validate amounts don't exceed balances
     for (const t of transfers) {
-      const src = sources.find((s) => s.id === t.expenseAccountId)
+      const src = sources.find((s) => s.id === t.businessId)
       if (src && t.amount > src.balance) {
-        toast.error(`Amount exceeds balance for ${src.accountName}`)
+        toast.error(`Amount exceeds cash box balance for ${src.business?.name}`)
         return
       }
     }
@@ -77,7 +111,6 @@ export function FundPayrollFromAccountsModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transfers }),
       })
-
       const data = await res.json()
       if (res.ok) {
         toast.push(data.message || 'Payroll account funded successfully', { type: 'success' })
@@ -103,7 +136,7 @@ export function FundPayrollFromAccountsModal({
             <span className="text-xl">💵</span>
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Fund Payroll Account</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Select amounts from expense accounts</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">From business cash box accounts — pre-filled proportionally</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -115,52 +148,57 @@ export function FundPayrollFromAccountsModal({
 
         {/* Balance summary */}
         <div className="px-6 pt-4 flex-shrink-0">
-          <div className="grid grid-cols-3 gap-3 text-sm">
+          <div className="grid grid-cols-4 gap-3 text-sm">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">🏦 In Account</p>
+              <p className="font-bold text-blue-800 dark:text-blue-200">${currentPayrollBalance.toFixed(2)}</p>
+            </div>
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               <p className="text-xs text-red-600 dark:text-red-400 font-medium">Shortfall</p>
               <p className="font-bold text-red-800 dark:text-red-200">${shortfall.toFixed(2)}</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Currently Entering</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Entering</p>
               <p className="font-bold text-gray-900 dark:text-gray-100">${totalEntered.toFixed(2)}</p>
             </div>
-            <div className={`border rounded-lg px-3 py-2 ${newPayrollBalance >= totalRequired ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'}`}>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">New Payroll Balance</p>
-              <p className={`font-bold ${newPayrollBalance >= totalRequired ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'}`}>
+            <div className={`border rounded-lg px-3 py-2 ${isCovering ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'}`}>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">New Balance</p>
+              <p className={`font-bold ${isCovering ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'}`}>
                 ${newPayrollBalance.toFixed(2)}
               </p>
             </div>
           </div>
+          {totalAvailable < shortfall && !loading && (
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+              ⚠ Total available across all cash boxes (${totalAvailable.toFixed(2)}) is less than the shortfall. Partial funding only.
+            </p>
+          )}
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">Loading accounts...</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">Loading cash box balances...</p>
           ) : sources.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">No expense accounts with available balance found.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">No business cash boxes with available balance found.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-200 dark:border-gray-700">
-                  <th className="pb-2 font-medium">Account</th>
                   <th className="pb-2 font-medium">Business</th>
-                  <th className="pb-2 font-medium text-right">Available</th>
+                  <th className="pb-2 font-medium text-right">Cash Box Balance</th>
                   <th className="pb-2 font-medium text-right">Transfer</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {sources.map((src) => {
-                  const enteredAmount = parseFloat(amounts[src.id] || '0') || 0
-                  const isOver = enteredAmount > src.balance
+                  const entered = amounts[src.id] || 0
+                  const isOver = entered > src.balance
                   return (
                     <tr key={src.id}>
                       <td className="py-2.5 pr-3">
-                        <p className="font-medium text-gray-900 dark:text-gray-100">{src.accountName}</p>
-                        <p className="text-xs text-gray-400">{src.accountNumber}</p>
-                      </td>
-                      <td className="py-2.5 pr-3 text-gray-600 dark:text-gray-400">
-                        {src.business?.name ?? '—'}
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{src.business?.name ?? src.accountName}</p>
+                        <p className="text-xs text-gray-400">Cash Box</p>
                       </td>
                       <td className="py-2.5 pr-3 text-right font-medium text-gray-900 dark:text-gray-100">
                         ${src.balance.toFixed(2)}
@@ -170,15 +208,18 @@ export function FundPayrollFromAccountsModal({
                           <span className="absolute left-2 top-2 text-gray-400 text-xs">$</span>
                           <input
                             type="number"
-                            step="0.01"
+                            step="1"
                             min="0"
                             max={src.balance}
-                            value={amounts[src.id] ?? ''}
-                            onChange={(e) => setAmounts((prev) => ({ ...prev, [src.id]: e.target.value }))}
+                            value={entered === 0 ? '' : Math.ceil(entered)}
+                            onChange={(e) => {
+                              const val = Math.floor(parseFloat(e.target.value) || 0)
+                              setAmounts((prev) => ({ ...prev, [src.id]: val }))
+                            }}
                             className={`w-28 pl-5 pr-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 ${
                               isOver ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600'
                             }`}
-                            placeholder="0.00"
+                            placeholder="0"
                           />
                         </div>
                         {isOver && (

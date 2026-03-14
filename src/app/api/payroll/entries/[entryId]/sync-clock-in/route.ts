@@ -121,11 +121,22 @@ export async function POST(
   for (const att of attendanceRows) {
     const checkIn  = att.checkIn  as Date | null
     const checkOut = att.checkOut as Date | null
-    const baseDate = att.date as Date
+    // Use checkIn as base date for scheduled comparisons — more reliable than att.date
+    // which can have timezone-shifted timestamps
+    const baseDate = checkIn ? new Date(checkIn) : att.date as Date
     let lateMinutesForDay = 0
     let earlyMinutesForDay = 0
     let overtimeCreditForDay = 0
     let overtimeForDay = 0
+
+    // Auto clock-out: if no checkOut, treat as clocked out at scheduled end time
+    let effectiveCheckOut = checkOut
+    if (!effectiveCheckOut && schedEnd && checkIn) {
+      const autoOut = new Date(baseDate)
+      autoOut.setHours(schedEnd.h, schedEnd.m, 0, 0)
+      // Only apply auto clock-out if it's after check-in
+      if (autoOut > checkIn) effectiveCheckOut = autoOut
+    }
 
     // Late arrival: clocked in after scheduled start
     if (checkIn && schedStart) {
@@ -139,25 +150,23 @@ export async function POST(
       }
     }
 
-    // Early departure OR overtime: compare checkOut to scheduled end
-    if (checkOut && schedEnd) {
+    // Early departure OR overtime: compare effectiveCheckOut to scheduled end
+    if (effectiveCheckOut && schedEnd) {
       const scheduled = new Date(baseDate)
       scheduled.setHours(schedEnd.h, schedEnd.m, 0, 0)
-      const diffMs = checkOut.getTime() - scheduled.getTime()
+      const diffMs = effectiveCheckOut.getTime() - scheduled.getTime()
       if (diffMs < 0) {
         // Clocked out BEFORE scheduled end → early departure (deduction)
         earlyCount++
         earlyMinutesForDay = Math.round(Math.abs(diffMs) / 60000)
         totalEarlyMinutes += earlyMinutesForDay
-      } else if (diffMs > 0) {
-        // Clocked out AFTER scheduled end → overtime
+      } else if (diffMs > 0 && checkOut) {
+        // Only count overtime if it was a real clock-out (not auto)
         const extraMin = Math.round(diffMs / 60000)
         if (extraMin <= 30) {
-          // Grace window: 1–30 min = overtime credit (pending)
           overtimeCreditForDay = extraMin
           totalOvertimeCreditMinutes += overtimeCreditForDay
         } else {
-          // >30 min = overtime at 1.5× (pending)
           overtimeForDay = extraMin
           totalOvertimeMinutes += overtimeForDay
         }
@@ -168,7 +177,7 @@ export async function POST(
       records.push({
         date: (baseDate as Date).toISOString().split('T')[0],
         checkIn:  checkIn  ? formatTime(checkIn)  : null,
-        checkOut: checkOut ? formatTime(checkOut) : null,
+        checkOut: effectiveCheckOut ? formatTime(effectiveCheckOut) : null,
         scheduledStart: employee?.scheduledStartTime ?? null,
         scheduledEnd:   employee?.scheduledEndTime   ?? null,
         lateMinutes:          lateMinutesForDay,
@@ -192,14 +201,27 @@ export async function POST(
   if (totalOvertimeMinutes > 0)       parts.push(`overtime ${totalOvertimeMinutes} min`)
   const summary = parts.length > 0 ? parts.join(', ') : 'No tardiness recorded'
 
-  // Remove ALL existing clock-in adjustments for this entry, then recreate
+  // Remove pending clock-in adjustments for this entry, then recreate (approved ones are preserved)
   await prisma.payrollAdjustments.deleteMany({
-    where: { payrollEntryId: entryId, isClockInAdjustment: true } as any,
+    where: { payrollEntryId: entryId, isClockInAdjustment: true, status: 'pending' } as any,
   })
 
   let adjustmentId: string | null = null
 
-  if (deductionAmount > 0) {
+  // De-duplicate stale approved clock_in_deduction records: keep only the most recently updated
+  // (the user's explicit override). Old auto-approved records from before the pending/approved
+  // split are stale and must be cleaned up to prevent double-counting.
+  const allApprovedDeductions = await (prisma.payrollAdjustments as any).findMany({
+    where: { payrollEntryId: entryId, adjustmentType: 'clock_in_deduction', isClockInAdjustment: true, status: 'approved' },
+    orderBy: { updatedAt: 'desc' },
+  })
+  if (allApprovedDeductions.length > 1) {
+    const staleIds = allApprovedDeductions.slice(1).map((a: any) => a.id)
+    await prisma.payrollAdjustments.deleteMany({ where: { id: { in: staleIds } } })
+  }
+  const existingApprovedDeduction = allApprovedDeductions.length > 0 ? allApprovedDeductions[0] : null
+
+  if (deductionAmount > 0 && !existingApprovedDeduction) {
     const newId = `PA-${nanoid(12)}`
     await prisma.payrollAdjustments.create({
       data: {
@@ -210,14 +232,18 @@ export async function POST(
         isClockInAdjustment: true,
         reason: `Clock-in deduction: ${parts.filter(p => !p.includes('overtime')).join(', ') || 'No tardiness'}`,
         createdBy: user.id,
-        status: 'approved',
+        status: 'pending',
       } as any,
     })
     adjustmentId = newId
   }
 
   // Create overtime credit adjustment (pending — manager must approve)
-  if (creditAmount > 0) {
+  // Skip if an approved overtime_credit adjustment already exists
+  const existingApprovedCredit = await prisma.payrollAdjustments.findFirst({
+    where: { payrollEntryId: entryId, adjustmentType: 'overtime_credit', isClockInAdjustment: true, status: 'approved' } as any,
+  })
+  if (creditAmount > 0 && !existingApprovedCredit) {
     await prisma.payrollAdjustments.create({
       data: {
         id: `PA-${nanoid(12)}`,
@@ -233,7 +259,10 @@ export async function POST(
   }
 
   // Create overtime adjustment (pending — manager must approve, 1.5× rate)
-  if (overtimeAmount > 0) {
+  const existingApprovedOvertime = await prisma.payrollAdjustments.findFirst({
+    where: { payrollEntryId: entryId, adjustmentType: 'overtime', isClockInAdjustment: true, status: 'approved' } as any,
+  })
+  if (overtimeAmount > 0 && !existingApprovedOvertime) {
     await prisma.payrollAdjustments.create({
       data: {
         id: `PA-${nanoid(12)}`,
@@ -270,10 +299,22 @@ export async function POST(
   })
 }
 
+function parseHHMMLocal(str: string | null | undefined) {
+  if (!str) return null
+  const [h, m] = str.split(':').map(Number)
+  if (isNaN(h) || isNaN(m)) return null
+  return { h, m }
+}
+
 async function recalcEntry(entryId: string) {
   const entry = await prisma.payrollEntries.findUnique({
     where: { id: entryId },
-    include: { payroll_entry_benefits: true, payroll_adjustments: true, payroll_periods: true },
+    include: {
+      payroll_entry_benefits: true,
+      payroll_adjustments: true,
+      payroll_periods: true,
+      employees: { select: { scheduledStartTime: true, scheduledEndTime: true, scheduledDaysPerWeek: true } },
+    },
   })
   if (!entry) return
 
@@ -282,21 +323,44 @@ async function recalcEntry(entryId: string) {
     .reduce((s: number, b: any) => s + Number(b.amount), 0)
 
   let additionsTotal = 0
-  let deductionsTotal = 0
+  let clockInDeductionTotal = 0  // pre-tax: clock-in tardiness
+  let otherDeductionsTotal = 0   // post-tax: other negative adjustments
   for (const a of entry.payroll_adjustments || []) {
     const amt = Number(a.amount || 0)
-    if (amt >= 0) additionsTotal += amt
-    else deductionsTotal += Math.abs(amt)
+    if (amt >= 0) {
+      // Pending clock-in additions (overtime awaiting approval) are not included in gross pay
+      const isPendingClockIn = (a as any).isClockInAdjustment && (a as any).status === 'pending'
+      if (!isPendingClockIn) additionsTotal += amt
+    }
+    else if ((a as any).isClockInAdjustment) clockInDeductionTotal += Math.abs(amt)
+    else otherDeductionsTotal += Math.abs(amt)
   }
+
+  // Compute absence deduction using employee schedule (same formula as clock-in sync)
+  const emp = (entry as any).employees
+  const schedStart = parseHHMMLocal(emp?.scheduledStartTime)
+  const schedEnd   = parseHHMMLocal(emp?.scheduledEndTime)
+  let dailyHours = 9
+  if (schedStart && schedEnd) {
+    dailyHours = ((schedEnd.h * 60 + schedEnd.m) - (schedStart.h * 60 + schedStart.m)) / 60
+  }
+  const daysPerWeek = (emp?.scheduledDaysPerWeek as number | null) ?? 6.5
+  const hoursPerYear = Math.max(1, dailyHours * daysPerWeek * 52)
+  const annualSalary = Number(entry.baseSalary || 0) * 12
+  const hourlyRate = annualSalary / hoursPerYear
+  const absenceDays = Number(entry.absenceDays || 0) + Number((entry as any).absenceFraction || 0)
+  const absenceDeduction = Math.round(absenceDays * dailyHours * hourlyRate * 100) / 100
 
   const baseSalary = Number(entry.baseSalary || 0)
   const commission = Number(entry.commission || 0)
   const overtimePay = Number(entry.overtimePay || 0)
-  const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal
+  // grossPay = Net Gross: true gross minus pre-tax deductions (absence + clock-in tardiness)
+  const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal - absenceDeduction - clockInDeductionTotal
   const advances = Number(entry.advanceDeductions || 0)
   const loans = Number(entry.loanDeductions || 0)
   const misc = Number(entry.miscDeductions || 0)
-  const totalDeductions = advances + loans + misc + deductionsTotal
+  // totalDeductions = post-tax only (loans, advances, misc, other adjustments)
+  const totalDeductions = advances + loans + misc + otherDeductionsTotal
   const netPay = grossPay - totalDeductions
 
   await prisma.payrollEntries.update({

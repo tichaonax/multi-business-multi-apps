@@ -101,6 +101,7 @@ export async function GET() {
             description: true,
             isActive: true,
             isDemo: true,
+            isUmbrellaBusiness: true,
             address: true,
             phone: true,
             defaultPage: true,
@@ -129,7 +130,8 @@ export async function GET() {
       role: membership.role as any,
       permissions: mergeWithBusinessPermissions(membership.permissions as any, membership.role),
       isActive: membership.isActive && membership.businesses.isActive,
-      isDemo: membership.businesses.isDemo, // Include demo flag
+      isDemo: membership.businesses.isDemo,
+      isUmbrellaBusiness: membership.businesses.isUmbrellaBusiness ?? false,
       address: membership.businesses.address, // Business address for receipts
       phone: membership.businesses.phone, // Business phone for receipts
       defaultPage: membership.businesses.defaultPage, // Default landing page

@@ -18,6 +18,7 @@ interface AccountSummary {
   totalCredits: number
   totalDebits: number
   lastTransactionAt: string | null
+  cashBoxBalance: number | null
   loading: boolean
   error: boolean
 }
@@ -62,7 +63,7 @@ export default function BusinessAccountsPage() {
 
     // Initialise placeholders immediately
     const initial: AccountSummary[] = businesses
-      .filter((b) => b.isActive)
+      .filter((b) => b.isActive && !b.isUmbrellaBusiness)
       .map((b) => ({
         businessId: b.businessId,
         businessName: b.businessName,
@@ -72,16 +73,19 @@ export default function BusinessAccountsPage() {
         totalCredits: 0,
         totalDebits: 0,
         lastTransactionAt: null,
+        cashBoxBalance: null,
         loading: true,
         error: false,
       }))
     setAccounts(initial)
 
-    // Fetch each account
+    // Fetch each account + cashbox balance in parallel
     initial.forEach((item) => {
-      fetch(`/api/business/${item.businessId}/account`)
-        .then((r) => r.json())
-        .then((res) => {
+      Promise.all([
+        fetch(`/api/business/${item.businessId}/account`).then((r) => r.json()),
+        fetch(`/api/cash-allocation/${item.businessId}/summary`).then((r) => r.ok ? r.json() : null).catch(() => null),
+      ])
+        .then(([res, cashRes]) => {
           if (res.success) {
             const d = res.data
             setAccounts((prev) =>
@@ -94,6 +98,7 @@ export default function BusinessAccountsPage() {
                       totalCredits: d.account?.totalCredits ?? 0,
                       totalDebits: d.account?.totalDebits ?? 0,
                       lastTransactionAt: d.account?.lastTransactionAt ?? null,
+                      cashBoxBalance: cashRes?.balance ?? null,
                       loading: false,
                       error: false,
                     }
@@ -103,7 +108,9 @@ export default function BusinessAccountsPage() {
           } else {
             setAccounts((prev) =>
               prev.map((a) =>
-                a.businessId === item.businessId ? { ...a, loading: false, error: true } : a
+                a.businessId === item.businessId
+                  ? { ...a, cashBoxBalance: cashRes?.balance ?? null, loading: false, error: true }
+                  : a
               )
             )
           }
@@ -162,19 +169,32 @@ export default function BusinessAccountsPage() {
                   ) : a.error ? (
                     <span className="text-xs text-red-500">Error</span>
                   ) : !a.hasAccount ? (
-                    <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                      No account
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {a.cashBoxBalance !== null && a.cashBoxBalance > 0 && (
+                        <div className="text-right">
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500">💰 Cash Box</p>
+                          <p className="text-sm font-bold text-amber-500 dark:text-amber-400">{fmt(a.cashBoxBalance)}</p>
+                        </div>
+                      )}
+                      <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                        No account
+                      </span>
+                    </div>
                   ) : (
-                    <span
-                      className={`text-sm font-bold ${
-                        a.balance >= 0
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      }`}
-                    >
-                      {fmt(a.balance)}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {a.cashBoxBalance !== null && (
+                        <div className="text-right">
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500">💰 Cash Box</p>
+                          <p className="text-sm font-bold text-amber-500 dark:text-amber-400">{fmt(a.cashBoxBalance)}</p>
+                        </div>
+                      )}
+                      <div className="text-right">
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500">🏦 Account</p>
+                        <p className={`text-sm font-bold ${a.balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {fmt(a.balance)}
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
 

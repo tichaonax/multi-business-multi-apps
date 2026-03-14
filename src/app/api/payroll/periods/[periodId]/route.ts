@@ -543,7 +543,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                   // expose original DB-signed value for consumers that need it
                   storedAmount: Number(signed || 0),
                   isAddition: isDeductionType ? false : (Number(signed) >= 0),
+                  isClockInAdjustment: a.isClockInAdjustment ?? false,
+                  status: a.status ?? null,
                   type: a.adjustmentType ?? a.type,
+                  adjustmentType: a.adjustmentType,
                   description: a.reason ?? a.description ?? '',
                   createdAt: a.createdAt
                 }
@@ -558,21 +561,42 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           // to avoid stale aggregated fields causing UI inconsistencies.
           let adjustmentsTotalForReturn = Number((entry as any).adjustmentsTotal || 0)
           let adjustmentsAsDeductionsForReturn = Number((entry as any).adjustmentsAsDeductions || 0)
+          let clockInDeductionForReturn = 0
           try {
             if (Array.isArray(payrollAdjustmentsForEntry) && payrollAdjustmentsForEntry.length > 0) {
+              // Exclude pending clock-in additions (OT awaiting approval) from gross additions
               const derivedAdditions = payrollAdjustmentsForEntry.reduce((s: number, a: any) => {
+                if (a.isClockInAdjustment && a.status === 'pending') return s
                 const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
                 return s + (a.isAddition ? Math.abs(amt) : 0)
               }, 0)
-              // Exclude 'absence' type from deductions so it's shown separately and not double-counted
+              // Exclude 'absence' and clock-in adjustments from post-tax deductions (they are pre-tax)
               const derivedDeductions = payrollAdjustmentsForEntry.reduce((s: number, a: any) => {
                 const rawType = String((a.type || '')).toLowerCase()
                 if (rawType === 'absence') return s
+                if (a.isClockInAdjustment) return s  // pre-tax — shown in Absence column
                 const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
                 return s + (!a.isAddition ? Math.abs(amt) : 0)
               }, 0)
+              // Clock-in deductions are pre-tax (grouped with absence).
+              // De-duplicate by adjustmentType: if stale auto-approved records exist alongside
+              // a user-approved override, only count the most recently created one per type.
+              const clockInDeducAdjs = payrollAdjustmentsForEntry.filter((a: any) => a.isClockInAdjustment && !a.isAddition)
+              const latestByType = new Map<string, any>()
+              for (const a of clockInDeducAdjs) {
+                const key = String(a.adjustmentType || a.type || 'clock_in_deduction')
+                const existing = latestByType.get(key)
+                if (!existing || (a.createdAt && existing.createdAt && new Date(a.createdAt) > new Date(existing.createdAt))) {
+                  latestByType.set(key, a)
+                }
+              }
+              const derivedClockInDeductions = Array.from(latestByType.values()).reduce((s: number, a: any) => {
+                const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+                return s + Math.abs(amt)
+              }, 0)
               adjustmentsTotalForReturn = derivedAdditions
               adjustmentsAsDeductionsForReturn = derivedDeductions
+              clockInDeductionForReturn = derivedClockInDeductions
             }
           } catch (err) {
             // ignore
@@ -586,6 +610,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           const activeLoan = empId ? (activeLoanAmountByEmployee.get(empId) ?? storedLoans) : storedLoans
           const loans = activeLoan
           const misc = Number(entry.miscDeductions || 0)
+          // totalDeductions = post-tax only (excludes absence and clock-in which are pre-tax)
           const derivedTotalDeductions = advances + loans + misc + adjustmentsAsDeductionsForReturn
           const serverTotalDeductions = Number(entry.totalDeductions || 0)
           const totalDeductionsForReturn = derivedTotalDeductions
@@ -601,6 +626,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             + totalBenefitsAmount
             + adjustmentsTotalForReturn
             - absenceFromTotals
+            - clockInDeductionForReturn
 
           const returnedEntry = {
             ...entry,
@@ -608,6 +634,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             payrollAdjustments: payrollAdjustmentsForEntry,
             adjustmentsTotal: adjustmentsTotalForReturn,
             adjustmentsAsDeductions: adjustmentsAsDeductionsForReturn,
+            clockInDeductionAmount: clockInDeductionForReturn,
             // Override loanDeductions with the live active-loan amount so the client's
             // computeEntryTotals sees the correct value without needing a sync first.
             loanDeductions: loans,

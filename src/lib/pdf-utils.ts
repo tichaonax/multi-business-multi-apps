@@ -1237,6 +1237,148 @@ export const generatePaymentBatchVoucher = (
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Payroll Cash Box Withdrawal Voucher
+// Toner-friendly — no background fills, borders only.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PayrollFundingVoucherLine {
+  businessName: string
+  amount: number
+}
+
+export interface PayrollFundingVoucherData {
+  voucherId: string
+  issuedAt: string       // ISO string
+  issuedBy: string
+  totalAmount: number
+  lines: PayrollFundingVoucherLine[]
+}
+
+export const generatePayrollFundingVoucher = (
+  data: PayrollFundingVoucherData,
+  action: 'save' | 'print' = 'save',
+): void => {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 15
+  let y = margin
+
+  const fmt = (n: number) => `$${n.toFixed(2)}`
+
+  const drawLine = (yPos: number, light = false) => {
+    pdf.setDrawColor(light ? 150 : 0, light ? 150 : 0, light ? 150 : 0)
+    pdf.line(margin, yPos, pageWidth - margin, yPos)
+  }
+
+  // ── Header ───────────────────────────────────────────────────────────────
+  pdf.setFontSize(15)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(0, 0, 0)
+  pdf.text('PAYROLL CASH BOX WITHDRAWAL VOUCHER', pageWidth / 2, y, { align: 'center' })
+  y += 7
+
+  const issuedDate = new Date(data.issuedAt)
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'normal')
+  pdf.text(
+    `Date: ${fmtDate(issuedDate)}  |  Time: ${fmtTime(issuedDate)}  |  Issued by: ${stripEmoji(data.issuedBy)}`,
+    pageWidth / 2, y, { align: 'center' }
+  )
+  y += 4
+
+  pdf.setFontSize(8)
+  pdf.setTextColor(100, 100, 100)
+  pdf.text(`Voucher ID: ${data.voucherId}`, pageWidth / 2, y, { align: 'center' })
+  pdf.setTextColor(0, 0, 0)
+  y += 5
+  drawLine(y)
+  y += 6
+
+  // ── Purpose ───────────────────────────────────────────────────────────────
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'normal')
+  pdf.text('Purpose: Transfer cash from business cash boxes to fund payroll account.', margin, y)
+  y += 4
+  pdf.text('Cashier must physically collect the amounts below from each business cash box.', margin, y)
+  y += 6
+  drawLine(y)
+  y += 6
+
+  // ── Withdrawal Detail Table ───────────────────────────────────────────────
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('WITHDRAWALS BY BUSINESS', margin, y)
+  y += 5
+
+  const colBiz = margin
+  const colSource = margin + 80
+  const colAmt = pageWidth - margin
+
+  // Table header
+  pdf.setFontSize(8)
+  pdf.text('Business', colBiz, y)
+  pdf.text('Source', colSource, y)
+  pdf.text('Amount', colAmt, y, { align: 'right' })
+  y += 3
+  drawLine(y)
+  y += 4
+
+  pdf.setFont('helvetica', 'normal')
+
+  for (const line of data.lines) {
+    if (y > 260) { pdf.addPage(); y = margin }
+
+    let bizDisplay = stripEmoji(line.businessName)
+    while (pdf.getTextWidth(bizDisplay) > 72 && bizDisplay.length > 5) {
+      bizDisplay = bizDisplay.slice(0, -4) + '...'
+    }
+    pdf.text(bizDisplay, colBiz, y)
+    pdf.text('Cash Box', colSource, y)
+    pdf.text(fmt(line.amount), colAmt, y, { align: 'right' })
+    y += 4
+
+    drawLine(y, true)
+    y += 3
+  }
+
+  y += 2
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('TOTAL TO WITHDRAW', margin, y)
+  pdf.text(fmt(data.totalAmount), pageWidth - margin, y, { align: 'right' })
+  y += 10
+
+  // ── Signature Lines ───────────────────────────────────────────────────────
+  drawLine(y)
+  y += 8
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  const sigY = y + 10
+  pdf.line(margin, sigY, margin + 60, sigY)
+  pdf.line(pageWidth - margin - 60, sigY, pageWidth - margin, sigY)
+  y = sigY + 4
+  pdf.setFontSize(8)
+  pdf.text('Cashier Signature', margin, y)
+  pdf.text('Authorised By', pageWidth - margin - 60, y)
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  y += 12
+  pdf.setFontSize(7)
+  pdf.setTextColor(150, 150, 150)
+  const now = new Date()
+  pdf.text(`Printed ${fmtDate(now)} ${fmtTime(now)}`, pageWidth / 2, y, { align: 'center' })
+
+  const fileName = `payroll-withdrawal-${data.voucherId}-${issuedDate.toISOString().split('T')[0]}.pdf`
+
+  if (action === 'print') {
+    pdf.autoPrint()
+    window.open(pdf.output('bloburl'), '_blank')
+  } else {
+    pdf.save(fileName)
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Per Diem Claim PDF — actual entries for a submitted period
 // ─────────────────────────────────────────────────────────────────────────────
 

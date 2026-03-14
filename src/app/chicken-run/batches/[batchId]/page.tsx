@@ -47,7 +47,7 @@ export default function BatchDetailPage() {
   const tabParam = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState(TABS.includes(tabParam || '') ? tabParam! : 'Overview')
   const [editing, setEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ notes: '', expectedCullDate: '', status: '' })
+  const [editForm, setEditForm] = useState({ notes: '', expectedCullDate: '', status: '', supplierId: '' })
   const [saving, setSaving] = useState(false)
 
   // Mortality form
@@ -100,6 +100,7 @@ export default function BatchDetailPage() {
           ? new Date(json.data.expectedCullDate).toISOString().split('T')[0]
           : '',
         status: json.data.status,
+        supplierId: json.data.supplierId || '',
       })
       // Seed weekAge default from batch age
       setWeightForm(prev => ({ ...prev, weekAge: String(json.data.ageInWeeks || 0) }))
@@ -146,6 +147,7 @@ export default function BatchDetailPage() {
           status: editForm.status,
           notes: editForm.notes || null,
           expectedCullDate: editForm.expectedCullDate || null,
+          supplierId: editForm.supplierId || null,
         }),
       })
       const json = await res.json()
@@ -585,6 +587,16 @@ export default function BatchDetailPage() {
                     <option value="CULLING">CULLING</option>
                     <option value="COMPLETED">COMPLETED</option>
                   </select>
+                </div>
+                <div>
+                  <label className={LABEL_CLS}>Supplier</label>
+                  <SupplierSelector
+                    businessId={currentBusinessId!}
+                    value={editForm.supplierId}
+                    onChange={(id) => setEditForm(p => ({ ...p, supplierId: id || '' }))}
+                    canCreate={true}
+                    placeholder="Select supplier..."
+                  />
                 </div>
                 <div>
                   <DateInput
