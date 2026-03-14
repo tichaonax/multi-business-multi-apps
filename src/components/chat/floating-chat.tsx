@@ -235,6 +235,7 @@ export function FloatingChat() {
         </div>
         <button
           type="button"
+          onMouseDown={e => e.stopPropagation()}
           onClick={() => setIsOpen(false)}
           className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
           title="Minimise"
