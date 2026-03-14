@@ -17,6 +17,7 @@ import { GlobalBarcodeProvider } from '@/contexts/global-barcode-context'
 import ConfirmProvider from '@/components/ui/confirm-modal'
 import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
 import { CartProvider } from '@/contexts/global-cart-context'
+import { NotificationProvider } from '@/components/providers/notification-provider'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -66,6 +67,7 @@ export default function RootLayout({
                 <PromptProvider>
                   <BusinessPermissionsProvider>
                     <CartProvider>
+                      <NotificationProvider>
                       <NavigationProvider>
                         <GlobalBarcodeProvider>
                           <div className="min-h-screen w-full [overflow-x:clip]">
@@ -80,6 +82,7 @@ export default function RootLayout({
                           <GlobalBarcodeModalManager />
                         </GlobalBarcodeProvider>
                       </NavigationProvider>
+                      </NotificationProvider>
                     </CartProvider>
                   </BusinessPermissionsProvider>
                 </PromptProvider>

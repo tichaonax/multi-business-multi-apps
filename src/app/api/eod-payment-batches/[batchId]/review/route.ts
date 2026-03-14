@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 /**
  * POST /api/eod-payment-batches/[batchId]/review
@@ -211,6 +212,34 @@ export async function POST(
 
       return { batchSubmissions, totalApproved, approvedCount: approvedPayments.length }
     })
+
+    // Notify payment requesters of approved/rejected outcomes
+    try {
+      if (approvedPayments.length > 0) {
+        const approvedUserIds = [...new Set(approvedPayments.map(p => p.creator?.id).filter((id): id is string => !!id))]
+        if (approvedUserIds.length > 0) {
+          await emitNotification({
+            userIds: approvedUserIds,
+            type: 'PAYMENT_APPROVED',
+            title: 'Payment Approved',
+            message: `${approvedPayments.length} payment(s) approved by ${user.name} — total $${totalApproved.toFixed(2)}`,
+            linkUrl: '/expense-accounts/my-payments',
+          })
+        }
+      }
+      if (rejectedPayments.length > 0) {
+        const rejectedUserIds = [...new Set(rejectedPayments.map(p => p.creator?.id).filter((id): id is string => !!id))]
+        if (rejectedUserIds.length > 0) {
+          await emitNotification({
+            userIds: rejectedUserIds,
+            type: 'PAYMENT_REJECTED',
+            title: 'Payment Returned to Queue',
+            message: `${rejectedPayments.length} payment(s) returned to queue by ${user.name}`,
+            linkUrl: '/expense-accounts/my-payments',
+          })
+        }
+      }
+    } catch { /* non-critical */ }
 
     // Build print data
     const printData = {

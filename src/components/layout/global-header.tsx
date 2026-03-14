@@ -14,6 +14,7 @@ import { QuickActivityModal } from '@/components/admin/quick-activity-modal'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { useRentIndicator } from '@/hooks/use-rent-indicator'
 import { usePendingActionsCount, usePendingActions } from '@/hooks/use-pending-actions-count'
+import { useNotifications } from '@/components/providers/notification-provider'
 
 interface GlobalHeaderProps {
   title?: string
@@ -67,7 +68,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const isAdmin = isSystemAdmin(user)
   const pendingCount = usePendingActionsCount()
   const pendingActions = usePendingActions()
+  const { unreadCount: notifUnreadCount, notifications: notifList, markRead, markAllRead } = useNotifications()
   const [showBellPreview, setShowBellPreview] = useState(false)
+  const [showNotifPanel, setShowNotifPanel] = useState(false)
+  const notifRef = useRef<HTMLDivElement>(null)
+  const notifHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bellRef = useRef<HTMLDivElement>(null)
   const bellHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -702,8 +707,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
             {session?.user && (
               <>
                 {/* Pending Actions Bell — hover to preview, click to navigate */}
-                {pendingCount > 0 && (
-                  <div
+                <div
                     ref={bellRef}
                     className="relative"
                     onMouseEnter={() => {
@@ -721,9 +725,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                       </svg>
-                      <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
-                        {pendingCount > 9 ? '9+' : pendingCount}
-                      </span>
+                      {pendingCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                          {pendingCount > 9 ? '9+' : pendingCount}
+                        </span>
+                      )}
                     </Link>
 
                     {/* Hover preview dropdown */}
@@ -816,7 +822,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             </Link>
                           ))}
                           {pendingActions.pendingPaymentRequests?.map((r: any) => (
-                            <Link key={r.id} href={`/expense-accounts/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                            <Link key={r.id} href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
                               <span className="mt-0.5 shrink-0">💳</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">Payment Requests — {r.accountName ?? '—'}</p>
@@ -867,7 +873,62 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       </div>
                     )}
                   </div>
-                )}
+                {/* Notifications Bell — shows personal notification history */}
+                {notifUnreadCount > 0 ? (
+                  <div
+                    ref={notifRef}
+                    className="relative"
+                    onMouseEnter={() => { if (notifHideTimer.current) clearTimeout(notifHideTimer.current); setShowNotifPanel(true) }}
+                    onMouseLeave={() => { notifHideTimer.current = setTimeout(() => setShowNotifPanel(false), 150) }}
+                  >
+                    <button
+                      className="relative flex p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      onClick={() => setShowNotifPanel(v => !v)}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                      </svg>
+                      {notifUnreadCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                          {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+                        </span>
+                      )}
+                    </button>
+
+                    {showNotifPanel && (
+                      <div className="absolute right-0 top-full mt-1 w-80 rounded-lg border border-border bg-white dark:bg-gray-800 shadow-xl z-50 overflow-hidden">
+                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border flex items-center justify-between">
+                          <span className="text-xs font-semibold text-primary">Notifications</span>
+                          {notifUnreadCount > 0 && (
+                            <button onClick={() => markAllRead()} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Mark all read</button>
+                          )}
+                        </div>
+                        <div className="divide-y divide-border max-h-80 overflow-y-auto">
+                          {notifList.length === 0 ? (
+                            <div className="px-3 py-4 text-xs text-secondary text-center">No notifications</div>
+                          ) : notifList.map(n => (
+                            <div
+                              key={n.id}
+                              className={`flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${!n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                              onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
+                            >
+                              <span className="mt-0.5 shrink-0 text-base">
+                                {n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : '🔔'}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className={`font-medium truncate ${!n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
+                                <p className="text-secondary truncate">{n.message}</p>
+                                <p className="text-gray-400 dark:text-gray-500 mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
+                              </div>
+                              {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
                 {/* Mini Cart */}
                 <MiniCart />
                 <ThemeToggle

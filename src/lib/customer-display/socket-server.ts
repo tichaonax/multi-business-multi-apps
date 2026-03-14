@@ -73,6 +73,18 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
       }
     })
 
+    // Join personal notification room — client sends their userId
+    socket.on('join-notification-room', (data: { userId: string }) => {
+      try {
+        const room = `user:${data.userId}`
+        socket.join(room)
+        console.log(`[Socket.io] Client ${clientId} joined notification room: ${room}`)
+        socket.emit('notification-room-joined', { room })
+      } catch (error) {
+        console.error('[Socket.io] Error joining notification room:', error)
+      }
+    })
+
     // Ping/pong for keepalive
     socket.on('ping', () => {
       socket.emit('pong')
@@ -117,4 +129,14 @@ export function isSocketServerInitialized(): boolean {
  */
 export function setSocketServer(server: SocketIOServer): void {
   io = server
+}
+
+/**
+ * Emit a notification event to all sockets in a user's personal room.
+ * Room name convention: "user:{userId}"
+ * No-op if the socket server is not initialized (server still saves to DB).
+ */
+export function emitToUser(userId: string, eventName: string, payload: unknown): void {
+  if (!io) return
+  io.to(`user:${userId}`).emit(eventName, payload)
 }

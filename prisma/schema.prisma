@@ -3241,8 +3241,29 @@ model Users {
   loan_withdrawal_requests_approved                               LoanWithdrawalRequest[]          @relation("WithdrawalApprover")
   loan_withdrawal_requests_rejected                               LoanWithdrawalRequest[]          @relation("WithdrawalRejector")
   loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]          @relation("WithdrawalPayer")
+  app_notifications                                               AppNotification[]
 
   @@map("users")
+}
+
+model AppNotification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    // PAYMENT_SUBMITTED | PAYMENT_APPROVED | PAYMENT_REJECTED | PAYMENT_PAID | PETTY_CASH_APPROVED | PETTY_CASH_REJECTED | BATCH_READY
+  title     String
+  message   String
+  linkUrl   String?
+  metadata  Json?
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  user      Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("app_notifications")
 }
 
 model VehicleDrivers {

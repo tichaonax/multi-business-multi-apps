@@ -9,6 +9,7 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 import { canUserViewAccount, canUserWriteAccount } from '@/lib/expense-account-access'
 import { v4 as uuidv4 } from 'uuid'
 import { getServerUser } from '@/lib/get-server-user'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 /**
  * GET /api/expense-account/[accountId]/payments
@@ -864,6 +865,24 @@ export async function POST(
 
       return { payments: createdPayments, newBalance }
     })
+
+    // Notify reviewers (admins + users with canSubmitPaymentBatch) of new payment request
+    try {
+      const reviewers = await prisma.users.findMany({
+        where: { isActive: true, OR: [{ role: 'admin' }, { permissions: { path: ['canSubmitPaymentBatch'], equals: true } }] },
+        select: { id: true },
+      })
+      const reviewerIds = reviewers.map(r => r.id).filter(id => id !== user.id)
+      if (reviewerIds.length > 0) {
+        await emitNotification({
+          userIds: reviewerIds,
+          type: 'PAYMENT_SUBMITTED',
+          title: 'New Payment Request',
+          message: `${user.name} submitted ${isBatch ? `${result.payments.length} payment(s)` : `a $${totalAmount.toFixed(2)} payment`} from ${account.accountName}`,
+          linkUrl: '/admin/pending-actions',
+        })
+      }
+    } catch { /* non-critical */ }
 
     return NextResponse.json(
       {

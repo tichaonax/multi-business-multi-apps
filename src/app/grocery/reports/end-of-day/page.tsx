@@ -144,8 +144,8 @@ export default function EndOfDayReport() {
       setSaving(true)
       setSaveError(null)
 
-      // Fire EOD rent transfer first (idempotent — safe to call even if already done)
-      if (rentConfig && includeRentTransfer && !rentAlreadyTransferred) {
+      // Fire EOD rent transfer first — skip if no cash was collected
+      if (rentConfig && includeRentTransfer && !rentAlreadyTransferred && parseFloat(cashCounted || '0') > 0) {
         try {
           const rentRes = await fetch(`/api/rent-account/${currentBusinessId}/eod-transfer`, {
             method: 'POST',
@@ -165,8 +165,8 @@ export default function EndOfDayReport() {
         }
       }
 
-      // Fire EOD auto-deposits (idempotent — processes all active auto-deposit configs)
-      try {
+      // Fire EOD auto-deposits — skip if no cash was collected
+      if (parseFloat(cashCounted || '0') > 0) try {
         const adRes = await fetch(`/api/auto-deposits/${currentBusinessId}/process-eod`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

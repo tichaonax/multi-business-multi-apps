@@ -56,6 +56,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
   const [pdfGenerating, setPdfGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mismatches, setMismatches] = useState<string[]>([])
+  const [confirmForceClose, setConfirmForceClose] = useState(false)
   // local edits: itemId → actualAmount string
   const [localAmounts, setLocalAmounts] = useState<Record<string, string>>({})
 
@@ -255,6 +256,29 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
         if (data.mismatches) setMismatches(data.mismatches)
         throw new Error(data.error ?? 'Failed to lock')
       }
+      setReport(data.report)
+      setLineItems(data.lineItems)
+      refreshWeekRow(date, data.lineItems, data.report?.status ?? 'LOCKED')
+      window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Unknown error')
+    } finally {
+      setLocking(false)
+    }
+  }
+
+  const forceCloseReport = async () => {
+    if (!report) return
+    setConfirmForceClose(false)
+    setLocking(true)
+    try {
+      const res = await fetch(`/api/cash-allocation/${businessId}/${report.id}/lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forceClose: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to close')
       setReport(data.report)
       setLineItems(data.lineItems)
       refreshWeekRow(date, data.lineItems, data.report?.status ?? 'LOCKED')
@@ -686,15 +710,48 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
         </ul>
       )}
 
-      {report && !isLocked && allChecked && canEdit && (
-        <div className="flex justify-end">
-          <button
-            onClick={lockReport}
-            disabled={locking}
-            className="px-6 py-2 bg-green-600 text-white rounded-md text-sm font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {locking ? 'Locking…' : '🔒 Lock Report for ' + date}
-          </button>
+      {report && !isLocked && canEdit && (
+        <div className="flex items-center justify-between gap-4 flex-wrap pt-2">
+          {/* Close Without Deductions */}
+          <div>
+            {confirmForceClose ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+                  All cash goes to cashbox — no deductions. Confirm?
+                </span>
+                <button
+                  onClick={forceCloseReport}
+                  disabled={locking}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium rounded"
+                >
+                  Yes, Close
+                </button>
+                <button
+                  onClick={() => setConfirmForceClose(false)}
+                  className="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-500"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmForceClose(true)}
+                disabled={locking}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium rounded-md"
+              >
+                Close Without Deductions
+              </button>
+            )}
+          </div>
+          {allChecked && (
+            <button
+              onClick={lockReport}
+              disabled={locking}
+              className="px-6 py-2 bg-green-600 text-white rounded-md text-sm font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {locking ? 'Locking…' : '🔒 Lock Report for ' + date}
+            </button>
+          )}
         </div>
       )}
     </div>

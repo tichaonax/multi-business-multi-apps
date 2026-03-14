@@ -92,6 +92,7 @@ export default function PendingActionsPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [batchingId, setBatchingId] = useState<string | null>(null)
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -124,6 +125,29 @@ export default function PendingActionsPage() {
     // Debug: log pending cash allocations after fetch
     console.log('PENDING CASH ALLOCATIONS', pendingCashAllocations)
   }, [pendingCashAllocations])
+
+  async function handleQuickBatch(item: PendingPaymentRequest) {
+    const businessId = item.business?.id
+    if (!businessId) {
+      toast.error('Cannot create batch — no business linked to this account')
+      return
+    }
+    setBatchingId(item.id)
+    try {
+      const res = await fetch('/api/eod-payment-batches/quick-batch', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to create batch')
+      router.push(`/expense-accounts/payment-batches/${json.batchId}/review`)
+    } catch (e: any) {
+      toast.error(e.message)
+      setBatchingId(null)
+    }
+  }
 
   async function handleApproveLock(loan: LockRequest) {
     if (!await confirm({
@@ -394,12 +418,13 @@ export default function PendingActionsPage() {
                         </div>
                         {item.business && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{item.business.name} · #{item.accountNumber}</p>}
                       </div>
-                      <Link
-                        href={`/expense-accounts/${item.id}`}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      <button
+                        onClick={() => handleQuickBatch(item)}
+                        disabled={batchingId === item.id}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded transition-colors shrink-0"
                       >
-                        Submit Batch
-                      </Link>
+                        {batchingId === item.id ? 'Creating…' : 'Review Payments'}
+                      </button>
                     </div>
                   ))}
                 </div>

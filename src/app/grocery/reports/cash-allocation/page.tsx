@@ -2,13 +2,14 @@
 
 export const dynamic = 'force-dynamic'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { CashAllocationDailyReport } from '@/components/reports/cash-allocation-daily-report'
 import { CashAllocationGroupedReport } from '@/components/reports/cash-allocation-grouped-report'
 import { ContentLayout } from '@/components/layout/content-layout'
 
-export default function GroceryCashAllocation() {
+function GroceryCashAllocationContent() {
   const { currentBusinessId, businesses, isSystemAdmin } = useBusinessPermissionsContext()
   const searchParams = useSearchParams()
   const lockedDate = searchParams.get('date')
@@ -41,5 +42,13 @@ export default function GroceryCashAllocation() {
         />
       )}
     </ContentLayout>
+  )
+}
+
+export default function GroceryCashAllocation() {
+  return (
+    <Suspense>
+      <GroceryCashAllocationContent />
+    </Suspense>
   )
 }

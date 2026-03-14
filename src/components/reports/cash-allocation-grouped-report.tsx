@@ -60,6 +60,7 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
   const [locking, setLocking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mismatches, setMismatches] = useState<string[]>([])
+  const [confirmForceClose, setConfirmForceClose] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
 
   useEffect(() => {
@@ -127,6 +128,28 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
         if (data.mismatches) setMismatches(data.mismatches)
         throw new Error(data.error ?? 'Failed to lock')
       }
+      setReport(data.report)
+      setLineItems(data.lineItems)
+      window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Unknown error')
+    } finally {
+      setLocking(false)
+    }
+  }
+
+  const forceCloseReport = async () => {
+    if (!report) return
+    setConfirmForceClose(false)
+    setLocking(true)
+    try {
+      const res = await fetch(`/api/cash-allocation/${businessId}/${report.id}/lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forceClose: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to close')
       setReport(data.report)
       setLineItems(data.lineItems)
       window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
@@ -405,20 +428,50 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
         </div>
       )}
 
-      {/* Lock button */}
+      {/* Lock / Close buttons */}
       {!isLocked && canEdit && (
-        <div className="flex items-center justify-between gap-4 pt-2">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Confirm all deposits above, then lock to complete the catch-up for all {dates.length} day{dates.length !== 1 ? 's' : ''}.
-          </p>
-          <button
-            onClick={lockReport}
-            disabled={locking || !allConfirmed}
-            className="px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed
-              text-white text-sm font-semibold rounded-md"
-          >
-            {locking ? 'Locking…' : `🔒 Confirm & Lock All ${dates.length} Day${dates.length !== 1 ? 's' : ''}`}
-          </button>
+        <div className="flex items-center justify-between gap-4 flex-wrap pt-2">
+          {/* Close Without Deductions */}
+          <div>
+            {confirmForceClose ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+                  All cash goes to cashbox — no deductions. Confirm?
+                </span>
+                <button
+                  onClick={forceCloseReport}
+                  disabled={locking}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium rounded"
+                >
+                  Yes, Close
+                </button>
+                <button
+                  onClick={() => setConfirmForceClose(false)}
+                  className="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-500"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmForceClose(true)}
+                disabled={locking}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium rounded-md"
+              >
+                Close Without Deductions
+              </button>
+            )}
+          </div>
+          {allConfirmed && (
+            <button
+              onClick={lockReport}
+              disabled={locking}
+              className="px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed
+                text-white text-sm font-semibold rounded-md"
+            >
+              {locking ? 'Locking…' : `🔒 Confirm & Lock All ${dates.length} Day${dates.length !== 1 ? 's' : ''}`}
+            </button>
+          )}
         </div>
       )}
     </div>

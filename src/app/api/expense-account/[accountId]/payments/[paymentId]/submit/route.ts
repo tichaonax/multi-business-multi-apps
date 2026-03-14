@@ -70,6 +70,16 @@ export async function POST(
       return p
     })
 
+    // Clear any unread PAYMENT_APPROVED / PAYMENT_REJECTED notifications for this user
+    // now that they have actioned the payment (non-critical — fire and forget)
+    prisma.appNotification.deleteMany({
+      where: {
+        userId: payment.createdBy,
+        type: { in: ['PAYMENT_APPROVED', 'PAYMENT_REJECTED'] },
+        isRead: false,
+      },
+    }).catch(() => { /* non-critical */ })
+
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
     console.error('Error submitting payment:', error)

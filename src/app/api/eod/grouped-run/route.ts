@@ -156,23 +156,27 @@ export async function POST(request: NextRequest) {
       const dayStart = new Date(date + 'T00:00:00Z')
       const dayEnd = new Date(date + 'T23:59:59.999Z')
 
-      // 1. Rent transfer (non-fatal)
+      // 1. Rent transfer (non-fatal) — skip entirely if no cash was collected
       let rentAmount = 0
-      try {
-        const rentResult = await processRentTransfer(businessId, date, user.id)
-        rentAmount = rentResult.amount
-      } catch (rentErr: any) {
-        // NO_RENT_CONFIG, RENT_ACCOUNT_INACTIVE, INSUFFICIENT_FUNDS — all acceptable
-        console.warn(`[grouped-run] Rent transfer skipped for ${date}:`, rentErr.message)
+      if (totalCashReceived > 0) {
+        try {
+          const rentResult = await processRentTransfer(businessId, date, user.id)
+          rentAmount = rentResult.amount
+        } catch (rentErr: any) {
+          // NO_RENT_CONFIG, RENT_ACCOUNT_INACTIVE, INSUFFICIENT_FUNDS — all acceptable
+          console.warn(`[grouped-run] Rent transfer skipped for ${date}:`, rentErr.message)
+        }
       }
 
-      // 2. Auto-deposits (non-fatal per config — errors are inside results array)
+      // 2. Auto-deposits (non-fatal per config) — skip entirely if no cash was collected
       let autoDepositTotal = 0
-      try {
-        const { summary } = await processAutoDeposits(businessId, date, user.id)
-        autoDepositTotal = summary.totalDeposited
-      } catch (autoErr: any) {
-        console.warn(`[grouped-run] Auto-deposits failed for ${date}:`, autoErr.message)
+      if (totalCashReceived > 0) {
+        try {
+          const { summary } = await processAutoDeposits(businessId, date, user.id)
+          autoDepositTotal = summary.totalDeposited
+        } catch (autoErr: any) {
+          console.warn(`[grouped-run] Auto-deposits failed for ${date}:`, autoErr.message)
+        }
       }
 
       // 3. Query all deposits made for this date (for allocationBreakdown)
