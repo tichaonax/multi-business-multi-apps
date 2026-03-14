@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { useToastContext } from '@/components/ui/toast'
+import { generatePayrollFundingVoucher, type PayrollFundingVoucherData } from '@/lib/pdf-utils'
 
 interface CashBoxSource {
   id: string          // businessId
@@ -49,17 +51,26 @@ function proportionalFill(sources: CashBoxSource[], needed: number): Record<stri
   return amounts
 }
 
+function makeVoucherId(): string {
+  const now = new Date()
+  const datePart = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const rand = String(Math.floor(Math.random() * 9000) + 1000)
+  return `PCW-${datePart}-${rand}`
+}
+
 export function FundPayrollFromAccountsModal({
   totalRequired,
   currentPayrollBalance,
   onSuccess,
   onClose,
 }: FundPayrollFromAccountsModalProps) {
+  const { data: session } = useSession()
   const toast = useToastContext()
   const [sources, setSources] = useState<CashBoxSource[]>([])
   const [amounts, setAmounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [voucher, setVoucher] = useState<PayrollFundingVoucherData | null>(null)
 
   const shortfall = Math.max(0, totalRequired - currentPayrollBalance)
 
@@ -115,7 +126,18 @@ export function FundPayrollFromAccountsModal({
       if (res.ok) {
         toast.push(data.message || 'Payroll account funded successfully', { type: 'success' })
         onSuccess()
-        onClose()
+        // Build voucher data and show success screen
+        const voucherData: PayrollFundingVoucherData = {
+          voucherId: makeVoucherId(),
+          issuedAt: new Date().toISOString(),
+          issuedBy: (session?.user as any)?.name ?? 'System',
+          totalAmount: totalEntered,
+          lines: transfers.map((t) => ({
+            businessName: sources.find((s) => s.id === t.businessId)?.business?.name ?? t.businessId,
+            amount: t.amount,
+          })),
+        }
+        setVoucher(voucherData)
       } else {
         toast.error(data.error || 'Transfer failed')
       }
@@ -126,6 +148,70 @@ export function FundPayrollFromAccountsModal({
     }
   }
 
+  // ── Success / Voucher screen ──────────────────────────────────────────────
+  if (voucher) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg flex flex-col">
+          <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 text-center">
+            <div className="text-3xl mb-2">✅</div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Payroll Funded Successfully</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              ${voucher.totalAmount.toFixed(2)} transferred from {voucher.lines.length} cash box{voucher.lines.length > 1 ? 'es' : ''}
+            </p>
+          </div>
+
+          {/* Withdrawal summary */}
+          <div className="px-6 py-4">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Withdrawal Breakdown</p>
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {voucher.lines.map((line) => (
+                  <tr key={line.businessName}>
+                    <td className="py-1.5 text-gray-700 dark:text-gray-300">{line.businessName} <span className="text-gray-400 text-xs">Cash Box</span></td>
+                    <td className="py-1.5 text-right font-semibold text-gray-900 dark:text-gray-100">${line.amount.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 dark:border-gray-600">
+                  <td className="pt-2 font-bold text-gray-900 dark:text-gray-100">Total</td>
+                  <td className="pt-2 text-right font-bold text-gray-900 dark:text-gray-100">${voucher.totalAmount.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+            <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">Voucher ID: {voucher.voucherId}</p>
+          </div>
+
+          {/* Actions */}
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              Done
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => generatePayrollFundingVoucher(voucher, 'save')}
+                className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                💾 Save PDF
+              </button>
+              <button
+                onClick={() => generatePayrollFundingVoucher(voucher, 'print')}
+                className="px-4 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                🖨️ Print Voucher
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Funding form ─────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
