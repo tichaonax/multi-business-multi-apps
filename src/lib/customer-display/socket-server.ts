@@ -8,7 +8,11 @@
 import { Server as SocketIOServer } from 'socket.io'
 import { Server as HTTPServer } from 'http'
 
-let io: SocketIOServer | null = null
+// Use global to share the instance across Next.js webpack bundles and the custom server ts-node process
+const g = global as typeof globalThis & { __socketio?: SocketIOServer }
+
+function getIo(): SocketIOServer | null { return g.__socketio ?? null }
+function setIo(server: SocketIOServer): void { g.__socketio = server }
 
 interface RoomJoinData {
   room: string
@@ -23,12 +27,12 @@ interface CartUpdateData {
  * Initialize Socket.io server (call once)
  */
 export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
-  if (io) {
+  if (getIo()) {
     console.log('Socket.io server already initialized')
-    return io
+    return getIo()!
   }
 
-  io = new SocketIOServer(httpServer, {
+  const io = new SocketIOServer(httpServer, {
     cors: {
       origin: '*', // Configure based on environment
       methods: ['GET', 'POST']
@@ -37,6 +41,8 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
     pingTimeout: 60000,
     pingInterval: 25000
   })
+
+  setIo(io)
 
   // Connection handler
   io.on('connection', (socket) => {
@@ -71,6 +77,12 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
         console.error('[Socket.io] Error broadcasting cart update:', error)
         socket.emit('error', { message: 'Failed to broadcast cart update' })
       }
+    })
+
+    // Join global chat room
+    socket.on('join-chat-room', () => {
+      socket.join('chat:general')
+      console.log(`[Socket.io] Client ${clientId} joined chat:general`)
     })
 
     // Join personal notification room — client sends their userId
@@ -114,21 +126,21 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
  * Get existing Socket.io server instance
  */
 export function getSocketServer(): SocketIOServer | null {
-  return io
+  return getIo()
 }
 
 /**
  * Check if Socket.io server is initialized
  */
 export function isSocketServerInitialized(): boolean {
-  return io !== null
+  return getIo() !== null
 }
 
 /**
  * Manually set the Socket.io server instance (for custom server setups)
  */
 export function setSocketServer(server: SocketIOServer): void {
-  io = server
+  setIo(server)
 }
 
 /**
@@ -137,6 +149,16 @@ export function setSocketServer(server: SocketIOServer): void {
  * No-op if the socket server is not initialized (server still saves to DB).
  */
 export function emitToUser(userId: string, eventName: string, payload: unknown): void {
+  const io = getIo()
   if (!io) return
   io.to(`user:${userId}`).emit(eventName, payload)
+}
+
+/**
+ * Emit an event to all sockets in a named room (e.g. "chat:general").
+ */
+export function emitToRoom(room: string, eventName: string, payload: unknown): void {
+  const io = getIo()
+  if (!io) return
+  io.to(room).emit(eventName, payload)
 }

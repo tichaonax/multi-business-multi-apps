@@ -537,9 +537,13 @@ function DashboardContent() {
             <div className="card p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-primary">Team Chat</h3>
-                <Link href="/chat" className="btn-primary">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('chat:open'))}
+                  className="btn-primary"
+                >
                   Open Chat
-                </Link>
+                </button>
               </div>
               <p className="text-secondary">
                 Stay connected with your team. Report issues, ask questions, or coordinate with fleet managers.

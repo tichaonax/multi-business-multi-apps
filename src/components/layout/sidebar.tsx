@@ -1740,13 +1740,14 @@ export function Sidebar() {
           </Link>
         )}
 
-        <Link
-          href="/chat"
-          className="sidebar-link flex items-center space-x-3"
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('chat:open'))}
+          className="sidebar-link flex items-center space-x-3 w-full text-left"
         >
           <span className="text-lg">💬</span>
           <span>Team Chat</span>
-        </Link>
+        </button>
         </>)}
 
         {/* Employee Management Section - Only for users with actual management permissions */}

@@ -589,11 +589,12 @@ model SavedReports {
 }
 
 model ChatMessages {
-  id         String     @id @default(uuid())
-  message    String
-  createdAt  DateTime   @default(now())
-  roomId     String?
-  userId     String?
+  id        String    @id @default(uuid())
+  message   String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+  roomId    String?
+  userId    String?
   chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
   users      Users?     @relation(fields: [userId], references: [id])
 

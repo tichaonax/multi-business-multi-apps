@@ -18,6 +18,7 @@ import ConfirmProvider from '@/components/ui/confirm-modal'
 import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
 import { CartProvider } from '@/contexts/global-cart-context'
 import { NotificationProvider } from '@/components/providers/notification-provider'
+import { FloatingChat } from '@/components/chat/floating-chat'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -80,6 +81,7 @@ export default function RootLayout({
                             <GlobalLoadingSpinner />
                           </div>
                           <GlobalBarcodeModalManager />
+                          <FloatingChat />
                         </GlobalBarcodeProvider>
                       </NavigationProvider>
                       </NotificationProvider>

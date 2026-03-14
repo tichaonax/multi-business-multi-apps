@@ -432,13 +432,13 @@ export function MobileSidebar() {
                 </Link>
               )}
 
-              <Link
-                href="/chat"
-                className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                onClick={() => setIsOpen(false)}
+              <button
+                type="button"
+                className="block w-full text-left px-4 py-2.5 rounded hover:bg-gray-700"
+                onClick={() => { setIsOpen(false); window.dispatchEvent(new CustomEvent('chat:open')) }}
               >
                 💬 Team Chat
-              </Link>
+              </button>
 
               {/* Receipt History */}
               <Link
