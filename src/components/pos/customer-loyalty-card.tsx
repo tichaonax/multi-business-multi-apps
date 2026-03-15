@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { PrintCardToReceiptPrinter } from '@/components/ui/print-card-to-receipt-printer'
 
 interface CustomerLoyaltyCardProps {
   customer: {
@@ -8,11 +9,14 @@ interface CustomerLoyaltyCardProps {
     customerNumber: string
     name: string
     phone?: string | null
-    businessName?: string | null
   }
+  businessId?: string
+  businessName?: string | null
+  businessPhone?: string | null
+  printId?: string
 }
 
-export function CustomerLoyaltyCard({ customer }: CustomerLoyaltyCardProps) {
+export function CustomerLoyaltyCard({ customer, businessName, businessPhone, printId = 'customer-loyalty-card' }: CustomerLoyaltyCardProps) {
   const barcodeRef = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
@@ -38,53 +42,82 @@ export function CustomerLoyaltyCard({ customer }: CustomerLoyaltyCardProps) {
 
   return (
     <div
-      id="customer-loyalty-card"
-      className="inline-block bg-white border-2 border-teal-600 rounded-lg overflow-hidden shadow-lg"
+      id={printId}
+      className="inline-block bg-white border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
       style={{ width: '314px', fontFamily: 'sans-serif' }}
     >
       {/* Header strip */}
-      <div className="bg-teal-600 px-3 py-1.5 flex items-center justify-between">
-        <span className="text-white font-bold text-xs tracking-wide">LOYALTY CARD</span>
-        {customer.businessName && (
-          <span className="text-teal-200 text-xs truncate ml-2 max-w-[160px]">{customer.businessName}</span>
-        )}
+      <div className="bg-white px-3 py-1.5 border-b border-gray-300 flex items-baseline justify-between gap-2">
+        <span className="text-black font-bold text-xs tracking-widest">LOYALTY CARD</span>
+        {businessPhone && <span className="text-gray-600 text-xs">{businessPhone}</span>}
       </div>
 
-      {/* Body */}
-      <div className="px-3 pt-3 pb-1 flex gap-3 items-center">
-        {/* Avatar placeholder — future: customer photo */}
+      {/* Body — avatar + customer info */}
+      <div className="px-3 pt-1 pb-2 flex gap-3 items-center">
         <div className="flex-shrink-0">
-          <div className="w-14 h-14 rounded-md bg-teal-50 border border-teal-200 flex items-center justify-center text-2xl select-none">
+          <div className="w-14 h-14 rounded-md bg-gray-100 border border-gray-300 flex items-center justify-center text-2xl select-none">
             🛍️
           </div>
         </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0 pt-0.5">
-          <div className="font-bold text-gray-900 text-sm leading-tight truncate">{customer.name}</div>
-          <div className="text-teal-700 text-xs font-medium mt-0.5 font-mono">{customer.customerNumber}</div>
-          {customer.phone && (
-            <div className="text-gray-600 text-xs mt-0.5">{customer.phone}</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-gray-900 text-sm leading-normal break-words">{customer.name}</div>
+          <div className="flex items-center gap-2 text-xs font-mono mt-0.5">
+            <span className="text-gray-700 font-medium">{customer.customerNumber}</span>
+            {customer.phone && <span className="text-gray-500">{customer.phone}</span>}
+          </div>
+          {businessName && (
+            <div className="text-gray-800 text-xs font-semibold mt-0.5 truncate">{businessName}</div>
           )}
         </div>
       </div>
 
-      {/* Barcode */}
-      <div className="px-3 pb-3 flex flex-col items-center">
+      {/* Barcode — no duplicate customer number here */}
+      <div className="px-3 pb-2 flex flex-col items-center">
         <svg ref={barcodeRef} />
-        <span className="text-xs text-gray-500 mt-0.5 font-mono tracking-wide">{customer.customerNumber}</span>
       </div>
+
     </div>
   )
 }
 
-export function PrintLoyaltyCardButton({ customer }: CustomerLoyaltyCardProps) {
-  const printCard = () => {
-    const cardEl = document.getElementById('customer-loyalty-card')
-    if (!cardEl) return
+function buildPrintWindow(cardHtml: string, styles: string, title: string, autoPrint: boolean) {
+  const printWindow = window.open('', '_blank', 'width=900,height=460')
+  if (!printWindow) return
 
-    const printWindow = window.open('', '_blank', 'width=900,height=460')
-    if (!printWindow) return
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          ${styles}
+          html, body { height: 100%; margin: 0; padding: 0; }
+          body { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+          .card-pair { display: inline-flex; align-items: flex-start; gap: 0; }
+          .fold-guide { width: 0; align-self: stretch; border-left: 2px dashed #888; }
+          @media print {
+            html, body { height: 100vh; margin: 0; padding: 0; }
+            .fold-guide { border-left-color: #bbb; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card-pair">
+          ${cardHtml}
+          <div class="fold-guide"></div>
+          ${cardHtml}
+        </div>
+        ${autoPrint ? '<script>window.onload = () => { window.print(); window.close(); }<\/script>' : ''}
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+}
+
+export function PrintLoyaltyCardButton({ customer, businessId }: CustomerLoyaltyCardProps) {
+  const getCardData = () => {
+    const cardEl = document.getElementById('customer-loyalty-card')
+    if (!cardEl) return null
 
     const styles = Array.from(document.styleSheets)
       .map((sheet) => {
@@ -96,44 +129,45 @@ export function PrintLoyaltyCardButton({ customer }: CustomerLoyaltyCardProps) {
       })
       .join('\n')
 
-    const cardHtml = cardEl.outerHTML
+    return { cardHtml: cardEl.outerHTML, styles }
+  }
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Loyalty Card — ${customer.name}</title>
-          <style>
-            ${styles}
-            html, body { height: 100%; margin: 0; padding: 0; }
-            body { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-            .card-pair { display: inline-flex; align-items: flex-start; gap: 0; }
-            .fold-guide { width: 0; align-self: stretch; border-left: 2px dashed #888; }
-            @media print {
-              html, body { height: 100vh; margin: 0; padding: 0; }
-              .fold-guide { border-left-color: #bbb; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="card-pair">
-            ${cardHtml}
-            <div class="fold-guide"></div>
-            ${cardHtml}
-          </div>
-          <script>window.onload = () => { window.print(); window.close(); }<\/script>
-        </body>
-      </html>
-    `)
-    printWindow.document.close()
+  const printCard = () => {
+    const data = getCardData()
+    if (!data) return
+    buildPrintWindow(data.cardHtml, data.styles, `Loyalty Card — ${customer.name}`, true)
+  }
+
+  const openPreview = () => {
+    const data = getCardData()
+    if (!data) return
+    buildPrintWindow(data.cardHtml, data.styles, `Loyalty Card — ${customer.name}`, false)
   }
 
   return (
-    <button
-      onClick={printCard}
-      className="w-full py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-700 flex items-center justify-center gap-2"
-    >
-      🖨️ Print Loyalty Card
-    </button>
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <button
+          onClick={printCard}
+          className="flex-1 py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-700 flex items-center justify-center gap-2"
+        >
+          🖨️ Print Loyalty Card
+        </button>
+        <button
+          onClick={openPreview}
+          title="Open card — use browser Print (Ctrl+P) to save as PDF or send to a file printer"
+          className="px-3 py-1.5 text-sm border border-teal-600 text-teal-700 dark:text-teal-400 rounded-md hover:bg-teal-50 dark:hover:bg-teal-900/20 flex items-center gap-1"
+        >
+          💾 Save
+        </button>
+      </div>
+      {businessId && (
+        <PrintCardToReceiptPrinter
+          cardElementId="customer-loyalty-card"
+          businessId={businessId}
+          label="Print Card to Receipt Printer"
+        />
+      )}
+    </div>
   )
 }

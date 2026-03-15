@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Search, X, UserPlus, User } from 'lucide-react'
+import { Search, X, UserPlus, User, Printer } from 'lucide-react'
+import { CustomerLoyaltyCard } from './customer-loyalty-card'
+import { PrintCardToReceiptPrinter } from '@/components/ui/print-card-to-receipt-printer'
 
 interface Customer {
   id: string
@@ -20,6 +22,8 @@ interface CustomerLookupProps {
   onSelectCustomer: (customer: Customer | null) => void
   onCreateCustomer?: () => void
   allowWalkIn?: boolean
+  businessName?: string
+  businessPhone?: string
 }
 
 export function CustomerLookup({
@@ -27,40 +31,20 @@ export function CustomerLookup({
   selectedCustomer,
   onSelectCustomer,
   onCreateCustomer,
-  allowWalkIn = true
+  allowWalkIn = true,
+  businessName,
+  businessPhone,
 }: CustomerLookupProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [isWalkIn, setIsWalkIn] = useState(false)
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const [showPrintPanel, setShowPrintPanel] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  const updateDropdownPosition = () => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      setDropdownStyle({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-      })
-    }
-  }
-
-  useEffect(() => {
-    if (showDropdown) {
-      updateDropdownPosition()
-      window.addEventListener('scroll', updateDropdownPosition, true)
-      window.addEventListener('resize', updateDropdownPosition)
-      return () => {
-        window.removeEventListener('scroll', updateDropdownPosition, true)
-        window.removeEventListener('resize', updateDropdownPosition)
-      }
-    }
-  }, [showDropdown])
 
   // Search customers as user types
   useEffect(() => {
@@ -70,7 +54,6 @@ export function CustomerLookup({
     }
 
     // Show dropdown immediately (with Walk-in) while waiting for API
-    updateDropdownPosition()
     setShowDropdown(true)
 
     const delaySearch = setTimeout(() => {
@@ -98,6 +81,7 @@ export function CustomerLookup({
 
   const searchCustomers = async (query: string) => {
     setLoading(true)
+    setSearchError(null)
     try {
       const response = await fetch(
         `/api/pos/customer-search?businessId=${encodeURIComponent(businessId)}&search=${encodeURIComponent(query)}&limit=10`
@@ -107,11 +91,13 @@ export function CustomerLookup({
         setCustomers(data.customers || [])
       } else {
         console.error('[CustomerLookup] Search error:', data.error)
+        setSearchError(data.error || 'Search failed')
         setCustomers([])
       }
       setShowDropdown(true)
     } catch (error) {
       console.error('[CustomerLookup] Network error:', error)
+      setSearchError('Network error — could not search customers')
       setCustomers([])
     } finally {
       setLoading(false)
@@ -130,6 +116,28 @@ export function CustomerLookup({
     onSelectCustomer(null)
     setIsWalkIn(false)
     setSearchQuery('')
+    setShowPrintPanel(false)
+  }
+
+  const printLoyaltyCard = () => {
+    const cardEl = document.getElementById('customer-loyalty-card-lookup')
+    if (!cardEl) return
+    const styles = Array.from(document.styleSheets)
+      .map((sheet) => { try { return Array.from(sheet.cssRules).map((r) => r.cssText).join('\n') } catch { return '' } })
+      .join('\n')
+    const printWindow = window.open('', '_blank', 'width=900,height=460')
+    if (!printWindow) return
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Loyalty Card</title><style>
+      ${styles}
+      html,body{height:100%;margin:0;padding:0;}
+      body{display:flex;justify-content:center;align-items:center;min-height:100vh;}
+      .card-pair{display:inline-flex;align-items:flex-start;gap:0;}
+      .fold-guide{width:0;align-self:stretch;border-left:2px dashed #888;}
+    </style></head><body>
+      <div class="card-pair">${cardEl.outerHTML}<div class="fold-guide"></div>${cardEl.outerHTML}</div>
+      <script>window.onload=()=>{window.print();window.close();}<\/script>
+    </body></html>`)
+    printWindow.document.close()
   }
 
   const handleSelectWalkIn = () => {
@@ -159,7 +167,7 @@ export function CustomerLookup({
 
       {selectedCustomer ? (
         // Show selected customer
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2 flex-1">
               <User className="h-5 w-5 text-blue-600" />
@@ -171,14 +179,57 @@ export function CustomerLookup({
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleClearCustomer}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              title="Clear customer"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowPrintPanel(v => !v)}
+                title="Print loyalty card"
+                className={`p-0.5 ${showPrintPanel ? 'text-blue-700 dark:text-blue-300' : 'text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300'}`}
+              >
+                <Printer className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleClearCustomer}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-0.5"
+                title="Clear customer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Print panel — shown when printer icon toggled */}
+          {showPrintPanel && (
+            <div className="border-t border-blue-200 dark:border-blue-700 pt-2 space-y-1.5">
+              <button
+                type="button"
+                onClick={printLoyaltyCard}
+                className="w-full py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-primary rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-1.5"
+              >
+                🖨️ Print / Save as PDF
+              </button>
+              <PrintCardToReceiptPrinter
+                cardElementId="customer-loyalty-card-lookup"
+                businessId={businessId}
+                label="Print to Receipt Printer"
+              />
+            </div>
+          )}
+
+          {/* Card rendered off-screen for print capture */}
+          <div style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}>
+            <CustomerLoyaltyCard
+              customer={{
+                id: selectedCustomer.id,
+                customerNumber: selectedCustomer.customerNumber,
+                name: selectedCustomer.name,
+                phone: selectedCustomer.phone,
+              }}
+              businessName={businessName}
+              businessPhone={businessPhone}
+              printId="customer-loyalty-card-lookup"
+            />
           </div>
         </div>
       ) : isWalkIn ? (
@@ -220,7 +271,6 @@ export function CustomerLookup({
                 }
               }}
               onFocus={() => {
-                updateDropdownPosition()
                 setShowDropdown(true)
               }}
               placeholder="Search by name, ID or scan loyalty card..."
@@ -237,8 +287,7 @@ export function CustomerLookup({
           {showDropdown && (searchQuery.length >= 2 || allowWalkIn) && (
             <div
               ref={dropdownRef}
-              className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"
-              style={dropdownStyle}
+              className="absolute left-0 right-0 top-full mt-1 z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"
             >
               {/* Walk-in Customer Option */}
               {allowWalkIn && (
@@ -284,10 +333,13 @@ export function CustomerLookup({
                 </>
               )}
 
-              {/* No Results */}
+              {/* No Results / Error */}
               {searchQuery.length >= 2 && customers.length === 0 && !loading && (
-                <div className="px-4 py-3 text-sm text-secondary text-center">
-                  No customers found. Try a different search term.
+                <div className="px-4 py-3 text-sm text-center">
+                  {searchError
+                    ? <span className="text-red-500">{searchError}</span>
+                    : <span className="text-secondary">No customers found. Try a different search term.</span>
+                  }
                 </div>
               )}
             </div>

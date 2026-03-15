@@ -43,6 +43,7 @@ interface UniversalPOSLayoutProps {
   // Business info
   businessId?: string
   businessName?: string
+  businessPhone?: string
   onProductsReload?: () => void
 
   // Coupon (optional)
@@ -81,6 +82,7 @@ export function UniversalPOSLayout({
   onCheckout,
   businessId,
   businessName,
+  businessPhone,
   onProductsReload,
   appliedCoupon,
   isValidatingCoupon,
@@ -126,6 +128,7 @@ export function UniversalPOSLayout({
               <CustomerQuickRegister
                 businessId={businessId!}
                 businessName={businessName}
+                businessPhone={businessPhone}
                 onCreated={(c) => { onSelectCustomer?.(c); setShowQuickRegister(false) }}
                 onCancel={() => setShowQuickRegister(false)}
               />
@@ -136,6 +139,8 @@ export function UniversalPOSLayout({
                 onSelectCustomer={onSelectCustomer}
                 onCreateCustomer={() => setShowQuickRegister(true)}
                 allowWalkIn={false}
+                businessName={businessName}
+                businessPhone={businessPhone}
               />
             )}
 

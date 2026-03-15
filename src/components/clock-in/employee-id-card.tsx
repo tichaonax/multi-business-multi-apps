@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { PrintCardToReceiptPrinter } from '@/components/ui/print-card-to-receipt-printer'
 
 interface EmployeeIdCardProps {
   employee: {
@@ -161,11 +162,20 @@ export function PrintIdCardButton({ employee }: EmployeeIdCardProps) {
   }
 
   return (
-    <button
-      onClick={printCard}
-      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
-    >
-      🖨️ Print ID Card
-    </button>
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={printCard}
+        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
+      >
+        🖨️ Print ID Card
+      </button>
+      {employee.primaryBusiness?.id && (
+        <PrintCardToReceiptPrinter
+          cardElementId="employee-id-card"
+          businessId={employee.primaryBusiness.id}
+          label="Print Card to Receipt Printer"
+        />
+      )}
+    </div>
   )
 }

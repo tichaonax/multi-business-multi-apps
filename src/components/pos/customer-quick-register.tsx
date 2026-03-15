@@ -15,11 +15,12 @@ interface QuickRegisterCustomer {
 interface CustomerQuickRegisterProps {
   businessId: string
   businessName?: string
+  businessPhone?: string
   onCreated: (customer: QuickRegisterCustomer) => void
   onCancel: () => void
 }
 
-export function CustomerQuickRegister({ businessId, businessName, onCreated, onCancel }: CustomerQuickRegisterProps) {
+export function CustomerQuickRegister({ businessId, businessName, businessPhone, onCreated, onCancel }: CustomerQuickRegisterProps) {
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [saving, setSaving] = useState(false)
@@ -80,8 +81,9 @@ export function CustomerQuickRegister({ businessId, businessName, onCreated, onC
               customerNumber: createdCustomer.customerNumber,
               name: createdCustomer.name,
               phone: createdCustomer.phone,
-              businessName: businessName,
             }}
+            businessName={businessName}
+            businessPhone={businessPhone}
           />
         </div>
 
@@ -91,8 +93,10 @@ export function CustomerQuickRegister({ businessId, businessName, onCreated, onC
             customerNumber: createdCustomer.customerNumber,
             name: createdCustomer.name,
             phone: createdCustomer.phone,
-            businessName: businessName,
           }}
+          businessId={businessId}
+          businessName={businessName}
+          businessPhone={businessPhone}
         />
 
         <button

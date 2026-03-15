@@ -3336,7 +3336,8 @@ export default function RestaurantPOS() {
                 {showQuickRegister ? (
                   <CustomerQuickRegister
                     businessId={currentBusinessId}
-                    businessName={currentBusiness?.name || undefined}
+                    businessName={currentBusiness?.businessName || undefined}
+                    businessPhone={currentBusiness?.phone || undefined}
                     onCreated={(c) => { setSelectedCustomer(c); setShowQuickRegister(false) }}
                     onCancel={() => setShowQuickRegister(false)}
                   />
@@ -3353,6 +3354,8 @@ export default function RestaurantPOS() {
                     }}
                     onCreateCustomer={() => setShowQuickRegister(true)}
                     allowWalkIn={false}
+                    businessName={currentBusiness?.businessName || undefined}
+                    businessPhone={currentBusiness?.phone || undefined}
                   />
                 )}
 

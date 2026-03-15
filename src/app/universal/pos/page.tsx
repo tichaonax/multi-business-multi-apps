@@ -485,7 +485,8 @@ export default function UniversalPOS() {
           isProcessing={isProcessing}
           onCheckout={handleCheckout}
           businessId={currentBusinessId || undefined}
-          businessName={currentBusiness?.name || undefined}
+          businessName={currentBusiness?.businessName || undefined}
+          businessPhone={currentBusiness?.phone || undefined}
           onProductsReload={reloadProducts}
           {...(config.features.coupons && currentBusiness?.couponsEnabled ? {
             appliedCoupon,

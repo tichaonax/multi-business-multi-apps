@@ -34,28 +34,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Collect all businessIds to search across (this business + umbrella/siblings if any)
+    // Collect all businessIds to search across:
+    // - The current POS business
+    // - All other businesses the user has active memberships in (cross-business customer lookup)
+    // - For admins: no restriction (search all)
     const businessIds: string[] = [businessId]
 
-    try {
-      const business = await prisma.businesses.findUnique({
-        where: { id: businessId },
-        select: { umbrellaBusinessId: true }
-      })
-
-      if (business?.umbrellaBusinessId) {
-        // Include umbrella + all siblings under the same umbrella
-        const siblings = await prisma.businesses.findMany({
-          where: { umbrellaBusinessId: business.umbrellaBusinessId, isActive: true },
-          select: { id: true }
-        })
-        siblings.forEach(s => { if (!businessIds.includes(s.id)) businessIds.push(s.id) })
-        if (!businessIds.includes(business.umbrellaBusinessId)) {
-          businessIds.push(business.umbrellaBusinessId)
+    if (!isAdmin && user.businessMemberships) {
+      user.businessMemberships.forEach((m: any) => {
+        if (m.isActive && !businessIds.includes(m.businessId)) {
+          businessIds.push(m.businessId)
         }
-      }
-    } catch {
-      // Non-critical: fall back to just this business
+      })
     }
 
     // Build search where clause
@@ -72,7 +62,7 @@ export async function GET(request: NextRequest) {
 
     const customers = await prisma.businessCustomers.findMany({
       where: {
-        businessId: { in: businessIds },
+        ...(isAdmin ? {} : { businessId: { in: businessIds } }),
         isActive: true,
         ...searchWhere,
       },
