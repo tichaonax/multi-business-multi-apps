@@ -1154,11 +1154,6 @@ export async function createCleanBackup(
     where: { userId: { in: userIds } }
   })
 
-  // 45. POS Terminal Config
-  businessData.posTerminalConfigs = await prisma.posTerminalConfig.findMany({
-    where: { businessId: { in: businessIds } }
-  })
-
   // 46. Chicken Run Management
   businessData.chickenRunSettings = await prisma.chickenRunSettings.findMany({
     where: { businessId: { in: businessIds } }

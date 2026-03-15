@@ -140,9 +140,8 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Expense Account Auto Deposits / Rent Config
   'expenseAccountAutoDeposits': 'expenseAccountAutoDeposit',
   'businessRentConfigs': 'businessRentConfig',
-  // Notifications / POS
+  // Notifications
   'appNotifications': 'appNotification',
-  'posTerminalConfigs': 'posTerminalConfig',
   // Chicken Run
   'chickenBatches': 'chickenBatch',
   'chickenFeedLogs': 'chickenFeedLog',

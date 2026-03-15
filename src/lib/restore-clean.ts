@@ -306,9 +306,8 @@ const RESTORE_ORDER = [
   'chatMessages',       // Depends on chatRooms, users
   'chatParticipants',   // Depends on chatRooms, users
 
-  // Notifications and POS config
+  // Notifications
   'appNotifications',   // Depends on users
-  'posTerminalConfigs', // Depends on businesses
 
   // Chicken Run Management (MBM-145)
   'chickenRunSettings',          // Depends on businesses (@unique businessId)
@@ -392,8 +391,6 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Chicken Batches: unique on batchNumber
   'chickenBatches': 'batchNumber',
 
-  // POS Terminal Config: unique on terminalId
-  'posTerminalConfigs': 'terminalId',
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
@@ -423,9 +420,8 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Expense Account Auto Deposits / Rent Config
   'expenseAccountAutoDeposits': 'expenseAccountAutoDeposit',
   'businessRentConfigs': 'businessRentConfig',
-  // Notifications / POS
+  // Notifications
   'appNotifications': 'appNotification',
-  'posTerminalConfigs': 'posTerminalConfig',
   // Chicken Run
   'chickenBatches': 'chickenBatch',
   'chickenFeedLogs': 'chickenFeedLog',
