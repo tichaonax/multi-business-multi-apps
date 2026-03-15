@@ -41,42 +41,97 @@ export function CustomerLoyaltyCard({ customer, businessName, businessPhone, pri
   }, [customer.customerNumber])
 
   return (
+    // <div
+    //   id={printId}
+    //   className="inline-block bg-white border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
+    //   style={{ width: '314px', fontFamily: 'sans-serif' }}
+    // >
+    //   {/* Header strip */}
+    //   <div className="bg-white px-3 py-1.5 border-b border-gray-300 flex items-baseline justify-between gap-2">
+    //     <span className="text-black font-bold text-xs tracking-widest">LOYALTY CARD</span>
+    //     {businessPhone && <span className="text-gray-600 text-xs">{businessPhone}</span>}
+    //   </div>
+
+    //   {/* Body — avatar + customer info */}
+    //   <div className="px-3 pt-1 pb-2 flex gap-3 items-center">
+    //     <div className="flex-shrink-0">
+    //       <div className="w-14 h-14 rounded-md bg-gray-100 border border-gray-300 flex items-center justify-center text-2xl select-none">
+    //         🛍️
+    //       </div>
+    //     </div>
+    //     <div className="flex-1 min-w-0">
+    //       <div className="font-bold text-gray-900 text-sm leading-normal break-words">{customer.name}</div>
+    //       <div className="flex items-center gap-2 text-xs font-mono mt-0.5">
+    //         <span className="text-gray-700 font-medium">{customer.customerNumber}</span>
+    //         {customer.phone && <span className="text-gray-500">{customer.phone}</span>}
+    //       </div>
+    //       {businessName && (
+    //         <div className="text-gray-800 text-xs font-semibold mt-0.5 truncate">{businessName}</div>
+    //       )}
+    //     </div>
+    //   </div>
+
+    //   {/* Barcode — no duplicate customer number here */}
+    //   <div className="px-3 pb-2 flex flex-col items-center">
+    //     <svg ref={barcodeRef} />
+    //   </div>
+
+    // </div>
     <div
-      id={printId}
-      className="inline-block bg-white border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
-      style={{ width: '314px', fontFamily: 'sans-serif' }}
-    >
-      {/* Header strip */}
-      <div className="bg-white px-3 py-1.5 border-b border-gray-300 flex items-baseline justify-between gap-2">
-        <span className="text-black font-bold text-xs tracking-widest">LOYALTY CARD</span>
-        {businessPhone && <span className="text-gray-600 text-xs">{businessPhone}</span>}
-      </div>
+  id={printId}
+  className="inline-block bg-white border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
+  style={{ width: '314px', fontFamily: 'sans-serif' }}
+>
+  {/* Header strip */}
+  <div className="bg-white px-3 py-1 border-b border-gray-300 flex items-center justify-between gap-2">
+    <span className="text-black font-bold text-xs tracking-widest">
+      LOYALTY CARD
+    </span>
+    {businessPhone && (
+      <span className="text-gray-600 text-xs">
+        {businessPhone}
+      </span>
+    )}
+  </div>
 
-      {/* Body — avatar + customer info */}
-      <div className="px-3 pt-1 pb-2 flex gap-3 items-center">
-        <div className="flex-shrink-0">
-          <div className="w-14 h-14 rounded-md bg-gray-100 border border-gray-300 flex items-center justify-center text-2xl select-none">
-            🛍️
-          </div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-bold text-gray-900 text-sm leading-normal break-words">{customer.name}</div>
-          <div className="flex items-center gap-2 text-xs font-mono mt-0.5">
-            <span className="text-gray-700 font-medium">{customer.customerNumber}</span>
-            {customer.phone && <span className="text-gray-500">{customer.phone}</span>}
-          </div>
-          {businessName && (
-            <div className="text-gray-800 text-xs font-semibold mt-0.5 truncate">{businessName}</div>
-          )}
-        </div>
+  {/* Body — avatar + customer info */}
+  <div className="px-3 pt-1 pb-1.5 flex gap-2 items-center">
+    <div className="flex-shrink-0">
+      <div className="w-12 h-12 rounded-md bg-gray-100 border border-gray-300 flex items-center justify-center text-xl select-none">
+        🛍️
       </div>
-
-      {/* Barcode — no duplicate customer number here */}
-      <div className="px-3 pb-2 flex flex-col items-center">
-        <svg ref={barcodeRef} />
-      </div>
-
     </div>
+
+    <div className="flex-1 min-w-0">
+      <div className="font-bold text-gray-900 text-sm leading-tight break-words">
+        {customer.name}
+      </div>
+
+      <div className="flex items-center gap-2 text-[11px] font-mono mt-0.5 leading-tight">
+        <span className="text-gray-700 font-medium">
+          {customer.customerNumber}
+        </span>
+        {customer.phone && (
+          <span className="text-gray-500">
+            {customer.phone}
+          </span>
+        )}
+      </div>
+
+      {businessName && (
+        <div className="text-gray-800 text-[11px] font-semibold mt-0.5 leading-tight">
+          {businessName}
+        </div>
+      )}
+    </div>
+  </div>
+
+  {/* Barcode */}
+  <div className="px-3 pb-2 flex flex-col items-center">
+    <svg ref={barcodeRef} />
+  </div>
+</div>
+
   )
 }
 
