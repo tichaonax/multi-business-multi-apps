@@ -211,7 +211,7 @@ export function LandlordSelect({ businessId, businessType, value, onChange, disa
               className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-primary"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
             <div>
               <label className="block text-xs font-medium text-secondary mb-1">Contact person <span className="text-gray-400">(optional)</span></label>
               <input

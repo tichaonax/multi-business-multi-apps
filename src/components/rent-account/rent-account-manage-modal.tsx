@@ -153,7 +153,7 @@ export function RentAccountManageModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="card max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="card max-w-lg md:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-primary">⚙️ Manage Rent Account</h2>
@@ -208,7 +208,7 @@ export function RentAccountManageModal({
               </div>
             )}
 
-            {/* Balance + indicator */}
+            {/* Balance card — full width */}
             {account && config && (
               <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
@@ -238,91 +238,100 @@ export function RentAccountManageModal({
               </div>
             )}
 
-            {/* Edit fields */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-secondary mb-1">Monthly Rent *</label>
-                <input type="number" step="0.01" min="0.01" value={monthlyRent} onChange={e => setMonthlyRent(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-secondary mb-1">Operating Days *</label>
-                <input type="number" min="1" max="31" value={operatingDays} onChange={e => setOperatingDays(e.target.value)} className={inputCls} />
-              </div>
-            </div>
+            {/* Two-column layout on desktop */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-secondary mb-1">Daily Transfer (calculated)</label>
-                <div className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800 text-sm font-mono text-green-700 dark:text-green-400">
-                  {newDailyTransfer > 0 ? newDailyTransfer.toLocaleString() : '—'}
+              {/* Left column: numeric fields */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-secondary mb-1">Monthly Rent *</label>
+                    <input type="number" step="0.01" min="0.01" value={monthlyRent} onChange={e => setMonthlyRent(e.target.value)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-secondary mb-1">Operating Days *</label>
+                    <input type="number" min="1" max="31" value={operatingDays} onChange={e => setOperatingDays(e.target.value)} className={inputCls} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-secondary mb-1">Daily Transfer (calculated)</label>
+                    <div className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800 text-sm font-mono text-green-700 dark:text-green-400">
+                      {newDailyTransfer > 0 ? newDailyTransfer.toLocaleString() : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-secondary mb-1">Rent Due Day (1–28) *</label>
+                    <input type="number" min="1" max="28" value={rentDueDay} onChange={e => setRentDueDay(e.target.value)} className={inputCls} />
+                  </div>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-secondary mb-1">Rent Due Day (1–28) *</label>
-                <input type="number" min="1" max="28" value={rentDueDay} onChange={e => setRentDueDay(e.target.value)} className={inputCls} />
-              </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-medium text-secondary mb-1">Landlord *</label>
-              <LandlordSelect
-                businessId={businessId}
-                businessType={businessType}
-                value={landlordSupplierId}
-                onChange={setLandlordSupplierId}
-                initialSupplier={config?.landlordSupplier ?? null}
-              />
-            </div>
+              {/* Right column: landlord + auto-transfer + deactivate */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-secondary mb-1">Landlord *</label>
+                  <LandlordSelect
+                    businessId={businessId}
+                    businessType={businessType}
+                    value={landlordSupplierId}
+                    onChange={setLandlordSupplierId}
+                    initialSupplier={config?.landlordSupplier ?? null}
+                  />
+                </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
-              <div>
-                <p className="text-sm font-medium text-primary">Auto-transfer on EOD</p>
-                <p className="text-xs text-secondary">Suggest daily transfer at close of day</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAutoTransfer(!autoTransfer)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  autoTransfer ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                }`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoTransfer ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
-            </div>
-
-            {/* Deactivate section */}
-            {config?.isActive && (
-              <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                {!showDeactivateConfirm ? (
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                  <div>
+                    <p className="text-sm font-medium text-primary">Auto-transfer on EOD</p>
+                    <p className="text-xs text-secondary">Suggest daily transfer at close of day</p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setShowDeactivateConfirm(true)}
-                    className="text-sm text-red-600 dark:text-red-400 hover:underline"
+                    onClick={() => setAutoTransfer(!autoTransfer)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      autoTransfer ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
                   >
-                    Deactivate Rent Account
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoTransfer ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
-                ) : (
-                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md space-y-2">
-                    <p className="text-sm text-red-700 dark:text-red-300 font-medium">Are you sure? No further auto-transfers will be suggested. Existing balance is preserved.</p>
-                    <div className="flex gap-2">
+                </div>
+
+                {/* Deactivate section */}
+                {config?.isActive && (
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                    {!showDeactivateConfirm ? (
                       <button
-                        onClick={handleDeactivate}
-                        disabled={deactivating}
-                        className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                        type="button"
+                        onClick={() => setShowDeactivateConfirm(true)}
+                        className="text-sm text-red-600 dark:text-red-400 hover:underline"
                       >
-                        {deactivating ? 'Deactivating...' : 'Yes, Deactivate'}
+                        Deactivate Rent Account
                       </button>
-                      <button
-                        onClick={() => setShowDeactivateConfirm(false)}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded text-secondary hover:bg-gray-100 dark:hover:bg-gray-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md space-y-2">
+                        <p className="text-sm text-red-700 dark:text-red-300 font-medium">Are you sure? No further auto-transfers will be suggested. Existing balance is preserved.</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleDeactivate}
+                            disabled={deactivating}
+                            className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {deactivating ? 'Deactivating...' : 'Yes, Deactivate'}
+                          </button>
+                          <button
+                            onClick={() => setShowDeactivateConfirm(false)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded text-secondary hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
+
+            </div>
           </div>
         )}
 
