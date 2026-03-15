@@ -599,7 +599,8 @@ async function main() {
   // Step 3: Regenerate Prisma client (schema should not be modified during deployment)
   run('npx prisma generate', 'Regenerating Prisma client', false)
 
-  // Step 4: Rebuild the application
+  // Step 4: Clean stale build artifacts then rebuild
+  run('npm run clean', 'Cleaning stale build artifacts', true)
   run('npm run build', 'Rebuilding the application', false)
 
   // Step 5: Check if service rebuild is needed and handle reinstall if needed
