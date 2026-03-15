@@ -181,6 +181,17 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError, userId }
         return
       }
 
+      if (formData.dateOfBirth) {
+        const dob = new Date(formData.dateOfBirth)
+        const minAge = new Date()
+        minAge.setFullYear(minAge.getFullYear() - 18)
+        if (dob > minAge) {
+          onError('Employee must be at least 18 years old')
+          setLoading(false)
+          return
+        }
+      }
+
       const employeeData = {
         ...formData,
         businessAssignments: businessAssignments.map(a => ({
@@ -267,49 +278,67 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError, userId }
   // Build searchable select option arrays
   const jobTitleOptions = [
     ...[...jobTitles].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? '')).map(jt => ({
-      id: jt.id,
-      name: jt.title + (jt.department ? ` — ${jt.department}` : '') + (jt.level ? ` (${jt.level})` : ''),
+      value: jt.id,
+      label: jt.title + (jt.department ? ` — ${jt.department}` : '') + (jt.level ? ` (${jt.level})` : ''),
     })),
-    { id: '__create_new__', name: '+ Create New Job Title...' },
+    { value: '__create_new__', label: '+ Create New Job Title...' },
   ]
 
   const compensationOptions = [
     ...[...compensationTypes].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')).map(ct => ({
-      id: ct.id,
-      name: (ct.name ?? '') + ` (${ct.type ?? ''})` + (ct.baseAmount ? ` — $${ct.baseAmount}` : '') + (ct.frequency ? ` ${ct.frequency}` : ''),
+      value: ct.id,
+      label: (ct.name ?? '') + ` (${ct.type ?? ''})` + (ct.baseAmount ? ` — $${ct.baseAmount}` : '') + (ct.frequency ? ` ${ct.frequency}` : ''),
     })),
-    { id: '__create_new__', name: '+ Create New Compensation Type...' },
+    { value: '__create_new__', label: '+ Create New Compensation Type...' },
   ]
 
   const supervisorOptions = [
-    { id: '', name: 'No Supervisor' },
+    { value: '', label: 'No Supervisor' },
     ...[...supervisors].sort((a, b) => (a.fullName ?? '').localeCompare(b.fullName ?? '')).map(s => ({
-      id: s.id,
-      name: `${s.fullName} (${s.employeeNumber})`,
+      value: s.id,
+      label: `${s.fullName} (${s.employeeNumber})`,
     })),
   ]
 
   const businessOptions = [
     ...[...businesses].filter(b => b != null).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')).map(b => ({
-      id: b.id,
-      name: `${b.name ?? 'Unknown'} (${b.type ?? ''})`,
+      value: b.id,
+      label: `${b.name ?? 'Unknown'} (${b.type ?? ''})`,
     })),
   ]
 
   const additionalBusinessOptions = businesses
     .filter(b => b != null && b.id !== formData.primaryBusinessId && !businessAssignments.some(a => a.businessId === b.id))
     .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
-    .map(b => ({ id: b.id, name: `${b.name ?? 'Unknown'} (${b.type ?? ''})` }))
+    .map(b => ({ value: b.id, label: `${b.name ?? 'Unknown'} (${b.type ?? ''})` }))
 
   const roleOptions = [
-    { id: 'employee', name: 'Employee' },
-    { id: 'restaurant-associate', name: 'Food Prep & POS Associate' },
-    { id: 'grocery-associate', name: 'Grocery Shop Associate' },
-    { id: 'clothing-associate', name: 'Clothing Shop Associate' },
-    { id: 'business-manager', name: 'Business Manager' },
-    { id: 'read-only', name: 'Read Only' },
-    { id: 'business-owner', name: 'Business Owner' },
+    { value: 'employee', label: 'Employee' },
+    { value: 'restaurant-associate', label: 'Food Prep & POS Associate' },
+    { value: 'grocery-associate', label: 'Grocery Shop Associate' },
+    { value: 'clothing-associate', label: 'Clothing Shop Associate' },
+    { value: 'business-manager', label: 'Business Manager' },
+    { value: 'read-only', label: 'Read Only' },
+    { value: 'business-owner', label: 'Business Owner' },
   ]
+
+  const isAgeValid = !formData.dateOfBirth || (() => {
+    const dob = new Date(formData.dateOfBirth)
+    const minAge = new Date()
+    minAge.setFullYear(minAge.getFullYear() - 18)
+    return dob <= minAge
+  })()
+
+  const isFormValid =
+    !!formData.firstName &&
+    !!formData.lastName &&
+    !!formData.phone &&
+    !!formData.nationalId &&
+    !!formData.hireDate &&
+    !!formData.jobTitleId &&
+    !!formData.compensationTypeId &&
+    !!formData.primaryBusinessId &&
+    isAgeValid
 
   if (!isOpen) return null
 
@@ -456,6 +485,14 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError, userId }
                           onChange={(dateOfBirth) => setFormData({ ...formData, dateOfBirth })}
                           label="Date of Birth"
                         />
+                        {formData.dateOfBirth && (() => {
+                          const dob = new Date(formData.dateOfBirth)
+                          const minAge = new Date()
+                          minAge.setFullYear(minAge.getFullYear() - 18)
+                          return dob > minAge ? (
+                            <p className="text-xs text-red-500 mt-1">Employee must be at least 18 years old</p>
+                          ) : null
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -627,7 +664,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess, onError, userId }
 
                 {/* Footer buttons */}
                 <div className="flex gap-3 pt-5 mt-5 border-t border-gray-200 dark:border-gray-700">
-                  <button type="submit" disabled={loading} className="btn-primary disabled:opacity-50">
+                  <button type="submit" disabled={loading || !isFormValid} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
                     {loading ? 'Creating...' : 'Create Employee'}
                   </button>
                   <button type="button" onClick={handleClose} disabled={loading} className="btn-secondary">

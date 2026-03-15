@@ -54,13 +54,15 @@ export function NationalIdInput({
     fetchIdTemplates()
   }, [])
 
-  // Auto-select default template from global settings when no templateId is provided
+  // Auto-select default template from global settings when no templateId is provided, fallback to ZIM
   useEffect(() => {
-    if (!templateId && idTemplates.length > 0 && settings.defaultIdFormatTemplateId) {
-      const defaultTemplate = idTemplates.find(t => t.id === settings.defaultIdFormatTemplateId)
-      if (defaultTemplate) {
-        onChange(value, defaultTemplate.id)
+    if (!templateId && idTemplates.length > 0) {
+      if (settings.defaultIdFormatTemplateId) {
+        const defaultTemplate = idTemplates.find(t => t.id === settings.defaultIdFormatTemplateId)
+        if (defaultTemplate) { onChange(value, defaultTemplate.id); return }
       }
+      const zimTemplate = idTemplates.find(t => t.countryCode === 'ZIM')
+      if (zimTemplate) onChange(value, zimTemplate.id)
     }
   }, [idTemplates, settings.defaultIdFormatTemplateId])
 
@@ -214,8 +216,8 @@ export function NationalIdInput({
           </label>
           <SearchableSelect
             options={idTemplates.map(t => ({
-              id: t.id,
-              name: `${t.name} (${t.countryCode ?? ''}) — e.g. ${t.example}`,
+              value: t.id,
+              label: `${t.name} (${t.countryCode ?? ''}) — e.g. ${t.example}`,
             }))}
             value={templateId || ''}
             onChange={(val) => handleTemplateChange(val)}

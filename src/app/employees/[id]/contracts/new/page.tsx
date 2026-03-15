@@ -11,6 +11,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { generateComprehensiveContract, previewContractPDF, downloadComprehensiveContractPDF } from '@/lib/contract-pdf-generator'
 import { ContractTemplate } from '@/components/contracts/contract-template'
 import { DateInput } from '@/components/ui/date-input'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { EmployeeContractSelector } from '@/components/contracts/employee-contract-selector'
 import { useToastContext } from '@/components/ui/toast'
 import { useDateFormat } from '@/contexts/settings-context'
@@ -166,6 +167,7 @@ export default function NewContractPage() {
   const [copyMode, setCopyMode] = useState(false)
   const [selectedSourceEmployee, setSelectedSourceEmployee] = useState<any>(null)
   const [loadingTemplate, setLoadingTemplate] = useState(false)
+  const [contractDurationMonths, setContractDurationMonths] = useState<number | null>(null)
 
   // Schedule templates by business type — auto-fill when primaryBusiness changes
   const SCHEDULE_TEMPLATES: Record<string, { workDaysPerWeek: string; dailyStartTime: string; dailyEndTime: string; annualVacationDays: string }> = {
@@ -1107,7 +1109,7 @@ export default function NewContractPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Contract Form */}
         <div className="space-y-6">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -1117,8 +1119,8 @@ export default function NewContractPage() {
               name="pdfContractData" 
               value={contractData ? JSON.stringify(buildContractPDFData('download')) : ''} 
             />
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold text-primary mb-4">Employment Details</h3>
+            <div className="card p-4">
+              <h3 className="text-lg font-semibold text-primary mb-3">Employment Details</h3>
               {previousContract && (
                 <p className="text-sm text-secondary mb-3">
                   Previous base salary: {previousContract.baseSalary != null ? ('$' + Number(previousContract.baseSalary).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '—'}
@@ -1131,22 +1133,19 @@ export default function NewContractPage() {
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Job Title *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={[...jobTitles].sort((a, b) => a.title.localeCompare(b.title)).map(jobTitle => ({
+                      value: jobTitle.id,
+                      label: `${jobTitle.title}${jobTitle.department ? ` (${jobTitle.department})` : ''}`,
+                    }))}
                     value={formData.jobTitleId}
-                    onChange={(e) => {
-                      setFormData(prev => ({ ...prev, jobTitleId: e.target.value }))
+                    onChange={(val) => {
+                      setFormData(prev => ({ ...prev, jobTitleId: val }))
                       clearFieldError('jobTitleId')
                     }}
-                    className={getInputClassName('jobTitleId')}
+                    placeholder="Search job titles…"
                     required
-                  >
-                    <option value="">Select Job Title</option>
-                    {[...jobTitles].sort((a, b) => a.title.localeCompare(b.title)).map(jobTitle => (
-                      <option key={jobTitle.id} value={jobTitle.id}>
-                        {jobTitle.title} {jobTitle.department && `(${jobTitle.department})`}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   {validationErrors.jobTitleId && (
                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.jobTitleId}</p>
                   )}
@@ -1156,131 +1155,131 @@ export default function NewContractPage() {
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Compensation Type *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={[...compensationTypes].sort((a, b) => a.name.localeCompare(b.name)).map(type => ({
+                      value: type.id,
+                      label: `${type.name} (${type.type})${type.frequency ? ` - ${type.frequency}` : ''}`,
+                    }))}
                     value={formData.compensationTypeId}
-                    onChange={(e) => {
-                      setFormData(prev => ({ ...prev, compensationTypeId: e.target.value }))
+                    onChange={(val) => {
+                      setFormData(prev => ({ ...prev, compensationTypeId: val }))
                       clearFieldError('compensationTypeId')
                     }}
-                    className={getInputClassName('compensationTypeId')}
+                    placeholder="Search compensation types…"
                     required
-                  >
-                    <option value="">Select Compensation Type</option>
-                    {[...compensationTypes].sort((a, b) => a.name.localeCompare(b.name)).map(type => (
-                      <option key={type.id} value={type.id}>
-                        {type.name} ({type.type})
-                        {type.frequency && ` - ${type.frequency}`}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   {validationErrors.compensationTypeId && (
                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.compensationTypeId}</p>
                   )}
                 </div>
               </div>
 
-              {/* Base Salary - Full Width Row */}
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  Base Salary *
-                </label>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.baseSalary}
-                      onChange={(e) => {
-                        setFormData(prev => ({ ...prev, baseSalary: e.target.value }))
-                        clearFieldError('baseSalary')
-                      }}
-                      className={getInputClassName('baseSalary')}
-                      placeholder="Enter salary amount"
-                      required
-                    />
-                  </div>
-                  <div className="w-32">
-                    <select
-                      value={formData.salaryFrequency}
-                      onChange={(e) => setFormData(prev => ({ ...prev, salaryFrequency: e.target.value }))}
-                      className="input-field h-11 px-3 py-2"
-                      required
-                    >
-                      <option value="monthly">Monthly</option>
-                      <option value="annual">Annual</option>
-                    </select>
-                  </div>
-                </div>
-                {validationErrors.baseSalary && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.baseSalary}</p>
-                )}
-                <p className="mt-1 text-xs text-secondary">
-                  Select the frequency that matches how you're entering the salary amount
-                </p>
-              </div>
-
-              {/* Supervisor - Full Width Row */}
-              <div className="mt-4">
-                {(() => {
-                  const selectedJobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId)
-                  const availableSupervisors = employees.filter(emp => emp.id !== employeeId)
-                  const isManagementRole = selectedJobTitle?.title.toLowerCase().includes('manager') ||
-                                            selectedJobTitle?.title.toLowerCase().includes('director') ||
-                                            selectedJobTitle?.title.toLowerCase().includes('ceo') ||
-                                            selectedJobTitle?.title.toLowerCase().includes('chief') ||
-                                            selectedJobTitle?.title.toLowerCase().includes('head') ||
-                                            selectedJobTitle?.level?.toLowerCase().includes('senior') ||
-                                            selectedJobTitle?.department?.toLowerCase() === 'executive'
-
-                  return (
-                    <>
-                      <label className="block text-sm font-medium text-secondary mb-2">
-                        Supervisor {!isManagementRole && availableSupervisors.length > 0 && '*'}
-                        {isManagementRole && (
-                          <span className="text-xs text-green-600 dark:text-green-400 ml-2">(Optional for management roles)</span>
-                        )}
-                        {availableSupervisors.length === 0 && (
-                          <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">(No other employees available)</span>
-                        )}
-                      </label>
-                      <select
-                        value={formData.supervisorId}
+              {/* Row 2: Base Salary + Supervisor side by side */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Base Salary *
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.baseSalary}
                         onChange={(e) => {
-                          setFormData(prev => ({ ...prev, supervisorId: e.target.value }))
-                          clearFieldError('supervisorId')
+                          setFormData(prev => ({ ...prev, baseSalary: e.target.value }))
+                          clearFieldError('baseSalary')
                         }}
-                        className={getInputClassName('supervisorId')}
-                        required={!isManagementRole && availableSupervisors.length > 0}
+                        className={getInputClassName('baseSalary')}
+                        placeholder="Enter salary amount"
+                        required
+                      />
+                    </div>
+                    <div className="w-28">
+                      <select
+                        value={formData.salaryFrequency}
+                        onChange={(e) => setFormData(prev => ({ ...prev, salaryFrequency: e.target.value }))}
+                        className="input-field h-11 px-3 py-2"
+                        required
                       >
-                        <option value="">
-                          {availableSupervisors.length === 0
-                            ? "No supervisors available"
-                            : isManagementRole
-                              ? "No supervisor (reports to board/owner)"
-                              : "Select Supervisor"}
-                        </option>
-                        {[...availableSupervisors].sort((a, b) => a.fullName.localeCompare(b.fullName)).map(emp => (
-                          <option key={emp.id} value={emp.id}>
-                            {emp.fullName} - {emp.jobTitle?.title || 'No Title'}
-                          </option>
-                        ))}
+                        <option value="monthly">Monthly</option>
+                        <option value="annual">Annual</option>
                       </select>
-                      {validationErrors.supervisorId && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.supervisorId}</p>
-                      )}
-                    </>
-                  )
-                })()}
+                    </div>
+                  </div>
+                  {validationErrors.baseSalary && (
+                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.baseSalary}</p>
+                  )}
+                </div>
+
+                <div>
+                  {(() => {
+                    const selectedJobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId)
+                    const availableSupervisors = employees.filter(emp => emp.id !== employeeId)
+                    const isManagementRole = selectedJobTitle?.title.toLowerCase().includes('manager') ||
+                                              selectedJobTitle?.title.toLowerCase().includes('director') ||
+                                              selectedJobTitle?.title.toLowerCase().includes('ceo') ||
+                                              selectedJobTitle?.title.toLowerCase().includes('chief') ||
+                                              selectedJobTitle?.title.toLowerCase().includes('head') ||
+                                              selectedJobTitle?.level?.toLowerCase().includes('senior') ||
+                                              selectedJobTitle?.department?.toLowerCase() === 'executive'
+                    return (
+                      <>
+                        <label className="block text-sm font-medium text-secondary mb-2">
+                          Supervisor {!isManagementRole && availableSupervisors.length > 0 && '*'}
+                          {isManagementRole && (
+                            <span className="text-xs text-green-600 dark:text-green-400 ml-2">(Optional for management)</span>
+                          )}
+                          {availableSupervisors.length === 0 && (
+                            <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">(No other employees)</span>
+                          )}
+                        </label>
+                        <select
+                          value={formData.supervisorId}
+                          onChange={(e) => {
+                            setFormData(prev => ({ ...prev, supervisorId: e.target.value }))
+                            clearFieldError('supervisorId')
+                          }}
+                          className={getInputClassName('supervisorId')}
+                          required={!isManagementRole && availableSupervisors.length > 0}
+                        >
+                          <option value="">
+                            {availableSupervisors.length === 0
+                              ? "No supervisors available"
+                              : isManagementRole
+                                ? "No supervisor (reports to board/owner)"
+                                : "Select Supervisor"}
+                          </option>
+                          {[...availableSupervisors].sort((a, b) => a.fullName.localeCompare(b.fullName)).map(emp => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.fullName} - {emp.jobTitle?.title || 'No Title'}
+                            </option>
+                          ))}
+                        </select>
+                        {validationErrors.supervisorId && (
+                          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.supervisorId}</p>
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
               </div>
 
-              {/* Date and Other Fields Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              {/* Row 3: Dates + Duration + Probation — all 4 in one row on desktop */}
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
                 <div>
                   <DateInput
                     label="Start Date *"
                     value={formData.startDate}
                     onChange={(isoDate, countryCode) => {
-                      setFormData(prev => ({ ...prev, startDate: isoDate }))
+                      setFormData(prev => {
+                        if (contractDurationMonths && isoDate) {
+                          const start = new Date(isoDate)
+                          start.setMonth(start.getMonth() + contractDurationMonths)
+                          return { ...prev, startDate: isoDate, endDate: start.toISOString().split('T')[0] }
+                        }
+                        return { ...prev, startDate: isoDate }
+                      })
                       clearFieldError('startDate')
                     }}
                     required
@@ -1290,11 +1289,41 @@ export default function NewContractPage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Duration
+                  </label>
+                  <select
+                    value={contractDurationMonths ?? ''}
+                    onChange={(e) => {
+                      const months = e.target.value ? parseInt(e.target.value) : null
+                      setContractDurationMonths(months)
+                      if (months && formData.startDate) {
+                        const start = new Date(formData.startDate)
+                        start.setMonth(start.getMonth() + months)
+                        setFormData(prev => ({ ...prev, endDate: start.toISOString().split('T')[0] }))
+                      } else if (!months) {
+                        setFormData(prev => ({ ...prev, endDate: '' }))
+                      }
+                    }}
+                    className="input w-full h-11 px-3 py-2"
+                  >
+                    <option value="">No end date</option>
+                    <option value="1">1 month</option>
+                    <option value="2">2 months</option>
+                    <option value="3">3 months</option>
+                    <option value="4">4 months</option>
+                    <option value="5">5 months</option>
+                    <option value="6">6 months</option>
+                  </select>
+                </div>
+
+                <div>
                   <DateInput
                     label="End Date (Optional)"
                     value={formData.endDate}
                     onChange={(isoDate, countryCode) => {
                       setFormData(prev => ({ ...prev, endDate: isoDate }))
+                      setContractDurationMonths(null)
                     }}
                     className="w-full"
                   />
@@ -1302,7 +1331,7 @@ export default function NewContractPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Probation Period (Months)
+                    Probation (Months)
                   </label>
                   <input
                     type="number"
@@ -1311,8 +1340,11 @@ export default function NewContractPage() {
                     className="input w-full h-11 px-3 py-2"
                   />
                 </div>
+              </div>
 
-                <div className="flex items-center space-x-4">
+              {/* Row 4: Comp type checkboxes + Additional Responsibilities side by side */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                <div className="flex items-center gap-6 pt-7">
                   <label className="flex items-center">
                     <input
                       type="checkbox"
@@ -1322,7 +1354,6 @@ export default function NewContractPage() {
                     />
                     <span className="text-sm text-secondary">Salary Based</span>
                   </label>
-                  
                   <label className="flex items-center">
                     <input
                       type="checkbox"
@@ -1333,19 +1364,18 @@ export default function NewContractPage() {
                     <span className="text-sm text-secondary">Commission Based</span>
                   </label>
                 </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  Additional Responsibilities
-                </label>
-                <textarea
-                  value={formData.customResponsibilities}
-                  onChange={(e) => setFormData(prev => ({ ...prev, customResponsibilities: e.target.value }))}
-                  rows={4}
-                  className="input w-full px-3 py-2"
-                  placeholder="Any additional responsibilities beyond the standard job title requirements..."
-                />
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Additional Responsibilities
+                  </label>
+                  <textarea
+                    value={formData.customResponsibilities}
+                    onChange={(e) => setFormData(prev => ({ ...prev, customResponsibilities: e.target.value }))}
+                    rows={2}
+                    className="input w-full px-3 py-2"
+                    placeholder="Any additional responsibilities..."
+                  />
+                </div>
               </div>
 
               {/* Work Schedule Section */}
@@ -1655,18 +1685,18 @@ export default function NewContractPage() {
         </div>
 
         {/* Contract Preview - Sticky */}
-        <div className="sticky top-20 space-y-4 self-start">
+        <div className="sticky top-16 space-y-4 self-start">
           {showPreview && contractData ? (
             <div className="card p-4">
-              <h3 className="text-lg font-semibold text-primary mb-4">Contract Preview</h3>
-              <div className="overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-4" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+              <h3 className="text-lg font-semibold text-primary mb-2">Contract Preview</h3>
+              <div className="overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-4" style={{ maxHeight: '60vh' }}>
                 <ContractTemplate data={contractData} globalDateFormat={globalDateFormat} />
               </div>
             </div>
           ) : (
             <div className="card p-4">
-              <h3 className="text-lg font-semibold text-primary mb-4">Contract Preview</h3>
-              <div className="flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-600 rounded p-8 min-h-[400px]">
+              <h3 className="text-lg font-semibold text-primary mb-2">Contract Preview</h3>
+              <div className="flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-600 rounded p-6 min-h-[200px]">
                 <div className="text-center text-secondary">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

@@ -68,6 +68,7 @@ export async function GET() {
     // Pending petty cash requests — for users with petty_cash.approve system permission
     let pendingPettyCash: object[] = []
     const canApprovePettyCash = sysAdmin || await hasSystemPermission(user.id, 'petty_cash.approve')
+    const canRequestPettyCash = canApprovePettyCash || await hasSystemPermission(user.id, 'petty_cash.request')
     if (canApprovePettyCash) {
       pendingPettyCash = await prisma.pettyCashRequests.findMany({
         where: { status: 'PENDING' },
@@ -348,6 +349,7 @@ export async function GET() {
       myApprovedPayments: myApprovedPaymentsMapped,
       myApprovedPettyCash,
       canApprovePettyCash,
+      canRequestPettyCash,
       canApproveCashAlloc: canApproveCashAllocation,
       total,
     })

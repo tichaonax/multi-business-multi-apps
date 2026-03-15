@@ -87,6 +87,7 @@ export function Sidebar() {
   const [pendingPettyCashCount, setPendingPettyCashCount] = useState(0)
   const [pendingCashAllocCount, setPendingCashAllocCount] = useState(0)
   const [canApprovePettyCashSys, setCanApprovePettyCashSys] = useState(false)
+  const [canRequestPettyCashSys, setCanRequestPettyCashSys] = useState(false)
   const [canApproveCashAllocSys, setCanApproveCashAllocSys] = useState(false)
 
   // Get business context
@@ -185,6 +186,7 @@ export function Sidebar() {
         setPendingCashAllocCount(data.pendingCashAllocations?.length ?? 0)
         setPendingPaymentRequestCount((data.pendingPaymentBatches?.length ?? 0) + (data.pendingPaymentRequests?.length ?? 0))
         setCanApprovePettyCashSys(data.canApprovePettyCash ?? false)
+        setCanRequestPettyCashSys(data.canRequestPettyCash ?? false)
         setCanApproveCashAllocSys(data.canApproveCashAlloc ?? false)
       })
       .catch(() => {})
@@ -1063,8 +1065,8 @@ export function Sidebar() {
               </Link>
             )}
 
-            {/* Petty Cash — shown only for users with petty_cash.approve system permission */}
-            {canApprovePettyCashSys && (
+            {/* Petty Cash — shown for users with petty_cash.approve OR petty_cash.request permission */}
+            {(canApprovePettyCashSys || canRequestPettyCashSys) && (
               <Link
                 href="/petty-cash"
                 className={getLinkClasses('/petty-cash')}

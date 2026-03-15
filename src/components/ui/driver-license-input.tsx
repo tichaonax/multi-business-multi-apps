@@ -92,13 +92,15 @@ export function DriverLicenseInput({
     fetchLicenseTemplates()
   }, [])
 
-  // Auto-select default template based on global settings defaultCountryCode when no templateId is provided
+  // Auto-select default template based on global settings defaultCountryCode when no templateId is provided, fallback to ZIM
   useEffect(() => {
-    if (!templateId && licenseTemplates.length > 0 && settings.defaultCountryCode) {
-      const defaultTemplate = licenseTemplates.find(t => t.countryCode === settings.defaultCountryCode)
-      if (defaultTemplate) {
-        onChange(value, defaultTemplate.id)
+    if (!templateId && licenseTemplates.length > 0) {
+      if (settings.defaultCountryCode) {
+        const defaultTemplate = licenseTemplates.find(t => t.countryCode === settings.defaultCountryCode)
+        if (defaultTemplate) { onChange(value, defaultTemplate.id); return }
       }
+      const zimTemplate = licenseTemplates.find(t => t.countryCode === 'ZIM')
+      if (zimTemplate) onChange(value, zimTemplate.id)
     }
   }, [licenseTemplates, settings.defaultCountryCode])
 
@@ -189,8 +191,8 @@ export function DriverLicenseInput({
           </label>
           <SearchableSelect
             options={licenseTemplates.map(t => ({
-              id: t.id,
-              name: `${t.name} (${t.countryCode ?? ''}) — e.g. ${t.example}`,
+              value: t.id,
+              label: `${t.name} (${t.countryCode ?? ''}) — e.g. ${t.example}`,
             }))}
             value={templateId || ''}
             onChange={(val) => handleTemplateChange(val)}

@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Business Management System — Presentation</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0b1120;
+    --surface:   #111827;
+    --border:    #1e2d45;
+    --text:      #f1f5f9;
+    --muted:     #94a3b8;
+    --accent:    #38bdf8;
+    --green:     #34d399;
+    --amber:     #fbbf24;
+    --rose:      #fb7185;
+    --purple:    #a78bfa;
+    --teal:      #2dd4bf;
+    --orange:    #fb923c;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+  }
+
+  /* ── Slideshow wrapper ─────────────────────────────────────── */
+  #deck {
+    width: 100vw; height: 100vh;
+    position: relative;
+    display: flex; align-items: stretch;
+  }
+
+  /* ── Each slide ─────────────────────────────────────────────── */
+  .slide {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%; height: 100%;
+    padding: 4rem 6rem;
+    position: absolute; inset: 0;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    text-align: center;
+  }
+  .slide.active {
+    display: flex;
+    opacity: 1;
+  }
+  .slide.left  { text-align: left; align-items: flex-start; }
+  .slide.split { text-align: left; align-items: flex-start; flex-direction: row; gap: 4rem; }
+
+  /* ── Section accent lines ───────────────────────────────────── */
+  .slide::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--accent-color, var(--accent));
+  }
+
+  /* Section colour overrides */
+  .sec-sales    { --accent-color: var(--green);  }
+  .sec-cash     { --accent-color: var(--amber);  }
+  .sec-manager  { --accent-color: var(--purple); }
+  .sec-hr       { --accent-color: var(--teal);   }
+  .sec-finance  { --accent-color: var(--orange); }
+  .sec-customer { --accent-color: var(--rose);   }
+  .sec-inventory{ --accent-color: var(--accent); }
+  .sec-extra    { --accent-color: var(--purple); }
+  .sec-close    { --accent-color: var(--green);  }
+
+  /* ── Typography ─────────────────────────────────────────────── */
+  .kicker {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent-color, var(--accent));
+    margin-bottom: 0.75rem;
+  }
+  h1 {
+    font-size: clamp(2.2rem, 4.5vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--text);
+    margin-bottom: 1rem;
+  }
+  h2 {
+    font-size: clamp(1.6rem, 3vw, 2.6rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+  }
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent-color, var(--accent));
+    margin-bottom: 0.4rem;
+  }
+  p, li {
+    font-size: clamp(0.95rem, 1.5vw, 1.2rem);
+    line-height: 1.7;
+    color: var(--muted);
+  }
+  p.lead {
+    font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+    color: var(--text);
+    max-width: 70ch;
+  }
+  strong { color: var(--text); font-weight: 600; }
+  em     { color: var(--accent-color, var(--accent)); font-style: normal; font-weight: 600; }
+
+  /* ── Lists ──────────────────────────────────────────────────── */
+  ul, ol {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    width: 100%;
+    max-width: 72ch;
+  }
+  ul li::before { content: '›'; margin-right: 0.6rem; color: var(--accent-color, var(--accent)); font-weight: 700; }
+  ol { counter-reset: li; }
+  ol li { counter-increment: li; }
+  ol li::before { content: counter(li) '.'; margin-right: 0.6rem; color: var(--accent-color, var(--accent)); font-weight: 700; min-width: 1.4em; }
+  li { display: flex; align-items: flex-start; }
+
+  /* ── Tag / badge ────────────────────────────────────────────── */
+  .tag {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: color-mix(in srgb, var(--accent-color, var(--accent)) 15%, transparent);
+    color: var(--accent-color, var(--accent));
+    border: 1px solid color-mix(in srgb, var(--accent-color, var(--accent)) 30%, transparent);
+    margin: 0 0.2rem 0.3rem;
+  }
+
+  /* ── Cards / columns ────────────────────────────────────────── */
+  .cards {
+    display: grid;
+    gap: 1.25rem;
+    width: 100%;
+    margin-top: 1rem;
+  }
+  .cards.cols-2 { grid-template-columns: 1fr 1fr; }
+  .cards.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .cards.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.4rem 1.6rem;
+    text-align: left;
+  }
+  .card .icon { font-size: 1.8rem; margin-bottom: 0.5rem; display: block; }
+  .card h3 { font-size: 1rem; margin-bottom: 0.3rem; }
+  .card p  { font-size: 0.88rem; }
+
+  /* ── Flow / step list ──────────────────────────────────────── */
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 64ch;
+  }
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.8rem 1.1rem;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 2rem; height: 2rem;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent-color, var(--accent)) 20%, transparent);
+    color: var(--accent-color, var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800;
+    font-size: 0.85rem;
+  }
+  .step-body { flex: 1; }
+  .step-body strong { font-size: 0.95rem; display: block; margin-bottom: 0.1rem; }
+  .step-body span   { font-size: 0.82rem; color: var(--muted); }
+
+  /* ── Table ──────────────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-top: 0.75rem;
+  }
+  th {
+    background: var(--surface);
+    color: var(--accent-color, var(--accent));
+    font-weight: 700;
+    padding: 0.55rem 0.9rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 0.5rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    vertical-align: top;
+  }
+  td strong { color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Divider slide ──────────────────────────────────────────── */
+  .divider {
+    background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent-color, var(--accent)) 8%, var(--bg)), var(--bg));
+    justify-content: center;
+  }
+  .divider .big-num {
+    font-size: 8rem;
+    font-weight: 900;
+    line-height: 1;
+    opacity: 0.06;
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -52%);
+    pointer-events: none;
+  }
+  .divider h2 { font-size: clamp(2rem, 4vw, 3.4rem); }
+
+  /* ── Title slide ────────────────────────────────────────────── */
+  .title-slide {
+    background: radial-gradient(ellipse at 60% 40%, #0d2040 0%, var(--bg) 65%);
+  }
+  .title-slide h1 {
+    font-size: clamp(2.8rem, 5.5vw, 5rem);
+    background: linear-gradient(135deg, #38bdf8, #818cf8, #34d399);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .title-slide::before { height: 0; }
+
+  /* ── Two-column helper ──────────────────────────────────────── */
+  .col { flex: 1; display: flex; flex-direction: column; gap: 0.75rem; }
+
+  /* ── Highlight box ─────────────────────────────────────────── */
+  .highlight {
+    background: color-mix(in srgb, var(--accent-color, var(--accent)) 8%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent-color, var(--accent)) 25%, transparent);
+    border-radius: 12px;
+    padding: 1rem 1.4rem;
+    width: 100%;
+    max-width: 72ch;
+    text-align: left;
+    margin-top: 0.5rem;
+  }
+  .highlight p { color: var(--text); font-size: 1.05rem; }
+
+  /* ── Footer / progress ─────────────────────────────────────── */
+  #footer {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    background: rgba(11,17,32,0.85);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+  }
+  #slide-counter { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #progress-track {
+    flex: 1; height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 2rem;
+  }
+  #progress-bar {
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    transition: width 0.35s ease;
+  }
+  #nav-hint { font-size: 0.7rem; color: var(--muted); }
+
+  /* ── Nav buttons ────────────────────────────────────────────── */
+  #nav-prev, #nav-next {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(30,45,70,0.7);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 3rem; height: 3rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: var(--muted);
+    transition: all 0.2s;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+  #nav-prev { left: 1.2rem; }
+  #nav-next { right: 1.2rem; }
+  #nav-prev:hover, #nav-next:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ── Notes panel ────────────────────────────────────────────── */
+  #notes-panel {
+    position: fixed;
+    bottom: 40px; left: 0; right: 0;
+    background: rgba(17,24,39,0.97);
+    border-top: 1px solid var(--border);
+    padding: 0.75rem 2rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+    display: none;
+    z-index: 90;
+    backdrop-filter: blur(10px);
+  }
+  #notes-panel.open { display: block; }
+  #notes-panel strong { color: var(--amber); }
+
+  /* ── Utilities ──────────────────────────────────────────────── */
+  .gap-top { margin-top: 1.5rem; }
+  .gap-sm  { margin-top: 0.6rem; }
+  .center  { text-align: center; align-items: center; }
+  .w-full  { width: 100%; }
+</style>
+</head>
+<body>
+
+<button id="nav-prev" onclick="go(-1)">&#8592;</button>
+<button id="nav-next" onclick="go(+1)">&#8594;</button>
+
+<div id="deck">
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 1 — TITLE
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide title-slide active center" data-notes="Welcome everyone. This session will walk through every area of the system — from first login to payroll export.">
+    <div style="max-width:800px">
+      <p class="kicker" style="color:#818cf8">Staff Training • 2026</p>
+      <h1>Business Management System</h1>
+      <p class="lead gap-top">One platform for sales, payroll, inventory, HR, expenses, customers, and more — built for all business types.</p>
+      <div style="margin-top:2rem; display:flex; gap:0.6rem; flex-wrap:wrap; justify-content:center;">
+        <span class="tag" style="--accent-color:#34d399">POS &amp; Sales</span>
+        <span class="tag" style="--accent-color:#fbbf24">Cash Office &amp; EOD</span>
+        <span class="tag" style="--accent-color:#a78bfa">Payroll</span>
+        <span class="tag" style="--accent-color:#2dd4bf">HR &amp; Employees</span>
+        <span class="tag" style="--accent-color:#fb923c">Expense Accounts</span>
+        <span class="tag" style="--accent-color:#fb7185">Customers &amp; Loyalty</span>
+        <span class="tag" style="--accent-color:#38bdf8">Inventory &amp; Barcodes</span>
+        <span class="tag" style="--accent-color:#a78bfa">WiFi Integration</span>
+      </div>
+      <p class="gap-top" style="color:var(--muted);font-size:0.85rem">Press <strong style="color:var(--text)">→ arrow key</strong> or click the arrow buttons to navigate</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 2 — AGENDA
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide left" data-notes="Walk through the agenda. Tell the audience they can ask questions at the end of each section or hold them for Q&A.">
+    <p class="kicker">Today's Session — 30 to 50 minutes</p>
+    <h2>What We Will Cover</h2>
+    <div class="cards cols-2 gap-top" style="max-width:900px">
+      <div class="card" style="--accent-color:var(--green)">
+        <span class="icon">🖥️</span>
+        <h3>Getting Started</h3>
+        <p>Login, dashboard, notifications, business switcher</p>
+      </div>
+      <div class="card" style="--accent-color:var(--green)">
+        <span class="icon">🛒</span>
+        <h3>Sales &amp; POS</h3>
+        <p>Making sales, customers, loyalty cards, WiFi tokens</p>
+      </div>
+      <div class="card" style="--accent-color:var(--amber)">
+        <span class="icon">💰</span>
+        <h3>Cash Office &amp; EOD</h3>
+        <p>End of day close, cash allocation, batch catch-up</p>
+      </div>
+      <div class="card" style="--accent-color:var(--purple)">
+        <span class="icon">📊</span>
+        <h3>Manager — Payroll &amp; Approvals</h3>
+        <p>Payment requests, payroll workflow, performance bar</p>
+      </div>
+      <div class="card" style="--accent-color:var(--teal)">
+        <span class="icon">👥</span>
+        <h3>HR &amp; Employees</h3>
+        <p>Contracts, clock-in, absences, per diem, termination</p>
+      </div>
+      <div class="card" style="--accent-color:var(--orange)">
+        <span class="icon">🧾</span>
+        <h3>Finance</h3>
+        <p>Expense accounts, petty cash, rent account, loans</p>
+      </div>
+      <div class="card" style="--accent-color:var(--rose)">
+        <span class="icon">🎁</span>
+        <h3>Customers &amp; Campaigns</h3>
+        <p>Loyalty cards, activity reports, campaigns &amp; rewards</p>
+      </div>
+      <div class="card" style="--accent-color:var(--accent)">
+        <span class="icon">📦</span>
+        <h3>Inventory &amp; Barcodes</h3>
+        <p>Adding products, scanning, bale system, templates</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 3 — WHO USES THE SYSTEM
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide left" data-notes="Explain that every staff member has a role, and permissions are set per role. One account can cover multiple businesses.">
+    <p class="kicker">Section 1 — Getting Started</p>
+    <h2>Who Uses the System?</h2>
+    <div class="cards cols-3 gap-top" style="max-width:980px">
+      <div class="card sec-sales">
+        <span class="icon">🛒</span>
+        <h3>Cashier / Sales</h3>
+        <p>POS, loyalty card scan, WiFi token sales, daily clock-in</p>
+      </div>
+      <div class="card sec-cash">
+        <span class="icon">💰</span>
+        <h3>Cash Office</h3>
+        <p>EOD close, cash counting, allocation, deposits</p>
+      </div>
+      <div class="card sec-manager">
+        <span class="icon">📋</span>
+        <h3>Manager</h3>
+        <p>Approvals, payroll processing, reports, performance targets</p>
+      </div>
+      <div class="card sec-hr">
+        <span class="icon">👥</span>
+        <h3>HR</h3>
+        <p>Employee records, contracts, absence tracking, onboarding</p>
+      </div>
+      <div class="card sec-finance">
+        <span class="icon">🧾</span>
+        <h3>Accountant / Finance</h3>
+        <p>Expense accounts, loans, rent, payroll export for ZIMRA</p>
+      </div>
+      <div class="card sec-close">
+        <span class="icon">👔</span>
+        <h3>Owner / Director</h3>
+        <p>Final payroll approval, loan sign-off, cross-business reports</p>
+      </div>
+    </div>
+    <div class="highlight gap-top" style="max-width:980px">
+      <p>📌 <strong>One account — multiple businesses.</strong> Switch between businesses with the dropdown at the top-left. "All" shows combined data across all your businesses.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 4 — DASHBOARD & NAVIGATION
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide left" data-notes="Describe the top bar layout. Emphasise the bell — that is where pending tasks pile up if ignored.">
+    <p class="kicker">Getting Started</p>
+    <h2>Dashboard &amp; Navigation</h2>
+    <div class="split" style="width:100%;max-width:960px;gap:3rem;align-items:flex-start;margin-top:1.25rem">
+      <div class="col">
+        <h3>What the Dashboard shows</h3>
+        <ul style="gap:0.5rem">
+          <li><span>Today's sales, deposits &amp; transactions</span></li>
+          <li><span>Pending tasks — approvals, payments waiting for you</span></li>
+          <li><span>Recent activity log</span></li>
+          <li><span>Alerts — low stock, overdue laybys, low balances</span></li>
+          <li><span>Daily performance bar (vs target)</span></li>
+        </ul>
+        <div class="highlight gap-top">
+          <p>🔔 <strong>Bell icon</strong> = action required.<br>A red number means something is waiting for your attention. Always clear it before end of day.</p>
+        </div>
+      </div>
+      <div class="col">
+        <h3>Notification types</h3>
+        <table>
+          <tr><th>Bell turns red when…</th><th>Who acts</th></tr>
+          <tr><td>Payment request submitted</td><td>Manager</td></tr>
+          <tr><td>Payroll ready for approval</td><td>Owner</td></tr>
+          <tr><td>Leave request submitted</td><td>HR / Manager</td></tr>
+          <tr><td>Rent transfer due</td><td>Cash Office</td></tr>
+          <tr><td>Loan lock requested</td><td>Manager</td></tr>
+          <tr><td>New chat message</td><td>All staff</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 5 — SECTION DIVIDER: SALES
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide divider sec-sales center" data-notes="Section break — POS and sales.">
+    <span class="big-num">02</span>
+    <p class="kicker">Section 2</p>
+    <h2>Sales &amp; POS</h2>
+    <p class="lead gap-sm" style="max-width:52ch">Making sales, attaching customers, loyalty cards, WiFi token combos, and completing the order.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 6 — POS WORKFLOW
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-sales left" data-notes="Each step can be demonstrated live if the system is available on screen.">
+    <p class="kicker">POS — Making a Sale</p>
+    <h2>The 6 Steps of Every Sale</h2>
+    <div class="steps gap-top" style="max-width:800px">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body"><strong>Open the POS</strong><span>Navigate to your business → POS. The till opens, ready to take items.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body"><strong>Add items</strong><span>Scan a barcode, type the product name to search, or tap a category then the item.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body"><strong>Attach a customer</strong><span>Search by name / phone, scan their loyalty card, or create a new customer inline. Walk-in is fine — customer is optional.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body"><strong>Apply discounts / campaigns</strong><span>Eligible campaign rewards are shown automatically. Tap to apply. Enter a manual discount if authorised.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body"><strong>Select payment method</strong><span>Cash, card, mobile transfer, layby, or split payment.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body"><strong>Complete — print receipt</strong><span>Receipt prints with item lines, change due, and WiFi credentials if WiFi was included.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 7 — BARCODE SCAN PRIORITY
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-sales left" data-notes="This is important for staff to understand — the scanner always does the RIGHT thing based on WHAT was scanned.">
+    <p class="kicker">POS — Barcode Scanner</p>
+    <h2>What Does Scanning Actually Do?</h2>
+    <p class="lead gap-sm">The scanner is always active. One scan can do four different things depending on <em>what the code belongs to</em>.</p>
+    <table class="gap-top" style="max-width:820px">
+      <tr>
+        <th>#</th><th>If the barcode is…</th><th>Result</th>
+      </tr>
+      <tr>
+        <td>1</td>
+        <td><strong>An employee card</strong></td>
+        <td>Clocks that employee in or out immediately</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><strong>A customer loyalty card</strong></td>
+        <td>Attaches that customer to the open sale</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><strong>A product barcode</strong></td>
+        <td>Adds that product to the cart at its price</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><strong>Unknown barcode</strong></td>
+        <td>Offers to search other businesses or create a new product</td>
+      </tr>
+    </table>
+    <div class="highlight gap-top" style="max-width:820px">
+      <p>📌 Priority is fixed: Employee → Customer → Product → Unknown. The scanner stops at the <strong>first match</strong>. No configuration needed — it is automatic.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 8 — WIFI AT POS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-sales left" data-notes="WiFi tokens are the most unique feature — walk through how they appear on the receipt and in a combo.">
+    <p class="kicker">POS — WiFi Token Sales</p>
+    <h2>Selling WiFi at the Till</h2>
+    <div class="split" style="width:100%;max-width:960px;gap:3rem;align-items:flex-start;margin-top:1.25rem">
+      <div class="col">
+        <h3>Two WiFi systems supported</h3>
+        <table>
+          <tr><th>System</th><th>How it works</th></tr>
+          <tr><td><strong>ESP32</strong></td><td>Captive portal — sells a token code. Customer enters code on WiFi login page.</td></tr>
+          <tr><td><strong>R710 (Ruckus)</strong></td><td>Pre-generated username + password pairs sold directly at POS.</td></tr>
+        </table>
+        <div class="highlight gap-top">
+          <p>R710 tokens are <strong>pre-generated</strong> and stored in a pool. When stock is below 5, staff see a "Request 5 More" button. Tokens are never generated on the fly.</p>
+        </div>
+      </div>
+      <div class="col">
+        <h3>WiFi in a Combo</h3>
+        <p style="margin-bottom:0.5rem">A combo product (e.g. "Meal + WiFi") can include a WiFi token. When sold, the receipt prints the food items <em>and</em> the WiFi credentials as a separate block:</p>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.9rem 1.1rem;font-size:0.82rem;font-family:monospace;color:var(--muted)">
+          Chicken Combo     $4.50<br>
+          ─────────────────────<br>
+          🌐 WiFi Access<br>
+          Username: guest_5021<br>
+          Password: Rp8vN3tK<br>
+          Valid:    24 hours<br>
+          ─────────────────────<br>
+          TOTAL              $4.50
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 9 — SECTION DIVIDER: CASH OFFICE
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide divider sec-cash center" data-notes="Section break — cash office and EOD.">
+    <span class="big-num">03</span>
+    <p class="kicker">Section 3</p>
+    <h2>Cash Office &amp; End of Day</h2>
+    <p class="lead gap-sm" style="max-width:52ch">Closing the day, counting the float, locking records, and allocating deposits.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 10 — EOD STEPS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-cash left" data-notes="Walk through each step. Emphasise that locking is permanent — cannot be unlocked after.">
+    <p class="kicker">Cash Office — End of Day Close</p>
+    <h2>6 Steps to Close the Day</h2>
+    <div class="steps gap-top" style="max-width:820px">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body"><strong>Open End of Day page</strong><span>Go to Cash Office → End of Day for today's date.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body"><strong>Rent transfer (if configured)</strong><span>System calculates the daily rent portion. Confirm or skip. This moves funds from the business account to the rent account.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body"><strong>Auto-deposits run</strong><span>Configured recurring deposits (e.g. savings, sinking funds) are processed automatically. If balance is zero the deposit is skipped.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body"><strong>Manager sign-off</strong><span>Manager types their name and enters total physical cash counted in the till.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body"><strong>Save &amp; Lock</strong><span>Day's transactions are locked — no more edits. Sales figures are frozen.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body"><strong>Cash allocation</strong><span>Cashier reviews each deposit line, ticks it off, locks the allocation. Physical cash is counted out per line.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 11 — BATCH EOD CATCH-UP
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-cash left" data-notes="Useful if the system was offline or staff forgot to close for a few days.">
+    <p class="kicker">Cash Office — Catch-Up</p>
+    <h2>Closing Multiple Days at Once</h2>
+    <p class="lead">If 2–60 days were missed, the manager can run a <em>Grouped EOD Catch-Up</em> instead of closing one day at a time.</p>
+    <table class="gap-top" style="max-width:820px">
+      <tr><th>Role</th><th>What they do</th></tr>
+      <tr>
+        <td><strong>Manager</strong></td>
+        <td>Selects the unclosed days, previews combined sales totals, enters name + total cash for the whole period, clicks <strong>Run Catch-Up</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Cashier</strong></td>
+        <td>Reviews the cash allocation report (all days combined), ticks each deposit line, locks the allocation</td>
+      </tr>
+    </table>
+    <div class="highlight gap-top" style="max-width:820px">
+      <p>⚠️ In a catch-up, the cashier is reconciling cash for <strong>multiple days at once</strong>. The total entered by the manager is the combined physical cash for all selected days.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 12 — SECTION DIVIDER: MANAGER
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide divider sec-manager center" data-notes="Section break — manager tools.">
+    <span class="big-num">04</span>
+    <p class="kicker">Section 4</p>
+    <h2>Manager — Payroll &amp; Approvals</h2>
+    <p class="lead gap-sm" style="max-width:52ch">Payment requests, the full payroll workflow, and setting performance targets.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 13 — PAYMENT REQUEST WORKFLOW
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-manager left" data-notes="Walk through who submits, who approves, and what the bell shows at each stage.">
+    <p class="kicker">Manager — Payment Requests</p>
+    <h2>Payment Request Workflow</h2>
+    <div class="steps gap-top" style="max-width:780px">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body"><strong>Submitted</strong><span>Staff submits a payment request — payee, amount, purpose, account. Manager's bell 🔔 turns red.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body"><strong>Reviewed &amp; Approved</strong><span>Manager opens the request, checks details, clicks Approve. Submitter's bell 🔔 notifies them of approval.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body"><strong>Payment Made</strong><span>Cashier / Finance pays the supplier (cash or bank). They open the request and click <strong>Mark as Paid</strong> with the payment reference.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body"><strong>Closed</strong><span>Request is closed. The expense account balance is reduced. Original submitter receives a final notification.</span></div>
+      </div>
+    </div>
+    <div class="highlight gap-top" style="max-width:780px">
+      <p>💡 You can also <strong>decline</strong> a request at step 2 with a reason. The submitter is notified and can revise and resubmit.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 14 — PAYROLL WORKFLOW
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-manager left" data-notes="This is the most complex workflow. Take time here. The key point is that Owner approval is required before export.">
+    <p class="kicker">Manager — Payroll</p>
+    <h2>Payroll — 5 Stages to Export</h2>
+    <div class="split" style="width:100%;max-width:960px;gap:2.5rem;align-items:flex-start;margin-top:1.25rem">
+      <div class="col">
+        <h3>Status flow</h3>
+        <div style="display:flex;flex-direction:column;gap:0.4rem;font-size:0.9rem">
+          <div style="display:flex;align-items:center;gap:0.6rem"><span style="background:#1e293b;border:1px solid #334155;padding:0.25rem 0.8rem;border-radius:6px;color:#94a3b8">Draft</span><span style="color:var(--muted)">→ Manager adds entries</span></div>
+          <div style="display:flex;align-items:center;gap:0.6rem"><span style="background:#1e3a5f;border:1px solid #2563eb;padding:0.25rem 0.8rem;border-radius:6px;color:#93c5fd">In Progress</span><span style="color:var(--muted)">→ Sync All, review figures</span></div>
+          <div style="display:flex;align-items:center;gap:0.6rem"><span style="background:#1e3a5f;border:1px solid #7c3aed;padding:0.25rem 0.8rem;border-radius:6px;color:#c4b5fd">Review</span><span style="color:var(--muted)">→ Manager checks, funds cashier</span></div>
+          <div style="display:flex;align-items:center;gap:0.6rem"><span style="background:#14532d;border:1px solid #16a34a;padding:0.25rem 0.8rem;border-radius:6px;color:#86efac">Approved</span><span style="color:var(--muted)">→ Owner approves (required)</span></div>
+          <div style="display:flex;align-items:center;gap:0.6rem"><span style="background:#1c3558;border:1px solid #0ea5e9;padding:0.25rem 0.8rem;border-radius:6px;color:#7dd3fc">Exported</span><span style="color:var(--muted)">→ Spreadsheet downloaded</span></div>
+          <div style="display:flex;align-items:center;gap:0.6rem"><span style="background:#292524;border:1px solid #57534e;padding:0.25rem 0.8rem;border-radius:6px;color:#a8a29e">Closed</span><span style="color:var(--muted)">→ Disbursed, payslips done</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <h3>Who does what</h3>
+        <table>
+          <tr><th>Role</th><th>Task</th></tr>
+          <tr><td><strong>Manager</strong></td><td>Opens period, adds entries, runs Sync All, reviews, funds cashier</td></tr>
+          <tr><td><strong>Cashier</strong></td><td>Receives funded amount, counts out individual salaries</td></tr>
+          <tr><td><strong>Owner</strong></td><td>Approves the payroll — nothing exports without this</td></tr>
+        </table>
+        <div class="highlight gap-top">
+          <p>📤 <strong>After export:</strong> Print payslips, file ZIMRA P2/P6/P14 returns, disburse salaries, then close the period.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 15 — SECTION DIVIDER: HR
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide divider sec-hr center" data-notes="Section break — HR.">
+    <span class="big-num">05</span>
+    <p class="kicker">Section 5</p>
+    <h2>HR &amp; Employee Management</h2>
+    <p class="lead gap-sm" style="max-width:52ch">Contracts, clock-in cards, absences, per diem, and employee lifecycle.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 16 — EMPLOYEE LIFECYCLE
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-hr left" data-notes="Briefly walk the full lifecycle. Focus on contract creation and the system user conversion.">
+    <p class="kicker">HR — Employee Lifecycle</p>
+    <h2>From Hire to Exit</h2>
+    <div class="cards cols-2 gap-top" style="max-width:900px">
+      <div class="card sec-hr">
+        <span class="icon">📝</span>
+        <h3>1. Onboarding</h3>
+        <p>Create employee record → capture personal details, ID, bank account, job title, department. Create employment contract with duties, salary, and type (full-time / part-time / contract). Print contract, upload signed copy, approve.</p>
+      </div>
+      <div class="card sec-hr">
+        <span class="icon">🖨️</span>
+        <h3>2. Clock-In Card</h3>
+        <p>Print the employee's barcode ID card. Card has name, photo (front) and unique barcode (back). Fold-in-half, laminate, give to employee. They scan it to clock in and out from any screen in the system.</p>
+      </div>
+      <div class="card sec-hr">
+        <span class="icon">💻</span>
+        <h3>3. System Access</h3>
+        <p>If the employee needs to log into the system, create a system user account for them. Assign permissions from the role-based list (POS, HR, Payroll, Finance, etc.). One account can serve multiple roles.</p>
+      </div>
+      <div class="card sec-hr">
+        <span class="icon">🔴</span>
+        <h3>4. Termination</h3>
+        <p>Complete final payroll → print payslip + P45 → revoke system access → mark employee as terminated → close expense items → collect property. Leave salary increases and contract history on file.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 17 — CLOCK-IN & ABSENCES
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-hr left" data-notes="Explain that managers can back-date entries and that absence types affect payroll automatically.">
+    <p class="kicker">HR — Attendance &amp; Absences</p>
+    <h2>Clock-In &amp; Absence Tracking</h2>
+    <div class="split" style="width:100%;max-width:960px;gap:3rem;align-items:flex-start;margin-top:1.25rem">
+      <div class="col">
+        <h3>How clock-in works</h3>
+        <ul>
+          <li><span>Employee scans barcode card → clock-in recorded instantly</span></li>
+          <li><span>Photo is captured with clock-in (optional but tracked)</span></li>
+          <li><span>Second scan = clock-out</span></li>
+          <li><span>Manager can add or edit entries manually (even back-dated)</span></li>
+          <li><span>⚠ flag = missing clock-out / ✏ flag = manually edited</span></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Absence types &amp; payroll impact</h3>
+        <table>
+          <tr><th>Type</th><th>Payroll</th></tr>
+          <tr><td><strong>Annual Leave</strong></td><td>Paid (from balance)</td></tr>
+          <tr><td><strong>Sick Leave</strong></td><td>Paid if balance allows</td></tr>
+          <tr><td><strong>Unpaid Leave</strong></td><td>Deducted pro-rata</td></tr>
+          <tr><td><strong>AWOL</strong></td><td>Deducted, disciplinary</td></tr>
+          <tr><td><strong>Public Holiday</strong></td><td>Paid, no balance used</td></tr>
+        </table>
+        <p class="gap-sm">Absences deduct automatically at next payroll period. No manual adjustment needed.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 18 — PER DIEM
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-hr left" data-notes="Per diem is often forgotten — it adds to payroll automatically at month end.">
+    <p class="kicker">HR — Per Diem</p>
+    <h2>Per Diem — From Form to Payslip</h2>
+    <div class="steps gap-top" style="max-width:780px">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body"><strong>Employee requests a blank per diem form</strong><span>Form is printed from the HR section.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body"><strong>Employee fills and signs the form</strong><span>Dates, purpose (Travel / Accommodation / Subsistence / Medical / Other), amount per day, days claimed, total, supervisor signature.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body"><strong>Manager enters it into the system</strong><span>HR → Per Diem → Add Entry. Select employee, enter dates and amounts. Save.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body"><strong>Auto-included in payroll</strong><span>At month end, all per diem entries for that employee appear automatically as a line in the payroll export. No separate action needed.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 19 — SECTION DIVIDER: FINANCE
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide divider sec-finance center" data-notes="Section break — finance tools.">
+    <span class="big-num">07</span>
+    <p class="kicker">Section 7 &amp; 8</p>
+    <h2>Finance — Expenses, Rent &amp; Loans</h2>
+    <p class="lead gap-sm" style="max-width:52ch">Expense accounts, petty cash, rent account setup, and the two loan systems.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 20 — EXPENSE ACCOUNTS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-finance left" data-notes="Distinguish business accounts (shared, visible to managers) vs personal accounts (private to the holder).">
+    <p class="kicker">Finance — Expense Accounts</p>
+    <h2>Two Types of Expense Accounts</h2>
+    <div class="cards cols-2 gap-top" style="max-width:900px">
+      <div class="card sec-finance">
+        <span class="icon">🏢</span>
+        <h3>Business Expense Account</h3>
+        <p>Shared account for a specific business purpose. Funded by deposits from the business account. Payments made via the Payment Request workflow. Manager can see all transactions.</p>
+        <p style="margin-top:0.5rem"><em>Examples:</em> Grocery Procurement, Utilities, Maintenance, Vehicle Fuel</p>
+      </div>
+      <div class="card" style="--accent-color:var(--purple)">
+        <span class="icon">🔒</span>
+        <h3>Personal Expense Account</h3>
+        <p>Private to the account holder. Used by an individual to track their own spending and submit reimbursement claims. Manager <strong>cannot see</strong> the transactions unless the holder shares them.</p>
+        <p style="margin-top:0.5rem"><em>Example:</em> Staff member tracks meals, transport, stationery bought personally, then claims back.</p>
+      </div>
+    </div>
+    <div class="highlight gap-top" style="max-width:900px">
+      <p>💡 <strong>Petty Cash</strong> uses an expense account as its fund. Requests go through the same approval chain (Submit → Approve → Pay → Close). Unspent cash must be returned and recorded.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 21 — RENT ACCOUNT & LOANS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-finance left" data-notes="Rent account is set up once per business. Loans have two types — be clear about the direction.">
+    <p class="kicker">Finance — Rent &amp; Loans</p>
+    <h2>Rent Account &amp; Loan Systems</h2>
+    <div class="split" style="width:100%;max-width:960px;gap:2.5rem;align-items:flex-start;margin-top:1.25rem">
+      <div class="col">
+        <h3>Rent Account</h3>
+        <ul>
+          <li><span>Set up once: monthly rent, operating days, landlord, due date</span></li>
+          <li><span>System calculates daily transfer amount automatically</span></li>
+          <li><span>Each EOD close prompts a rent transfer to the rent account</span></li>
+          <li><span>At month end, one bulk payment from rent account to landlord</span></li>
+          <li><span>Balance bar shows % of month's rent funded (🟢 100% / 🟠 75% / 🔴 low)</span></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Two loan systems</h3>
+        <table>
+          <tr><th>Type</th><th>Direction</th><th>Example</th></tr>
+          <tr><td><strong>Business Loan</strong></td><td>Lender → Business</td><td>Bank loan, investor advance</td></tr>
+          <tr><td><strong>Employee Loan</strong></td><td>Business → Employee</td><td>Salary advance</td></tr>
+        </table>
+        <p class="gap-sm">Employee loans can auto-deduct via <strong>Payroll Deduction</strong> — no manual repayment tracking needed.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 22 — SECTION DIVIDER: CUSTOMERS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide divider sec-customer center" data-notes="Section break — customers.">
+    <span class="big-num">09</span>
+    <p class="kicker">Section 9</p>
+    <h2>Customers, Loyalty &amp; Campaigns</h2>
+    <p class="lead gap-sm" style="max-width:52ch">Customer numbers, loyalty cards, activity reports, and the campaigns &amp; rewards system.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 23 — LOYALTY CARDS & CAMPAIGNS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-customer left" data-notes="The loyalty card is just a barcode — very simple. Campaigns are more complex — they reward spending.">
+    <p class="kicker">Customers</p>
+    <h2>Loyalty Cards &amp; Campaigns</h2>
+    <div class="split" style="width:100%;max-width:960px;gap:3rem;align-items:flex-start;margin-top:1.25rem">
+      <div class="col">
+        <h3>Loyalty Card</h3>
+        <ul>
+          <li><span>Every customer gets a unique number: <strong>RES-CUST-000001</strong></span></li>
+          <li><span>Printed as a barcode on a fold-in-half card</span></li>
+          <li><span>Cashier scans the card — customer is attached to the sale in 1 second</span></li>
+          <li><span>Card number never changes, even if name / phone is updated</span></li>
+          <li><span>Customer activity report: total spend, visits, campaign rewards earned</span></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Campaigns &amp; Rewards</h3>
+        <ul>
+          <li><span>Manager creates a campaign with a <strong>spend threshold</strong> (e.g. spend $50, get a reward)</span></li>
+          <li><span>At month end: click <strong>Generate Monthly Rewards</strong> — system finds all qualifying customers and issues reward vouchers</span></li>
+          <li><span>At POS: eligible reward appears automatically when customer is scanned — cashier taps to apply</span></li>
+          <li><span>Reward statuses: Issued → Redeemed / Expired</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 24 — SECTION DIVIDER: INVENTORY
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide divider sec-inventory center" data-notes="Section break — inventory.">
+    <span class="big-num">14</span>
+    <p class="kicker">Section 14</p>
+    <h2>Inventory &amp; Barcode Labels</h2>
+    <p class="lead gap-sm" style="max-width:52ch">Creating new products, restocking existing ones, barcode assignment, and printing labels.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 25 — ADDING NEW PRODUCT
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-inventory left" data-notes="Stress the difference between CREATE and RESTOCK — people confuse these.">
+    <p class="kicker">Inventory — Two Workflows</p>
+    <h2>Create New vs Receive Existing Stock</h2>
+    <table class="gap-top" style="max-width:860px">
+      <tr>
+        <th>Workflow</th><th>When to use</th><th>What it does</th>
+      </tr>
+      <tr>
+        <td><strong>Create New Product</strong></td>
+        <td>Product has never been in the system before</td>
+        <td>Creates a new product record, assigns a barcode, sets initial stock quantity</td>
+      </tr>
+      <tr>
+        <td><strong>Receive Stock</strong></td>
+        <td>Product exists — you just got more units</td>
+        <td>Adds quantity to the existing product — does <em>not</em> create a duplicate</td>
+      </tr>
+    </table>
+    <div class="highlight gap-top" style="max-width:860px">
+      <p>⚠️ Always search for the product first. Creating a duplicate product causes stock split — the same item exists twice, making reports wrong.</p>
+    </div>
+    <div class="cards cols-2 gap-top" style="max-width:860px">
+      <div class="card sec-inventory">
+        <h3>3 ways to assign a barcode</h3>
+        <p><strong>1.</strong> Type/scan directly on the product form<br><strong>2.</strong> Assign after saving via the barcode modal<br><strong>3.</strong> Bulk auto-generate with a prefix (clothing)</p>
+      </div>
+      <div class="card sec-inventory">
+        <h3>After assigning — print labels</h3>
+        <p>Barcode Management → Templates → New Template → From Existing Product → set label size → Print Job → print quantity</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 26 — CROSS-BUSINESS BARCODE LOOKUP
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-inventory left" data-notes="The cross-business lookup is a powerful feature — scan an unknown item and the system finds it in another store.">
+    <p class="kicker">Inventory — Scanning Unknown Barcodes</p>
+    <h2>What Happens When You Scan an Unknown Item?</h2>
+    <div class="steps gap-top" style="max-width:760px">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body"><strong>Check this business</strong><span>Barcode found → product added to cart. Done.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body"><strong>Check barcode templates</strong><span>Template found → pre-filled product form opens. One click to create.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body"><strong>Search all other businesses</strong><span>Barcode found in Restaurant / Grocery / Hardware → shows the match, offers to stock it here.</span></div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body"><strong>Completely unknown → Quick Stock Add</strong><span>Form opens with barcode pre-filled. Enter name, price, quantity. Product created immediately.</span></div>
+      </div>
+    </div>
+    <div class="highlight gap-top" style="max-width:760px">
+      <p>📌 The same barcode can be a <strong>different product</strong> in different businesses — that is fine. Each business owns its own barcode→product mapping. There is no conflict.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 27 — CLOTHING BALES & TEMPLATES
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-inventory left" data-notes="Bales are unique to the clothing store. Templates are useful for any store that gets pre-labelled wholesale goods.">
+    <p class="kicker">Inventory — Clothing &amp; Templates</p>
+    <h2>Bales &amp; Barcode Templates</h2>
+    <div class="split" style="width:100%;max-width:960px;gap:3rem;align-items:flex-start;margin-top:1.25rem">
+      <div class="col">
+        <h3>Used Clothing Bales</h3>
+        <ul>
+          <li><span>A bale is a bulk lot of second-hand items (e.g. 200 pieces at $0.80 each)</span></li>
+          <li><span>Record the bale: item count, cost price, unit selling price</span></li>
+          <li><span>Print a barcode label per bale (e.g. <strong>BALE-HXI-042</strong>)</span></li>
+          <li><span>Staff scan the bale barcode at POS — one item is sold at unit price, count decrements</span></li>
+          <li><span>BOGO promotions can be configured per bale</span></li>
+          <li><span>View remaining count and cost recovery per bale</span></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Barcode Templates</h3>
+        <ul>
+          <li><span>A template saves a barcode + default product data (name, price, size, colour, SKU)</span></li>
+          <li><span>Created once per product line at Barcode Management → Templates</span></li>
+          <li><span>When a new batch arrives, scan the barcode → template is found → one click creates the product with all fields pre-filled</span></li>
+          <li><span>Configure label size, font, symbology (CODE128, EAN13, etc.), and paper format (A4, label_2x1, CR80)</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 28 — TEAM CHAT
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-extra left" data-notes="Chat is simple but staff find it useful for shift handovers. Remind them messages delete after 7 days — not a permanent record.">
+    <p class="kicker">Section 20 — Team Chat</p>
+    <h2>Built-In Team Chat</h2>
+    <div class="split" style="width:100%;max-width:960px;gap:3rem;align-items:flex-start;margin-top:1.25rem">
+      <div class="col">
+        <h3>How to open it</h3>
+        <ul>
+          <li><span>Click the 💬 <strong>Chat</strong> button in the sidebar — from any screen</span></li>
+          <li><span>A floating panel opens — draggable, stays on top</span></li>
+          <li><span>All staff share one <strong>General</strong> room</span></li>
+          <li><span>Messages delivered in real time via WebSocket</span></li>
+        </ul>
+        <div class="highlight gap-top">
+          <p>🔴 Unread badge appears on the chat button when a message arrives while the panel is closed. Also sends a 🔔 bell notification.</p>
+        </div>
+      </div>
+      <div class="col">
+        <h3>What to use it for</h3>
+        <ul>
+          <li><span>Shift handover notes</span></li>
+          <li><span>Quick questions to manager or cashier</span></li>
+          <li><span>Closing reminders and briefings</span></li>
+          <li><span>Coordination between tills</span></li>
+        </ul>
+        <div class="highlight gap-top">
+          <p>⚠️ Messages auto-delete after <strong>7 days</strong>. Do not use chat to record financial data or decisions — use payroll notes, expense account notes, or contract records instead.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 29 — KEY TAKEAWAYS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide sec-close center" data-notes="Summarise and open the floor for questions. Suggest the user guide as the reference document.">
+    <p class="kicker">Summary</p>
+    <h2>Key Takeaways</h2>
+    <div class="cards cols-3 gap-top" style="max-width:960px">
+      <div class="card sec-close">
+        <span class="icon">📟</span>
+        <h3>One scanner, many actions</h3>
+        <p>Employee card → clock in. Customer card → attach to sale. Product barcode → add to cart. Unknown → create product.</p>
+      </div>
+      <div class="card sec-close">
+        <span class="icon">🔔</span>
+        <h3>Bell = action needed</h3>
+        <p>Never ignore a red bell. Every pending approval, payment, or payroll sits in the notification panel waiting for you.</p>
+      </div>
+      <div class="card sec-close">
+        <span class="icon">🔒</span>
+        <h3>EOD locks are permanent</h3>
+        <p>Once a day is locked, it cannot be changed. Count carefully before locking. Batch catch-up is available for missed days.</p>
+      </div>
+      <div class="card sec-close">
+        <span class="icon">👔</span>
+        <h3>Owner must approve payroll</h3>
+        <p>No payroll spreadsheet can be exported without owner approval. The status chain is strictly one-way.</p>
+      </div>
+      <div class="card sec-close">
+        <span class="icon">📦</span>
+        <h3>Create vs Restock</h3>
+        <p>Create a new product only if it has never been in the system. For existing products, use Receive Stock to add quantity.</p>
+      </div>
+      <div class="card sec-close">
+        <span class="icon">📖</span>
+        <h3>Full user guide available</h3>
+        <p>Every workflow described today is documented in full in <strong>docs/user-guide.md</strong>. Refer to it whenever you are unsure.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       SLIDE 30 — Q&A
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="slide title-slide center" data-notes="Open the floor. If questions come up that need a demo, offer to show the live system.">
+    <div style="max-width:700px">
+      <p class="kicker" style="color:#34d399">End of Presentation</p>
+      <h1 style="font-size:clamp(3rem,6vw,5.5rem)">Questions?</h1>
+      <p class="lead gap-top">For step-by-step instructions on any workflow, refer to the full user guide at <strong>docs/user-guide.md</strong></p>
+      <p class="gap-top" style="color:var(--muted);font-size:0.88rem">Press <strong style="color:var(--text)">←</strong> to go back to any slide</p>
+    </div>
+  </div>
+
+</div><!-- #deck -->
+
+<!-- ── Footer ──────────────────────────────────────────────────────── -->
+<div id="footer">
+  <span id="slide-counter">1 / 30</span>
+  <div id="progress-track"><div id="progress-bar" style="width:3.3%"></div></div>
+  <span id="nav-hint">← → arrow keys &nbsp;|&nbsp; N = speaker notes</span>
+</div>
+
+<!-- ── Notes panel ─────────────────────────────────────────────────── -->
+<div id="notes-panel">
+  <strong>SPEAKER NOTE:</strong> <span id="notes-text"></span>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'))
+  const total  = slides.length
+  let   cur    = 0
+  let   notesOpen = false
+
+  const counter  = document.getElementById('slide-counter')
+  const bar      = document.getElementById('progress-bar')
+  const notesPan = document.getElementById('notes-panel')
+  const notesText= document.getElementById('notes-text')
+
+  function show(idx) {
+    slides[cur].classList.remove('active')
+    cur = (idx + total) % total
+    slides[cur].classList.add('active')
+    counter.textContent = `${cur + 1} / ${total}`
+    bar.style.width = `${((cur + 1) / total * 100).toFixed(1)}%`
+    if (notesOpen) showNotes()
+  }
+
+  function go(dir) { show(cur + dir) }
+
+  function showNotes() {
+    const note = slides[cur].dataset.notes || ''
+    if (note) {
+      notesText.textContent = note
+      notesPan.classList.add('open')
+    } else {
+      notesPan.classList.remove('open')
+    }
+  }
+
+  function toggleNotes() {
+    notesOpen = !notesOpen
+    if (notesOpen) showNotes()
+    else notesPan.classList.remove('open')
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ')  { e.preventDefault(); go(+1) }
+    if (e.key === 'ArrowLeft')                     { e.preventDefault(); go(-1) }
+    if (e.key === 'ArrowUp')                       { e.preventDefault(); show(0) }
+    if (e.key === 'n' || e.key === 'N')            { toggleNotes() }
+    if (e.key === 'Escape')                        { notesPan.classList.remove('open'); notesOpen = false }
+  })
+
+  // Touch / swipe support
+  let touchX = 0
+  document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX })
+  document.addEventListener('touchend',   e => {
+    const dx = e.changedTouches[0].clientX - touchX
+    if (Math.abs(dx) > 50) go(dx < 0 ? +1 : -1)
+  })
+</script>
+</body>
+</html>
