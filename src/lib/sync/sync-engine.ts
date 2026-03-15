@@ -386,13 +386,8 @@ export class SyncEngine extends EventEmitter {
    * Start periodic sync with all discovered peers
    */
   private startPeriodicSync(): void {
-    this.syncTimer = setInterval(async () => {
-      try {
-        await this.syncWithAllPeers()
-      } catch (error) {
-        console.error('Error in periodic sync:', error)
-      }
-    }, this.options.syncInterval)
+    // TODO: Peer sync temporarily disabled — restore in next sprint
+    console.log('⏸️  Peer sync disabled')
   }
 
   /**
