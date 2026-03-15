@@ -10,6 +10,9 @@ CREATE TABLE "expense_account_auto_deposits" (
     "createdBy" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "is_paused_by_cap" BOOLEAN NOT NULL DEFAULT FALSE,
+    "start_date" DATE DEFAULT NULL,
+    "end_date" DATE DEFAULT NULL,
 
     CONSTRAINT "expense_account_auto_deposits_pkey" PRIMARY KEY ("id")
 );
@@ -31,3 +34,8 @@ ALTER TABLE "expense_account_auto_deposits" ADD CONSTRAINT "expense_account_auto
 
 -- AddForeignKey
 ALTER TABLE "expense_account_auto_deposits" ADD CONSTRAINT "expense_account_auto_deposits_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Indexes for schedule + cap-pause fields (originally in 20260306000001)
+CREATE INDEX "idx_auto_deposits_start_date" ON "expense_account_auto_deposits"("start_date");
+CREATE INDEX "idx_auto_deposits_end_date"   ON "expense_account_auto_deposits"("end_date");
+CREATE INDEX "idx_auto_deposits_paused_cap" ON "expense_account_auto_deposits"("is_paused_by_cap");
