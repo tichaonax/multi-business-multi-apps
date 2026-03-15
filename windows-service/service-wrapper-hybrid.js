@@ -649,8 +649,8 @@ class HybridServiceWrapper extends EventEmitter {
         }
       } catch (e) { /* ignore */ }
 
-      // Wait 3s for Windows to release file handles after killing processes
-      await new Promise(r => setTimeout(r, 3000));
+      // Wait 3s for Windows to release file handles after killing processes, then build
+      setTimeout(() => {
 
       console.log('Building application (this may take a few minutes)...');
       console.log('Executing: npm run build');
@@ -723,6 +723,8 @@ class HybridServiceWrapper extends EventEmitter {
         console.error('❌ Build process error:', err);
         reject(err);
       });
+
+      }, 3000); // end setTimeout — wait for file handle release
     });
   }
 
