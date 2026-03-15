@@ -185,7 +185,11 @@ export function LandlordSelect({ businessId, businessType, value, onChange, disa
         </div>
         <button
           type="button"
-          onClick={() => setShowQuickAdd(!showQuickAdd)}
+          onClick={() => {
+            const opening = !showQuickAdd
+            setShowQuickAdd(opening)
+            if (opening && search) setQuickAdd(q => ({ ...q, name: search }))
+          }}
           className="px-3 py-2 text-sm bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-md hover:bg-orange-100 whitespace-nowrap"
           disabled={disabled}
         >
