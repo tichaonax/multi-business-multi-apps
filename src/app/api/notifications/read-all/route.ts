@@ -4,14 +4,17 @@ import { getServerUser } from '@/lib/get-server-user'
 
 export const dynamic = 'force-dynamic'
 
-/** PUT /api/notifications/read-all — mark all notifications as read for current user */
-export async function PUT() {
+/** PUT /api/notifications/read-all — mark all (or type-filtered) notifications as read for current user */
+export async function PUT(request: Request) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const { searchParams } = new URL(request.url)
+    const type = searchParams.get('type')
+
     await prisma.appNotification.updateMany({
-      where: { userId: user.id, isRead: false },
+      where: { userId: user.id, isRead: false, ...(type ? { type } : {}) },
       data: { isRead: true, readAt: new Date() },
     })
 

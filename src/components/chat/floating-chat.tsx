@@ -106,10 +106,11 @@ export function FloatingChat() {
     return () => { socket.disconnect(); socketRef.current = null }
   }, [status, scrollToBottom])
 
-  // Clear unread and scroll when opened
+  // Clear unread, mark DB notifications as read, and scroll when opened
   useEffect(() => {
     if (isOpen) {
       setUnread(0)
+      fetch('/api/notifications/read-all?type=CHAT_MESSAGE', { method: 'PUT', credentials: 'include' }).catch(() => {})
       setTimeout(() => { scrollToBottom(); inputRef.current?.focus() }, 100)
     }
   }, [isOpen, scrollToBottom])
@@ -153,12 +154,18 @@ export function FloatingChat() {
     setSending(true)
     setNewMessage('')
     try {
-      await fetch('/api/chat/messages', {
+      const res = await fetch('/api/chat/messages', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
       })
+      if (res.ok) {
+        const saved: Message = await res.json()
+        // Add own message immediately — socket event deduplicates if it also arrives
+        setMessages(prev => prev.some(m => m.id === saved.id) ? prev : [...prev, saved])
+        setTimeout(scrollToBottom, 50)
+      }
     } catch {
       setNewMessage(text)
     } finally {
