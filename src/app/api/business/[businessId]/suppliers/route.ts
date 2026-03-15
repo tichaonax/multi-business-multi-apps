@@ -21,6 +21,7 @@ export async function GET(
     // Query parameters
     const search = searchParams.get('search')
     const isActive = searchParams.get('isActive')
+    const supplierType = searchParams.get('supplierType')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
     // Verify business access
@@ -50,23 +51,23 @@ export async function GET(
       )
     }
 
-    // ONE-WAY SUPPLIER ISOLATION:
-    // - Suppliers are shared by businessType
-    // - Demo businesses see ALL suppliers of that type
-    // - Real businesses only see suppliers from real businesses or shared (businessId=null)
-    const supplierFilter: any = {
-      businessType: business.type,
-      OR: [
-        { businessId: null }, // Shared suppliers (no owner) always visible
-        ...(business.isDemo
-          ? [{ businessId: { not: null } }] // Demo sees all suppliers
-          : [
-              { businesses: { isDemo: false } }, // Real only sees real business suppliers
-              { businesses: null } // Include suppliers with no business link
-            ]
-        )
-      ]
-    }
+    // LANDLORD suppliers are global — not scoped to any businessType
+    // All other suppliers are isolated by businessType
+    const supplierFilter: any = supplierType === 'LANDLORD'
+      ? { supplierType: 'LANDLORD' }
+      : {
+          businessType: business.type,
+          OR: [
+            { businessId: null }, // Shared suppliers (no owner) always visible
+            ...(business.isDemo
+              ? [{ businessId: { not: null } }] // Demo sees all suppliers
+              : [
+                  { businesses: { isDemo: false } }, // Real only sees real business suppliers
+                  { businesses: null } // Include suppliers with no business link
+                ]
+            )
+          ]
+        }
 
     if (isActive !== null) {
       supplierFilter.isActive = isActive === 'true'
@@ -206,10 +207,15 @@ export async function POST(
       )
     }
 
-    // Check for duplicate supplier by name and businessType (shared suppliers)
+    // LANDLORD suppliers are global — use special businessType and no businessId
+    const isLandlord = body.supplierType === 'LANDLORD'
+    const effectiveBusinessType = isLandlord ? 'LANDLORD' : business.type
+    const effectiveBusinessId = isLandlord ? null : businessId
+
+    // Check for duplicate supplier by name and effective businessType
     const existingSupplier = await prisma.businessSuppliers.findFirst({
       where: {
-        businessType: business.type,
+        businessType: effectiveBusinessType,
         name: {
           equals: body.name,
           mode: 'insensitive'
@@ -221,7 +227,9 @@ export async function POST(
       return NextResponse.json(
         {
           error: 'Duplicate supplier',
-          message: `A supplier named "${body.name}" already exists for ${business.type} businesses. Suppliers are shared across all businesses of the same type.`
+          message: isLandlord
+            ? `A landlord named "${body.name}" already exists.`
+            : `A supplier named "${body.name}" already exists for ${business.type} businesses. Suppliers are shared across all businesses of the same type.`
         },
         { status: 409 }
       )
@@ -232,17 +240,17 @@ export async function POST(
     const newId = randomUUID()
     let supplierNumber = body.supplierNumber
     if (!supplierNumber) {
-      const prefix = business.type.substring(0, 3).toUpperCase()
+      const prefix = isLandlord ? 'LND' : business.type.substring(0, 3).toUpperCase()
       // Use first 8 chars of the UUID — unique because it comes from the record's own ID
       const shortCode = newId.replace(/-/g, '').substring(0, 8).toUpperCase()
       supplierNumber = `${prefix}-SUP-${shortCode}`
     }
 
-    // Create the supplier (shared across all businesses of same type)
+    // Create the supplier
     const supplier = await prisma.businessSuppliers.create({
       data: {
         id: newId,
-        businessId,
+        businessId: effectiveBusinessId,
         supplierNumber,
         name: body.name,
         emoji: body.emoji || null,
@@ -257,7 +265,7 @@ export async function POST(
         accountBalance: body.accountBalance ? parseFloat(body.accountBalance) : 0,
         notes: body.notes || null,
         isActive: body.isActive !== false,
-        businessType: business.type,
+        businessType: effectiveBusinessType,
         supplierType: body.supplierType || null,
         attributes: body.attributes || {},
         updatedAt: new Date()

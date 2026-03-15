@@ -41,7 +41,7 @@ export function LandlordSelect({ businessId, businessType, value, onChange, disa
   const fetchSuppliers = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/business/${businessId}/suppliers?isActive=true&limit=200`)
+      const res = await fetch(`/api/business/${businessId}/suppliers?isActive=true&limit=200&supplierType=LANDLORD`)
       if (res.ok) {
         const data = await res.json()
         const list: Supplier[] = data.suppliers || data.data || data || []
@@ -72,8 +72,9 @@ export function LandlordSelect({ businessId, businessType, value, onChange, disa
   const selectedSupplier = suppliers.find(s => s.id === value)
     ?? (value && initialSupplier?.id === value ? { ...initialSupplier, supplierType: 'LANDLORD' } as Supplier : undefined)
 
-  // Show dropdown when searching (regardless of selection) OR when focused with nothing selected
-  const showDropdown = (search.length > 0 || (focused && !value)) && filtered.length > 0
+  // Show dropdown when searching OR when focused with nothing selected
+  const showDropdown = search.length > 0 || (focused && !value)
+  const hasResults = filtered.length > 0
 
   const handleQuickAddSave = async () => {
     if (!quickAdd.name.trim()) {
@@ -140,7 +141,7 @@ export function LandlordSelect({ businessId, businessType, value, onChange, disa
               />
               {showDropdown && (
                 <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                  {filtered.map(s => (
+                  {hasResults ? filtered.map(s => (
                     <button
                       key={s.id}
                       type="button"
@@ -159,7 +160,11 @@ export function LandlordSelect({ businessId, businessType, value, onChange, disa
                         <span className="ml-2 text-xs text-gray-500">({s.contactPerson})</span>
                       )}
                     </button>
-                  ))}
+                  )) : (
+                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                      {search ? `No suppliers matching "${search}"` : 'No suppliers yet'} — use <span className="font-medium text-orange-600 dark:text-orange-400">+ Add Landlord</span>
+                    </div>
+                  )}
                 </div>
               )}
               {selectedSupplier && !search && (
