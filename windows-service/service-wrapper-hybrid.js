@@ -632,7 +632,25 @@ class HybridServiceWrapper extends EventEmitter {
         return;
       }
 
-      const { spawn } = require('child_process');
+      const { spawn, spawnSync } = require('child_process');
+
+      // Kill any stale node processes holding the Prisma DLL before building
+      try {
+        const currentPid = process.pid;
+        spawnSync('taskkill.exe', ['/F', '/IM', 'node.exe', '/FI', `PID ne ${currentPid}`], {
+          encoding: 'utf-8', windowsHide: true
+        });
+        // Clean up any leftover Prisma temp files
+        const prismaClientDir = path.join(this.appRoot, 'node_modules', '.prisma', 'client');
+        if (fs.existsSync(prismaClientDir)) {
+          fs.readdirSync(prismaClientDir).filter(f => f.includes('.tmp')).forEach(f => {
+            try { fs.unlinkSync(path.join(prismaClientDir, f)); } catch (e) {}
+          });
+        }
+      } catch (e) { /* ignore */ }
+
+      // Wait 3s for Windows to release file handles after killing processes
+      await new Promise(r => setTimeout(r, 3000));
 
       console.log('Building application (this may take a few minutes)...');
       console.log('Executing: npm run build');
