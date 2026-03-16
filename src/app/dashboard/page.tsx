@@ -675,7 +675,7 @@ function DashboardContent() {
           )}
 
           {/* Business Type Revenue Cards - only for roles with financial data access */}
-          {hasPermission('canAccessFinancialData') && revenueBreakdown ? Object.entries(revenueBreakdown.byType).map(([businessType, typeData]: [string, any]) => {
+          {hasPermission('canAccessFinancialData') && revenueBreakdown ? Object.entries(revenueBreakdown.byType).sort(([a], [b]) => a.localeCompare(b)).map(([businessType, typeData]: [string, any]) => {
               const rentPct = typeData.totalMonthlyRent > 0
                 ? Math.min(100, Math.round((typeData.totalRentContributed / typeData.totalMonthlyRent) * 100))
                 : 0

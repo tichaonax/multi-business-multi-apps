@@ -13,13 +13,26 @@ export function CloseBooksBanner({ businessId, date, managerName }: CloseBooksBa
   const [booksClosed, setBooksClosed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [payrollResult, setPayrollResult] = useState<{ amount: number; skipped: boolean; reason: string; targetAmount: number } | null>(null)
 
   if (booksClosed) {
     return (
-      <div className="p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center">
-        <span className="text-sm text-green-700 dark:text-green-400 font-medium">
+      <div className="p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center space-y-1">
+        <div className="text-sm text-green-700 dark:text-green-400 font-medium">
           🔒 Books closed for {date}
-        </span>
+        </div>
+        {payrollResult && (
+          payrollResult.skipped ? (
+            <div className="text-xs text-amber-600 dark:text-amber-400">
+              💼 Payroll contribution skipped — {payrollResult.reason}
+              {payrollResult.targetAmount > 0 && ` (target: $${payrollResult.targetAmount})`}
+            </div>
+          ) : (
+            <div className="text-xs text-blue-600 dark:text-blue-400">
+              💼 Payroll auto-contribution: <span className="font-semibold">${payrollResult.amount}</span>
+            </div>
+          )
+        )}
       </div>
     )
   }
@@ -56,6 +69,7 @@ export function CloseBooksBanner({ businessId, date, managerName }: CloseBooksBa
               if (!res.ok) {
                 setError(data.error || 'Failed to close books')
               } else {
+                if (data.payrollContribution) setPayrollResult(data.payrollContribution)
                 setBooksClosed(true)
                 setShowConfirm(false)
               }

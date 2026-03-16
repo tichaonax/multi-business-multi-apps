@@ -29,6 +29,13 @@ export interface EodRentTransferPreview {
   alreadyProcessedToday: boolean
 }
 
+export interface EodPayrollContributionPreview {
+  amount: number          // whole-dollar contribution (0 if skipped)
+  skipped: boolean
+  reason: string          // shown to manager when skipped
+  targetAmount: number    // what the formula produced before capping/flooring
+}
+
 export interface EodPreviewResponse {
   configs: EodPreviewConfig[]
   depositAccountBalance: number
@@ -36,6 +43,7 @@ export interface EodPreviewResponse {
   totalConfiguredAmount: number  // sum of dailyAmount for non-already-done configs
   canProcess: boolean            // depositAccountBalance >= totalConfiguredAmount
   rentTransfer: EodRentTransferPreview | null  // rent is a separate process — shown read-only
+  payrollContribution: EodPayrollContributionPreview | null
 }
 
 /**
@@ -260,6 +268,94 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     const canProcess = depositAccountBalance >= totalConfiguredAmount
 
+    // ── Payroll contribution preview (same formula as close-books auto-contribution) ──
+    let payrollContribution: EodPayrollContributionPreview | null = null
+    try {
+      const NA = (reason: string, targetAmount = 0): EodPayrollContributionPreview =>
+        ({ amount: 0, skipped: true, reason, targetAmount })
+
+      const payrollAccount = await prisma.payrollAccounts.findFirst({
+        where: { businessId: null, isActive: true },
+        select: { id: true, balance: true },
+      })
+
+      if (!payrollAccount) {
+        payrollContribution = NA('No global payroll account')
+      } else {
+        const currentBalance = Number(payrollAccount.balance)
+        const contracts = await prisma.employeeContracts.findMany({
+          where: { status: 'active' },
+          select: { baseSalary: true, livingAllowance: true, primaryBusinessId: true },
+        })
+
+        if (contracts.length === 0) {
+          payrollContribution = NA('No signed employee contracts')
+        } else {
+          const totalMonthlyPayroll = contracts.reduce(
+            (sum, c) => sum + Number(c.baseSalary) + Number(c.livingAllowance ?? 0), 0
+          )
+          const totalContracts = contracts.length
+          const businessContractCount = contracts.filter(c => c.primaryBusinessId === businessId).length
+
+          if (businessContractCount === 0) {
+            payrollContribution = NA('No contracts for this business')
+          } else {
+            const businessShare = businessContractCount / totalContracts
+            const eodDateObj2 = new Date(date + 'T00:00:00Z')
+            const year = eodDateObj2.getUTCFullYear()
+            const month = eodDateObj2.getUTCMonth()
+            const daysInMonth = new Date(year, month + 1, 0).getUTCDate()
+            const remainingDays = Math.max(1, daysInMonth - eodDateObj2.getUTCDate() + 1)
+            const remainingNeeded = Math.max(0, totalMonthlyPayroll - currentBalance)
+
+            if (remainingNeeded < 1) {
+              payrollContribution = NA('Payroll account already fully funded')
+            } else {
+              const businessDailyTarget = (remainingNeeded / remainingDays) * businessShare
+              const dailyRentEquivalent = Number(rentConfig?.dailyTransferAmount ?? 0)
+              const netDailySalesForPayroll = Math.max(0, todayNetSales - dailyRentEquivalent)
+              const rawContribution = Math.min(businessDailyTarget, netDailySalesForPayroll * 0.8)
+              const contribution = Math.floor(rawContribution)
+
+              if (contribution < 1) {
+                payrollContribution = NA(
+                  `Below $1 after 80% cap on net sales`,
+                  Math.floor(businessDailyTarget)
+                )
+              } else {
+                // Check if already contributed today
+                const alreadyContributed = await prisma.payrollAccountDeposits.findFirst({
+                  where: {
+                    businessId,
+                    transactionType: 'EOD_AUTO_CONTRIBUTION',
+                    depositDate: { gte: dayStart, lte: dayEnd },
+                  },
+                  select: { id: true, amount: true },
+                })
+                if (alreadyContributed) {
+                  payrollContribution = {
+                    amount: Number(alreadyContributed.amount),
+                    skipped: false,
+                    reason: 'Already contributed today',
+                    targetAmount: contribution,
+                  }
+                } else {
+                  payrollContribution = {
+                    amount: contribution,
+                    skipped: false,
+                    reason: `${businessContractCount} of ${totalContracts} staff · ${(businessShare * 100).toFixed(0)}% of global payroll share`,
+                    targetAmount: contribution,
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      payrollContribution = null  // non-fatal — don't block EOD if payroll preview fails
+    }
+
     const response: EodPreviewResponse = {
       configs: previewConfigs,
       depositAccountBalance,
@@ -267,6 +363,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       totalConfiguredAmount,
       canProcess,
       rentTransfer,
+      payrollContribution,
     }
 
     return NextResponse.json({ success: true, data: response })

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { EodPreviewConfig, EodRentTransferPreview } from '@/app/api/auto-deposits/[businessId]/eod-preview/route'
+import type { EodPreviewConfig, EodRentTransferPreview, EodPayrollContributionPreview } from '@/app/api/auto-deposits/[businessId]/eod-preview/route'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -92,6 +92,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
   const [entries, setEntries] = useState<EntryState[]>([])
   const [showSkipRentConfirm, setShowSkipRentConfirm] = useState(false)
   const [rentTransfer, setRentTransfer] = useState<EodRentTransferPreview | null>(null)
+  const [payrollContribution, setPayrollContribution] = useState<EodPayrollContributionPreview | null>(null)
 
   // ── Fetch preview on mount ─────────────────────────────────────────────────
 
@@ -110,6 +111,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
         if (propNetSales === undefined) setNetSales(data.todayNetSales)
         setConfigs(data.configs)
         setRentTransfer(data.rentTransfer ?? null)
+        setPayrollContribution(data.payrollContribution ?? null)
 
         // If nothing to do, skip immediately
         const actionable = (data.configs as EodPreviewConfig[]).filter(
@@ -323,6 +325,31 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {/* Payroll auto-contribution — separate process, read-only info row */}
+            {payrollContribution && (
+              <tr className={payrollContribution.skipped ? 'bg-gray-50 dark:bg-gray-800/40 opacity-70' : 'bg-blue-50 dark:bg-blue-900/20'}>
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <span>💼</span>
+                    <span className={`font-medium ${payrollContribution.skipped ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
+                      Payroll Account
+                    </span>
+                  </div>
+                  <span className={`text-xs font-medium ${payrollContribution.skipped ? 'text-gray-400 dark:text-gray-500' : 'text-blue-600 dark:text-blue-400'}`}>
+                    {payrollContribution.skipped ? `⚠ Skipped — ${payrollContribution.reason}` : payrollContribution.reason}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <span className={`font-medium text-sm ${payrollContribution.skipped ? 'text-gray-400 dark:text-gray-500' : 'text-blue-700 dark:text-blue-300'}`}>
+                    {payrollContribution.skipped ? '—' : formatCurrency(payrollContribution.amount)}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">🔒 auto</span>
+                </td>
+              </tr>
+            )}
+
             {/* Rent transfer — separate process, read-only info row */}
             {rentTransfer && (
               <tr className={rentTransfer.alreadyProcessedToday ? 'bg-gray-50 dark:bg-gray-800/40 opacity-60' : 'bg-orange-50 dark:bg-orange-900/20'}>
@@ -438,6 +465,15 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
               </td>
               <td />
             </tr>
+            {payrollContribution && !payrollContribution.skipped && (
+              <tr className="bg-blue-50 dark:bg-blue-900/20 border-t border-blue-200 dark:border-blue-800">
+                <td className="px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300">💼 + Payroll contribution (separate)</td>
+                <td className="px-3 py-1.5 text-right text-xs font-medium text-blue-700 dark:text-blue-300">
+                  {formatCurrency(payrollContribution.amount)}
+                </td>
+                <td />
+              </tr>
+            )}
             {rentTransfer && !rentTransfer.alreadyProcessedToday && (
               <tr className="bg-orange-50 dark:bg-orange-900/20 border-t border-orange-200 dark:border-orange-800">
                 <td className="px-3 py-1.5 text-xs text-orange-700 dark:text-orange-300">🏠 + Rent transfer (separate)</td>
@@ -447,11 +483,15 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
                 <td />
               </tr>
             )}
-            {rentTransfer && !rentTransfer.alreadyProcessedToday && (
+            {(rentTransfer && !rentTransfer.alreadyProcessedToday || payrollContribution && !payrollContribution.skipped) && (
               <tr className="bg-orange-100 dark:bg-orange-900/30 border-t border-orange-300 dark:border-orange-700">
                 <td className="px-3 py-2 text-sm font-bold text-orange-900 dark:text-orange-200">Total withdrawn from business</td>
                 <td className="px-3 py-2 text-right text-sm font-bold text-orange-900 dark:text-orange-200">
-                  {formatCurrency(runningTotal + rentTransfer.dailyAmount)}
+                  {formatCurrency(
+                    runningTotal +
+                    (rentTransfer && !rentTransfer.alreadyProcessedToday ? rentTransfer.dailyAmount : 0) +
+                    (payrollContribution && !payrollContribution.skipped ? payrollContribution.amount : 0)
+                  )}
                 </td>
                 <td />
               </tr>
