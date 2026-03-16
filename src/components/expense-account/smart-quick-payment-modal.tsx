@@ -246,6 +246,8 @@ export default function SmartQuickPaymentModal({
   const [allCategories, setAllCategories] = useState<SelectItem[]>([])
   const [defaultLevel1Id, setDefaultLevel1Id] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [paymentChannel, setPaymentChannel] = useState<'CASH' | 'ECOCASH'>('CASH')
+  const [priority, setPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL')
   const [createPayeeForLineId, setCreatePayeeForLineId] = useState<string | null>(null)
   const [createSupplierForLineId, setCreateSupplierForLineId] = useState<string | null>(null)
   const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)
@@ -501,6 +503,8 @@ export default function SmartQuickPaymentModal({
           amount: parseFloat(l.amount),
           paymentDate: l.paymentDate || getTodayString(),
           paymentType: 'REGULAR',
+          paymentChannel,
+          priority,
           isFullPayment: true,
         }
       } else {
@@ -523,6 +527,8 @@ export default function SmartQuickPaymentModal({
           amount: parseFloat(l.amount),
           paymentDate: l.paymentDate || getTodayString(),
           paymentType: 'REGULAR',
+          paymentChannel,
+          priority,
           isFullPayment: true,
         }
       }
@@ -551,9 +557,49 @@ export default function SmartQuickPaymentModal({
               Select items to pay, enter amounts, then add to queue.
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Payment channel selector */}
+            <div className="flex gap-1">
+              {(['CASH', 'ECOCASH'] as const).map(ch => (
+                <button
+                  key={ch}
+                  type="button"
+                  onClick={() => setPaymentChannel(ch)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                    paymentChannel === ch
+                      ? ch === 'ECOCASH'
+                        ? 'bg-green-600 text-white border-green-600'
+                        : 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {ch === 'CASH' ? '💵 Cash' : '📱 EcoCash'}
+                </button>
+              ))}
+            </div>
+            {/* Priority selector */}
+            <div className="flex gap-1">
+              {(['NORMAL', 'URGENT'] as const).map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPriority(p)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                    priority === p
+                      ? p === 'URGENT'
+                        ? 'bg-red-600 text-white border-red-600'
+                        : 'bg-gray-600 text-white border-gray-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {p === 'URGENT' ? '🚨 Urgent' : '✅ Normal'}
+                </button>
+              ))}
+            </div>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Body — scrollable */}

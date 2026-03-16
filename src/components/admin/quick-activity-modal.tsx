@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -9,7 +9,8 @@ interface BusinessConfig {
   businessName: string
   businessType: string
   selected: boolean
-  budget: string
+  budget: string        // CASH budget
+  ecocashBudget: string // ECOCASH budget
   maxItems: number
 }
 
@@ -24,6 +25,9 @@ interface BizRun {
   count: number
   spent: number
   budget: number
+  ecocashCount: number
+  ecocashSpent: number
+  ecocashBudget: number
   entries: LogEntry[]
   status: 'idle' | 'running' | 'done' | 'stopped' | 'skipped'
   note?: string
@@ -50,8 +54,8 @@ function randBetween(min: number, max: number) {
 
 function toConfigs(businesses: Props['businesses']): BusinessConfig[] {
   return businesses
-    .filter(b => b.isActive && b.businessType !== 'umbrella')
-    .map(b => ({ ...b, selected: false, budget: '', maxItems: 5 }))
+    .filter(b => b.isActive && !(b as any).isUmbrellaBusiness)
+    .map(b => ({ ...b, selected: false, budget: '', ecocashBudget: '', maxItems: 5 }))
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -68,12 +72,25 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
   const [isRunning, setIsRunning] = useState(false)
   const runningRef = useRef(false)
 
+  // Sync configs if businesses weren't loaded when the modal first mounted
+  useEffect(() => {
+    if (businesses.length === 0) return
+    setSalesConfigs(prev => prev.length === 0 ? toConfigs(businesses) : prev)
+    setExpConfigs(prev => prev.length === 0 ? toConfigs(businesses) : prev)
+  }, [businesses])
+
   // ── Progress updaters ──────────────────────────────────────────────────
+
+  const emptyRun = (): BizRun => ({
+    count: 0, spent: 0, budget: 0,
+    ecocashCount: 0, ecocashSpent: 0, ecocashBudget: 0,
+    entries: [], status: 'idle',
+  })
 
   const updateSalesRun = useCallback(
     (bId: string, upd: Partial<BizRun> | ((prev: BizRun) => Partial<BizRun>)) => {
       setSalesRuns(prev => {
-        const cur: BizRun = prev[bId] ?? { count: 0, spent: 0, budget: 0, entries: [], status: 'idle' }
+        const cur: BizRun = prev[bId] ?? emptyRun()
         const patch = typeof upd === 'function' ? upd(cur) : upd
         return { ...prev, [bId]: { ...cur, ...patch } }
       })
@@ -84,7 +101,7 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
   const updateExpRun = useCallback(
     (bId: string, upd: Partial<BizRun> | ((prev: BizRun) => Partial<BizRun>)) => {
       setExpRuns(prev => {
-        const cur: BizRun = prev[bId] ?? { count: 0, spent: 0, budget: 0, entries: [], status: 'idle' }
+        const cur: BizRun = prev[bId] ?? emptyRun()
         const patch = typeof upd === 'function' ? upd(cur) : upd
         return { ...prev, [bId]: { ...cur, ...patch } }
       })
@@ -95,12 +112,21 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
   // ── Sales loop ─────────────────────────────────────────────────────────
 
   async function runSalesForBusiness(cfg: BusinessConfig) {
-    const budget = parseFloat(cfg.budget)
-    if (isNaN(budget) || budget <= 0) return
+    const cashBudget    = parseFloat(cfg.budget)
+    const ecocashBudget = parseFloat(cfg.ecocashBudget)
+    const hasCash    = !isNaN(cashBudget)    && cashBudget    > 0
+    const hasEcocash = !isNaN(ecocashBudget) && ecocashBudget > 0
 
-    updateSalesRun(cfg.businessId, { status: 'running', budget, count: 0, spent: 0, entries: [] })
+    if (!hasCash && !hasEcocash) return
 
-    // Fetch products — mirror exactly how the restaurant/universal POS loads menu items
+    updateSalesRun(cfg.businessId, {
+      status: 'running',
+      budget:        hasCash    ? cashBudget    : 0,
+      ecocashBudget: hasEcocash ? ecocashBudget : 0,
+      count: 0, spent: 0, ecocashCount: 0, ecocashSpent: 0, entries: [],
+    })
+
+    // Fetch products once — shared by both CASH and ECOCASH phases
     const prodRes  = await fetch(
       `/api/universal/products?businessId=${cfg.businessId}&isAvailable=true&isActive=true&includeVariants=true&limit=500`
     )
@@ -110,9 +136,8 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
     const isPhysical = (p: any) => !p.productType || p.productType === 'PHYSICAL' || p.productType === 'COMBO'
 
     type SellableItem = { productVariantId: string | null; productId: string; name: string; price: number; physical: boolean }
-    // localStock tracks remaining qty per variantId for physical variants so we don't re-order depleted items mid-run
-    const localStock = new Map<string, number>()
     const sellable: SellableItem[] = []
+    const baseStock = new Map<string, number>()
 
     for (const p of allProducts) {
       const basePrice = Number(p.basePrice ?? 0)
@@ -121,15 +146,13 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
 
       const variants: any[] = p.variants || []
       if (variants.length === 0) {
-        // No variants (e.g. restaurant menu items / services) — order with productVariantId: null
         sellable.push({ productVariantId: null, productId: p.id, name: p.name, price: basePrice, physical })
       } else {
         for (const v of variants) {
           const price = Number(v.price ?? basePrice)
           if (price <= 0 || v.isAvailable === false) continue
-          // Skip physical variants with no stock upfront
           if (physical && (v.stockQuantity ?? 0) <= 0) continue
-          if (physical) localStock.set(v.id, Number(v.stockQuantity))
+          if (physical) baseStock.set(v.id, Number(v.stockQuantity))
           sellable.push({ productVariantId: v.id, productId: p.id, name: p.name, price, physical })
         }
       }
@@ -140,129 +163,152 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
       return
     }
 
-    // Active pool — items are removed as their stock is exhausted
-    const pool = [...sellable]
-    const getMinPrice = () => pool.length ? Math.min(...pool.map(s => s.price)) : Infinity
-    let remaining = budget
-    let budgetExhausted = false
+    // Inner helper — runs one payment-method phase against its own pool/stock copy
+    async function runPhase(paymentMethod: 'CASH' | 'ECOCASH', phaseBudget: number) {
+      const localStock = new Map(baseStock)
+      const pool = [...sellable]
+      const getMinPrice = () => pool.length ? Math.min(...pool.map(s => s.price)) : Infinity
+      let remaining = phaseBudget
+      let budgetExhausted = false
 
-    while (remaining >= getMinPrice() && runningRef.current) {
-      // Only pick items we can afford at least 1 unit of, and have stock remaining
-      const affordable = pool.filter(s => s.price <= remaining)
-      if (affordable.length === 0) { budgetExhausted = true; break }
+      while (remaining >= getMinPrice() && runningRef.current) {
+        const affordable = pool.filter(s => s.price <= remaining)
+        if (affordable.length === 0) { budgetExhausted = true; break }
 
-      const itemCount = randBetween(1, cfg.maxItems)
-      const orderItems: { productVariantId: string | null; productId: string; name: string; unitPrice: number; quantity: number }[] = []
-      let orderTotal = 0
+        const itemCount = randBetween(1, cfg.maxItems)
+        const orderItems: { productVariantId: string | null; productId: string; name: string; unitPrice: number; quantity: number }[] = []
+        let orderTotal = 0
 
-      for (let i = 0; i < itemCount; i++) {
-        const item = pick(affordable)
-        // Skip if this variant is already in the order (orders API validates unique variants)
-        if (item.productVariantId && orderItems.some(o => o.productVariantId === item.productVariantId)) continue
-        // For physical items cap qty to local stock remainder
-        const maxQty = item.physical && item.productVariantId
-          ? Math.min(3, localStock.get(item.productVariantId) ?? 1)
-          : 3
-        if (maxQty <= 0) continue
-        // First item always qty=1 to guarantee at least one item is added; extras get random qty
-        const qty = orderItems.length === 0 ? 1 : randBetween(1, maxQty)
-        const lineTotal = item.price * qty
-        // After the first item is secured, don't overshoot the budget
-        if (orderItems.length > 0 && orderTotal + lineTotal > remaining * 1.15) break
-        orderItems.push({ productVariantId: item.productVariantId, productId: item.productId, name: item.name, unitPrice: item.price, quantity: qty })
-        orderTotal += lineTotal
-      }
+        for (let i = 0; i < itemCount; i++) {
+          const item = pick(affordable)
+          if (item.productVariantId && orderItems.some(o => o.productVariantId === item.productVariantId)) continue
+          const maxQty = item.physical && item.productVariantId
+            ? Math.min(3, localStock.get(item.productVariantId) ?? 1)
+            : 3
+          if (maxQty <= 0) continue
+          const qty = orderItems.length === 0 ? 1 : randBetween(1, maxQty)
+          const lineTotal = item.price * qty
+          if (orderItems.length > 0 && orderTotal + lineTotal > remaining) break
+          orderItems.push({ productVariantId: item.productVariantId, productId: item.productId, name: item.name, unitPrice: item.price, quantity: qty })
+          orderTotal += lineTotal
+        }
 
-      if (orderItems.length === 0) break
+        if (orderItems.length === 0) break
 
-      const orderRes  = await fetch('/api/universal/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businessId:    cfg.businessId,
-          businessType:  cfg.businessType,
-          paymentMethod: 'CASH',
-          paymentStatus: 'PAID',
-          orderType:     'SALE',
-          totalAmount:   orderTotal,
-          subtotal:      orderTotal,
-          taxAmount:     0,
-          discountAmount: 0,
-          attributes:    { posOrder: true },
-          items: orderItems.map(i => ({
-            productVariantId: i.productVariantId,
-            quantity:         i.quantity,
-            unitPrice:        i.unitPrice,
-            discountAmount:   0,
-            attributes:       { productId: i.productId, productName: i.name },
-          })),
-        }),
-      })
-      const orderData = await orderRes.json()
+        // EcoCash fee: 1.5% of order total
+        const ecocashFee = paymentMethod === 'ECOCASH' ? Math.round(orderTotal * 0.015 * 100) / 100 : 0
 
-      if (orderRes.ok && orderData.success) {
-        const total       = Number(orderData.data?.totalAmount ?? orderTotal)
-        const itemSummary = orderItems.map(i => `${i.name} x${i.quantity}`).join(', ')
-        remaining -= total
-        // Decrement local stock tracker so we don't over-order physical variants
-        for (const i of orderItems) {
-          if (i.productVariantId) {
-            const prev = localStock.get(i.productVariantId) ?? 0
-            const next = prev - i.quantity
-            if (next <= 0) {
-              localStock.delete(i.productVariantId)
-              // Remove exhausted variant from pool so it won't be picked again
-              const idx = pool.findIndex(s => s.productVariantId === i.productVariantId)
-              if (idx !== -1) pool.splice(idx, 1)
-            } else {
-              localStock.set(i.productVariantId, next)
+        const orderRes = await fetch('/api/universal/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessId:    cfg.businessId,
+            businessType:  cfg.businessType,
+            paymentMethod,
+            paymentStatus: 'PAID',
+            orderType:     'SALE',
+            totalAmount:   orderTotal,
+            subtotal:      orderTotal,
+            taxAmount:     0,
+            discountAmount: 0,
+            attributes: paymentMethod === 'ECOCASH'
+              ? { posOrder: true, ecocashFeeAmount: ecocashFee }
+              : { posOrder: true },
+            items: orderItems.map(i => ({
+              productVariantId: i.productVariantId,
+              quantity:         i.quantity,
+              unitPrice:        i.unitPrice,
+              discountAmount:   0,
+              attributes:       { productId: i.productId, productName: i.name },
+            })),
+          }),
+        })
+        const orderData = await orderRes.json()
+
+        if (orderRes.ok && orderData.success) {
+          const total       = Number(orderData.data?.totalAmount ?? orderTotal)
+          const itemSummary = orderItems.map(i => `${i.name} x${i.quantity}`).join(', ')
+          remaining -= total
+
+          // Decrement local stock
+          for (const i of orderItems) {
+            if (i.productVariantId) {
+              const prev = localStock.get(i.productVariantId) ?? 0
+              const next = prev - i.quantity
+              if (next <= 0) {
+                localStock.delete(i.productVariantId)
+                const idx = pool.findIndex(s => s.productVariantId === i.productVariantId)
+                if (idx !== -1) pool.splice(idx, 1)
+              } else {
+                localStock.set(i.productVariantId, next)
+              }
             }
           }
-        }
-        updateSalesRun(cfg.businessId, prev => ({
-          count:   prev.count + 1,
-          spent:   prev.spent + total,
-          entries: [
-            { id: orderData.data?.orderNumber ?? String(Date.now()), label: `${orderData.data?.orderNumber} — ${itemSummary}`, amount: total, success: true },
-            ...prev.entries,
-          ].slice(0, 50),
-        }))
-      } else if (orderData.error === 'Insufficient stock' && orderData.details?.length) {
-        // Stock ran out for specific variants — remove them from the pool and continue
-        for (const issue of orderData.details) {
-          if (issue.productVariantId) {
-            const idx = pool.findIndex(s => s.productVariantId === issue.productVariantId)
-            if (idx !== -1) pool.splice(idx, 1)
-            localStock.delete(issue.productVariantId)
-          }
-        }
-        updateSalesRun(cfg.businessId, prev => ({
-          entries: [
-            { id: String(Date.now()), label: `Skipped — stock exhausted for some items, retrying with remaining stock`, amount: 0, success: false },
-            ...prev.entries,
-          ].slice(0, 50),
-        }))
-        // Don't break — continue the loop with remaining pool items
-      } else {
-        updateSalesRun(cfg.businessId, prev => ({
-          status:  'done',
-          note:    `Stopped: ${orderData.error ?? 'order failed'}`,
-          entries: [
-            { id: String(Date.now()), label: `Order failed: ${orderData.error ?? 'Unknown error'}`, amount: 0, success: false },
-            ...prev.entries,
-          ].slice(0, 50),
-        }))
-        return
-      }
 
-      if (remaining < getMinPrice()) { budgetExhausted = true; break }
-      await sleep(2000)
+          const prefix  = paymentMethod === 'ECOCASH' ? '📱 ' : '💵 '
+          const feeNote = ecocashFee > 0 ? ` (fee $${ecocashFee.toFixed(2)})` : ''
+          const label   = `${prefix}${orderData.data?.orderNumber} — ${itemSummary}${feeNote}`
+
+          if (paymentMethod === 'CASH') {
+            updateSalesRun(cfg.businessId, prev => ({
+              count:   prev.count + 1,
+              spent:   prev.spent + total,
+              entries: [
+                { id: orderData.data?.orderNumber ?? String(Date.now()), label, amount: total, success: true },
+                ...prev.entries,
+              ].slice(0, 50),
+            }))
+          } else {
+            updateSalesRun(cfg.businessId, prev => ({
+              ecocashCount: prev.ecocashCount + 1,
+              ecocashSpent: prev.ecocashSpent + total,
+              entries: [
+                { id: orderData.data?.orderNumber ?? String(Date.now()), label, amount: total, success: true },
+                ...prev.entries,
+              ].slice(0, 50),
+            }))
+          }
+        } else if (orderData.error === 'Insufficient stock' && orderData.details?.length) {
+          for (const issue of orderData.details) {
+            if (issue.productVariantId) {
+              const idx = pool.findIndex(s => s.productVariantId === issue.productVariantId)
+              if (idx !== -1) pool.splice(idx, 1)
+              localStock.delete(issue.productVariantId)
+            }
+          }
+          updateSalesRun(cfg.businessId, prev => ({
+            entries: [
+              { id: String(Date.now()), label: `Skipped — stock exhausted for some items, retrying with remaining stock`, amount: 0, success: false },
+              ...prev.entries,
+            ].slice(0, 50),
+          }))
+        } else {
+          updateSalesRun(cfg.businessId, prev => ({
+            entries: [
+              { id: String(Date.now()), label: `Order failed: ${orderData.error ?? 'Unknown error'}`, amount: 0, success: false },
+              ...prev.entries,
+            ].slice(0, 50),
+          }))
+          return // exit this phase on unrecoverable error
+        }
+
+        if (remaining < getMinPrice()) { budgetExhausted = true; break }
+        await sleep(2000)
+      }
     }
 
-    const salesNaturalEnd = budgetExhausted || remaining < minPrice
+    if (hasCash)                            await runPhase('CASH',    cashBudget)
+    if (hasEcocash && runningRef.current)   await runPhase('ECOCASH', ecocashBudget)
+
+    // Capture eagerly — React defers the state updater callback, by which point
+    // handleStart may have already set runningRef.current = false
+    const finalStatus = runningRef.current ? 'done' : 'stopped'
     updateSalesRun(cfg.businessId, prev => ({
-      status: salesNaturalEnd ? 'done' : 'stopped',
-      note:   `${salesNaturalEnd ? 'Budget exhausted' : 'Stopped'} — $${prev.spent.toFixed(2)} spent`,
+      status: finalStatus,
+      note: [
+        prev.spent       > 0 ? `💵 $${prev.spent.toFixed(2)}`       : '',
+        prev.ecocashSpent > 0 ? `📱 $${prev.ecocashSpent.toFixed(2)}` : '',
+      ].filter(Boolean).join(' + ') + ' spent',
     }))
   }
 
@@ -433,8 +479,9 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
     runningRef.current = true
     setIsRunning(true)
 
-    const selected = (tab === 'sales' ? salesConfigs : expConfigs)
-      .filter(c => c.selected && parseFloat(c.budget) > 0)
+    const selected = tab === 'sales'
+      ? salesConfigs.filter(c => c.selected && (parseFloat(c.budget) > 0 || parseFloat(c.ecocashBudget) > 0))
+      : expConfigs.filter(c => c.selected && parseFloat(c.budget) > 0)
 
     await Promise.all(
       selected.map(cfg =>
@@ -463,9 +510,15 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
   const configs    = tab === 'sales' ? salesConfigs : expConfigs
   const setConfigs = tab === 'sales' ? setSalesConfigs : setExpConfigs
   const runs       = tab === 'sales' ? salesRuns : expRuns
-  const anySelected = configs.some(c => c.selected && parseFloat(c.budget) > 0)
+  const anySelected = tab === 'sales'
+    ? configs.some(c => c.selected && (parseFloat(c.budget) > 0 || parseFloat(c.ecocashBudget) > 0))
+    : configs.some(c => c.selected && parseFloat(c.budget) > 0)
 
   // ── Render ─────────────────────────────────────────────────────────────
+
+  // Grid templates
+  const salesGrid = '1.5rem 1fr 7rem 7rem 7rem'  // checkbox | business | cash $ | ecocash $ | max items
+  const expGrid   = '1.5rem 1fr 7rem'             // checkbox | business | budget $
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -509,11 +562,12 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
             {/* Column headers */}
             <div
               className="grid text-xs font-medium text-gray-400 dark:text-gray-500 uppercase mb-1 px-2"
-              style={{ gridTemplateColumns: tab === 'sales' ? '1.5rem 1fr 7rem 7rem' : '1.5rem 1fr 7rem' }}
+              style={{ gridTemplateColumns: tab === 'sales' ? salesGrid : expGrid }}
             >
               <span />
               <span>Business</span>
-              <span>Budget ($)</span>
+              <span>{tab === 'sales' ? '💵 Cash ($)' : 'Budget ($)'}</span>
+              {tab === 'sales' && <span>📱 EcoCash ($)</span>}
               {tab === 'sales' && <span>Max items</span>}
             </div>
 
@@ -521,7 +575,7 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
               <div
                 key={cfg.businessId}
                 className="grid items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700/40"
-                style={{ gridTemplateColumns: tab === 'sales' ? '1.5rem 1fr 7rem 7rem' : '1.5rem 1fr 7rem' }}
+                style={{ gridTemplateColumns: tab === 'sales' ? salesGrid : expGrid }}
               >
                 <input
                   type="checkbox"
@@ -544,6 +598,19 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
                   disabled={isRunning || !cfg.selected}
                   className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-40 focus:outline-none focus:ring-1 focus:ring-blue-400"
                 />
+                {tab === 'sales' && (
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="0"
+                    value={cfg.ecocashBudget}
+                    onChange={e =>
+                      setConfigs(prev => prev.map((c, j) => j === i ? { ...c, ecocashBudget: e.target.value } : c))
+                    }
+                    disabled={isRunning || !cfg.selected}
+                    className="w-full px-2 py-1 text-sm border border-green-300 dark:border-green-700 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-40 focus:outline-none focus:ring-1 focus:ring-green-400"
+                  />
+                )}
                 {tab === 'sales' && (
                   <select
                     value={cfg.maxItems}
@@ -591,7 +658,9 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
           {Object.keys(runs).length > 0 && (
             <div className="space-y-5 border-t border-gray-200 dark:border-gray-700 pt-4">
               {Object.entries(runs).map(([bizId, run]) => {
-                const pct = run.budget > 0 ? Math.min(100, (run.spent / run.budget) * 100) : 0
+                const totalBudget = run.budget + run.ecocashBudget
+                const totalSpent  = run.spent  + run.ecocashSpent
+                const pct     = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0
                 const bizName = configs.find(c => c.businessId === bizId)?.businessName ?? bizId
                 return (
                   <div key={bizId} className="space-y-1.5">
@@ -608,9 +677,20 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
                           {run.status}
                         </span>
                       </div>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {run.count} {tab === 'sales' ? 'orders' : 'payments'} &bull; ${run.spent.toFixed(2)} / ${run.budget.toFixed(2)}
-                      </span>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 text-right space-y-0.5">
+                        {tab === 'sales' ? (
+                          <>
+                            {run.budget > 0 && (
+                              <div>💵 {run.count} orders &bull; ${run.spent.toFixed(2)} / ${run.budget.toFixed(2)}</div>
+                            )}
+                            {run.ecocashBudget > 0 && (
+                              <div>📱 {run.ecocashCount} orders &bull; ${run.ecocashSpent.toFixed(2)} / ${run.ecocashBudget.toFixed(2)}</div>
+                            )}
+                          </>
+                        ) : (
+                          <div>{run.count} payments &bull; ${run.spent.toFixed(2)} / ${run.budget.toFixed(2)}</div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">

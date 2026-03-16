@@ -8,16 +8,30 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
 import { generatePaymentBatchVoucher } from '@/lib/pdf-utils'
 
-function useCashBoxBalance(businessId: string) {
-  const [balance, setBalance] = useState<number | null>(null)
+function useBusinessBalances(businessId: string) {
+  const [cashBalance, setCashBalance] = useState<number | null>(null)
+  const [ecocashBalance, setEcocashBalance] = useState<number | null>(null)
+  const [salesBalance, setSalesBalance] = useState<number | null>(null)
+
   useEffect(() => {
     if (!businessId) return
-    fetch(`/api/cash-allocation/${businessId}/summary`)
+    // Cash + EcoCash bucket
+    fetch(`/api/cash-bucket?businessId=${businessId}`, { credentials: 'include' })
       .then(r => r.json())
-      .then(j => setBalance(j.balance ?? null))
-      .catch(() => setBalance(null))
+      .then(j => {
+        const biz = j.data?.balances?.find((b: any) => b.businessId === businessId)
+        setCashBalance(biz?.cashBalance ?? 0)
+        setEcocashBalance(biz?.ecocashBalance ?? 0)
+      })
+      .catch(() => { setCashBalance(null); setEcocashBalance(null) })
+    // Sales / business account balance
+    fetch(`/api/business/balance/${businessId}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(j => setSalesBalance(j.balance ?? null))
+      .catch(() => setSalesBalance(null))
   }, [businessId])
-  return balance
+
+  return { cashBalance, ecocashBalance, salesBalance }
 }
 
 interface BatchPayment {
@@ -36,6 +50,8 @@ interface BatchPayment {
   subcategory?: { name: string } | null
   amount: number
   notes: string | null
+  paymentChannel?: string
+  priority?: string
   creator: { id: string; name: string } | null
   createdAt: string
 }
@@ -94,7 +110,7 @@ export default function BatchReviewPage() {
   const [adHocAccounts, setAdHocAccounts] = useState<{ id: string; accountName: string }[]>([])
   const [addingAdHoc, setAddingAdHoc] = useState(false)
 
-  const cashBoxBalance = useCashBoxBalance(batch?.business?.id ?? '')
+  const { cashBalance: cashBoxBalance, ecocashBalance, salesBalance } = useBusinessBalances(batch?.business?.id ?? '')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -141,6 +157,8 @@ export default function BatchReviewPage() {
   const rejectedPayments = pendingPayments.filter(p => rejected.has(p.id))
   const undecidedPayments = pendingPayments.filter(p => !approved.has(p.id) && !rejected.has(p.id))
   const totalApproved = approvedPayments.reduce((s, p) => s + p.amount, 0)
+  const totalCashApproved = approvedPayments.filter(p => p.paymentChannel !== 'ECOCASH').reduce((s, p) => s + p.amount, 0)
+  const totalEcocashApproved = approvedPayments.filter(p => p.paymentChannel === 'ECOCASH').reduce((s, p) => s + p.amount, 0)
   const allDecided = undecidedPayments.length === 0 && pendingPayments.length > 0
 
   function setApprove(id: string) {
@@ -254,21 +272,43 @@ export default function BatchReviewPage() {
               {fmt(batch.payments.filter(p => p.status === 'PENDING_APPROVAL').reduce((s, p) => s + p.amount, 0))}
             </p>
           </div>
-          {/* Business Cash Bucket Balance */}
+          {/* Business Balances */}
           {batch.business?.id && (
+            <>
+              <div>
+                <p className="text-gray-500 dark:text-gray-400">💵 Cash Bucket</p>
+                <span className={`font-medium ${cashBoxBalance !== null && cashBoxBalance < batch.payments.filter(p => p.status === 'PENDING_APPROVAL' && p.paymentChannel !== 'ECOCASH').reduce((s, p) => s + p.amount, 0) ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                  {cashBoxBalance === null ? 'Loading…' : fmt(cashBoxBalance)}
+                </span>
+              </div>
+              <div>
+                <p className="text-gray-500 dark:text-gray-400">📱 EcoCash Wallet</p>
+                <span className={`font-medium ${ecocashBalance !== null && ecocashBalance < batch.payments.filter(p => p.status === 'PENDING_APPROVAL' && p.paymentChannel === 'ECOCASH').reduce((s, p) => s + p.amount, 0) ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                  {ecocashBalance === null ? 'Loading…' : fmt(ecocashBalance)}
+                </span>
+              </div>
+              <div>
+                <p className="text-gray-500 dark:text-gray-400">🏦 Sales Balance</p>
+                <span className={`font-medium ${salesBalance !== null && salesBalance > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                  {salesBalance === null ? 'Loading…' : fmt(salesBalance)}
+                </span>
+              </div>
+            </>
+          )}
+          {/* Cash bucket after approval */}
+          {batch.business?.id && !isLocked && cashBoxBalance !== null && totalCashApproved > 0 && (
             <div>
-              <p className="text-gray-500 dark:text-gray-400">Cash Box Balance</p>
-              <span className={`font-medium ${cashBoxBalance !== null && cashBoxBalance < batch.payments.filter(p => p.status === 'PENDING_APPROVAL').reduce((s, p) => s + p.amount, 0) ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                {cashBoxBalance === null ? 'Loading…' : fmt(cashBoxBalance)}
+              <p className="text-gray-500 dark:text-gray-400">💵 Cash After Approval</p>
+              <span className={`font-medium ${cashBoxBalance - totalCashApproved < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {fmt(cashBoxBalance - totalCashApproved)}
               </span>
             </div>
           )}
-          {/* Cash box balance after current selections */}
-          {batch.business?.id && !isLocked && cashBoxBalance !== null && totalApproved > 0 && (
+          {batch.business?.id && !isLocked && ecocashBalance !== null && totalEcocashApproved > 0 && (
             <div>
-              <p className="text-gray-500 dark:text-gray-400">Cash Box After Approval</p>
-              <span className={`font-medium ${cashBoxBalance - totalApproved < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {fmt(cashBoxBalance - totalApproved)}
+              <p className="text-gray-500 dark:text-gray-400">📱 EcoCash After Approval</p>
+              <span className={`font-medium ${ecocashBalance - totalEcocashApproved < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {fmt(ecocashBalance - totalEcocashApproved)}
               </span>
             </div>
           )}
@@ -290,10 +330,15 @@ export default function BatchReviewPage() {
           )}
         </div>
 
-        {/* Insufficient cash box warning */}
-        {!isLocked && cashBoxBalance !== null && cashBoxBalance < totalApproved && totalApproved > 0 && (
+        {/* Insufficient balance warnings */}
+        {!isLocked && cashBoxBalance !== null && cashBoxBalance < totalCashApproved && totalCashApproved > 0 && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
-            ⚠️ Cash box balance ({fmt(cashBoxBalance)}) is insufficient for the selected approvals ({fmt(totalApproved)}). Uncheck some items.
+            ⚠️ 💵 Cash bucket ({fmt(cashBoxBalance)}) is insufficient for cash approvals ({fmt(totalCashApproved)}). Uncheck some cash items or add EOD cash.
+          </div>
+        )}
+        {!isLocked && ecocashBalance !== null && ecocashBalance < totalEcocashApproved && totalEcocashApproved > 0 && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
+            ⚠️ 📱 EcoCash wallet ({fmt(ecocashBalance)}) is insufficient for EcoCash approvals ({fmt(totalEcocashApproved)}). Uncheck some EcoCash items.
           </div>
         )}
 
@@ -391,15 +436,30 @@ export default function BatchReviewPage() {
                 const isUndecided = !isApprovedDecision && !isRejectedDecision && p.status === 'PENDING_APPROVAL'
                 const pName = payeeName(p)
                 const catLabel = p.category ? `${p.category.emoji ?? ''} ${p.category.name}`.trim() : ''
+                const isEcocash = p.paymentChannel === 'ECOCASH'
+                const isUrgent = p.priority === 'URGENT'
 
                 return (
                   <div key={p.id} className={`flex items-start gap-3 px-5 py-3 ${
+                    isUrgent && !isApprovedDecision && !isRejectedDecision ? 'border-l-2 border-red-400' : ''
+                  } ${
                     isApprovedDecision ? 'bg-green-50/50 dark:bg-green-900/10' :
                     isRejectedDecision ? 'bg-red-50/50 dark:bg-red-900/10 opacity-60' : ''
                   }`}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{pName}</span>
+                        {isUrgent && <span className="text-base">🚨</span>}
+                        <span className={`text-sm font-medium ${isUrgent ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-gray-100'}`}>{pName}</span>
+                        {isUrgent && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-bold">URGENT</span>
+                        )}
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                          isEcocash
+                            ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                            : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                        }`}>
+                          {isEcocash ? '📱 EcoCash' : '💵 Cash'}
+                        </span>
                         {p.adHoc && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold">Ad-hoc</span>
                         )}
@@ -493,7 +553,7 @@ export default function BatchReviewPage() {
                 </button>
                 <button
                   onClick={handleSubmitReview}
-                  disabled={submitting || !allDecided || approvedPayments.length === 0 || (cashBoxBalance !== null && cashBoxBalance < totalApproved)}
+                  disabled={submitting || !allDecided || approvedPayments.length === 0 || (cashBoxBalance !== null && cashBoxBalance < totalCashApproved) || (ecocashBalance !== null && ecocashBalance < totalEcocashApproved)}
                   className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
                 >
                   {submitting ? 'Processing…' : `🖨 Process & Print Report — ${fmt(totalApproved)}`}

@@ -96,7 +96,7 @@ export async function POST(
     const ecocashApproved = approvedPayments.filter((p) => (p as any).paymentChannel === 'ECOCASH')
     const totalCashApproved = cashApproved.reduce((s, p) => s + Number(p.amount), 0)
 
-    // Verify business has sufficient CASH in the physical cash bucket (EcoCash payments skip this)
+    // Verify sufficient CASH bucket balance
     if (cashApproved.length > 0) {
       const bucketRows = await prisma.cashBucketEntry.groupBy({
         by: ['direction'],
@@ -108,9 +108,26 @@ export async function POST(
       const bucketBalance = bucketInflow - bucketOutflow
       if (bucketBalance < totalCashApproved) {
         return NextResponse.json(
-          {
-            error: `Insufficient cash in bucket for ${batch.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${totalCashApproved.toFixed(2)}`,
-          },
+          { error: `Insufficient 💵 cash in bucket for ${batch.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${totalCashApproved.toFixed(2)}` },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Verify sufficient EcoCash wallet balance (debit happens at Mark as Sent, but check now to prevent approval of undeliverable payments)
+    if (ecocashApproved.length > 0) {
+      const totalEcocashApproved = ecocashApproved.reduce((s, p) => s + Number(p.amount), 0)
+      const ecocashRows = await prisma.cashBucketEntry.groupBy({
+        by: ['direction'],
+        where: { businessId: batch.businessId, paymentChannel: 'ECOCASH' },
+        _sum: { amount: true },
+      })
+      const ecocashInflow = Number(ecocashRows.find(r => r.direction === 'INFLOW')?._sum.amount ?? 0)
+      const ecocashOutflow = Number(ecocashRows.find(r => r.direction === 'OUTFLOW')?._sum.amount ?? 0)
+      const ecocashBalance = ecocashInflow - ecocashOutflow
+      if (ecocashBalance < totalEcocashApproved) {
+        return NextResponse.json(
+          { error: `Insufficient 📱 EcoCash wallet for ${batch.business?.name ?? 'this business'}. Available: $${ecocashBalance.toFixed(2)}, Required: $${totalEcocashApproved.toFixed(2)}. Top up EcoCash wallet first.` },
           { status: 400 }
         )
       }
@@ -224,28 +241,54 @@ export async function POST(
       return { batchSubmissions, totalApproved, approvedCount: approvedPayments.length }
     })
 
-    // Notify payment requesters of approved/rejected outcomes
+    // Notify payment requesters of approved/rejected outcomes (per-user so each sees only their payments)
+    const resolvePayeeName = (p: any) =>
+      p.payeeUser?.name ?? p.payeeEmployee?.fullName ?? p.payeePerson?.fullName ?? p.payeeBusiness?.name ?? p.payeeSupplier?.name ?? null
+
+    const buildPaymentLine = (p: any) => {
+      const payee = resolvePayeeName(p)
+      const cat = p.category?.name || null
+      const note = p.notes?.trim() || null
+      const channel = (p as any).paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'
+      const urgent = (p as any).priority === 'URGENT' ? '🚨 ' : ''
+      const detail = [payee, cat, note].filter(Boolean).join(' · ')
+      return `${urgent}$${Number(p.amount).toFixed(2)} ${detail ? `— ${detail} ` : ''}[${channel}]`
+    }
+
     try {
       if (approvedPayments.length > 0) {
-        const approvedUserIds = [...new Set(approvedPayments.map(p => p.creator?.id).filter((id): id is string => !!id))]
-        if (approvedUserIds.length > 0) {
+        const byUser = approvedPayments.reduce((acc, p) => {
+          const uid = p.creator?.id; if (!uid) return acc
+          ;(acc[uid] = acc[uid] || []).push(p); return acc
+        }, {} as Record<string, any[]>)
+        for (const [uid, payments] of Object.entries(byUser)) {
+          const total = payments.reduce((s, p) => s + Number(p.amount), 0)
+          const preview = payments.length === 1
+            ? buildPaymentLine(payments[0])
+            : `$${total.toFixed(2)} total — ${payments.slice(0, 3).map(p => `${resolvePayeeName(p) ?? '?'} ($${Number(p.amount).toFixed(2)})`).join(', ')}${payments.length > 3 ? ` +${payments.length - 3} more` : ''}`
           await emitNotification({
-            userIds: approvedUserIds,
+            userIds: [uid],
             type: 'PAYMENT_APPROVED',
             title: 'Payment Approved',
-            message: `${approvedPayments.length} payment(s) approved by ${user.name} — total $${totalApproved.toFixed(2)}`,
+            message: `Approved by ${user.name} — ${preview}`,
             linkUrl: '/expense-accounts/my-payments',
           })
         }
       }
       if (rejectedPayments.length > 0) {
-        const rejectedUserIds = [...new Set(rejectedPayments.map(p => p.creator?.id).filter((id): id is string => !!id))]
-        if (rejectedUserIds.length > 0) {
+        const byUser = rejectedPayments.reduce((acc, p) => {
+          const uid = p.creator?.id; if (!uid) return acc
+          ;(acc[uid] = acc[uid] || []).push(p); return acc
+        }, {} as Record<string, any[]>)
+        for (const [uid, payments] of Object.entries(byUser)) {
+          const preview = payments.length === 1
+            ? buildPaymentLine(payments[0])
+            : `${payments.slice(0, 3).map(p => `${resolvePayeeName(p) ?? '?'} ($${Number(p.amount).toFixed(2)})`).join(', ')}${payments.length > 3 ? ` +${payments.length - 3} more` : ''}`
           await emitNotification({
-            userIds: rejectedUserIds,
+            userIds: [uid],
             type: 'PAYMENT_REJECTED',
             title: 'Payment Returned to Queue',
-            message: `${rejectedPayments.length} payment(s) returned to queue by ${user.name}`,
+            message: `Returned by ${user.name} — ${preview}`,
             linkUrl: '/expense-accounts/my-payments',
           })
         }

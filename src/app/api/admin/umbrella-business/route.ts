@@ -11,10 +11,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Payroll users need the umbrella ID to run cross-business payroll; allow read for them too
-    if (!isSystemAdmin(user) && !hasPermission(user, 'canManageBusinessSettings') && !hasPermission(user, 'canAccessPayroll')) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
+    // Umbrella business name/branding is readable by any authenticated user (needed for loyalty cards, receipts, etc.)
+    // Write operations (PUT/POST) remain admin-only — no permission gate on GET
 
     // Find an existing umbrella business or any business to store umbrella settings
     let umbrellaBusinessData = await prisma.businesses.findFirst({

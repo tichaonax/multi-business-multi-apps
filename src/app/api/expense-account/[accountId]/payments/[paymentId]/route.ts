@@ -121,6 +121,7 @@ export async function GET(
           receiptReason: payment.receiptReason,
           isFullPayment: payment.isFullPayment,
           batchId: payment.batchId,
+          paymentChannel: (payment as any).paymentChannel ?? 'CASH',
           status: payment.status,
           createdBy: payment.creator,
           submittedBy: payment.submitter,
@@ -225,6 +226,23 @@ export async function PATCH(
           return NextResponse.json({ error: 'Cannot resolve business for this payment' }, { status: 400 })
         }
         const amount = Number(existingPayment.amount)
+
+        // Guard: check EcoCash wallet balance before debiting
+        const bucketAgg = await prisma.cashBucketEntry.groupBy({
+          by: ['direction'],
+          where: { businessId, paymentChannel: 'ECOCASH' },
+          _sum: { amount: true },
+        })
+        const ecocashInflow = Number(bucketAgg.find((r: any) => r.direction === 'INFLOW')?._sum?.amount ?? 0)
+        const ecocashOutflow = Number(bucketAgg.find((r: any) => r.direction === 'OUTFLOW')?._sum?.amount ?? 0)
+        const ecocashBalance = ecocashInflow - ecocashOutflow
+        if (ecocashBalance < amount) {
+          return NextResponse.json(
+            { error: `Insufficient funds in EcoCash wallet. Available: $${ecocashBalance.toFixed(2)}, Required: $${amount.toFixed(2)}. Top up the EcoCash wallet first.` },
+            { status: 400 }
+          )
+        }
+
         const updated = await prisma.$transaction(async (tx: any) => {
           // Create expense account deposit (fund the account)
           await tx.expenseAccountDeposits.create({

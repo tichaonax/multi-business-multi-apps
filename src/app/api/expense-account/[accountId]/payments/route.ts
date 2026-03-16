@@ -198,6 +198,7 @@ export async function GET(
           paymentType: p.paymentType,
           status: p.status,
           paymentChannel: (p as any).paymentChannel ?? 'CASH',
+          priority: (p as any).priority ?? 'NORMAL',
           createdBy: p.creator,
           submittedBy: p.submitter,
           submittedAt: p.submittedAt?.toISOString(),
@@ -717,6 +718,7 @@ export async function POST(
             interestAmount: payment.interestAmount != null ? Number(payment.interestAmount) : null,
             transferLedgerId: payment.transferLedgerId || null,
             paymentChannel: payment.paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
+            priority: payment.priority === 'URGENT' ? 'URGENT' : 'NORMAL',
             createdBy: user.id,
             submittedBy: paymentStatus === 'SUBMITTED' ? user.id : null,
             submittedAt: paymentStatus === 'SUBMITTED' ? new Date() : null,
@@ -868,8 +870,26 @@ export async function POST(
       return { payments: createdPayments, newBalance }
     })
 
-    // Notify reviewers (admins + users with canSubmitPaymentBatch) of new payment request
+    // Notify reviewers + submitter of new payment request
     try {
+      const hasUrgent = paymentsToCreate.some((p: any) => p.priority === 'URGENT')
+      const channels = [...new Set(paymentsToCreate.map((p: any) => p.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'))]
+      const channelStr = channels.join(' & ')
+      const urgentPrefix = hasUrgent ? '🚨 URGENT — ' : ''
+      let detailStr: string
+      if (!isBatch) {
+        const p = paymentsToCreate[0] as any
+        const payee = p.payeeName && p.payeeName !== 'No specific payee' ? p.payeeName : null
+        const cat = p.categoryName || null
+        const note = p.notes?.trim() || null
+        const parts = [payee, cat, note].filter(Boolean)
+        detailStr = `$${totalAmount.toFixed(2)}${parts.length ? ` — ${parts.join(' · ')}` : ''} [${channelStr}]`
+      } else {
+        const names = paymentsToCreate
+          .map((p: any) => p.payeeName && p.payeeName !== 'No specific payee' ? `${p.payeeName} ($${Number(p.amount).toFixed(2)})` : `$${Number(p.amount).toFixed(2)}`)
+        const preview = names.length <= 3 ? names.join(', ') : `${names.slice(0, 3).join(', ')} +${names.length - 3} more`
+        detailStr = `$${totalAmount.toFixed(2)} total · ${preview} [${channelStr}]`
+      }
       const reviewers = await prisma.users.findMany({
         where: { isActive: true, OR: [{ role: 'admin' }, { permissions: { path: ['canSubmitPaymentBatch'], equals: true } }] },
         select: { id: true },
@@ -879,11 +899,19 @@ export async function POST(
         await emitNotification({
           userIds: reviewerIds,
           type: 'PAYMENT_SUBMITTED',
-          title: 'New Payment Request',
-          message: `${user.name} submitted ${isBatch ? `${result.payments.length} payment(s)` : `a $${totalAmount.toFixed(2)} payment`} from ${account.accountName}`,
+          title: hasUrgent ? '🚨 Urgent Payment Request' : 'New Payment Request',
+          message: `${urgentPrefix}${user.name} → ${account.accountName}: ${detailStr}`,
           linkUrl: '/admin/pending-actions',
         })
       }
+      // Notify the submitter — confirmation their payment entered the queue
+      await emitNotification({
+        userIds: [user.id],
+        type: 'PAYMENT_SUBMITTED',
+        title: hasUrgent ? '🚨 Urgent Payment Queued' : 'Payment Queued',
+        message: `Your payment was queued — ${detailStr}`,
+        linkUrl: '/expense-accounts/my-payments',
+      })
     } catch { /* non-critical */ }
 
     return NextResponse.json(

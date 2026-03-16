@@ -30,6 +30,7 @@ export async function POST(
         status: true,
         createdBy: true,
         amount: true,
+        paymentChannel: true,
       },
     })
 
@@ -49,6 +50,14 @@ export async function POST(
     if (payment.status !== 'APPROVED') {
       return NextResponse.json(
         { error: `Payment must be in APPROVED status to submit. Current status: ${payment.status}` },
+        { status: 400 }
+      )
+    }
+
+    // EcoCash payments are confirmed by the cashier via PATCH markPaid (requires transaction code)
+    if ((payment as any).paymentChannel === 'ECOCASH') {
+      return NextResponse.json(
+        { error: 'EcoCash payments must be confirmed by the cashier using the "Mark as Sent" action with a transaction code.' },
         { status: 400 }
       )
     }

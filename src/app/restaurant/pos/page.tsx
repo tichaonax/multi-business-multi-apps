@@ -2421,6 +2421,30 @@ export default function RestaurantPOS() {
                   </div>
                 </div>
 
+                {/* Cash / EcoCash breakdown */}
+                {(dailySales.paymentMethods?.CASH || dailySales.paymentMethods?.ECOCASH) && (
+                  <div className="flex gap-2 mt-2">
+                    {dailySales.paymentMethods?.CASH && (
+                      <div className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm flex items-center justify-between">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">💵 Cash</span>
+                        <div className="text-right">
+                          <span className="text-sm font-bold text-green-600 dark:text-green-400">${Number(dailySales.paymentMethods.CASH.total).toFixed(2)}</span>
+                          <span className="text-xs text-gray-400 ml-1">({dailySales.paymentMethods.CASH.count} orders)</span>
+                        </div>
+                      </div>
+                    )}
+                    {dailySales.paymentMethods?.ECOCASH && (
+                      <div className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm flex items-center justify-between">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">📱 EcoCash</span>
+                        <div className="text-right">
+                          <span className="text-sm font-bold text-green-600 dark:text-green-400">${Number(dailySales.paymentMethods.ECOCASH.total).toFixed(2)}</span>
+                          <span className="text-xs text-gray-400 ml-1">({dailySales.paymentMethods.ECOCASH.count} orders)</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Meal Program Mini-Bar — always visible when there are transactions today */}
                 {dailySales.expenseAccountSales?.count > 0 && (
                   <button

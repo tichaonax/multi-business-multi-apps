@@ -45,6 +45,8 @@ export function CustomerLookup({
   const [showDropdown, setShowDropdown] = useState(false)
   const [isWalkIn, setIsWalkIn] = useState(false)
   const [showPrintPanel, setShowPrintPanel] = useState(false)
+  const [pdfPrinted, setPdfPrinted] = useState(false)
+  const [receiptPrinted, setReceiptPrinted] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -138,6 +140,7 @@ export function CustomerLookup({
     if (!selectedCustomer) return
     const cardHtml = await buildPrintCardHtml(selectedCustomer, businessName, businessPhone, umbrellaBusinessName)
     openCardPrintWindow(`Loyalty Card — ${selectedCustomer.name}`, cardHtml)
+    setPdfPrinted(true)
   }
 
   const handleSelectWalkIn = () => {
@@ -182,7 +185,7 @@ export function CustomerLookup({
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setShowPrintPanel(v => !v)}
+                onClick={() => { setShowPrintPanel(v => !v); setPdfPrinted(false); setReceiptPrinted(false) }}
                 title="Print loyalty card"
                 className={`p-0.5 ${showPrintPanel ? 'text-blue-700 dark:text-blue-300' : 'text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300'}`}
               >
@@ -205,14 +208,17 @@ export function CustomerLookup({
               <button
                 type="button"
                 onClick={printLoyaltyCard}
-                className="w-full py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-primary rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-1.5"
+                disabled={pdfPrinted}
+                className="w-full py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-primary rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                🖨️ Print / Save as PDF
+                {pdfPrinted ? '✅ Printed' : '🖨️ Print / Save as PDF'}
               </button>
               <PrintCardToReceiptPrinter
                 cardElementId="customer-loyalty-card-lookup"
                 businessId={businessId}
                 label="Print to Receipt Printer"
+                disabled={receiptPrinted}
+                onPrintSuccess={() => setReceiptPrinted(true)}
               />
             </div>
           )}

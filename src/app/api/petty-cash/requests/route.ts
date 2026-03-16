@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 // Helper: check if user has a named system permission
 async function hasSystemPermission(userId: string, permissionName: string): Promise<boolean> {
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { businessId, requestedAmount, purpose, notes, paymentChannel } = body
+    const { businessId, requestedAmount, purpose, notes, paymentChannel, priority } = body
 
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     if (!purpose?.trim()) return NextResponse.json({ error: 'purpose is required' }, { status: 400 })
@@ -128,11 +129,30 @@ export async function POST(request: NextRequest) {
         notes: notes?.trim() || null,
         status: 'PENDING',
         paymentChannel: paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
+        priority: priority === 'URGENT' ? 'URGENT' : 'NORMAL',
       },
       include: {
         business: { select: { id: true, name: true, type: true } },
         requester: { select: { id: true, name: true, email: true } },
       },
+    })
+
+    // Notify approvers (users with petty_cash.approve permission) + the requester
+    const approverRecords = await prisma.userPermissions.findMany({
+      where: { granted: true, permission: { name: 'petty_cash.approve' } },
+      select: { userId: true },
+    })
+    const approverIds = [...new Set(approverRecords.map(r => r.userId))]
+    const notifyIds = [...new Set([user.id, ...approverIds])]
+    const channel = paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'
+    const urgentPrefix = priority === 'URGENT' ? '🚨 URGENT — ' : ''
+    await emitNotification({
+      userIds: notifyIds,
+      type: 'PETTY_CASH_SUBMITTED',
+      title: priority === 'URGENT' ? '🚨 Urgent Petty Cash Request' : 'Petty Cash Request',
+      message: `${urgentPrefix}${user.name} requested $${Number(requestedAmount).toFixed(2)} for ${purpose.trim()} [${channel}]`,
+      linkUrl: '/petty-cash',
+      metadata: { requestId: newRequest.id, priority: priority === 'URGENT' ? 'URGENT' : 'NORMAL', paymentChannel: paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH' },
     })
 
     return NextResponse.json(
@@ -169,6 +189,8 @@ function formatRequest(r: any) {
     approvedAt: r.approvedAt?.toISOString() || null,
     settledAt: r.settledAt?.toISOString() || null,
     cancelledAt: r.cancelledAt?.toISOString() || null,
+    paymentChannel: r.paymentChannel,
+    priority: r.priority,
     depositId: r.depositId,
     businessTxId: r.businessTxId,
     returnPaymentId: r.returnPaymentId,

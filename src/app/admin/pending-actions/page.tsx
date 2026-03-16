@@ -39,6 +39,8 @@ interface PendingPettyCash {
   purpose: string
   notes: string | null
   requestedAt: string
+  paymentChannel?: string
+  priority?: string
   requester: { id: string; name: string } | null
   business: { id: string; name: string } | null
 }
@@ -62,6 +64,8 @@ interface PendingPaymentBatch {
   business: { id: string; name: string; type: string } | null
   _count: { payments: number }
   totalAmount?: number
+  cashCount?: number
+  ecocashCount?: number
 }
 
 interface PendingPaymentRequest {
@@ -70,6 +74,9 @@ interface PendingPaymentRequest {
   accountNumber: string
   requestCount: number
   totalAmount?: number
+  cashCount?: number
+  ecocashCount?: number
+  urgentCount?: number
   awaitingCashier?: boolean
   business: { id: string; name: string } | null
 }
@@ -253,12 +260,20 @@ export default function PendingActionsPage() {
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingPettyCash.map(item => (
-                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-orange-300 dark:border-orange-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                  {pendingPettyCash.map(item => {
+                    const isUrgent = item.priority === 'URGENT'
+                    const isEcocash = item.paymentChannel === 'ECOCASH'
+                    return (
+                    <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${isUrgent ? 'border-2 border-red-500 dark:border-red-400' : 'border border-orange-300 dark:border-orange-700'}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-gray-900 dark:text-white">{item.purpose}</span>
+                          {isUrgent && <span className="text-lg">🚨</span>}
+                          <span className={`font-semibold ${isUrgent ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-white'}`}>{item.purpose}</span>
+                          {isUrgent && <span className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 text-xs font-bold px-2 py-0.5 rounded">URGENT</span>}
                           <span className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-2 py-0.5 rounded">Pending</span>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${isEcocash ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'}`}>
+                            {isEcocash ? '📱 EcoCash' : '💵 Cash'}
+                          </span>
                         </div>
                         {item.notes && <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{item.notes}</p>}
                         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -270,12 +285,13 @@ export default function PendingActionsPage() {
                       </div>
                       <Link
                         href={`/petty-cash/${item.id}`}
-                        className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded transition-colors shrink-0"
+                        className={`px-3 py-1.5 text-white text-sm font-medium rounded transition-colors shrink-0 ${isUrgent ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'}`}
                       >
                         Handle Request
                       </Link>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -373,8 +389,14 @@ export default function PendingActionsPage() {
                           <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-medium px-2 py-0.5 rounded">
                             {item._count.payments} payment{item._count.payments !== 1 ? 's' : ''}
                           </span>
+                          {(item.cashCount ?? 0) > 0 && (
+                            <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-medium px-2 py-0.5 rounded">💵 {item.cashCount}</span>
+                          )}
+                          {(item.ecocashCount ?? 0) > 0 && (
+                            <span className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-xs font-medium px-2 py-0.5 rounded">📱 {item.ecocashCount}</span>
+                          )}
                           {typeof item.totalAmount === 'number' && (
-                            <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-semibold px-2 py-0.5 rounded ml-2">
+                            <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-semibold px-2 py-0.5 rounded">
                               ${item.totalAmount.toFixed(2)}
                             </span>
                           )}
@@ -406,12 +428,22 @@ export default function PendingActionsPage() {
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingPaymentRequests.map(item => (
-                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-indigo-300 dark:border-indigo-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                  {pendingPaymentRequests.map(item => {
+                    const hasUrgent = (item.urgentCount ?? 0) > 0
+                    return (
+                    <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${hasUrgent ? 'border-2 border-red-500 dark:border-red-400' : 'border border-indigo-300 dark:border-indigo-700'}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-gray-900 dark:text-white">{item.accountName}</span>
+                          {hasUrgent && <span className="text-lg">🚨</span>}
+                          <span className={`font-semibold ${hasUrgent ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-white'}`}>{item.accountName}</span>
+                          {hasUrgent && <span className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 text-xs font-bold px-2 py-0.5 rounded">{item.urgentCount} URGENT</span>}
                           <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-2 py-0.5 rounded">{item.requestCount} pending</span>
+                          {(item.cashCount ?? 0) > 0 && (
+                            <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-medium px-2 py-0.5 rounded">💵 {item.cashCount}</span>
+                          )}
+                          {(item.ecocashCount ?? 0) > 0 && (
+                            <span className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-xs font-medium px-2 py-0.5 rounded">📱 {item.ecocashCount}</span>
+                          )}
                           {item.totalAmount != null && (
                             <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded">${Number(item.totalAmount).toFixed(2)}</span>
                           )}
@@ -426,7 +458,7 @@ export default function PendingActionsPage() {
                         {batchingId === item.id ? 'Creating…' : 'Review Payments'}
                       </button>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             )}

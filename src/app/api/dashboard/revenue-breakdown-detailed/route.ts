@@ -74,6 +74,23 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    // --- Batch fetch sales breakdown by paymentMethod ---
+    const salesByPaymentRows = await prisma.businessOrders.groupBy({
+      by: ['businessId', 'paymentMethod'] as any,
+      where: { businessId: { in: allBusinessIds } },
+      _sum: { totalAmount: true },
+    })
+    const cashSalesMap = new Map<string, number>()
+    const ecocashSalesMap = new Map<string, number>()
+    for (const row of salesByPaymentRows as any[]) {
+      const amt = Number(row._sum.totalAmount ?? 0)
+      if ((row.paymentMethod ?? '').toUpperCase() === 'ECOCASH') {
+        ecocashSalesMap.set(row.businessId, (ecocashSalesMap.get(row.businessId) ?? 0) + amt)
+      } else {
+        cashSalesMap.set(row.businessId, (cashSalesMap.get(row.businessId) ?? 0) + amt)
+      }
+    }
+
     // --- Per-business revenue + balance ---
     const revenueByBusiness = await Promise.all(
       accessibleBusinesses.map(async (business) => {
@@ -96,6 +113,8 @@ export async function GET(req: NextRequest) {
         const rent = rentMap.get(business.id) ?? null
         const cashBalance = cashBoxMap.get(business.id) ?? 0
         const ecocashBalance = ecocashBoxMap.get(business.id) ?? 0
+        const cashRevenue = cashSalesMap.get(business.id) ?? 0
+        const ecocashRevenue = ecocashSalesMap.get(business.id) ?? 0
 
         return {
           businessId: business.id,
@@ -112,6 +131,8 @@ export async function GET(req: NextRequest) {
           cashBoxBalance: cashBalance + ecocashBalance,
           cashBalance,
           ecocashBalance,
+          cashRevenue,
+          ecocashRevenue,
           monthlyRent: rent?.monthlyRent ?? 0,
           rentContributed: rent?.contributed ?? 0,
           hasRentConfig: rent !== null,
@@ -133,6 +154,8 @@ export async function GET(req: NextRequest) {
           totalCashBoxBalance: 0,
           totalCashBalance: 0,
           totalEcocashBalance: 0,
+          totalCashRevenue: 0,
+          totalEcocashRevenue: 0,
           totalMonthlyRent: 0,
           totalRentContributed: 0,
           hasRentConfig: false,
@@ -150,6 +173,8 @@ export async function GET(req: NextRequest) {
       t.totalCashBoxBalance += item.cashBoxBalance
       t.totalCashBalance += item.cashBalance
       t.totalEcocashBalance += item.ecocashBalance
+      t.totalCashRevenue += item.cashRevenue
+      t.totalEcocashRevenue += item.ecocashRevenue
       t.totalMonthlyRent += item.monthlyRent
       t.totalRentContributed += item.rentContributed
       if (item.hasRentConfig) t.hasRentConfig = true
@@ -168,6 +193,8 @@ export async function GET(req: NextRequest) {
         cashBoxBalance: item.cashBoxBalance,
         cashBalance: item.cashBalance,
         ecocashBalance: item.ecocashBalance,
+        cashRevenue: item.cashRevenue,
+        ecocashRevenue: item.ecocashRevenue,
         monthlyRent: item.monthlyRent,
         rentContributed: item.rentContributed,
         hasRentConfig: item.hasRentConfig,
@@ -182,6 +209,12 @@ export async function GET(req: NextRequest) {
       revenueByType[type].businesses.sort((a: any, b: any) => b.revenue - a.revenue)
     })
 
+    // Exclude umbrella type from the byType display — it is already included in the ALL totals
+    const byTypeForDisplay: Record<string, any> = {}
+    for (const [type, data] of Object.entries(revenueByType)) {
+      if (type !== 'umbrella') byTypeForDisplay[type] = data
+    }
+
     const typeValues = Object.values(revenueByType) as any[]
     return NextResponse.json({
       summary: {
@@ -193,10 +226,14 @@ export async function GET(req: NextRequest) {
         pendingOrders: typeValues.reduce((s, t) => s + t.pendingOrders, 0),
         totalAccountBalance: typeValues.reduce((s, t) => s + t.totalAccountBalance, 0),
         totalCashBoxBalance: typeValues.reduce((s, t) => s + t.totalCashBoxBalance, 0),
-        businessTypes: Object.keys(revenueByType).length,
+        totalCashBalance: typeValues.reduce((s, t) => s + t.totalCashBalance, 0),
+        totalEcocashBalance: typeValues.reduce((s, t) => s + t.totalEcocashBalance, 0),
+        totalCashRevenue: typeValues.reduce((s, t) => s + t.totalCashRevenue, 0),
+        totalEcocashRevenue: typeValues.reduce((s, t) => s + t.totalEcocashRevenue, 0),
+        businessTypes: Object.keys(byTypeForDisplay).length,
         businesses: accessibleBusinesses.length,
       },
-      byType: revenueByType,
+      byType: byTypeForDisplay,
       lastUpdated: new Date().toISOString(),
     })
 

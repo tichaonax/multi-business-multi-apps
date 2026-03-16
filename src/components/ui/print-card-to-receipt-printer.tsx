@@ -29,6 +29,8 @@ interface PrintCardToReceiptPrinterProps {
   businessId: string
   label?: string
   className?: string
+  disabled?: boolean
+  onPrintSuccess?: () => void
 }
 
 export function PrintCardToReceiptPrinter({
@@ -36,6 +38,8 @@ export function PrintCardToReceiptPrinter({
   businessId,
   label = 'Print to Receipt Printer',
   className,
+  disabled = false,
+  onPrintSuccess,
 }: PrintCardToReceiptPrinterProps) {
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
@@ -96,6 +100,7 @@ export function PrintCardToReceiptPrinter({
     try {
       await printCardToReceiptPrinter(el, selectedPrinterId, businessId)
       setSuccess(true)
+      onPrintSuccess?.()
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Print failed')
@@ -138,7 +143,7 @@ export function PrintCardToReceiptPrinter({
       <button
         type="button"
         onClick={handlePrint}
-        disabled={printing || !selectedPrinterId}
+        disabled={printing || !selectedPrinterId || disabled}
         className="w-full py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {printing ? (

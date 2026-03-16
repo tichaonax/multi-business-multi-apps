@@ -310,6 +310,8 @@ export function QuickPaymentModal({
     amount: '',
     paymentDate: getTodayLocalDateString(),
     notes: '',
+    paymentChannel: 'CASH' as 'CASH' | 'ECOCASH',
+    priority: 'NORMAL' as 'NORMAL' | 'URGENT',
   })
 
   const [errors, setErrors] = useState({
@@ -587,16 +589,22 @@ export function QuickPaymentModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (loading) return
+    setLoading(true)
+
     if (!(await validateForm())) {
+      setLoading(false)
       return
     }
 
-    setLoading(true)
-
     try {
       // Construct the payment payload with correct field names based on payee type
+      const selectedCat = formData.subcategoryId
+        ? subcategories.find(s => s.id === formData.subcategoryId)
+        : categories.find(c => c.id === formData.categoryId)
       const payment = {
         payeeType: formData.payee!.type,
+        payeeName: formData.payee!.name,
         payeeUserId: formData.payee?.type === 'USER' ? formData.payee.id : undefined,
         payeeEmployeeId: formData.payee?.type === 'EMPLOYEE' ? formData.payee.id : undefined,
         payeePersonId: formData.payee?.type === 'PERSON' ? formData.payee.id : undefined,
@@ -604,10 +612,13 @@ export function QuickPaymentModal({
         payeeSupplierId: formData.payee?.type === 'SUPPLIER' ? formData.payee.id : undefined,
         // Form "category" = domain, "subcategory" = actual category, "sub-subcategory" = subcategory
         categoryId: formData.subcategoryId || formData.categoryId,
+        categoryName: selectedCat?.name || undefined,
         subcategoryId: formData.subSubcategoryId || null,
         amount: parseFloat(formData.amount),
         paymentDate: formData.paymentDate,
         notes: formData.notes || null,
+        paymentChannel: formData.paymentChannel,
+        priority: formData.priority,
         isFullPayment: true,
         status: 'SUBMITTED'
       }
@@ -661,6 +672,8 @@ export function QuickPaymentModal({
       amount: '',
       paymentDate: getTodayLocalDateString(),
       notes: '',
+      paymentChannel: 'CASH',
+      priority: 'NORMAL',
     })
     setErrors({
       payee: '',
@@ -1052,6 +1065,55 @@ export function QuickPaymentModal({
                   <p className="text-xs text-yellow-500 mt-1">
                     Warning: Insufficient funds. Available balance: ${(liveBalance ?? currentBalance).toFixed(2)}. The check will be done on approval.
                   </p>
+                )}
+              </div>
+
+              {/* Payment Channel */}
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">Payment Method</label>
+                <div className="flex gap-2">
+                  {(['CASH', 'ECOCASH'] as const).map(ch => (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, paymentChannel: ch })}
+                      className={`flex-1 py-2 text-sm font-medium rounded-md border transition-colors ${
+                        formData.paymentChannel === ch
+                          ? ch === 'ECOCASH'
+                            ? 'bg-green-600 text-white border-green-600'
+                            : 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-background text-secondary border-border hover:bg-muted'
+                      }`}
+                    >
+                      {ch === 'CASH' ? '💵 Cash' : '📱 EcoCash'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Priority */}
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">Priority</label>
+                <div className="flex gap-2">
+                  {(['NORMAL', 'URGENT'] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, priority: p })}
+                      className={`flex-1 py-2 text-sm font-medium rounded-md border transition-colors ${
+                        formData.priority === p
+                          ? p === 'URGENT'
+                            ? 'bg-red-600 text-white border-red-600'
+                            : 'bg-gray-600 text-white border-gray-600'
+                          : 'bg-background text-secondary border-border hover:bg-muted'
+                      }`}
+                    >
+                      {p === 'URGENT' ? '🚨 Urgent' : '✅ Normal'}
+                    </button>
+                  ))}
+                </div>
+                {formData.priority === 'URGENT' && (
+                  <p className="text-xs text-red-500 mt-1">Urgent requests are prioritised by the cashier.</p>
                 )}
               </div>
 

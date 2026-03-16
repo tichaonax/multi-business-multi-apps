@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 async function hasPettyCashApprove(userId: string): Promise<boolean> {
   const record = await prisma.userPermissions.findFirst({
@@ -136,6 +137,15 @@ export async function POST(
       })
 
       return { updated, depositId: deposit.id }
+    })
+
+    // Notify the requester that their request was approved
+    await emitNotification({
+      userIds: [result.updated.requestedBy],
+      type: 'PETTY_CASH_APPROVED',
+      title: 'Petty Cash Approved',
+      message: `Your request for $${amount.toFixed(2)} (${pcRequest.purpose}) has been approved by ${user.name}`,
+      linkUrl: `/petty-cash/${requestId}`,
     })
 
     return NextResponse.json({

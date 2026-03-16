@@ -71,6 +71,16 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const { unreadCount: notifUnreadCount, notifications: notifList, markRead, markAllRead } = useNotifications()
   const [showBellPreview, setShowBellPreview] = useState(false)
   const [showNotifPanel, setShowNotifPanel] = useState(false)
+  const [canPettyCashRequest, setCanPettyCashRequest] = useState(false)
+
+  // Fetch petty cash permission once on mount (system-level, not covered by hasPermission)
+  useEffect(() => {
+    if (!session) return
+    fetch('/api/petty-cash/my-permissions', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j?.canRequest) setCanPettyCashRequest(true) })
+      .catch(() => {})
+  }, [session])
   const notifRef = useRef<HTMLDivElement>(null)
   const notifHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bellRef = useRef<HTMLDivElement>(null)
@@ -745,15 +755,29 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               <span className="mt-0.5 shrink-0">📋</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-primary truncate">Payment Batch — {b.business?.name ?? '—'}</p>
-                                <p className="text-secondary">{b.eodDate} · {b._count?.payments ?? 0} payments{b.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(b.totalAmount).toFixed(2)}</span></> : ''}</p>
+                                <p className="text-secondary">
+                                  {b.eodDate} · {b._count?.payments ?? 0} payments
+                                  {b.cashCount > 0 && <span className="ml-1">· 💵 {b.cashCount}</span>}
+                                  {b.ecocashCount > 0 && <span className="ml-1">· 📱 {b.ecocashCount}</span>}
+                                  {b.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(b.totalAmount).toFixed(2)}</span></> : ''}
+                                </p>
                               </div>
                             </Link>
                           ))}
                           {pendingActions.pendingPettyCash?.map((p: any) => (
-                            <Link key={p.id} href={`/petty-cash/${p.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
-                              <span className="mt-0.5 shrink-0">🪙</span>
-                              <div className="min-w-0">
-                                <p className="font-medium text-primary truncate">Petty Cash — {p.requester?.name ?? '—'}</p>
+                            <Link
+                              key={p.id}
+                              href={`/petty-cash/${p.id}`}
+                              onClick={() => setShowBellPreview(false)}
+                              className={`flex items-start gap-2 px-3 py-2 text-xs ${p.priority === 'URGENT' ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
+                            >
+                              <span className="mt-0.5 shrink-0">{p.priority === 'URGENT' ? '🚨' : '🪙'}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className={`font-medium truncate ${p.priority === 'URGENT' ? 'text-red-700 dark:text-red-300' : 'text-primary'}`}>
+                                  {p.priority === 'URGENT' && <span className="text-red-600 dark:text-red-400 font-bold mr-1">URGENT</span>}
+                                  {p.requester?.name ?? '—'}
+                                  <span className="ml-1.5 font-normal">{p.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'}</span>
+                                </p>
                                 <p className="text-secondary">{p.business?.name && <span className="font-medium text-primary">{p.business.name} · </span>}{p.purpose} · <span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(p.requestedAmount ?? 0).toFixed(2)}</span></p>
                               </div>
                             </Link>
@@ -821,15 +845,23 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
-                          {pendingActions.pendingPaymentRequests?.map((r: any) => (
-                            <Link key={r.id} href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
-                              <span className="mt-0.5 shrink-0">💳</span>
+                          {pendingActions.pendingPaymentRequests?.map((r: any) => {
+                            const hasUrgent = (r.urgentCount ?? 0) > 0
+                            return (
+                            <Link key={r.id} href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${hasUrgent ? 'border-l-2 border-red-500' : ''}`}>
+                              <span className="mt-0.5 shrink-0">{hasUrgent ? '🚨' : '💳'}</span>
                               <div className="min-w-0">
-                                <p className="font-medium text-primary truncate">Payment Requests — {r.accountName ?? '—'}</p>
+                                <p className={`font-medium truncate ${hasUrgent ? 'text-red-600 dark:text-red-400' : 'text-primary'}`}>
+                                  Payment Requests — {r.accountName ?? '—'}
+                                  {hasUrgent && <span className="ml-1.5 text-xs font-bold text-red-600 dark:text-red-400"> URGENT</span>}
+                                  {r.cashCount > 0 && <span className="ml-1.5 font-normal">💵 {r.cashCount}</span>}
+                                  {r.ecocashCount > 0 && <span className="ml-1.5 font-normal">📱 {r.ecocashCount}</span>}
+                                </p>
                                 <p className="text-secondary">{r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}{r.requestCount ?? r.pendingCount ?? 0} pending{r.totalAmount != null && r.totalAmount > 0 ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}</p>
                               </div>
                             </Link>
-                          ))}
+                            )
+                          })}
                           {(pendingActions as any).myPendingPayments?.map((r: any) => (
                             <Link key={r.id} href={`/expense-accounts/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
                               <span className="mt-0.5 shrink-0">📤</span>
@@ -897,32 +929,75 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
                     {showNotifPanel && (
                       <div className="absolute right-0 top-full mt-1 w-80 rounded-lg border border-border bg-white dark:bg-gray-800 shadow-xl z-50 overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border flex items-center justify-between">
+                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border flex items-center gap-2">
                           <span className="text-xs font-semibold text-primary">Notifications</span>
-                          {notifUnreadCount > 0 && (
-                            <button onClick={() => markAllRead()} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Mark all read</button>
-                          )}
+                          {/* Quick-action shortcuts — shown only when user has the relevant permission */}
+                          <div className="flex items-center gap-1 ml-1">
+                            {canPettyCashRequest && (
+                              <a
+                                href="/petty-cash/new"
+                                title="New Petty Cash Request"
+                                onClick={() => setShowNotifPanel(false)}
+                                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                              >
+                                <span className="text-sm">💸</span>
+                              </a>
+                            )}
+                            {hasPermission('canAccessExpenseAccount') && (
+                              <a
+                                href="/expense-accounts/quick-payment"
+                                title="New Payment Request"
+                                onClick={() => setShowNotifPanel(false)}
+                                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                              >
+                                <span className="text-sm">💳</span>
+                              </a>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 ml-auto">
+                            <a href="/admin/pending-actions" onClick={() => setShowNotifPanel(false)} className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline whitespace-nowrap">Pending Actions</a>
+                            {notifUnreadCount > 0 && (
+                              <button onClick={() => markAllRead()} className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">Mark all read</button>
+                            )}
+                          </div>
                         </div>
                         <div className="divide-y divide-border max-h-80 overflow-y-auto">
                           {notifList.length === 0 ? (
                             <div className="px-3 py-4 text-xs text-secondary text-center">No notifications</div>
-                          ) : notifList.map(n => (
+                          ) : notifList.map(n => {
+                            const isUrgent = n.title?.includes('Urgent') || n.title?.includes('URGENT') || n.message?.includes('🚨')
+                            const hasCash = n.message?.includes('💵')
+                            const hasEcoCash = n.message?.includes('📱')
+                            const showBadges = (n.type === 'PETTY_CASH_SUBMITTED' || n.type === 'PAYMENT_SUBMITTED' || n.type === 'PAYMENT_APPROVED' || n.type === 'PAYMENT_REJECTED') && (hasCash || hasEcoCash || isUrgent)
+                            return (
                             <div
                               key={n.id}
-                              className={`flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${!n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                              className={`flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${
+                                isUrgent
+                                  ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400'
+                                  : !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                              }`}
                               onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
                             >
                               <span className="mt-0.5 shrink-0 text-base">
-                                {n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'CHAT_MESSAGE' ? '💬' : '🔔'}
+                                {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : '🔔'}
                               </span>
                               <div className="min-w-0 flex-1">
-                                <p className={`font-medium truncate ${!n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
-                                <p className="text-secondary truncate">{n.message}</p>
+                                <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
+                                <p className="text-secondary line-clamp-2">{n.message}</p>
+                                {showBadges && (
+                                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                    {isUrgent && <span className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold px-1.5 py-0.5 rounded text-[10px]">URGENT</span>}
+                                    {hasCash && <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded text-[10px]">💵 Cash</span>}
+                                    {hasEcoCash && <span className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 px-1.5 py-0.5 rounded text-[10px]">📱 EcoCash</span>}
+                                  </div>
+                                )}
                                 <p className="text-gray-400 dark:text-gray-500 mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
                               </div>
                               {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />}
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     )}

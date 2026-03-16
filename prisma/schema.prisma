@@ -1529,6 +1529,8 @@ model ExpenseAccountPayments {
   paymentChannel            String                           @default("CASH") @map("payment_channel")
   // CASH | ECOCASH — channel used for this payment
   ecocashTransactionCode    String?                          @map("ecocash_transaction_code")
+  priority                  String                           @default("NORMAL") @map("priority")
+  // NORMAL | URGENT — requester can flag urgent to help cashier prioritize
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -5056,6 +5058,8 @@ model PettyCashRequests {
   paymentChannel         String          @default("CASH") @map("payment_channel")
   // CASH | ECOCASH — channel for this petty cash request
   ecocashTransactionCode String?         @map("ecocash_transaction_code")
+  priority               String          @default("NORMAL") @map("priority")
+  // NORMAL | URGENT — requester can flag urgent to help approvers prioritize
   createdAt              DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 

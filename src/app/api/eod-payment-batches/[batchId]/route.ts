@@ -87,6 +87,8 @@ export async function GET(
           amount: Number(p.amount),
           paymentDate: p.paymentDate.toISOString(),
           notes: p.notes,
+          paymentChannel: (p as any).paymentChannel ?? 'CASH',
+          priority: (p as any).priority ?? 'NORMAL',
           creator: p.creator,
           createdAt: p.createdAt.toISOString(),
         })),

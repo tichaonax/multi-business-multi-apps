@@ -169,8 +169,9 @@ export default function PettyCashDetailPage() {
   const [txSummary, setTxSummary] = useState<{ approvedAmount: number; spentAmount: number; remainingBalance: number } | null>(null)
   const [loadingTx, setLoadingTx] = useState(false)
 
-  // Bucket balance for the request's business
+  // Bucket balances for the request's business (cash + ecocash separate)
   const [bucketBalance, setBucketBalance] = useState<number | null>(null)
+  const [ecocashBucketBalance, setEcocashBucketBalance] = useState<number | null>(null)
 
   // Record Spend modal state
   const [showSpend, setShowSpend] = useState(false)
@@ -286,7 +287,8 @@ export default function PettyCashDetailPage() {
           const bucketRes = await fetch(`/api/cash-bucket?businessId=${json.data.request.businessId}`, { credentials: 'include' })
           const bucketJson = await bucketRes.json()
           const biz = bucketJson.data?.balances?.find((b: any) => b.businessId === json.data.request.businessId)
-          setBucketBalance(biz ? biz.balance : 0)
+          setBucketBalance(biz ? biz.cashBalance : 0)
+          setEcocashBucketBalance(biz ? biz.ecocashBalance : 0)
         } catch {
           // non-fatal
         }
@@ -700,6 +702,18 @@ export default function PettyCashDetailPage() {
               <p className="font-medium text-gray-900 dark:text-gray-100">{req.expenseAccount.accountName} ({req.expenseAccount.accountNumber})</p>
             </div>
           )}
+          <div>
+            <p className="text-gray-500 dark:text-gray-400">Payment channel</p>
+            <p className="font-medium text-gray-900 dark:text-gray-100">
+              {isEcocashRequest ? '📱 EcoCash' : '💵 Cash'}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500 dark:text-gray-400">Priority</p>
+            <p className={`font-medium ${(req as any).priority === 'URGENT' ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+              {(req as any).priority === 'URGENT' ? '🚨 Urgent' : 'Normal'}
+            </p>
+          </div>
           {req.notes && (
             <div className="col-span-2">
               <p className="text-gray-500 dark:text-gray-400">Notes</p>
@@ -821,39 +835,42 @@ export default function PettyCashDetailPage() {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Approve Petty Cash Request</h2>
               <form onSubmit={handleApprove} className="space-y-4">
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm">
-                  <p className="text-gray-500 dark:text-gray-400">Requested amount</p>
-                  <p className="font-semibold text-lg text-gray-900 dark:text-gray-100">{fmt(req.requestedAmount)}</p>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-500 dark:text-gray-400">Requested amount</p>
+                    <p className="font-semibold text-lg text-gray-900 dark:text-gray-100">{fmt(req.requestedAmount)}</p>
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded ${isEcocashRequest ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'}`}>
+                    {isEcocashRequest ? '📱 EcoCash' : '💵 Cash'}
+                  </span>
                 </div>
-                {bucketBalance !== null && (
-                  <div className={`rounded-lg p-3 text-sm ${
-                    bucketBalance >= Number(approvedAmount || 0)
-                      ? 'bg-green-50 dark:bg-green-900/20'
-                      : 'bg-red-50 dark:bg-red-900/20'
-                  }`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-gray-500 dark:text-gray-400">Cash available in bucket</p>
-                        <p className={`font-semibold text-lg ${
-                          bucketBalance >= Number(approvedAmount || 0)
-                            ? 'text-green-700 dark:text-green-300'
-                            : 'text-red-700 dark:text-red-300'
-                        }`}>{fmt(bucketBalance)}</p>
-                      </div>
-                      {Number(approvedAmount || 0) > 0 && (
-                        <div className="text-right">
-                          <p className="text-gray-500 dark:text-gray-400">After approval</p>
-                          <p className="font-semibold text-lg text-amber-600 dark:text-amber-400">
-                            {fmt(bucketBalance - Number(approvedAmount))}
-                          </p>
+                {(() => {
+                  const relevantBalance = isEcocashRequest ? ecocashBucketBalance : bucketBalance
+                  const amt = Number(approvedAmount || 0)
+                  const sufficient = relevantBalance !== null && relevantBalance >= amt
+                  if (relevantBalance === null) return null
+                  return (
+                    <div className={`rounded-lg p-3 text-sm ${sufficient ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-gray-500 dark:text-gray-400">{isEcocashRequest ? '📱 EcoCash wallet balance' : '💵 Cash available in bucket'}</p>
+                          <p className={`font-semibold text-lg ${sufficient ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>{fmt(relevantBalance)}</p>
                         </div>
+                        {amt > 0 && (
+                          <div className="text-right">
+                            <p className="text-gray-500 dark:text-gray-400">After approval</p>
+                            <p className="font-semibold text-lg text-amber-600 dark:text-amber-400">{fmt(relevantBalance - amt)}</p>
+                          </div>
+                        )}
+                      </div>
+                      {!sufficient && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                          {isEcocashRequest ? 'Insufficient EcoCash funds — top up EcoCash wallet first' : 'Insufficient — add EOD cash before approving'}
+                        </p>
                       )}
                     </div>
-                    {bucketBalance < Number(approvedAmount || 0) && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Insufficient — add EOD cash before approving</p>
-                    )}
-                  </div>
-                )}
+                  )
+                })()}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Approved Amount <span className="text-red-500">*</span>
@@ -871,7 +888,9 @@ export default function PettyCashDetailPage() {
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Cannot exceed requested amount</p>
                 </div>
                 <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
-                  Cash will be drawn from the physical cash bucket and deposited into the expense account. Hand the cash to the requester.
+                  {isEcocashRequest
+                    ? '📱 EcoCash will be sent to the requester via EcoCash mobile money transfer.'
+                    : '💵 Cash will be drawn from the physical cash bucket. Hand the cash to the requester.'}
                 </p>
                 {/* Signature pad */}
                 <div>
@@ -894,8 +913,8 @@ export default function PettyCashDetailPage() {
                   <button type="button" onClick={() => { setShowApprove(false); clearSignature() }} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
                   <button
                     type="submit"
-                    disabled={approving || (bucketBalance !== null && bucketBalance < Number(approvedAmount || 0))}
-                    title={bucketBalance !== null && bucketBalance < Number(approvedAmount || 0) ? 'Insufficient cash in bucket — add EOD cash first' : undefined}
+                    disabled={approving || (() => { const b = isEcocashRequest ? ecocashBucketBalance : bucketBalance; return b !== null && b < Number(approvedAmount || 0) })()}
+                    title={(() => { const b = isEcocashRequest ? ecocashBucketBalance : bucketBalance; return b !== null && b < Number(approvedAmount || 0) ? (isEcocashRequest ? 'Insufficient EcoCash funds' : 'Insufficient cash in bucket — add EOD cash first') : undefined })()}
                     className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {approving ? 'Processing...' : 'Approve & Issue'}

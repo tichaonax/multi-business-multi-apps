@@ -252,6 +252,7 @@ function MyQueuePanel({
   const [ecocashModal, setEcocashModal] = useState<{ paymentId: string; amount: number } | null>(null)
   const [ecocashTxCode, setEcocashTxCode] = useState('')
   const [ecocashSubmitting, setEcocashSubmitting] = useState(false)
+  const ecocashSubmittingRef = useRef(false)
 
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -341,6 +342,8 @@ function MyQueuePanel({
   const handleMarkSentEcocash = async () => {
     if (!ecocashModal) return
     if (!ecocashTxCode.trim()) return
+    if (ecocashSubmittingRef.current) return
+    ecocashSubmittingRef.current = true
     setEcocashSubmitting(true)
     try {
       const res = await fetch(`/api/expense-account/${accountId}/payments/${ecocashModal.paymentId}`, {
@@ -359,6 +362,7 @@ function MyQueuePanel({
         await alert({ title: 'Error', description: d.error ?? 'Failed to mark EcoCash payment as sent' })
       }
     } finally {
+      ecocashSubmittingRef.current = false
       setEcocashSubmitting(false)
     }
   }

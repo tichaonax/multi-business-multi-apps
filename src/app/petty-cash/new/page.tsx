@@ -18,6 +18,7 @@ export default function NewPettyCashRequestPage() {
   const [purpose, setPurpose] = useState('')
   const [notes, setNotes] = useState('')
   const [paymentChannel, setPaymentChannel] = useState<'CASH' | 'ECOCASH'>('CASH')
+  const [priority, setPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL')
   const [submitting, setSubmitting] = useState(false)
   const [canRequest, setCanRequest] = useState<boolean | null>(null)
 
@@ -59,7 +60,7 @@ export default function NewPettyCashRequestPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ businessId: currentBusinessId, requestedAmount: Number(amount), purpose: purpose.trim(), notes: notes.trim() || undefined, paymentChannel }),
+        body: JSON.stringify({ businessId: currentBusinessId, requestedAmount: Number(amount), purpose: purpose.trim(), notes: notes.trim() || undefined, paymentChannel, priority }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to submit')
@@ -125,6 +126,23 @@ export default function NewPettyCashRequestPage() {
                 placeholder="Additional details..."
                 className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Priority</label>
+              <div className="flex gap-3">
+                <label className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border cursor-pointer text-sm font-medium transition-colors ${priority === 'NORMAL' ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-400 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  <input type="radio" className="sr-only" checked={priority === 'NORMAL'} onChange={() => setPriority('NORMAL')} />
+                  Normal
+                </label>
+                <label className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border cursor-pointer text-sm font-medium transition-colors ${priority === 'URGENT' ? 'bg-red-50 dark:bg-red-900/30 border-red-400 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  <input type="radio" className="sr-only" checked={priority === 'URGENT'} onChange={() => setPriority('URGENT')} />
+                  🚨 Urgent
+                </label>
+              </div>
+              {priority === 'URGENT' && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1.5">Urgent requests are highlighted for approvers to action first.</p>
+              )}
             </div>
 
             {currentBusiness?.ecocashEnabled && (

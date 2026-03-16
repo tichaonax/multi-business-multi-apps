@@ -57,6 +57,7 @@ interface BatchPayment {
   interestAmount?: number
   transferLedgerId?: string
   paymentChannel?: string
+  priority?: string
 }
 
 // Quick inline create modal for subcategory/sub-subcategory
@@ -358,6 +359,7 @@ export function PaymentForm({
     loanId: '',
     interestAmount: '0',
     paymentChannel: 'CASH' as 'CASH' | 'ECOCASH',
+    priority: 'NORMAL' as 'NORMAL' | 'URGENT',
   })
 
   const [errors, setErrors] = useState({
@@ -727,6 +729,7 @@ export function PaymentForm({
       interestAmount: formData.paymentType === 'LOAN_REPAYMENT' ? parseFloat(formData.interestAmount || '0') : undefined,
       transferLedgerId: undefined,
       paymentChannel: ecocashEnabled ? formData.paymentChannel : 'CASH',
+      priority: formData.priority,
     }
 
     if (editingPaymentId) {
@@ -760,6 +763,7 @@ export function PaymentForm({
         loanId: '',
         interestAmount: '0',
         paymentChannel: 'CASH',
+        priority: 'NORMAL',
       })
     } else {
       // Keep category and subcategory for faster repeat entries
@@ -777,6 +781,7 @@ export function PaymentForm({
         loanId: '',
         interestAmount: '0',
         paymentChannel: 'CASH',
+        priority: 'NORMAL',
       }))
     }
     setErrors({ payee: '', categoryId: '', amount: '', paymentDate: '' })
@@ -882,6 +887,7 @@ export function PaymentForm({
         interestAmount: p.interestAmount ?? null,
         status: 'SUBMITTED',
         paymentChannel: p.paymentChannel || 'CASH',
+        priority: p.priority || 'NORMAL',
         // Forward vehicle expense metadata if present (added by VehicleExpenseModal)
         vehicleExpense: (p as any).vehicleExpense || undefined,
       }))
@@ -1582,6 +1588,28 @@ export function PaymentForm({
               </div>
             </div>
           )}
+
+          {/* Priority Selector */}
+          <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Priority</label>
+            <div className="flex gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" checked={formData.priority === 'NORMAL'}
+                  onChange={() => setFormData({ ...formData, priority: 'NORMAL' })}
+                  className="accent-gray-600" />
+                <span className="text-sm text-gray-800 dark:text-gray-200">✅ Normal</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" checked={formData.priority === 'URGENT'}
+                  onChange={() => setFormData({ ...formData, priority: 'URGENT' })}
+                  className="accent-red-600" />
+                <span className="text-sm text-red-600 dark:text-red-400 font-medium">🚨 Urgent</span>
+              </label>
+            </div>
+            {formData.priority === 'URGENT' && (
+              <p className="text-xs text-red-500 mt-1">Urgent requests are prioritised by the cashier.</p>
+            )}
+          </div>
 
           {/* Available Balance Display */}
           <div className={`p-4 rounded-lg ${availableBalance < 0 ? 'bg-red-50 dark:bg-red-900/10 border-2 border-red-500' : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'}`}>

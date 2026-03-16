@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
+import { useNotifications } from '@/components/providers/notification-provider'
 import Link from 'next/link'
 
 const STATUS_STYLES: Record<string, string> = {
@@ -28,27 +29,39 @@ export default function PettyCashListPage() {
   const router = useRouter()
   const toast = useToastContext()
   const { currentBusinessId, currentBusiness, isAuthenticated, loading: bizLoading } = useBusinessPermissionsContext()
+  const { refresh: refreshNotifications } = useNotifications()
 
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, hasMore: false })
   const [canRequest, setCanRequest] = useState(false)
+  const [canApprove, setCanApprove] = useState(false)
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false)
 
   useEffect(() => {
     if (status === 'loading') return
     if (!session) { router.push('/auth/signin'); return }
     fetch('/api/petty-cash/my-permissions', { credentials: 'include' })
       .then(r => r.json())
-      .then(j => { if (j.canRequest !== undefined) setCanRequest(j.canRequest) })
-      .catch(() => {})
+      .then(j => {
+        if (j.canRequest !== undefined) setCanRequest(j.canRequest)
+        if (j.canApprove !== undefined) setCanApprove(j.canApprove)
+        setPermissionsLoaded(true)
+      })
+      .catch(() => { setPermissionsLoaded(true) })
   }, [session, status, router])
 
   const fetchRequests = useCallback(async (page = 1) => {
-    if (!currentBusinessId) return
+    // Wait until we know the user's permissions before fetching
+    if (!permissionsLoaded) return
+    // Approvers see ALL requests (no business filter) — their job is to action any pending request
+    // Requesters see only their current business's requests
+    if (!currentBusinessId && !canApprove) return
     setLoading(true)
     try {
-      const params = new URLSearchParams({ businessId: currentBusinessId, page: String(page), limit: '20' })
+      const params = new URLSearchParams({ page: String(page), limit: '20' })
+      if (currentBusinessId && !canApprove) params.set('businessId', currentBusinessId)
       if (statusFilter) params.set('status', statusFilter)
       const res = await fetch(`/api/petty-cash/requests?${params}`, { credentials: 'include' })
       const json = await res.json()
@@ -60,9 +73,17 @@ export default function PettyCashListPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, statusFilter, toast])
+  }, [currentBusinessId, canApprove, permissionsLoaded, statusFilter, toast])
 
   useEffect(() => { fetchRequests(1) }, [fetchRequests])
+
+  // Catch-all: sync any pending requests that have no notification yet, then refresh the bell
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    fetch('/api/petty-cash/requests/sync-notifications', { method: 'POST', credentials: 'include' })
+      .then(() => refreshNotifications())
+      .catch(() => {})
+  }, [status, refreshNotifications])
 
   if (status === 'loading' || bizLoading) {
     return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-gray-900 dark:border-gray-100" /></div>
@@ -144,7 +165,13 @@ export default function PettyCashListPage() {
                     onClick={() => router.push(`/petty-cash/${r.id}`)}
                     className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                   >
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 max-w-xs truncate">{r.purpose}</td>
+                    <td className="px-4 py-3 max-w-xs">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {r.priority === 'URGENT' && <span className="text-xs font-bold text-red-600 dark:text-red-400">🚨 URGENT</span>}
+                        <span className="font-medium text-gray-900 dark:text-gray-100 truncate">{r.purpose}</span>
+                        <span className="text-xs text-gray-400">{r.paymentChannel === 'ECOCASH' ? '📱' : '💵'}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{r.requester?.name || '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{fmt(r.requestedAmount)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">

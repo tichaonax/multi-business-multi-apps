@@ -609,22 +609,46 @@ function DashboardContent() {
                   </div>
                   <div className="ml-3 flex-1 min-w-0">
                     <p className="text-xs font-semibold text-secondary uppercase tracking-wide">All</p>
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight truncate">
                       ${(revenueBreakdown.summary.totalAccountBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-[11px] text-secondary mt-0.5">
                       Sales: ${(revenueBreakdown.summary.totalRevenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
+                    {(revenueBreakdown.summary.totalEcocashRevenue ?? 0) > 0 && (
+                      <div className="pl-1 space-y-0">
+                        <div className="flex items-center justify-between text-[10px] text-secondary">
+                          <span>💵</span>
+                          <span>${(revenueBreakdown.summary.totalCashRevenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-secondary">
+                          <span>📱</span>
+                          <span className="text-teal-600 dark:text-teal-400">${(revenueBreakdown.summary.totalEcocashRevenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 px-4 py-2.5">
+              <div className="bg-gray-50 dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 px-4 py-2.5 space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-secondary flex items-center gap-1">🪣 Cash Box</span>
                   <span className={`font-semibold ${(revenueBreakdown.summary.totalCashBoxBalance ?? 0) > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-secondary'}`}>
                     ${(revenueBreakdown.summary.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
+                {(revenueBreakdown.summary.totalEcocashBalance ?? 0) > 0 && (
+                  <div className="pl-3 space-y-0.5">
+                    <div className="flex items-center justify-between text-xs text-secondary">
+                      <span>💵 Cash</span>
+                      <span>${(revenueBreakdown.summary.totalCashBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-secondary">
+                      <span>📱 EcoCash</span>
+                      <span className="text-teal-600 dark:text-teal-400">${(revenueBreakdown.summary.totalEcocashBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -660,12 +684,24 @@ function DashboardContent() {
                       </div>
                       <div className="ml-3 flex-1 min-w-0">
                         <p className="text-xs font-semibold text-secondary uppercase tracking-wide capitalize">{businessType}</p>
-                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">
+                        <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight truncate">
                           ${(typeData.totalAccountBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                         <p className="text-[11px] text-secondary mt-0.5">
                           Sales: ${typeData.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
+                        {(typeData.totalEcocashRevenue ?? 0) > 0 && (
+                          <div className="pl-1 space-y-0">
+                            <div className="flex items-center justify-between text-[10px] text-secondary">
+                              <span>💵</span>
+                              <span>${(typeData.totalCashRevenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-secondary">
+                              <span>📱</span>
+                              <span className="text-teal-600 dark:text-teal-400">${(typeData.totalEcocashRevenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

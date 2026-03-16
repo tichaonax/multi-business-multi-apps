@@ -78,10 +78,12 @@ export async function GET() {
           purpose: true,
           notes: true,
           requestedAt: true,
+          paymentChannel: true,
+          priority: true,
           requester: { select: { id: true, name: true } },
           business: { select: { id: true, name: true } },
         },
-        orderBy: { requestedAt: 'asc' },
+        orderBy: [{ priority: 'desc' }, { requestedAt: 'asc' }],
       })
     }
 
@@ -286,27 +288,31 @@ export async function GET() {
           eodDate: true,
           business: { select: { id: true, name: true, type: true } },
           _count: { select: { payments: true } },
-          payments: { select: { amount: true } },
+          payments: { select: { amount: true, paymentChannel: true } },
         },
         orderBy: { eodDate: 'asc' },
       })
-      // Compute totalAmount per batch
+      // Compute totalAmount and per-channel counts per batch
       pendingPaymentBatches = (pendingPaymentBatches as any[]).map((b: any) => ({
         ...b,
         totalAmount: (b.payments as any[]).reduce((s: number, p: any) => s + Number(p.amount), 0),
+        cashCount: (b.payments as any[]).filter((p: any) => p.paymentChannel !== 'ECOCASH').length,
+        ecocashCount: (b.payments as any[]).filter((p: any) => p.paymentChannel === 'ECOCASH').length,
         payments: undefined,
       }))
 
-      // Legacy: accounts with QUEUED/REQUEST payments not yet batched
+      // Accounts with pending (QUEUED/REQUEST/SUBMITTED) payments awaiting cashier action
       // Exclude payments submitted by the current user — submitters should not see their own requests
+      // Group by [expenseAccountId, paymentChannel, priority] to get per-channel + urgency counts
+      const pendingPaymentWhere = { status: { in: ['QUEUED', 'REQUEST', 'SUBMITTED'] }, createdBy: { not: user.id } }
       const grouped = await prisma.expenseAccountPayments.groupBy({
-        by: ['expenseAccountId'],
-        where: { status: { in: ['QUEUED', 'REQUEST'] }, createdBy: { not: user.id } },
+        by: ['expenseAccountId', 'paymentChannel', 'priority'],
+        where: pendingPaymentWhere,
         _count: { id: true },
         _sum: { amount: true },
       })
       if (grouped.length > 0) {
-        const accountIds = grouped.map((g) => g.expenseAccountId)
+        const accountIds = [...new Set(grouped.map((g) => g.expenseAccountId))]
         const accounts = await prisma.expenseAccounts.findMany({
           where: { id: { in: accountIds } },
           select: {
@@ -316,11 +322,22 @@ export async function GET() {
             business: { select: { id: true, name: true } },
           },
         })
-        pendingPaymentRequests = accounts.map((acct) => ({
-          ...acct,
-          requestCount: grouped.find((g) => g.expenseAccountId === acct.id)?._count.id ?? 0,
-          totalAmount: Number(grouped.find((g) => g.expenseAccountId === acct.id)?._sum.amount ?? 0),
-        }))
+        pendingPaymentRequests = accounts.map((acct) => {
+          const rows = grouped.filter((g) => g.expenseAccountId === acct.id)
+          const cashRows = rows.filter((g) => (g as any).paymentChannel !== 'ECOCASH')
+          const ecocashRows = rows.filter((g) => (g as any).paymentChannel === 'ECOCASH')
+          const urgentCount = rows.filter((g) => (g as any).priority === 'URGENT').reduce((s, r) => s + r._count.id, 0)
+          return {
+            ...acct,
+            requestCount: rows.reduce((s, r) => s + r._count.id, 0),
+            totalAmount: rows.reduce((s, r) => s + Number(r._sum.amount ?? 0), 0),
+            cashCount: cashRows.reduce((s, r) => s + r._count.id, 0),
+            ecocashCount: ecocashRows.reduce((s, r) => s + r._count.id, 0),
+            urgentCount,
+          }
+        })
+        // Sort so accounts with urgent payments appear first
+        pendingPaymentRequests = (pendingPaymentRequests as any[]).sort((a: any, b: any) => (b.urgentCount ?? 0) - (a.urgentCount ?? 0))
       }
     }
 

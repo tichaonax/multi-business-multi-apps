@@ -61,6 +61,10 @@ export function DailySalesWidget({ dailySales, businessType = 'retail', onRefres
 
   const { summary, businessDay, paymentMethods, employeeSales, categoryBreakdown } = dailySales
 
+  const cashData    = paymentMethods?.['CASH']    ?? paymentMethods?.['Cash']    ?? null
+  const ecocashData = paymentMethods?.['ECOCASH'] ?? paymentMethods?.['Ecocash'] ?? paymentMethods?.['EcoCash'] ?? null
+  const hasChannelBreakdown = cashData || ecocashData
+
   return (
     <div className="card bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 p-4 rounded-lg shadow">
       <div className="flex items-center justify-between mb-3">
@@ -91,31 +95,57 @@ export function DailySalesWidget({ dailySales, businessType = 'retail', onRefres
 
       {/* Summary Cards */}
       {!showDetails && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Sales</div>
-            <div className="text-xl font-bold text-green-600 dark:text-green-400">
-              ${summary.totalSales.toFixed(2)}
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Sales</div>
+              <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                ${summary.totalSales.toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Orders</div>
+              <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                {summary.totalOrders}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Avg Order</div>
+              <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                ${summary.averageOrderValue.toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Receipts</div>
+              <div className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                {summary.receiptsIssued}
+              </div>
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Orders</div>
-            <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-              {summary.totalOrders}
+
+          {/* Cash / EcoCash breakdown */}
+          {hasChannelBreakdown && (
+            <div className="flex gap-2">
+              {cashData && (
+                <div className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">💵 Cash</span>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-green-600 dark:text-green-400">${cashData.total.toFixed(2)}</span>
+                    <span className="text-xs text-gray-400 ml-1">({cashData.count} orders)</span>
+                  </div>
+                </div>
+              )}
+              {ecocashData && (
+                <div className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">📱 EcoCash</span>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-green-600 dark:text-green-400">${ecocashData.total.toFixed(2)}</span>
+                    <span className="text-xs text-gray-400 ml-1">({ecocashData.count} orders)</span>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Avg Order</div>
-            <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
-              ${summary.averageOrderValue.toFixed(2)}
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Receipts</div>
-            <div className="text-xl font-bold text-orange-600 dark:text-orange-400">
-              {summary.receiptsIssued}
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -149,6 +179,30 @@ export function DailySalesWidget({ dailySales, businessType = 'retail', onRefres
               </div>
             </div>
           </div>
+
+          {/* Cash / EcoCash breakdown */}
+          {hasChannelBreakdown && (
+            <div className="flex gap-2">
+              {cashData && (
+                <div className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">💵 Cash</span>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-green-600 dark:text-green-400">${cashData.total.toFixed(2)}</span>
+                    <span className="text-xs text-gray-400 ml-1">({cashData.count} orders)</span>
+                  </div>
+                </div>
+              )}
+              {ecocashData && (
+                <div className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">📱 EcoCash</span>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-green-600 dark:text-green-400">${ecocashData.total.toFixed(2)}</span>
+                    <span className="text-xs text-gray-400 ml-1">({ecocashData.count} orders)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Payment Methods */}
           <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">

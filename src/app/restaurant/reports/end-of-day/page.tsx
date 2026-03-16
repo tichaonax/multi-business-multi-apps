@@ -504,6 +504,24 @@ export default function EndOfDayReport() {
                   {dailySales.summary.totalOrders}
                 </div>
               </div>
+              {dailySales.paymentMethods?.CASH && (
+                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded print:bg-gray-50">
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mb-1 print:text-gray-600">💵 Cash Sales</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400 print:text-green-600">
+                    {formatCurrency(dailySales.paymentMethods.CASH.total)}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{dailySales.paymentMethods.CASH.count} orders</div>
+                </div>
+              )}
+              {dailySales.paymentMethods?.ECOCASH && (
+                <div className="bg-teal-50 dark:bg-teal-900/20 p-4 rounded print:bg-gray-50">
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mb-1 print:text-gray-600">📱 EcoCash Sales</div>
+                  <div className="text-2xl font-bold text-teal-600 dark:text-teal-400 print:text-teal-600">
+                    {formatCurrency(dailySales.paymentMethods.ECOCASH.total)}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{dailySales.paymentMethods.ECOCASH.count} orders</div>
+                </div>
+              )}
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded print:bg-gray-50">
                 <div className="text-sm text-gray-600 dark:text-gray-300 mb-1 print:text-gray-600">Average Order Value</div>
                 <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 print:text-purple-600">
