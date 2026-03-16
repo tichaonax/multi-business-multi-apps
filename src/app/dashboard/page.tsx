@@ -649,6 +649,27 @@ function DashboardContent() {
                     </div>
                   </div>
                 )}
+                {revenueBreakdown.summary.hasRentConfig && (() => {
+                  const allRentPct = (revenueBreakdown.summary.totalMonthlyRent ?? 0) > 0
+                    ? Math.min(100, Math.round(((revenueBreakdown.summary.totalRentContributed ?? 0) / (revenueBreakdown.summary.totalMonthlyRent ?? 1)) * 100))
+                    : 0
+                  const allRentColor = allRentPct >= 100 ? 'text-emerald-600 dark:text-emerald-400' : allRentPct >= 75 ? 'text-amber-500 dark:text-amber-400' : 'text-red-500 dark:text-red-400'
+                  const allRentBarColor = allRentPct >= 100 ? 'bg-emerald-500' : allRentPct >= 75 ? 'bg-amber-400' : 'bg-red-500'
+                  return (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-secondary flex items-center gap-1">🏠 Rent</span>
+                        <span className={`font-semibold ${allRentColor}`}>
+                          ${(revenueBreakdown.summary.totalRentContributed ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className="text-secondary font-normal"> / ${(revenueBreakdown.summary.totalMonthlyRent ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                        <div className={`${allRentBarColor} h-1 rounded-full transition-all`} style={{ width: `${allRentPct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           )}
