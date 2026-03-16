@@ -37,7 +37,11 @@ export default function UniversalPOS() {
 
   // Get business type and configuration
   const businessType = currentBusiness?.businessType || 'other'
-  const config = getBusinessTypeConfig(businessType)
+  const baseConfig = getBusinessTypeConfig(businessType)
+  // Inject ecocash payment method dynamically when the business has it enabled
+  const config = currentBusiness?.ecocashEnabled
+    ? { ...baseConfig, paymentMethods: [...baseConfig.paymentMethods.filter(m => m !== 'ecocash'), 'ecocash' as const] }
+    : baseConfig
 
   // Receipt preview modal state (modal handles its own printer selection)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
@@ -442,7 +446,11 @@ export default function UniversalPOS() {
   }
 
   // Handle checkout
-  const handleCheckout = async (paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty', amountPaid?: number) => {
+  const handleCheckout = async (
+    paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty' | 'ecocash',
+    amountPaid?: number,
+    ecocashData?: { ecocashTransactionCode: string; ecocashFeeAmount: number; totalWithFee: number }
+  ) => {
     await processCheckout(cart, totals, {
       paymentMethod,
       amountPaid,
@@ -450,6 +458,8 @@ export default function UniversalPOS() {
       customerName: selectedCustomer?.name,
       customerPhone: selectedCustomer?.phone ?? undefined,
       notes: undefined,
+      ecocashTransactionCode: ecocashData?.ecocashTransactionCode,
+      ecocashFeeAmount: ecocashData?.ecocashFeeAmount,
       attributes: {
         ...(appliedCoupon ? {
           couponId: appliedCoupon.id,
@@ -484,6 +494,8 @@ export default function UniversalPOS() {
           config={config}
           isProcessing={isProcessing}
           onCheckout={handleCheckout}
+          ecocashFeeType={currentBusiness?.ecocashFeeType}
+          ecocashFeeValue={currentBusiness?.ecocashFeeValue}
           businessId={currentBusinessId || undefined}
           businessName={currentBusiness?.businessName || undefined}
           businessPhone={currentBusiness?.phone || undefined}

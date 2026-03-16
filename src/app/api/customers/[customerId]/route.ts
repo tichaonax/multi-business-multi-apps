@@ -51,7 +51,7 @@ export async function GET(
       where: { id: customerId },
       include: {
         businesses: {
-          select: { id: true, name: true, type: true }
+          select: { id: true, name: true, type: true, phone: true }
         },
         business_orders: {
           select: {
@@ -165,7 +165,7 @@ export async function PUT(
       },
       include: {
         businesses: {
-          select: { id: true, name: true, type: true }
+          select: { id: true, name: true, type: true, phone: true }
         },
         business_orders: {
           select: {

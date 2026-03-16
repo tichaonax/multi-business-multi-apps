@@ -56,6 +56,7 @@ interface BatchPayment {
   loanId?: string
   interestAmount?: number
   transferLedgerId?: string
+  paymentChannel?: string
 }
 
 // Quick inline create modal for subcategory/sub-subcategory
@@ -283,6 +284,7 @@ interface PaymentFormProps {
     parentAccountId: string | null
   }
   batchRefreshKey?: number
+  ecocashEnabled?: boolean
 }
 
 function getDefaultDomainName(businessType: string): string {
@@ -308,6 +310,7 @@ export function PaymentForm({
   defaultCategoryBusinessType,
   accountInfo,
   batchRefreshKey = 0,
+  ecocashEnabled = false,
 }: PaymentFormProps) {
   const isPersonalAccount = accountType === 'PERSONAL'
   const customAlert = useAlert()
@@ -354,6 +357,7 @@ export function PaymentForm({
     paymentType: 'REGULAR' as 'REGULAR' | 'LOAN_REPAYMENT',
     loanId: '',
     interestAmount: '0',
+    paymentChannel: 'CASH' as 'CASH' | 'ECOCASH',
   })
 
   const [errors, setErrors] = useState({
@@ -722,6 +726,7 @@ export function PaymentForm({
       loanId: formData.paymentType === 'LOAN_REPAYMENT' ? formData.loanId : undefined,
       interestAmount: formData.paymentType === 'LOAN_REPAYMENT' ? parseFloat(formData.interestAmount || '0') : undefined,
       transferLedgerId: undefined,
+      paymentChannel: ecocashEnabled ? formData.paymentChannel : 'CASH',
     }
 
     if (editingPaymentId) {
@@ -754,6 +759,7 @@ export function PaymentForm({
         paymentType: 'REGULAR',
         loanId: '',
         interestAmount: '0',
+        paymentChannel: 'CASH',
       })
     } else {
       // Keep category and subcategory for faster repeat entries
@@ -770,6 +776,7 @@ export function PaymentForm({
         paymentType: 'REGULAR',
         loanId: '',
         interestAmount: '0',
+        paymentChannel: 'CASH',
       }))
     }
     setErrors({ payee: '', categoryId: '', amount: '', paymentDate: '' })
@@ -874,6 +881,7 @@ export function PaymentForm({
         loanId: p.loanId || null,
         interestAmount: p.interestAmount ?? null,
         status: 'SUBMITTED',
+        paymentChannel: p.paymentChannel || 'CASH',
         // Forward vehicle expense metadata if present (added by VehicleExpenseModal)
         vehicleExpense: (p as any).vehicleExpense || undefined,
       }))
@@ -1545,6 +1553,35 @@ export function PaymentForm({
               </div>
             )}
           </div>
+
+          {/* Payment Channel Selector — only shown when EcoCash is enabled */}
+          {ecocashEnabled && (
+            <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Payment Channel
+              </label>
+              <div className="flex gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={formData.paymentChannel === 'CASH'}
+                    onChange={() => setFormData({ ...formData, paymentChannel: 'CASH' })}
+                    className="accent-blue-600"
+                  />
+                  <span className="text-sm text-gray-800 dark:text-gray-200">💵 Cash</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={formData.paymentChannel === 'ECOCASH'}
+                    onChange={() => setFormData({ ...formData, paymentChannel: 'ECOCASH' })}
+                    className="accent-green-600"
+                  />
+                  <span className="text-sm text-gray-800 dark:text-gray-200">📱 EcoCash</span>
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Available Balance Display */}
           <div className={`p-4 rounded-lg ${availableBalance < 0 ? 'bg-red-50 dark:bg-red-900/10 border-2 border-red-500' : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'}`}>

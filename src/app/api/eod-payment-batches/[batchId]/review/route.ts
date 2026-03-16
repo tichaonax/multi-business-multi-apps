@@ -91,20 +91,25 @@ export async function POST(
     const rejectedPayments = payments.filter((p) => rejectedPaymentIds.includes(p.id))
     const totalApproved = approvedPayments.reduce((s, p) => s + Number(p.amount), 0)
 
-    // Verify business has sufficient cash in the physical cash bucket
-    if (approvedPayments.length > 0) {
+    // Split approved payments by channel
+    const cashApproved = approvedPayments.filter((p) => (p as any).paymentChannel !== 'ECOCASH')
+    const ecocashApproved = approvedPayments.filter((p) => (p as any).paymentChannel === 'ECOCASH')
+    const totalCashApproved = cashApproved.reduce((s, p) => s + Number(p.amount), 0)
+
+    // Verify business has sufficient CASH in the physical cash bucket (EcoCash payments skip this)
+    if (cashApproved.length > 0) {
       const bucketRows = await prisma.cashBucketEntry.groupBy({
         by: ['direction'],
-        where: { businessId: batch.businessId },
+        where: { businessId: batch.businessId, paymentChannel: 'CASH' },
         _sum: { amount: true },
       })
       const bucketInflow = Number(bucketRows.find(r => r.direction === 'INFLOW')?._sum.amount ?? 0)
       const bucketOutflow = Number(bucketRows.find(r => r.direction === 'OUTFLOW')?._sum.amount ?? 0)
       const bucketBalance = bucketInflow - bucketOutflow
-      if (bucketBalance < totalApproved) {
+      if (bucketBalance < totalCashApproved) {
         return NextResponse.json(
           {
-            error: `Insufficient cash in bucket for ${batch.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${totalApproved.toFixed(2)}`,
+            error: `Insufficient cash in bucket for ${batch.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${totalCashApproved.toFixed(2)}`,
           },
           { status: 400 }
         )
@@ -113,37 +118,39 @@ export async function POST(
 
     const now = new Date()
 
-    // Group approved payments by expense account
-    const byAccount = new Map<string, typeof approvedPayments>()
-    for (const p of approvedPayments) {
-      const acc = byAccount.get(p.expenseAccountId) ?? []
-      acc.push(p)
-      byAccount.set(p.expenseAccountId, acc)
-    }
-
     const result = await prisma.$transaction(async (tx: any) => {
       const batchSubmissions: { id: string; expenseAccountId: string; totalAmount: number }[] = []
 
       if (approvedPayments.length > 0) {
-        // Debit cash bucket for this business
-        await tx.cashBucketEntry.create({
-          data: {
-            businessId: batch.businessId,
-            entryType: 'PAYMENT_APPROVAL',
-            direction: 'OUTFLOW',
-            amount: totalApproved,
-            referenceType: 'EOD_BATCH',
-            referenceId: batchId,
-            notes: `${approvedPayments.length} payment(s) approved`,
-            entryDate: now,
-            createdBy: user.id,
-          },
-        })
+        // Debit cash bucket for CASH payments only
+        // EcoCash payments are only approved here — CashBucketEntry is created when "Mark as Sent" later
+        if (cashApproved.length > 0) {
+          await tx.cashBucketEntry.create({
+            data: {
+              businessId: batch.businessId,
+              entryType: 'PAYMENT_APPROVAL',
+              direction: 'OUTFLOW',
+              amount: totalCashApproved,
+              paymentChannel: 'CASH',
+              referenceType: 'EOD_BATCH',
+              referenceId: batchId,
+              notes: `${cashApproved.length} cash payment(s) approved`,
+              entryDate: now,
+              createdBy: user.id,
+            },
+          })
+        }
 
-        // For each expense account: create deposit + PaymentBatchSubmissions
-        for (const [accountId, accountPayments] of byAccount) {
+        // For CASH payments: create deposit + PaymentBatchSubmissions per expense account
+        const byCashAccount = new Map<string, typeof cashApproved>()
+        for (const p of cashApproved) {
+          const acc = byCashAccount.get(p.expenseAccountId) ?? []
+          acc.push(p)
+          byCashAccount.set(p.expenseAccountId, acc)
+        }
+
+        for (const [accountId, accountPayments] of byCashAccount) {
           const accountTotal = accountPayments.reduce((s, p) => s + Number(p.amount), 0)
-          const accountName = accountPayments[0].expenseAccount?.accountName ?? accountId
 
           const deposit = await tx.expenseAccountDeposits.create({
             data: {
@@ -172,19 +179,23 @@ export async function POST(
 
           batchSubmissions.push({ id: batchSub.id, expenseAccountId: accountId, totalAmount: accountTotal })
 
-          // Mark approved payments + link to batch submission
           for (const p of accountPayments) {
             await tx.expenseAccountPayments.update({
               where: { id: p.id },
-              data: {
-                status: 'APPROVED',
-                batchSubmissionId: batchSub.id,
-              },
+              data: { status: 'APPROVED', batchSubmissionId: batchSub.id },
             })
           }
 
-          // Recalculate expense account balance
           await updateExpenseAccountBalanceTx(tx, accountId)
+        }
+
+        // For ECOCASH payments: just mark APPROVED — no deposit or bucket entry yet.
+        // Funds are sent via EcoCash separately; "Mark as Sent" creates deposit + CashBucketEntry.
+        for (const p of ecocashApproved) {
+          await tx.expenseAccountPayments.update({
+            where: { id: p.id },
+            data: { status: 'APPROVED' },
+          })
         }
       }
 

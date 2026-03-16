@@ -76,6 +76,7 @@ export async function GET(
       const total = Number(loan.totalAmount)
       const interestAmount = total - principal
 
+      const remaining = Number(loan.remainingBalance)
       return {
         id: loan.id,
         loanNumber: loan.loanNumber,
@@ -85,7 +86,8 @@ export async function GET(
         interestRate: Number(loan.interestRate),
         interestAmount,
         totalAmount: total,
-        remainingBalance: Number(loan.remainingBalance),
+        remainingBalance: remaining,
+        totalPaid: Math.max(0, total - remaining),
         loanDate: loan.loanDate?.toISOString().split('T')[0] || null,
         dueDate: loan.dueDate?.toISOString().split('T')[0] || null,
         status: loan.status

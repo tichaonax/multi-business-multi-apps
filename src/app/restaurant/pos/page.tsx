@@ -138,7 +138,8 @@ export default function RestaurantPOS() {
   const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
   const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE'>('CASH')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE' | 'ECOCASH'>('CASH')
+  const [ecocashTxCode, setEcocashTxCode] = useState('')
   const [amountReceived, setAmountReceived] = useState('')
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
@@ -1272,6 +1273,8 @@ export default function RestaurantPOS() {
     const businessAddress = actualBusiness?.address || actualBusiness?.umbrellaBusinessAddress || ''
     const businessPhone = actualBusiness?.phone || actualBusiness?.umbrellaBusinessPhone || ''
 
+    console.log('🧾 [buildReceiptDataFromCompletedOrder] ecocashFeeAmount:', order.ecocashFeeAmount, 'ecocashTransactionCode:', order.ecocashTransactionCode, 'paymentMethod:', order.paymentMethod)
+
     return {
       receiptNumber: {
         globalId: order.orderNumber,
@@ -1304,8 +1307,12 @@ export default function RestaurantPOS() {
       tax: 0,
       total: order.total,
       paymentMethod: order.paymentMethod?.toLowerCase() || 'cash',
-      amountPaid: order.amountReceived,
+      amountPaid: order.paymentMethod?.toUpperCase() === 'ECOCASH'
+        ? order.total + (order.ecocashFeeAmount || 0)
+        : order.amountReceived,
       changeDue: order.change,
+      ecocashFeeAmount: order.ecocashFeeAmount,
+      ecocashTransactionCode: order.ecocashTransactionCode,
       wifiTokens: order.wifiTokens?.map((token: any) => {
         console.log('📡 [Restaurant] Mapping ESP32 WiFi token:', token)
         const mapped = {
@@ -1867,6 +1874,7 @@ export default function RestaurantPOS() {
 
     // Open payment modal
     setAmountReceived('') // Start at zero so cashier can enter amount received
+    setEcocashTxCode('')
     setShowPaymentModal(true)
   }
 
@@ -1925,6 +1933,7 @@ export default function RestaurantPOS() {
       setShowPaymentModal(false)
       setMealProgramCashDue(null)
       setAmountReceived('')
+      setEcocashTxCode('')
       setShowReceiptModal(true)
       return
     }
@@ -1961,6 +1970,11 @@ export default function RestaurantPOS() {
         businessId: businessId,
         paymentMethod: paymentMethod,
         amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
+        ...(paymentMethod === 'ECOCASH' ? {
+          ecocashTxCode: ecocashTxCode.trim(),
+          ecocashFeeType: currentBusiness?.ecocashFeeType,
+          ecocashFeeValue: currentBusiness?.ecocashFeeValue,
+        } : {}),
         idempotencyKey,
         customerId: selectedCustomer?.id || null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -1992,12 +2006,23 @@ export default function RestaurantPOS() {
           receiptItems.push({ ...result.rewardFreeItem, id: 'reward-free', category: 'promo' })
         }
 
+        console.log('🟢 [completeOrder] paymentMethod:', paymentMethod, 'ecocashTxCode:', ecocashTxCode)
+
+        // Compute EcoCash fee client-side (more reliable than reading from API response attributes)
+        const ecocashFee = paymentMethod === 'ECOCASH'
+          ? (currentBusiness?.ecocashFeeType === 'PERCENTAGE'
+            ? total * ((currentBusiness?.ecocashFeeValue ?? 0) / 100)
+            : (currentBusiness?.ecocashFeeValue ?? 0))
+          : 0
+
         const orderForReceipt: {
           orderNumber: any; items: any[]; subtotal: number; total: number;
           discountAmount?: number; rewardCouponCode?: string;
           paymentMethod: string; amountReceived: number; change: number; date: string;
           wifiTokens: any; r710Tokens: any; businessInfo: any; footerMessage?: string;
-          customerName?: string; customerPhone?: string
+          customerName?: string; customerPhone?: string;
+          ecocashFeeAmount?: number; ecocashTransactionCode?: string;
+          customerAddress?: string; customerCity?: string;
         } = {
           orderNumber: result.orderNumber,
           items: receiptItems,
@@ -2008,6 +2033,8 @@ export default function RestaurantPOS() {
           paymentMethod: paymentMethod,
           amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
           change: paymentMethod === 'CASH' ? parseFloat(amountReceived) - total : 0,
+          ecocashFeeAmount: paymentMethod === 'ECOCASH' ? ecocashFee : undefined,
+          ecocashTransactionCode: paymentMethod === 'ECOCASH' ? ecocashTxCode.trim() : undefined,
           date: formatDateTime(new Date()),
           wifiTokens: result.wifiTokens || [], // ESP32 tokens
           r710Tokens: result.r710Tokens || [],  // R710 tokens
@@ -2090,6 +2117,7 @@ export default function RestaurantPOS() {
         // Reset payment fields
         setPaymentMethod('CASH')
         setAmountReceived('')
+        setEcocashTxCode('')
 
         console.log('✅ Order created:', result.orderNumber)
 
@@ -3310,6 +3338,7 @@ export default function RestaurantPOS() {
                   setCompletedOrder(orderForReceipt)
                   setMealProgramCashDue(pending.cashAmount)
                   setAmountReceived('')
+                  setEcocashTxCode('')
                   setPaymentMethod('CASH')
                   setShowPaymentModal(true)
                   // Transaction already saved — refresh daily sales
@@ -3573,7 +3602,7 @@ export default function RestaurantPOS() {
               {/* Payment Method — hidden for meal-program tender (always cash) */}
               {mealProgramCashDue === null && <div>
                 <label className="block text-sm font-medium text-primary mb-2">Payment Method</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className={`grid gap-2 ${currentBusiness?.ecocashEnabled ? 'grid-cols-4' : 'grid-cols-3'}`}>
                   <button
                     onClick={() => setPaymentMethod('CASH')}
                     className={`py-3 px-4 rounded-lg font-medium transition-colors ${
@@ -3604,6 +3633,18 @@ export default function RestaurantPOS() {
                   >
                     📱 Mobile
                   </button>
+                  {currentBusiness?.ecocashEnabled && (
+                    <button
+                      onClick={() => setPaymentMethod('ECOCASH')}
+                      className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                        paymentMethod === 'ECOCASH'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      <img src="/images/ecocash-logo.png" alt="" className="h-4 w-auto inline-block mr-1" />EcoCash
+                    </button>
+                  )}
                 </div>
               </div>}
 
@@ -3637,6 +3678,37 @@ export default function RestaurantPOS() {
                 )
               })()}
 
+              {/* EcoCash transaction code input */}
+              {mealProgramCashDue === null && paymentMethod === 'ECOCASH' && (() => {
+                const feeType = currentBusiness?.ecocashFeeType
+                const feeValue = currentBusiness?.ecocashFeeValue ?? 0
+                const fee = feeType === 'PERCENTAGE' ? total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+                const ecocashTotal = total + fee
+                return (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-sm font-medium text-primary mb-2">EcoCash Transaction Code</label>
+                      <input
+                        type="text"
+                        value={ecocashTxCode}
+                        onChange={(e) => setEcocashTxCode(e.target.value.toUpperCase())}
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
+                        placeholder="Enter EcoCash transaction code"
+                        autoComplete="off"
+                        autoFocus
+                      />
+                    </div>
+                    {fee > 0 && (
+                      <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
+                        <div className="flex justify-between"><span>Subtotal:</span><span>${total.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span>EcoCash fee ({feeType === 'PERCENTAGE' ? `${feeValue}%` : 'fixed'}):</span><span>${fee.toFixed(2)}</span></div>
+                        <div className="flex justify-between font-bold"><span>Total to charge:</span><span>${ecocashTotal.toFixed(2)}</span></div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               {/* Free item notice */}
               {mealProgramCashDue === null && paymentMethod === 'CASH' && total === 0 && (
                 <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-800 dark:text-green-200">
@@ -3664,6 +3736,7 @@ export default function RestaurantPOS() {
                     setMealProgramCashDue(null)
                     setPendingMealTransaction(null)
                     setAmountReceived('')
+                    setEcocashTxCode('')
                     setMealPanelKey(k => k + 1)
                   }}
                   disabled={orderSubmitting}
@@ -3676,6 +3749,7 @@ export default function RestaurantPOS() {
                   disabled={orderSubmitting || (
                     mealProgramCashDue !== null
                       ? (mealProgramCashDue > 0 && (!amountReceived || parseFloat(amountReceived) < mealProgramCashDue))
+                      : paymentMethod === 'ECOCASH' ? !ecocashTxCode.trim()
                       : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total))
                   )}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -3870,6 +3944,28 @@ export default function RestaurantPOS() {
                     <span className="text-gray-700 dark:text-gray-300">Total:</span>
                     <span className="text-gray-900 dark:text-gray-100">${Number(completedOrder.total).toFixed(2)}</span>
                   </div>
+                  {completedOrder.paymentMethod === 'ECOCASH' && (
+                    <>
+                      {completedOrder.ecocashFeeAmount > 0 && (
+                        <div className="flex justify-between text-sm mt-1">
+                          <span className="text-gray-600 dark:text-gray-400">EcoCash Fee:</span>
+                          <span className="text-gray-900 dark:text-gray-100">${Number(completedOrder.ecocashFeeAmount).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {completedOrder.ecocashFeeAmount > 0 && (
+                        <div className="flex justify-between text-sm font-bold">
+                          <span className="text-gray-600 dark:text-gray-400">Total Charged:</span>
+                          <span className="text-gray-900 dark:text-gray-100">${(Number(completedOrder.total) + Number(completedOrder.ecocashFeeAmount)).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {completedOrder.ecocashTransactionCode && (
+                        <div className="flex justify-between text-sm mt-1">
+                          <span className="text-gray-600 dark:text-gray-400">EcoCash Ref:</span>
+                          <span className="text-gray-900 dark:text-gray-100 font-mono">{completedOrder.ecocashTransactionCode}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
                   {(completedOrder.paymentMethod === 'CASH' || completedOrder.paymentMethod === 'EXPENSE_ACCOUNT') && completedOrder.amountReceived > 0 && (
                     <>
                       <div className="flex justify-between text-sm mt-1">

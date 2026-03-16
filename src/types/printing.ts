@@ -188,6 +188,8 @@ export interface ReceiptData {
   paymentMethod: string; // cash, card, credit, etc.
   amountPaid?: number;
   changeDue?: number;
+  ecocashFeeAmount?: number;        // EcoCash service fee charged to customer
+  ecocashTransactionCode?: string;  // EcoCash confirmation code
 
   // WiFi tokens (if any were purchased)
   wifiTokens?: WifiTokenInfo[];

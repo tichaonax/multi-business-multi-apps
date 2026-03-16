@@ -15,7 +15,7 @@ interface Customer {
   city?: string | null
   isActive: boolean
   photoUrl?: string | null
-  businesses?: { id: string; name: string; type: string } | null
+  businesses?: { id: string; name: string; type: string; phone?: string | null } | null
 }
 
 interface CustomerGridProps {
@@ -26,27 +26,41 @@ interface CustomerGridProps {
 
 // ─── Print helpers ────────────────────────────────────────────────────────────
 
-function buildCardHtml(customer: Customer, barcodeSvg: string): string {
-  const photoHtml = customer.photoUrl
-    ? `<img src="${customer.photoUrl}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid #99f6e4;" />`
-    : `<div style="flex-shrink:0;width:56px;height:56px;border-radius:8px;background:#f0fdfa;border:1px solid #99f6e4;display:flex;align-items:center;justify-content:center;font-size:24px;">🛍️</div>`
+function fmtPhone(p: string | null | undefined): string {
+  if (!p) return ''
+  const clean = p.replace(/\s+/g, '')
+  if (clean.startsWith('+263') && clean.length === 13) return `+263 ${clean.slice(4, 6)} ${clean.slice(6, 9)} ${clean.slice(9)}`
+  if (clean.startsWith('0') && clean.length === 10) return `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6)}`
+  if (clean.length === 9 && /^[67]/.test(clean)) return `0${clean.slice(0, 2)} ${clean.slice(2, 5)} ${clean.slice(5)}`
+  return p
+}
+
+function buildCardHtml(customer: Customer, barcodeSvg: string, umbrellaBusinessName?: string | null): string {
+  const businessName = customer.businesses?.name || ''
+  const businessPhone = customer.businesses?.phone || ''
   return `
-    <div style="display:inline-block;background:#fff;border:2px solid #0d9488;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.12);width:314px;font-family:sans-serif;vertical-align:top;">
-      <div style="background:#0d9488;padding:6px 12px;display:flex;align-items:center;justify-content:space-between;">
-        <span style="color:#fff;font-weight:700;font-size:11px;letter-spacing:.05em;">LOYALTY CARD</span>
-        ${customer.businesses?.name ? `<span style="color:#99f6e4;font-size:11px;max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${customer.businesses.name}</span>` : ''}
+    <div style="display:inline-block;background:#fff;border:2px solid #1f2937;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.12);width:314px;font-family:sans-serif;vertical-align:top;">
+      <div style="background:#fff;padding:5px 12px;border-bottom:1px solid #d1d5db;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-weight:700;font-size:11px;letter-spacing:.08em;color:#111;">LOYALTY CARD</span>
+        ${businessPhone ? `<span style="font-size:11px;font-weight:600;color:#111;">${fmtPhone(businessPhone)}</span>` : ''}
       </div>
-      <div style="padding:12px;display:flex;gap:12px;align-items:center;">
-        <div style="flex-shrink:0;">${photoHtml}</div>
+      <div style="padding:8px 12px;display:flex;gap:10px;align-items:center;">
+        <div style="flex-shrink:0;width:48px;height:48px;border-radius:8px;background:#f3f4f6;border:1px solid #d1d5db;display:flex;align-items:center;justify-content:center;font-size:22px;">🛍️</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:14px;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${customer.name}</div>
-          <div style="color:#0d9488;font-size:11px;font-weight:500;margin-top:2px;font-family:monospace;">${customer.customerNumber}</div>
-          ${customer.phone ? `<div style="color:#555;font-size:11px;margin-top:2px;">${customer.phone}</div>` : ''}
+          <div style="font-weight:700;font-size:13px;color:#111;word-break:break-word;">${customer.name}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:2px;">
+            <span style="font-size:11px;font-family:monospace;font-weight:600;color:#111;">${customer.customerNumber}</span>
+            ${customer.phone ? `<span style="font-size:11px;font-family:monospace;font-weight:600;color:#111;white-space:nowrap;">${fmtPhone(customer.phone)}</span>` : ''}
+          </div>
+          ${(businessName || umbrellaBusinessName) ? `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:2px;">
+            ${businessName ? `<span style="font-size:11px;font-weight:600;color:#1f2937;">${businessName}</span>` : '<span></span>'}
+            ${umbrellaBusinessName ? `<span style="font-size:12px;font-weight:700;color:#111;">${umbrellaBusinessName}</span>` : ''}
+          </div>` : ''}
         </div>
       </div>
-      <div style="padding:0 12px 12px;display:flex;flex-direction:column;align-items:center;">
+      <div style="padding:0 12px 8px;display:flex;flex-direction:column;align-items:center;">
         ${barcodeSvg}
-        <span style="font-size:11px;color:#888;margin-top:2px;font-family:monospace;letter-spacing:.05em;">${customer.customerNumber}</span>
       </div>
     </div>`
 }
@@ -57,18 +71,18 @@ function openPrintWindow(title: string, bodyContent: string) {
   printWindow.document.write(`
     <!DOCTYPE html><html><head><title>${title}</title>
     <style>
-      html, body { margin: 0; padding: 0; }
-      body { padding: 16px; }
-      .print-toolbar { position: sticky; top: 0; background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 10px 16px; display: flex; align-items: center; gap: 12px; z-index: 100; }
-      .print-btn { background: #0d9488; color: #fff; border: none; border-radius: 6px; padding: 8px 20px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-      .print-btn:hover { background: #0f766e; }
-      .print-title { font-size: 13px; color: #64748b; font-family: sans-serif; }
-      .card-row { display: flex; align-items: flex-start; justify-content: center; margin-bottom: 24px; page-break-inside: avoid; }
-      .fold-guide { width: 0; align-self: stretch; border-left: 2px dashed #aaa; margin: 0; }
-      @media print { .print-toolbar { display: none; } .fold-guide { border-left-color: #ccc; } body { padding: 0; } }
+      html,body{margin:0;padding:0;}
+      body{padding:16px;}
+      .print-toolbar{position:sticky;top:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:100;}
+      .print-btn{background:#1f2937;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+      .print-btn:hover{background:#374151;}
+      .print-title{font-size:13px;color:#64748b;font-family:sans-serif;}
+      .card-row{display:flex;align-items:flex-start;justify-content:center;margin-bottom:24px;page-break-inside:avoid;}
+      .fold-guide{width:0;align-self:stretch;border-left:2px dashed #aaa;}
+      @media print{.print-toolbar{display:none;}.fold-guide{border-left-color:#ccc;}body{padding:0;}}
     </style>
     </head><body>
-    <div class="print-toolbar no-print">
+    <div class="print-toolbar">
       <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
       <span class="print-title">${title}</span>
     </div>
@@ -76,7 +90,16 @@ function openPrintWindow(title: string, bodyContent: string) {
   printWindow.document.close()
 }
 
-async function generateCardRows(customers: Customer[]): Promise<string> {
+async function fetchUmbrellaName(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/admin/umbrella-business')
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.umbrellaBusinessName ?? null
+  } catch { return null }
+}
+
+async function generateCardRows(customers: Customer[], umbrellaBusinessName: string | null): Promise<string> {
   const JsBarcode = (await import('jsbarcode')).default
   let html = ''
   for (const customer of customers) {
@@ -87,21 +110,21 @@ async function generateCardRows(customers: Customer[]): Promise<string> {
     } catch { /* ignore */ }
     const barcodeSvg = svg.outerHTML
     document.body.removeChild(svg)
-
-    const card = buildCardHtml(customer, barcodeSvg)
-    // Two copies per row for fold-in-half
+    const card = buildCardHtml(customer, barcodeSvg, umbrellaBusinessName)
     html += `<div class="card-row">${card}<div class="fold-guide"></div>${card}</div>`
   }
   return html
 }
 
 async function printSingleCard(customer: Customer) {
-  const rows = await generateCardRows([customer])
+  const umbrellaBusinessName = await fetchUmbrellaName()
+  const rows = await generateCardRows([customer], umbrellaBusinessName)
   openPrintWindow(`Loyalty Card — ${customer.name}`, rows)
 }
 
 async function printBulkCards(customers: Customer[]) {
-  const rows = await generateCardRows(customers)
+  const umbrellaBusinessName = await fetchUmbrellaName()
+  const rows = await generateCardRows(customers, umbrellaBusinessName)
   openPrintWindow(`Loyalty Cards — ${customers.length} customers`, rows)
 }
 

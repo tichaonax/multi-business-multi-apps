@@ -2636,6 +2636,9 @@ export interface BusinessMembership {
   phone?: string; // Business phone for receipts
   couponsEnabled?: boolean; // Whether coupons are enabled for this business
   promosEnabled?: boolean; // Whether campaign promos are enabled for this business
+  ecocashEnabled?: boolean; // Whether EcoCash payments are accepted
+  ecocashFeeType?: string; // 'FIXED' | 'PERCENTAGE'
+  ecocashFeeValue?: number; // Fee amount or percentage
   defaultPage?: string | null; // Default landing page for business
   expenseAccounts?: { id: string; accountName: string }[]; // Linked expense accounts for quick navigation
   joinedAt: Date;

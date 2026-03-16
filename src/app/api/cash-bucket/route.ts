@@ -32,6 +32,50 @@ export async function GET(request: NextRequest) {
     const limit      = parseInt(searchParams.get('limit')  || '100')
     const offset     = parseInt(searchParams.get('offset') || '0')
 
+    // Expected EcoCash: sum of ECOCASH order net amounts for a business on a given date
+    const expectedEcocash = searchParams.get('expectedEcocash') === 'true'
+    if (expectedEcocash && businessId) {
+      const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
+      const dayStart = new Date(date)
+      const dayEnd = new Date(date)
+      dayEnd.setDate(dayEnd.getDate() + 1)
+      const orders = await (prisma as any).orders.findMany({
+        where: {
+          businessId,
+          paymentMethod: 'ECOCASH',
+          status: { notIn: ['CANCELLED', 'REFUNDED'] },
+          orderDate: { gte: dayStart, lt: dayEnd },
+        },
+        select: { totalAmount: true, attributes: true },
+      })
+      const expectedTotal = orders.reduce((sum: number, o: any) => {
+        const fee = Number((o.attributes as any)?.ecocashFeeAmount || 0)
+        return sum + (Number(o.totalAmount) - fee)
+      }, 0)
+      return NextResponse.json({ success: true, data: { expectedEcocash: expectedTotal } })
+    }
+
+    // Per-date aggregation: return ecocashInflow for a specific date
+    const dateParam = searchParams.get('date')
+    if (dateParam && businessId && !searchParams.get('startDate') && !searchParams.get('endDate')) {
+      const dayStart = new Date(dateParam)
+      const dayEnd = new Date(dateParam)
+      dayEnd.setDate(dayEnd.getDate() + 1)
+      const dayRows = await prisma.cashBucketEntry.groupBy({
+        by: ['direction', 'paymentChannel'] as any,
+        where: { businessId, entryDate: { gte: dayStart, lt: dayEnd } },
+        _sum: { amount: true },
+      })
+      let cashInflow = 0, ecocashInflow = 0
+      for (const r of dayRows as any[]) {
+        if (r.direction !== 'INFLOW') continue
+        const amt = Number(r._sum.amount ?? 0)
+        if (r.paymentChannel === 'ECOCASH') ecocashInflow += amt
+        else cashInflow += amt
+      }
+      return NextResponse.json({ success: true, cashInflow, ecocashInflow })
+    }
+
     // Date range filter
     const dateFilter: any = {}
     if (startDate) dateFilter.gte = new Date(startDate)
@@ -51,16 +95,23 @@ export async function GET(request: NextRequest) {
     // Per-business balance aggregation (always across all dates/filters for accuracy)
     const balanceWhere: any = { ...(businessId && { businessId }) }
     const rows = await prisma.cashBucketEntry.groupBy({
-      by: ['businessId', 'direction'],
+      by: ['businessId', 'direction', 'paymentChannel'] as any,
       where: balanceWhere,
       _sum: { amount: true },
     })
 
-    const map = new Map<string, { inflow: number; outflow: number }>()
-    for (const row of rows) {
-      const cur = map.get(row.businessId) ?? { inflow: 0, outflow: 0 }
-      if (row.direction === 'INFLOW') cur.inflow += Number(row._sum.amount ?? 0)
-      else cur.outflow += Number(row._sum.amount ?? 0)
+    type ChannelTotals = { cashInflow: number; cashOutflow: number; ecocashInflow: number; ecocashOutflow: number }
+    const map = new Map<string, ChannelTotals>()
+    for (const row of rows as any[]) {
+      const cur = map.get(row.businessId) ?? { cashInflow: 0, cashOutflow: 0, ecocashInflow: 0, ecocashOutflow: 0 }
+      const amt = Number(row._sum.amount ?? 0)
+      if (row.paymentChannel === 'ECOCASH') {
+        if (row.direction === 'INFLOW') cur.ecocashInflow += amt
+        else cur.ecocashOutflow += amt
+      } else {
+        if (row.direction === 'INFLOW') cur.cashInflow += amt
+        else cur.cashOutflow += amt
+      }
       map.set(row.businessId, cur)
     }
 
@@ -72,13 +123,17 @@ export async function GET(request: NextRequest) {
     const bizMap = new Map(businesses.map((b) => [b.id, b]))
 
     const balances = businessIds.map((id) => {
-      const { inflow, outflow } = map.get(id)!
+      const { cashInflow, cashOutflow, ecocashInflow, ecocashOutflow } = map.get(id)!
+      const cashBalance = cashInflow - cashOutflow
+      const ecocashBalance = ecocashInflow - ecocashOutflow
       return {
         businessId: id,
         business: bizMap.get(id) ?? null,
-        inflow,
-        outflow,
-        balance: inflow - outflow,
+        cashInflow, cashOutflow, cashBalance,
+        ecocashInflow, ecocashOutflow, ecocashBalance,
+        inflow: cashInflow + ecocashInflow,
+        outflow: cashOutflow + ecocashOutflow,
+        balance: cashBalance + ecocashBalance,
       }
     }).sort((a, b) => (a.business?.name ?? '').localeCompare(b.business?.name ?? ''))
 
@@ -138,7 +193,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { businessId, amount, notes, entryDate } = body
+    const { businessId, amount, notes, entryDate, ecocashAmount } = body
 
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     if (!amount || Number(amount) <= 0) return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 })
@@ -149,14 +204,19 @@ export async function POST(request: NextRequest) {
     })
     if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
 
+    const date = entryDate ? new Date(entryDate) : new Date()
+    const cashAmount = Number(amount)
+    const ecoAmount = Number(ecocashAmount || 0)
+
     const entry = await prisma.cashBucketEntry.create({
       data: {
         businessId,
         entryType: 'EOD_RECEIPT',
         direction: 'INFLOW',
-        amount: Number(amount),
+        amount: cashAmount,
+        paymentChannel: 'CASH',
         notes: notes?.trim() || null,
-        entryDate: entryDate ? new Date(entryDate) : new Date(),
+        entryDate: date,
         createdBy: user.id,
       },
       include: {
@@ -165,16 +225,33 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    if (ecoAmount > 0) {
+      await prisma.cashBucketEntry.create({
+        data: {
+          businessId,
+          entryType: 'EOD_RECEIPT',
+          direction: 'INFLOW',
+          amount: ecoAmount,
+          paymentChannel: 'ECOCASH',
+          notes: notes?.trim() || null,
+          entryDate: date,
+          createdBy: user.id,
+        },
+      })
+    }
+
+    const totalRecorded = cashAmount + ecoAmount
     return NextResponse.json({
       success: true,
-      message: `Recorded $${Number(amount).toFixed(2)} EOD cash for ${business.name}`,
+      message: `Recorded $${totalRecorded.toFixed(2)} EOD receipt for ${business.name}`,
       data: {
         id: entry.id,
         businessId: entry.businessId,
         business: entry.business,
         entryType: entry.entryType,
         direction: entry.direction,
-        amount: Number(entry.amount),
+        amount: cashAmount,
+        ecocashAmount: ecoAmount,
         notes: entry.notes,
         entryDate: entry.entryDate.toISOString(),
         createdAt: entry.createdAt.toISOString(),

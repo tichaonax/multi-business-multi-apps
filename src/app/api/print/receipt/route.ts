@@ -162,6 +162,8 @@ export async function POST(request: NextRequest) {
       paymentMethod: data.paymentMethod || 'cash',
       amountPaid: data.amountPaid || data.cashTendered,
       changeDue: data.changeDue,
+      ecocashFeeAmount: data.ecocashFeeAmount,
+      ecocashTransactionCode: data.ecocashTransactionCode,
       wifiTokens: data.wifiTokens || [], // WiFi tokens for restaurant receipts
       r710Tokens: data.r710Tokens || [], // R710 tokens for restaurant receipts
       businessSpecificData: data.businessSpecificData,

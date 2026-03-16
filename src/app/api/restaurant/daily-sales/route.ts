@@ -156,6 +156,14 @@ export async function GET(request: NextRequest) {
       paymentMethods[method].total += Number(order.totalAmount || 0)
     })
 
+    // EcoCash breakdown — gross (inc. fee), fee portion, and net revenue
+    const ecocashOrders = regularOrders.filter((o: any) => (o.paymentMethod || '').toUpperCase() === 'ECOCASH')
+    const ecocashBreakdown = ecocashOrders.length > 0 ? (() => {
+      const grossTotal = ecocashOrders.reduce((s: number, o: any) => s + Number(o.totalAmount || 0), 0)
+      const fees = ecocashOrders.reduce((s: number, o: any) => s + Number((o.attributes as any)?.ecocashFeeAmount || 0), 0)
+      return { count: ecocashOrders.length, grossTotal, fees, netTotal: grossTotal - fees }
+    })() : null
+
     // Group by employee/salesperson (regular orders only)
     const employeeSales: Record<string, { name: string; orders: number; sales: number }> = {}
     regularOrders.forEach((order: any) => {
@@ -359,6 +367,7 @@ export async function GET(request: NextRequest) {
           receiptsIssued: receiptSequence?.lastSequence || 0,
         },
         paymentMethods,
+        ecocashBreakdown,
         expenseAccountSales,
         employeeSales: Object.values(employeeSales).sort(
           (a, b) => b.sales - a.sales

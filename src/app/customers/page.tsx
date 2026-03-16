@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CustomerGrid } from '@/components/customers/customer-grid'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
-import { Search, Plus, BarChart2 } from 'lucide-react'
+import { Search, Plus, BarChart2, Printer } from 'lucide-react'
 import Link from 'next/link'
 
 export default function CustomersPage() {
@@ -77,6 +77,13 @@ export default function CustomersPage() {
           >
             <BarChart2 className="h-4 w-4" />
             Reports
+          </Link>
+          <Link
+            href="/customers/bulk-print"
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+          >
+            <Printer className="h-4 w-4" />
+            Bulk Print
           </Link>
           <Button onClick={() => setShowAddModal(true)} className="gap-2">
             <Plus className="h-4 w-4" />

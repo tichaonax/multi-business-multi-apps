@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const status = searchParams.get('status')
+    const paymentChannel = searchParams.get('paymentChannel')
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
     const limit = Math.min(100, parseInt(searchParams.get('limit') || '25'))
     const offset = (page - 1) * limit
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
     const where: any = {}
     if (businessId) where.businessId = businessId
     if (status) where.status = status
+    if (paymentChannel) where.paymentChannel = paymentChannel
     if (dateFrom || dateTo) {
       where.requestedAt = {}
       if (dateFrom) where.requestedAt.gte = new Date(dateFrom)
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest) {
         requestedAmount: true,
         approvedAmount: true,
         returnAmount: true,
+        paymentChannel: true,
         business: { select: { id: true, name: true, type: true } },
       },
     })
@@ -99,6 +102,15 @@ export async function GET(request: NextRequest) {
       if (r.status === 'APPROVED') entry.outstandingCount += 1
     }
 
+    // Channel breakdown
+    const channelBreakdown: Record<string, { count: number; netSpend: number }> = {}
+    for (const r of allRequests) {
+      const ch = (r as any).paymentChannel || 'CASH'
+      if (!channelBreakdown[ch]) channelBreakdown[ch] = { count: 0, netSpend: 0 }
+      channelBreakdown[ch].count += 1
+      channelBreakdown[ch].netSpend += Number((r as any).approvedAmount ?? 0) - Number((r as any).returnAmount ?? 0)
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -106,6 +118,7 @@ export async function GET(request: NextRequest) {
           ...summary,
           netSpend: summary.totalApproved - summary.totalReturned,
         },
+        channelBreakdown,
         byBusiness: Array.from(businessMap.values()),
         requests: tableRequests.map((r: any) => ({
           id: r.id,
@@ -121,6 +134,7 @@ export async function GET(request: NextRequest) {
             ? Number(r.approvedAmount) - Number(r.returnAmount ?? 0)
             : null,
           purpose: r.purpose,
+          paymentChannel: r.paymentChannel || 'CASH',
           requestedAt: r.requestedAt.toISOString(),
           approvedAt: r.approvedAt?.toISOString() || null,
           settledAt: r.settledAt?.toISOString() || null,

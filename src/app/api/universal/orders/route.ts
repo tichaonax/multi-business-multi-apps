@@ -39,7 +39,7 @@ const CreateOrderSchema = z.object({
   divisionAccountId: z.string().nullable().optional(), // New: CustomerDivisionAccount ID - nullable for walk-in customers
   employeeId: z.string().nullable().optional(),
   orderType: z.enum(['SALE', 'RETURN', 'EXCHANGE', 'SERVICE', 'RENTAL', 'SUBSCRIPTION']).default('SALE'),
-  paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK']).optional(),
+  paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK', 'ECOCASH']).optional(),
   discountAmount: z.union([z.number(), z.string()]).transform((val) => {
     if (typeof val === 'string') {
       const parsed = parseFloat(val);
@@ -70,7 +70,7 @@ const UpdateOrderSchema = z.object({
   id: z.string().min(1),
   status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'READY', 'COMPLETED', 'CANCELLED', 'REFUNDED']).optional(),
   paymentStatus: z.enum(['PENDING', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'REFUNDED', 'FAILED']).optional(),
-  paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK']).optional(),
+  paymentMethod: z.enum(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'STORE_CREDIT', 'LAYAWAY', 'NET_30', 'CHECK', 'ECOCASH']).optional(),
   notes: z.string().optional(),
   attributes: z.record(z.string(), z.any()).optional(),
   // Partial refund fields
@@ -867,16 +867,42 @@ export async function POST(request: NextRequest) {
     if (result.status === 'COMPLETED' && result.paymentStatus === 'PAID' && Number(result.totalAmount) > 0) {
       try {
         await initializeBusinessAccount(orderData.businessId, 0, user.id)
+
+        const isEcocash = orderData.paymentMethod === 'ECOCASH'
+        const ecocashFeeAmount = isEcocash
+          ? Number(orderData.attributes?.ecocashFeeAmount || 0)
+          : 0
+        // For EcoCash, credit only the base amount (fee is not business revenue)
+        const creditAmount = Number(result.totalAmount) - ecocashFeeAmount
+
         await processBusinessTransaction({
           businessId: orderData.businessId,
-          amount: Number(result.totalAmount),
+          amount: creditAmount,
           type: 'deposit',
           description: `Order revenue - ${result.orderNumber}`,
           referenceId: result.id,
           referenceType: 'order',
-          notes: 'Completed order payment received',
+          notes: isEcocash ? 'EcoCash order — base amount credited (fee excluded)' : 'Completed order payment received',
           createdBy: user.id
         })
+
+        // For EcoCash, create a CashBucketEntry INFLOW immediately (digitally confirmed via txCode)
+        if (isEcocash && creditAmount > 0) {
+          await prisma.cashBucketEntry.create({
+            data: {
+              businessId: orderData.businessId,
+              entryType: 'POS_SALE',
+              direction: 'INFLOW',
+              paymentChannel: 'ECOCASH',
+              amount: creditAmount,
+              referenceType: 'order',
+              referenceId: result.id,
+              notes: `EcoCash sale - ${result.orderNumber} | Ref: ${orderData.attributes?.ecocashTransactionCode || ''}`,
+              entryDate: new Date(),
+              createdBy: user.id
+            } as any
+          })
+        }
       } catch (balanceError) {
         console.error('Failed to credit business balance for order:', balanceError)
       }

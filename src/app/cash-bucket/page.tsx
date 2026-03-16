@@ -18,6 +18,12 @@ interface Business {
 interface BucketBalance {
   businessId: string
   business: Business | null
+  cashInflow: number
+  cashOutflow: number
+  cashBalance: number
+  ecocashInflow: number
+  ecocashOutflow: number
+  ecocashBalance: number
   inflow: number
   outflow: number
   balance: number
@@ -64,8 +70,10 @@ export default function CashBucketPage() {
   // Form state
   const [selectedBiz, setSelectedBiz] = useState('')
   const [amount, setAmount] = useState('')
+  const [ecocashAmount, setEcocashAmount] = useState('')
   const [notes, setNotes] = useState('')
   const [entryDate, setEntryDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [expectedEcocash, setExpectedEcocash] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -94,14 +102,26 @@ export default function CashBucketPage() {
     if (status === 'authenticated') { load(); loadBusinesses() }
   }, [status, load, loadBusinesses, router])
 
+  useEffect(() => {
+    if (!selectedBiz || !entryDate) { setExpectedEcocash(null); return }
+    fetch(`/api/cash-bucket?expectedEcocash=true&businessId=${selectedBiz}&date=${entryDate}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(j => setExpectedEcocash(j.data?.expectedEcocash ?? null))
+      .catch(() => setExpectedEcocash(null))
+  }, [selectedBiz, entryDate])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedBiz || !amount) return
 
     const bizName = businesses.find(b => b.id === selectedBiz)?.name ?? 'this business'
+    const cashAmt = Number(amount)
+    const ecoAmt = Number(ecocashAmount || 0)
+    const lines = [`💵 Cash: ${fmt(cashAmt)}`]
+    if (ecoAmt > 0) lines.push(`📱 EcoCash: ${fmt(ecoAmt)}`)
     const ok = await confirm({
-      title: 'Record EOD Cash Receipt',
-      description: `Record ${fmt(Number(amount))} EOD cash for ${bizName}?`,
+      title: 'Record EOD Receipt',
+      description: `Record EOD receipt for ${bizName}?\n${lines.join('\n')}`,
       confirmText: 'Record',
     })
     if (!ok) return
@@ -112,11 +132,12 @@ export default function CashBucketPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId: selectedBiz, amount: Number(amount), notes, entryDate }),
+        body: JSON.stringify({ businessId: selectedBiz, amount: cashAmt, ecocashAmount: ecoAmt, notes, entryDate }),
       })
       const json = await res.json()
       if (res.ok) {
         setAmount('')
+        setEcocashAmount('')
         setNotes('')
         setEntryDate(new Date().toISOString().split('T')[0])
         await load()
@@ -172,7 +193,7 @@ export default function CashBucketPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-secondary mb-1">Amount</label>
+                  <label className="block text-xs font-medium text-secondary mb-1">💵 Cash Amount</label>
                   <input
                     type="number"
                     min="0.01"
@@ -182,6 +203,26 @@ export default function CashBucketPage() {
                     required
                     placeholder="0.00"
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-secondary mb-1">
+                    📱 EcoCash Amount
+                    {expectedEcocash !== null && (
+                      <span className="ml-2 text-teal-600 dark:text-teal-400 font-normal">
+                        (expected: {fmt(expectedEcocash)})
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={ecocashAmount}
+                    onChange={e => setEcocashAmount(e.target.value)}
+                    placeholder="0.00 (optional)"
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-primary focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
 
@@ -233,9 +274,17 @@ export default function CashBucketPage() {
                     <p className={`text-xl font-bold mt-0.5 ${b.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                       {fmt(b.balance)}
                     </p>
-                    <div className="flex gap-3 mt-1 text-xs text-secondary">
-                      <span>↑ {fmt(b.inflow)}</span>
-                      <span>↓ {fmt(b.outflow)}</span>
+                    <div className="mt-1.5 space-y-0.5 text-xs">
+                      <div className="flex justify-between text-secondary">
+                        <span>💵 Cash</span>
+                        <span className={b.cashBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}>{fmt(b.cashBalance)}</span>
+                      </div>
+                      {b.ecocashBalance !== 0 || b.ecocashInflow > 0 ? (
+                        <div className="flex justify-between text-secondary">
+                          <span>📱 EcoCash</span>
+                          <span className={b.ecocashBalance >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-red-500'}>{fmt(b.ecocashBalance)}</span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))}

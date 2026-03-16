@@ -26,6 +26,7 @@ export async function GET(
     const { searchParams } = new URL(request.url)
 
     const channel = searchParams.get('channel') // DIRECT or POS
+    const paymentMethod = searchParams.get('paymentMethod') // e.g. CASH, ECOCASH
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const limit = parseInt(searchParams.get('limit') || '50', 10)
@@ -55,6 +56,10 @@ export async function GET(
       whereClause.saleChannel = channel
     }
 
+    if (paymentMethod) {
+      whereClause.paymentMethod = paymentMethod
+    }
+
     if (startDate || endDate) {
       whereClause.soldAt = {}
       if (startDate) {
@@ -66,7 +71,7 @@ export async function GET(
     }
 
     // Fetch sales with related data
-    const [sales, total, summary] = await Promise.all([
+    const [sales, total, summary, pmGroupBy] = await Promise.all([
       prisma.wifiTokenSales.findMany({
         where: whereClause,
         include: {
@@ -111,6 +116,12 @@ export async function GET(
           id: true,
         },
       }),
+      prisma.wifiTokenSales.groupBy({
+        by: ['paymentMethod'],
+        where: whereClause,
+        _sum: { saleAmount: true },
+        _count: { id: true },
+      }),
     ])
 
     // Format summary
@@ -137,6 +148,12 @@ export async function GET(
 
     const totalSales = summaryByChannel.DIRECT.totalAmount + summaryByChannel.POS.totalAmount
     const totalCount = summaryByChannel.DIRECT.count + summaryByChannel.POS.count
+
+    const paymentMethodBreakdown: Record<string, { count: number; totalAmount: number }> = {}
+    pmGroupBy.forEach((item) => {
+      const pm = item.paymentMethod || 'CASH'
+      paymentMethodBreakdown[pm] = { count: item._count.id, totalAmount: Number(item._sum.saleAmount || 0) }
+    })
 
     return NextResponse.json({
       success: true,
@@ -169,6 +186,7 @@ export async function GET(
       },
       summary: {
         byChannel: summaryByChannel,
+        byPaymentMethod: paymentMethodBreakdown,
         total: {
           count: totalCount,
           amount: totalSales,

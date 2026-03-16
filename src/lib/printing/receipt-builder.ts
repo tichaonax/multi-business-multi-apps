@@ -205,7 +205,17 @@ export function buildReceiptData(
       : undefined,
     total: order.totalAmount,
     paymentMethod: order.paymentMethod === 'EXPENSE_ACCOUNT' ? 'expense_account' : (order.paymentMethod || 'cash'),
-    amountPaid: order.paymentStatus === 'PAID' ? order.totalAmount : undefined,
+    ...(() => {
+      if (order.paymentMethod === 'ECOCASH') {
+        const fee = Number(order.attributes?.ecocashFeeAmount || 0)
+        return {
+          amountPaid: order.paymentStatus === 'PAID' ? order.totalAmount + fee : undefined,
+          ecocashFeeAmount: fee,
+          ecocashTransactionCode: order.attributes?.ecocashTransactionCode as string | undefined
+        }
+      }
+      return { amountPaid: order.paymentStatus === 'PAID' ? order.totalAmount : undefined }
+    })(),
     changeDue: undefined,
     wifiTokens: order.wifiTokens?.filter(token => token.success).map(token => ({
       tokenCode: token.tokenCode,

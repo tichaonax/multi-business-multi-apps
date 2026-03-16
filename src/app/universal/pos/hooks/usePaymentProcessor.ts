@@ -22,7 +22,7 @@ export interface PaymentProcessorOptions {
 }
 
 export interface CheckoutData {
-  paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty'
+  paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty' | 'ecocash'
   amountPaid?: number
   customerId?: string | null
   customerName?: string
@@ -30,6 +30,8 @@ export interface CheckoutData {
   customerEmail?: string
   notes?: string
   attributes?: Record<string, any>
+  ecocashTransactionCode?: string
+  ecocashFeeAmount?: number
 }
 
 /**
@@ -163,7 +165,13 @@ export function usePaymentProcessor(
           customerPhone: checkoutData.customerPhone,
           customerEmail: checkoutData.customerEmail,
           notes: checkoutData.notes,
-          attributes: checkoutData.attributes,
+          attributes: {
+            ...checkoutData.attributes,
+            ...(checkoutData.paymentMethod === 'ecocash' ? {
+              ecocashTransactionCode: checkoutData.ecocashTransactionCode,
+              ecocashFeeAmount: checkoutData.ecocashFeeAmount
+            } : {})
+          },
           amountPaid: checkoutData.amountPaid || totals.total
         }
 

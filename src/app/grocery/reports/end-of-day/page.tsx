@@ -194,6 +194,7 @@ export default function EndOfDayReport() {
           totalTax: dailySales.summary.totalTax
         },
         paymentMethods: dailySales.paymentMethods,
+        ecocashBreakdown: dailySales.ecocashBreakdown || null,
         employeeSales: dailySales.employeeSales || [],
         categoryBreakdown: dailySales.categoryBreakdown || [],
         businessDay: dailySales.businessDay
@@ -592,6 +593,33 @@ export default function EndOfDayReport() {
               </tbody>
             </table>
           </div>
+
+          {/* EcoCash Breakdown */}
+          {dailySales.ecocashBreakdown && (
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
+                📱 ECOCASH BREAKDOWN
+              </h3>
+              <div className="bg-teal-50 dark:bg-teal-900/20 rounded-lg border border-teal-200 dark:border-teal-700 overflow-hidden">
+                <table className="w-full">
+                  <tbody>
+                    <tr className="border-b border-teal-100 dark:border-teal-800">
+                      <td className="p-3 text-gray-700 dark:text-gray-300">EcoCash Sales ({dailySales.ecocashBreakdown.count} orders)</td>
+                      <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(dailySales.ecocashBreakdown.grossTotal)}</td>
+                    </tr>
+                    <tr className="border-b border-teal-100 dark:border-teal-800">
+                      <td className="p-3 text-red-600 dark:text-red-400">Less: EcoCash Fees (customer-paid)</td>
+                      <td className="p-3 text-right font-semibold text-red-600 dark:text-red-400">−{formatCurrency(dailySales.ecocashBreakdown.fees)}</td>
+                    </tr>
+                    <tr className="bg-teal-100 dark:bg-teal-800/40">
+                      <td className="p-3 font-bold text-teal-800 dark:text-teal-200">Net EcoCash Revenue</td>
+                      <td className="p-3 text-right font-bold text-teal-800 dark:text-teal-200">{formatCurrency(dailySales.ecocashBreakdown.netTotal)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Employee Sales */}
           {dailySales.employeeSales && dailySales.employeeSales.length > 0 && (

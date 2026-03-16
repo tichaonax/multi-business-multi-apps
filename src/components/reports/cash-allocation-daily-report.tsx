@@ -29,6 +29,7 @@ interface DaySummary {
   status: 'LOCKED' | 'IN_PROGRESS' | 'DRAFT' | 'NONE'
   totalReported: number
   totalActual: number
+  ecocashBucket: number
 }
 
 interface Props {
@@ -77,6 +78,16 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     cashCounted: number | null
     expectedCash: number | null
   } | null>(null)
+
+  // Cash bucket summary (split by channel)
+  const [bucketSummary, setBucketSummary] = useState<{ cashBalance: number; ecocashBalance: number; balance: number } | null>(null)
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/cash-allocation/${businessId}/summary`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d ? setBucketSummary({ cashBalance: d.cashBalance ?? d.balance, ecocashBalance: d.ecocashBalance ?? 0, balance: d.balance }) : null)
+      .catch(() => {})
+  }, [businessId])
 
   // 7-day overview state
   const [weekSummary, setWeekSummary] = useState<DaySummary[]>([])
@@ -161,17 +172,21 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     const loadWeek = async () => {
       setWeekLoading(true)
       try {
-        const results = await Promise.all(
-          last7Days.map(d => fetch(`/api/cash-allocation/${businessId}?date=${d}`).then(r => r.json()))
-        )
+        const [results, bucketResults] = await Promise.all([
+          Promise.all(last7Days.map(d => fetch(`/api/cash-allocation/${businessId}?date=${d}`).then(r => r.json()))),
+          Promise.all(last7Days.map(d => fetch(`/api/cash-bucket?businessId=${businessId}&date=${d}`).then(r => r.ok ? r.json() : null).catch(() => null))),
+        ])
         const summaries: DaySummary[] = results.map((data, i) => {
-          if (!data.exists) return { date: last7Days[i], status: 'NONE' as const, totalReported: 0, totalActual: 0 }
+          const bucketData = bucketResults[i]
+          const ecocashBucket = Number(bucketData?.ecocashInflow ?? 0)
+          if (!data.exists) return { date: last7Days[i], status: 'NONE' as const, totalReported: 0, totalActual: 0, ecocashBucket }
           const items: LineItem[] = data.lineItems ?? []
           return {
             date: last7Days[i],
             status: data.report?.status ?? 'DRAFT',
             totalReported: items.reduce((s, li) => s + toNum(li.reportedAmount), 0),
             totalActual: items.reduce((s, li) => s + toNum(li.actualAmount), 0),
+            ecocashBucket,
           }
         })
         setWeekSummary(summaries)
@@ -360,6 +375,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reported</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actual</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-teal-600 dark:text-teal-400 uppercase">📱 EcoCash</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
@@ -376,6 +392,9 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                   </td>
                   <td className="px-4 py-2 text-right text-sm font-mono text-gray-700 dark:text-gray-300">
                     {row.totalActual > 0 ? `$${row.totalActual.toFixed(2)}` : '—'}
+                  </td>
+                  <td className="px-4 py-2 text-right text-sm font-mono text-teal-600 dark:text-teal-400">
+                    {row.ecocashBucket > 0 ? `$${row.ecocashBucket.toFixed(2)}` : '—'}
                   </td>
                 </tr>
               ))}
@@ -483,8 +502,18 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       {/* Cash distribution summary — shows cash tendered and where it all goes */}
       {(cashTendered !== null || rentConfig || lineItems.length > 0) && (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Cash Distribution</h3>
+            {bucketSummary !== null && (
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-gray-500 dark:text-gray-400">🪣 Bucket:</span>
+                <span className="text-gray-700 dark:text-gray-300">💵 Cash <span className="font-semibold">${bucketSummary.cashBalance.toFixed(2)}</span></span>
+                {bucketSummary.ecocashBalance !== 0 && (
+                  <span className="text-teal-700 dark:text-teal-300">📱 EcoCash <span className="font-semibold">${bucketSummary.ecocashBalance.toFixed(2)}</span></span>
+                )}
+                <span className="text-gray-500 dark:text-gray-400">Total <span className="font-semibold text-gray-700 dark:text-gray-300">${bucketSummary.balance.toFixed(2)}</span></span>
+              </div>
+            )}
           </div>
           <div className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
             {/* Cash tendered */}

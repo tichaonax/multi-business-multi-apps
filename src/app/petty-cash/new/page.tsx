@@ -17,6 +17,7 @@ export default function NewPettyCashRequestPage() {
   const [amount, setAmount] = useState('')
   const [purpose, setPurpose] = useState('')
   const [notes, setNotes] = useState('')
+  const [paymentChannel, setPaymentChannel] = useState<'CASH' | 'ECOCASH'>('CASH')
   const [submitting, setSubmitting] = useState(false)
   const [canRequest, setCanRequest] = useState<boolean | null>(null)
 
@@ -58,7 +59,7 @@ export default function NewPettyCashRequestPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ businessId: currentBusinessId, requestedAmount: Number(amount), purpose: purpose.trim(), notes: notes.trim() || undefined }),
+        body: JSON.stringify({ businessId: currentBusinessId, requestedAmount: Number(amount), purpose: purpose.trim(), notes: notes.trim() || undefined, paymentChannel }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to submit')
@@ -125,6 +126,22 @@ export default function NewPettyCashRequestPage() {
                 className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
               />
             </div>
+
+            {currentBusiness?.ecocashEnabled && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Channel</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" checked={paymentChannel === 'CASH'} onChange={() => setPaymentChannel('CASH')} className="accent-blue-600" />
+                    <span className="text-sm text-gray-800 dark:text-gray-200">💵 Cash</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" checked={paymentChannel === 'ECOCASH'} onChange={() => setPaymentChannel('ECOCASH')} className="accent-green-600" />
+                    <span className="text-sm text-gray-800 dark:text-gray-200">📱 EcoCash</span>
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <button

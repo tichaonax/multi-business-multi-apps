@@ -41,6 +41,8 @@ export async function GET(
         address: true,
         phone: true,
         ecocashEnabled: true,
+        ecocashFeeType: true,
+        ecocashFeeValue: true,
         receiptReturnPolicy: true,
         isActive: true,
         isDemo: true,
@@ -66,6 +68,8 @@ export async function GET(
       address: business.address || business.umbrellaBusinessAddress || '',
       phone: business.phone || business.umbrellaBusinessPhone || '',
       ecocashEnabled: business.ecocashEnabled,
+      ecocashFeeType: (business as any).ecocashFeeType ?? 'FIXED',
+      ecocashFeeValue: (business as any).ecocashFeeValue != null ? Number((business as any).ecocashFeeValue) : 0,
       receiptReturnPolicy: business.receiptReturnPolicy || 'All sales are final',
       isActive: business.isActive,
       isDemo: business.isDemo,
@@ -109,7 +113,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { address, phone, ecocashEnabled } = body
+    const { address, phone, ecocashEnabled, ecocashFeeType, ecocashFeeValue } = body
 
     // Update business details
     const updatedBusiness = await prisma.businesses.update({
@@ -117,7 +121,9 @@ export async function PUT(
       data: {
         ...(address !== undefined && { address }),
         ...(phone !== undefined && { phone }),
-        ...(ecocashEnabled !== undefined && { ecocashEnabled })
+        ...(ecocashEnabled !== undefined && { ecocashEnabled }),
+        ...(ecocashFeeType !== undefined && { ecocashFeeType: ecocashFeeType || 'FIXED' }),
+        ...(ecocashFeeValue !== undefined && { ecocashFeeValue: ecocashFeeValue !== '' && ecocashFeeValue !== null ? parseFloat(ecocashFeeValue) : null }),
       },
       select: {
         id: true,
@@ -127,6 +133,8 @@ export async function PUT(
         address: true,
         phone: true,
         ecocashEnabled: true,
+        ecocashFeeType: true,
+        ecocashFeeValue: true,
         receiptReturnPolicy: true,
         isActive: true,
         isDemo: true,
@@ -148,6 +156,8 @@ export async function PUT(
       address: updatedBusiness.address || updatedBusiness.umbrellaBusinessAddress || '',
       phone: updatedBusiness.phone || updatedBusiness.umbrellaBusinessPhone || '',
       ecocashEnabled: updatedBusiness.ecocashEnabled,
+      ecocashFeeType: (updatedBusiness as any).ecocashFeeType ?? 'FIXED',
+      ecocashFeeValue: (updatedBusiness as any).ecocashFeeValue != null ? Number((updatedBusiness as any).ecocashFeeValue) : 0,
       receiptReturnPolicy: updatedBusiness.receiptReturnPolicy || 'All sales are final',
       isActive: updatedBusiness.isActive,
       isDemo: updatedBusiness.isDemo,

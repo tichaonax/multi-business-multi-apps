@@ -36,6 +36,7 @@ export async function GET(
     const endDateStr = searchParams.get('endDate');
 
     const timezone = searchParams.get('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const paymentMethodFilter = searchParams.get('paymentMethod') || null;
 
     if (!startDateStr || !endDateStr) {
       return NextResponse.json(
@@ -125,10 +126,24 @@ export async function GET(
     // Filter out EXPENSE_ACCOUNT (meal program subsidy) orders — these are not real cash income
     const regularOrders = orders.filter(order => order.paymentMethod !== 'EXPENSE_ACCOUNT')
 
+    // Payment method breakdown (always from all regular orders, regardless of filter)
+    const pmBreakdownMap: Record<string, { count: number; total: number }> = {}
+    for (const o of regularOrders) {
+      const pm = (o.paymentMethod || 'CASH').toUpperCase()
+      if (!pmBreakdownMap[pm]) pmBreakdownMap[pm] = { count: 0, total: 0 }
+      pmBreakdownMap[pm].count++
+      pmBreakdownMap[pm].total += Number(o.totalAmount || 0)
+    }
+
+    // Apply optional paymentMethod filter for analytics
+    const filteredOrders = paymentMethodFilter
+      ? regularOrders.filter(o => (o.paymentMethod || 'CASH').toUpperCase() === paymentMethodFilter.toUpperCase())
+      : regularOrders
+
     // Calculate summary metrics
-    const totalSales = regularOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
-    const totalTax = regularOrders.reduce((sum, order) => sum + Number(order.taxAmount || 0), 0);
-    const totalOrders = regularOrders.length;
+    const totalSales = filteredOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+    const totalTax = filteredOrders.reduce((sum, order) => sum + Number(order.taxAmount || 0), 0);
+    const totalOrders = filteredOrders.length;
     const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
     // Aggregate by product (units and revenue)
@@ -165,7 +180,7 @@ export async function GET(
     }> = {};
 
     // Process each order
-    regularOrders.forEach(order => {
+    filteredOrders.forEach(order => {
       const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
       const orderRevenue = Number(order.totalAmount || 0);
 
@@ -313,7 +328,7 @@ export async function GET(
     // (combos, WiFi tokens, R710 tokens, and any item where variant lookup failed)
     // The restaurant orders API stores productId in item.attributes.productId.
     const noVariantProductIds = new Set<string>();
-    regularOrders.forEach(order => {
+    filteredOrders.forEach(order => {
       order.business_order_items.forEach(item => {
         if (!item.product_variants && item.attributes && (item.attributes as any).productId) {
           noVariantProductIds.add((item.attributes as any).productId as string);
@@ -349,7 +364,7 @@ export async function GET(
       const noVariantProductMap = new Map(noVariantProducts.map(p => [p.id, p]));
 
       // Second pass: fill in category stats for no-variant items
-      regularOrders.forEach(order => {
+      filteredOrders.forEach(order => {
         order.business_order_items.forEach(item => {
           if (!item.product_variants && item.attributes) {
             const attrs = item.attributes as any;
@@ -568,6 +583,7 @@ export async function GET(
         totalExpenses: totalExpensesRounded,
         grossMargin,
       },
+      paymentMethodBreakdown: pmBreakdownMap,
       topProducts: {
         byUnits: topProductsByUnits,
         byRevenue: topProductsByRevenue

@@ -40,6 +40,7 @@ interface SalesPayload {
   dailySales: Array<{ date: string; sales: number; orderCount: number; expenses?: number }>
   productBreakdown:  Array<{ productName: string; emoji: string; revenue: number; percentage: number }>
   categoryBreakdown: Array<{ categoryPath: string; emoji: string; revenue: number; percentage: number }>
+  paymentMethodBreakdown?: Record<string, { count: number; total: number }>
 }
 
 export interface FinancialInsightsReportProps {
@@ -189,14 +190,16 @@ export function FinancialInsightsReport({ businessId, businessType }: FinancialI
     return { start, end }
   })
   const [targetMargin, setTargetMargin] = useState(40)
+  const [pmFilter, setPmFilter] = useState<string>('')
   const [cur,     setCur]     = useState<SalesPayload | null>(null)
   const [prev,    setPrev]    = useState<SalesPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
 
-  const fetchPeriod = useCallback(async (startDate: string, endDate: string): Promise<SalesPayload | null> => {
+  const fetchPeriod = useCallback(async (startDate: string, endDate: string, paymentMethod?: string): Promise<SalesPayload | null> => {
     const tz  = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
-    const res = await fetch(`/api/business/${businessId}/sales-analytics?startDate=${startDate}&endDate=${endDate}&timezone=${tz}`)
+    const pmParam = paymentMethod ? `&paymentMethod=${paymentMethod}` : ''
+    const res = await fetch(`/api/business/${businessId}/sales-analytics?startDate=${startDate}&endDate=${endDate}&timezone=${tz}${pmParam}`)
     if (!res.ok) return null
     const data = await res.json()
     return data?.success ? data : null
@@ -212,8 +215,8 @@ export function FinancialInsightsReport({ businessId, businessType }: FinancialI
     const prevEnd   = new Date(range.start.getTime() - 86400000)
     const prevStart = new Date(prevEnd.getTime()  - (days - 1) * 86400000)
     Promise.all([
-      fetchPeriod(startStr, endStr),
-      fetchPeriod(getLocalDateString(prevStart), getLocalDateString(prevEnd)),
+      fetchPeriod(startStr, endStr, pmFilter || undefined),
+      fetchPeriod(getLocalDateString(prevStart), getLocalDateString(prevEnd), pmFilter || undefined),
     ]).then(([c, p]) => {
       if (cancelled) return
       setCur(c); setPrev(p)
@@ -221,7 +224,7 @@ export function FinancialInsightsReport({ businessId, businessType }: FinancialI
     }).catch(() => { if (!cancelled) setError('Failed to load analytics data.') })
     .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [businessId, range, fetchPeriod])
+  }, [businessId, range, pmFilter, fetchPeriod])
 
   // ── Derived values ──
   const insights   = cur ? buildInsights(cur, prev) : []
@@ -297,6 +300,18 @@ export function FinancialInsightsReport({ businessId, businessType }: FinancialI
         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Analysis Period</p>
         <DateRangeSelector value={range} onChange={setRange} />
         {prev && <p className="text-xs text-gray-400 mt-2">↕ Comparing to previous period: {prevPeriodLabel}</p>}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Payment Method:</span>
+          {[{ label: 'All', value: '' }, { label: '💵 Cash', value: 'CASH' }, { label: '📱 EcoCash', value: 'ECOCASH' }].map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setPmFilter(opt.value)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${pmFilter === opt.value ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Loading ── */}
@@ -363,6 +378,22 @@ export function FinancialInsightsReport({ businessId, businessType }: FinancialI
               </div>
             </div>
           </div>
+
+          {/* ── EcoCash Payment Method Breakdown ── */}
+          {cur.paymentMethodBreakdown && cur.paymentMethodBreakdown['ECOCASH'] && (
+            <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-xl p-4 shadow-sm">
+              <p className="text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wide mb-3">📱 Payment Method Breakdown</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {Object.entries(cur.paymentMethodBreakdown).map(([method, data]) => (
+                  <div key={method} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-teal-100 dark:border-teal-800">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{method === 'ECOCASH' ? '📱' : '💵'} {method}</p>
+                    <p className="text-base font-bold text-gray-900 dark:text-gray-100">{fmt(data.total)}</p>
+                    <p className="text-xs text-gray-400">{data.count} orders · {cur.summary.totalSales > 0 ? ((data.total / cur.summary.totalSales) * 100).toFixed(1) : 0}%</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ── Section 2: Auto-Generated Insights ── */}
           {insights.length > 0 && (

@@ -60,18 +60,21 @@ export async function POST(
       )
     }
 
-    // Verify business has sufficient cash in the physical cash bucket
+    const isEcocash = (pcRequest as any).paymentChannel === 'ECOCASH'
+
+    // Verify business has sufficient funds in the appropriate bucket
     const bucketRows = await prisma.cashBucketEntry.groupBy({
       by: ['direction'],
-      where: { businessId: pcRequest.businessId },
+      where: { businessId: pcRequest.businessId, paymentChannel: isEcocash ? 'ECOCASH' : 'CASH' },
       _sum: { amount: true },
     })
     const bucketInflow = Number(bucketRows.find(r => r.direction === 'INFLOW')?._sum.amount ?? 0)
     const bucketOutflow = Number(bucketRows.find(r => r.direction === 'OUTFLOW')?._sum.amount ?? 0)
     const bucketBalance = bucketInflow - bucketOutflow
+    const bucketLabel = isEcocash ? 'EcoCash wallet' : 'cash bucket'
     if (bucketBalance < amount) {
       return NextResponse.json(
-        { error: `Insufficient cash in bucket for ${pcRequest.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${amount.toFixed(2)}` },
+        { error: `Insufficient funds in ${bucketLabel} for ${pcRequest.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${amount.toFixed(2)}` },
         { status: 400 }
       )
     }
@@ -79,7 +82,7 @@ export async function POST(
     const now = new Date()
 
     const result = await prisma.$transaction(async (tx: any) => {
-      // 1. Deposit into expense account
+      // 1. Deposit into expense account (funds committed to requester)
       const deposit = await tx.expenseAccountDeposits.create({
         data: {
           expenseAccountId: pcRequest.expenseAccountId,
@@ -95,20 +98,23 @@ export async function POST(
       // 2. Recalculate expense account balance
       await updateExpenseAccountBalanceTx(tx, pcRequest.expenseAccountId)
 
-      // 3. Debit cash bucket — physical cash handed to requester
-      await tx.cashBucketEntry.create({
-        data: {
-          businessId: pcRequest.businessId,
-          entryType: 'PETTY_CASH',
-          direction: 'OUTFLOW',
-          amount,
-          referenceType: 'PETTY_CASH',
-          referenceId: requestId,
-          notes: pcRequest.purpose,
-          entryDate: now,
-          createdBy: user.id,
-        },
-      })
+      // 3. Debit bucket — CASH: physical cash handed out; ECOCASH: defer to "mark as sent"
+      if (!isEcocash) {
+        await tx.cashBucketEntry.create({
+          data: {
+            businessId: pcRequest.businessId,
+            entryType: 'PETTY_CASH',
+            direction: 'OUTFLOW',
+            amount,
+            paymentChannel: 'CASH',
+            referenceType: 'PETTY_CASH',
+            referenceId: requestId,
+            notes: pcRequest.purpose,
+            entryDate: now,
+            createdBy: user.id,
+          },
+        })
+      }
 
       // 4. Update petty cash request
       const updated = await tx.pettyCashRequests.update({

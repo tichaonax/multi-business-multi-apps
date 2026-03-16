@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Search, X, UserPlus, User, Printer } from 'lucide-react'
-import { CustomerLoyaltyCard } from './customer-loyalty-card'
+import { CustomerLoyaltyCard, buildPrintCardHtml, openCardPrintWindow, formatPhone } from './customer-loyalty-card'
 import { PrintCardToReceiptPrinter } from '@/components/ui/print-card-to-receipt-printer'
 
 interface Customer {
@@ -24,6 +24,7 @@ interface CustomerLookupProps {
   allowWalkIn?: boolean
   businessName?: string
   businessPhone?: string
+  umbrellaBusinessName?: string | null
 }
 
 export function CustomerLookup({
@@ -34,7 +35,9 @@ export function CustomerLookup({
   allowWalkIn = true,
   businessName,
   businessPhone,
+  umbrellaBusinessName: umbrellaBusinessNameProp,
 }: CustomerLookupProps) {
+  const [umbrellaBusinessName, setUmbrellaBusinessName] = useState<string | null>(umbrellaBusinessNameProp ?? null)
   const [searchQuery, setSearchQuery] = useState('')
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(false)
@@ -45,6 +48,18 @@ export function CustomerLookup({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Fetch umbrella business name
+  useEffect(() => {
+    if (umbrellaBusinessNameProp) return
+    fetch('/api/admin/umbrella-business')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        console.log('[CustomerLookup] umbrella-business response:', data)
+        if (data?.umbrellaBusinessName) setUmbrellaBusinessName(data.umbrellaBusinessName)
+      })
+      .catch(() => {})
+  }, [])
 
   // Search customers as user types
   useEffect(() => {
@@ -119,25 +134,10 @@ export function CustomerLookup({
     setShowPrintPanel(false)
   }
 
-  const printLoyaltyCard = () => {
-    const cardEl = document.getElementById('customer-loyalty-card-lookup')
-    if (!cardEl) return
-    const styles = Array.from(document.styleSheets)
-      .map((sheet) => { try { return Array.from(sheet.cssRules).map((r) => r.cssText).join('\n') } catch { return '' } })
-      .join('\n')
-    const printWindow = window.open('', '_blank', 'width=900,height=460')
-    if (!printWindow) return
-    printWindow.document.write(`<!DOCTYPE html><html><head><title>Loyalty Card</title><style>
-      ${styles}
-      html,body{height:100%;margin:0;padding:0;}
-      body{display:flex;justify-content:center;align-items:center;min-height:100vh;}
-      .card-pair{display:inline-flex;align-items:flex-start;gap:0;}
-      .fold-guide{width:0;align-self:stretch;border-left:2px dashed #888;}
-    </style></head><body>
-      <div class="card-pair">${cardEl.outerHTML}<div class="fold-guide"></div>${cardEl.outerHTML}</div>
-      <script>window.onload=()=>{window.print();window.close();}<\/script>
-    </body></html>`)
-    printWindow.document.close()
+  const printLoyaltyCard = async () => {
+    if (!selectedCustomer) return
+    const cardHtml = await buildPrintCardHtml(selectedCustomer, businessName, businessPhone, umbrellaBusinessName)
+    openCardPrintWindow(`Loyalty Card — ${selectedCustomer.name}`, cardHtml)
   }
 
   const handleSelectWalkIn = () => {
@@ -175,7 +175,7 @@ export function CustomerLookup({
                 <div className="font-medium text-primary">{selectedCustomer.name}</div>
                 <div className="text-xs text-secondary">
                   ID: {selectedCustomer.customerNumber}
-                  {selectedCustomer.phone && ` • ${selectedCustomer.phone}`}
+                  {selectedCustomer.phone && ` • ${formatPhone(selectedCustomer.phone)}`}
                 </div>
               </div>
             </div>
@@ -228,6 +228,7 @@ export function CustomerLookup({
               }}
               businessName={businessName}
               businessPhone={businessPhone}
+              umbrellaBusinessName={umbrellaBusinessName}
               printId="customer-loyalty-card-lookup"
             />
           </div>
@@ -324,7 +325,7 @@ export function CustomerLookup({
                           <div className="font-medium text-primary">{customer.name}</div>
                           <div className="text-xs text-secondary">
                             {customer.customerNumber}
-                            {customer.phone && ` • ${customer.phone}`}
+                            {customer.phone && ` • ${formatPhone(customer.phone)}`}
                           </div>
                         </div>
                       </div>

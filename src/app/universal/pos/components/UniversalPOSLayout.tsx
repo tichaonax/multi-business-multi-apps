@@ -38,7 +38,9 @@ interface UniversalPOSLayoutProps {
   // Payment
   config: BusinessTypeConfig
   isProcessing: boolean
-  onCheckout: (paymentMethod: PaymentMethod, amountPaid?: number) => void
+  onCheckout: (paymentMethod: PaymentMethod, amountPaid?: number, ecocashData?: { ecocashTransactionCode: string; ecocashFeeAmount: number; totalWithFee: number }) => void
+  ecocashFeeType?: string
+  ecocashFeeValue?: number
 
   // Business info
   businessId?: string
@@ -80,6 +82,8 @@ export function UniversalPOSLayout({
   config,
   isProcessing,
   onCheckout,
+  ecocashFeeType,
+  ecocashFeeValue,
   businessId,
   businessName,
   businessPhone,
@@ -259,6 +263,8 @@ export function UniversalPOSLayout({
           isProcessing={isProcessing}
           onCheckout={onCheckout}
           disabled={cart.length === 0}
+          ecocashFeeType={ecocashFeeType}
+          ecocashFeeValue={ecocashFeeValue}
         />
       </div>
     </div>

@@ -38,17 +38,23 @@ export async function GET(req: NextRequest) {
 
     const allBusinessIds = accessibleBusinesses.map(b => b.id)
 
-    // --- Batch fetch cash bucket balances (INFLOW - OUTFLOW per business) ---
+    // --- Batch fetch cash bucket balances split by paymentChannel ---
     const cashBucketRows = await prisma.cashBucketEntry.groupBy({
-      by: ['businessId', 'direction'],
+      by: ['businessId', 'direction', 'paymentChannel'] as any,
       where: { businessId: { in: allBusinessIds } },
       _sum: { amount: true },
     })
     const cashBoxMap = new Map<string, number>()
-    for (const row of cashBucketRows) {
-      const cur = cashBoxMap.get(row.businessId) ?? 0
+    const ecocashBoxMap = new Map<string, number>()
+    for (const row of cashBucketRows as any[]) {
       const amt = Number(row._sum.amount ?? 0)
-      cashBoxMap.set(row.businessId, row.direction === 'INFLOW' ? cur + amt : cur - amt)
+      if (row.paymentChannel === 'ECOCASH') {
+        const cur = ecocashBoxMap.get(row.businessId) ?? 0
+        ecocashBoxMap.set(row.businessId, row.direction === 'INFLOW' ? cur + amt : cur - amt)
+      } else {
+        const cur = cashBoxMap.get(row.businessId) ?? 0
+        cashBoxMap.set(row.businessId, row.direction === 'INFLOW' ? cur + amt : cur - amt)
+      }
     }
 
     // --- Batch fetch rent configs + expense account balances ---
@@ -88,6 +94,8 @@ export async function GET(req: NextRequest) {
         const completedAmount = Number(completedRevenue._sum.totalAmount || 0)
         const pendingAmount = Number(pendingRevenue._sum.totalAmount || 0)
         const rent = rentMap.get(business.id) ?? null
+        const cashBalance = cashBoxMap.get(business.id) ?? 0
+        const ecocashBalance = ecocashBoxMap.get(business.id) ?? 0
 
         return {
           businessId: business.id,
@@ -101,7 +109,9 @@ export async function GET(req: NextRequest) {
           pendingOrders: pendingRevenue._count,
           accountBalance: balanceInfo.balance,
           hasAccount: balanceInfo.hasAccount,
-          cashBoxBalance: cashBoxMap.get(business.id) ?? 0,
+          cashBoxBalance: cashBalance + ecocashBalance,
+          cashBalance,
+          ecocashBalance,
           monthlyRent: rent?.monthlyRent ?? 0,
           rentContributed: rent?.contributed ?? 0,
           hasRentConfig: rent !== null,
@@ -121,6 +131,8 @@ export async function GET(req: NextRequest) {
           pendingOrders: 0,
           totalAccountBalance: 0,
           totalCashBoxBalance: 0,
+          totalCashBalance: 0,
+          totalEcocashBalance: 0,
           totalMonthlyRent: 0,
           totalRentContributed: 0,
           hasRentConfig: false,
@@ -136,6 +148,8 @@ export async function GET(req: NextRequest) {
       t.pendingOrders += item.pendingOrders
       t.totalAccountBalance += item.accountBalance
       t.totalCashBoxBalance += item.cashBoxBalance
+      t.totalCashBalance += item.cashBalance
+      t.totalEcocashBalance += item.ecocashBalance
       t.totalMonthlyRent += item.monthlyRent
       t.totalRentContributed += item.rentContributed
       if (item.hasRentConfig) t.hasRentConfig = true
@@ -152,6 +166,8 @@ export async function GET(req: NextRequest) {
         accountBalance: item.accountBalance,
         hasAccount: item.hasAccount,
         cashBoxBalance: item.cashBoxBalance,
+        cashBalance: item.cashBalance,
+        ecocashBalance: item.ecocashBalance,
         monthlyRent: item.monthlyRent,
         rentContributed: item.rentContributed,
         hasRentConfig: item.hasRentConfig,

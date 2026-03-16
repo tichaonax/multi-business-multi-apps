@@ -100,6 +100,7 @@ export async function GET(
           returnPayment: pcRequest.returnPayment
             ? { ...pcRequest.returnPayment, amount: Number(pcRequest.returnPayment.amount) }
             : null,
+          paymentChannel: (pcRequest as any).paymentChannel ?? 'CASH',
           createdAt: pcRequest.createdAt.toISOString(),
           updatedAt: pcRequest.updatedAt.toISOString(),
         },

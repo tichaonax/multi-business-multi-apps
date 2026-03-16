@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           businesses: {
-            select: { id: true, name: true, type: true }
+            select: { id: true, name: true, type: true, phone: true }
           },
           business_orders: {
             select: {

@@ -31,6 +31,7 @@ export default function PettyCashReportsPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [channelFilter, setChannelFilter] = useState('')
 
   useEffect(() => {
     if (status === 'loading') return
@@ -45,6 +46,7 @@ export default function PettyCashReportsPage() {
       if (dateFrom) params.set('dateFrom', dateFrom)
       if (dateTo) params.set('dateTo', dateTo)
       if (statusFilter) params.set('status', statusFilter)
+      if (channelFilter) params.set('paymentChannel', channelFilter)
       const res = await fetch(`/api/petty-cash/reports?${params}`, { credentials: 'include' })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load')
@@ -54,7 +56,7 @@ export default function PettyCashReportsPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, dateFrom, dateTo, statusFilter, toast])
+  }, [currentBusinessId, dateFrom, dateTo, statusFilter, channelFilter, toast])
 
   useEffect(() => { fetchReport() }, [fetchReport])
 
@@ -64,6 +66,8 @@ export default function PettyCashReportsPage() {
 
   const summary = reportData?.summary
   const requests = reportData?.requests || []
+  const channelBreakdown = reportData?.channelBreakdown || {}
+  const ecocashNet = channelBreakdown['ECOCASH']?.netSpend || 0
 
   return (
     <ContentLayout title="Petty Cash Reports">
@@ -97,6 +101,14 @@ export default function PettyCashReportsPage() {
               <option value="CANCELLED">Cancelled</option>
             </select>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Channel</label>
+            <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+              <option value="">All</option>
+              <option value="CASH">💵 Cash</option>
+              <option value="ECOCASH">📱 EcoCash</option>
+            </select>
+          </div>
           <button onClick={fetchReport} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Apply</button>
         </div>
 
@@ -116,6 +128,21 @@ export default function PettyCashReportsPage() {
                 </p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* EcoCash channel card (shown when EcoCash exists) */}
+        {ecocashNet > 0 && (
+          <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-xl p-4 flex items-center gap-4">
+            <span className="text-2xl">📱</span>
+            <div>
+              <p className="text-xs font-medium text-teal-600 dark:text-teal-400 uppercase tracking-wide">EcoCash Net Spend</p>
+              <p className="text-xl font-bold text-teal-700 dark:text-teal-300">{fmt(ecocashNet)}</p>
+            </div>
+            <div className="ml-4">
+              <p className="text-xs text-teal-600 dark:text-teal-400">{channelBreakdown['ECOCASH']?.count || 0} requests via EcoCash</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Use the Channel filter to view only EcoCash requests</p>
+            </div>
           </div>
         )}
 
@@ -148,6 +175,7 @@ export default function PettyCashReportsPage() {
                   <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Approved</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Net Spend</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Returned</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Channel</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Date</th>
                 </tr>
@@ -160,6 +188,7 @@ export default function PettyCashReportsPage() {
                     <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{r.approvedAmount != null ? fmt(r.approvedAmount) : '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-600 dark:text-red-400">{r.netSpend != null ? fmt(r.netSpend) : '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-green-600 dark:text-green-400">{r.returnAmount != null ? fmt(r.returnAmount) : '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{r.paymentChannel === 'ECOCASH' ? '📱' : '💵'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[r.status] || ''}`}>{r.status}</span>
                     </td>

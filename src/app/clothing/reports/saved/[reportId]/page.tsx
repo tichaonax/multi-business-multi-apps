@@ -249,6 +249,31 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
           </div>
         )}
 
+        {/* EcoCash Breakdown */}
+        {reportData.ecocashBreakdown && (
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
+              📱 EcoCash Breakdown
+            </h3>
+            <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-lg p-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-teal-600 dark:text-teal-400">Gross Total ({reportData.ecocashBreakdown.count} orders)</p>
+                  <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{formatCurrency(reportData.ecocashBreakdown.grossTotal)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-red-500 dark:text-red-400">Fees Deducted</p>
+                  <p className="text-lg font-bold text-red-600 dark:text-red-400">-{formatCurrency(reportData.ecocashBreakdown.fees)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-teal-600 dark:text-teal-400">Net Received</p>
+                  <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{formatCurrency(reportData.ecocashBreakdown.netTotal)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Till Reconciliation */}
         {report.expectedCash !== null && (
           <div className="mb-8">

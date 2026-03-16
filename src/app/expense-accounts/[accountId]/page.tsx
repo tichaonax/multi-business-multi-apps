@@ -229,6 +229,7 @@ interface QueuedPayment {
   payeeSupplier?: { name: string } | null
   payeeType: string
   category?: { name: string; emoji: string } | null
+  paymentChannel?: string
 }
 
 function MyQueuePanel({
@@ -248,6 +249,9 @@ function MyQueuePanel({
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState<string | null>(null)
   const pendingApprovalRef = useRef<QueuedPayment[]>([])
+  const [ecocashModal, setEcocashModal] = useState<{ paymentId: string; amount: number } | null>(null)
+  const [ecocashTxCode, setEcocashTxCode] = useState('')
+  const [ecocashSubmitting, setEcocashSubmitting] = useState(false)
 
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -334,10 +338,36 @@ function MyQueuePanel({
     }
   }
 
+  const handleMarkSentEcocash = async () => {
+    if (!ecocashModal) return
+    if (!ecocashTxCode.trim()) return
+    setEcocashSubmitting(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/payments/${ecocashModal.paymentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'markPaid', ecocashTransactionCode: ecocashTxCode.trim() }),
+      })
+      if (res.ok) {
+        setApproved(prev => prev.filter(p => p.id !== ecocashModal.paymentId))
+        setEcocashModal(null)
+        setEcocashTxCode('')
+        onActionDone()
+      } else {
+        const d = await res.json()
+        await alert({ title: 'Error', description: d.error ?? 'Failed to mark EcoCash payment as sent' })
+      }
+    } finally {
+      setEcocashSubmitting(false)
+    }
+  }
+
   if (loading) return null
   if (queued.length === 0 && pendingApproval.length === 0 && approved.length === 0) return null
 
   return (
+    <>
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border">
         <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">My Payment Queue</span>
@@ -365,18 +395,31 @@ function MyQueuePanel({
                 {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
                 <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
                 <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">APPROVED</span>
+                {p.paymentChannel === 'ECOCASH' && (
+                  <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-medium">📱 ECOCASH</span>
+                )}
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
-              <button
-                onClick={() => handleMarkPaid(p.id)}
-                disabled={actionId === p.id}
-                className="px-2 py-0.5 text-[10px] font-semibold bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-              >
-                {actionId === p.id ? '…' : '✓ Mark as Paid'}
-              </button>
+              {p.paymentChannel === 'ECOCASH' ? (
+                <button
+                  onClick={() => { setEcocashModal({ paymentId: p.id, amount: p.amount }); setEcocashTxCode('') }}
+                  disabled={actionId === p.id}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-50"
+                >
+                  📱 Mark as Sent
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleMarkPaid(p.id)}
+                  disabled={actionId === p.id}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                >
+                  {actionId === p.id ? '…' : '✓ Mark as Paid'}
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -404,6 +447,44 @@ function MyQueuePanel({
         ))}
       </div>
     </div>
+
+    {/* EcoCash txCode modal */}
+    {ecocashModal && (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">📱 Mark EcoCash as Sent</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Amount: {fmt(ecocashModal.amount)}</p>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">EcoCash Transaction Code</label>
+          <input
+            type="text"
+            value={ecocashTxCode}
+            onChange={(e) => setEcocashTxCode(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm focus:ring-2 focus:ring-teal-500 mb-4"
+            placeholder="e.g. ECD1234567"
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => { setEcocashModal(null); setEcocashTxCode('') }}
+              disabled={ecocashSubmitting}
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleMarkSentEcocash}
+              disabled={!ecocashTxCode.trim() || ecocashSubmitting}
+              className="px-3 py-1.5 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50"
+            >
+              {ecocashSubmitting ? 'Sending…' : 'Confirm Sent'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 // ────────────────────────────────────────────────────────────────────────────
@@ -987,6 +1068,7 @@ export default function ExpenseAccountDetailPage() {
                     accountType={account.accountType}
                     defaultCategoryBusinessType={currentBusiness?.businessType}
                     batchRefreshKey={batchRefreshKey}
+                    ecocashEnabled={currentBusiness?.ecocashEnabled ?? false}
                     accountInfo={{
                       accountName: account.accountName,
                       isSibling: account.isSibling,

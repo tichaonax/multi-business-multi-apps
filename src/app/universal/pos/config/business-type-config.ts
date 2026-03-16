@@ -4,7 +4,7 @@
  */
 
 export type ProductDisplayMode = 'grid' | 'scan' | 'list'
-export type PaymentMethod = 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty'
+export type PaymentMethod = 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty' | 'ecocash'
 
 export interface BusinessTypeFeatures {
   barcodeScan?: boolean        // Show barcode scanner input

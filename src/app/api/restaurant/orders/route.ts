@@ -280,7 +280,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone } = await req.json()
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue } = await req.json()
+    const ecocashFeeAmount = paymentMethod === 'ECOCASH' && ecocashFeeType
+      ? (ecocashFeeType === 'PERCENTAGE' ? total * ((ecocashFeeValue || 0) / 100) : (ecocashFeeValue || 0))
+      : 0
 
     // Derive local date string (YYYYMMDD) for receipt prefix — falls back to UTC if no timezone sent
     const localDateStr = new Intl.DateTimeFormat('en-CA', {
@@ -434,7 +437,11 @@ export async function POST(req: NextRequest) {
             ...(tableNumber ? { tableNumber } : {}),
             employeeName: employeeName,
             amountReceived: amountReceived || total,
-            changeDue: amountReceived ? amountReceived - total : 0
+            changeDue: amountReceived ? amountReceived - total : 0,
+            ...(paymentMethod === 'ECOCASH' && ecocashTxCode ? {
+              ecocashTransactionCode: ecocashTxCode,
+              ecocashFeeAmount: ecocashFeeAmount,
+            } : {}),
           },
           notes: null,
           updatedAt: new Date()
@@ -469,7 +476,11 @@ export async function POST(req: NextRequest) {
               ...(tableNumber ? { tableNumber } : {}),
               employeeName: employeeName,
               amountReceived: amountReceived || total,
-              changeDue: amountReceived ? amountReceived - total : 0
+              changeDue: amountReceived ? amountReceived - total : 0,
+              ...(paymentMethod === 'ECOCASH' && ecocashTxCode ? {
+                ecocashTransactionCode: ecocashTxCode,
+                ecocashFeeAmount: ecocashFeeAmount,
+              } : {}),
             },
             notes: null,
             updatedAt: new Date()
@@ -1316,16 +1327,38 @@ export async function POST(req: NextRequest) {
     if (paymentStatus === 'PAID' && total > 0) {
       try {
         await initializeBusinessAccount(businessId, 0, user.id)
+        const isEcocash = paymentMethod === 'ECOCASH'
+        const orderAttrs = (newOrder.attributes as any) || {}
+        const ecocashFee = isEcocash ? Number(orderAttrs.ecocashFeeAmount || 0) : 0
+        const creditAmount = total - ecocashFee
         await processBusinessTransaction({
           businessId,
-          amount: total,
+          amount: creditAmount,
           type: 'deposit',
           description: `Order revenue - ${orderNumber}`,
           referenceId: newOrder.id,
           referenceType: 'order',
-          notes: 'Completed order payment received',
+          notes: isEcocash ? 'EcoCash order — base amount credited (fee excluded)' : 'Completed order payment received',
           createdBy: user.id
         })
+
+        // For EcoCash, create a CashBucketEntry INFLOW immediately (digitally confirmed via txCode)
+        if (isEcocash && creditAmount > 0) {
+          await prisma.cashBucketEntry.create({
+            data: {
+              businessId,
+              entryType: 'POS_SALE',
+              direction: 'INFLOW',
+              paymentChannel: 'ECOCASH',
+              amount: creditAmount,
+              referenceType: 'order',
+              referenceId: newOrder.id,
+              notes: `EcoCash sale - ${orderNumber} | Ref: ${orderAttrs.ecocashTransactionCode || ''}`,
+              entryDate: new Date(),
+              createdBy: user.id
+            } as any
+          })
+        }
       } catch (balanceError) {
         console.error('Failed to credit business balance for order:', balanceError)
       }

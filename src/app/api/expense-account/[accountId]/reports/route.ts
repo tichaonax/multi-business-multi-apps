@@ -220,7 +220,16 @@ export async function GET(
     // Sort by period ascending (chronological)
     trends.sort((a, b) => a.period.localeCompare(b.period))
 
-    // 4. SUMMARY
+    // 4. CHANNEL BREAKDOWN
+    const channelBreakdownMap: Record<string, { count: number; total: number }> = {}
+    payments.forEach((p) => {
+      const ch = (p as any).paymentChannel || 'CASH'
+      if (!channelBreakdownMap[ch]) channelBreakdownMap[ch] = { count: 0, total: 0 }
+      channelBreakdownMap[ch].count++
+      channelBreakdownMap[ch].total += Number(p.amount)
+    })
+
+    // 5. SUMMARY
     const summary = {
       totalSpent: totalAmount,
       averagePayment: payments.length > 0 ? totalAmount / payments.length : 0,
@@ -354,6 +363,7 @@ export async function GET(
         byPayee,
         trends,
         summary,
+        channelBreakdown: channelBreakdownMap,
         accountType: account.accountType,
         ...(account.accountType === 'PERSONAL' && { byDepositSource, byFundSource, incomeVsExpenses }),
       },

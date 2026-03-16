@@ -35,6 +35,7 @@ interface SalesAnalyticsData {
   productBreakdown: Array<{ productName: string; emoji: string; revenue: number; percentage: number }>
   categoryBreakdown: Array<{ categoryPath: string; emoji: string; revenue: number; percentage: number }>
   salesRepBreakdown: Array<{ employeeName: string; revenue: number; percentage: number }>
+  paymentMethodBreakdown?: Record<string, { count: number; total: number }>
 }
 
 export default function RestaurantSalesAnalytics() {
@@ -178,6 +179,20 @@ export default function RestaurantSalesAnalytics() {
                 totalTax={data.summary.totalTax}
                 averageOrderValue={data.summary.averageOrderValue}
               />
+            )}
+
+            {/* EcoCash breakdown (shown when EcoCash sales exist) */}
+            {data?.paymentMethodBreakdown?.['ECOCASH'] && (
+              <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-lg p-4">
+                <p className="text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase mb-2">📱 EcoCash</p>
+                <p className="text-xl font-bold text-teal-700 dark:text-teal-300">
+                  ${data.paymentMethodBreakdown['ECOCASH'].total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">
+                  {data.paymentMethodBreakdown['ECOCASH'].count} orders ·{' '}
+                  {data.summary.totalSales > 0 ? ((data.paymentMethodBreakdown['ECOCASH'].total / data.summary.totalSales) * 100).toFixed(1) : 0}% of revenue
+                </p>
+              </div>
             )}
           </div>
 

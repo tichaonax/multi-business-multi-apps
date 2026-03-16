@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { businessId, requestedAmount, purpose, notes } = body
+    const { businessId, requestedAmount, purpose, notes, paymentChannel } = body
 
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     if (!purpose?.trim()) return NextResponse.json({ error: 'purpose is required' }, { status: 400 })
@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
         purpose: purpose.trim(),
         notes: notes?.trim() || null,
         status: 'PENDING',
+        paymentChannel: paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
       },
       include: {
         business: { select: { id: true, name: true, type: true } },

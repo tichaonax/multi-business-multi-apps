@@ -118,19 +118,48 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
       <div className="text-[11px]">
         <div className="flex justify-between">
           <span>Payment Method:</span>
-          <span className="font-bold">{data.paymentMethod}</span>
+          <span className="font-bold">{data.paymentMethod.toUpperCase()}</span>
         </div>
-        {data.amountPaid && (
-          <div className="flex justify-between">
-            <span>Amount Paid:</span>
-            <span>${data.amountPaid.toFixed(2)}</span>
-          </div>
-        )}
-        {data.changeDue && (
-          <div className="flex justify-between">
-            <span>Change Due:</span>
-            <span>${data.changeDue.toFixed(2)}</span>
-          </div>
+        {data.paymentMethod.toUpperCase() === 'ECOCASH' ? (
+          <>
+            {data.ecocashTransactionCode && (
+              <div className="flex justify-between">
+                <span>EcoCash Ref:</span>
+                <span className="font-mono">{data.ecocashTransactionCode}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span>Sub-total:</span>
+              <span>${Number(data.total).toFixed(2)}</span>
+            </div>
+            {data.ecocashFeeAmount && data.ecocashFeeAmount > 0 && (
+              <div className="flex justify-between text-orange-600">
+                <span>EcoCash Fee:</span>
+                <span>+${data.ecocashFeeAmount.toFixed(2)}</span>
+              </div>
+            )}
+            {data.amountPaid && (
+              <div className="flex justify-between font-bold border-t border-gray-300 pt-0.5 mt-0.5">
+                <span>Total Paid:</span>
+                <span>${data.amountPaid.toFixed(2)}</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {data.amountPaid && (
+              <div className="flex justify-between">
+                <span>Amount Paid:</span>
+                <span>${data.amountPaid.toFixed(2)}</span>
+              </div>
+            )}
+            {data.changeDue && (
+              <div className="flex justify-between">
+                <span>Change Due:</span>
+                <span>${data.changeDue.toFixed(2)}</span>
+              </div>
+            )}
+          </>
         )}
       </div>
 

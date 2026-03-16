@@ -294,13 +294,7 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   if (isCustomerCopy) {
     // receipt += LF;
   }
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
-  if (data.amountPaid) {
-    receipt += formatTotal('Amount Paid', data.amountPaid);
-  }
-  if (data.changeDue && data.changeDue > 0) {
-    receipt += formatTotal('Change', data.changeDue);
-  }
+  receipt += formatPaymentLines(data);
 
   // ============================================================================
   // 8. WIFI TOKENS SECTION (if any)
@@ -689,7 +683,7 @@ function generateHardwareReceipt(data: ReceiptData): string {
   receipt += formatTotal('TOTAL', data.total, true);
 
   // Payment
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
+  receipt += formatPaymentLines(data);
 
   // Return policy (always print - use default if not configured)
   const hardwareReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
@@ -801,7 +795,7 @@ function generateConstructionReceipt(data: ReceiptData): string {
   if (constructionData?.paymentTerms) {
     receipt += `Terms: ${constructionData.paymentTerms}` + LF;
   }
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
+  receipt += formatPaymentLines(data);
 
   // Return policy (always print - use default if not configured)
   const constructionReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
@@ -913,7 +907,7 @@ function generateVehiclesReceipt(data: ReceiptData): string {
   receipt += formatTotal('TOTAL', data.total, true);
 
   // Payment
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
+  receipt += formatPaymentLines(data);
 
   // Next service
   if (vehiclesData?.nextServiceDue) {
@@ -1031,7 +1025,7 @@ function generateConsultingReceipt(data: ReceiptData): string {
   if (consultingData?.paymentTerms) {
     receipt += `Payment Terms: ${consultingData.paymentTerms}` + LF;
   }
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
+  receipt += formatPaymentLines(data);
 
   // Return policy (always print - use default if not configured)
   const consultingReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
@@ -1112,7 +1106,7 @@ function generateRetailReceipt(data: ReceiptData): string {
   receipt += formatTotal('TOTAL', data.total, true);
 
   // Payment
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
+  receipt += formatPaymentLines(data);
 
   // Loyalty points
   if (retailData?.loyaltyPoints) {
@@ -1263,13 +1257,7 @@ function generateGenericReceipt(data: ReceiptData): string {
   receipt += formatTotal('TOTAL', data.total, true);
 
   // Payment
-  receipt += `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
-  if (data.amountPaid) {
-    receipt += formatTotal('Paid', data.amountPaid);
-  }
-  if (data.changeDue) {
-    receipt += formatTotal('Change', data.changeDue);
-  }
+  receipt += formatPaymentLines(data);
 
   // Return policy (always print - use default if not configured)
   const genericReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
@@ -1309,6 +1297,35 @@ function centerText(text: string): string {
 
 function line(char: string = '='): string {
   return char.repeat(RECEIPT_WIDTH);
+}
+
+/**
+ * Build payment lines for a receipt section.
+ * For EcoCash: shows ref, sub-total, fee, total paid.
+ * For other methods: shows amount paid and change.
+ */
+function formatPaymentLines(data: ReceiptData): string {
+  let out = `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
+  if (data.paymentMethod.toUpperCase() === 'ECOCASH') {
+    if (data.ecocashTransactionCode) {
+      out += `EcoCash Ref: ${data.ecocashTransactionCode}` + LF;
+    }
+    out += formatTotal('Sub-total', data.total);
+    if (data.ecocashFeeAmount && data.ecocashFeeAmount > 0) {
+      out += formatTotal('EcoCash Fee', data.ecocashFeeAmount);
+    }
+    if (data.amountPaid) {
+      out += formatTotal('Total Paid', data.amountPaid, true);
+    }
+  } else {
+    if (data.amountPaid) {
+      out += formatTotal('Amount Paid', data.amountPaid);
+    }
+    if (data.changeDue && data.changeDue > 0) {
+      out += formatTotal('Change', data.changeDue);
+    }
+  }
+  return out;
 }
 
 // Note: formatDateTime and formatDateOnly are now imported from @/lib/date-format for consistent global formatting

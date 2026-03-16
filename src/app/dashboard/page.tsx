@@ -23,6 +23,7 @@ import { R710AlertsWidget } from '@/components/r710/r710-alerts-widget'
 import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
 import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { LoanPendingActionsWidget } from '@/components/loans/loan-pending-actions-widget'
+import { BusinessLoansWidget } from '@/components/loans/business-loans-widget'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -678,6 +679,18 @@ function DashboardContent() {
                         ${(typeData.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
+                    {(typeData.totalEcocashBalance ?? 0) > 0 && (
+                      <div className="pl-3 space-y-0.5">
+                        <div className="flex items-center justify-between text-xs text-secondary">
+                          <span>💵 Cash</span>
+                          <span>${(typeData.totalCashBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-secondary">
+                          <span>📱 EcoCash</span>
+                          <span className="text-teal-600 dark:text-teal-400">${(typeData.totalEcocashBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Rent — only shown when configured */}
                     {typeData.hasRentConfig && (
@@ -912,6 +925,13 @@ function DashboardContent() {
               variant="full"
             />
             <LoanBreakdownCard businessId={businessId} />
+          </div>
+        )}
+
+        {/* Business Loan Repayments - only for roles with financial data access */}
+        {hasPermission('canAccessFinancialData') && (
+          <div className="mt-6">
+            <BusinessLoansWidget />
           </div>
         )}
 

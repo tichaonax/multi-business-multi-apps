@@ -73,6 +73,8 @@ export async function printReceipt(
         paymentMethod: receiptData.paymentMethod,
         amountPaid: receiptData.amountPaid,
         changeDue: receiptData.changeDue,
+        ecocashFeeAmount: receiptData.ecocashFeeAmount,
+        ecocashTransactionCode: receiptData.ecocashTransactionCode,
         wifiTokens: receiptData.wifiTokens, // ← WiFi token details for receipt
         r710Tokens: receiptData.r710Tokens, // ← R710 token details for receipt
         businessSpecificData: receiptData.businessSpecificData,

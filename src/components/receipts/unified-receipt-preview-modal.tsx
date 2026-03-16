@@ -31,6 +31,13 @@ import type { ReceiptData, NetworkPrinter, BusinessType } from '@/types/printing
 
 const LOCAL_PRINTER_ID = 'local-serial'
 
+// Module-level cache — persists across modal opens within the same page session
+let printerCache: {
+  printers: NetworkPrinter[]
+  hasLocalPrinter: boolean
+  localPrinterName: string
+} | null = null
+
 interface UnifiedReceiptPreviewModalProps {
   isOpen: boolean
   onClose: () => void
@@ -50,14 +57,14 @@ export function UnifiedReceiptPreviewModal({
   businessType,
   onPrintConfirm,
 }: UnifiedReceiptPreviewModalProps) {
-  const [printers, setPrinters] = useState<NetworkPrinter[]>([])
+  const [printers, setPrinters] = useState<NetworkPrinter[]>(() => printerCache?.printers || [])
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | undefined>()
   const [copies, setCopies] = useState(1)
   const [printCustomerCopy, setPrintCustomerCopy] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [printersLoading, setPrintersLoading] = useState(true)
-  const [hasLocalPrinter, setHasLocalPrinter] = useState(false)
-  const [localPrinterName, setLocalPrinterName] = useState('')
+  const [printersLoading, setPrintersLoading] = useState(() => printerCache === null)
+  const [hasLocalPrinter, setHasLocalPrinter] = useState(() => printerCache?.hasLocalPrinter || false)
+  const [localPrinterName, setLocalPrinterName] = useState(() => printerCache?.localPrinterName || '')
   const [showLocalSetup, setShowLocalSetup] = useState(false)
   const [checkingOnline, setCheckingOnline] = useState(false)
   const toast = useToastContext()
@@ -73,16 +80,29 @@ export function UnifiedReceiptPreviewModal({
   // Load configured receipt printer on mount
   useEffect(() => {
     if (isOpen) {
-      loadPrinters()
-      // Reset copies to 1 when modal opens (don't persist from previous session)
       setCopies(1)
       setPrintCustomerCopy(true)
-      // Reset printing guard when modal opens
       isPrintingRef.current = false
+      if (printerCache) {
+        // Cache hit — auto-select printer without any network call or loading state
+        autoSelectPrinter(printerCache.printers, printerCache.hasLocalPrinter)
+      } else {
+        loadPrinters()
+      }
     }
   }, [isOpen])
 
-  async function loadPrinters() {
+  async function loadPrinters(forceRefresh = false) {
+    // Use cache if available and not forcing a refresh
+    if (printerCache && !forceRefresh) {
+      setPrinters(printerCache.printers)
+      setHasLocalPrinter(printerCache.hasLocalPrinter)
+      setLocalPrinterName(printerCache.localPrinterName)
+      autoSelectPrinter(printerCache.printers, printerCache.hasLocalPrinter)
+      setPrintersLoading(false)
+      return
+    }
+
     try {
       setPrintersLoading(true)
 
@@ -96,50 +116,29 @@ export function UnifiedReceiptPreviewModal({
       const data = await response.json()
       const availablePrinters = data.printers || []
 
-      setPrinters(availablePrinters)
-
       // Check for local USB printer
       let localAvailable = false
+      let localName = ''
       if (isWebSerialSupported()) {
         const localConfig = getLocalPrinterConfig()
         if (localConfig) {
           localAvailable = await isLocalPrinterAvailable()
-          setHasLocalPrinter(localAvailable)
-          setLocalPrinterName(localConfig.name)
+          localName = localConfig.name
         }
       }
 
-      // Auto-select last used printer if available (user-scoped key, with migration from global key)
-      try {
-        let lastPrinterId = localStorage.getItem(printerKey)
-        // Migration: if no user-scoped value, check old global key and migrate
-        if (!lastPrinterId) {
-          const globalValue = localStorage.getItem('lastSelectedPrinterId')
-          if (globalValue) {
-            lastPrinterId = globalValue
-            localStorage.setItem(printerKey, globalValue)
-          }
-        }
-        if (lastPrinterId) {
-          // Check if it was the local printer
-          if (lastPrinterId === LOCAL_PRINTER_ID && localAvailable) {
-            setSelectedPrinterId(LOCAL_PRINTER_ID)
-            console.log('✓ Auto-selected local USB printer')
-          } else if (availablePrinters.length > 0) {
-            const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
-            if (savedPrinter && savedPrinter.isOnline) {
-              setSelectedPrinterId(lastPrinterId)
-              console.log('✓ Auto-selected last used printer:', savedPrinter.printerName)
-            } else if (savedPrinter && !savedPrinter.isOnline) {
-              console.log('⚠️ Last used printer is offline:', savedPrinter.printerName)
-            }
-          }
-        }
-      } catch (storageError) {
-        console.warn('Failed to load saved printer preference:', storageError)
+      // Save to module-level cache
+      printerCache = {
+        printers: availablePrinters,
+        hasLocalPrinter: localAvailable,
+        localPrinterName: localName,
       }
 
-      // Check if no printers available at all
+      setPrinters(availablePrinters)
+      setHasLocalPrinter(localAvailable)
+      setLocalPrinterName(localName)
+      autoSelectPrinter(availablePrinters, localAvailable)
+
       if (availablePrinters.length === 0 && !localAvailable) {
         toast.error('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
       }
@@ -149,6 +148,31 @@ export function UnifiedReceiptPreviewModal({
       toast.error('Failed to load available printers')
     } finally {
       setPrintersLoading(false)
+    }
+  }
+
+  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean) {
+    try {
+      let lastPrinterId = localStorage.getItem(printerKey)
+      if (!lastPrinterId) {
+        const globalValue = localStorage.getItem('lastSelectedPrinterId')
+        if (globalValue) {
+          lastPrinterId = globalValue
+          localStorage.setItem(printerKey, globalValue)
+        }
+      }
+      if (lastPrinterId) {
+        if (lastPrinterId === LOCAL_PRINTER_ID && localAvailable) {
+          setSelectedPrinterId(LOCAL_PRINTER_ID)
+        } else {
+          const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
+          if (savedPrinter && savedPrinter.isOnline) {
+            setSelectedPrinterId(lastPrinterId)
+          }
+        }
+      }
+    } catch (storageError) {
+      console.warn('Failed to load saved printer preference:', storageError)
     }
   }
 
@@ -162,7 +186,8 @@ export function UnifiedReceiptPreviewModal({
       const { isOnline } = await response.json()
       if (isOnline) {
         toast.push('Printer is now online and ready!')
-        await loadPrinters()
+        printerCache = null // Invalidate cache so fresh status is fetched
+        await loadPrinters(true)
       } else {
         toast.error('Printer is still offline. Check power and network connection.')
       }
@@ -396,6 +421,11 @@ export function UnifiedReceiptPreviewModal({
                         setSelectedPrinterId(LOCAL_PRINTER_ID)
                         setShowLocalSetup(false)
                         localStorage.setItem(printerKey, LOCAL_PRINTER_ID)
+                        // Update cache with new local printer
+                        if (printerCache) {
+                          printerCache.hasLocalPrinter = true
+                          printerCache.localPrinterName = config.name
+                        }
                       }}
                     />
                   )}

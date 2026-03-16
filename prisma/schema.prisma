@@ -422,6 +422,8 @@ model Businesses {
   address                                                                  String?
   phone                                                                    String?
   ecocashEnabled                                                           Boolean                       @default(false)
+  ecocashFeeType                                                           String?                       @default("FIXED") @map("ecocash_fee_type")
+  ecocashFeeValue                                                          Decimal?                      @default(0) @db.Decimal(10, 2) @map("ecocash_fee_value")
   couponsEnabled                                                           Boolean                       @default(false)
   promosEnabled                                                            Boolean                       @default(false)
   receiptReturnPolicy                                                      String?
@@ -1524,6 +1526,9 @@ model ExpenseAccountPayments {
   eodBatch                  EODPaymentBatch?                 @relation("EODPaymentBatchItems", fields: [eodBatchId], references: [id])
   adHoc                     Boolean                          @default(false) @map("ad_hoc")
   cancelledAt               DateTime?                        @map("cancelled_at")
+  paymentChannel            String                           @default("CASH") @map("payment_channel")
+  // CASH | ECOCASH — channel used for this payment
+  ecocashTransactionCode    String?                          @map("ecocash_transaction_code")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -4438,6 +4443,7 @@ enum PaymentMethod {
   NET_30
   CHECK
   EXPENSE_ACCOUNT
+  ECOCASH
 }
 
 enum PaymentStatus {
@@ -5046,8 +5052,11 @@ model PettyCashRequests {
   returnPaymentId  String?         @unique // FK ExpenseAccountPayments (PETTY_CASH_RETURN)
   returnTxId       String? // FK BusinessTransactions (CREDIT back to business account)
   // Signature captured at fund handover (base64 PNG data URL, optional)
-  signatureData    String?         @db.Text
-  createdAt        DateTime        @default(now())
+  signatureData          String?         @db.Text
+  paymentChannel         String          @default("CASH") @map("payment_channel")
+  // CASH | ECOCASH — channel for this petty cash request
+  ecocashTransactionCode String?         @map("ecocash_transaction_code")
+  createdAt              DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   business       Businesses              @relation("BusinessPettyCash", fields: [businessId], references: [id])
@@ -5193,9 +5202,11 @@ model CashBucketEntry {
   // PAYMENT_APPROVAL  — cashier approves payment batch
   // PETTY_CASH        — petty cash withdrawal
   // CASH_ALLOCATION   — cash allocation (rent, loan, etc.)
-  direction     String
+  direction      String
   // INFLOW | OUTFLOW
-  amount        Decimal  @db.Decimal(12, 2)
+  paymentChannel String   @default("CASH") @map("payment_channel")
+  // CASH | ECOCASH
+  amount         Decimal  @db.Decimal(12, 2)
   referenceType String?
   referenceId   String?
   notes         String?

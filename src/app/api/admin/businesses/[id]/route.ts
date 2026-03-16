@@ -14,12 +14,21 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!isSystemAdmin(user)) {
-      return NextResponse.json({ error: 'Only system administrators can update businesses' }, { status: 403 })
-    }
 
     const { id } = await params
     if (!id) return NextResponse.json({ error: 'Missing business id' }, { status: 400 })
+
+    // Allow system admins OR the owner of this specific business
+    if (!isSystemAdmin(user)) {
+      const membership = await prisma.businessMemberships.findFirst({
+        where: { businessId: id, userId: user.id, isActive: true }
+      })
+      const canEdit = membership?.role === 'owner' ||
+        (membership?.permissions as any)?.canEditBusiness === true
+      if (!canEdit) {
+        return NextResponse.json({ error: 'Only system administrators or business owners can update this business' }, { status: 403 })
+      }
+    }
 
     const payload = await req.json()
     const name = typeof payload.name === 'string' ? payload.name.trim() : undefined
@@ -42,6 +51,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
     if (payload.hasOwnProperty('ecocashEnabled')) {
       updateData.ecocashEnabled = !!payload.ecocashEnabled
+    }
+    if (payload.hasOwnProperty('ecocashFeeType')) {
+      updateData.ecocashFeeType = payload.ecocashFeeType || 'FIXED'
+    }
+    if (payload.hasOwnProperty('ecocashFeeValue')) {
+      updateData.ecocashFeeValue = payload.ecocashFeeValue !== undefined && payload.ecocashFeeValue !== '' ? parseFloat(payload.ecocashFeeValue) : null
     }
     if (payload.hasOwnProperty('couponsEnabled')) {
       updateData.couponsEnabled = !!payload.couponsEnabled

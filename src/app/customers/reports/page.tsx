@@ -119,6 +119,7 @@ export default function CustomerReportsPage() {
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('')
   const [period, setPeriod] = useState<Period>('30d')
   const [sort, setSort] = useState<SortKey>('spend')
+  const [pmFilter, setPmFilter] = useState<string>('')
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(false)
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -138,6 +139,7 @@ export default function CustomerReportsPage() {
     try {
       const params = new URLSearchParams({ period, sort, limit: '200' })
       if (selectedBusinessId && selectedBusinessId !== 'all') params.set('businessId', selectedBusinessId)
+      if (pmFilter) params.set('paymentMethod', pmFilter)
       const res = await fetch(`/api/customers/activity-report?${params}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load report')
@@ -148,7 +150,7 @@ export default function CustomerReportsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedBusinessId, period, sort])
+  }, [selectedBusinessId, period, sort, pmFilter])
 
   useEffect(() => { fetchReport() }, [fetchReport])
 
@@ -183,6 +185,18 @@ export default function CustomerReportsPage() {
               className={`px-3 py-2 text-sm font-medium transition-colors ${period === p ? 'bg-teal-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               {p === 'all' ? 'All Time' : p === '12m' ? '12 Months' : p === '90d' ? '90 Days' : '30 Days'}
+            </button>
+          ))}
+        </div>
+        {/* Payment Method filter */}
+        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+          {[{ label: 'All', value: '' }, { label: '💵 Cash', value: 'CASH' }, { label: '📱 EcoCash', value: 'ECOCASH' }].map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setPmFilter(opt.value)}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${pmFilter === opt.value ? 'bg-teal-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              {opt.label}
             </button>
           ))}
         </div>

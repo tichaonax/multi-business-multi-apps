@@ -43,6 +43,7 @@ interface ReportData {
     }
   }
   accountType?: string
+  channelBreakdown?: Record<string, { count: number; total: number }>
   byDepositSource?: Array<{
     sourceId: string
     sourceName: string
@@ -190,8 +191,9 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
     )
   }
 
-  const { byCategory, byPayee, trends, summary, accountType, byDepositSource, byFundSource, incomeVsExpenses } = reportData
+  const { byCategory, byPayee, trends, summary, accountType, channelBreakdown, byDepositSource, byFundSource, incomeVsExpenses } = reportData
   const isPersonal = accountType === 'PERSONAL'
+  const ecocashData = channelBreakdown?.['ECOCASH']
 
   return (
     <div className="space-y-6">
@@ -256,6 +258,22 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
           </p>
         </div>
       </div>
+
+      {/* EcoCash Channel Breakdown */}
+      {ecocashData && (
+        <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-lg p-4">
+          <p className="text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wide mb-3">📱 Payment Channel Breakdown</p>
+          <div className="flex flex-wrap gap-4">
+            {Object.entries(channelBreakdown!).map(([ch, data]) => (
+              <div key={ch} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-teal-100 dark:border-teal-800 min-w-[140px]">
+                <p className="text-xs text-gray-500 dark:text-gray-400">{ch === 'ECOCASH' ? '📱' : '💵'} {ch}</p>
+                <p className="text-base font-bold text-gray-900 dark:text-gray-100">{formatCurrency(data.total)}</p>
+                <p className="text-xs text-gray-400">{data.count} payments · {summary.totalSpent > 0 ? ((data.total / summary.totalSpent) * 100).toFixed(1) : 0}%</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

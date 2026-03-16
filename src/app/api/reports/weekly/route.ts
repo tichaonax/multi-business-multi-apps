@@ -192,6 +192,14 @@ export async function GET(req: NextRequest) {
 
     const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0
 
+    // Compute ecocash breakdown
+    const ecocashOrders = orders.filter((o: any) => (o.paymentMethod || '').toUpperCase() === 'ECOCASH')
+    const ecocashBreakdown = ecocashOrders.length > 0 ? (() => {
+      const grossTotal = ecocashOrders.reduce((s: number, o: any) => s + parseFloat(o.total?.toString() || '0'), 0)
+      const fees = ecocashOrders.reduce((s: number, o: any) => s + Number((o.attributes as any)?.ecocashFeeAmount || 0), 0)
+      return { count: ecocashOrders.length, grossTotal, fees, netTotal: grossTotal - fees }
+    })() : null
+
     // 7. Return response
     return NextResponse.json({
       success: true,
@@ -204,6 +212,7 @@ export async function GET(req: NextRequest) {
           totalTax: totalTax
         },
         paymentMethods: paymentMethods,
+        ecocashBreakdown: ecocashBreakdown,
         employeeSales: employeeSales,
         categoryBreakdown: categoryBreakdown,
         dailyBreakdown: dailyBreakdown,

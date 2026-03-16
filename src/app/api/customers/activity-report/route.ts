@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     const period = searchParams.get('period') || '30d'
     const sort = searchParams.get('sort') || 'spend'
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
+    const paymentMethodFilter = searchParams.get('paymentMethod') || null
 
     // Verify user has access
     const isAdmin = (user as any).role === 'admin'
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
         customerId: { not: null },
         status: { in: [OrderStatus.COMPLETED] },
         ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
+        ...(paymentMethodFilter ? { paymentMethod: paymentMethodFilter } : {}),
       },
       select: {
         id: true,

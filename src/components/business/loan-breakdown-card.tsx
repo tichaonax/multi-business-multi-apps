@@ -13,6 +13,7 @@ interface LoanDetail {
   interestAmount: number
   totalAmount: number
   remainingBalance: number
+  totalPaid: number
   loanDate: string | null
   dueDate: string | null
   status: string
@@ -39,7 +40,6 @@ export function LoanBreakdownCard({ businessId, className = '' }: LoanBreakdownC
   const router = useRouter()
   const [data, setData] = useState<LoanBreakdownData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(false)
 
   const handleLoanClick = (loanId: string) => {
     router.push(`/business/manage/loans?viewLoan=${loanId}`)
@@ -99,14 +99,6 @@ export function LoanBreakdownCard({ businessId, className = '' }: LoanBreakdownC
             ({summary.activeLoansCount} active of {summary.totalLoansCount})
           </span>
         </h3>
-        {loans.length > 0 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
-          >
-            {expanded ? 'Hide Details' : 'Show Details'}
-          </button>
-        )}
       </div>
 
       {/* Summary Stats */}
@@ -131,8 +123,8 @@ export function LoanBreakdownCard({ businessId, className = '' }: LoanBreakdownC
         </div>
       </div>
 
-      {/* Expanded Loan Details */}
-      {expanded && (
+      {/* Per-loan badges — always visible */}
+      {loans.length > 0 && (
         <div className="space-y-3 border-t border-gray-200 dark:border-gray-700 pt-4">
           {loans.map(loan => (
             <div
@@ -143,28 +135,23 @@ export function LoanBreakdownCard({ businessId, className = '' }: LoanBreakdownC
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span>{getLenderIcon(loan.lenderType)}</span>
-                  <span className="font-medium text-primary">{loan.lenderName}</span>
+                  <span className="font-medium text-primary text-sm">{loan.lenderName}</span>
                   <span className="text-xs text-secondary">({loan.loanNumber})</span>
                 </div>
                 {getStatusBadge(loan.status)}
               </div>
-              <div className="grid grid-cols-4 gap-2 text-sm">
-                <div>
-                  <span className="text-secondary">Principal:</span>
-                  <span className="ml-1 font-medium text-primary">${loan.principalAmount.toFixed(2)}</span>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
+                  <p className="text-xs text-secondary mb-0.5">Original Loan</p>
+                  <p className="text-sm font-bold text-blue-700 dark:text-blue-400">${loan.principalAmount.toFixed(2)}</p>
                 </div>
-                <div>
-                  <span className="text-secondary">Interest:</span>
-                  <span className="ml-1 font-medium text-orange-600">${loan.interestAmount.toFixed(2)}</span>
-                  {loan.interestRate > 0 && <span className="text-xs text-secondary ml-1">({loan.interestRate}%)</span>}
+                <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded">
+                  <p className="text-xs text-secondary mb-0.5">Total Paid</p>
+                  <p className="text-sm font-bold text-green-700 dark:text-green-400">${loan.totalPaid.toFixed(2)}</p>
                 </div>
-                <div>
-                  <span className="text-secondary">Remaining:</span>
-                  <span className="ml-1 font-medium text-red-600">${loan.remainingBalance.toFixed(2)}</span>
-                </div>
-                <div>
-                  <span className="text-secondary">Due:</span>
-                  <span className="ml-1 text-primary">{loan.dueDate || 'N/A'}</span>
+                <div className="text-center p-2 bg-red-50 dark:bg-red-900/20 rounded">
+                  <p className="text-xs text-secondary mb-0.5">Balance</p>
+                  <p className="text-sm font-bold text-red-700 dark:text-red-400">${loan.remainingBalance.toFixed(2)}</p>
                 </div>
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">

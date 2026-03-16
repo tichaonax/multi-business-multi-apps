@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { CustomerLoyaltyCard, PrintLoyaltyCardButton } from './customer-loyalty-card'
 
@@ -16,11 +16,25 @@ interface CustomerQuickRegisterProps {
   businessId: string
   businessName?: string
   businessPhone?: string
+  umbrellaBusinessName?: string | null
   onCreated: (customer: QuickRegisterCustomer) => void
   onCancel: () => void
 }
 
-export function CustomerQuickRegister({ businessId, businessName, businessPhone, onCreated, onCancel }: CustomerQuickRegisterProps) {
+export function CustomerQuickRegister({ businessId, businessName, businessPhone, umbrellaBusinessName: umbrellaBusinessNameProp, onCreated, onCancel }: CustomerQuickRegisterProps) {
+  const [umbrellaBusinessName, setUmbrellaBusinessName] = useState<string | null>(umbrellaBusinessNameProp ?? null)
+
+  useEffect(() => {
+    if (umbrellaBusinessNameProp) return
+    fetch('/api/admin/umbrella-business')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        console.log('[CustomerQuickRegister] umbrella-business response:', data)
+        if (data?.umbrellaBusinessName) setUmbrellaBusinessName(data.umbrellaBusinessName)
+      })
+      .catch(() => {})
+  }, [])
+
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [saving, setSaving] = useState(false)
@@ -84,6 +98,7 @@ export function CustomerQuickRegister({ businessId, businessName, businessPhone,
             }}
             businessName={businessName}
             businessPhone={businessPhone}
+            umbrellaBusinessName={umbrellaBusinessName}
           />
         </div>
 

@@ -34,6 +34,9 @@ export async function GET() {
           defaultPage: true,
           couponsEnabled: true,
           promosEnabled: true,
+          ecocashEnabled: true,
+          ecocashFeeType: true,
+          ecocashFeeValue: true,
           expense_accounts: {
             select: { id: true, accountName: true },
             where: { isActive: true, isSibling: false },
@@ -52,6 +55,9 @@ export async function GET() {
         businessType: business.type,
         couponsEnabled: business.couponsEnabled ?? false,
         promosEnabled: business.promosEnabled ?? false,
+        ecocashEnabled: business.ecocashEnabled ?? false,
+        ecocashFeeType: (business as any).ecocashFeeType ?? 'FIXED',
+        ecocashFeeValue: (business as any).ecocashFeeValue != null ? Number((business as any).ecocashFeeValue) : 0,
         role: 'admin' as any,
         permissions: {
           // Grant all permissions for system admins
@@ -107,6 +113,9 @@ export async function GET() {
             defaultPage: true,
             couponsEnabled: true,
             promosEnabled: true,
+            ecocashEnabled: true,
+            ecocashFeeType: true,
+            ecocashFeeValue: true,
             expense_accounts: {
               select: { id: true, accountName: true },
               where: { isActive: true, isSibling: false },
@@ -127,6 +136,9 @@ export async function GET() {
       businessType: membership.businesses.type,
       couponsEnabled: membership.businesses.couponsEnabled ?? false,
       promosEnabled: membership.businesses.promosEnabled ?? false,
+      ecocashEnabled: (membership.businesses as any).ecocashEnabled ?? false,
+      ecocashFeeType: (membership.businesses as any).ecocashFeeType ?? 'FIXED',
+      ecocashFeeValue: (membership.businesses as any).ecocashFeeValue != null ? Number((membership.businesses as any).ecocashFeeValue) : 0,
       role: membership.role as any,
       permissions: mergeWithBusinessPermissions(membership.permissions as any, membership.role),
       isActive: membership.isActive && membership.businesses.isActive,

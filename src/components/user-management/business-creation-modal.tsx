@@ -21,6 +21,8 @@ interface BusinessCreationModalProps {
     address?: string
     phone?: string
     ecocashEnabled?: boolean
+    ecocashFeeType?: string
+    ecocashFeeValue?: string
     couponsEnabled?: boolean
     promosEnabled?: boolean
     receiptReturnPolicy?: string
@@ -50,6 +52,13 @@ const BUSINESS_TYPES = [
   'other'
 ]
 
+const ECOCASH_DEFAULT_FEES: Record<string, string> = {
+  restaurant: '0.20',
+  grocery: '0.50',
+  clothing: '0.50',
+  hardware: '0.50',
+}
+
 export function BusinessCreationModal({ onClose, onSuccess, onError, initial, method = 'POST', id }: BusinessCreationModalProps) {
   const { hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const [formData, setFormData] = useState({
@@ -59,6 +68,8 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     address: initial?.address || '',
     phone: initial?.phone || '',
     ecocashEnabled: initial?.ecocashEnabled !== undefined ? initial.ecocashEnabled : false,
+    ecocashFeeType: initial?.ecocashFeeType || 'FIXED',
+    ecocashFeeValue: initial?.ecocashFeeValue || '',
     couponsEnabled: initial?.couponsEnabled !== undefined ? initial.couponsEnabled : false,
     promosEnabled: initial?.promosEnabled !== undefined ? initial.promosEnabled : false,
     receiptReturnPolicy: initial?.receiptReturnPolicy || 'All sales are final, returns not accepted',
@@ -272,10 +283,58 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                         type="checkbox"
                         id="ecocashEnabled"
                         checked={formData.ecocashEnabled}
-                        onChange={(e) => setFormData({ ...formData, ecocashEnabled: e.target.checked })}
+                        onChange={(e) => {
+                          const enabled = e.target.checked
+                          const defaultFee = ECOCASH_DEFAULT_FEES[formData.type] || '0.00'
+                          setFormData({
+                            ...formData,
+                            ecocashEnabled: enabled,
+                            ecocashFeeValue: enabled && !formData.ecocashFeeValue ? defaultFee : formData.ecocashFeeValue
+                          })
+                        }}
                         className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
                       />
                     </div>
+
+                    {/* EcoCash fee configuration — shown only when ecocashEnabled */}
+                    {formData.ecocashEnabled && (
+                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800 ml-4">
+                        <p className="text-xs font-medium text-green-800 dark:text-green-300 mb-2">EcoCash Fee Configuration</p>
+                        <div className="flex gap-3 items-end">
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Fee Type</label>
+                            <select
+                              value={formData.ecocashFeeType}
+                              onChange={(e) => setFormData({ ...formData, ecocashFeeType: e.target.value })}
+                              className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
+                            >
+                              <option value="FIXED">Fixed Amount ($)</option>
+                              <option value="PERCENTAGE">Percentage (%)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                              Fee Value {formData.ecocashFeeType === 'FIXED' ? '($)' : '(%)'}
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={formData.ecocashFeeValue}
+                              onChange={(e) => setFormData({ ...formData, ecocashFeeValue: e.target.value })}
+                              placeholder="0.00"
+                              className="w-24 px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                          {formData.ecocashFeeType === 'FIXED'
+                            ? `A fixed $${formData.ecocashFeeValue || '0.00'} fee is added to every EcoCash transaction.`
+                            : `${formData.ecocashFeeValue || '0'}% of the sale total is added as an EcoCash fee.`}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
                       <div className="flex-1">
                         <label htmlFor="couponsEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">

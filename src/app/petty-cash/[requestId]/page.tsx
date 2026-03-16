@@ -159,6 +159,11 @@ export default function PettyCashDetailPage() {
   const [settleNotes, setSettleNotes] = useState('')
   const [settling, setSettling] = useState(false)
 
+  // EcoCash Mark as Sent state
+  const [showMarkSent, setShowMarkSent] = useState(false)
+  const [markSentTxCode, setMarkSentTxCode] = useState('')
+  const [markingSent, setMarkingSent] = useState(false)
+
   // Transactions state
   const [transactions, setTransactions] = useState<any[]>([])
   const [txSummary, setTxSummary] = useState<{ approvedAmount: number; spentAmount: number; remainingBalance: number } | null>(null)
@@ -475,6 +480,30 @@ export default function PettyCashDetailPage() {
     }
   }
 
+  async function handleMarkSent(e: React.FormEvent) {
+    e.preventDefault()
+    if (!markSentTxCode.trim()) { toast.error('EcoCash transaction code is required'); return }
+    setMarkingSent(true)
+    try {
+      const res = await fetch(`/api/petty-cash/requests/${requestId}/mark-sent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ecocashTransactionCode: markSentTxCode.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to mark as sent')
+      toast.push('EcoCash sent confirmed', { type: 'success' })
+      setShowMarkSent(false)
+      setMarkSentTxCode('')
+      fetchDetail()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setMarkingSent(false)
+    }
+  }
+
   async function handleSettle(e: React.FormEvent) {
     e.preventDefault()
     const ret = Number(returnAmount) || 0
@@ -567,6 +596,7 @@ export default function PettyCashDetailPage() {
   const remaining = txSummary?.remainingBalance ?? (approvedAmt - (req.spentAmount ?? 0))
   const spentAmt = txSummary?.spentAmount ?? (req.spentAmount ?? 0)
   const isApproved = req.status === 'APPROVED'
+  const isEcocashRequest = (req as any).paymentChannel === 'ECOCASH'
 
   // Determine if current user is the requester (can record spends)
   const isRequester = session?.user && (session.user as any).id === req.requestedBy
@@ -718,6 +748,14 @@ export default function PettyCashDetailPage() {
                 className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 + Record Spend
+              </button>
+            )}
+            {canApprove && isEcocashRequest && (
+              <button
+                onClick={() => setShowMarkSent(true)}
+                className="px-5 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700"
+              >
+                📱 Mark EcoCash as Sent
               </button>
             )}
             {canApprove && (
@@ -1048,6 +1086,36 @@ export default function PettyCashDetailPage() {
                 </div>
               </form>
             </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mark EcoCash as Sent modal */}
+        {showMarkSent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">📱 Mark EcoCash as Sent</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Amount: {fmt(req.approvedAmount ?? 0)} — {req.purpose}</p>
+              <form onSubmit={handleMarkSent} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">EcoCash Transaction Code <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={markSentTxCode}
+                    onChange={e => setMarkSentTxCode(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-teal-500"
+                    placeholder="e.g. ECD1234567"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setShowMarkSent(false)} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+                  <button type="submit" disabled={markingSent || !markSentTxCode.trim()} className="flex-1 px-4 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50">
+                    {markingSent ? 'Confirming...' : 'Confirm Sent'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
