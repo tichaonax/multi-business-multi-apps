@@ -48,7 +48,7 @@ export async function GET(
       include: {
         category: { select: { id: true, name: true, emoji: true } },
         creator: { select: { id: true, name: true } },
-        payment: { select: { id: true, status: true, paymentDate: true } },
+        payment: { select: { id: true, status: true, paymentDate: true, paymentChannel: true, ecocashTransactionCode: true } },
       },
       orderBy: { transactionDate: 'desc' },
     })
@@ -70,6 +70,8 @@ export async function GET(
           creator: t.creator,
           paymentId: t.paymentId,
           paymentStatus: t.payment?.status ?? null,
+          paymentChannel: (t.payment as any)?.paymentChannel ?? 'CASH',
+          ecocashTransactionCode: (t.payment as any)?.ecocashTransactionCode ?? null,
           createdAt: t.createdAt.toISOString(),
         })),
         summary: {
@@ -124,6 +126,8 @@ export async function POST(
       payeeEmployeeId,
       payeeUserId,
       payeePersonId,
+      paymentChannel = 'CASH',
+      ecocashTransactionCode,
     } = body
 
     if (!amount || Number(amount) <= 0) {
@@ -131,6 +135,9 @@ export async function POST(
     }
     if (!description?.trim()) {
       return NextResponse.json({ error: 'description is required' }, { status: 400 })
+    }
+    if (paymentChannel === 'ECOCASH' && !ecocashTransactionCode?.trim()) {
+      return NextResponse.json({ error: 'EcoCash transaction code is required for EcoCash payments' }, { status: 400 })
     }
 
     const pcRequest = await prisma.pettyCashRequests.findUnique({
@@ -180,6 +187,8 @@ export async function POST(
           paymentType: 'PETTY_CASH_SPEND',
           paidAt: txDate,
           payeeType,
+          paymentChannel,
+          ...(paymentChannel === 'ECOCASH' ? { ecocashTransactionCode: ecocashTransactionCode.trim() } : {}),
           ...(categoryId ? { categoryId } : {}),
           ...(subcategoryId ? { subcategoryId } : {}),
           ...(payeeSupplierId ? { payeeSupplierId } : {}),

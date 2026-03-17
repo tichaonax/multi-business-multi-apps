@@ -13,13 +13,12 @@ async function hasPettyCashApprove(userId: string): Promise<boolean> {
 
 /**
  * POST /api/petty-cash/requests/[requestId]/settle
- * Cashier settles the request at EOD.
+ * Settle a petty cash request.
+ *   Cash requests  — cashier/approver settles (receives physical cash back).
+ *   EcoCash requests — requester settles (sends unused EcoCash back to business).
  *
- * Body: { returnAmount, notes? }
- *   returnAmount — unused cash physically returned. Must be >= 0 and <= approvedAmount.
- *                  If 0, request is fully spent, no money moves back.
- *                  If > 0, system creates an ExpenseAccountPayment (PETTY_CASH_RETURN)
- *                  and a BusinessTransaction (CREDIT) to restore the business account.
+ * Body: { returnAmount, notes?, returnEcocashCode? }
+ *   returnAmount — unused amount returned. Must be >= 0 and <= approvedAmount.
  */
 export async function POST(
   request: NextRequest,
@@ -28,10 +27,6 @@ export async function POST(
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    if (!isSystemAdmin(user) && !(await hasPettyCashApprove(user.id))) {
-      return NextResponse.json({ error: 'You do not have permission to settle petty cash requests' }, { status: 403 })
-    }
 
     const { requestId } = await params
     const body = await request.json()
@@ -46,6 +41,13 @@ export async function POST(
       where: { id: requestId },
     })
     if (!pcRequest) return NextResponse.json({ error: 'Petty cash request not found' }, { status: 404 })
+
+    // Either the approver OR the requester can settle
+    const canApprove = isSystemAdmin(user) || await hasPettyCashApprove(user.id)
+    const isRequester = pcRequest.requestedBy === user.id
+    if (!canApprove && !isRequester) {
+      return NextResponse.json({ error: 'You do not have permission to settle this petty cash request' }, { status: 403 })
+    }
 
     if (pcRequest.status !== 'APPROVED') {
       return NextResponse.json(
@@ -89,19 +91,20 @@ export async function POST(
         // 2. Update expense account balance (debit for the return)
         await updateExpenseAccountBalanceTx(tx, pcRequest.expenseAccountId)
 
-        // 3. Credit the physical cash bucket — cash is back in hand
+        // 3. Credit the physical cash bucket — cash/ecocash is back
         await tx.cashBucketEntry.create({
           data: {
             businessId: pcRequest.businessId,
             entryType: 'PETTY_CASH_RETURN',
             direction: 'INFLOW',
             amount: returnAmount,
+            paymentChannel: pcRequest.paymentChannel ?? 'CASH',
             referenceType: 'PETTY_CASH_RETURN',
             referenceId: requestId,
             notes: `Petty cash return: ${pcRequest.purpose}`,
             entryDate: now,
             createdBy: user.id,
-          },
+          } as any,
         })
       }
 
@@ -114,7 +117,6 @@ export async function POST(
           settledAt: now,
           returnAmount,
           returnPaymentId,
-          returnTxId,
           notes: notes && !pcRequest.notes ? notes : pcRequest.notes,
         },
         include: {

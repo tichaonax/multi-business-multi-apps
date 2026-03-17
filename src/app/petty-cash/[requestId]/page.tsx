@@ -198,6 +198,8 @@ export default function PettyCashDetailPage() {
   const [showCreateSubcat, setShowCreateSubcat] = useState(false)
   const [showCreateSubSubcat, setShowCreateSubSubcat] = useState(false)
   const [creatingSubItem, setCreatingSubItem] = useState(false)
+  const [spendPaymentChannel, setSpendPaymentChannel] = useState<'CASH' | 'ECOCASH'>('CASH')
+  const [spendEcocashCode, setSpendEcocashCode] = useState('')
 
   // Signature pad state (approve modal)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -549,6 +551,7 @@ export default function PettyCashDetailPage() {
     e.preventDefault()
     if (Number(spendAmount) <= 0) { toast.error('Enter a valid amount'); return }
     if (!spendDesc.trim()) { toast.error('Description is required'); return }
+    if (spendPaymentChannel === 'ECOCASH' && !spendEcocashCode.trim()) { toast.error('EcoCash transaction code is required'); return }
     setSubmittingSpend(true)
     try {
       const res = await fetch(`/api/petty-cash/requests/${requestId}/transactions`, {
@@ -560,6 +563,8 @@ export default function PettyCashDetailPage() {
           description: spendDesc.trim(),
           transactionDate: spendDate || todayISO(),
           payeeType: spendPayee?.type ?? 'NONE',
+          paymentChannel: spendPaymentChannel,
+          ...(spendPaymentChannel === 'ECOCASH' ? { ecocashTransactionCode: spendEcocashCode.trim() } : {}),
           ...(spendCategoryId ? { categoryId: spendCategoryId } : {}),
           ...(spendSubSubcategoryId ? { subcategoryId: spendSubSubcategoryId } : {}),
           ...(spendPayee?.type === 'SUPPLIER' ? { payeeSupplierId: spendPayee.id } : {}),
@@ -579,6 +584,8 @@ export default function PettyCashDetailPage() {
       setSpendSubSubcategoryId('')
       setSpendSubSubcategories([])
       setSpendPayee(null)
+      setSpendPaymentChannel('CASH')
+      setSpendEcocashCode('')
       fetchTransactions()
     } catch (e: any) {
       toast.error(e.message)
@@ -602,7 +609,7 @@ export default function PettyCashDetailPage() {
 
   // Determine if current user is the requester (can record spends)
   const isRequester = session?.user && (session.user as any).id === req.requestedBy
-  const canRecordSpend = isApproved && (isRequester || canApprove)
+  const canRecordSpend = isApproved && isRequester
 
   return (
     <ContentLayout title="Petty Cash Request">
@@ -754,30 +761,20 @@ export default function PettyCashDetailPage() {
 
         {isApproved && (
           <div className="flex gap-3 flex-wrap">
-            {(canRecordSpend || canRequest) && (
+            {canRecordSpend && (
               <button
-                onClick={() => canRecordSpend ? setShowSpend(true) : undefined}
-                disabled={!canRecordSpend}
-                title={!canRecordSpend ? 'You need the Petty Cash Approver permission to record spend' : undefined}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => { setSpendPaymentChannel(isEcocashRequest ? 'ECOCASH' : 'CASH'); setSpendEcocashCode(''); setShowSpend(true) }}
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
               >
-                + Record Spend
+                {isEcocashRequest ? '+ Record EcoCash Spend' : '+ Record Spend'}
               </button>
             )}
-            {canApprove && isEcocashRequest && (
-              <button
-                onClick={() => setShowMarkSent(true)}
-                className="px-5 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700"
-              >
-                📱 Mark EcoCash as Sent
-              </button>
-            )}
-            {canApprove && (
+            {(canApprove || isRequester) && (
               <button
                 onClick={() => setShowSettle(true)}
-                className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                className={`px-5 py-2.5 text-white rounded-lg text-sm font-medium ${isEcocashRequest ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
               >
-                Settle Request
+                {isEcocashRequest ? '📱 Settle Request' : 'Settle Request'}
               </button>
             )}
           </div>
@@ -801,6 +798,7 @@ export default function PettyCashDetailPage() {
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Date</th>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Description</th>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Category</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Payment</th>
                     <th className="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400">Amount</th>
                   </tr>
                 </thead>
@@ -814,13 +812,25 @@ export default function PettyCashDetailPage() {
                       <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">
                         {t.category ? `${t.category.emoji} ${t.category.name}` : '—'}
                       </td>
+                      <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        {t.paymentChannel === 'ECOCASH' ? (
+                          <span className="flex flex-col gap-0.5">
+                            <span className="text-orange-600 dark:text-orange-400 font-medium text-xs">📱 EcoCash</span>
+                            {t.ecocashTransactionCode && (
+                              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{t.ecocashTransactionCode}</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-green-600 dark:text-green-400 text-xs">💵 Cash</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-right font-medium tabular-nums text-red-600 dark:text-red-400">{fmt(t.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                   <tr>
-                    <td colSpan={3} className="px-4 py-2.5 font-medium text-gray-700 dark:text-gray-300">Total spent</td>
+                    <td colSpan={4} className="px-4 py-2.5 font-medium text-gray-700 dark:text-gray-300">Total spent</td>
                     <td className="px-4 py-2.5 text-right font-bold tabular-nums text-red-600 dark:text-red-400">{fmt(spentAmt)}</td>
                   </tr>
                 </tfoot>
@@ -1087,6 +1097,41 @@ export default function PettyCashDetailPage() {
                   />
                 </div>
 
+                {/* Payment Method — locked to request's channel */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Payment Method <span className="text-red-500">*</span>
+                    <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">(locked to request type)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    {isEcocashRequest ? (
+                      <div className="flex-1 py-2 rounded-lg text-sm font-medium border bg-orange-500 border-orange-500 text-white text-center">
+                        📱 EcoCash
+                      </div>
+                    ) : (
+                      <div className="flex-1 py-2 rounded-lg text-sm font-medium border bg-green-600 border-green-600 text-white text-center">
+                        💵 Cash
+                      </div>
+                    )}
+                  </div>
+                  {spendPaymentChannel === 'ECOCASH' && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        EcoCash Transaction Code <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={spendEcocashCode}
+                        onChange={e => setSpendEcocashCode(e.target.value.toUpperCase())}
+                        placeholder="e.g. ECD250316123456"
+                        className="w-full px-3 py-2 border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-orange-500 outline-none text-sm font-mono"
+                        required
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-3 pt-1">
                   <button type="button" onClick={() => setShowSpend(false)} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
                   {(() => {
@@ -1143,7 +1188,9 @@ export default function PettyCashDetailPage() {
         {showSettle && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Settle Petty Cash Request</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                {isEcocashRequest ? '📱 Settle Request' : 'Settle Petty Cash Request'}
+              </h2>
               <form onSubmit={handleSettle} className="space-y-4">
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm space-y-1">
                   <div className="flex justify-between">
@@ -1155,7 +1202,9 @@ export default function PettyCashDetailPage() {
                     <span className="font-semibold text-gray-900 dark:text-gray-100">{fmt(spentAmt)}</span>
                   </div>
                   <div className="flex justify-between border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
-                    <span className="text-gray-600 dark:text-gray-300 font-medium">Calculated return</span>
+                    <span className="text-gray-600 dark:text-gray-300 font-medium">
+                      {isEcocashRequest ? 'EcoCash to return' : 'Calculated return'}
+                    </span>
                     <span className="font-bold text-green-600 dark:text-green-400">{fmt(remaining)}</span>
                   </div>
                 </div>
@@ -1168,29 +1217,29 @@ export default function PettyCashDetailPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Cash Returned to Cashier <span className="text-red-500">*</span>
+                    {isEcocashRequest ? 'EcoCash Returned to Bucket' : 'Cash Returned to Cashier'}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">$</span>
                     <input
-                      type="number" min="0" step="0.01" max={approvedAmt}
+                      type="number" readOnly
                       value={returnAmount}
-                      onChange={e => setReturnAmount(e.target.value)}
-                      className="w-full pl-8 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 outline-none"
-                      required
+                      className="w-full pl-8 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 cursor-not-allowed"
                     />
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Pre-filled from tracked spends. Edit if physical cash differs.</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Unused balance — automatically calculated.</p>
                 </div>
 
                 {Number(returnAmount) > 0 && (
-                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-sm">
-                    <div className="flex justify-between text-green-800 dark:text-green-300">
+                  <div className={`rounded-lg p-3 text-sm ${isEcocashRequest ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
+                    <div className={`flex justify-between ${isEcocashRequest ? 'text-orange-800 dark:text-orange-300' : 'text-green-800 dark:text-green-300'}`}>
                       <span>Net cost to business</span>
                       <span className="font-semibold">{fmt(approvedAmt - Number(returnAmount))}</span>
                     </div>
-                    <p className="text-green-700 dark:text-green-400 mt-1 text-xs">
-                      {fmt(Number(returnAmount))} will be credited back to the business account and cash bucket.
+                    <p className={`mt-1 text-xs ${isEcocashRequest ? 'text-orange-700 dark:text-orange-400' : 'text-green-700 dark:text-green-400'}`}>
+                      {isEcocashRequest
+                        ? `${fmt(Number(returnAmount))} EcoCash will be credited back to the EcoCash cash box.`
+                        : `${fmt(Number(returnAmount))} will be credited back to the business cash bucket.`}
                     </p>
                   </div>
                 )}
@@ -1207,7 +1256,7 @@ export default function PettyCashDetailPage() {
                 </div>
                 <div className="flex gap-3 pt-1">
                   <button type="button" onClick={() => setShowSettle(false)} className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
-                  <button type="submit" disabled={settling} className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                  <button type="submit" disabled={settling} className={`flex-1 px-4 py-2.5 text-white rounded-lg text-sm font-medium disabled:opacity-50 ${isEcocashRequest ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}>
                     {settling ? 'Settling...' : 'Confirm Settlement'}
                   </button>
                 </div>
