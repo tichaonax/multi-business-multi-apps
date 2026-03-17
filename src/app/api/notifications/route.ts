@@ -10,6 +10,21 @@ export async function GET() {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const now = new Date()
+    const readCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const unreadCutoff = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
+
+    // Clean up expired notifications (fire-and-forget, non-blocking)
+    prisma.appNotification.deleteMany({
+      where: {
+        userId: user.id,
+        OR: [
+          { isRead: true, createdAt: { lt: readCutoff } },
+          { isRead: false, createdAt: { lt: unreadCutoff } },
+        ],
+      },
+    }).catch(() => {})
+
     const [notifications, unreadCount] = await Promise.all([
       prisma.appNotification.findMany({
         where: { userId: user.id },

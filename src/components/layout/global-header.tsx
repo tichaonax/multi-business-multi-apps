@@ -71,6 +71,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const { unreadCount: notifUnreadCount, notifications: notifList, markRead, markAllRead } = useNotifications()
   const [showBellPreview, setShowBellPreview] = useState(false)
   const [showNotifPanel, setShowNotifPanel] = useState(false)
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [canPettyCashRequest, setCanPettyCashRequest] = useState(false)
 
   // Fetch petty cash permission once on mount (system-level, not covered by hasPermission)
@@ -906,7 +907,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                     )}
                   </div>
                 {/* Notifications Bell — shows personal notification history */}
-                {notifUnreadCount > 0 ? (
+                {(notifUnreadCount > 0 || notifList.length > 0) && (
                   <div
                     ref={notifRef}
                     className="relative"
@@ -955,6 +956,12 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             )}
                           </div>
                           <div className="flex items-center gap-2 ml-auto">
+                            <button
+                              onClick={() => setShowUnreadOnly(v => !v)}
+                              className={`text-xs px-1.5 py-0.5 rounded border transition-colors whitespace-nowrap ${showUnreadOnly ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700' : 'text-gray-500 dark:text-gray-400 border-transparent hover:border-gray-300'}`}
+                            >
+                              {showUnreadOnly ? 'Unread' : 'All'}
+                            </button>
                             <a href="/admin/pending-actions" onClick={() => setShowNotifPanel(false)} className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline whitespace-nowrap">Pending Actions</a>
                             {notifUnreadCount > 0 && (
                               <button onClick={() => markAllRead()} className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">Mark all read</button>
@@ -962,9 +969,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </div>
                         </div>
                         <div className="divide-y divide-border max-h-80 overflow-y-auto">
-                          {notifList.length === 0 ? (
-                            <div className="px-3 py-4 text-xs text-secondary text-center">No notifications</div>
-                          ) : notifList.map(n => {
+                          {(showUnreadOnly ? notifList.filter(n => !n.isRead) : notifList).length === 0 ? (
+                            <div className="px-3 py-4 text-xs text-secondary text-center">{showUnreadOnly ? 'No unread notifications' : 'No notifications'}</div>
+                          ) : (showUnreadOnly ? notifList.filter(n => !n.isRead) : notifList).map(n => {
                             const isUrgent = n.title?.includes('Urgent') || n.title?.includes('URGENT') || n.message?.includes('🚨')
                             const hasCash = n.message?.includes('💵')
                             const hasEcoCash = n.message?.includes('📱')
@@ -1002,7 +1009,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       </div>
                     )}
                   </div>
-                ) : null}
+                )}
 
                 {/* Mini Cart */}
                 <MiniCart />
