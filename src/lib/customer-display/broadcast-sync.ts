@@ -172,7 +172,7 @@ export class BroadcastSync {
         type,
         payload,
         timestamp: Date.now(),
-        businessId: this.options.businessId,
+        businessId: this.options.businessId ?? '',
         terminalId: this.options.terminalId
       }
 
