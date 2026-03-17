@@ -16,8 +16,9 @@ export default function SignIn() {
   const router = useRouter()
 
   // ── Normal login submit ────────────────────────────────────────────────────
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+    e?.preventDefault?.()
+    if (!identifier || !password) return
     setLoading(true)
     setError('')
 
@@ -71,36 +72,36 @@ export default function SignIn() {
         </div>
 
         <div className="card p-8">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          {/* No <form> tag — prevents browser credential autofill entirely */}
+          <div className="space-y-6">
             <div>
-              <label htmlFor="identifier" className="block text-sm font-medium text-primary mb-2">
+              <label className="block text-sm font-medium text-primary mb-2">
                 Email or Username
               </label>
               <input
-                id="identifier"
-                name="identifier"
                 type="text"
-                required
+                autoComplete="off"
                 className="input-field"
-                placeholder={process.env.NODE_ENV === 'development' ? 'admin@business.local or username' : 'Enter your email or username'}
+                placeholder={process.env.NODE_ENV === 'development' ? 'username' : 'Enter your email or username'}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e as any)}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Password
               </label>
               <input
-                id="password"
-                name="password"
-                type="password"
-                required
+                type="text"
+                autoComplete="off"
                 className="input-field"
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e as any)}
+                style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
               />
             </div>
 
@@ -114,7 +115,8 @@ export default function SignIn() {
             )}
 
             <button
-              type="submit"
+              type="button"
+              onClick={handleSubmit as any}
               disabled={loading}
               className="btn-primary w-full py-3"
             >
@@ -127,7 +129,7 @@ export default function SignIn() {
                 'Sign In'
               )}
             </button>
-          </form>
+          </div>
 
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="text-center text-sm text-gray-600 mb-4">

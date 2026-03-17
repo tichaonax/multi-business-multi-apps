@@ -205,6 +205,9 @@ export function Sidebar() {
 
   // Check WiFi integrations for current business (for business-specific menu/sales links)
   useEffect(() => {
+    const controller = new AbortController()
+    const { signal } = controller
+
     const checkWiFiIntegrations = async () => {
       if (!currentBusinessId) {
         setEsp32IntegrationEnabled(false)
@@ -216,13 +219,13 @@ export function Sidebar() {
 
       try {
         // ESP32: check integration first (200 = enabled, 404 = not set up)
-        const esp32IntRes = await fetch(`/api/wifi-portal/integration?businessId=${currentBusinessId}`)
+        const esp32IntRes = await fetch(`/api/wifi-portal/integration?businessId=${currentBusinessId}`, { signal })
         const esp32Enabled = esp32IntRes.ok
         setEsp32IntegrationEnabled(esp32Enabled)
 
         // ESP32: check menu items (only matters for showing Sales links)
         if (esp32Enabled) {
-          const esp32MenuRes = await fetch(`/api/business/${currentBusinessId}/wifi-tokens`)
+          const esp32MenuRes = await fetch(`/api/business/${currentBusinessId}/wifi-tokens`, { signal })
           if (esp32MenuRes.ok) {
             const esp32MenuData = await esp32MenuRes.json()
             setEsp32HasMenuItems(esp32MenuData.success && esp32MenuData.menuItems?.length > 0)
@@ -232,13 +235,13 @@ export function Sidebar() {
         }
 
         // R710: check integration
-        const r710IntRes = await fetch(`/api/r710/integration?businessId=${currentBusinessId}`)
+        const r710IntRes = await fetch(`/api/r710/integration?businessId=${currentBusinessId}`, { signal })
         const r710Enabled = r710IntRes.ok
         setR710IntegrationEnabled(r710Enabled)
 
         // R710: check menu items (only matters for showing Sales links)
         if (r710Enabled) {
-          const r710MenuRes = await fetch(`/api/business/${currentBusinessId}/r710-tokens`)
+          const r710MenuRes = await fetch(`/api/business/${currentBusinessId}/r710-tokens`, { signal })
           if (r710MenuRes.ok) {
             const r710MenuData = await r710MenuRes.json()
             setR710HasMenuItems(r710MenuData.success && r710MenuData.menuItems?.length > 0)
@@ -247,7 +250,9 @@ export function Sidebar() {
           setR710HasMenuItems(false)
         }
       } catch (error) {
-        console.error('Failed to check WiFi integrations:', error)
+        if ((error as any)?.name !== 'AbortError') {
+          console.error('Failed to check WiFi integrations:', error)
+        }
       }
     }
 
@@ -255,7 +260,10 @@ export function Sidebar() {
 
     // Re-check whenever a WiFi menu config page saves changes
     window.addEventListener('wifi-menu-updated', checkWiFiIntegrations)
-    return () => window.removeEventListener('wifi-menu-updated', checkWiFiIntegrations)
+    return () => {
+      controller.abort()
+      window.removeEventListener('wifi-menu-updated', checkWiFiIntegrations)
+    }
   }, [currentBusinessId, pathname])
 
   // Helper function to group businesses by type - DYNAMIC with "Other" category
@@ -1653,8 +1661,7 @@ export function Sidebar() {
         )}
 
         {/* Barcode Management - Universal barcode template and print job management */}
-        {(hasPermission('canViewBarcodeTemplates') ||
-          hasPermission('canManageBarcodeTemplates')) && (
+        {(isSystemAdmin(currentUser) || hasPermission('canViewBarcodeTemplates') || hasPermission('canManageBarcodeTemplates') || hasUserPermission(currentUser, 'canViewBarcodeTemplates') || hasUserPermission(currentUser, 'canManageBarcodeTemplates')) && (
           <Link
             href={`/universal/barcode-management${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
             className={getLinkClasses('/universal/barcode-management')}

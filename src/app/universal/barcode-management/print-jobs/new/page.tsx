@@ -486,7 +486,8 @@ function NewPrintJobPageContent() {
                           <button
                             key={t.id}
                             type="button"
-                            onClick={() => {
+                            onMouseDown={(e) => {
+                              e.preventDefault(); // prevent input blur so dropdown stays open during selection
                               setTemplate(t);
                               setTemplateSearch(t.name);
                               setShowTemplateDropdown(false);

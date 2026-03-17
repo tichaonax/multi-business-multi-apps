@@ -7,7 +7,8 @@ import { formatDate } from './date-format';
 import { fitTemplateName } from './text-abbreviation';
 
 interface BarcodeLabelOptions {
-  barcodeData: string;
+  barcodeData: string;      // What is encoded in the barcode (scanCode, e.g. "a3f2b7c9")
+  displayText?: string;     // Friendly text shown below the barcode (barcodeValue). Falls back to barcodeData if not set.
   symbology: string;
   itemName?: string;
   businessName?: string;
@@ -38,6 +39,7 @@ interface BarcodeLabelOptions {
 export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
   const {
     barcodeData,
+    displayText,
     symbology,
     itemName = '',
     businessName = '',
@@ -47,6 +49,9 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
     batchNumber = '',
     customData,
   } = options;
+
+  // The text shown below the barcode — friendly barcodeValue if provided, else the raw encoded value
+  const humanReadableText = displayText || barcodeData;
 
   let label = '';
 
@@ -111,10 +116,11 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
   label += generateBarcodeCommand(barcodeData, symbology);
 
   // Print human-readable value below barcode if enabled (centered)
+  // Shows the friendly barcodeValue (displayText), not the raw scanCode
   if (displayValue) {
     label += '\n';
     label += '\x1B\x61\x01'; // Center alignment
-    label += barcodeData + '\n';
+    label += humanReadableText + '\n';
   }
 
   // Print SKU label if provided and different from barcode value (centered, bold)

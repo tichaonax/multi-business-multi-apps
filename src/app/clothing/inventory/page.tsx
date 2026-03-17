@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { useSearchParams } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
@@ -41,6 +41,9 @@ function ClothingInventoryContent() {
   const [showBaleForm, setShowBaleForm] = useState(false)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [categorySearch, setCategorySearch] = useState('')
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
+  const categoryDropdownRef = useRef<HTMLDivElement>(null)
   const [baleForm, setBaleForm] = useState({
     categoryId: '',
     batchNumber: '',
@@ -216,6 +219,7 @@ function ClothingInventoryContent() {
       if (data.success) {
         showToast(`Bale ${data.data.batchNumber} registered (${data.data.itemCount} items)`, { type: 'success' })
         setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', costPrice: '', barcode: '', notes: '' })
+        setCategorySearch('')
         setShowBaleForm(false)
         fetchBales()
       } else {
@@ -990,16 +994,44 @@ function ClothingInventoryContent() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-secondary mb-1">Category *</label>
-                            <select
-                              value={baleForm.categoryId}
-                              onChange={(e) => setBaleForm({ ...baleForm, categoryId: e.target.value })}
-                              className="input-field w-full"
-                            >
-                              <option value="">Select category...</option>
-                              {baleCategories.map((cat: any) => (
-                                <option key={cat.id} value={cat.id}>{cat.name}</option>
-                              ))}
-                            </select>
+                            <div className="relative" ref={categoryDropdownRef}>
+                              <input
+                                type="text"
+                                placeholder="Search category..."
+                                value={categorySearch}
+                                onChange={(e) => { setCategorySearch(e.target.value); setCategoryDropdownOpen(true) }}
+                                onFocus={() => setCategoryDropdownOpen(true)}
+                                onBlur={() => setTimeout(() => setCategoryDropdownOpen(false), 150)}
+                                className="input-field w-full"
+                              />
+                              {baleForm.categoryId && (
+                                <div className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                                  ✓ {baleCategories.find((c: any) => c.id === baleForm.categoryId)?.name}
+                                </div>
+                              )}
+                              {categoryDropdownOpen && (
+                                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                  {baleCategories
+                                    .filter((cat: any) => cat.name.toLowerCase().includes(categorySearch.toLowerCase()))
+                                    .map((cat: any) => (
+                                      <div
+                                        key={cat.id}
+                                        onMouseDown={() => {
+                                          setBaleForm({ ...baleForm, categoryId: cat.id })
+                                          setCategorySearch(cat.name)
+                                          setCategoryDropdownOpen(false)
+                                        }}
+                                        className={`px-3 py-2 cursor-pointer text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${baleForm.categoryId === cat.id ? 'bg-purple-50 dark:bg-purple-900/30 font-medium' : ''}`}
+                                      >
+                                        {cat.name}
+                                      </div>
+                                    ))}
+                                  {baleCategories.filter((cat: any) => cat.name.toLowerCase().includes(categorySearch.toLowerCase())).length === 0 && (
+                                    <div className="px-3 py-2 text-sm text-gray-400">No categories found</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-secondary mb-1">Batch Number</label>
@@ -1082,6 +1114,7 @@ function ClothingInventoryContent() {
                             onClick={() => {
                               setShowBaleForm(false)
                               setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', costPrice: '', barcode: '', notes: '' })
+                              setCategorySearch('')
                             }}
                             className="btn-secondary"
                           >

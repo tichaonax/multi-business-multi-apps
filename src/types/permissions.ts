@@ -73,6 +73,13 @@ export interface UserLevelPermissions {
   canExportSeedTemplates: boolean;    // Create and export templates from businesses
   canApplySeedTemplates: boolean;     // Import and apply templates to businesses
 
+  // Barcode Management (User-level - cross-business capability)
+  canManageBarcodeTemplates: boolean; // Create, edit, and delete barcode templates
+  canViewBarcodeTemplates: boolean;   // View barcode templates and history
+  canPrintBarcodeLabels: boolean;     // Submit print jobs and view print queue
+  canViewBarcodeReports: boolean;     // Access print history and analytics
+  canManageBarcodeSettings: boolean;  // Configure printers and print settings
+
   // Payee Management (User-level - cross-business capability)
   canViewPayees: boolean;             // View all payees (individuals, employees, users, businesses)
   canCreatePayees: boolean;           // Create new individual payees (persons)
@@ -1088,6 +1095,17 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canEditPayees', label: 'Edit Payees' },
     ]
   },
+  barcodeManagement: {
+    title: 'Barcode Management',
+    description: 'Create and print barcode templates, manage print jobs and settings across all businesses',
+    permissions: [
+      { key: 'canManageBarcodeTemplates', label: 'Manage Templates (Create / Edit / Delete)' },
+      { key: 'canViewBarcodeTemplates', label: 'View Templates' },
+      { key: 'canPrintBarcodeLabels', label: 'Print Barcode Labels' },
+      { key: 'canViewBarcodeReports', label: 'View Barcode Reports' },
+      { key: 'canManageBarcodeSettings', label: 'Manage Barcode Settings' },
+    ]
+  },
   chickenRunManagement: {
     title: 'Chicken Run Management',
     description: 'Manage chicken batches, feed, medication, and inventory',
@@ -1206,6 +1224,13 @@ export const CORE_PERMISSIONS = {
     { key: 'canReconcilePayroll', label: 'Reconcile Payroll' },
     { key: 'canViewPayrollReports', label: 'View Payroll Reports' },
     { key: 'canManageAdvances', label: 'Manage Advances' },
+  ],
+  barcodeManagement: [
+    { key: 'canManageBarcodeTemplates', label: 'Manage Barcode Templates' },
+    { key: 'canViewBarcodeTemplates', label: 'View Barcode Templates' },
+    { key: 'canPrintBarcodeLabels', label: 'Print Barcode Labels' },
+    { key: 'canViewBarcodeReports', label: 'View Barcode Reports' },
+    { key: 'canManageBarcodeSettings', label: 'Manage Barcode Settings' },
   ],
   // Manager Payroll Actions (ONLY shown to business-owner and business-manager roles)
   // ⚠️ CRITICAL: These must be explicitly assigned - NOT default for managers
@@ -2344,6 +2369,13 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canExportSeedTemplates: false,    // Admin only
   canApplySeedTemplates: false,     // Admin only
 
+  // Barcode Management - No access by default
+  canManageBarcodeTemplates: false,
+  canViewBarcodeTemplates: false,
+  canPrintBarcodeLabels: false,
+  canViewBarcodeReports: false,
+  canManageBarcodeSettings: false,
+
   // Payee Management - No access by default
   canViewPayees: false,
   canCreatePayees: false,
@@ -2430,6 +2462,13 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canExportSeedTemplates: true,     // Admins can export templates
   canApplySeedTemplates: true,      // Admins can import/apply templates
 
+  // Barcode Management - Full access for admins
+  canManageBarcodeTemplates: true,
+  canViewBarcodeTemplates: true,
+  canPrintBarcodeLabels: true,
+  canViewBarcodeReports: true,
+  canManageBarcodeSettings: true,
+
   // Payee Management - Full access for admins
   canViewPayees: true,
   canCreatePayees: true,
@@ -2509,6 +2548,13 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canExportSeedTemplates: false,
   canApplySeedTemplates: false,
 
+  // Barcode Management - No access for drivers
+  canManageBarcodeTemplates: false,
+  canViewBarcodeTemplates: false,
+  canPrintBarcodeLabels: false,
+  canViewBarcodeReports: false,
+  canManageBarcodeSettings: false,
+
   // Payee Management - No access for drivers
   canViewPayees: false,
   canCreatePayees: false,
@@ -2587,6 +2633,13 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
   canManageSeedTemplates: false,
   canExportSeedTemplates: false,
   canApplySeedTemplates: false,
+
+  // Barcode Management - No access
+  canManageBarcodeTemplates: false,
+  canViewBarcodeTemplates: false,
+  canPrintBarcodeLabels: false,
+  canViewBarcodeReports: false,
+  canManageBarcodeSettings: false,
 
   // Payee Management - No access
   canViewPayees: false,

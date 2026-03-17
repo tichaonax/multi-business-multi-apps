@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { isSystemAdmin } from '@/lib/permission-utils';
+import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils';
 import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for creating print jobs
@@ -39,19 +39,11 @@ export async function GET(request: NextRequest) {
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
-      const hasPermission = await prisma.userPermissions.findFirst({
-        where: {
-          userId: user.id,
-          granted: true,
-          permission: {
-            name: {
-              in: ['BARCODE_PRINT', 'BARCODE_MANAGE_TEMPLATES'],
-            },
-          },
-        },
-      });
-
-      if (!hasPermission) {
+      const canView = hasUserPermission(user, 'canPrintBarcodeLabels') ||
+        hasUserPermission(user, 'canManageBarcodeTemplates') ||
+        hasPermissionInAnyBusiness(user, 'canPrintBarcodeLabels') ||
+        hasPermissionInAnyBusiness(user, 'canManageBarcodeTemplates');
+      if (!canView) {
         return NextResponse.json(
           { error: 'Insufficient permissions. You need BARCODE_PRINT permission.' },
           { status: 403 }
@@ -70,11 +62,11 @@ export async function GET(request: NextRequest) {
       });
       accessibleBusinessIds = allBusinesses.map(b => b.id);
     } else {
-      const userBusinesses = await prisma.userBusinessRole.findMany({
+      const memberships = await prisma.businessMemberships.findMany({
         where: { userId: user.id },
         select: { businessId: true },
       });
-      accessibleBusinessIds = userBusinesses.map((ubr) => ubr.businessId);
+      accessibleBusinessIds = memberships.map((ubr) => ubr.businessId);
     }
 
     // Build where clause
@@ -225,17 +217,9 @@ export async function POST(request: NextRequest) {
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
-      const hasPermission = await prisma.userPermissions.findFirst({
-        where: {
-          userId: user.id,
-          granted: true,
-          permission: {
-            name: 'BARCODE_PRINT',
-          },
-        },
-      });
-
-      if (!hasPermission) {
+      const canPrint = hasUserPermission(user, 'canPrintBarcodeLabels') ||
+        hasPermissionInAnyBusiness(user, 'canPrintBarcodeLabels');
+      if (!canPrint) {
         return NextResponse.json(
           { error: 'Insufficient permissions. You need BARCODE_PRINT permission.' },
           { status: 403 }
@@ -261,14 +245,14 @@ export async function POST(request: NextRequest) {
     // System admins bypass business access check
     if (!isSystemAdmin(user)) {
       // Verify user has access to the template's business
-      const userBusinessRole = await prisma.userBusinessRole.findFirst({
+      const membership = await prisma.businessMemberships.findFirst({
         where: {
           userId: user.id,
           businessId: template.businessId,
         },
       });
 
-      if (!userBusinessRole) {
+      if (!membership) {
         return NextResponse.json(
           { error: 'Access denied to this template' },
           { status: 403 }
@@ -277,7 +261,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate barcode data and item name based on item type
-    let barcodeData = template.barcodeValue;
+    // barcodeData = what is ENCODED in the barcode (scanCode for templates, SKU for products)
+    // displayText = friendly text shown below the barcode (barcodeValue for templates)
+    let barcodeData = (template as any).scanCode || template.barcodeValue; // scanCode preferred; fallback for old records
+    let displayText = template.barcodeValue; // Always show barcodeValue as human-readable text
     let itemName = '';
     let itemId: string | undefined;
 
@@ -295,6 +282,7 @@ export async function POST(request: NextRequest) {
       }
 
       barcodeData = inventoryItem.sku || inventoryItem.id;
+      displayText = inventoryItem.sku || inventoryItem.id;
       itemName = inventoryItem.name;
       itemId = inventoryItem.id;
     } else if (validatedData.itemType === 'PRODUCT' && validatedData.itemId) {
@@ -311,10 +299,12 @@ export async function POST(request: NextRequest) {
       }
 
       barcodeData = product.sku || product.id;
+      displayText = product.sku || product.id;
       itemName = product.name;
       itemId = product.id;
     } else if (validatedData.itemType === 'CUSTOM') {
-      barcodeData = validatedData.customData?.barcodeValue || template.barcodeValue;
+      barcodeData = (template as any).scanCode || template.barcodeValue;
+      displayText = validatedData.customData?.barcodeValue || template.barcodeValue;
       itemName = validatedData.customData?.name || 'Custom Item';
     }
 
@@ -337,7 +327,8 @@ export async function POST(request: NextRequest) {
     // Store barcode parameters for generation at print time
     // (ESC/POS commands contain null bytes which can't be stored in PostgreSQL text fields)
     const barcodeParams = {
-      barcodeData,
+      barcodeData,    // scanCode — short 8-char hex encoded in the barcode
+      displayText,    // barcodeValue — friendly text shown below the barcode
       symbology: template.symbology,
       itemName,
       businessName: template.business.name,
@@ -346,8 +337,7 @@ export async function POST(request: NextRequest) {
       height: template.height,
       displayValue: template.displayValue,
       fontSize: template.fontSize,
-      sku: template.sku, // Add SKU field for thermal printer
-      // Include custom data fields for printing
+      sku: template.sku,
       customData: validatedData.customData,
     };
 

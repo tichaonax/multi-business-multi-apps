@@ -129,6 +129,14 @@ export async function GET() {
       },
     });
 
+    // Merge user-level permissions so that permissions granted at user level
+    // (Users.permissions JSON) are also visible in the business context.
+    // mergeWithBusinessPermissions only elevates (only applies true values), so this is safe.
+    const userLevelPerms = (user.permissions || {}) as Record<string, any>;
+    const userLevelElevations = Object.fromEntries(
+      Object.entries(userLevelPerms).filter(([, v]) => v === true)
+    );
+
     // Transform to match BusinessMembership interface
     const transformedMemberships = memberships.map(membership => ({
       businessId: membership.businessId,
@@ -140,7 +148,10 @@ export async function GET() {
       ecocashFeeType: (membership.businesses as any).ecocashFeeType ?? 'FIXED',
       ecocashFeeValue: (membership.businesses as any).ecocashFeeValue != null ? Number((membership.businesses as any).ecocashFeeValue) : 0,
       role: membership.role as any,
-      permissions: mergeWithBusinessPermissions(membership.permissions as any, membership.role),
+      permissions: mergeWithBusinessPermissions({
+        ...(membership.permissions as any),
+        ...userLevelElevations,
+      }, membership.role),
       isActive: membership.isActive && membership.businesses.isActive,
       isDemo: membership.businesses.isDemo,
       isUmbrellaBusiness: membership.businesses.isUmbrellaBusiness ?? false,

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils';
 import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for updating print jobs
@@ -30,19 +31,11 @@ export async function GET(
     const { id } = await params;
 
     // Check permissions
-    const hasPermission = await prisma.userPermissions.findFirst({
-      where: {
-        userId: user.id,
-        granted: true,
-        permission: {
-          name: {
-            in: ['BARCODE_PRINT', 'BARCODE_MANAGE_TEMPLATES'],
-          },
-        },
-      },
-    });
-
-    if (!hasPermission) {
+    const canView = hasUserPermission(user, 'canPrintBarcodeLabels') ||
+      hasUserPermission(user, 'canManageBarcodeTemplates') ||
+      hasPermissionInAnyBusiness(user, 'canPrintBarcodeLabels') ||
+      hasPermissionInAnyBusiness(user, 'canManageBarcodeTemplates');
+    if (!canView) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
@@ -110,14 +103,14 @@ export async function GET(
     }
 
     // Verify user has access to this print job's business
-    const userBusinessRole = await prisma.userBusinessRole.findFirst({
+    const membership = await prisma.businessMemberships.findFirst({
       where: {
         userId: user.id,
         businessId: printJob.businessId,
       },
     });
 
-    if (!userBusinessRole) {
+    if (!membership) {
       return NextResponse.json(
         { error: 'Access denied to this print job' },
         { status: 403 }
@@ -153,17 +146,9 @@ export async function PUT(
     const validatedData = updatePrintJobSchema.parse(body);
 
     // Check permissions
-    const hasPermission = await prisma.userPermissions.findFirst({
-      where: {
-        userId: user.id,
-        granted: true,
-        permission: {
-          name: 'BARCODE_PRINT',
-        },
-      },
-    });
-
-    if (!hasPermission) {
+    const canPrint = hasUserPermission(user, 'canPrintBarcodeLabels') ||
+      hasPermissionInAnyBusiness(user, 'canPrintBarcodeLabels');
+    if (!canPrint) {
       return NextResponse.json(
         { error: 'Insufficient permissions. You need BARCODE_PRINT permission.' },
         { status: 403 }
@@ -183,14 +168,14 @@ export async function PUT(
     }
 
     // Verify user has access to this print job's business
-    const userBusinessRole = await prisma.userBusinessRole.findFirst({
+    const membership = await prisma.businessMemberships.findFirst({
       where: {
         userId: user.id,
         businessId: existingJob.businessId,
       },
     });
 
-    if (!userBusinessRole) {
+    if (!membership) {
       return NextResponse.json(
         { error: 'Access denied to this print job' },
         { status: 403 }

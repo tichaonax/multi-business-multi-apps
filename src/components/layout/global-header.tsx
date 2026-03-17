@@ -73,7 +73,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const { unreadCount: notifUnreadCount, notifications: notifList, markRead, markAllRead } = useNotifications()
   const [showBellPreview, setShowBellPreview] = useState(false)
   const [showNotifPanel, setShowNotifPanel] = useState(false)
-  const [showUnreadOnly, setShowUnreadOnly] = useState(false)
+  const [showUnreadOnly, setShowUnreadOnly] = useState(true)
   const [canPettyCashRequest, setCanPettyCashRequest] = useState(false)
 
   // Fetch petty cash permission once on mount (system-level, not covered by hasPermission)
@@ -1474,6 +1474,7 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity }: UserDrop
                       <span>User Management</span>
                     </div>
                   </Link>
+                  {typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1):8080$/.test(window.location.host) && (
                   <button
                     onClick={() => { closeUserMenu(); onQuickActivity?.() }}
                     className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -1483,6 +1484,7 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity }: UserDrop
                       <span>Quick Activity</span>
                     </div>
                   </button>
+                  )}
                 </>
               )}
 

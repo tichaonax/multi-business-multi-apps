@@ -622,20 +622,21 @@ function NewTemplatePageContent() {
                     {errors.type && <p className="mt-1 text-sm text-red-600">{errors.type}</p>}
                   </div>
 
-                  <div className="md:col-span-2">
+                  <div>
                     <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Description *
+                      Short Description * <span className="text-xs font-normal text-gray-400">(max 20 chars)</span>
                     </label>
-                    <textarea
+                    <input
+                      type="text"
                       id="description"
                       name="description"
                       required
-                      rows={3}
                       maxLength={20}
                       value={formData.description}
                       onChange={handleChange}
                       className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3"
                     />
+                    <p className="mt-1 text-xs text-gray-400">{(formData.description || '').length}/20</p>
                     {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
                   </div>
                 </div>

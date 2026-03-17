@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { isSystemAdmin } from '@/lib/permission-utils';
+import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils';
 import { getServerUser } from '@/lib/get-server-user'
 
 // Validation schema for creating barcode inventory items
@@ -40,19 +40,11 @@ export async function GET(request: NextRequest) {
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
-      const hasPermission = await prisma.userPermissions.findFirst({
-        where: {
-          userId: user.id,
-          granted: true,
-          permission: {
-            name: {
-              in: ['BARCODE_VIEW_TEMPLATES', 'BARCODE_MANAGE_TEMPLATES'],
-            },
-          },
-        },
-      });
-
-      if (!hasPermission) {
+      const canView = hasUserPermission(user, 'canViewBarcodeTemplates') ||
+        hasUserPermission(user, 'canManageBarcodeTemplates') ||
+        hasPermissionInAnyBusiness(user, 'canViewBarcodeTemplates') ||
+        hasPermissionInAnyBusiness(user, 'canManageBarcodeTemplates');
+      if (!canView) {
         return NextResponse.json(
           { error: 'Insufficient permissions. You need BARCODE_VIEW_TEMPLATES permission.' },
           { status: 403 }
@@ -71,11 +63,11 @@ export async function GET(request: NextRequest) {
       });
       accessibleBusinessIds = allBusinesses.map(b => b.id);
     } else {
-      const userBusinesses = await prisma.userBusinessRole.findMany({
+      const memberships = await prisma.businessMemberships.findMany({
         where: { userId: user.id },
         select: { businessId: true },
       });
-      accessibleBusinessIds = userBusinesses.map((ubr) => ubr.businessId);
+      accessibleBusinessIds = memberships.map((ubr) => ubr.businessId);
     }
 
     // Build where clause for template filtering (to enforce business access)
@@ -183,17 +175,9 @@ export async function POST(request: NextRequest) {
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
-      const hasPermission = await prisma.userPermissions.findFirst({
-        where: {
-          userId: user.id,
-          granted: true,
-          permission: {
-            name: 'BARCODE_MANAGE_TEMPLATES',
-          },
-        },
-      });
-
-      if (!hasPermission) {
+      const canManage = hasUserPermission(user, 'canManageBarcodeTemplates') ||
+        hasPermissionInAnyBusiness(user, 'canManageBarcodeTemplates');
+      if (!canManage) {
         return NextResponse.json(
           { error: 'Insufficient permissions. You need BARCODE_MANAGE_TEMPLATES permission.' },
           { status: 403 }
@@ -216,14 +200,14 @@ export async function POST(request: NextRequest) {
     // System admins bypass business access check
     if (!isSystemAdmin(user)) {
       // Verify user has access to the template's business
-      const userBusinessRole = await prisma.userBusinessRole.findFirst({
+      const membership = await prisma.businessMemberships.findFirst({
         where: {
           userId: user.id,
           businessId: template.businessId,
         },
       });
 
-      if (!userBusinessRole) {
+      if (!membership) {
         return NextResponse.json(
           { error: 'Access denied to this template' },
           { status: 403 }

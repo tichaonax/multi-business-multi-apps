@@ -387,12 +387,15 @@ async function lookupTemplateByBarcode(
   businessId: string
 ): Promise<TemplateLookupData | null> {
   try {
-    // Find template with matching barcode value
+    // Find template: match scanCode first (new short token), fall back to barcodeValue (legacy / direct entry)
     const template = await prisma.barcodeTemplates.findFirst({
       where: {
-        barcodeValue: barcode,
         businessId: businessId,
         isActive: true,
+        OR: [
+          { scanCode: barcode } as any,
+          { barcodeValue: barcode },
+        ],
       },
       include: {
         business: {
@@ -404,9 +407,7 @@ async function lookupTemplateByBarcode(
           },
         },
         print_jobs: {
-          where: {
-            barcodeData: barcode,
-          },
+          where: {},
           orderBy: {
             createdAt: 'desc',
           },

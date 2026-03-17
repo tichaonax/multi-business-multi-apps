@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 
 import { prisma } from '@/lib/prisma';
-import { isSystemAdmin } from '@/lib/permission-utils';
+import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils';
 import type { SessionUser } from '@/types/auth';
 import { getServerUser } from '@/lib/get-server-user'
 
@@ -25,17 +25,9 @@ export async function POST(
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
       // Check permissions
-      const hasPermission = await prisma.userPermissions.findFirst({
-        where: {
-          userId: user.id,
-          granted: true,
-          permission: {
-            name: 'BARCODE_PRINT',
-          },
-        },
-      });
-
-      if (!hasPermission) {
+      const canPrint = hasUserPermission(user, 'canPrintBarcodeLabels') ||
+        hasPermissionInAnyBusiness(user, 'canPrintBarcodeLabels');
+      if (!canPrint) {
         return NextResponse.json(
           { error: 'Insufficient permissions. You need BARCODE_PRINT permission.' },
           { status: 403 }
@@ -63,14 +55,14 @@ export async function POST(
     // System admins bypass business access check
     if (!isSystemAdmin(user)) {
       // Verify user has access to this print job's business
-      const userBusinessRole = await prisma.userBusinessRole.findFirst({
+      const membership = await prisma.businessMemberships.findFirst({
         where: {
           userId: user.id,
           businessId: printJob.businessId,
         },
       });
 
-      if (!userBusinessRole) {
+      if (!membership) {
         return NextResponse.json(
           { error: 'Access denied to this print job' },
           { status: 403 }

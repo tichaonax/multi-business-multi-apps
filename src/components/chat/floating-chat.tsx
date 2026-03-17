@@ -58,6 +58,18 @@ export function FloatingChat() {
   const inputRef = useRef<HTMLInputElement>(null)
   const isOpenRef = useRef(isOpen)
   useEffect(() => { isOpenRef.current = isOpen }, [isOpen])
+  // Auto-open timer: tracks the scheduled auto-close so we can cancel it on manual open
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const cancelAutoClose = () => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
+    }
+  }
+
+  // Cancel auto-close on unmount
+  useEffect(() => () => cancelAutoClose(), [])
 
 
   const scrollToBottom = useCallback(() => {
@@ -96,7 +108,17 @@ export function FloatingChat() {
         return [...prev, msg]
       })
       setTimeout(scrollToBottom, 50)
-      if (!isOpenRef.current) setUnread(u => u + 1)
+      if (!isOpenRef.current) {
+        setUnread(u => u + 1)
+        // Auto-open for 5 s when a message arrives and the panel was closed.
+        // Reset the timer on each new message so it's always 5 s from the last one.
+        cancelAutoClose()
+        setIsOpen(true)
+        autoCloseTimerRef.current = setTimeout(() => {
+          autoCloseTimerRef.current = null
+          setIsOpen(false)
+        }, 5000)
+      }
     })
 
     socket.on('chat:message:deleted', ({ id }: { id: string }) => {
@@ -204,7 +226,7 @@ export function FloatingChat() {
     return (
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={() => { cancelAutoClose(); setIsOpen(true) }}
         className="fixed bottom-20 right-6 z-[9998] w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl flex items-center justify-center transition-colors"
         title="Team Chat"
       >
@@ -243,7 +265,7 @@ export function FloatingChat() {
         <button
           type="button"
           onMouseDown={e => e.stopPropagation()}
-          onClick={() => setIsOpen(false)}
+          onClick={() => { cancelAutoClose(); setIsOpen(false) }}
           className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
           title="Minimise"
         >

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-
+import { randomBytes } from 'crypto';
 
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { isSystemAdmin } from '@/lib/permission-utils';
+import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils';
 import { generateBatchId } from '@/lib/batch-id-generator';
 import { Decimal } from '@prisma/client/runtime/library';
 import { getServerUser } from '@/lib/get-server-user'
@@ -58,23 +58,13 @@ export async function GET(request: NextRequest) {
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
-      // Check permissions - user needs VIEW or MANAGE templates
-      const userPermissions = await prisma.userPermissions.findMany({
-        where: {
-          userId: user.id,
-          granted: true,
-          permission: {
-            name: {
-              in: ['BARCODE_VIEW_TEMPLATES', 'BARCODE_MANAGE_TEMPLATES'],
-            },
-          },
-        },
-        include: { permission: true },
-      });
-
-      if (userPermissions.length === 0) {
+      const canView = hasUserPermission(user, 'canViewBarcodeTemplates') ||
+        hasUserPermission(user, 'canManageBarcodeTemplates') ||
+        hasPermissionInAnyBusiness(user, 'canViewBarcodeTemplates') ||
+        hasPermissionInAnyBusiness(user, 'canManageBarcodeTemplates');
+      if (!canView) {
         return NextResponse.json(
-          { error: 'Insufficient permissions. You need BARCODE_VIEW_TEMPLATES or BARCODE_MANAGE_TEMPLATES permission.' },
+          { error: 'Insufficient permissions. You need View or Manage Barcode Templates permission.' },
           { status: 403 }
         );
       }
@@ -91,11 +81,11 @@ export async function GET(request: NextRequest) {
       });
       accessibleBusinessIds = allBusinesses.map(b => b.id);
     } else {
-      const userBusinesses = await prisma.userBusinessRole.findMany({
+      const memberships = await prisma.businessMemberships.findMany({
         where: { userId: user.id },
         select: { businessId: true },
       });
-      accessibleBusinessIds = userBusinesses.map((ubr) => ubr.businessId);
+      accessibleBusinessIds = memberships.map((ubr) => ubr.businessId);
     }
 
     // Build where clause
@@ -218,33 +208,24 @@ export async function POST(request: NextRequest) {
 
     // System admins bypass permission checks
     if (!isSystemAdmin(user)) {
-      // Check permissions - user needs MANAGE templates
-      const hasPermission = await prisma.userPermissions.findFirst({
-        where: {
-          userId: user.id,
-          granted: true,
-          permission: {
-            name: 'BARCODE_MANAGE_TEMPLATES',
-          },
-        },
-      });
-
-      if (!hasPermission) {
+      const canManage = hasUserPermission(user, 'canManageBarcodeTemplates') ||
+        hasPermissionInAnyBusiness(user, 'canManageBarcodeTemplates');
+      if (!canManage) {
         return NextResponse.json(
-          { error: 'Insufficient permissions. You need BARCODE_MANAGE_TEMPLATES permission.' },
+          { error: 'Insufficient permissions. You need Manage Barcode Templates permission.' },
           { status: 403 }
         );
       }
 
       // Verify user has access to the specified business
-      const userBusinessRole = await prisma.userBusinessRole.findFirst({
+      const membership = await prisma.businessMemberships.findFirst({
         where: {
           userId: user.id,
           businessId: validatedData.businessId,
         },
       });
 
-      if (!userBusinessRole) {
+      if (!membership) {
         return NextResponse.json(
           { error: 'Access denied. You do not have access to this business.' },
           { status: 403 }
@@ -275,6 +256,10 @@ export async function POST(request: NextRequest) {
     // Auto-generate batch ID if not provided (3 characters)
     const batchId = validatedData.batchId || generateBatchId();
 
+    // Auto-generate scanCode — 8-char hex token (same pattern as employee scanToken)
+    // This is what the barcode actually encodes; barcodeValue is shown as display text
+    const scanCode = randomBytes(4).toString('hex');
+
     // Convert defaultPrice to Decimal if provided
     let defaultPrice: Decimal | null = null;
     if (validatedData.defaultPrice !== null && validatedData.defaultPrice !== undefined) {
@@ -291,6 +276,7 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         batchId,
+        scanCode,
         defaultPrice,
         createdById: user.id,
       },

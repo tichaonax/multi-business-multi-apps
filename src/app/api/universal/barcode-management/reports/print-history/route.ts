@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 
 import { prisma } from '@/lib/prisma';
+import { hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils';
 import { getServerUser } from '@/lib/get-server-user'
 
 /**
@@ -24,19 +25,11 @@ export async function GET(request: NextRequest) {
     const format = searchParams.get('format') || 'json'; // json or csv
 
     // Check permissions
-    const hasPermission = await prisma.userPermissions.findFirst({
-      where: {
-        userId: user.id,
-        granted: true,
-        permission: {
-          name: {
-            in: ['BARCODE_VIEW_REPORTS', 'BARCODE_MANAGE_TEMPLATES'],
-          },
-        },
-      },
-    });
-
-    if (!hasPermission) {
+    const canView = hasUserPermission(user, 'canViewBarcodeReports') ||
+      hasUserPermission(user, 'canManageBarcodeTemplates') ||
+      hasPermissionInAnyBusiness(user, 'canViewBarcodeReports') ||
+      hasPermissionInAnyBusiness(user, 'canManageBarcodeTemplates');
+    if (!canView) {
       return NextResponse.json(
         { error: 'Insufficient permissions. You need BARCODE_VIEW_REPORTS permission.' },
         { status: 403 }
@@ -44,12 +37,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's accessible businesses
-    const userBusinesses = await prisma.userBusinessRole.findMany({
+    const memberships = await prisma.businessMemberships.findMany({
       where: { userId: user.id },
       select: { businessId: true },
     });
 
-    const accessibleBusinessIds = userBusinesses.map((ubr) => ubr.businessId);
+    const accessibleBusinessIds = memberships.map((ubr) => ubr.businessId);
 
     if (accessibleBusinessIds.length === 0) {
       return NextResponse.json({

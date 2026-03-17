@@ -13,7 +13,8 @@ import { formatBatchWithQuantity } from './batch-id-generator';
 import { fitTemplateName } from './text-abbreviation';
 
 interface BarcodeImageOptions {
-  barcodeData: string;
+  barcodeData: string;    // Short scanCode — what is encoded in the barcode
+  displayText?: string;   // Friendly barcodeValue — shown as text below barcode (alttext)
   symbology: string;
   itemName?: string;
   businessName?: string;
@@ -100,6 +101,7 @@ function formatBarcodeData(data: string, symbology: string): string {
 export async function generateBarcodeImage(options: BarcodeImageOptions): Promise<string> {
   const {
     barcodeData,
+    displayText,
     symbology,
     itemName = '',
     businessName = '',
@@ -115,14 +117,19 @@ export async function generateBarcodeImage(options: BarcodeImageOptions): Promis
   const formattedData = formatBarcodeData(barcodeData, symbology);
 
   // Generate barcode image using bwip-js
-  const png = await bwipjs.toBuffer({
+  // alttext: show friendly barcodeValue as label text while encoding scanCode in the bars
+  const bwipOptions: any = {
     bcid: barcodeType,        // Barcode type
-    text: formattedData,       // Data to encode
+    text: formattedData,       // Data to encode (scanCode)
     scale: 3,                  // 3x scaling factor
     height: height / 10,       // Bar height in millimeters (bwip-js uses mm)
     includetext: displayValue, // Show human-readable text
     textxalign: 'center',      // Center text
-  });
+  };
+  if (displayText && displayText !== barcodeData) {
+    bwipOptions.alttext = displayText; // Show friendly name instead of raw scanCode
+  }
+  const png = await bwipjs.toBuffer(bwipOptions);
 
   // Generate temp file path
   const filename = `barcode-${Date.now()}-${Math.random().toString(36).substring(7)}.png`;

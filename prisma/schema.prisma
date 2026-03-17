@@ -4143,6 +4143,7 @@ model BarcodeTemplates {
   createdById     String
   sku             String?
   batchId         String?
+  scanCode        String?                 // 8-char hex scan token (randomBytes(4).hex) — what the barcode encodes; barcodeValue is shown as display text
   defaultPrice    Decimal?                @db.Decimal(10, 2)
   productName     String?
   defaultColor    String?
@@ -4153,6 +4154,7 @@ model BarcodeTemplates {
   createdBy       Users                   @relation(fields: [createdById], references: [id])
 
   @@unique([businessId, barcodeValue], name: "barcode_templates_business_value_unique")
+  @@unique([businessId, scanCode], name: "barcode_templates_business_scan_code_unique")
   @@map("barcode_templates")
 }
 

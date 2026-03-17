@@ -43,8 +43,10 @@ export async function POST(request: NextRequest) {
     const batchNumber = Date.now().toString(36).slice(-3).toUpperCase();
 
     // Prepare barcode parameters
+    // barcodeData = scanCode (short 8-char hex encoded in barcode); displayText = friendly barcodeValue shown as text
     const barcodeParams = {
-      barcodeData: customData?.barcodeValue || template.barcodeValue,
+      barcodeData: (template as any).scanCode || customData?.barcodeValue || template.barcodeValue,
+      displayText: customData?.barcodeValue || template.barcodeValue,
       symbology: template.symbology,
       itemName: customData?.name || template.name,
       businessName: template.business?.name || '',
