@@ -207,15 +207,15 @@ export default function MyRequestsPage() {
             { label: 'Partial', key: 'PARTIAL', color: 'orange' },
             { label: 'Paid', key: 'PAID', color: 'green' },
           ].map(({ label, key, color }) => (
-            <div key={key} className={`bg-${color}-50 border border-${color}-200 rounded-xl p-4 text-center`}>
-              <div className={`text-2xl font-bold text-${color}-700`}>{counts[key as keyof typeof counts]}</div>
-              <div className={`text-xs text-${color}-600 mt-0.5`}>{label}</div>
+            <div key={key} className={`bg-${color}-50 dark:bg-${color}-900/20 border border-${color}-200 dark:border-${color}-800 rounded-xl p-4 text-center`}>
+              <div className={`text-2xl font-bold text-${color}-700 dark:text-${color}-400`}>{counts[key as keyof typeof counts]}</div>
+              <div className={`text-xs text-${color}-600 dark:text-${color}-500 mt-0.5`}>{label}</div>
             </div>
           ))}
         </div>
 
         {/* Filters */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-end">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-wrap gap-3 items-end">
           {/* Date presets */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Date Range</label>
@@ -227,7 +227,7 @@ export default function MyRequestsPage() {
                   className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
                     datePreset === p.value
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   {p.label}
@@ -279,7 +279,7 @@ export default function MyRequestsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Loading...</div>
           ) : requests.length === 0 ? (
@@ -294,7 +294,7 @@ export default function MyRequestsPage() {
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Supplier</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Amount</th>
@@ -306,7 +306,7 @@ export default function MyRequestsPage() {
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {requests.map(r => {
                   const canEdit = r.status === 'PENDING' && r.paidAmount === 0
                   const isDenied = r.status === 'DENIED'
@@ -314,13 +314,13 @@ export default function MyRequestsPage() {
 
                   return (
                     <React.Fragment key={r.id}>
-                      <tr className={`hover:bg-gray-50 ${isDenied ? 'opacity-70' : ''}`}>
+                      <tr className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isDenied ? 'opacity-70' : ''}`}>
                         <td className="px-4 py-3">
                           <div>
                             <button
                               onClick={() => openSupplierView(r.supplier.id, r.businessId)}
                               disabled={viewSupplierLoading}
-                              className="font-medium text-gray-900 hover:text-blue-600 hover:underline text-left disabled:opacity-60"
+                              className="font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left disabled:opacity-60"
                             >
                               {r.supplier.emoji ? `${r.supplier.emoji} ` : ''}{r.supplier.name}
                             </button>
@@ -340,7 +340,7 @@ export default function MyRequestsPage() {
                             <div className="text-xs text-gray-400 truncate max-w-[180px]">{r.notes}</div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(r.amount)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-gray-100">{fmt(r.amount)}</td>
                         <td className="px-4 py-3 text-right">
                           <span className="text-green-700">{fmt(r.paidAmount)}</span>
                           {(r.status === 'PARTIAL' || (r.status === 'PAID' && getRemaining(r) > 0.001)) && (
@@ -348,7 +348,7 @@ export default function MyRequestsPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right text-orange-700">{fmt(getRemaining(r))}</td>
-                        <td className="px-4 py-3 text-center text-gray-600">{fmtDate(r.dueDate)}</td>
+                        <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{fmtDate(r.dueDate)}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[r.status] || 'bg-gray-100 text-gray-600'}`}>
                             {r.status}
@@ -362,20 +362,20 @@ export default function MyRequestsPage() {
                             </button>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-center text-gray-500 text-xs">{fmtDate(r.submittedAt)}</td>
+                        <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 text-xs">{fmtDate(r.submittedAt)}</td>
                         <td className="px-4 py-3 text-center">
                           {canEdit && (
                             <div className="flex gap-1 justify-center">
                               <button
                                 onClick={() => router.push(`/supplier-payments/request?edit=${r.id}`)}
-                                className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                                className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-700"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => cancelRequest(r.id)}
                                 disabled={cancellingId === r.id}
-                                className="px-2 py-1 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100 border border-red-200 disabled:opacity-50"
+                                className="px-2 py-1 text-xs bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-700 disabled:opacity-50"
                               >
                                 {cancellingId === r.id ? '...' : 'Cancel'}
                               </button>
@@ -386,7 +386,7 @@ export default function MyRequestsPage() {
 
                       {/* Denial note expansion row */}
                       {isDenied && denialExpanded && r.denialNote && (
-                        <tr key={`${r.id}-denial`} className="bg-red-50 border-l-4 border-red-400">
+                        <tr key={`${r.id}-denial`} className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400">
                           <td colSpan={8} className="px-4 py-2">
                             <p className="text-xs font-medium text-red-700 mb-0.5">Denial Note:</p>
                             <p className="text-sm text-red-800">{r.denialNote}</p>
@@ -396,27 +396,27 @@ export default function MyRequestsPage() {
 
                       {/* Items breakdown with per-item status */}
                       {expandedItems === r.id && r.items && r.items.length > 0 && (
-                        <tr key={`${r.id}-items`} className="bg-gray-50">
+                        <tr key={`${r.id}-items`} className="bg-gray-50 dark:bg-gray-800/50">
                           <td colSpan={8} className="px-5 py-3">
-                            <div className="rounded-lg border border-gray-200 overflow-hidden">
+                            <div className="rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
                               <table className="w-full text-sm">
-                                <thead className="bg-gray-100">
+                                <thead className="bg-gray-100 dark:bg-gray-700">
                                   <tr>
-                                    <th className="text-left px-3 py-1.5 text-xs font-medium text-gray-500">Description</th>
-                                    <th className="text-left px-3 py-1.5 text-xs font-medium text-gray-500">Category</th>
-                                    <th className="text-center px-3 py-1.5 text-xs font-medium text-gray-500">Status</th>
-                                    <th className="text-right px-3 py-1.5 text-xs font-medium text-gray-500">Submitted</th>
-                                    <th className="text-right px-3 py-1.5 text-xs font-medium text-gray-500">Approved</th>
+                                    <th className="text-left px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-300">Description</th>
+                                    <th className="text-left px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-300">Category</th>
+                                    <th className="text-center px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-300">Status</th>
+                                    <th className="text-right px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-300">Submitted</th>
+                                    <th className="text-right px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-300">Approved</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100 bg-white">
+                                <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
                                   {r.items.map((item, idx) => (
                                     <React.Fragment key={item.id}>
                                       <tr>
-                                        <td className="px-3 py-2 text-gray-800">
+                                        <td className="px-3 py-2 text-gray-800 dark:text-gray-200">
                                           {item.description || <span className="italic text-gray-400">Item {idx + 1}</span>}
                                         </td>
-                                        <td className="px-3 py-2 text-xs text-gray-500">
+                                        <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
                                           {[item.category?.name, item.subcategory?.name].filter(Boolean).join(' › ') || '—'}
                                         </td>
                                         <td className="px-3 py-2 text-center">
@@ -424,7 +424,7 @@ export default function MyRequestsPage() {
                                             {item.status}
                                           </span>
                                         </td>
-                                        <td className="px-3 py-2 text-right font-medium text-gray-900">{fmt(item.amount)}</td>
+                                        <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-gray-100">{fmt(item.amount)}</td>
                                         <td className="px-3 py-2 text-right">
                                           {item.approvedAmount != null ? (
                                             <span className="font-medium text-amber-700">{fmt(item.approvedAmount)}</span>

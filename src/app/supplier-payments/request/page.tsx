@@ -80,6 +80,7 @@ export default function SubmitSupplierPaymentRequestPage() {
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [categories, setCategories] = useState<CategoryItem[]>([])
+  const [subcategoriesMap, setSubcategoriesMap] = useState<Record<string, CategoryItem[]>>({})
   const [domainId, setDomainId] = useState<string>('')
   const [loadingData, setLoadingData] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -95,15 +96,13 @@ export default function SubmitSupplierPaymentRequestPage() {
   const selectedSupplier = suppliers.find(s => s.id === supplierId) || null
 
   const supplierOptions = suppliers.map(s => ({
-    id: s.id,
-    name: s.posBlocked ? `${s.name} (POS Blocked)` : s.name,
-    emoji: s.emoji || undefined,
+    value: s.id,
+    label: `${s.emoji ? s.emoji + ' ' : ''}${s.posBlocked ? `${s.name} (POS Blocked)` : s.name}`,
   }))
 
   const categoryOptions = categories.map(c => ({
-    id: c.id,
-    name: c.name,
-    emoji: c.emoji || undefined,
+    value: c.id,
+    label: `${c.emoji ? c.emoji + ' ' : ''}${c.name}`,
   }))
 
   const total = lines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0)
@@ -149,18 +148,25 @@ export default function SubmitSupplierPaymentRequestPage() {
 
       if (matchedDomain) {
         setDomainId(matchedDomain.id)
-        setCategories((matchedDomain.expense_categories ?? []).map((c: any) => ({
-          id: c.id, name: c.name, emoji: c.emoji ?? null,
-        })))
+        const cats = matchedDomain.expense_categories ?? []
+        setCategories(cats.map((c: any) => ({ id: c.id, name: c.name, emoji: c.emoji ?? null })))
+        const subMap: Record<string, CategoryItem[]> = {}
+        for (const cat of cats) {
+          subMap[cat.id] = (cat.expense_subcategories ?? []).map((s: any) => ({ id: s.id, name: s.name, emoji: s.emoji ?? null }))
+        }
+        setSubcategoriesMap(subMap)
       } else {
         // No matching domain — show all categories from all domains
         const allCats: CategoryItem[] = []
+        const subMap: Record<string, CategoryItem[]> = {}
         for (const domain of domains) {
           for (const cat of (domain.expense_categories ?? [])) {
             allCats.push({ id: cat.id, name: cat.name, emoji: cat.emoji ?? null })
+            subMap[cat.id] = (cat.expense_subcategories ?? []).map((s: any) => ({ id: s.id, name: s.name, emoji: s.emoji ?? null }))
           }
         }
         setCategories(allCats)
+        setSubcategoriesMap(subMap)
       }
     } catch (err: any) {
       toast.error('Could not load expense categories: ' + (err.message || 'unknown error'))
@@ -216,23 +222,9 @@ export default function SubmitSupplierPaymentRequestPage() {
   const removeLine = (id: string) =>
     setLines(prev => prev.filter(l => l.id !== id))
 
-  const handleCategoryChange = async (lineId: string, catId: string) => {
-    updateLine(lineId, { categoryId: catId, subcategoryId: '', subcategoryItems: [], loadingSubcategories: !!catId })
-    if (!catId) return
-    try {
-      const res = await fetch(`/api/expense-categories/subcategories/${catId}/sub-subcategories`, { credentials: 'include' })
-      if (res.ok) {
-        const json = await res.json()
-        const items: CategoryItem[] = (json.subSubcategories ?? []).map((s: any) => ({
-          id: s.id, name: s.name, emoji: s.emoji ?? null,
-        }))
-        updateLine(lineId, { subcategoryItems: items, loadingSubcategories: false })
-      } else {
-        updateLine(lineId, { loadingSubcategories: false })
-      }
-    } catch {
-      updateLine(lineId, { loadingSubcategories: false })
-    }
+  const handleCategoryChange = (lineId: string, catId: string) => {
+    const items = catId ? (subcategoriesMap[catId] ?? []) : []
+    updateLine(lineId, { categoryId: catId, subcategoryId: '', subcategoryItems: items, loadingSubcategories: false })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -363,8 +355,7 @@ export default function SubmitSupplierPaymentRequestPage() {
                   value={supplierId}
                   onChange={setSupplierId}
                   placeholder="Select supplier..."
-                  searchPlaceholder="Search suppliers..."
-                  emptyMessage="No suppliers found"
+                  required
                 />
               )}
             </div>
@@ -454,18 +445,16 @@ export default function SubmitSupplierPaymentRequestPage() {
                     className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
 
-                  {/* Category + Subcategory + Amount */}
-                  <div className="grid grid-cols-3 gap-2">
+                  {/* Category + Subcategory */}
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sub-category</label>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category</label>
                       {categories.length > 0 ? (
                         <SearchableSelect
                           options={categoryOptions}
                           value={line.categoryId}
                           onChange={id => handleCategoryChange(line.id, id)}
                           placeholder="Select..."
-                          searchPlaceholder="Search..."
-                          emptyMessage="None"
                         />
                       ) : (
                         <div className="text-xs text-gray-400 dark:text-gray-500 py-2 px-2 border border-gray-200 dark:border-gray-600 rounded-lg">No categories</div>
@@ -473,42 +462,38 @@ export default function SubmitSupplierPaymentRequestPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sub-sub-category</label>
-                      {line.loadingSubcategories ? (
-                        <div className="text-xs text-gray-400 dark:text-gray-500 py-2 px-2 border border-gray-200 dark:border-gray-600 rounded-lg animate-pulse">Loading…</div>
-                      ) : line.subcategoryItems.length > 0 ? (
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sub-category</label>
+                      {line.subcategoryItems.length > 0 ? (
                         <SearchableSelect
-                          options={line.subcategoryItems.map(s => ({ id: s.id, name: s.name, emoji: s.emoji || undefined }))}
+                          options={line.subcategoryItems.map(s => ({ value: s.id, label: `${s.emoji ? s.emoji + ' ' : ''}${s.name}` }))}
                           value={line.subcategoryId}
                           onChange={id => updateLine(line.id, { subcategoryId: id })}
                           placeholder="Select..."
-                          searchPlaceholder="Search..."
-                          emptyMessage="None"
                         />
                       ) : (
                         <div className="text-xs text-gray-400 dark:text-gray-500 py-2 px-2 border border-gray-200 dark:border-gray-600 rounded-lg">
-                          {line.categoryId ? 'No sub-sub-categories' : '—'}
+                          {line.categoryId ? 'No sub-categories' : '—'}
                         </div>
                       )}
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Amount <span className="text-red-500">*</span></label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={line.amount}
-                          onChange={e => updateLine(line.id, { amount: e.target.value })}
-                          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg pl-5 pr-2 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="0.00"
-                          required
-                        />
-                      </div>
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Amount <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={line.amount}
+                        onChange={e => updateLine(line.id, { amount: e.target.value })}
+                        className="w-full border border-gray-300 dark:border-gray-600 rounded-lg pl-5 pr-2 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="0.00"
+                        required
+                      />
                     </div>
-
                   </div>
                 </div>
               )

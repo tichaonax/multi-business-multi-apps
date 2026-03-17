@@ -251,6 +251,10 @@ function MyQueuePanel({
   const pendingApprovalRef = useRef<QueuedPayment[]>([])
   const [ecocashModal, setEcocashModal] = useState<{ paymentId: string; amount: number } | null>(null)
   const [ecocashTxCode, setEcocashTxCode] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editAmount, setEditAmount] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [saving, setSaving] = useState(false)
   const [ecocashSubmitting, setEcocashSubmitting] = useState(false)
   const ecocashSubmittingRef = useRef(false)
 
@@ -315,6 +319,40 @@ function MyQueuePanel({
       }
     } finally {
       setActionId(null)
+    }
+  }
+
+  const startEdit = (p: QueuedPayment) => {
+    setEditingId(p.id)
+    setEditAmount(String(p.amount))
+    setEditNotes(p.description ?? '')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return
+    const amt = parseFloat(editAmount)
+    if (isNaN(amt) || amt <= 0) {
+      await alert({ title: 'Invalid amount', description: 'Enter a valid amount greater than 0.' })
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/payments/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ amount: amt, notes: editNotes.trim() || null }),
+      })
+      if (res.ok) {
+        setQueued(prev => prev.map(p => p.id === editingId ? { ...p, amount: amt, description: editNotes.trim() || null } : p))
+        setEditingId(null)
+        onActionDone()
+      } else {
+        const d = await res.json()
+        await alert({ title: 'Error', description: d.error ?? 'Failed to update payment' })
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -428,25 +466,80 @@ function MyQueuePanel({
           </div>
         ))}
         {queued.map(p => (
-          <div key={p.id} className="flex items-center gap-2 px-3 py-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
-                <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
-                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">IN QUEUE</span>
+          <div key={p.id} className="px-3 py-2">
+            {editingId === p.id ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
+                  <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                  <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">IN QUEUE</span>
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={editAmount}
+                      onChange={e => setEditAmount(e.target.value)}
+                      className="pl-5 pr-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-24 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={editNotes}
+                    onChange={e => setEditNotes(e.target.value)}
+                    placeholder="Notes (optional)"
+                    className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={saving}
+                    className="px-2 py-0.5 text-[10px] font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {saving ? '…' : '✓ Save'}
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    disabled={saving}
+                    className="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-500 rounded hover:bg-gray-200 dark:hover:bg-gray-500"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
-              <button
-                onClick={() => handleCancel(p.id)}
-                disabled={actionId === p.id}
-                className="px-2 py-0.5 text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 rounded hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50"
-              >
-                {actionId === p.id ? '…' : '✕ Cancel'}
-              </button>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
+                    <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">IN QUEUE</span>
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
+                  <button
+                    onClick={() => startEdit(p)}
+                    disabled={!!actionId}
+                    className="px-2 py-0.5 text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50"
+                  >
+                    ✎ Edit
+                  </button>
+                  <button
+                    onClick={() => handleCancel(p.id)}
+                    disabled={actionId === p.id}
+                    className="px-2 py-0.5 text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 rounded hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50"
+                  >
+                    {actionId === p.id ? '…' : '✕ Cancel'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
