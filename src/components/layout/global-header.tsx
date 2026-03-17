@@ -31,6 +31,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showTestPrint, setShowTestPrint] = useState(false)
   const [showQuickActivity, setShowQuickActivity] = useState(false)
   const [showEditBusiness, setShowEditBusiness] = useState(false)
+  const [editBusinessInitial, setEditBusinessInitial] = useState<Record<string, any> | null>(null)
   const [showBusinessSwitcher, setShowBusinessSwitcher] = useState(false)
   const [switchingToBusinessId, setSwitchingToBusinessId] = useState<string | null>(null)
   const [businessSwitcherSearch, setBusinessSwitcherSearch] = useState('')
@@ -538,7 +539,39 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                         <span className="ml-auto capitalize text-gray-300 dark:text-gray-600 text-xs shrink-0">{currentBusiness.businessType}</span>
                                         {(isSystemAdmin(session.user as SessionUser) || hasPermission('canEditBusiness')) && (
                                           <button
-                                            onClick={() => { closeBusinessMenu(); setShowEditBusiness(true) }}
+                                            onClick={async () => {
+                                              closeBusinessMenu()
+                                              const id = currentBusiness?.businessId
+                                              if (!id) return
+                                              try {
+                                                const res = await fetch(`/api/universal/business-config?businessId=${encodeURIComponent(id)}`)
+                                                const json = res.ok ? await res.json() : {}
+                                                const biz = json?.data
+                                                setEditBusinessInitial({
+                                                  name: biz?.businessName || currentBusiness.businessName,
+                                                  type: biz?.businessType || currentBusiness.businessType,
+                                                  description: biz?.businessDescription || '',
+                                                  address: biz?.address || '',
+                                                  phone: biz?.phone || '',
+                                                  ecocashEnabled: biz?.ecocashEnabled ?? false,
+                                                  ecocashFeeType: biz?.ecocashFeeType || 'FIXED',
+                                                  ecocashFeeValue: biz?.ecocashFeeValue != null ? String(biz.ecocashFeeValue) : '',
+                                                  couponsEnabled: biz?.couponsEnabled ?? false,
+                                                  promosEnabled: biz?.promosEnabled ?? false,
+                                                  receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',
+                                                  taxEnabled: biz?.taxEnabled ?? false,
+                                                  taxIncludedInPrice: biz?.taxIncludedInPrice ?? true,
+                                                  taxRate: biz?.taxRate ? String(biz.taxRate) : '',
+                                                  taxLabel: biz?.taxLabel || '',
+                                                  defaultPage: biz?.defaultPage || '',
+                                                  slogan: biz?.slogan || 'Where Customer Is King',
+                                                  showSlogan: biz?.showSlogan ?? true,
+                                                })
+                                              } catch {
+                                                setEditBusinessInitial({ name: currentBusiness.businessName, type: currentBusiness.businessType })
+                                              }
+                                              setShowEditBusiness(true)
+                                            }}
                                             title="Edit this business"
                                             className="shrink-0 ml-1 p-0.5 rounded text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                                           >
@@ -1058,17 +1091,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       )}
 
       {/* Inline Edit Business Modal — no page navigation needed */}
-      {showEditBusiness && currentBusiness?.businessId && (
+      {showEditBusiness && currentBusiness?.businessId && editBusinessInitial && (
         <BusinessCreationModal
           method="PUT"
           id={currentBusiness.businessId}
-          initial={{
-            name: currentBusiness.businessName,
-            type: currentBusiness.businessType,
-          }}
-          onClose={() => setShowEditBusiness(false)}
+          initial={editBusinessInitial}
+          onClose={() => { setShowEditBusiness(false); setEditBusinessInitial(null) }}
           onSuccess={async () => {
             setShowEditBusiness(false)
+            setEditBusinessInitial(null)
             await refreshBusinesses()
           }}
           onError={() => {}}

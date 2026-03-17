@@ -168,7 +168,11 @@ export async function POST(request: NextRequest) {
       r710Tokens: data.r710Tokens || [], // R710 tokens for restaurant receipts
       businessSpecificData: data.businessSpecificData,
       footerMessage: data.footerMessage,
-      returnPolicy: data.returnPolicy
+      returnPolicy: data.returnPolicy,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      customerAddress: data.customerAddress,
+      customerCity: data.customerCity,
     };
 
     // Calculate totals if not provided
