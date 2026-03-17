@@ -137,6 +137,8 @@ const RESTORE_ORDER = [
   'employeeLeaveBalance',
   'employeeAttendance',
   'employeeTimeTracking',
+  'employeeLoginLog',           // depends on employees
+  'externalClockIn',            // depends on businesses
   'disciplinaryActions',
   'employeeDeductionPayments',
   'employeeLoanPayments',
