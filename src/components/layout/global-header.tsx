@@ -66,6 +66,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
   const user = session?.user as SessionUser
   const isAdmin = isSystemAdmin(user)
+  const canSeeGeneralExpenses = isAdmin || hasPermission('canAccessFinancialData')
   const pendingCount = usePendingActionsCount()
   const pendingActions = usePendingActions()
   const { unreadCount: notifUnreadCount, notifications: notifList, markRead, markAllRead } = useNotifications()
@@ -207,8 +208,6 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     }
 
     // Expense account links - one per account linked to this business
-    // General Expenses account requires canAccessFinancialData permission
-    const canSeeGeneralExpenses = isAdmin || hasPermission('canAccessFinancialData')
     // Extract the meaningful account type label from the raw DB account name.
     // Account names are always "{biz name} {type}" or "{biz name} - {type}".
     // Known types are matched by suffix — completely independent of the business name,
@@ -656,8 +655,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           </>
                         )}
 
-                        {/* General Expense Account - requires financial data access */}
-                        {(isAdmin || hasPermission('canAccessFinancialData')) && hasPermission('canAccessExpenseAccount') && (
+                        {/* General Expense Account - requires financial data access + account must exist for this business */}
+                        {canSeeGeneralExpenses && currentBusiness?.expenseAccounts?.some(ea => ea.id === 'acc-general-expenses') && (
                           <>
                             <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                             <button
