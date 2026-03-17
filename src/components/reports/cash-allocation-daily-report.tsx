@@ -52,6 +52,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
   const [report, setReport] = useState<Report | null>(null)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [allChecked, setAllChecked] = useState(false)
+  const [readyToLock, setReadyToLock] = useState(false)
   const [loading, setLoading] = useState(false)
   const [locking, setLocking] = useState(false)
   const [pdfGenerating, setPdfGenerating] = useState(false)
@@ -71,6 +72,9 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
 
   // Rent config — always shown as fixed read-only row so cashier knows how much to put in rent cash box
   const [rentConfig, setRentConfig] = useState<{ dailyTransferAmount: number; accountName: string } | null>(null)
+
+  // Payroll auto-contribution for the selected date
+  const [payrollContrib, setPayrollContrib] = useState<{ amount: number } | null>(null)
 
   // EOD report for this date — provides cashCounted (cash tendered to cashier) + link to reprint
   const [eodReport, setEodReport] = useState<{
@@ -112,6 +116,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
         setReport(data.report)
         setLineItems(data.lineItems)
         setAllChecked(data.allChecked)
+        setReadyToLock(data.readyToLock ?? data.allChecked)
         // Seed local amounts — use saved actualAmount if set, else default to reportedAmount
         const amounts: Record<string, string> = {}
         for (const li of data.lineItems as LineItem[]) {
@@ -166,6 +171,19 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       })
       .catch(() => {})
   }, [businessId])
+
+  // Fetch payroll auto-contribution for the selected date
+  useEffect(() => {
+    if (!businessId || !date) return
+    setPayrollContrib(null)
+    fetch(`/api/payroll/account/deposits?businessId=${businessId}&startDate=${date}T00:00:00Z&endDate=${date}T23:59:59Z&transactionType=EOD_AUTO_CONTRIBUTION&limit=1`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const deposit = d?.data?.deposits?.[0]
+        if (deposit) setPayrollContrib({ amount: Number(deposit.amount) })
+      })
+      .catch(() => {})
+  }, [businessId, date])
 
   // Auto-load 7-day overview on mount, then load yesterday's detail
   useEffect(() => {
@@ -226,6 +244,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       setReport(data.report)
       setLineItems(data.lineItems)
       setAllChecked(data.allChecked)
+        setReadyToLock(data.readyToLock ?? data.allChecked)
       const amounts: Record<string, string> = {}
       for (const li of data.lineItems as LineItem[]) {
         amounts[li.id] = li.actualAmount !== null ? String(li.actualAmount) : String(li.reportedAmount)
@@ -251,6 +270,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       if (!res.ok) throw new Error(data.error ?? 'Failed to update')
       setLineItems(prev => prev.map(li => li.id === itemId ? { ...li, ...data.item } : li))
       setAllChecked(data.allChecked)
+        setReadyToLock(data.readyToLock ?? data.allChecked)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     }
@@ -311,6 +331,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     lockerName: report?.lockerName ?? undefined,
     cashTendered,
     rentConfig,
+    payrollContrib,
     lineItems: lineItems.map(li => ({
       accountName: li.accountName,
       sourceType: li.sourceType,
@@ -335,15 +356,16 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     t === 'EOD_AUTO_DEPOSIT' ? 'Auto Deposit' : t
 
   const rentAmount = rentConfig ? Number(rentConfig.dailyTransferAmount) : 0
+  const payrollAmount = payrollContrib?.amount ?? 0
   const nonRentItems = lineItems.filter(li => li.sourceType !== 'EOD_RENT_TRANSFER')
-  const totalReported = rentAmount + nonRentItems.reduce((s, li) => s + toNum(li.reportedAmount), 0)
+  const totalReported = rentAmount + payrollAmount + nonRentItems.reduce((s, li) => s + toNum(li.reportedAmount), 0)
   const checkedDepositTotal = nonRentItems.reduce((s, li) =>
     li.isChecked ? s + toNum(localAmounts[li.id] !== '' ? parseFloat(localAmounts[li.id]) : li.actualAmount) : s, 0)
-  const totalActual = rentAmount + checkedDepositTotal
+  const totalActual = rentAmount + payrollAmount + checkedDepositTotal
 
-  // Cash distribution: cashTendered − rent − checked deposits = business keeps
+  // Cash distribution: cashTendered − rent − payroll − checked deposits = business keeps
   const cashTendered = eodReport?.cashCounted ?? null
-  const businessKeeps = cashTendered !== null ? cashTendered - rentAmount - checkedDepositTotal : null
+  const businessKeeps = cashTendered !== null ? cashTendered - rentAmount - payrollAmount - checkedDepositTotal : null
 
   const statusBadge = (s: DaySummary['status']) => {
     const map = {
@@ -532,6 +554,15 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                 </span>
               </div>
             )}
+            {/* Payroll contribution deduction */}
+            {payrollContrib && payrollContrib.amount > 0 && (
+              <div className="flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/10">
+                <span className="text-sm text-blue-700 dark:text-blue-300">💼 Less: Payroll Contribution</span>
+                <span className="text-sm font-mono font-semibold text-blue-700 dark:text-blue-300">
+                  −${payrollContrib.amount.toFixed(2)}
+                </span>
+              </div>
+            )}
             {/* Auto-deposit deductions (only checked items) */}
             {nonRentItems.filter(li => li.isChecked).map(li => {
               const amt = localAmounts[li.id] !== '' ? parseFloat(localAmounts[li.id] || '0') : toNum(li.actualAmount)
@@ -631,6 +662,28 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                   <td className="px-4 py-3 text-xs text-orange-600 dark:text-orange-400">
                     Fixed — put in rent cash box
                   </td>
+                </tr>
+              )}
+              {/* Payroll row — read-only, shows auto-contribution made during EOD */}
+              {payrollContrib && payrollContrib.amount > 0 && (
+                <tr className="bg-blue-50 dark:bg-blue-900/10">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Payroll Account
+                    <span className="ml-2 text-xs text-blue-600 dark:text-blue-400 font-normal">💼 transferred during EOD</span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-blue-600 dark:text-blue-400">Payroll Contribution</td>
+                  <td className="px-4 py-3 text-sm text-right font-mono font-semibold text-blue-700 dark:text-blue-300">
+                    ${payrollContrib.amount.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span title="Payroll contribution is automatic" className="text-blue-500 text-sm">💼</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="text-sm font-mono font-semibold text-blue-700 dark:text-blue-300">
+                      ${payrollContrib.amount.toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-blue-600 dark:text-blue-400">Auto — transferred to payroll</td>
                 </tr>
               )}
               {lineItems.filter(item => item.sourceType !== 'EOD_RENT_TRANSFER').map(item => {
@@ -741,45 +794,56 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
 
       {report && !isLocked && canEdit && (
         <div className="flex items-center justify-between gap-4 flex-wrap pt-2">
-          {/* Close Without Deductions */}
-          <div>
-            {confirmForceClose ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-amber-700 dark:text-amber-300 font-medium">
-                  All cash goes to cashbox — no deductions. Confirm?
-                </span>
+          {/* Close Without Deductions — only shown when NO deductions are confirmed yet */}
+          {!readyToLock && (
+            <div>
+              {confirmForceClose ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+                    {lineItems.some(li => li.isChecked)
+                      ? `${lineItems.filter(li => li.isChecked).length} confirmed deduction(s) totalling $${lineItems.filter(li => li.isChecked).reduce((s, li) => s + Number(li.actualAmount ?? li.reportedAmount), 0).toFixed(2)} will be IGNORED. Lock anyway?`
+                      : 'No deductions confirmed — all cash stays in the drawer. Lock report?'}
+                  </span>
+                  <button
+                    onClick={forceCloseReport}
+                    disabled={locking}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium rounded"
+                  >
+                    Yes, Lock Anyway
+                  </button>
+                  <button
+                    onClick={() => setConfirmForceClose(false)}
+                    className="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-500"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={forceCloseReport}
+                  onClick={() => setConfirmForceClose(true)}
                   disabled={locking}
-                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium rounded"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium rounded-md"
                 >
-                  Yes, Close
+                  Close Without Deductions
                 </button>
-                <button
-                  onClick={() => setConfirmForceClose(false)}
-                  className="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-500"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
+              )}
+            </div>
+          )}
+          {readyToLock && (
+            <div className="flex flex-col items-end gap-1">
+              {!allChecked && lineItems.filter(li => li.sourceType !== 'EOD_RENT_TRANSFER' && !li.isChecked).length > 0 && (
+                <span className="text-xs text-amber-600 dark:text-amber-400">
+                  ⚠ {lineItems.filter(li => li.sourceType !== 'EOD_RENT_TRANSFER' && !li.isChecked).length} unchecked item(s) will be skipped today
+                </span>
+              )}
               <button
-                onClick={() => setConfirmForceClose(true)}
+                onClick={lockReport}
                 disabled={locking}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium rounded-md"
+                className="px-6 py-2 bg-green-600 text-white rounded-md text-sm font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Close Without Deductions
+                {locking ? 'Locking…' : '🔒 Lock Report for ' + date}
               </button>
-            )}
-          </div>
-          {allChecked && (
-            <button
-              onClick={lockReport}
-              disabled={locking}
-              className="px-6 py-2 bg-green-600 text-white rounded-md text-sm font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {locking ? 'Locking…' : '🔒 Lock Report for ' + date}
-            </button>
+            </div>
           )}
         </div>
       )}

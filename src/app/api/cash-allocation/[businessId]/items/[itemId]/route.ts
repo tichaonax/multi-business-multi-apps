@@ -68,8 +68,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const nonRentItems = allItems.filter(i => i.sourceType !== 'EOD_RENT_TRANSFER')
     const allChecked = nonRentItems.length > 0 &&
       nonRentItems.every(i => i.isChecked && i.actualAmount !== null)
+    const readyToLock = nonRentItems.length === 0 ||
+      nonRentItems.some(i => i.isChecked && i.actualAmount !== null)
 
-    return NextResponse.json({ item: updatedItem, allChecked })
+    return NextResponse.json({ item: updatedItem, allChecked, readyToLock })
   } catch (err) {
     console.error('[PATCH /api/cash-allocation/items]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

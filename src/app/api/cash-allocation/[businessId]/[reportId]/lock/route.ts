@@ -158,15 +158,12 @@ export async function POST(request: NextRequest, { params }: Params) {
         }
       }
 
-      // Validate all non-rent items are checked with matching amounts (only if report has line items)
+      // Validate checked items only — unchecked items are treated as skipped today
       const mismatches: string[] = []
       let allocationTotal = 0
       for (const item of report.lineItems) {
         if (item.sourceType === 'EOD_RENT_TRANSFER') continue
-        if (!item.isChecked) {
-          mismatches.push(`"${item.accountName}" is not checked`)
-          continue
-        }
+        if (!item.isChecked) continue  // skip unchecked items silently
         if (item.actualAmount === null) {
           mismatches.push(`"${item.accountName}" has no actual amount entered`)
           continue

@@ -161,11 +161,34 @@ export async function GET() {
           lineTotals.map((t) => [t.reportId, Number(t._sum.reportedAmount ?? 0)])
         )
 
-        // For daily (non-grouped) reports: fetch cashCounted from the matching EOD SavedReport
-        // This is the expected cashbox deposit (cash Letwin hands to cashier)
+        // Add payroll EOD contributions to totalByReport
         const dailyReports = (pendingCashAllocations as any[]).filter(
           (r: any) => !r.isGrouped && r.reportDate && r.business?.id
         )
+        if (dailyReports.length > 0) {
+          const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+          const payrollDeposits = await prisma.payrollAccountDeposits.findMany({
+            where: {
+              businessId: { in: dailyReports.map((r: any) => r.business.id) },
+              transactionType: 'EOD_AUTO_CONTRIBUTION',
+              depositDate: { gte: twoWeeksAgo },
+            },
+            select: { businessId: true, depositDate: true, amount: true },
+          })
+          for (const r of dailyReports) {
+            const reportDateStr = new Date(r.reportDate).toISOString().split('T')[0]
+            const match = payrollDeposits.find((pd) => {
+              const pdDateStr = new Date(pd.depositDate).toISOString().split('T')[0]
+              return pd.businessId === r.business.id && pdDateStr === reportDateStr
+            })
+            if (match) {
+              totalByReport[r.id] = (totalByReport[r.id] ?? 0) + Number(match.amount)
+            }
+          }
+        }
+
+        // For daily (non-grouped) reports: fetch cashCounted from the matching EOD SavedReport
+        // This is the expected cashbox deposit (cash Letwin hands to cashier)
         const cashCountedByKey: Record<string, number | null> = {}
         if (dailyReports.length > 0) {
           const savedReports = await prisma.savedReports.findMany({

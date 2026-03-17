@@ -127,8 +127,10 @@ export async function POST(request: NextRequest, { params }: Params) {
     const nonRentLineItems = lineItems.filter(item => item.sourceType !== 'EOD_RENT_TRANSFER')
     const allChecked = nonRentLineItems.length > 0 &&
       nonRentLineItems.every(item => item.isChecked && item.actualAmount !== null)
+    const readyToLock = nonRentLineItems.length === 0 ||
+      nonRentLineItems.some(item => item.isChecked && item.actualAmount !== null)
 
-    return NextResponse.json({ report, lineItems, allChecked, newItemsAdded: toCreate.length })
+    return NextResponse.json({ report, lineItems, allChecked, readyToLock, newItemsAdded: toCreate.length })
   } catch (err) {
     console.error('[POST /api/cash-allocation/generate]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

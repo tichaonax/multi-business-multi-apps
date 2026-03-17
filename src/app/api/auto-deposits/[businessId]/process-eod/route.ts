@@ -8,6 +8,7 @@ import {
   UserEntry,
   AutoDepositResult,
 } from '@/lib/eod-utils'
+import { computeAndExecutePayrollContribution } from '@/lib/payroll-eod-contribution'
 
 type Params = { params: Promise<{ businessId: string }> }
 
@@ -104,6 +105,28 @@ export async function POST(request: NextRequest, { params }: Params) {
     // Run auto-deposits via shared utility
     const { results, summary } = await processAutoDeposits(businessId, eodDate, user.id, entries)
 
+    // Payroll auto-contribution — runs as part of EOD, non-fatal
+    let payrollContribution = null
+    try {
+      // Get today's total sales for the formula
+      const dayStart = new Date(eodDate + 'T00:00:00Z')
+      const dayEnd   = new Date(eodDate + 'T23:59:59.999Z')
+      const salesAgg = await prisma.businessOrders.aggregate({
+        where: {
+          businessId,
+          OR: [
+            { transactionDate: { gte: dayStart, lte: dayEnd } },
+            { transactionDate: null, createdAt: { gte: dayStart, lte: dayEnd } },
+          ],
+        },
+        _sum: { totalAmount: true },
+      })
+      const dailySales = Number(salesAgg._sum.totalAmount ?? 0)
+      payrollContribution = await computeAndExecutePayrollContribution(businessId, eodDate, dailySales, user.id)
+    } catch (payrollErr) {
+      console.error('[EOD] Payroll contribution failed (non-fatal):', payrollErr)
+    }
+
     // Auto-generate the cash allocation report (non-fatal)
     try {
       await autoGenerateCashAllocationReport(businessId, eodDate, user.id)
@@ -111,7 +134,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       console.error('[EOD] Failed to auto-generate cash allocation report:', cashAllocErr)
     }
 
-    return NextResponse.json({ success: true, eodDate, results, summary })
+    return NextResponse.json({ success: true, eodDate, results, summary, payrollContribution })
   } catch (err) {
     console.error('[POST /api/auto-deposits/process-eod]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

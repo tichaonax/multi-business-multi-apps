@@ -24,6 +24,7 @@ import { BusinessBalanceDisplay } from '@/components/business/business-balance-d
 import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { LoanPendingActionsWidget } from '@/components/loans/loan-pending-actions-widget'
 import { BusinessLoansWidget } from '@/components/loans/business-loans-widget'
+import { EodAccountsWidget } from '@/components/dashboard/eod-accounts-widget'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -989,6 +990,13 @@ function DashboardContent() {
         {hasPermission('canAccessFinancialData') && (
           <div className="mt-6">
             <BusinessLoansWidget />
+          </div>
+        )}
+
+        {/* EOD Auto-Deposit Account Balances */}
+        {hasPermission('canAccessFinancialData') && (
+          <div className="mt-6">
+            <EodAccountsWidget />
           </div>
         )}
 

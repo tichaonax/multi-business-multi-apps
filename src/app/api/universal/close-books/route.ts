@@ -348,25 +348,10 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Auto-contribute to payroll account based on today's sales
-    const payrollContribution = await computeEodPayrollContribution(
-      businessId,
-      date,
-      totalSales,
-      user.id
-    )
-
     return NextResponse.json({
       success: true,
       message: `Books closed for ${date}. ${totalOrders} orders (${manualEntries} manual).`,
       reportId: report.id,
-      payrollContribution: {
-        amount: payrollContribution.amount,
-        skipped: payrollContribution.skipped,
-        reason: payrollContribution.reason,
-        targetAmount: payrollContribution.targetAmount,
-        payrollBalance: payrollContribution.payrollBalance,
-      },
     })
   } catch (error: any) {
     console.error('Error closing books:', error)

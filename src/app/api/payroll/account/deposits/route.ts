@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (businessId) {
-      where.sourceBusinessId = businessId
+      where.businessId = businessId
     }
 
     if (startDate || endDate) {

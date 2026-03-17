@@ -58,12 +58,16 @@ export async function GET(request: NextRequest, { params }: Params) {
     const nonRentItems = report.lineItems.filter((item: { sourceType: string }) => item.sourceType !== 'EOD_RENT_TRANSFER')
     const allChecked = nonRentItems.length > 0 &&
       nonRentItems.every((item: { isChecked: boolean; actualAmount: unknown }) => item.isChecked && item.actualAmount !== null)
+    // readyToLock: true when at least one non-rent item is confirmed (partial lock allowed)
+    const readyToLock = nonRentItems.length === 0 ||
+      nonRentItems.some((item: { isChecked: boolean; actualAmount: unknown }) => item.isChecked && item.actualAmount !== null)
 
     return NextResponse.json({
       exists: true,
       report: { ...report, lockerName: report.locker?.name ?? null },
       lineItems: report.lineItems,
       allChecked,
+      readyToLock,
     })
   } catch (err) {
     console.error('[GET /api/cash-allocation]', err)
