@@ -242,7 +242,6 @@ export async function POST(
     })
 
     // Propagate APPROVED status to any linked supplier payment requests (non-blocking)
-    const approvedPaymentIds = approvedPayments.map((p: any) => p.id)
     if (approvedPaymentIds.length > 0) {
       prisma.supplierPaymentRequests.updateMany({
         where: { linkedPaymentId: { in: approvedPaymentIds }, status: 'QUEUED' },
