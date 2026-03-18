@@ -25,6 +25,14 @@ interface BusinessInventory {
   description?: string | null
   productAttributes?: any
   variantAttributes?: any
+  // Bale-specific
+  isBale?: boolean
+  baleId?: string
+  batchNumber?: string
+  categoryName?: string
+  remainingCount?: number
+  itemCount?: number
+  sku?: string
 }
 
 interface ScannedCustomer {
@@ -295,18 +303,36 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
           b => b.businessId === currentBusinessId && b.hasAccess && b.productId
         )
         if (currentBizMatch) {
-          // ✅ Product in current business — add to cart silently
-          window.dispatchEvent(
-            new CustomEvent('pos:add-to-cart', {
-              detail: {
-                productId: currentBizMatch.productId,
-                variantId: currentBizMatch.variantId ?? undefined,
-                productName: currentBizMatch.productName,
-                price: currentBizMatch.price,
-                variantAttributes: currentBizMatch.variantAttributes,
-              },
-            })
-          )
+          if (currentBizMatch.isBale) {
+            // ✅ Bale in current business — dispatch bale-specific cart event
+            window.dispatchEvent(
+              new CustomEvent('pos:add-bale-to-cart', {
+                detail: {
+                  id: currentBizMatch.baleId,
+                  batchNumber: currentBizMatch.batchNumber,
+                  unitPrice: currentBizMatch.price,
+                  sku: currentBizMatch.sku,
+                  remainingCount: currentBizMatch.remainingCount,
+                  itemCount: currentBizMatch.itemCount,
+                  category: { name: currentBizMatch.categoryName },
+                  categoryName: currentBizMatch.categoryName,
+                },
+              })
+            )
+          } else {
+            // ✅ Product in current business — add to cart silently
+            window.dispatchEvent(
+              new CustomEvent('pos:add-to-cart', {
+                detail: {
+                  productId: currentBizMatch.productId,
+                  variantId: currentBizMatch.variantId ?? undefined,
+                  productName: currentBizMatch.productName,
+                  price: currentBizMatch.price,
+                  variantAttributes: currentBizMatch.variantAttributes,
+                },
+              })
+            )
+          }
           onClose()
           return
         }

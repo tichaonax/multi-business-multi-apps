@@ -222,6 +222,57 @@ export async function GET(
       }
     }
 
+    // Tier 3 fallback: search clothing bales if no product matches found
+    if (businessInventory.length === 0) {
+      const bales = await prisma.clothingBales.findMany({
+        where: {
+          isActive: true,
+          remainingCount: { gt: 0 },
+          businessId: { in: accessibleBusinessIds },
+          OR: [
+            { scanCode: { equals: barcode, mode: 'insensitive' } },
+            { barcode: { equals: barcode, mode: 'insensitive' } },
+            { sku: { equals: barcode, mode: 'insensitive' } },
+          ],
+        },
+        include: {
+          category: { select: { name: true } },
+          businesses: { select: { id: true, name: true, type: true } },
+        },
+      })
+
+      for (const bale of bales) {
+        const hasAccess = accessibleBusinessIds.includes(bale.businessId)
+        if (!hasAccess) continue
+        businessInventory.push({
+          businessId: bale.businessId,
+          businessName: bale.businesses.name,
+          businessType: bale.businesses.type || 'clothing',
+          productId: bale.id,
+          variantId: null,
+          productName: `${bale.category?.name || 'Bale'} - ${bale.batchNumber}`,
+          variantName: null,
+          description: `${bale.remainingCount}/${bale.itemCount} items remaining`,
+          productAttributes: {},
+          variantAttributes: {},
+          stockQuantity: bale.remainingCount,
+          price: Number(bale.unitPrice),
+          hasAccess: true,
+          isInformational: false,
+          barcodeType: 'BALE',
+          barcodeLabel: 'Bale scan code',
+          // Bale-specific fields used by GlobalBarcodeModal → pos:add-bale-to-cart
+          isBale: true,
+          baleId: bale.id,
+          batchNumber: bale.batchNumber,
+          categoryName: bale.category?.name || 'Bale',
+          remainingCount: bale.remainingCount,
+          itemCount: bale.itemCount,
+          sku: bale.sku,
+        })
+      }
+    }
+
     // Sort by accessibility (accessible businesses first, then informational)
     businessInventory.sort((a, b) => {
       if (a.hasAccess && !b.hasAccess) return -1

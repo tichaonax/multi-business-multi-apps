@@ -986,6 +986,18 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Listen for pos:add-bale-to-cart dispatched by GlobalBarcodeModal when a bale
+  // scanCode is scanned from any business context and resolves to this business.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bale = (e as CustomEvent).detail
+      if (bale?.id) addBaleToCart(bale)
+    }
+    window.addEventListener('pos:add-bale-to-cart', handler)
+    return () => window.removeEventListener('pos:add-bale-to-cart', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const removeFromCart = (itemId: string) => {
     const newCart = cart.filter(item => item.id !== itemId)
     setCart(newCart)
