@@ -242,7 +242,8 @@ export async function GET(
 
       for (const bale of bales) {
         const hasAccess = accessibleBusinessIds.includes(bale.businessId)
-        if (!hasAccess) continue
+        const isInformational = access.canViewAcrossBusinesses && !hasAccess
+        if (!hasAccess && !isInformational) continue
         businessInventory.push({
           businessId: bale.businessId,
           businessName: bale.business.name,
@@ -256,8 +257,8 @@ export async function GET(
           variantAttributes: {},
           stockQuantity: bale.remainingCount,
           price: Number(bale.unitPrice),
-          hasAccess: true,
-          isInformational: false,
+          hasAccess,
+          isInformational,
           barcodeType: 'BALE',
           barcodeLabel: 'Bale scan code',
           // Bale-specific fields used by GlobalBarcodeModal → pos:add-bale-to-cart
