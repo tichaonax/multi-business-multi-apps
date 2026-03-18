@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { formatDate } from '@/lib/date-format'
 
 interface Bale {
   id: string
@@ -23,6 +24,7 @@ interface BarcodeTemplate {
   symbology: string
   width: number
   height: number
+  batchId?: string
 }
 
 interface NetworkPrinter {
@@ -35,15 +37,30 @@ function escHtml(str: string) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string): string {
+/** Build one label's HTML matching the thermal label format */
+function buildLabelHtml(
+  bale: Bale,
+  barcodeSvg: string,
+  businessName: string,
+  template: BarcodeTemplate,
+): string {
+  const today = formatDate(new Date())
+  const batchLine = template.batchId ? `1-${template.batchId}` : ''
+  const dateLine = [today, batchLine].filter(Boolean).join(' ')
+  const price = `$ ${Number(bale.unitPrice).toFixed(2)}`
+
   return `
-    <div style="width:200px;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;padding:8px;box-sizing:border-box;">
-      <div style="font-size:9px;color:#6b7280;text-align:center;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(businessName)}</div>
-      <div style="font-size:12px;font-weight:bold;color:#111827;text-align:center;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(bale.category.name)}</div>
-      <div style="font-size:9px;color:#374151;text-align:center;margin-bottom:2px;">Batch: ${escHtml(bale.batchNumber)} &nbsp;·&nbsp; $${Number(bale.unitPrice).toFixed(2)}</div>
-      <div style="font-size:9px;color:#6b7280;text-align:center;margin-bottom:4px;">${bale.remainingCount} of ${bale.itemCount} items</div>
-      <div style="display:flex;justify-content:center;">${barcodeSvg}</div>
-      <div style="font-size:8px;color:#9ca3af;text-align:center;margin-top:2px;letter-spacing:0.04em;">${escHtml(bale.sku)}</div>
+    <div style="width:220px;border:1px solid #333;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
+      <div style="font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;">&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;</div>
+      <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
+      <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(bale.category.name)}</div>
+      <div style="font-size:9px;text-align:center;margin-bottom:2px;">Batch ${escHtml(bale.batchNumber)}</div>
+      <div style="font-size:9px;text-align:center;margin-bottom:4px;">${escHtml(dateLine)}</div>
+      <div style="display:flex;justify-content:center;margin-bottom:2px;">${barcodeSvg}</div>
+      <div style="font-size:9px;text-align:center;color:#444;margin-bottom:4px;letter-spacing:0.03em;">${escHtml(bale.scanCode)}</div>
+      <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(price)}</div>
+      <div style="font-size:8px;text-align:center;color:#666;">${escHtml(template.name)}</div>
+      <div style="font-size:8px;color:#555;font-family:monospace;margin-top:4px;">&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;</div>
     </div>
   `
 }
@@ -165,9 +182,6 @@ export default function BalesBulkPrintPage() {
     localStorage.setItem(printerKey, id)
   }
 
-  // ── Hidden container for receipt-printer label rendering ───────────────────
-  const hiddenContainerRef = useRef<HTMLDivElement>(null)
-
   // ── Print / Save as PDF ────────────────────────────────────────────────────
   const [isPdfPrinting, setIsPdfPrinting] = useState(false)
 
@@ -187,19 +201,19 @@ export default function BalesBulkPrintPage() {
         JsBarcode(svgEl, bale.scanCode, {
           format: template.symbology?.toUpperCase() || 'CODE128',
           width: 1.5,
-          height: template.height ? Math.min(template.height, 40) : 35,
+          height: 40,
           displayValue: false,
           margin: 4,
         })
         svgEl.style.maxWidth = '100%'
         svgEl.style.display = 'block'
-        return buildLabelHtml(bale, svgEl.outerHTML, bizName)
+        return buildLabelHtml(bale, svgEl.outerHTML, bizName, template)
       })
 
       const rows: string[] = []
       for (let i = 0; i < labelHtmls.length; i += 3) {
         const chunk = labelHtmls.slice(i, i + 3)
-        rows.push(`<div style="display:flex;gap:8px;margin-bottom:8px;page-break-inside:avoid;">${chunk.join('')}</div>`)
+        rows.push(`<div style="display:flex;gap:10px;margin-bottom:10px;page-break-inside:avoid;">${chunk.join('')}</div>`)
       }
       const allLabels = rows.join('')
       const title = `Bale Barcodes — ${selected.length} label${selected.length !== 1 ? 's' : ''}`
@@ -241,68 +255,55 @@ export default function BalesBulkPrintPage() {
     setReceiptError(null)
     setReceiptSuccess(false)
     try {
-      const selected = bales.filter(b => selectedIds.has(b.id))
-      const JsBarcode = (await import('jsbarcode')).default
-      const { printBulkLabelsToReceiptPrinter } = await import('@/lib/printing/card-print-utils')
+      const template = templates.find(t => t.id === selectedTemplateId)
+      if (!template) throw new Error('No template selected')
+
+      const { generateBarcodeLabel } = await import('@/lib/barcode-label-generator')
       const bizName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
+      const selected = bales.filter(b => selectedIds.has(b.id))
 
-      const container = hiddenContainerRef.current!
-      container.innerHTML = ''
-      const elements: HTMLElement[] = []
-
+      // Build one ESC/POS string per bale (each ends with partial cut)
+      let allLabels = ''
       for (const bale of selected) {
-        const div = document.createElement('div')
-        div.style.cssText = 'width:300px;padding:10px;background:white;font-family:sans-serif;'
-
-        const bizDiv = document.createElement('div')
-        bizDiv.style.cssText = 'font-size:10px;color:#6b7280;text-align:center;margin-bottom:3px;'
-        bizDiv.textContent = bizName
-        div.appendChild(bizDiv)
-
-        const catDiv = document.createElement('div')
-        catDiv.style.cssText = 'font-size:14px;font-weight:bold;color:#111;text-align:center;margin-bottom:3px;'
-        catDiv.textContent = bale.category.name
-        div.appendChild(catDiv)
-
-        const infoDiv = document.createElement('div')
-        infoDiv.style.cssText = 'font-size:11px;color:#374151;text-align:center;margin-bottom:4px;'
-        infoDiv.textContent = `Batch: ${bale.batchNumber}  ·  $${Number(bale.unitPrice).toFixed(2)}`
-        div.appendChild(infoDiv)
-
-        const stockDiv = document.createElement('div')
-        stockDiv.style.cssText = 'font-size:10px;color:#6b7280;text-align:center;margin-bottom:6px;'
-        stockDiv.textContent = `${bale.remainingCount} of ${bale.itemCount} items`
-        div.appendChild(stockDiv)
-
-        const svgWrapper = document.createElement('div')
-        svgWrapper.style.cssText = 'display:flex;justify-content:center;'
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-        svg.style.cssText = 'display:block;'
-        svgWrapper.appendChild(svg)
-        div.appendChild(svgWrapper)
-
-        const skuDiv = document.createElement('div')
-        skuDiv.style.cssText = 'font-size:9px;color:#9ca3af;text-align:center;margin-top:3px;letter-spacing:0.04em;'
-        skuDiv.textContent = bale.sku
-        div.appendChild(skuDiv)
-
-        container.appendChild(div)
-
-        // Run JsBarcode after the element is in the DOM
-        JsBarcode(svg, bale.scanCode, {
-          format: 'CODE128',
-          width: 2,
-          height: 60,
-          displayValue: false,
-          margin: 8,
+        allLabels += generateBarcodeLabel({
+          barcodeData: bale.scanCode,
+          displayText: bale.scanCode,
+          symbology: template.symbology || 'code128',
+          businessName: bizName,
+          templateName: template.name,
+          displayValue: true,
+          batchNumber: template.batchId || '',
+          quantity: 1,
+          customData: {
+            productName: bale.category.name,
+            description: 'Batch ' + bale.batchNumber,
+            price: String(bale.unitPrice),
+          },
+          width: template.width || 200,
+          height: template.height || 100,
         })
-
-        elements.push(div)
       }
 
-      await printBulkLabelsToReceiptPrinter(elements, selectedPrinterId, selectedBusinessId)
+      // Base64 encode (ESC/POS is binary — encode byte-by-byte to stay in Latin1 range)
+      const bytes = new Uint8Array(allLabels.length)
+      for (let i = 0; i < allLabels.length; i++) {
+        bytes[i] = allLabels.charCodeAt(i) & 0xFF
+      }
+      const binaryStr = Array.from(bytes).map(b => String.fromCharCode(b)).join('')
+      const escPosData = btoa(binaryStr)
 
-      container.innerHTML = ''
+      const res = await fetch('/api/print/card', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printerId: selectedPrinterId, businessId: selectedBusinessId, escPosData }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Print failed (${res.status})`)
+      }
+
       setReceiptSuccess(true)
       setTimeout(() => setReceiptSuccess(false), 4000)
     } catch (err) {
@@ -312,14 +313,10 @@ export default function BalesBulkPrintPage() {
     }
   }
 
-  const bizName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
   const canPrint = selectedIds.size > 0 && !!selectedTemplateId
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {/* Hidden container for receipt-printer label rendering (off-screen) */}
-      <div ref={hiddenContainerRef} style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none' }} aria-hidden="true" />
-
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/clothing/inventory?tab=bales" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm">
@@ -334,7 +331,6 @@ export default function BalesBulkPrintPage() {
 
       {/* Controls */}
       <div className="flex flex-wrap gap-3 mb-5 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-        {/* Business selector */}
         <div className="flex items-center gap-2 min-w-[200px]">
           <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Business</label>
           <select
@@ -348,7 +344,6 @@ export default function BalesBulkPrintPage() {
           </select>
         </div>
 
-        {/* Template selector */}
         <div className="flex items-center gap-2 flex-1 min-w-[200px]">
           <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Template</label>
           {templatesLoading ? (
@@ -371,7 +366,7 @@ export default function BalesBulkPrintPage() {
 
       {/* Print actions */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-        {/* PDF / browser print */}
+        {/* PDF */}
         <div className="flex-1">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Label printer / PDF</p>
           <button
@@ -379,11 +374,9 @@ export default function BalesBulkPrintPage() {
             disabled={!canPrint || isPdfPrinting}
             className="w-full px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {isPdfPrinting ? (
-              <><span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Preparing...</>
-            ) : (
-              <>🖨️ Print / Save as PDF {selectedIds.size > 0 && `(${selectedIds.size})`}</>
-            )}
+            {isPdfPrinting
+              ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Preparing...</>
+              : <>🖨️ Print / Save as PDF {selectedIds.size > 0 && `(${selectedIds.size})`}</>}
           </button>
         </div>
 
@@ -423,15 +416,12 @@ export default function BalesBulkPrintPage() {
                 disabled={!canPrint || isReceiptPrinting || !selectedPrinterId}
                 className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isReceiptPrinting ? (
-                  <><span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Printing…</>
-                ) : receiptSuccess ? (
-                  '✅ Printed!'
-                ) : (
-                  <>🖨️ Print to Receipt Printer {selectedIds.size > 0 && `(${selectedIds.size})`}</>
-                )}
+                {isReceiptPrinting
+                  ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Printing…</>
+                  : receiptSuccess ? '✅ Printed!'
+                  : <>🧾 Print to Receipt Printer {selectedIds.size > 0 && `(${selectedIds.size})`}</>}
               </button>
-              {receiptError && <p className="text-xs text-red-500">{receiptError}</p>}
+              {receiptError && <p className="text-xs text-red-500 mt-1">{receiptError}</p>}
             </div>
           )}
         </div>
@@ -460,14 +450,8 @@ export default function BalesBulkPrintPage() {
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                 <th className="px-4 py-3 w-10">
-                  <input
-                    type="checkbox"
-                    checked={allFilteredSelected}
-                    onChange={toggleAll}
-                    disabled={filtered.length === 0}
-                    className="rounded disabled:opacity-40"
-                    title="Select all"
-                  />
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleAll}
+                    disabled={filtered.length === 0} className="rounded disabled:opacity-40" title="Select all" />
                 </th>
                 <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Bale</th>
                 <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium hidden sm:table-cell">Batch</th>
@@ -482,72 +466,48 @@ export default function BalesBulkPrintPage() {
                     {bales.length === 0 ? 'No active bales found for this business.' : 'No bales match your search.'}
                   </td>
                 </tr>
-              ) : (
-                filtered.map(bale => {
-                  const isSelected = selectedIds.has(bale.id)
-                  return (
-                    <tr
-                      key={bale.id}
-                      onClick={() => toggle(bale.id)}
-                      className={`border-b border-gray-100 dark:border-gray-700/50 cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-purple-50 dark:bg-purple-900/10'
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                      }`}
-                    >
-                      <td className="px-4 py-3 w-10">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggle(bale.id)}
-                          onClick={e => e.stopPropagation()}
-                          className="rounded"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 dark:text-white">{bale.category.name}</div>
-                        <div className="text-xs text-gray-400 font-mono">{bale.sku}</div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400 hidden sm:table-cell font-mono text-xs">
-                        {bale.batchNumber}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300 hidden sm:table-cell">
-                        ${Number(bale.unitPrice).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          bale.remainingCount < 10
-                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                        }`}>
-                          {bale.remainingCount}/{bale.itemCount}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
+              ) : filtered.map(bale => {
+                const isSelected = selectedIds.has(bale.id)
+                return (
+                  <tr key={bale.id} onClick={() => toggle(bale.id)}
+                    className={`border-b border-gray-100 dark:border-gray-700/50 cursor-pointer transition-colors ${
+                      isSelected ? 'bg-purple-50 dark:bg-purple-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'}`}>
+                    <td className="px-4 py-3 w-10">
+                      <input type="checkbox" checked={isSelected} onChange={() => toggle(bale.id)}
+                        onClick={e => e.stopPropagation()} className="rounded" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-900 dark:text-white">{bale.category.name}</div>
+                      <div className="text-xs text-gray-400 font-mono">{bale.sku}</div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 hidden sm:table-cell font-mono text-xs">{bale.batchNumber}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300 hidden sm:table-cell">${Number(bale.unitPrice).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        bale.remainingCount < 10
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}`}>
+                        {bale.remainingCount}/{bale.itemCount}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Sticky print bar */}
+      {/* Sticky bar */}
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 right-6 z-40 flex gap-2">
-          <button
-            onClick={handlePdfPrint}
-            disabled={isPdfPrinting || !selectedTemplateId}
-            className="px-5 py-3 bg-gray-800 text-white rounded-xl shadow-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-50"
-          >
+          <button onClick={handlePdfPrint} disabled={isPdfPrinting || !selectedTemplateId}
+            className="px-5 py-3 bg-gray-800 text-white rounded-xl shadow-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-50">
             {isPdfPrinting ? 'Preparing...' : `🖨️ PDF (${selectedIds.size})`}
           </button>
           {printers.length > 0 && (
-            <button
-              onClick={handleReceiptPrint}
-              disabled={isReceiptPrinting || !selectedPrinterId || !selectedTemplateId}
-              className="px-5 py-3 bg-indigo-600 text-white rounded-xl shadow-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
-            >
+            <button onClick={handleReceiptPrint} disabled={isReceiptPrinting || !selectedPrinterId || !selectedTemplateId}
+              className="px-5 py-3 bg-indigo-600 text-white rounded-xl shadow-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">
               {isReceiptPrinting ? 'Printing...' : receiptSuccess ? '✅ Done!' : `🧾 Receipt (${selectedIds.size})`}
             </button>
           )}
