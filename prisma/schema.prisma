@@ -4808,6 +4808,7 @@ model ClothingBales {
   costPrice      Decimal? @db.Decimal(10, 2)
   sku            String
   barcode        String?
+  scanCode       String   @unique
   bogoActive     Boolean  @default(false)
   bogoRatio      Int      @default(1)
   isActive       Boolean  @default(true)

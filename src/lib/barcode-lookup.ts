@@ -476,6 +476,7 @@ async function lookupBaleByBarcode(
         isActive: true,
         remainingCount: { gt: 0 },
         OR: [
+          { scanCode: { equals: barcode, mode: 'insensitive' } },
           { barcode: { equals: barcode, mode: 'insensitive' } },
           { sku: { equals: barcode, mode: 'insensitive' } },
         ],

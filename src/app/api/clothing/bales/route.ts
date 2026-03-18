@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 
 // GET /api/clothing/bales?businessId=xxx
@@ -194,6 +195,7 @@ export async function POST(request: NextRequest) {
         costPrice: costPrice != null ? Number(costPrice) : null,
         sku,
         barcode: barcode?.trim() || sku,
+        scanCode: randomBytes(4).toString('hex'),
         employeeId: employeeId || null,
         notes: notes?.trim() || null
       },

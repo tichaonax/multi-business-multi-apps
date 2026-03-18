@@ -303,7 +303,8 @@ export async function POST(request: NextRequest) {
       itemName = product.name;
       itemId = product.id;
     } else if (validatedData.itemType === 'CUSTOM') {
-      barcodeData = (template as any).scanCode || template.barcodeValue;
+      // Use the user-supplied barcodeValue (e.g. bale SKU) when available — never the template's scanCode
+      barcodeData = validatedData.customData?.barcodeValue || (template as any).scanCode || template.barcodeValue;
       displayText = validatedData.customData?.barcodeValue || template.barcodeValue;
       itemName = validatedData.customData?.name || 'Custom Item';
     }

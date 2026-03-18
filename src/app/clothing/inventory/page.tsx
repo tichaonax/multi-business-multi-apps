@@ -1229,7 +1229,7 @@ function ClothingInventoryContent() {
                                     <button
                                       onClick={() => {
                                         const params = new URLSearchParams({
-                                          barcodeData: bale.sku || bale.batchNumber,
+                                          barcodeData: bale.scanCode || bale.sku,
                                           productName: bale.category?.name || 'Bale',
                                           price: String(bale.unitPrice),
                                           description: `Batch ${bale.batchNumber}`,
