@@ -184,6 +184,8 @@ export async function POST(request: NextRequest) {
       }, { status: 409 })
     }
 
+    const scanCode = randomBytes(4).toString('hex')
+
     const bale = await prisma.clothingBales.create({
       data: {
         businessId,
@@ -194,8 +196,8 @@ export async function POST(request: NextRequest) {
         unitPrice: Number(unitPrice),
         costPrice: costPrice != null ? Number(costPrice) : null,
         sku,
-        barcode: barcode?.trim() || sku,
-        scanCode: randomBytes(4).toString('hex'),
+        scanCode,
+        barcode: barcode?.trim() || scanCode,
         employeeId: employeeId || null,
         notes: notes?.trim() || null
       },

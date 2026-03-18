@@ -1169,7 +1169,7 @@ function ClothingInventoryContent() {
                                   <span className="text-secondary">/{bale.itemCount}</span>
                                 </td>
                                 <td className="hidden md:table-cell px-4 py-3 text-sm font-mono text-xs">{bale.sku}</td>
-                                <td className="hidden lg:table-cell px-4 py-3 text-sm font-mono text-xs">{bale.barcode || '—'}</td>
+                                <td className="hidden lg:table-cell px-4 py-3 text-sm font-mono text-xs">{bale.scanCode || bale.barcode || '—'}</td>
                                 <td className="hidden sm:table-cell px-2 sm:px-4 py-3 text-center">
                                   <button
                                     onClick={() => handleBaleBogoToggle(bale.id, bale.bogoActive)}
