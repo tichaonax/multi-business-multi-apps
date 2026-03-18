@@ -1039,6 +1039,11 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // POS terminal configs (per-business POS settings)
+  businessData.posTerminalConfigs = await prisma.posTerminalConfig.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   businessData.customerDisplayAds = await prisma.customerDisplayAd.findMany({
     where: { businessId: { in: businessIds } }
   })
