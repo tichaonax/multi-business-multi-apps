@@ -228,7 +228,6 @@ export async function GET(
         where: {
           isActive: true,
           remainingCount: { gt: 0 },
-          businessId: { in: accessibleBusinessIds },
           OR: [
             { scanCode: { equals: barcode, mode: 'insensitive' } },
             { barcode: { equals: barcode, mode: 'insensitive' } },
