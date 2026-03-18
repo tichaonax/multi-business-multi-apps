@@ -214,6 +214,17 @@ export function formatPhoneNumberForDisplay(phoneNumber: string): string {
   return defaultCountry ? `${defaultCountry.dialCode} ${formattedLocal}` : phoneNumber
 }
 
+// Format phone number in local format for receipts (e.g. "078 486 9759" instead of "+263 78 486 9759")
+export function formatPhoneNumberLocal(phoneNumber: string): string {
+  if (!phoneNumber) return ''
+
+  const { countryCode, localNumber } = parsePhoneNumber(phoneNumber)
+  const code = countryCode?.code || DEFAULT_COUNTRY_CODE
+  // Prepend leading 0 (local trunk prefix) and format
+  const withZero = '0' + localNumber.replace(/\D/g, '')
+  return formatLocalNumber(withZero, code)
+}
+
 // Normalize an arbitrary phone input into a consistent stored format.
 // Accepts numbers entered with or without + and with or without dial code.
 // Returns a string like "+263 77 123 4567" or an empty string for invalid input.

@@ -1148,6 +1148,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       const couponDiscount = appliedCoupon?.discountAmount || 0
       const discount = itemDiscount + couponDiscount
 
+      // Compute EcoCash fee upfront so it's available for both the order and the receipt
+      const ecoFeeType = (currentBusiness as any)?.ecocashFeeType
+      const ecoFeeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+      const computedEcocashFee = selectedPaymentMethod === 'ECOCASH'
+        ? (ecoFeeType === 'PERCENTAGE' ? total * (ecoFeeValue / 100) : ecoFeeType === 'FIXED' ? ecoFeeValue : 0)
+        : 0
+
       const totals = {
         subtotal,
         tax,
@@ -1176,9 +1183,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           couponCode: appliedCoupon?.code || undefined,
           couponDiscount: appliedCoupon?.discountAmount || undefined,
           ...(selectedPaymentMethod === 'ECOCASH' ? {
-            ecocashTxCode: ecocashTxCode.trim(),
-            ecocashFeeType: (currentBusiness as any)?.ecocashFeeType,
-            ecocashFeeValue: (currentBusiness as any)?.ecocashFeeValue,
+            ecocashTransactionCode: ecocashTxCode.trim(),
+            ecocashFeeType: ecoFeeType,
+            ecocashFeeValue: ecoFeeValue,
+            ecocashFeeAmount: computedEcocashFee,
           } : {})
         },
         items: cart.map(item => {
@@ -1226,6 +1234,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       // Create receipt data — matching restaurant POS pattern
       const orderNumber = result.data.orderNumber || 'N/A'
       const actualBusiness = result.data.businessInfo || businessDetails || currentBusiness
+      const ecocashFeeAmount = computedEcocashFee || result.data.ecocashFeeAmount || 0
       const receiptData: ReceiptData = {
         receiptNumber: {
           globalId: result.data.id || orderNumber,
@@ -1254,10 +1263,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         discount: totals.discount,
         total: totals.total,
         paymentMethod: selectedPaymentMethod,
-        amountPaid: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : totals.total,
+        amountPaid: selectedPaymentMethod === 'CASH' && cashTendered
+          ? parseFloat(cashTendered)
+          : selectedPaymentMethod === 'ECOCASH'
+            ? totals.total + ecocashFeeAmount   // EcoCash: total includes the fee
+            : totals.total,
         changeDue: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined,
-        ecocashFeeAmount: result.data.ecocashFeeAmount,
-        ecocashTransactionCode: result.data.ecocashTransactionCode || (selectedPaymentMethod === 'ECOCASH' ? ecocashTxCode : undefined),
+        ecocashFeeAmount: selectedPaymentMethod === 'ECOCASH' ? ecocashFeeAmount : undefined,
+        ecocashTransactionCode: selectedPaymentMethod === 'ECOCASH' ? ecocashTxCode.trim() : undefined,
         customerName: customerInfo?.name || undefined,
         customerPhone: customerInfo?.phone || undefined,
         footerMessage: result.data.footerMessage || 'Thank you for shopping with us!',
@@ -1971,7 +1984,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
             <button
               type="button"
-              onClick={() => setShowPaymentModal(true)}
+              onClick={() => { setEcocashTxCode(''); setCashTendered(''); setShowPaymentModal(true) }}
               disabled={cart.length === 0}
               className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-lg"
             >
@@ -2007,30 +2020,59 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         )}
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal — styled like restaurant POS */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="card p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-primary mb-4">Payment Processing</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold text-primary mb-4">💳 Payment</h2>
+
             <div className="space-y-4">
+              {/* Order Total — shown first like restaurant POS */}
+              <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-medium text-primary">Total Amount:</span>
+                  <span className="text-2xl font-bold text-green-600">{formatCurrency(calculateTotal())}</span>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  {cart.length} item{cart.length !== 1 ? 's' : ''}
+                  {appliedCoupon && (
+                    <span className="ml-2 text-green-600 dark:text-green-400">
+                      · 🏷️ Coupon {appliedCoupon.code} (-{formatCurrency(appliedCoupon.discountAmount)})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Payment Method */}
               <div>
-                <label className="block text-sm font-medium mb-2">Payment Method</label>
-                <div className={`grid gap-2 ${(currentBusiness as any)?.ecocashEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                  {(['CASH', 'CARD', 'STORE_CREDIT'] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => { setSelectedPaymentMethod(m); setEcocashTxCode('') }}
-                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${selectedPaymentMethod === m ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-primary hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                    >
-                      {m === 'CASH' ? '💵 Cash' : m === 'CARD' ? '💳 Card' : '🏬 Store Credit'}
-                    </button>
-                  ))}
+                <label className="block text-sm font-medium text-primary mb-2">Payment Method</label>
+                <div className={`grid gap-2 ${(currentBusiness as any)?.ecocashEnabled ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedPaymentMethod('CASH'); setEcocashTxCode('') }}
+                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${selectedPaymentMethod === 'CASH' ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                  >
+                    💵 Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedPaymentMethod('CARD'); setEcocashTxCode(''); setCashTendered('') }}
+                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${selectedPaymentMethod === 'CARD' ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                  >
+                    💳 Card
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedPaymentMethod('STORE_CREDIT'); setEcocashTxCode(''); setCashTendered('') }}
+                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${selectedPaymentMethod === 'STORE_CREDIT' ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                  >
+                    🏬 Credit
+                  </button>
                   {(currentBusiness as any)?.ecocashEnabled && (
                     <button
                       type="button"
                       onClick={() => { setSelectedPaymentMethod('ECOCASH'); setCashTendered('') }}
-                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${selectedPaymentMethod === 'ECOCASH' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-primary hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                      className={`py-3 px-4 rounded-lg font-medium transition-colors ${selectedPaymentMethod === 'ECOCASH' ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'}`}
                     >
                       <img src="/images/ecocash-logo.png" alt="" className="h-4 w-auto inline-block mr-1" />EcoCash
                     </button>
@@ -2038,18 +2080,39 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 </div>
               </div>
 
-              <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded space-y-1">
-                {appliedCoupon && (
-                  <div className="flex justify-between text-sm text-green-700 dark:text-green-400">
-                    <span>🏷️ Coupon ({appliedCoupon.code}):</span>
-                    <span>-{formatCurrency(appliedCoupon.discountAmount)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span>Total Amount:</span>
-                  <span className="font-bold text-green-600">{formatCurrency(calculateTotal())}</span>
+              {/* Cash Amount Received */}
+              {selectedPaymentMethod === 'CASH' && calculateTotal() > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-primary mb-2">Amount Received</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Enter amount received"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
+                    autoFocus
+                  />
+                  {cashTendered && parseFloat(cashTendered) >= calculateTotal() && (
+                    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded text-green-800 dark:text-green-200 font-medium">
+                      💵 Change: {formatCurrency(parseFloat(cashTendered) - calculateTotal())}
+                    </div>
+                  )}
+                  {cashTendered && parseFloat(cashTendered) < calculateTotal() && (
+                    <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
+                      ⚠️ Amount received is less than total ({formatCurrency(calculateTotal())})
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
+
+              {/* Free item via cash */}
+              {selectedPaymentMethod === 'CASH' && calculateTotal() === 0 && (
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-800 dark:text-green-200">
+                  ✅ Free item — no payment required
+                </div>
+              )}
 
               {/* EcoCash Transaction Code */}
               {selectedPaymentMethod === 'ECOCASH' && (() => {
@@ -2060,13 +2123,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 return (
                   <div className="space-y-2">
                     <div>
-                      <label className="block text-sm font-medium mb-2">EcoCash Transaction Code</label>
+                      <label className="block text-sm font-medium text-primary mb-2">EcoCash Transaction Code</label>
                       <input
                         type="text"
                         value={ecocashTxCode}
                         onChange={(e) => setEcocashTxCode(e.target.value.toUpperCase())}
-                        className="w-full px-3 py-2 border rounded-lg text-lg font-semibold"
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
                         placeholder="Enter EcoCash transaction code"
+                        autoComplete="off"
                         autoFocus
                       />
                     </div>
@@ -2081,37 +2145,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 )
               })()}
 
-              {/* Cash Tender Input */}
-              {selectedPaymentMethod === 'CASH' && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Cash Tendered</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Enter amount received"
-                    value={cashTendered}
-                    onChange={(e) => setCashTendered(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg text-lg font-semibold"
-                    autoFocus
-                  />
-                  {cashTendered && parseFloat(cashTendered) >= calculateTotal() && (
-                    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded">
-                      <div className="flex justify-between text-green-800 dark:text-green-200 font-semibold">
-                        <span>Change:</span>
-                        <span>{formatCurrency(parseFloat(cashTendered) - calculateTotal())}</span>
-                      </div>
-                    </div>
-                  )}
-                  {cashTendered && parseFloat(cashTendered) < calculateTotal() && (
-                    <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
-                      ⚠️ Amount tendered is less than total
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex gap-2">
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
                 <button
                   type="button"
                   onClick={() => {
@@ -2119,16 +2154,18 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                     setCashTendered('')
                     setEcocashTxCode('')
                   }}
-                  className="flex-1 py-2 px-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                  disabled={loading}
+                  className="flex-1 py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={processPayment}
-                  disabled={loading || (selectedPaymentMethod === 'CASH' && (!cashTendered || parseFloat(cashTendered) < calculateTotal())) || (selectedPaymentMethod === 'ECOCASH' && !ecocashTxCode.trim())}
-                  className="flex-1 py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading || (selectedPaymentMethod === 'CASH' && calculateTotal() > 0 && (!cashTendered || parseFloat(cashTendered) < calculateTotal())) || (selectedPaymentMethod === 'ECOCASH' && !ecocashTxCode.trim())}
+                  className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? 'Processing...' : 'Complete Payment'}
+                  {loading ? 'Processing...' : 'Complete Order'}
                 </button>
               </div>
             </div>

@@ -4,7 +4,7 @@ import React from 'react'
 
 import type { ReceiptData } from '@/types/printing'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
-import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { formatPhoneNumberForDisplay, formatPhoneNumberLocal } from '@/lib/country-codes'
 import { formatDateTime } from '@/lib/date-format'
 
 interface ReceiptTemplateProps {
@@ -99,7 +99,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           <span>Subtotal:</span>
           <span>${Number(data.subtotal).toFixed(2)}</span>
         </div>
-        {data.discount && data.discount > 0 && (
+        {Number(data.discount) > 0 && (
           <div className="flex justify-between mb-1">
             <span>{data.discountLabel || 'Discount'}:</span>
             <span>-${Number(data.discount).toFixed(2)}</span>
@@ -109,9 +109,15 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           <span>Tax:</span>
           <span>${Number(data.tax).toFixed(2)}</span>
         </div>
+        {data.paymentMethod.toUpperCase() === 'ECOCASH' && Number(data.ecocashFeeAmount) > 0 && (
+          <div className="flex justify-between mb-1 text-orange-600">
+            <span>EcoCash Fee:</span>
+            <span>+${Number(data.ecocashFeeAmount).toFixed(2)}</span>
+          </div>
+        )}
         <div className="flex justify-between font-bold text-sm border-t border-black pt-1 mt-1">
           <span>TOTAL:</span>
-          <span>${Number(data.total).toFixed(2)}</span>
+          <span>${(Number(data.total) + (data.paymentMethod.toUpperCase() === 'ECOCASH' ? (Number(data.ecocashFeeAmount) || 0) : 0)).toFixed(2)}</span>
         </div>
       </div>
 
@@ -126,22 +132,6 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
               <div className="flex justify-between">
                 <span>EcoCash Ref:</span>
                 <span className="font-mono">{data.ecocashTransactionCode}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span>Sub-total:</span>
-              <span>${Number(data.total).toFixed(2)}</span>
-            </div>
-            {data.ecocashFeeAmount && data.ecocashFeeAmount > 0 && (
-              <div className="flex justify-between text-orange-600">
-                <span>EcoCash Fee:</span>
-                <span>+${data.ecocashFeeAmount.toFixed(2)}</span>
-              </div>
-            )}
-            {data.amountPaid && (
-              <div className="flex justify-between font-bold border-t border-gray-300 pt-0.5 mt-0.5">
-                <span>Total Paid:</span>
-                <span>${data.amountPaid.toFixed(2)}</span>
               </div>
             )}
           </>
@@ -246,16 +236,15 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
 
       {showFooter && (
         <div className="text-center text-[10px] border-t-2 border-dashed border-gray-400 dark:border-gray-600 pt-2 mt-2">
-          {data.customerName ? (
+          <div className="mb-1">
+            {data.customerName ? `Thank you, ${data.customerName}!` : 'Thank you for your business!'}
+          </div>
+          {data.customerName && (
             <div className="text-left mb-1">
-              <div className="font-bold text-[9px] text-gray-500 mb-0.5">CUSTOMER:</div>
-              <div className="font-bold">{data.customerName}</div>
-              {data.customerPhone && <div>{data.customerPhone}</div>}
+              {data.customerPhone && <div>{formatPhoneNumberLocal(data.customerPhone)}</div>}
               {data.customerAddress && <div>{data.customerAddress}</div>}
               {data.customerCity && <div>{data.customerCity}</div>}
             </div>
-          ) : (
-            <div className="mb-1">Thank you for your business!</div>
           )}
           <div>Please come again</div>
         </div>

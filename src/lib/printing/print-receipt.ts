@@ -80,6 +80,10 @@ export async function printReceipt(
         businessSpecificData: receiptData.businessSpecificData,
         footerMessage: receiptData.footerMessage,
         returnPolicy: receiptData.returnPolicy,
+        customerName: receiptData.customerName,
+        customerPhone: receiptData.customerPhone,
+        customerAddress: receiptData.customerAddress,
+        customerCity: receiptData.customerCity,
         copies,
         autoPrint,
         jobType: 'RECEIPT'

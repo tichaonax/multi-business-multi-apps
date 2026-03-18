@@ -34,35 +34,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Collect all businessIds to search across:
-    // - The current POS business
-    // - All other businesses the user has active memberships in (cross-business customer lookup)
-    // - For admins: no restriction (search all)
-    const businessIds: string[] = [businessId]
-
-    if (!isAdmin && user.businessMemberships) {
-      user.businessMemberships.forEach((m: any) => {
-        if (m.isActive && !businessIds.includes(m.businessId)) {
-          businessIds.push(m.businessId)
-        }
-      })
-    }
-
-    // Build search where clause
+    // Build search where clause — no businessId restriction so customers from any
+    // business can be found at checkout (cross-business customer lookup)
     const searchWhere: any = search.length >= 2
       ? {
           OR: [
             { customerNumber: { contains: search, mode: 'insensitive' } },
             { name: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search } },
+            { phone: { contains: search, mode: 'insensitive' } },
           ]
         }
       : {}
 
     const customers = await prisma.businessCustomers.findMany({
       where: {
-        ...(isAdmin ? {} : { businessId: { in: businessIds } }),
         isActive: true,
         ...searchWhere,
       },

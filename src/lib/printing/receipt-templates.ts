@@ -285,7 +285,8 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   if (isCustomerCopy) {
     receipt += line('.') + LF;
   }
-  receipt += formatTotal('TOTAL', data.total, true);
+  const grandTotal = data.total + (data.paymentMethod.toUpperCase() === 'ECOCASH' ? (data.ecocashFeeAmount || 0) : 0);
+  receipt += formatTotal('TOTAL', grandTotal, true);
 
   // ============================================================================
   // 7. PAYMENT SECTION
@@ -1307,15 +1308,11 @@ function line(char: string = '='): string {
 function formatPaymentLines(data: ReceiptData): string {
   let out = `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
   if (data.paymentMethod.toUpperCase() === 'ECOCASH') {
-    if (data.ecocashTransactionCode) {
-      out += `EcoCash Ref: ${data.ecocashTransactionCode}` + LF;
-    }
-    out += formatTotal('Sub-total', data.total);
     if (data.ecocashFeeAmount && data.ecocashFeeAmount > 0) {
       out += formatTotal('EcoCash Fee', data.ecocashFeeAmount);
     }
-    if (data.amountPaid) {
-      out += formatTotal('Total Paid', data.amountPaid, true);
+    if (data.ecocashTransactionCode) {
+      out += `EcoCash Ref: ${data.ecocashTransactionCode}` + LF;
     }
   } else {
     if (data.amountPaid) {
