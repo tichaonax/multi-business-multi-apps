@@ -1791,6 +1791,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             setQuickStockExistingProduct({ id: product.id, name: product.name, variantId })
             setQuickStockBarcode(barcode)
           }}
+          onBaleScanned={(baleData) => {
+            const bale = baleData.bale
+            addBaleToCart({ ...bale, category: { name: bale.categoryName } })
+          }}
           businessId={currentBusiness?.businessId || ''}
           showScanner={showBarcodeScanner}
           onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}

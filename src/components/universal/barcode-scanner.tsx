@@ -18,6 +18,8 @@ interface BarcodeScannerProps {
   onNotFound?: (barcode: string) => void
   /** Called when a product is found but has zero price AND zero stock — prompts user to activate pricing */
   onProductNeedsActivation?: (product: UniversalProduct, barcode: string, variantId?: string) => void
+  /** Called when a bale barcode is scanned — passes the bale lookup data */
+  onBaleScanned?: (baleData: any) => void
 }
 
 interface BarcodeMapping {
@@ -37,6 +39,7 @@ export function BarcodeScanner({
   onTemplateFound,
   onNotFound,
   onProductNeedsActivation,
+  onBaleScanned,
 }: BarcodeScannerProps) {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null)
@@ -327,6 +330,19 @@ export function BarcodeScanner({
               onTemplateFound(result.data)
             }
             return
+          }
+
+          // Handle bale result (Tier 1.5)
+          if (result.type === 'bale' && result.data) {
+            if (onBaleScanned) {
+              onBaleScanned(result.data)
+              setLastScannedBarcode(toLookup)
+              setBarcodeInput('')
+              setError(null)
+              setIsLoading(false)
+              return
+            }
+            // No bale handler — fall through to not_found
           }
 
           // Handle not found (Tier 3)

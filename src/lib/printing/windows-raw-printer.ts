@@ -10,77 +10,6 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-// ─── DLL Cache ────────────────────────────────────────────────────────────────
-// Compile the C# RawPrinter type ONCE to a DLL on disk.
-// Subsequent prints load the pre-compiled DLL (~100ms) instead of recompiling (~2000ms).
-const DLL_PATH = path.join(os.tmpdir(), 'MBM_RawPrinter_v1.dll');
-
-const globalPrinterCache = global as typeof globalThis & {
-  rawPrinterDllReady?: boolean;
-};
-
-function isDllReady(): boolean {
-  if (globalPrinterCache.rawPrinterDllReady) return true;
-  if (fs.existsSync(DLL_PATH)) {
-    globalPrinterCache.rawPrinterDllReady = true;
-    return true;
-  }
-  return false;
-}
-
-/** Compile the C# printer assembly to disk (called once, blocks until done). */
-function compilePrinterDll(): void {
-  if (isDllReady()) return;
-  const escapedDll = DLL_PATH.replace(/\\/g, '\\\\');
-  const csCode = [
-    'using System;',
-    'using System.Runtime.InteropServices;',
-    'public class RawPrinter {',
-    '  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]',
-    '  public class DOC_INFO_1 {',
-    '    [MarshalAs(UnmanagedType.LPStr)] public string pDocName;',
-    '    [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;',
-    '    [MarshalAs(UnmanagedType.LPStr)] public string pDatatype;',
-    '  }',
-    '  [DllImport("winspool.Drv", EntryPoint="OpenPrinterA", SetLastError=true, CharSet=CharSet.Ansi)]',
-    '  public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);',
-    '  [DllImport("winspool.Drv", EntryPoint="ClosePrinter", SetLastError=true)]',
-    '  public static extern bool ClosePrinter(IntPtr hPrinter);',
-    '  [DllImport("winspool.Drv", EntryPoint="StartDocPrinterA", SetLastError=true, CharSet=CharSet.Ansi)]',
-    '  public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In, MarshalAs(UnmanagedType.LPStruct)] DOC_INFO_1 di);',
-    '  [DllImport("winspool.Drv", EntryPoint="EndDocPrinter", SetLastError=true)]',
-    '  public static extern bool EndDocPrinter(IntPtr hPrinter);',
-    '  [DllImport("winspool.Drv", EntryPoint="StartPagePrinter", SetLastError=true)]',
-    '  public static extern bool StartPagePrinter(IntPtr hPrinter);',
-    '  [DllImport("winspool.Drv", EntryPoint="EndPagePrinter", SetLastError=true)]',
-    '  public static extern bool EndPagePrinter(IntPtr hPrinter);',
-    '  [DllImport("winspool.Drv", EntryPoint="WritePrinter", SetLastError=true)]',
-    '  public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);',
-    '}',
-  ].join('\n');
-  const script = `Add-Type -TypeDefinition @"\n${csCode}\n"@ -OutputAssembly "${escapedDll}"\nWrite-Output "DONE"`;
-  const scriptFile = path.join(os.tmpdir(), `compile-printer-${Date.now()}.ps1`);
-  try {
-    fs.writeFileSync(scriptFile, script, 'utf8');
-    execSync(`powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptFile}"`, {
-      encoding: 'utf8', timeout: 30000,
-    });
-    globalPrinterCache.rawPrinterDllReady = true;
-    console.log('[WindowsRAW] Printer DLL compiled:', DLL_PATH);
-  } catch (err) {
-    console.error('[WindowsRAW] DLL compilation failed (will use inline):', err);
-  } finally {
-    try { fs.unlinkSync(scriptFile); } catch {}
-  }
-}
-
-/** Pre-warm: compile DLL in background so first print is fast. */
-export function prewarmPrinterDll(): void {
-  if (isDllReady()) return;
-  setImmediate(() => compilePrinterDll());
-}
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface WindowsPrintOptions {
   printerName: string;
   copies?: number;
@@ -154,83 +83,104 @@ async function printSingleCopy(
   const tempDir = process.env.TEMP || os.tmpdir();
   const psScriptFile = path.join(tempDir, `print-script-${Date.now()}.ps1`);
 
-  // Build the print body (shared between DLL and inline paths)
-  const escapedPrinter = printerName.replace(/"/g, '""');
-  const escapedFile = tempFile.replace(/\\/g, '\\\\');
-  const printBody = `
+  // PowerShell script that uses Windows Spooler API P/Invoke
+  // This is the EXACT method that successfully printed in our tests
+  const psScript = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public class RawPrinter {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public class DOC_INFO_1 {
+        [MarshalAs(UnmanagedType.LPStr)]
+        public string pDocName;
+        [MarshalAs(UnmanagedType.LPStr)]
+        public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPStr)]
+        public string pDatatype;
+    }
+
+    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
+    public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
+
+    [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In, MarshalAs(UnmanagedType.LPStruct)] DOC_INFO_1 di);
+
+    [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
+}
+"@
+
 $ErrorActionPreference = "Stop"
-$printerName = "${escapedPrinter}"
-$filePath = "${escapedFile}"
+
+$printerName = "${printerName.replace(/"/g, '""')}"
+$filePath = "${tempFile.replace(/\\/g, '\\\\')}"
+
 $bytes = [System.IO.File]::ReadAllBytes($filePath)
+
 $hPrinter = [IntPtr]::Zero
 $result = [RawPrinter]::OpenPrinter($printerName, [ref]$hPrinter, [IntPtr]::Zero)
-if (-not $result) { throw "Failed to open printer: $printerName" }
+
+if (-not $result) {
+    throw "Failed to open printer: $printerName"
+}
+
 try {
     $docInfo = New-Object RawPrinter+DOC_INFO_1
     $docInfo.pDocName = "Receipt"
     $docInfo.pOutputFile = $null
     $docInfo.pDatatype = "RAW"
+
     $result = [RawPrinter]::StartDocPrinter($hPrinter, 1, $docInfo)
-    if (-not $result) { throw "Failed to start document" }
+    if (-not $result) {
+        throw "Failed to start document"
+    }
+
     $result = [RawPrinter]::StartPagePrinter($hPrinter)
-    if (-not $result) { throw "Failed to start page" }
+    if (-not $result) {
+        throw "Failed to start page"
+    }
+
     $pBytes = [Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
     [Runtime.InteropServices.Marshal]::Copy($bytes, 0, $pBytes, $bytes.Length)
+
     $written = 0
     $result = [RawPrinter]::WritePrinter($hPrinter, $pBytes, $bytes.Length, [ref]$written)
+
     [Runtime.InteropServices.Marshal]::FreeHGlobal($pBytes)
-    if (-not $result) { throw "Failed to write to printer" }
+
+    if (-not $result) {
+        throw "Failed to write to printer"
+    }
+
     [RawPrinter]::EndPagePrinter($hPrinter) | Out-Null
     [RawPrinter]::EndDocPrinter($hPrinter) | Out-Null
+
     Write-Output "OK:$written"
+
 } finally {
     [RawPrinter]::ClosePrinter($hPrinter) | Out-Null
-}`.trim();
-
-  // Use pre-compiled DLL if available (~100ms) else fall back to inline compile (~2000ms).
-  // prewarmPrinterDll() should be called at server startup so DLL is ready before first print.
-  let psScript: string;
-  if (isDllReady()) {
-    const escapedDll = DLL_PATH.replace(/\\/g, '\\\\');
-    psScript = `Add-Type -Path "${escapedDll}"\n${printBody}`;
-  } else {
-    // First-time slow path — also kick off async DLL compilation so next print is fast
-    prewarmPrinterDll();
-    psScript = `
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class RawPrinter {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-    public class DOC_INFO_1 {
-        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
-        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
-        [MarshalAs(UnmanagedType.LPStr)] public string pDatatype;
-    }
-    [DllImport("winspool.Drv", EntryPoint="OpenPrinterA", SetLastError=true, CharSet=CharSet.Ansi)]
-    public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
-    [DllImport("winspool.Drv", EntryPoint="ClosePrinter", SetLastError=true)]
-    public static extern bool ClosePrinter(IntPtr hPrinter);
-    [DllImport("winspool.Drv", EntryPoint="StartDocPrinterA", SetLastError=true, CharSet=CharSet.Ansi)]
-    public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In, MarshalAs(UnmanagedType.LPStruct)] DOC_INFO_1 di);
-    [DllImport("winspool.Drv", EntryPoint="EndDocPrinter", SetLastError=true)]
-    public static extern bool EndDocPrinter(IntPtr hPrinter);
-    [DllImport("winspool.Drv", EntryPoint="StartPagePrinter", SetLastError=true)]
-    public static extern bool StartPagePrinter(IntPtr hPrinter);
-    [DllImport("winspool.Drv", EntryPoint="EndPagePrinter", SetLastError=true)]
-    public static extern bool EndPagePrinter(IntPtr hPrinter);
-    [DllImport("winspool.Drv", EntryPoint="WritePrinter", SetLastError=true)]
-    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
 }
-"@
-${printBody}`.trim();
-  }
+`.trim();
 
   try {
     // Write PowerShell script to temp file to avoid command-line escaping issues
     fs.writeFileSync(psScriptFile, psScript, 'utf8');
 
-    const result = execSync(`powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${psScriptFile}"`, {
+    const result = execSync(`powershell -ExecutionPolicy Bypass -File "${psScriptFile}"`, {
       encoding: 'utf8',
       timeout: 30000,
       shell: 'cmd.exe',

@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
         unitPrice: Number(unitPrice),
         costPrice: costPrice != null ? Number(costPrice) : null,
         sku,
-        barcode: barcode?.trim() || null,
+        barcode: barcode?.trim() || sku,
         employeeId: employeeId || null,
         notes: notes?.trim() || null
       },
