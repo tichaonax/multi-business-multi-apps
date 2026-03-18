@@ -241,6 +241,15 @@ export async function POST(
       return { batchSubmissions, totalApproved, approvedCount: approvedPayments.length }
     })
 
+    // Propagate APPROVED status to any linked supplier payment requests (non-blocking)
+    const approvedPaymentIds = approvedPayments.map((p: any) => p.id)
+    if (approvedPaymentIds.length > 0) {
+      prisma.supplierPaymentRequests.updateMany({
+        where: { linkedPaymentId: { in: approvedPaymentIds }, status: 'QUEUED' },
+        data: { status: 'APPROVED' },
+      }).catch(() => { /* non-critical */ })
+    }
+
     // Notify payment requesters of approved/rejected outcomes (per-user so each sees only their payments)
     const resolvePayeeName = (p: any) =>
       p.payeeUser?.name ?? p.payeeEmployee?.fullName ?? p.payeePerson?.fullName ?? p.payeeBusiness?.name ?? p.payeeSupplier?.name ?? null

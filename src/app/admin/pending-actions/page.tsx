@@ -81,6 +81,15 @@ interface PendingPaymentRequest {
   business: { id: string; name: string } | null
 }
 
+interface PendingMealProgram {
+  id: string
+  accountName: string
+  accountNumber: string
+  paymentCount: number
+  totalAmount: number
+  business: { id: string; name: string } | null
+}
+
 export default function PendingActionsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -96,10 +105,12 @@ export default function PendingActionsPage() {
   const [myPendingPayments, setMyPendingPayments] = useState<PendingPaymentRequest[]>([])
   const [myApprovedPayments, setMyApprovedPayments] = useState<any[]>([])
   const [myApprovedPettyCash, setMyApprovedPettyCash] = useState<any[]>([])
+  const [pendingMealPrograms, setPendingMealPrograms] = useState<PendingMealProgram[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [batchingId, setBatchingId] = useState<string | null>(null)
+  const [approvingMealId, setApprovingMealId] = useState<string | null>(null)
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -116,6 +127,7 @@ export default function PendingActionsPage() {
         setMyPendingPayments(json.myPendingPayments || [])
         setMyApprovedPayments(json.myApprovedPayments || [])
         setMyApprovedPettyCash(json.myApprovedPettyCash || [])
+        setPendingMealPrograms(json.pendingMealPrograms || [])
         setTotal(json.total ?? 0)
       }
     } catch { /* ignore */ } finally {
@@ -153,6 +165,32 @@ export default function PendingActionsPage() {
     } catch (e: any) {
       toast.error(e.message)
       setBatchingId(null)
+    }
+  }
+
+  async function handleApproveMeals(item: PendingMealProgram) {
+    if (!await confirm({
+      title: `Approve Meal Program — ${item.business?.name ?? item.accountName}`,
+      description: `Approve ${item.paymentCount} subsidy payment${item.paymentCount !== 1 ? 's' : ''} totalling $${item.totalAmount.toFixed(2)}. A matching deposit will be created to balance the account.`,
+      confirmText: 'Approve All',
+    })) return
+
+    setApprovingMealId(item.id)
+    try {
+      const res = await fetch('/api/restaurant/meal-program/approve', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expenseAccountId: item.id }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to approve')
+      toast.push(`Approved ${json.approved} meal subsidy payment${json.approved !== 1 ? 's' : ''}`, { type: 'success' })
+      fetchItems()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setApprovingMealId(null)
     }
   }
 
@@ -569,6 +607,43 @@ export default function PendingActionsPage() {
                       >
                         Collect Cash
                       </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pending Meal Program Approvals */}
+            {pendingMealPrograms.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>🍽️</span> Meal Program Approvals
+                  <span className="bg-teal-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {pendingMealPrograms.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {pendingMealPrograms.map(item => (
+                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-teal-300 dark:border-teal-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-900 dark:text-white">{item.business?.name ?? item.accountName}</span>
+                          <span className="bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 text-xs font-medium px-2 py-0.5 rounded">
+                            {item.paymentCount} subsidy{item.paymentCount !== 1 ? ' payments' : ' payment'}
+                          </span>
+                          <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded">
+                            ${item.totalAmount.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{item.accountName} · #{item.accountNumber}</p>
+                      </div>
+                      <button
+                        onClick={() => handleApproveMeals(item)}
+                        disabled={approvingMealId === item.id}
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      >
+                        {approvingMealId === item.id ? 'Approving…' : 'Approve All'}
+                      </button>
                     </div>
                   ))}
                 </div>

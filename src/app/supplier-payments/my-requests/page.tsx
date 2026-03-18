@@ -47,9 +47,10 @@ const ITEM_STATUS_STYLES: Record<string, string> = {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: 'bg-amber-100 text-amber-800',
+  PENDING:  'bg-amber-100 text-amber-800',
+  QUEUED:   'bg-indigo-100 text-indigo-800',
   APPROVED: 'bg-blue-100 text-blue-800',
-  DENIED: 'bg-red-100 text-red-800',
+  DENIED:   'bg-red-100 text-red-800',
   PARTIAL: 'bg-orange-100 text-orange-800',
   PAID: 'bg-green-100 text-green-800',
 }

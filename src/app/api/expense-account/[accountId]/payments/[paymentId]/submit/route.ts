@@ -79,6 +79,12 @@ export async function POST(
       return p
     })
 
+    // Propagate PAID status to linked supplier payment request (non-blocking)
+    prisma.supplierPaymentRequests.updateMany({
+      where: { linkedPaymentId: paymentId, status: { in: ['QUEUED', 'APPROVED'] } },
+      data: { status: 'PAID' },
+    }).catch(() => { /* non-critical */ })
+
     // Clear any unread PAYMENT_APPROVED / PAYMENT_REJECTED notifications for this user
     // now that they have actioned the payment (non-critical — fire and forget)
     prisma.appNotification.deleteMany({

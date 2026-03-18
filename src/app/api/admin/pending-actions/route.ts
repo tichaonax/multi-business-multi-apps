@@ -296,6 +296,41 @@ export async function GET() {
       })
     }
 
+    // Pending meal program payments — QUEUED MEAL_PROGRAM payments awaiting cashier approval
+    let pendingMealPrograms: object[] = []
+    if (sysAdmin || permissions.canSubmitPaymentBatch) {
+      const mealGrouped = await prisma.expenseAccountPayments.groupBy({
+        by: ['expenseAccountId'],
+        where: {
+          status: 'QUEUED',
+          paymentType: 'MEAL_PROGRAM',
+          createdBy: { not: user.id },
+        },
+        _count: { id: true },
+        _sum: { amount: true },
+      })
+      if (mealGrouped.length > 0) {
+        const mealAccountIds = mealGrouped.map((g) => g.expenseAccountId)
+        const mealAccounts = await prisma.expenseAccounts.findMany({
+          where: { id: { in: mealAccountIds } },
+          select: {
+            id: true,
+            accountName: true,
+            accountNumber: true,
+            business: { select: { id: true, name: true } },
+          },
+        })
+        pendingMealPrograms = mealAccounts.map((acct) => {
+          const row = mealGrouped.find((g) => g.expenseAccountId === acct.id)
+          return {
+            ...acct,
+            paymentCount: row?._count.id ?? 0,
+            totalAmount: Number(row?._sum.amount ?? 0),
+          }
+        })
+      }
+    }
+
     // Pending EOD payment batches — for users with canSubmitPaymentBatch
     // Each item is a PENDING_REVIEW EODPaymentBatch waiting for cashier review
     let pendingPaymentBatches: object[] = []
@@ -327,7 +362,11 @@ export async function GET() {
       // Accounts with pending (QUEUED/REQUEST/SUBMITTED) payments awaiting cashier action
       // Exclude payments submitted by the current user — submitters should not see their own requests
       // Group by [expenseAccountId, paymentChannel, priority] to get per-channel + urgency counts
-      const pendingPaymentWhere = { status: { in: ['QUEUED', 'REQUEST', 'SUBMITTED'] }, createdBy: { not: user.id } }
+      const pendingPaymentWhere = {
+        status: { in: ['QUEUED', 'REQUEST', 'SUBMITTED'] },
+        createdBy: { not: user.id },
+        paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_DISBURSEMENT', 'TRANSFER_OUT', 'TRANSFER_RETURN'] },
+      }
       const grouped = await prisma.expenseAccountPayments.groupBy({
         by: ['expenseAccountId', 'paymentChannel', 'priority'],
         where: pendingPaymentWhere,
@@ -372,6 +411,7 @@ export async function GET() {
       (pendingCashAllocations as unknown[]).length +
       (pendingPaymentBatches as unknown[]).length +
       (pendingPaymentRequests as unknown[]).length +
+      (pendingMealPrograms as unknown[]).length +
       (myPendingPayments as unknown[]).length +
       myApprovedPaymentsMapped.length +
       myApprovedPettyCash.length
@@ -385,6 +425,7 @@ export async function GET() {
       pendingCashAllocations,
       pendingPaymentBatches,
       pendingPaymentRequests,
+      pendingMealPrograms,
       myPendingPayments,
       myApprovedPayments: myApprovedPaymentsMapped,
       myApprovedPettyCash,

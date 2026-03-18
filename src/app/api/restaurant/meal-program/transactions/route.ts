@@ -304,20 +304,13 @@ export async function POST(req: NextRequest) {
           notes: `Meal program subsidy — ${participantName} — Order ${orderNumber}`,
           receiptNumber: orderNumber,
           isFullPayment: true,
-          status: 'SUBMITTED',
+          status: 'QUEUED',
+          paymentType: 'MEAL_PROGRAM',
           createdBy: user.id,
-          submittedBy: user.id,
-          submittedAt: new Date(),
         },
       })
 
-      // 3. Decrement expense account balance directly (bypass validateBatchPaymentTotal)
-      await tx.expenseAccounts.update({
-        where: { id: expenseAccount.id },
-        data: { balance: { decrement: SUBSIDY_AMOUNT.toNumber() } },
-      })
-
-      // 4. Create the MealProgramTransactions record
+      // 3. Create the MealProgramTransactions record
       const mealTxn = await tx.mealProgramTransactions.create({
         data: {
           businessId,

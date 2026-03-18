@@ -3215,6 +3215,7 @@ model Users {
   zimra_levy_processed                                            PayrollZimraRemittances[]        @relation("ZimraLevyProcessedBy")
   zimra_submitted                                                 PayrollZimraRemittances[]        @relation("ZimraSubmittedBy")
   supplier_payment_requests_submitted                             SupplierPaymentRequests[]        @relation("RequestSubmitter")
+  supplier_payment_requests_queued                                SupplierPaymentRequests[]        @relation("RequestQueuer")
   supplier_payment_requests_approved                              SupplierPaymentRequests[]        @relation("RequestApprover")
   supplier_payment_requests_denied                                SupplierPaymentRequests[]        @relation("RequestDenier")
   supplier_payment_request_partials_paid                          SupplierPaymentRequestPartials[] @relation("PartialPayer")
@@ -4633,6 +4634,7 @@ enum TransferStatus {
 
 enum SupplierPaymentRequestStatus {
   PENDING
+  QUEUED
   APPROVED
   DENIED
   PARTIAL
@@ -4839,6 +4841,9 @@ model SupplierPaymentRequests {
   status           SupplierPaymentRequestStatus @default(PENDING)
   submittedBy      String
   submittedAt      DateTime                     @default(now())
+  queuedBy         String?
+  queuedAt         DateTime?
+  linkedPaymentId  String?
   approvedBy       String?
   approvedAt       DateTime?
   deniedBy         String?
@@ -4852,6 +4857,7 @@ model SupplierPaymentRequests {
   supplier        BusinessSuppliers                @relation(fields: [supplierId], references: [id])
   expenseAccount  ExpenseAccounts                  @relation(fields: [expenseAccountId], references: [id])
   submitter       Users                            @relation("RequestSubmitter", fields: [submittedBy], references: [id])
+  queuer          Users?                           @relation("RequestQueuer", fields: [queuedBy], references: [id])
   approver        Users?                           @relation("RequestApprover", fields: [approvedBy], references: [id])
   denier          Users?                           @relation("RequestDenier", fields: [deniedBy], references: [id])
   partialPayments SupplierPaymentRequestPartials[]

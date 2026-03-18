@@ -59,11 +59,12 @@ interface ExpenseAccount {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: 'bg-amber-100 text-amber-800',
+  PENDING:  'bg-amber-100 text-amber-800',
+  QUEUED:   'bg-indigo-100 text-indigo-800',
   APPROVED: 'bg-blue-100 text-blue-800',
-  DENIED: 'bg-red-100 text-red-800',
-  PARTIAL: 'bg-orange-100 text-orange-800',
-  PAID: 'bg-green-100 text-green-800',
+  DENIED:   'bg-red-100 text-red-800',
+  PARTIAL:  'bg-orange-100 text-orange-800',
+  PAID:     'bg-green-100 text-green-800',
 }
 
 const DATE_PRESETS = [
@@ -91,7 +92,7 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 function isOverdue(dueDate: string, status: string) {
-  if (!['PENDING', 'APPROVED', 'PARTIAL'].includes(status)) return false
+  if (!['PENDING', 'QUEUED', 'APPROVED', 'PARTIAL'].includes(status)) return false
   return new Date(dueDate) < new Date(new Date().setHours(0, 0, 0, 0))
 }
 function daysOverdue(dueDate: string) {
@@ -99,7 +100,7 @@ function daysOverdue(dueDate: string) {
   return Math.floor((today.getTime() - new Date(dueDate).getTime()) / 86400000)
 }
 function isDueThisWeek(dueDate: string, status: string) {
-  if (!['PENDING', 'APPROVED', 'PARTIAL'].includes(status)) return false
+  if (!['PENDING', 'QUEUED', 'APPROVED', 'PARTIAL'].includes(status)) return false
   const d = new Date(dueDate)
   const today = new Date()
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7)
@@ -152,12 +153,7 @@ export default function SupplierPaymentQueuePage() {
   }, [selectedTotal])
 
   // Action state
-  const [approvingId, setApprovingId] = useState<string | null>(null)
-
-  // Approve override modal (shown when approving less than full item total)
-  const [approveOverrideTarget, setApproveOverrideTarget] = useState<{ request: PaymentRequest; itemIds: string[]; amount: number } | null>(null)
-  const [approveNote, setApproveNote] = useState('')
-  const [approveOverrideSubmitting, setApproveOverrideSubmitting] = useState(false)
+  const [queuingId, setQueuingId] = useState<string | null>(null)
 
   // Supplier view modal
   const [viewSupplier, setViewSupplier] = useState<any | null>(null)
@@ -295,16 +291,16 @@ export default function SupplierPaymentQueuePage() {
   }, [requests])
 
   // Actions
-  const handleApprove = async (r: PaymentRequest) => {
-    setApprovingId(r.id)
+  const handleQueue = async (r: PaymentRequest) => {
+    setQueuingId(r.id)
     try {
-      await fetchWithValidation(`/api/supplier-payments/requests/${r.id}/approve`, { method: 'POST' })
-      toast.push('Request approved')
+      await fetchWithValidation(`/api/supplier-payments/requests/${r.id}/queue`, { method: 'POST' })
+      toast.push('Queued for cashier payment')
       loadData()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to approve')
+      toast.error(err.message || 'Failed to queue payment')
     } finally {
-      setApprovingId(null)
+      setQueuingId(null)
     }
   }
 
@@ -741,11 +737,11 @@ export default function SupplierPaymentQueuePage() {
                                 {r.status === 'PENDING' && (
                                   <>
                                     <button
-                                      onClick={() => handleApprove(r)}
-                                      disabled={approvingId === r.id}
-                                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                                      onClick={() => handleQueue(r)}
+                                      disabled={queuingId === r.id}
+                                      className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                                     >
-                                      {approvingId === r.id ? '...' : 'Approve'}
+                                      {queuingId === r.id ? '...' : '⏳ Queue for Payment'}
                                     </button>
                                     <button
                                       onClick={() => openDeny(r)}
@@ -754,6 +750,9 @@ export default function SupplierPaymentQueuePage() {
                                       Deny
                                     </button>
                                   </>
+                                )}
+                                {r.status === 'QUEUED' && (
+                                  <span className="text-xs text-indigo-600 dark:text-indigo-400 italic">In cashier queue</span>
                                 )}
                                 {(r.status === 'APPROVED' || r.status === 'PARTIAL' || (r.status === 'PAID' && getRemaining(r) > 0.001)) && (
                                   <button
