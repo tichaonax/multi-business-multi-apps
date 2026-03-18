@@ -457,6 +457,56 @@ export default function ClothingPOSPage() {
     setTimeout(() => loadDailySales(), 500)
   }
 
+  // ─── Advanced POS Full-Screen Mode (like restaurant POS) ─────────────────────
+  // Bypass ContentLayout so position:sticky on the right column works properly.
+  if (posMode === 'live' && useAdvancedPOS) {
+    return (
+      <BusinessProvider businessId={businessId}>
+        <BusinessTypeRoute requiredBusinessType="clothing">
+          <div className="min-h-screen page-background">
+            {/* Compact header bar */}
+            <div className="flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-2 border-b border-gray-200 dark:border-gray-700">
+              <h1 className="text-base font-bold text-primary">Advanced POS — {currentBusiness?.businessName}</h1>
+              <div className="flex items-center gap-2">
+                {hasPermission('canEnterManualOrders') && (
+                  <button
+                    onClick={() => setPosMode('manual')}
+                    className="px-3 py-1.5 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-lg font-medium"
+                  >
+                    Manual Entry
+                  </button>
+                )}
+                <button
+                  onClick={async () => {
+                    try { await openDisplay() } catch (error) {
+                      customAlert({ title: 'Failed to Open Display', description: 'Please allow popups for this site.' })
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-medium"
+                >
+                  🖥️ Display
+                </button>
+                <button
+                  onClick={() => setUseAdvancedPOS(false)}
+                  className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-xs font-medium"
+                >
+                  Switch to Basic
+                </button>
+              </div>
+            </div>
+            {/* Advanced POS grid — no ContentLayout for proper sticky behaviour */}
+            <ClothingAdvancedPOS
+              businessId={businessId}
+              employeeId={employeeId!}
+              terminalId={terminalId}
+              onOrderComplete={handleOrderComplete}
+            />
+          </div>
+        </BusinessTypeRoute>
+      </BusinessProvider>
+    )
+  }
+
   return (
     <BusinessProvider businessId={businessId}>
       <BusinessTypeRoute requiredBusinessType="clothing">

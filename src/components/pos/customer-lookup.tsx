@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, X, UserPlus, User, Printer } from 'lucide-react'
 import { CustomerLoyaltyCard, buildPrintCardHtml, openCardPrintWindow, formatPhone } from './customer-loyalty-card'
 import { PrintCardToReceiptPrinter } from '@/components/ui/print-card-to-receipt-printer'
@@ -47,9 +48,17 @@ export function CustomerLookup({
   const [showPrintPanel, setShowPrintPanel] = useState(false)
   const [pdfPrinted, setPdfPrinted] = useState(false)
   const [receiptPrinted, setReceiptPrinted] = useState(false)
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const updateDropdownRect = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    }
+  }, [])
 
   // Fetch umbrella business name
   useEffect(() => {
@@ -72,6 +81,7 @@ export function CustomerLookup({
 
     // Show dropdown immediately (with Walk-in) while waiting for API
     setShowDropdown(true)
+    updateDropdownRect()
 
     const delaySearch = setTimeout(() => {
       searchCustomers(searchQuery)
@@ -159,7 +169,7 @@ export function CustomerLookup({
         {onCreateCustomer && (
           <button
             type="button"
-            onClick={onCreateCustomer}
+            onClick={() => { setShowDropdown(false); onCreateCustomer?.() }}
             className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
           >
             <UserPlus className="h-3 w-3" />
@@ -279,6 +289,7 @@ export function CustomerLookup({
               }}
               onFocus={() => {
                 setShowDropdown(true)
+                updateDropdownRect()
               }}
               placeholder="Search by name, ID or scan loyalty card..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-primary focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -290,11 +301,12 @@ export function CustomerLookup({
             )}
           </div>
 
-          {/* Dropdown Results */}
-          {showDropdown && (searchQuery.length >= 2 || allowWalkIn) && (
+          {/* Dropdown Results — rendered via portal so no parent overflow clips it */}
+          {showDropdown && (searchQuery.length >= 2 || allowWalkIn) && dropdownRect && typeof document !== 'undefined' && createPortal(
             <div
               ref={dropdownRef}
-              className="absolute left-0 right-0 top-full mt-1 z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+              style={{ position: 'fixed', top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width, zIndex: 9999 }}
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"
             >
               {/* Walk-in Customer Option */}
               {allowWalkIn && (
@@ -349,7 +361,8 @@ export function CustomerLookup({
                   }
                 </div>
               )}
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       )}

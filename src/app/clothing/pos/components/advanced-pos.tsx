@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSession } from 'next-auth/react'
+import { createPortal } from 'react-dom'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessContext } from '@/components/universal'
@@ -71,11 +73,15 @@ interface ClothingAdvancedPOSProps {
 export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrderComplete }: ClothingAdvancedPOSProps) {
   const { formatCurrency } = useBusinessContext()
   const { currentBusiness } = useBusinessPermissionsContext()
+  const { data: session } = useSession()
   const { cart: globalCart, clearCart: clearGlobalCart, addToCart: addToGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
   const customAlert = useAlert()
   const toast = useToastContext()
   const searchParams = useSearchParams()
   const router = useRouter()
+
+  // Full business details (phone, address, etc.) fetched from API — same as restaurant POS
+  const [businessDetails, setBusinessDetails] = useState<any>(null)
 
   // Ref-based guard to prevent duplicate print calls
   const printInFlightRef = useRef(false)
@@ -114,7 +120,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [completedOrderReceipt, setCompletedOrderReceipt] = useState<ReceiptData | null>(null)
   const [defaultPrinter, setDefaultPrinter] = useState<{ id: string; name: string } | null>(null)
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'GIFT_CARD'>('CASH')
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'GIFT_CARD' | 'ECOCASH'>('CASH')
+  const [ecocashTxCode, setEcocashTxCode] = useState('')
   const [cashTendered, setCashTendered] = useState('')
 
   // Applied coupon (synced from mini-cart via localStorage + custom events)
@@ -199,6 +206,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
   // Keep cartRef in sync with cart state to prevent stale-closure bugs in async callbacks
   useEffect(() => { cartRef.current = cart }, [cart])
+
+  // Fetch full business details (phone, address) for receipt — same pattern as restaurant POS
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/business/${businessId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.business) setBusinessDetails(data.business) })
+      .catch(() => {})
+  }, [businessId])
 
   // Fetch business configuration on mount
   useEffect(() => {
@@ -1158,7 +1174,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           cashTendered: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
           change: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined,
           couponCode: appliedCoupon?.code || undefined,
-          couponDiscount: appliedCoupon?.discountAmount || undefined
+          couponDiscount: appliedCoupon?.discountAmount || undefined,
+          ...(selectedPaymentMethod === 'ECOCASH' ? {
+            ecocashTxCode: ecocashTxCode.trim(),
+            ecocashFeeType: (currentBusiness as any)?.ecocashFeeType,
+            ecocashFeeValue: (currentBusiness as any)?.ecocashFeeValue,
+          } : {})
         },
         items: cart.map(item => {
           const isWiFiToken = item.attributes?.isWiFiToken === true
@@ -1202,15 +1223,28 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         throw new Error(result.error || 'Failed to process order')
       }
 
-      // Create receipt data
+      // Create receipt data — matching restaurant POS pattern
+      const orderNumber = result.data.orderNumber || 'N/A'
+      const actualBusiness = result.data.businessInfo || businessDetails || currentBusiness
       const receiptData: ReceiptData = {
-        receiptNumber: result.data.orderNumber || 'N/A',
-        globalId: result.data.id,
+        receiptNumber: {
+          globalId: result.data.id || orderNumber,
+          dailySequence: orderNumber.split('-').pop() || '001',
+          formattedNumber: orderNumber,
+        },
         businessId: currentBusiness?.businessId || '',
-        businessName: currentBusiness?.businessName || 'Clothing Store',
         businessType: 'clothing',
+        businessName: actualBusiness?.name || actualBusiness?.businessName || 'Clothing Store',
+        businessAddress: actualBusiness?.address || actualBusiness?.umbrellaBusinessAddress || '',
+        businessPhone: actualBusiness?.phone || actualBusiness?.umbrellaBusinessPhone || currentBusiness?.phone || '',
+        businessEmail: actualBusiness?.email,
+        transactionId: orderNumber,
+        transactionDate: new Date(),
+        salespersonName: session?.user?.name || 'Staff',
+        salespersonId: session?.user?.id || employeeId || '',
         items: cart.map(item => ({
           name: `${item.name}${item.attributes?.size ? ` (${item.attributes.size})` : ''}${item.attributes?.color ? ` - ${item.attributes.color}` : ''}`,
+          sku: item.sku,
           quantity: item.quantity,
           unitPrice: item.price,
           totalPrice: item.price * item.quantity - (item.discount || 0)
@@ -1220,11 +1254,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         discount: totals.discount,
         total: totals.total,
         paymentMethod: selectedPaymentMethod,
-        cashTendered: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
-        change: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined,
-        customerName: customerInfo?.name || 'Walk-in Customer',
-        date: new Date(),
-        cashierName: employeeId ? 'Employee' : undefined,
+        amountPaid: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : totals.total,
+        changeDue: selectedPaymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totals.total : undefined,
+        ecocashFeeAmount: result.data.ecocashFeeAmount,
+        ecocashTransactionCode: result.data.ecocashTransactionCode || (selectedPaymentMethod === 'ECOCASH' ? ecocashTxCode : undefined),
+        customerName: customerInfo?.name || undefined,
+        customerPhone: customerInfo?.phone || undefined,
+        footerMessage: result.data.footerMessage || 'Thank you for shopping with us!',
         businessSpecificData: {
           supervisorOverride: supervisorOverride?.supervisorId ? 'Yes' : 'No',
           ...(appliedCoupon ? { couponCode: appliedCoupon.code, couponDiscount: appliedCoupon.discountAmount } : {})
@@ -1404,7 +1440,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         </div>
       )}
 
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start overflow-x-hidden">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6 items-start p-2 lg:p-4">
       {/* Main POS Interface */}
       <div className="xl:col-span-2 space-y-6">
         {/* Compact mode bar + search — single row */}
@@ -1572,7 +1608,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               <div className="text-sm mt-1">Add clothing products with variants in the Inventory page</div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {(() => {
                 // Pinned products first, then fill remaining slots up to 20
                 const pinned = quickAddProducts.filter(p => pinnedProductIds.has(p.id))
@@ -1682,7 +1718,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   </div>
                 )
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pr-1">
                     {filtered.map(bale => {
                       const outOfStock = bale.remainingCount <= 0
                       const price = parseFloat(bale.unitPrice)
@@ -1799,9 +1835,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       </div>
 
       {/* Cart and Checkout */}
-      <div className="space-y-6 sticky top-20 self-start max-h-[calc(100vh-5.5rem)] overflow-y-auto">
-        {/* Customer lookup — top of cart column to match Basic POS workflow */}
-        <div className="card p-4">
+      <div className="sticky top-20 self-start flex flex-col gap-3 max-h-[calc(100vh-5.5rem)]">
+        {/* Customer lookup — shrink-0 so it never gets clipped */}
+        <div className="card p-4 shrink-0">
           <CustomerLookup
             businessId={businessId}
             selectedCustomer={customerInfo}
@@ -1811,9 +1847,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           />
         </div>
 
-        {/* Cart */}
-        <div className="card p-4">
-          <div className="flex items-center justify-between mb-4">
+        {/* Cart — flex-1 so it takes remaining space, items scroll inside */}
+        <div className="card p-4 flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-4 shrink-0">
             <h3 className="font-semibold text-primary">Cart ({cart.length})</h3>
             <button
               type="button"
@@ -1824,7 +1860,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             </button>
           </div>
 
-          <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+          <div className="space-y-1.5 overflow-y-auto flex-1 min-h-0 pr-1">
             {cart.length === 0 ? (
               <div className="text-center py-6 text-secondary text-sm">
                 Cart is empty
@@ -1877,9 +1913,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           </div>
         </div>
 
-        {/* Totals */}
+        {/* Totals — shrink-0 so always visible at bottom */}
         {cart.length > 0 ? (
-          <div className="card p-4">
+          <div className="card p-4 shrink-0">
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
@@ -1944,7 +1980,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           </div>
         ) : null}
 
-        {showAddCustomerModal && (
+        {showAddCustomerModal && typeof document !== 'undefined' && createPortal(
           <AddCustomerModal
             onClose={() => setShowAddCustomerModal(false)}
             onCustomerCreated={(newCustomer) => {
@@ -1966,7 +2002,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 })
               }
             }}
-          />
+          />,
+          document.body
         )}
       </div>
 
@@ -1978,16 +2015,27 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Payment Method</label>
-                <select
-                  className="w-full px-3 py-2 border rounded-lg"
-                  value={selectedPaymentMethod}
-                  onChange={(e) => setSelectedPaymentMethod(e.target.value as any)}
-                >
-                  <option value="CASH">Cash</option>
-                  <option value="CARD">Credit/Debit Card</option>
-                  <option value="STORE_CREDIT">Store Credit</option>
-                  <option value="GIFT_CARD">Gift Card</option>
-                </select>
+                <div className={`grid gap-2 ${(currentBusiness as any)?.ecocashEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {(['CASH', 'CARD', 'STORE_CREDIT'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => { setSelectedPaymentMethod(m); setEcocashTxCode('') }}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${selectedPaymentMethod === m ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-primary hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                    >
+                      {m === 'CASH' ? '💵 Cash' : m === 'CARD' ? '💳 Card' : '🏬 Store Credit'}
+                    </button>
+                  ))}
+                  {(currentBusiness as any)?.ecocashEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedPaymentMethod('ECOCASH'); setCashTendered('') }}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${selectedPaymentMethod === 'ECOCASH' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-primary hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                    >
+                      <img src="/images/ecocash-logo.png" alt="" className="h-4 w-auto inline-block mr-1" />EcoCash
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded space-y-1">
@@ -2002,6 +2050,36 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   <span className="font-bold text-green-600">{formatCurrency(calculateTotal())}</span>
                 </div>
               </div>
+
+              {/* EcoCash Transaction Code */}
+              {selectedPaymentMethod === 'ECOCASH' && (() => {
+                const feeType = (currentBusiness as any)?.ecocashFeeType
+                const feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+                const fee = feeType === 'PERCENTAGE' ? calculateTotal() * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+                const ecocashTotal = calculateTotal() + fee
+                return (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">EcoCash Transaction Code</label>
+                      <input
+                        type="text"
+                        value={ecocashTxCode}
+                        onChange={(e) => setEcocashTxCode(e.target.value.toUpperCase())}
+                        className="w-full px-3 py-2 border rounded-lg text-lg font-semibold"
+                        placeholder="Enter EcoCash transaction code"
+                        autoFocus
+                      />
+                    </div>
+                    {fee > 0 && (
+                      <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
+                        <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(calculateTotal())}</span></div>
+                        <div className="flex justify-between"><span>EcoCash fee ({feeType === 'PERCENTAGE' ? `${feeValue}%` : 'fixed'}):</span><span>{formatCurrency(fee)}</span></div>
+                        <div className="flex justify-between font-bold"><span>Total to charge:</span><span>{formatCurrency(ecocashTotal)}</span></div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Cash Tender Input */}
               {selectedPaymentMethod === 'CASH' && (
@@ -2039,6 +2117,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   onClick={() => {
                     setShowPaymentModal(false)
                     setCashTendered('')
+                    setEcocashTxCode('')
                   }}
                   className="flex-1 py-2 px-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
@@ -2046,7 +2125,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 </button>
                 <button
                   onClick={processPayment}
-                  disabled={loading || (selectedPaymentMethod === 'CASH' && (!cashTendered || parseFloat(cashTendered) < calculateTotal()))}
+                  disabled={loading || (selectedPaymentMethod === 'CASH' && (!cashTendered || parseFloat(cashTendered) < calculateTotal())) || (selectedPaymentMethod === 'ECOCASH' && !ecocashTxCode.trim())}
                   className="flex-1 py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Processing...' : 'Complete Payment'}

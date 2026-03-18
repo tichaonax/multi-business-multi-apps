@@ -353,18 +353,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify customer exists if specified (supports both old and new systems)
+    // Verify customer exists if specified — check current business first, then any business
+    // Customers registered at one business can shop at any other business (shared umbrella system)
     if (orderData.customerId) {
       const customer = await prisma.businessCustomers.findFirst({
-        where: {
-          id: orderData.customerId,
-          businessId: orderData.businessId
-        }
+        where: { id: orderData.customerId }
       })
 
       if (!customer) {
         return NextResponse.json(
-          { error: 'Customer not found in BusinessCustomer table' },
+          { error: 'Customer not found' },
           { status: 404 }
         )
       }
