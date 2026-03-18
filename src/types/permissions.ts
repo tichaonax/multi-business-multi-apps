@@ -255,6 +255,7 @@ export interface CoreBusinessPermissions {
   canCloseBooks: boolean;                  // Close books for a day (manager+ only, blocks further manual entries)
   canSubmitPaymentBatch: boolean;          // Cashier: submit batched expense payment requests & fund from business account
   canViewCashBucketReport: boolean;        // View cash bucket report (managers, owners, admins)
+  canDeleteCashBucketEntry: boolean;       // Soft-delete a cash bucket entry within 8 days (owners + admins only)
 
   // Chicken Run Management
   canManageChickenRun: boolean;
@@ -1069,6 +1070,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canMakeExpensePayments', label: 'Make Payments' },
       { key: 'canSubmitPaymentBatch', label: 'Submit Payment Batch (Cashier)' },
       { key: 'canViewCashBucketReport', label: 'View Cash Bucket Report' },
+      { key: 'canDeleteCashBucketEntry', label: 'Delete Cash Bucket Entry' },
       { key: 'canViewExpenseReports', label: 'View Reports' },
       { key: 'canCreateIndividualPayees', label: 'Create Individual Payees' },
       { key: 'canDeleteExpenseAccounts', label: 'Delete Expense Accounts' },
@@ -1389,6 +1391,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canCloseBooks: true,
   canSubmitPaymentBatch: true,
   canViewCashBucketReport: true,
+  canDeleteCashBucketEntry: true,
   canManageChickenRun: true,
 };
 
@@ -1540,6 +1543,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canCloseBooks: true,
   canSubmitPaymentBatch: true,
   canViewCashBucketReport: true,
+  canDeleteCashBucketEntry: false,
   canManageChickenRun: true,
 };
 
@@ -1691,6 +1695,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canCloseBooks: false,
   canSubmitPaymentBatch: false,
   canViewCashBucketReport: false,
+  canDeleteCashBucketEntry: false,
   canManageChickenRun: false,
 };
 
@@ -1840,6 +1845,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canCloseBooks: false,
   canSubmitPaymentBatch: false,
   canViewCashBucketReport: false,
+  canDeleteCashBucketEntry: false,
   canManageChickenRun: false,
 };
 
@@ -1992,6 +1998,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canCloseBooks: false,
   canSubmitPaymentBatch: false,
   canViewCashBucketReport: false,
+  canDeleteCashBucketEntry: false,
   canManageChickenRun: false,
 };
 
@@ -2144,6 +2151,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canCloseBooks: false,
   canSubmitPaymentBatch: false,
   canViewCashBucketReport: false,
+  canDeleteCashBucketEntry: false,
   canManageChickenRun: false,
 };
 
@@ -2293,6 +2301,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canCloseBooks: true,
   canSubmitPaymentBatch: true,
   canViewCashBucketReport: true,
+  canDeleteCashBucketEntry: true,
   canManageChickenRun: true,
 };
 

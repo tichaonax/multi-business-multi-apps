@@ -135,29 +135,63 @@ export function PaymentBatchModal({ accountId, accountName, businessId, onClose,
 
   function handlePrint() {
     if (!printData) return
-    const win = window.open('', '_blank', 'width=600,height=700')
-    if (!win) return
+    const esc = (s: string) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const win = window.open('', '_blank', 'width=820,height=700')
+    if (!win) { alert('Popup blocked — please allow popups for this site.'); return }
     const rows = printData.payments
-      .map(
-        (p) =>
-          `<tr>
-            <td style="padding:4px 8px;border-bottom:1px solid #eee">${p.payeeName}</td>
-            <td style="padding:4px 8px;border-bottom:1px solid #eee">${p.categoryName}${p.subcategoryName ? ` › ${p.subcategoryName}` : ''}</td>
-            <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(p.amount)}</td>
-            <td style="padding:4px 8px;border-bottom:1px solid #eee">${p.notes ?? ''}</td>
-          </tr>`
-      )
+      .map((p: any) => {
+        const contact = [p.payeePhone, p.payeeContact].filter(Boolean).join(' · ')
+        return `<tr>
+          <td>
+            <div style="font-weight:600">${esc(p.payeeName)}</div>
+            ${contact ? `<div style="font-size:11px;color:#2563eb;margin-top:2px">📞 ${esc(contact)}</div>` : ''}
+          </td>
+          <td>${esc(p.categoryName)}${p.subcategoryName ? ' / ' + esc(p.subcategoryName) : ''}</td>
+          <td style="text-align:right;font-weight:600">${fmt(p.amount)}</td>
+          <td style="color:#555">${esc(p.notes ?? '')}</td>
+        </tr>`
+      })
       .join('')
-    win.document.write(`<!DOCTYPE html><html><head><title>Payment Batch</title>
-      <style>body{font-family:sans-serif;font-size:12px;margin:20px}h2{margin-bottom:4px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:4px 8px;border-bottom:2px solid #ddd}.total{font-weight:bold;font-size:14px;margin-top:12px}</style>
+    const title = `Payment Voucher — ${esc(printData.accountName)}`
+    win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+      <style>
+        html,body{margin:0;padding:0;}
+        body{padding:16px;font-family:sans-serif;font-size:13px;color:#111;}
+        .print-toolbar{position:sticky;top:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:100;margin:-16px -16px 16px;}
+        .print-btn{background:#1f2937;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+        .print-btn:hover{background:#374151;}
+        .print-title{font-size:13px;color:#64748b;}
+        .meta{margin-bottom:16px;line-height:1.8;}
+        table{width:100%;border-collapse:collapse;font-size:13px;}
+        th{text-align:left;background:#f1f5f9;padding:8px 10px;border-bottom:2px solid #cbd5e1;font-weight:600;color:#334155;}
+        td{padding:7px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top;}
+        tr:last-child td{border-bottom:none;}
+        .total-row{font-weight:700;font-size:14px;background:#f8fafc;}
+        .total-row td{border-top:2px solid #cbd5e1;padding:10px;}
+        @media print{.print-toolbar{display:none;}body{padding:8mm;}}
+      </style>
       </head><body>
-      <h2>Payment Batch Summary</h2>
-      <p><strong>Business:</strong> ${printData.businessName} &nbsp; <strong>Account:</strong> ${printData.accountName}</p>
-      <p><strong>Submitted by:</strong> ${printData.cashierName} &nbsp; <strong>Date:</strong> ${new Date(printData.submittedAt).toLocaleString()}</p>
-      <table><thead><tr><th>Payee</th><th>Category</th><th>Amount</th><th>Notes</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-      <p class="total">Total: ${fmt(printData.totalAmount)} (${printData.paymentCount} payments)</p>
-      <script>window.print();window.onafterprint=()=>window.close();</script>
+      <div class="print-toolbar">
+        <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+        <span class="print-title">${title}</span>
+      </div>
+      <div class="meta">
+        <strong>Business:</strong> ${esc(printData.businessName)} &nbsp;&nbsp;
+        <strong>Account:</strong> ${esc(printData.accountName)}<br/>
+        <strong>Approved by:</strong> ${esc(printData.cashierName)} &nbsp;&nbsp;
+        <strong>Date:</strong> ${new Date(printData.submittedAt).toLocaleString()}
+      </div>
+      <table>
+        <thead><tr><th>Payee</th><th>Category</th><th style="text-align:right">Amount</th><th>Notes</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="2">Total — ${printData.paymentCount} payment${printData.paymentCount !== 1 ? 's' : ''}</td>
+            <td style="text-align:right">${fmt(printData.totalAmount)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
       </body></html>`)
     win.document.close()
   }

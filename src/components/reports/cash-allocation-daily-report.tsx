@@ -172,6 +172,19 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       .catch(() => {})
   }, [businessId])
 
+  // Fetch cash bucket CASH/ECOCASH breakdown for the selected date
+  const [dayBucket, setDayBucket] = useState<{ cashInflow: number; ecocashInflow: number } | null>(null)
+  useEffect(() => {
+    if (!businessId || !date) { setDayBucket(null); return }
+    fetch(`/api/cash-bucket?businessId=${businessId}&date=${date}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) setDayBucket({ cashInflow: Number(d.cashInflow ?? 0), ecocashInflow: Number(d.ecocashInflow ?? 0) })
+        else setDayBucket(null)
+      })
+      .catch(() => setDayBucket(null))
+  }, [businessId, date])
+
   // Fetch payroll auto-contribution for the selected date
   useEffect(() => {
     if (!businessId || !date) return
@@ -526,14 +539,14 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Cash Distribution</h3>
-            {bucketSummary !== null && (
+            {dayBucket !== null && (dayBucket.cashInflow > 0 || dayBucket.ecocashInflow > 0) && (
               <div className="flex items-center gap-3 text-xs">
-                <span className="text-gray-500 dark:text-gray-400">🪣 Bucket:</span>
-                <span className="text-gray-700 dark:text-gray-300">💵 Cash <span className="font-semibold">${bucketSummary.cashBalance.toFixed(2)}</span></span>
-                {bucketSummary.ecocashBalance !== 0 && (
-                  <span className="text-teal-700 dark:text-teal-300">📱 EcoCash <span className="font-semibold">${bucketSummary.ecocashBalance.toFixed(2)}</span></span>
+                <span className="text-gray-500 dark:text-gray-400">🪣 Deposited {date}:</span>
+                <span className="text-emerald-700 dark:text-emerald-300">💵 <span className="font-semibold">${dayBucket.cashInflow.toFixed(2)}</span></span>
+                {dayBucket.ecocashInflow > 0 && (
+                  <span className="text-teal-700 dark:text-teal-300">📱 EcoCash <span className="font-semibold">${dayBucket.ecocashInflow.toFixed(2)}</span></span>
                 )}
-                <span className="text-gray-500 dark:text-gray-400">Total <span className="font-semibold text-gray-700 dark:text-gray-300">${bucketSummary.balance.toFixed(2)}</span></span>
+                <span className="text-gray-500 dark:text-gray-400">= <span className="font-semibold text-gray-700 dark:text-gray-300">${(dayBucket.cashInflow + dayBucket.ecocashInflow).toFixed(2)}</span></span>
               </div>
             )}
           </div>

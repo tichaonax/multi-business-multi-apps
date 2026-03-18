@@ -3229,6 +3229,8 @@ model Users {
   payment_batch_submissions_as_cashier                            PaymentBatchSubmissions[]        @relation("PaymentBatchCashier")
   eod_payment_batches_reviewed                                    EODPaymentBatch[]                @relation("EODPaymentBatchReviewer")
   cash_bucket_entries_created                                     CashBucketEntry[]                @relation("CashBucketEntryCreator")
+  cash_bucket_entries_edited                                      CashBucketEntry[]                @relation("CashBucketEntryEditor")
+  cash_bucket_entries_deleted                                     CashBucketEntry[]                @relation("CashBucketEntryDeleter")
   cash_allocation_items_checked                                   CashAllocationLineItem[]         @relation("CashAllocationItemChecker")
   petty_cash_requests_submitted                                   PettyCashRequests[]              @relation("PettyCashRequester")
   petty_cash_requests_approved                                    PettyCashRequests[]              @relation("PettyCashApprover")
@@ -5226,9 +5228,17 @@ model CashBucketEntry {
   entryDate     DateTime
   createdAt     DateTime @default(now())
   createdBy     String
+  // Audit trail for manual edits and soft-deletes
+  editedAt      DateTime?
+  editedBy      String?
+  deletedAt     DateTime?
+  deletedBy     String?
+  deletionReason String?
 
-  business Businesses @relation("BusinessCashBucket", fields: [businessId], references: [id])
-  creator  Users      @relation("CashBucketEntryCreator", fields: [createdBy], references: [id])
+  business    Businesses @relation("BusinessCashBucket", fields: [businessId], references: [id])
+  creator     Users      @relation("CashBucketEntryCreator", fields: [createdBy], references: [id])
+  editor      Users?     @relation("CashBucketEntryEditor", fields: [editedBy], references: [id])
+  deleter     Users?     @relation("CashBucketEntryDeleter", fields: [deletedBy], references: [id])
 
   @@index([businessId, entryDate])
   @@index([entryDate])

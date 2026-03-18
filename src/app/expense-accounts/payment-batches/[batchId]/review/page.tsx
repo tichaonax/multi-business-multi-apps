@@ -44,8 +44,8 @@ interface BatchPayment {
   payeeUser?: { name: string } | null
   payeeEmployee?: { fullName: string; phone?: string | null } | null
   payeePerson?: { fullName: string; phone?: string | null } | null
-  payeeBusiness?: { name: string } | null
-  payeeSupplier?: { name: string; phone?: string | null } | null
+  payeeBusiness?: { name: string; phone?: string | null } | null
+  payeeSupplier?: { name: string; phone?: string | null; contactPerson?: string | null } | null
   category?: { name: string; emoji: string } | null
   subcategory?: { name: string } | null
   amount: number
@@ -81,7 +81,9 @@ function payeeName(p: BatchPayment): string {
 }
 
 function payeePhone(p: BatchPayment): string | null {
-  return p.payeeEmployee?.phone ?? p.payeePerson?.phone ?? p.payeeSupplier?.phone ?? null
+  const phone = p.payeeEmployee?.phone ?? p.payeePerson?.phone ?? p.payeeBusiness?.phone ?? p.payeeSupplier?.phone ?? null
+  const contact = p.payeeSupplier?.contactPerson ?? null
+  return [phone, contact].filter(Boolean).join(' · ') || null
 }
 
 const fmt = (n: number) =>

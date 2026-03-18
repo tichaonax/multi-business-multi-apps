@@ -27,8 +27,14 @@ interface BucketEntry {
   referenceType: string | null
   referenceId: string | null
   notes: string | null
+  paymentChannel: string
   entryDate: string
   createdBy: { id: string; name: string } | null
+  editedAt: string | null
+  editedBy: { id: string; name: string } | null
+  deletedAt: string | null
+  deletedBy: { id: string; name: string } | null
+  deletionReason: string | null
 }
 
 const fmt = (n: number) =>
@@ -63,6 +69,8 @@ export default function CashBucketReportPage() {
   const [typeFilter, setTypeFilter] = useState('')
   const [startDate, setStartDate] = useState(local30DaysAgo)
   const [endDate, setEndDate] = useState(localToday)
+  const [showEdited, setShowEdited] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
   const [offset, setOffset] = useState(0)
   const limit = 100
 
@@ -111,6 +119,32 @@ export default function CashBucketReportPage() {
   const totalInflow  = balances.filter(b => !bizFilter || b.businessId === bizFilter).reduce((s, b) => s + b.inflow, 0)
   const totalOutflow = balances.filter(b => !bizFilter || b.businessId === bizFilter).reduce((s, b) => s + b.outflow, 0)
 
+  const editedEntries  = entries.filter(e => !!e.editedAt)
+  const deletedEntries = entries.filter(e => !!e.deletedAt)
+
+  // Build per-user audit breakdown
+  const auditByUser = new Map<string, { name: string; edits: number; deletes: number }>()
+  for (const e of editedEntries) {
+    if (!e.editedBy) continue
+    const cur = auditByUser.get(e.editedBy.id) ?? { name: e.editedBy.name, edits: 0, deletes: 0 }
+    cur.edits++
+    auditByUser.set(e.editedBy.id, cur)
+  }
+  for (const e of deletedEntries) {
+    if (!e.deletedBy) continue
+    const cur = auditByUser.get(e.deletedBy.id) ?? { name: e.deletedBy.name, edits: 0, deletes: 0 }
+    cur.deletes++
+    auditByUser.set(e.deletedBy.id, cur)
+  }
+  const auditUsers = [...auditByUser.values()].sort((a, b) => (b.edits + b.deletes) - (a.edits + a.deletes))
+
+  // Apply client-side audit filters
+  const displayedEntries = entries.filter(e => {
+    if (showEdited && !e.editedAt) return false
+    if (showDeleted && !e.deletedAt) return false
+    return true
+  })
+
   return (
     <ContentLayout
       title="🪣 Cash Bucket Report"
@@ -132,7 +166,7 @@ export default function CashBucketReportPage() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
             <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Total Cash in Bucket</p>
             <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">{fmt(totalBalance)}</p>
@@ -145,7 +179,33 @@ export default function CashBucketReportPage() {
             <p className="text-xs font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">Total Outflows</p>
             <p className="text-2xl font-bold text-red-700 dark:text-red-300 mt-0.5">{fmt(totalOutflow)}</p>
           </div>
+          <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+            <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">Edits</p>
+            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 mt-0.5">{editedEntries.length}</p>
+          </div>
+          <div className="rounded-lg border border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 px-4 py-3">
+            <p className="text-xs font-medium text-rose-600 dark:text-rose-400 uppercase tracking-wide">Deletions</p>
+            <p className="text-2xl font-bold text-rose-700 dark:text-rose-300 mt-0.5">{deletedEntries.length}</p>
+          </div>
         </div>
+
+        {/* Audit activity breakdown (only shown when there are edits/deletions) */}
+        {auditUsers.length > 0 && (
+          <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10 p-4 print:break-inside-avoid">
+            <h3 className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-3">Audit Activity</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {auditUsers.map(u => (
+                <div key={u.name} className="text-xs bg-white dark:bg-gray-800 rounded border border-amber-200 dark:border-amber-700 px-2 py-1.5">
+                  <span className="font-medium text-primary">{u.name}</span>
+                  <div className="mt-0.5 text-secondary flex gap-2">
+                    {u.edits > 0 && <span>✏️ {u.edits} edit{u.edits !== 1 ? 's' : ''}</span>}
+                    {u.deletes > 0 && <span>🗑️ {u.deletes} del</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Per-business breakdown */}
         <div className="print:break-inside-avoid">
@@ -230,19 +290,29 @@ export default function CashBucketReportPage() {
               </button>
             </div>
           </div>
+          <div className="flex gap-4 mt-2 pt-2 border-t border-border">
+            <label className="flex items-center gap-2 text-xs text-secondary cursor-pointer">
+              <input type="checkbox" checked={showEdited} onChange={e => setShowEdited(e.target.checked)} className="rounded" />
+              ✏️ Show only edited
+            </label>
+            <label className="flex items-center gap-2 text-xs text-secondary cursor-pointer">
+              <input type="checkbox" checked={showDeleted} onChange={e => setShowDeleted(e.target.checked)} className="rounded" />
+              🗑️ Show only deleted
+            </label>
+          </div>
         </div>
 
         {/* Ledger */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-primary">
-              Ledger {total > 0 && <span className="text-secondary font-normal">({total} entries)</span>}
+              Ledger {total > 0 && <span className="text-secondary font-normal">({displayedEntries.length}{displayedEntries.length !== total ? ` of ${total}` : ''} entries)</span>}
             </h2>
           </div>
 
           {loading ? (
             <p className="text-sm text-secondary">Loading…</p>
-          ) : entries.length === 0 ? (
+          ) : displayedEntries.length === 0 ? (
             <div className="rounded-lg border border-border p-8 text-center">
               <p className="text-sm text-secondary">No entries match the selected filters.</p>
             </div>
@@ -262,36 +332,57 @@ export default function CashBucketReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {entries.map(e => (
-                      <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                        <td className="px-3 py-2 whitespace-nowrap text-secondary">
-                          {new Date(e.entryDate).toLocaleDateString()}
-                        </td>
-                        <td className="px-3 py-2 font-medium text-primary">{e.business?.name ?? '—'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap text-secondary">
-                          {ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}
-                        </td>
-                        <td className="px-3 py-2 text-secondary max-w-[180px] truncate">{e.notes ?? '—'}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                          {e.direction === 'INFLOW' ? fmt(e.amount) : ''}
-                        </td>
-                        <td className="px-3 py-2 text-right font-semibold text-red-600 dark:text-red-400">
-                          {e.direction === 'OUTFLOW' ? fmt(e.amount) : ''}
-                        </td>
-                        <td className="px-3 py-2 text-secondary whitespace-nowrap print:hidden">
-                          {e.createdBy?.name ?? '—'}
-                        </td>
-                      </tr>
-                    ))}
+                    {displayedEntries.map(e => {
+                      const isDeleted = !!e.deletedAt
+                      const isEdited = !!e.editedAt && !isDeleted
+                      return (
+                        <tr key={e.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''}`}>
+                          <td className="px-3 py-2 whitespace-nowrap text-secondary">
+                            {new Date(e.entryDate).toLocaleDateString()}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-primary">{e.business?.name ?? '—'}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-secondary">
+                            <div>{ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}</div>
+                            {e.paymentChannel === 'ECOCASH' ? (
+                              <span className="text-xs font-medium text-teal-600 dark:text-teal-400">📱 EcoCash</span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-gray-500">💵 Cash</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-secondary max-w-[180px]">
+                            <div className="truncate">{e.notes ?? '—'}</div>
+                            {isEdited && (
+                              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title={`Edited by ${e.editedBy?.name} on ${new Date(e.editedAt!).toLocaleDateString()}`}>
+                                ✏️ {e.editedBy?.name ?? '?'}
+                              </span>
+                            )}
+                            {isDeleted && (
+                              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" title={e.deletionReason ?? ''}>
+                                🗑️ {e.deletedBy?.name ?? '?'} · {e.deletionReason ?? 'no reason'}
+                              </span>
+                            )}
+                          </td>
+                          <td className={`px-3 py-2 text-right font-semibold ${isDeleted ? 'line-through text-secondary' : e.paymentChannel === 'ECOCASH' ? 'text-teal-600 dark:text-teal-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            {e.direction === 'INFLOW' ? fmt(e.amount) : ''}
+                          </td>
+                          <td className={`px-3 py-2 text-right font-semibold text-red-600 dark:text-red-400 ${isDeleted ? 'line-through' : ''}`}>
+                            {e.direction === 'OUTFLOW' ? fmt(e.amount) : ''}
+                          </td>
+                          <td className="px-3 py-2 text-secondary whitespace-nowrap print:hidden">
+                            {e.createdBy?.name ?? '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot className="bg-gray-50 dark:bg-gray-700/50 text-xs font-semibold">
                     <tr>
                       <td colSpan={4} className="px-3 py-2 text-right text-secondary uppercase tracking-wide">Page Total</td>
                       <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">
-                        {fmt(entries.filter(e => e.direction === 'INFLOW').reduce((s, e) => s + e.amount, 0))}
+                        {fmt(displayedEntries.filter(e => e.direction === 'INFLOW').reduce((s, e) => s + e.amount, 0))}
                       </td>
                       <td className="px-3 py-2 text-right text-red-600 dark:text-red-400">
-                        {fmt(entries.filter(e => e.direction === 'OUTFLOW').reduce((s, e) => s + e.amount, 0))}
+                        {fmt(displayedEntries.filter(e => e.direction === 'OUTFLOW').reduce((s, e) => s + e.amount, 0))}
                       </td>
                       <td className="print:hidden" />
                     </tr>

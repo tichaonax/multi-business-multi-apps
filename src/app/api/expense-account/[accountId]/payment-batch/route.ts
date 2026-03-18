@@ -77,11 +77,11 @@ export async function POST(
     const payments = await prisma.expenseAccountPayments.findMany({
       where: { id: { in: paymentIds }, expenseAccountId: accountId, status: 'REQUEST' },
       include: {
-        payeeUser: { select: { id: true, name: true } },
-        payeeEmployee: { select: { id: true, fullName: true } },
-        payeePerson: { select: { id: true, fullName: true } },
-        payeeBusiness: { select: { id: true, name: true } },
-        payeeSupplier: { select: { id: true, name: true } },
+        payeeUser: { select: { id: true, name: true, email: true } },
+        payeeEmployee: { select: { id: true, fullName: true, phone: true } },
+        payeePerson: { select: { id: true, fullName: true, phone: true } },
+        payeeBusiness: { select: { id: true, name: true, phone: true } },
+        payeeSupplier: { select: { id: true, name: true, phone: true, contactPerson: true } },
         category: { select: { id: true, name: true, emoji: true } },
         subcategory: { select: { id: true, name: true } },
         creator: { select: { id: true, name: true } },
@@ -212,14 +212,24 @@ export async function POST(
       payments: payments.map((p) => {
         const payeeName =
           p.payeeUser?.name ??
-          (p.payeeEmployee as any)?.fullName ??
+          p.payeeEmployee?.fullName ??
           p.payeePerson?.fullName ??
-          (p.payeeBusiness as any)?.name ??
+          p.payeeBusiness?.name ??
           (p.payeeSupplier as any)?.name ??
           '—'
+        const payeePhone =
+          p.payeeEmployee?.phone ??
+          p.payeePerson?.phone ??
+          p.payeeBusiness?.phone ??
+          (p.payeeSupplier as any)?.phone ??
+          p.payeeUser?.email ??
+          null
+        const payeeContact = (p.payeeSupplier as any)?.contactPerson ?? null
         return {
           id: p.id,
           payeeName,
+          payeePhone,
+          payeeContact,
           categoryName: p.category ? `${p.category.emoji ?? ''} ${p.category.name}`.trim() : '—',
           subcategoryName: p.subcategory?.name ?? null,
           amount: Number(p.amount),

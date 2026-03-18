@@ -146,6 +146,8 @@ export async function GET(request: NextRequest) {
         include: {
           business: { select: { id: true, name: true, type: true } },
           creator: { select: { id: true, name: true } },
+          editor: { select: { id: true, name: true } },
+          deleter: { select: { id: true, name: true } },
         },
         orderBy: { entryDate: 'desc' },
         take: limit,
@@ -169,9 +171,15 @@ export async function GET(request: NextRequest) {
           referenceType: e.referenceType,
           referenceId: e.referenceId,
           notes: e.notes,
+          paymentChannel: e.paymentChannel,
           entryDate: e.entryDate.toISOString(),
           createdAt: e.createdAt.toISOString(),
           createdBy: e.creator,
+          editedAt: e.editedAt?.toISOString() ?? null,
+          editedBy: e.editor ?? null,
+          deletedAt: e.deletedAt?.toISOString() ?? null,
+          deletedBy: e.deleter ?? null,
+          deletionReason: e.deletionReason ?? null,
         })),
         pagination: { total, limit, offset },
       },
@@ -197,6 +205,7 @@ export async function POST(request: NextRequest) {
 
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     if (!amount || Number(amount) <= 0) return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 })
+    if (!notes?.trim()) return NextResponse.json({ error: 'Notes are required' }, { status: 400 })
 
     const business = await prisma.businesses.findUnique({
       where: { id: businessId },

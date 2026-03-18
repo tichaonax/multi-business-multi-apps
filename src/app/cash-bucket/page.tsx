@@ -39,9 +39,15 @@ interface BucketEntry {
   referenceType: string | null
   referenceId: string | null
   notes: string | null
+  paymentChannel: string
   entryDate: string
   createdAt: string
   createdBy: { id: string; name: string } | null
+  editedAt: string | null
+  editedBy: { id: string; name: string } | null
+  deletedAt: string | null
+  deletedBy: { id: string; name: string } | null
+  deletionReason: string | null
 }
 
 const fmt = (n: number) =>
@@ -53,6 +59,7 @@ const ENTRY_TYPE_LABEL: Record<string, string> = {
   PETTY_CASH:        '🪙 Petty Cash',
   CASH_ALLOCATION:   '📋 Cash Allocation',
 }
+
 
 export default function CashBucketPage() {
   const { data: session, status } = useSession()
@@ -74,6 +81,18 @@ export default function CashBucketPage() {
   const [notes, setNotes] = useState('')
   const [entryDate, setEntryDate] = useState(() => new Date().toISOString().split('T')[0])
   const [expectedEcocash, setExpectedEcocash] = useState<number | null>(null)
+
+  // Edit modal state
+  const [editEntry, setEditEntry] = useState<BucketEntry | null>(null)
+  const [editAmount, setEditAmount] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [editSubmitting, setEditSubmitting] = useState(false)
+
+  // Delete modal state
+  const [deleteEntry, setDeleteEntry] = useState<BucketEntry | null>(null)
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -112,7 +131,7 @@ export default function CashBucketPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedBiz || !amount) return
+    if (!selectedBiz || !amount || !notes.trim()) return
 
     const bizName = businesses.find(b => b.id === selectedBiz)?.name ?? 'this business'
     const cashAmt = Number(amount)
@@ -149,6 +168,63 @@ export default function CashBucketPage() {
     }
   }
 
+  const openEditModal = (entry: BucketEntry) => {
+    setEditEntry(entry)
+    setEditAmount(String(entry.amount))
+    setEditNotes(entry.notes ?? '')
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editEntry) return
+    setEditSubmitting(true)
+    try {
+      const res = await fetch(`/api/cash-bucket/${editEntry.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: Number(editAmount), notes: editNotes }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setEditEntry(null)
+        await load()
+      } else {
+        await alert({ title: 'Error', description: json.error ?? 'Failed to update entry' })
+      }
+    } finally {
+      setEditSubmitting(false)
+    }
+  }
+
+  const openDeleteModal = (entry: BucketEntry) => {
+    setDeleteEntry(entry)
+    setDeleteReason('')
+  }
+
+  const handleDeleteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!deleteEntry || !deleteReason.trim()) return
+    setDeleteSubmitting(true)
+    try {
+      const res = await fetch(`/api/cash-bucket/${deleteEntry.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: deleteReason }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setDeleteEntry(null)
+        await load()
+      } else {
+        await alert({ title: 'Error', description: json.error ?? 'Failed to delete entry' })
+      }
+    } finally {
+      setDeleteSubmitting(false)
+    }
+  }
+
   return (
     <ContentLayout
       title="💰 Cash Bucket"
@@ -160,18 +236,42 @@ export default function CashBucketPage() {
       <div className="space-y-6">
 
         {/* Total balance banner */}
-        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-5 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Total Cash in Bucket</p>
-            <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">{fmt(totalBalance)}</p>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <span className="text-4xl">🪣</span>
-            <Link href="/cash-bucket/report" className="text-xs text-emerald-600 dark:text-emerald-400 underline hover:no-underline">
-              View Full Report →
-            </Link>
-          </div>
-        </div>
+        {(() => {
+          const totalCash = balances.reduce((s, b) => s + b.cashBalance, 0)
+          const totalEcocash = balances.reduce((s, b) => s + b.ecocashBalance, 0)
+          return (
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-5 py-4">
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+                  🪣 Cash Bucket — What's in the box right now
+                </p>
+                <Link href="/cash-bucket/report" className="text-xs text-emerald-600 dark:text-emerald-400 underline hover:no-underline shrink-0 ml-4">
+                  View Full Report →
+                </Link>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {/* Physical cash */}
+                <div className="bg-white dark:bg-emerald-900/30 rounded-lg px-4 py-3 border border-emerald-200 dark:border-emerald-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">💵 Physical Cash</p>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{fmt(totalCash)}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Money in the cashbox</p>
+                </div>
+                {/* EcoCash wallet */}
+                <div className="bg-white dark:bg-teal-900/30 rounded-lg px-4 py-3 border border-teal-200 dark:border-teal-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">📱 EcoCash Wallet</p>
+                  <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{fmt(totalEcocash)}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Balance in EcoCash</p>
+                </div>
+                {/* Combined */}
+                <div className="bg-emerald-700 dark:bg-emerald-800 rounded-lg px-4 py-3 border border-emerald-600">
+                  <p className="text-xs text-emerald-200 mb-1">📊 Combined Total</p>
+                  <p className="text-2xl font-bold text-white">{fmt(totalBalance)}</p>
+                  <p className="text-xs text-emerald-300 mt-1">Across {balances.length} business{balances.length !== 1 ? 'es' : ''}</p>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -238,11 +338,14 @@ export default function CashBucketPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-secondary mb-1">Notes (optional)</label>
+                  <label className="block text-xs font-medium text-secondary mb-1">
+                    Notes <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
+                    required
                     placeholder="e.g. Restaurant closing shift"
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
@@ -250,7 +353,7 @@ export default function CashBucketPage() {
 
                 <button
                   type="submit"
-                  disabled={submitting || !selectedBiz || !amount}
+                  disabled={submitting || !selectedBiz || !amount || !notes.trim()}
                   className="w-full py-2 px-4 rounded-md text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {submitting ? 'Recording…' : '💵 Record Receipt'}
@@ -261,34 +364,79 @@ export default function CashBucketPage() {
 
           {/* Per-business balances */}
           <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-sm font-semibold text-primary">Per-Business Balance</h2>
+            <h2 className="text-sm font-semibold text-primary">Per-Business Breakdown</h2>
             {loading ? (
               <p className="text-sm text-secondary">Loading…</p>
             ) : balances.length === 0 ? (
               <p className="text-sm text-secondary">No entries yet.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {balances.map(b => (
-                  <div key={b.businessId} className="rounded-lg border border-border bg-card px-4 py-3">
-                    <p className="text-xs font-medium text-secondary uppercase tracking-wide truncate">{b.business?.name ?? b.businessId}</p>
-                    <p className={`text-xl font-bold mt-0.5 ${b.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {fmt(b.balance)}
-                    </p>
-                    <div className="mt-1.5 space-y-0.5 text-xs">
-                      <div className="flex justify-between text-secondary">
-                        <span>💵 Cash</span>
-                        <span className={b.cashBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}>{fmt(b.cashBalance)}</span>
-                      </div>
-                      {b.ecocashBalance !== 0 || b.ecocashInflow > 0 ? (
-                        <div className="flex justify-between text-secondary">
-                          <span>📱 EcoCash</span>
-                          <span className={b.ecocashBalance >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-red-500'}>{fmt(b.ecocashBalance)}</span>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {balances.map(b => (
+                    <div key={b.businessId} className="rounded-lg border border-border bg-card px-4 py-3">
+                      <p className="text-xs font-medium text-secondary uppercase tracking-wide truncate">{b.business?.name ?? b.businessId}</p>
+                      <p className={`text-xl font-bold mt-0.5 ${b.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {fmt(b.balance)}
+                      </p>
+                      <div className="mt-2 space-y-1 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 dark:text-gray-400">💵 Cash in box</span>
+                          <div className="text-right">
+                            <span className={b.cashBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-500 font-semibold'}>{fmt(b.cashBalance)}</span>
+                            {b.cashInflow > 0 && (
+                              <span className="ml-1 text-gray-400 dark:text-gray-500">(in {fmt(b.cashInflow)} / out {fmt(b.cashOutflow)})</span>
+                            )}
+                          </div>
                         </div>
-                      ) : null}
+                        {(b.ecocashBalance !== 0 || b.ecocashInflow > 0) && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 dark:text-gray-400">📱 EcoCash wallet</span>
+                            <div className="text-right">
+                              <span className={b.ecocashBalance >= 0 ? 'text-teal-600 dark:text-teal-400 font-semibold' : 'text-red-500 font-semibold'}>{fmt(b.ecocashBalance)}</span>
+                              {b.ecocashInflow > 0 && (
+                                <span className="ml-1 text-gray-400 dark:text-gray-500">(in {fmt(b.ecocashInflow)} / out {fmt(b.ecocashOutflow)})</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                {/* Totals row across all businesses */}
+                {balances.length > 1 && (() => {
+                  const tCash = balances.reduce((s, b) => s + b.cashBalance, 0)
+                  const tEco = balances.reduce((s, b) => s + b.ecocashBalance, 0)
+                  const tCashIn = balances.reduce((s, b) => s + b.cashInflow, 0)
+                  const tCashOut = balances.reduce((s, b) => s + b.cashOutflow, 0)
+                  const tEcoIn = balances.reduce((s, b) => s + b.ecocashInflow, 0)
+                  const tEcoOut = balances.reduce((s, b) => s + b.ecocashOutflow, 0)
+                  return (
+                    <div className="rounded-lg border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10 px-4 py-3 text-xs">
+                      <p className="font-semibold text-gray-600 dark:text-gray-300 mb-2 text-sm">All Businesses — Totals</p>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-gray-400">💵 Total Cash in box</span>
+                          <span className="font-semibold text-emerald-700 dark:text-emerald-300">{fmt(tCash)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-gray-400">📱 Total EcoCash wallet</span>
+                          <span className="font-semibold text-teal-700 dark:text-teal-300">{fmt(tEco)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-400 dark:text-gray-500">
+                          <span>Cash received / paid out</span>
+                          <span>{fmt(tCashIn)} / {fmt(tCashOut)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-400 dark:text-gray-500">
+                          <span>EcoCash received / paid out</span>
+                          <span>{fmt(tEcoIn)} / {fmt(tEcoOut)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </>
             )}
           </div>
         </div>
@@ -311,27 +459,77 @@ export default function CashBucketPage() {
                     <th className="px-3 py-2 text-left">Notes</th>
                     <th className="px-3 py-2 text-right">Amount</th>
                     <th className="px-3 py-2 text-left">By</th>
+                    <th className="px-3 py-2 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {entries.map(e => (
-                    <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <td className="px-3 py-2 whitespace-nowrap text-secondary">
-                        {new Date(e.entryDate).toLocaleDateString()}
-                      </td>
-                      <td className="px-3 py-2 font-medium text-primary truncate max-w-[120px]">
-                        {e.business?.name ?? '—'}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}
-                      </td>
-                      <td className="px-3 py-2 text-secondary truncate max-w-[160px]">{e.notes ?? '—'}</td>
-                      <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${e.direction === 'INFLOW' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {e.direction === 'INFLOW' ? '+' : '−'}{fmt(e.amount)}
-                      </td>
-                      <td className="px-3 py-2 text-secondary whitespace-nowrap">{e.createdBy?.name ?? '—'}</td>
-                    </tr>
-                  ))}
+                  {entries.map(e => {
+                    const isDeleted = !!e.deletedAt
+                    const isEdited = !!e.editedAt && !isDeleted
+                    const canEdit = e.entryType === 'EOD_RECEIPT' && !isDeleted
+                    const canDelete = e.entryType === 'EOD_RECEIPT' && !isDeleted
+                    return (
+                      <tr key={e.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''}`}>
+                        <td className="px-3 py-2 whitespace-nowrap text-secondary">
+                          {new Date(e.entryDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-3 py-2 font-medium text-primary truncate max-w-[120px]">
+                          {e.business?.name ?? '—'}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <div>{ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}</div>
+                          {e.paymentChannel === 'ECOCASH' ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 dark:text-teal-400">
+                              <span className="text-base leading-none">📱</span> EcoCash
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                              <span className="text-base leading-none">💵</span> Cash
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-secondary max-w-[200px]">
+                          <div className="truncate">{e.notes ?? '—'}</div>
+                          {isEdited && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                              ✏️ Edited by {e.editedBy?.name ?? '?'} · {new Date(e.editedAt!).toLocaleDateString()}
+                            </span>
+                          )}
+                          {isDeleted && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" title={e.deletionReason ?? ''}>
+                              🗑️ Deleted · {e.deletionReason ?? 'no reason'}
+                            </span>
+                          )}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${isDeleted ? 'line-through text-secondary' : e.paymentChannel === 'ECOCASH' ? 'text-teal-600 dark:text-teal-400' : e.direction === 'INFLOW' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {e.direction === 'INFLOW' ? '+' : '−'}{fmt(e.amount)}
+                        </td>
+                        <td className="px-3 py-2 text-secondary whitespace-nowrap">{e.createdBy?.name ?? '—'}</td>
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            {canEdit && (
+                              <button
+                                onClick={() => openEditModal(e)}
+                                className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                title="Edit entry"
+                              >
+                                ✏️
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => openDeleteModal(e)}
+                                className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                title="Delete entry"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -339,6 +537,99 @@ export default function CashBucketPage() {
         </div>
 
       </div>
+
+      {/* Edit modal */}
+      {editEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card rounded-lg border border-border shadow-xl w-full max-w-sm mx-4 p-5">
+            <h3 className="text-sm font-semibold text-primary mb-4">✏️ Edit Entry</h3>
+            <form onSubmit={handleEditSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-secondary mb-1">Amount</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={editAmount}
+                  onChange={e => setEditAmount(e.target.value)}
+                  required
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-secondary mb-1">Notes</label>
+                <input
+                  type="text"
+                  value={editNotes}
+                  onChange={e => setEditNotes(e.target.value)}
+                  required
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditEntry(null)}
+                  className="flex-1 py-2 px-4 rounded-md text-sm font-medium border border-border text-secondary hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting || !editAmount || !editNotes.trim()}
+                  className="flex-1 py-2 px-4 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {editSubmitting ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card rounded-lg border border-border shadow-xl w-full max-w-sm mx-4 p-5">
+            <h3 className="text-sm font-semibold text-red-600 mb-1">🗑️ Delete Entry</h3>
+            <p className="text-xs text-secondary mb-4">
+              This will zero out the entry ({fmt(deleteEntry.amount)}) and record the reason. This cannot be undone.
+            </p>
+            <form onSubmit={handleDeleteSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-secondary mb-1">
+                  Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={deleteReason}
+                  onChange={e => setDeleteReason(e.target.value)}
+                  required
+                  rows={3}
+                  placeholder="Why is this entry being deleted?"
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-primary focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setDeleteEntry(null)}
+                  className="flex-1 py-2 px-4 rounded-md text-sm font-medium border border-border text-secondary hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={deleteSubmitting || !deleteReason.trim()}
+                  className="flex-1 py-2 px-4 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteSubmitting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </ContentLayout>
   )
 }

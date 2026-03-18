@@ -20,6 +20,7 @@ interface Transaction {
   fundSourceNote?: string
   subSourceNote?: string
   transactionType?: string
+  batchSubmissionId?: string | null
   // Payment-specific
   payeeType?: string
   payeeUser?: { id: string; name: string }
@@ -107,6 +108,77 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const limit = pageLimit
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+
+  async function handlePrintVoucher(batchId: string) {
+    try {
+      const res = await fetch(`/api/expense-account/payment-batch/${batchId}/voucher`)
+      const json = await res.json()
+      if (!res.ok) { alert(json.error || 'Failed to load voucher'); return }
+      const d = json.data
+      const fmt = (n: number) => `$${n.toFixed(2)}`
+      const esc = (s: string) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const rows = d.payments.map((p: any) => {
+        const contact = [p.payeePhone, p.payeeContact].filter(Boolean).join(' · ')
+        return `<tr>
+          <td>
+            <div style="font-weight:600">${esc(p.payeeName)}</div>
+            ${contact ? `<div style="font-size:11px;color:#2563eb;margin-top:2px">📞 ${esc(contact)}</div>` : ''}
+          </td>
+          <td>${esc(p.categoryName)}${p.subcategoryName ? ' / ' + esc(p.subcategoryName) : ''}</td>
+          <td style="text-align:right;font-weight:600">${fmt(p.amount)}</td>
+          <td style="color:#555">${esc(p.notes || '')}</td>
+          <td style="color:#888;font-size:11px">${esc(p.createdBy)}</td>
+        </tr>`
+      }).join('')
+      const title = `Payment Voucher — ${esc(d.accountName)}`
+      const win = window.open('', '_blank', 'width=820,height=700')
+      if (!win) { alert('Popup blocked — please allow popups for this site.'); return }
+      win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+        <style>
+          html,body{margin:0;padding:0;}
+          body{padding:16px;font-family:sans-serif;font-size:13px;color:#111;}
+          .print-toolbar{position:sticky;top:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:100;margin:-16px -16px 16px;}
+          .print-btn{background:#1f2937;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+          .print-btn:hover{background:#374151;}
+          .print-title{font-size:13px;color:#64748b;}
+          .meta{margin-bottom:16px;line-height:1.8;}
+          .meta strong{color:#111;}
+          table{width:100%;border-collapse:collapse;font-size:13px;}
+          th{text-align:left;background:#f1f5f9;padding:8px 10px;border-bottom:2px solid #cbd5e1;font-weight:600;color:#334155;}
+          td{padding:7px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top;}
+          tr:last-child td{border-bottom:none;}
+          .total-row{font-weight:700;font-size:14px;background:#f8fafc;}
+          .total-row td{border-top:2px solid #cbd5e1;padding:10px;}
+          @media print{.print-toolbar{display:none;}body{padding:8mm;}}
+        </style>
+        </head><body>
+        <div class="print-toolbar">
+          <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+          <span class="print-title">${title}</span>
+        </div>
+        <div class="meta">
+          <strong>Business:</strong> ${esc(d.businessName)} &nbsp;&nbsp;
+          <strong>Account:</strong> ${esc(d.accountName)}<br/>
+          <strong>Approved by:</strong> ${esc(d.cashierName)} &nbsp;&nbsp;
+          <strong>Date:</strong> ${new Date(d.submittedAt).toLocaleString()}
+        </div>
+        <table>
+          <thead><tr><th>Payee</th><th>Category</th><th style="text-align:right">Amount</th><th>Notes</th><th>Requested by</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr class="total-row">
+              <td colspan="2">Total — ${d.paymentCount} payment${d.paymentCount !== 1 ? 's' : ''}</td>
+              <td style="text-align:right">${fmt(d.totalAmount)}</td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+        </body></html>`)
+      win.document.close()
+    } catch {
+      alert('Failed to load voucher')
+    }
+  }
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [activeQuickFilter, setActiveQuickFilter] = useState<string>(
@@ -522,7 +594,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         {formatCurrency(transaction.balanceAfter)}
                       </td>
 
-                      {/* Edit action — payments only, not auto-transfers, within 7 days or admin */}
+                      {/* Action column: Edit (payments) or PDF voucher (batch deposits) */}
                       <td className="px-2 py-2 sm:py-3 text-right whitespace-nowrap">
                         {canEditPayments && !isDeposit && !transaction.isAutoTransfer && (isAdmin || isWithin7Days(transaction.createdAt)) && (
                           <button
@@ -531,6 +603,15 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             title="Edit payment"
                           >
                             Edit
+                          </button>
+                        )}
+                        {isDeposit && transaction.batchSubmissionId && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handlePrintVoucher(transaction.batchSubmissionId!) }}
+                            className="text-xs text-purple-600 dark:text-purple-400 hover:underline px-1 py-0.5"
+                            title="View payment voucher"
+                          >
+                            PDF
                           </button>
                         )}
                       </td>

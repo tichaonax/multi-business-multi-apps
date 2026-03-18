@@ -67,11 +67,11 @@ export async function POST(
       where: { id: { in: allIds }, eodBatchId: batchId },
       include: {
         expenseAccount: { select: { id: true, accountName: true, businessId: true } },
-        payeeUser: { select: { id: true, name: true } },
-        payeeEmployee: { select: { id: true, fullName: true } },
-        payeePerson: { select: { id: true, fullName: true } },
-        payeeBusiness: { select: { id: true, name: true } },
-        payeeSupplier: { select: { id: true, name: true } },
+        payeeUser: { select: { id: true, name: true, email: true } },
+        payeeEmployee: { select: { id: true, fullName: true, phone: true } },
+        payeePerson: { select: { id: true, fullName: true, phone: true } },
+        payeeBusiness: { select: { id: true, name: true, phone: true } },
+        payeeSupplier: { select: { id: true, name: true, phone: true, contactPerson: true } },
         category: { select: { id: true, name: true, emoji: true } },
         subcategory: { select: { id: true, name: true } },
         creator: { select: { id: true, name: true } },
@@ -315,15 +315,25 @@ export async function POST(
       payments: approvedPayments.map((p) => {
         const payeeName =
           p.payeeUser?.name ??
-          (p.payeeEmployee as any)?.fullName ??
+          p.payeeEmployee?.fullName ??
           p.payeePerson?.fullName ??
-          (p.payeeBusiness as any)?.name ??
+          p.payeeBusiness?.name ??
           (p.payeeSupplier as any)?.name ??
           '—'
+        const payeePhone =
+          p.payeeEmployee?.phone ??
+          p.payeePerson?.phone ??
+          p.payeeBusiness?.phone ??
+          (p.payeeSupplier as any)?.phone ??
+          p.payeeUser?.email ??
+          null
+        const payeeContact = (p.payeeSupplier as any)?.contactPerson ?? null
         return {
           id: p.id,
           adHoc: p.adHoc,
           payeeName,
+          payeePhone,
+          payeeContact,
           categoryName: p.category ? `${p.category.emoji ?? ''} ${p.category.name}`.trim() : '—',
           amount: Number(p.amount),
           notes: p.notes,

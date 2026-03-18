@@ -185,6 +185,19 @@ export async function GET(
         : [],
     ])
 
+    // Look up PaymentBatchSubmissions for BUSINESS deposits (to expose batchSubmissionId)
+    const businessDepositIds = deposits
+      .filter((d) => d.sourceType === 'BUSINESS')
+      .map((d) => d.id)
+    const batchMap = new Map<string, string>()
+    if (businessDepositIds.length > 0) {
+      const batches = await prisma.paymentBatchSubmissions.findMany({
+        where: { depositId: { in: businessDepositIds } },
+        select: { id: true, depositId: true },
+      })
+      batches.forEach((b) => { if (b.depositId) batchMap.set(b.depositId, b.id) })
+    }
+
     // Transform to unified transaction format
     const transactions: any[] = []
 
@@ -252,6 +265,7 @@ export async function GET(
         category, // Add category for display
         createdBy: deposit.creator,
         createdAt: deposit.createdAt,
+        batchSubmissionId: batchMap.get(deposit.id) ?? null,
       })
     })
 
