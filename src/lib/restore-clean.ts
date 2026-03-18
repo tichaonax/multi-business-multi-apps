@@ -179,7 +179,6 @@ const RESTORE_ORDER = [
   // Saved reports and display ads
   'savedReports',             // Depends on businesses, users
   'customerDisplayAds',       // Depends on businesses
-  'posTerminalConfigs',       // Depends on businesses
 
   // Expense accounts (order matters: grants/lenders/loans before deposits; ledger before payments)
   'expenseAccounts',
@@ -423,8 +422,6 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Expense Account Auto Deposits / Rent Config
   'expenseAccountAutoDeposits': 'expenseAccountAutoDeposit',
   'businessRentConfigs': 'businessRentConfig',
-  // POS terminal configs
-  'posTerminalConfigs': 'posTerminalConfig',
   // Notifications
   'appNotifications': 'appNotification',
   // Chicken Run
