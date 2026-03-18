@@ -5,7 +5,6 @@
 
 import { PrismaClient } from '@prisma/client';
 import { printRawData } from './windows-raw-printer';
-import { checkPrinterConnectivity } from './printer-service';
 import {
   getNextPendingJob,
   markJobAsProcessing,
@@ -425,12 +424,6 @@ async function processQueue(): Promise<void> {
 
     if (ENABLE_LOGGING) {
       console.log(`   Content length: ${printContent.length} characters`);
-    }
-
-    // Check printer connectivity
-    const isOnline = await checkPrinterConnectivity(printer.id);
-    if (!isOnline) {
-      throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
     }
 
     // Send to printer using appropriate method based on printer type
