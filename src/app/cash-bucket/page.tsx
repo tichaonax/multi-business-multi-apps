@@ -15,6 +15,11 @@ interface Business {
   type: string
 }
 
+interface AllocationItem {
+  accountName: string
+  amount: number
+}
+
 interface BucketBalance {
   businessId: string
   business: Business | null
@@ -27,6 +32,9 @@ interface BucketBalance {
   inflow: number
   outflow: number
   balance: number
+  allocations: AllocationItem[]
+  allocatedTotal: number
+  physicalCash: number
 }
 
 interface BucketEntry {
@@ -68,6 +76,8 @@ export default function CashBucketPage() {
   const alert = useAlert()
 
   const [totalBalance, setTotalBalance] = useState(0)
+  const [totalAllocated, setTotalAllocated] = useState(0)
+  const [totalPhysicalCash, setTotalPhysicalCash] = useState(0)
   const [balances, setBalances] = useState<BucketBalance[]>([])
   const [entries, setEntries] = useState<BucketEntry[]>([])
   const [businesses, setBusinesses] = useState<Business[]>([])
@@ -101,6 +111,8 @@ export default function CashBucketPage() {
       if (!res.ok) { router.push('/dashboard'); return }
       const json = await res.json()
       setTotalBalance(json.data.totalBalance)
+      setTotalAllocated(json.data.totalAllocated ?? 0)
+      setTotalPhysicalCash(json.data.totalPhysicalCash ?? 0)
       setBalances(json.data.balances)
       setEntries(json.data.entries)
     } finally {
@@ -237,36 +249,47 @@ export default function CashBucketPage() {
 
         {/* Total balance banner */}
         {(() => {
-          const totalCash = balances.reduce((s, b) => s + b.cashBalance, 0)
           const totalEcocash = balances.reduce((s, b) => s + b.ecocashBalance, 0)
           return (
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-5 py-4">
-              <div className="flex items-start justify-between mb-3">
-                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-5 py-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
                   🪣 Cash Bucket — What's in the box right now
                 </p>
-                <Link href="/cash-bucket/report" className="text-xs text-emerald-600 dark:text-emerald-400 underline hover:no-underline shrink-0 ml-4">
+                <Link href="/cash-bucket/report" className="text-xs text-emerald-600 dark:text-emerald-400 underline hover:no-underline">
                   View Full Report →
                 </Link>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                {/* Physical cash */}
-                <div className="bg-white dark:bg-emerald-900/30 rounded-lg px-4 py-3 border border-emerald-200 dark:border-emerald-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">💵 Physical Cash</p>
-                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{fmt(totalCash)}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Money in the cashbox</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+                {/* Physical cash card — the star of the show */}
+                <div className="sm:col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-emerald-200 dark:border-emerald-700 px-4 py-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    💵 Physical Cash — count this when you open the box
+                  </p>
+                  <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">{fmt(totalPhysicalCash)}</p>
+                  <div className="mt-2 space-y-1 text-sm border-t border-gray-100 dark:border-gray-700 pt-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 dark:text-gray-400">├── ✅ Free / available for payments</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(totalBalance)}</span>
+                    </div>
+                    {totalAllocated > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 dark:text-gray-400">└── 🔒 Earmarked (set aside this month)</span>
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(totalAllocated)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
                 {/* EcoCash wallet */}
-                <div className="bg-white dark:bg-teal-900/30 rounded-lg px-4 py-3 border border-teal-200 dark:border-teal-700">
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-teal-200 dark:border-teal-700 px-4 py-3">
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">📱 EcoCash Wallet</p>
-                  <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{fmt(totalEcocash)}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Balance in EcoCash</p>
-                </div>
-                {/* Combined */}
-                <div className="bg-emerald-700 dark:bg-emerald-800 rounded-lg px-4 py-3 border border-emerald-600">
-                  <p className="text-xs text-emerald-200 mb-1">📊 Combined Total</p>
-                  <p className="text-2xl font-bold text-white">{fmt(totalBalance)}</p>
-                  <p className="text-xs text-emerald-300 mt-1">Across {balances.length} business{balances.length !== 1 ? 'es' : ''}</p>
+                  <p className="text-3xl font-bold text-teal-700 dark:text-teal-300">{fmt(totalEcocash)}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                    Not in the cashbox — held in EcoCash
+                  </p>
                 </div>
               </div>
             </div>
@@ -373,65 +396,71 @@ export default function CashBucketPage() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {balances.map(b => (
-                    <div key={b.businessId} className="rounded-lg border border-border bg-card px-4 py-3">
-                      <p className="text-xs font-medium text-secondary uppercase tracking-wide truncate">{b.business?.name ?? b.businessId}</p>
-                      <p className={`text-xl font-bold mt-0.5 ${b.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {fmt(b.balance)}
-                      </p>
-                      <div className="mt-2 space-y-1 text-xs">
+                    <div key={b.businessId} className="rounded-lg border border-border bg-card px-4 py-3 space-y-3">
+                      <div>
+                        <p className="text-xs font-medium text-secondary uppercase tracking-wide truncate">{b.business?.name ?? b.businessId}</p>
+                      </div>
+
+                      {/* Physical cash section */}
+                      <div className="space-y-1 text-xs">
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-500 dark:text-gray-400">💵 Cash in box</span>
-                          <div className="text-right">
-                            <span className={b.cashBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-500 font-semibold'}>{fmt(b.cashBalance)}</span>
-                            {b.cashInflow > 0 && (
-                              <span className="ml-1 text-gray-400 dark:text-gray-500">(in {fmt(b.cashInflow)} / out {fmt(b.cashOutflow)})</span>
-                            )}
-                          </div>
+                          <span className="text-gray-500 dark:text-gray-400 font-medium">💵 Physical cash to count</span>
+                          <span className="font-bold text-base text-emerald-700 dark:text-emerald-300">{fmt(b.physicalCash)}</span>
                         </div>
-                        {(b.ecocashBalance !== 0 || b.ecocashInflow > 0) && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500 dark:text-gray-400">📱 EcoCash wallet</span>
-                            <div className="text-right">
-                              <span className={b.ecocashBalance >= 0 ? 'text-teal-600 dark:text-teal-400 font-semibold' : 'text-red-500 font-semibold'}>{fmt(b.ecocashBalance)}</span>
-                              {b.ecocashInflow > 0 && (
-                                <span className="ml-1 text-gray-400 dark:text-gray-500">(in {fmt(b.ecocashInflow)} / out {fmt(b.ecocashOutflow)})</span>
-                              )}
+                        <div className="flex justify-between items-center pl-3">
+                          <span className="text-gray-400 dark:text-gray-500">├── ✅ Free / available</span>
+                          <span className={`font-semibold ${b.cashBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>{fmt(b.cashBalance)}</span>
+                        </div>
+                        {b.allocations.length > 0 ? (
+                          <>
+                            <div className="flex justify-between items-center pl-3">
+                              <span className="text-gray-400 dark:text-gray-500">└── 🔒 Earmarked ({b.allocations.length} item{b.allocations.length !== 1 ? 's' : ''})</span>
+                              <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(b.allocatedTotal)}</span>
                             </div>
-                          </div>
+                            {b.allocations.map((a, i) => (
+                              <div key={i} className="flex justify-between items-center pl-8 text-gray-400 dark:text-gray-500">
+                                <span className="truncate max-w-[140px]">{i === b.allocations.length - 1 ? '└──' : '├──'} {a.accountName}</span>
+                                <span>{fmt(a.amount)}</span>
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <div className="pl-3 text-gray-400 dark:text-gray-500">└── no earmarked funds this month</div>
                         )}
                       </div>
+
+                      {/* EcoCash — separate, not in box */}
+                      {(b.ecocashBalance !== 0 || b.ecocashInflow > 0) && (
+                        <div className="border-t border-border pt-2 flex justify-between items-center text-xs">
+                          <span className="text-gray-500 dark:text-gray-400">📱 EcoCash wallet</span>
+                          <span className={`font-semibold ${b.ecocashBalance >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-red-500'}`}>{fmt(b.ecocashBalance)}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
                 {/* Totals row across all businesses */}
                 {balances.length > 1 && (() => {
-                  const tCash = balances.reduce((s, b) => s + b.cashBalance, 0)
                   const tEco = balances.reduce((s, b) => s + b.ecocashBalance, 0)
-                  const tCashIn = balances.reduce((s, b) => s + b.cashInflow, 0)
-                  const tCashOut = balances.reduce((s, b) => s + b.cashOutflow, 0)
-                  const tEcoIn = balances.reduce((s, b) => s + b.ecocashInflow, 0)
-                  const tEcoOut = balances.reduce((s, b) => s + b.ecocashOutflow, 0)
                   return (
-                    <div className="rounded-lg border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10 px-4 py-3 text-xs">
-                      <p className="font-semibold text-gray-600 dark:text-gray-300 mb-2 text-sm">All Businesses — Totals</p>
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500 dark:text-gray-400">💵 Total Cash in box</span>
-                          <span className="font-semibold text-emerald-700 dark:text-emerald-300">{fmt(tCash)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500 dark:text-gray-400">📱 Total EcoCash wallet</span>
-                          <span className="font-semibold text-teal-700 dark:text-teal-300">{fmt(tEco)}</span>
-                        </div>
-                        <div className="flex justify-between text-gray-400 dark:text-gray-500">
-                          <span>Cash received / paid out</span>
-                          <span>{fmt(tCashIn)} / {fmt(tCashOut)}</span>
-                        </div>
-                        <div className="flex justify-between text-gray-400 dark:text-gray-500">
-                          <span>EcoCash received / paid out</span>
-                          <span>{fmt(tEcoIn)} / {fmt(tEcoOut)}</span>
-                        </div>
+                    <div className="rounded-lg border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10 px-4 py-3 text-xs space-y-1">
+                      <p className="font-semibold text-gray-600 dark:text-gray-300 text-sm mb-2">All Businesses — Combined</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 dark:text-gray-400 font-medium">💵 Total physical cash to count</span>
+                        <span className="font-bold text-base text-emerald-700 dark:text-emerald-300">{fmt(totalPhysicalCash)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pl-3">
+                        <span className="text-gray-400 dark:text-gray-500">├── ✅ Free / available</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(totalBalance)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pl-3">
+                        <span className="text-gray-400 dark:text-gray-500">└── 🔒 Earmarked this month</span>
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(totalAllocated)}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-dashed border-teal-200 dark:border-teal-800 pt-2 mt-1">
+                        <span className="text-gray-500 dark:text-gray-400">📱 Total EcoCash wallet</span>
+                        <span className="font-semibold text-teal-600 dark:text-teal-400">{fmt(tEco)}</span>
                       </div>
                     </div>
                   )

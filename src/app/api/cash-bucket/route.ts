@@ -122,10 +122,36 @@ export async function GET(request: NextRequest) {
     })
     const bizMap = new Map(businesses.map((b) => [b.id, b]))
 
+    // CASH_ALLOCATION outflow breakdown (current month) — earmarked funds still physically in the box
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const allocationRows = await prisma.cashBucketEntry.groupBy({
+      by: ['businessId', 'notes'] as any,
+      where: {
+        entryType: 'CASH_ALLOCATION',
+        direction: 'OUTFLOW',
+        deletedAt: null,
+        entryDate: { gte: startOfMonth },
+        ...(businessId && { businessId }),
+      },
+      _sum: { amount: true },
+    })
+
+    const allocMap = new Map<string, { accountName: string; amount: number }[]>()
+    for (const row of allocationRows as any[]) {
+      const items = allocMap.get(row.businessId) ?? []
+      items.push({ accountName: row.notes ?? 'Unspecified', amount: Number(row._sum.amount ?? 0) })
+      allocMap.set(row.businessId, items)
+    }
+
     const balances = businessIds.map((id) => {
       const { cashInflow, cashOutflow, ecocashInflow, ecocashOutflow } = map.get(id)!
       const cashBalance = cashInflow - cashOutflow
       const ecocashBalance = ecocashInflow - ecocashOutflow
+      const allocations = (allocMap.get(id) ?? []).sort((a, b) => b.amount - a.amount)
+      const allocatedTotal = allocations.reduce((s, a) => s + a.amount, 0)
       return {
         businessId: id,
         business: bizMap.get(id) ?? null,
@@ -134,10 +160,16 @@ export async function GET(request: NextRequest) {
         inflow: cashInflow + ecocashInflow,
         outflow: cashOutflow + ecocashOutflow,
         balance: cashBalance + ecocashBalance,
+        // earmarked: cash physically still in box but already allocated
+        allocations,
+        allocatedTotal,
+        physicalCash: cashBalance + allocatedTotal,
       }
     }).sort((a, b) => (a.business?.name ?? '').localeCompare(b.business?.name ?? ''))
 
     const totalBalance = balances.reduce((s, b) => s + b.balance, 0)
+    const totalAllocated = balances.reduce((s, b) => s + b.allocatedTotal, 0)
+    const totalPhysicalCash = balances.reduce((s, b) => s + b.physicalCash, 0)
 
     // Filtered + paginated entries
     const [entries, total] = await Promise.all([
@@ -160,6 +192,8 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         totalBalance,
+        totalAllocated,
+        totalPhysicalCash,
         balances,
         entries: entries.map((e) => ({
           id: e.id,
