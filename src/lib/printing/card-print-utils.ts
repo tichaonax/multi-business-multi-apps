@@ -152,3 +152,58 @@ export async function printCardToReceiptPrinter(
     throw new Error(err.error || `Card print failed (${res.status})`)
   }
 }
+
+/**
+ * Print multiple label elements to a receipt printer, one per label with a
+ * partial cut between each. All labels are assembled into a single ESC/POS
+ * payload and sent as one print job.
+ *
+ * @param elements         Array of rendered DOM elements (one per label)
+ * @param printerId        Network printer ID (from /api/printers)
+ * @param businessId       Business ID for the print job queue
+ * @param printerWidthDots Dot width of the paper — default 576 (80mm @ 203 DPI)
+ */
+export async function printBulkLabelsToReceiptPrinter(
+  elements: HTMLElement[],
+  printerId: string,
+  businessId: string,
+  printerWidthDots = 576,
+): Promise<void> {
+  if (elements.length === 0) return
+  const html2canvas = (await import('html2canvas')).default
+
+  const init = new Uint8Array([0x1B, 0x40])
+  const cut  = new Uint8Array([0x1D, 0x56, 0x41, 0x03]) // partial cut
+
+  const chunks: Uint8Array[] = [init]
+
+  for (const el of elements) {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false,
+    })
+    chunks.push(canvasToEscPosRaster(canvas, printerWidthDots))
+    chunks.push(cut)
+  }
+
+  const totalLen = chunks.reduce((sum, c) => sum + c.length, 0)
+  const all = new Uint8Array(totalLen)
+  let offset = 0
+  for (const chunk of chunks) { all.set(chunk, offset); offset += chunk.length }
+
+  const escPosBytes = Array.from(all).map(b => String.fromCharCode(b)).join('')
+
+  const res = await fetch('/api/print/card', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ printerId, businessId, escPosData: btoa(escPosBytes) }),
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `Bulk label print failed (${res.status})`)
+  }
+}

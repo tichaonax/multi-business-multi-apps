@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface Bale {
@@ -22,8 +23,16 @@ interface BarcodeTemplate {
   symbology: string
   width: number
   height: number
-  fontSize: number
-  displayValue: boolean
+}
+
+interface NetworkPrinter {
+  id: string
+  printerName: string
+  isOnline?: boolean
+}
+
+function escHtml(str: string) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string): string {
@@ -39,12 +48,10 @@ function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string): s
   `
 }
 
-function escHtml(str: string) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
 export default function BalesBulkPrintPage() {
   const { currentBusinessId, activeBusinesses, loading: contextLoading } = useBusinessPermissionsContext()
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
 
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('')
   const bizInitRef = useRef(false)
@@ -61,7 +68,7 @@ export default function BalesBulkPrintPage() {
 
   const clothingBusinesses = activeBusinesses.filter(b => b.businessType === 'clothing' && !b.isUmbrellaBusiness)
 
-  // Templates
+  // ── Templates ──────────────────────────────────────────────────────────────
   const [templates, setTemplates] = useState<BarcodeTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [templatesLoading, setTemplatesLoading] = useState(false)
@@ -80,7 +87,7 @@ export default function BalesBulkPrintPage() {
       .finally(() => setTemplatesLoading(false))
   }, [selectedBusinessId])
 
-  // Bales
+  // ── Bales ──────────────────────────────────────────────────────────────────
   const [bales, setBales] = useState<Bale[]>([])
   const [balesLoading, setBalesLoading] = useState(false)
 
@@ -99,7 +106,7 @@ export default function BalesBulkPrintPage() {
       .finally(() => setBalesLoading(false))
   }, [selectedBusinessId])
 
-  // Selection
+  // ── Selection ──────────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
 
@@ -125,12 +132,48 @@ export default function BalesBulkPrintPage() {
     setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
-  // Print
-  const [isPrinting, setIsPrinting] = useState(false)
+  // ── Receipt printers ───────────────────────────────────────────────────────
+  const printerKey = userId ? `lastSelectedPrinterId-${userId}` : 'lastSelectedPrinterId'
+  const [printers, setPrinters] = useState<NetworkPrinter[]>([])
+  const [selectedPrinterId, setSelectedPrinterId] = useState<string>('')
+  const [printersLoading, setPrintersLoading] = useState(true)
 
-  const handlePrint = async () => {
+  useEffect(() => {
+    if (!userId) return
+    setPrintersLoading(true)
+    fetch('/api/printers?printerType=receipt', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { printers: [] })
+      .then(data => {
+        const list: NetworkPrinter[] = data.printers || []
+        setPrinters(list)
+        let saved = localStorage.getItem(printerKey)
+        if (!saved) {
+          const global = localStorage.getItem('lastSelectedPrinterId')
+          if (global) { saved = global; localStorage.setItem(printerKey, global) }
+        }
+        if (saved && list.find(p => p.id === saved)) { setSelectedPrinterId(saved); return }
+        const online = list.find(p => p.isOnline)
+        if (online) setSelectedPrinterId(online.id)
+        else if (list.length === 1) setSelectedPrinterId(list[0].id)
+      })
+      .catch(() => {})
+      .finally(() => setPrintersLoading(false))
+  }, [userId, printerKey])
+
+  const handlePrinterChange = (id: string) => {
+    setSelectedPrinterId(id)
+    localStorage.setItem(printerKey, id)
+  }
+
+  // ── Hidden container for receipt-printer label rendering ───────────────────
+  const hiddenContainerRef = useRef<HTMLDivElement>(null)
+
+  // ── Print / Save as PDF ────────────────────────────────────────────────────
+  const [isPdfPrinting, setIsPdfPrinting] = useState(false)
+
+  const handlePdfPrint = async () => {
     if (selectedIds.size === 0 || !selectedTemplateId) return
-    setIsPrinting(true)
+    setIsPdfPrinting(true)
     try {
       const template = templates.find(t => t.id === selectedTemplateId)
       if (!template) return
@@ -153,7 +196,6 @@ export default function BalesBulkPrintPage() {
         return buildLabelHtml(bale, svgEl.outerHTML, bizName)
       })
 
-      // Lay out labels in rows of 3
       const rows: string[] = []
       for (let i = 0; i < labelHtmls.length; i += 3) {
         const chunk = labelHtmls.slice(i, i + 3)
@@ -184,14 +226,100 @@ export default function BalesBulkPrintPage() {
         </body></html>`)
       printWindow.document.close()
     } finally {
-      setIsPrinting(false)
+      setIsPdfPrinting(false)
     }
   }
 
-  const businessName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
+  // ── Print to Receipt Printer ───────────────────────────────────────────────
+  const [isReceiptPrinting, setIsReceiptPrinting] = useState(false)
+  const [receiptError, setReceiptError] = useState<string | null>(null)
+  const [receiptSuccess, setReceiptSuccess] = useState(false)
+
+  const handleReceiptPrint = async () => {
+    if (selectedIds.size === 0 || !selectedPrinterId) return
+    setIsReceiptPrinting(true)
+    setReceiptError(null)
+    setReceiptSuccess(false)
+    try {
+      const selected = bales.filter(b => selectedIds.has(b.id))
+      const JsBarcode = (await import('jsbarcode')).default
+      const { printBulkLabelsToReceiptPrinter } = await import('@/lib/printing/card-print-utils')
+      const bizName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
+
+      const container = hiddenContainerRef.current!
+      container.innerHTML = ''
+      const elements: HTMLElement[] = []
+
+      for (const bale of selected) {
+        const div = document.createElement('div')
+        div.style.cssText = 'width:300px;padding:10px;background:white;font-family:sans-serif;'
+
+        const bizDiv = document.createElement('div')
+        bizDiv.style.cssText = 'font-size:10px;color:#6b7280;text-align:center;margin-bottom:3px;'
+        bizDiv.textContent = bizName
+        div.appendChild(bizDiv)
+
+        const catDiv = document.createElement('div')
+        catDiv.style.cssText = 'font-size:14px;font-weight:bold;color:#111;text-align:center;margin-bottom:3px;'
+        catDiv.textContent = bale.category.name
+        div.appendChild(catDiv)
+
+        const infoDiv = document.createElement('div')
+        infoDiv.style.cssText = 'font-size:11px;color:#374151;text-align:center;margin-bottom:4px;'
+        infoDiv.textContent = `Batch: ${bale.batchNumber}  ·  $${Number(bale.unitPrice).toFixed(2)}`
+        div.appendChild(infoDiv)
+
+        const stockDiv = document.createElement('div')
+        stockDiv.style.cssText = 'font-size:10px;color:#6b7280;text-align:center;margin-bottom:6px;'
+        stockDiv.textContent = `${bale.remainingCount} of ${bale.itemCount} items`
+        div.appendChild(stockDiv)
+
+        const svgWrapper = document.createElement('div')
+        svgWrapper.style.cssText = 'display:flex;justify-content:center;'
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.style.cssText = 'display:block;'
+        svgWrapper.appendChild(svg)
+        div.appendChild(svgWrapper)
+
+        const skuDiv = document.createElement('div')
+        skuDiv.style.cssText = 'font-size:9px;color:#9ca3af;text-align:center;margin-top:3px;letter-spacing:0.04em;'
+        skuDiv.textContent = bale.sku
+        div.appendChild(skuDiv)
+
+        container.appendChild(div)
+
+        // Run JsBarcode after the element is in the DOM
+        JsBarcode(svg, bale.scanCode, {
+          format: 'CODE128',
+          width: 2,
+          height: 60,
+          displayValue: false,
+          margin: 8,
+        })
+
+        elements.push(div)
+      }
+
+      await printBulkLabelsToReceiptPrinter(elements, selectedPrinterId, selectedBusinessId)
+
+      container.innerHTML = ''
+      setReceiptSuccess(true)
+      setTimeout(() => setReceiptSuccess(false), 4000)
+    } catch (err) {
+      setReceiptError(err instanceof Error ? err.message : 'Print failed')
+    } finally {
+      setIsReceiptPrinting(false)
+    }
+  }
+
+  const bizName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
+  const canPrint = selectedIds.size > 0 && !!selectedTemplateId
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
+      {/* Hidden container for receipt-printer label rendering (off-screen) */}
+      <div ref={hiddenContainerRef} style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none' }} aria-hidden="true" />
+
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/clothing/inventory?tab=bales" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm">
@@ -201,10 +329,10 @@ export default function BalesBulkPrintPage() {
       </div>
 
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-        Select a barcode template, choose the bales to print, then click Print. Labels are printed 3-up per row.
+        Select a barcode template, choose the bales to print, then use either print option below.
       </p>
 
-      {/* Controls row */}
+      {/* Controls */}
       <div className="flex flex-wrap gap-3 mb-5 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
         {/* Business selector */}
         <div className="flex items-center gap-2 min-w-[200px]">
@@ -241,22 +369,83 @@ export default function BalesBulkPrintPage() {
         </div>
       </div>
 
-      {/* Search + Print button */}
-      <div className="flex gap-3 mb-4">
+      {/* Print actions */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+        {/* PDF / browser print */}
+        <div className="flex-1">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Label printer / PDF</p>
+          <button
+            onClick={handlePdfPrint}
+            disabled={!canPrint || isPdfPrinting}
+            className="w-full px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isPdfPrinting ? (
+              <><span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Preparing...</>
+            ) : (
+              <>🖨️ Print / Save as PDF {selectedIds.size > 0 && `(${selectedIds.size})`}</>
+            )}
+          </button>
+        </div>
+
+        <div className="hidden sm:block w-px bg-gray-200 dark:bg-gray-700" />
+
+        {/* Receipt printer */}
+        <div className="flex-1">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Receipt printer — one label per cut</p>
+          {printersLoading ? (
+            <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
+              <span className="inline-block w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+              Looking for receipt printers…
+            </div>
+          ) : printers.length === 0 ? (
+            <p className="text-xs text-gray-400 py-1">No receipt printers found</p>
+          ) : (
+            <div className="space-y-2">
+              {printers.length > 1 && (
+                <select
+                  value={selectedPrinterId}
+                  onChange={e => handlePrinterChange(e.target.value)}
+                  className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">Select printer…</option>
+                  {printers.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.printerName}{p.isOnline === false ? ' (offline)' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {printers.length === 1 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">{printers[0].printerName}</p>
+              )}
+              <button
+                onClick={handleReceiptPrint}
+                disabled={!canPrint || isReceiptPrinting || !selectedPrinterId}
+                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isReceiptPrinting ? (
+                  <><span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Printing…</>
+                ) : receiptSuccess ? (
+                  '✅ Printed!'
+                ) : (
+                  <>🖨️ Print to Receipt Printer {selectedIds.size > 0 && `(${selectedIds.size})`}</>
+                )}
+              </button>
+              {receiptError && <p className="text-xs text-red-500">{receiptError}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
         <input
           type="text"
           placeholder="Search by SKU, batch, or category..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
         />
-        <button
-          onClick={handlePrint}
-          disabled={selectedIds.size === 0 || isPrinting || !selectedTemplateId}
-          className="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-        >
-          {isPrinting ? 'Preparing...' : `🖨️ Print (${selectedIds.size})`}
-        </button>
       </div>
 
       {/* Bales table */}
@@ -345,14 +534,23 @@ export default function BalesBulkPrintPage() {
 
       {/* Sticky print bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 right-6 z-40">
+        <div className="fixed bottom-6 right-6 z-40 flex gap-2">
           <button
-            onClick={handlePrint}
-            disabled={isPrinting || !selectedTemplateId}
-            className="px-6 py-3 bg-purple-600 text-white rounded-xl shadow-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50"
+            onClick={handlePdfPrint}
+            disabled={isPdfPrinting || !selectedTemplateId}
+            className="px-5 py-3 bg-gray-800 text-white rounded-xl shadow-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-50"
           >
-            {isPrinting ? 'Preparing...' : `🖨️ Print ${selectedIds.size} Bale${selectedIds.size !== 1 ? 's' : ''}`}
+            {isPdfPrinting ? 'Preparing...' : `🖨️ PDF (${selectedIds.size})`}
           </button>
+          {printers.length > 0 && (
+            <button
+              onClick={handleReceiptPrint}
+              disabled={isReceiptPrinting || !selectedPrinterId || !selectedTemplateId}
+              className="px-5 py-3 bg-indigo-600 text-white rounded-xl shadow-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {isReceiptPrinting ? 'Printing...' : receiptSuccess ? '✅ Done!' : `🧾 Receipt (${selectedIds.size})`}
+            </button>
+          )}
         </div>
       )}
     </div>
