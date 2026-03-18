@@ -237,7 +237,7 @@ export async function GET(
         },
         include: {
           category: { select: { name: true } },
-          businesses: { select: { id: true, name: true, type: true } },
+          business: { select: { id: true, name: true, type: true } },
         },
       })
 
@@ -246,8 +246,8 @@ export async function GET(
         if (!hasAccess) continue
         businessInventory.push({
           businessId: bale.businessId,
-          businessName: bale.businesses.name,
-          businessType: bale.businesses.type || 'clothing',
+          businessName: bale.business.name,
+          businessType: bale.business.type || 'clothing',
           productId: bale.id,
           variantId: null,
           productName: `${bale.category?.name || 'Bale'} - ${bale.batchNumber}`,
