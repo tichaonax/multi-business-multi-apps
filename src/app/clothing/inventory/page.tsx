@@ -946,6 +946,12 @@ function ClothingInventoryContent() {
                           + Register Bale
                         </button>
                         <button
+                          onClick={() => router.push('/clothing/bales/bulk-print')}
+                          className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
+                        >
+                          🖨️ Bulk Print
+                        </button>
+                        <button
                           onClick={() => router.push('/clothing/inventory/transfer')}
                           className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
                         >
