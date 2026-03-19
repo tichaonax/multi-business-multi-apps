@@ -269,6 +269,8 @@ export async function GET(
           remainingCount: bale.remainingCount,
           itemCount: bale.itemCount,
           sku: bale.sku,
+          bogoActive: bale.bogoActive,
+          bogoRatio: bale.bogoRatio,
         })
       }
     }

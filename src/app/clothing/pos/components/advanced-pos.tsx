@@ -1080,6 +1080,24 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     }
   }, [searchParams, autoAddProcessed, currentBusiness?.businessId, router])
 
+  // Auto-add bale from query parameters (from barcode scanner modal "Add to Cart")
+  useEffect(() => {
+    const addBaleId = searchParams?.get('addBale')
+    if (!addBaleId || autoAddProcessed) return
+    setAutoAddProcessed(true)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/clothing/bales/${addBaleId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.success && data.data) addBaleToCart(data.data)
+        router.replace(window.location.pathname)
+      } catch (err) {
+        console.error('Error auto-adding bale:', err)
+      }
+    })()
+  }, [searchParams, autoAddProcessed, router])
+
   const handleReturn = (originalOrderId: string, reason: string) => {
     // In a real implementation, this would fetch the original order
     // and add items to cart with return flag
@@ -1096,10 +1114,25 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     setCart([...cart, returnItem])
   }
 
+  // How many items are free for a BOGO cart item
+  const bogoFreeCount = (item: CartItem) => {
+    if (!item.attributes?.bogoActive || !item.quantity) return 0
+    const ratio = item.attributes.bogoRatio ?? 1
+    return Math.floor(item.quantity / (ratio + 1)) * ratio
+  }
+
   const calculateSubtotal = () => {
     return cart.reduce((sum, item) => {
-      const itemPrice = item.price - (item.discount || 0)
-      return sum + (itemPrice * item.quantity)
+      const unitPrice = item.price - (item.discount || 0)
+      const freeItems = bogoFreeCount(item)
+      return sum + (unitPrice * (item.quantity - freeItems))
+    }, 0)
+  }
+
+  const calculateBogoSavings = () => {
+    return cart.reduce((sum, item) => {
+      const unitPrice = item.price - (item.discount || 0)
+      return sum + bogoFreeCount(item) * unitPrice
     }, 0)
   }
 
@@ -1264,13 +1297,21 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         transactionDate: new Date(),
         salespersonName: session?.user?.name || 'Staff',
         salespersonId: session?.user?.id || employeeId || '',
-        items: cart.map(item => ({
-          name: `${item.name}${item.attributes?.size ? ` (${item.attributes.size})` : ''}${item.attributes?.color ? ` - ${item.attributes.color}` : ''}`,
-          sku: item.sku,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          totalPrice: item.price * item.quantity - (item.discount || 0)
-        })),
+        items: cart.map(item => {
+          const freeQty = bogoFreeCount(item)
+          const paidQty = item.quantity - freeQty
+          const unitPrice = item.price - (item.discount || 0)
+          return {
+            name: `${item.name}${item.attributes?.size ? ` (${item.attributes.size})` : ''}${item.attributes?.color ? ` - ${item.attributes.color}` : ''}`,
+            sku: item.sku,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: unitPrice * paidQty,
+            notes: freeQty > 0
+              ? `[BOGO ${(item.attributes?.bogoRatio ?? 1) === 2 ? '1+2' : '1+1'}] ${freeQty} item${freeQty > 1 ? 's' : ''} free`
+              : undefined,
+          }
+        }),
         subtotal: totals.subtotal,
         tax: totals.tax,
         discount: totals.discount,
@@ -1903,8 +1944,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   item.isReturn ? 'bg-red-50 border-red-200 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                 }`}>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">
-                      {item.name || (item as any).product?.name || (item as any).productName || 'Unknown Item'}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium text-sm truncate">
+                        {item.name || (item as any).product?.name || (item as any).productName || 'Unknown Item'}
+                      </span>
+                      {item.attributes?.bogoActive && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300 flex-shrink-0">
+                          🎁 BOGO {(item.attributes.bogoRatio ?? 1) === 2 ? '1+2' : '1+1'}
+                        </span>
+                      )}
                     </div>
                     {(item.attributes?.size || item.attributes?.color || item.variant?.name || item.sku || item.isReturn) && (
                       <div className="text-xs text-secondary truncate">
@@ -1915,7 +1963,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                         {item.isReturn && item.returnReason && ` · ${item.returnReason}`}
                       </div>
                     )}
-                    <div className="flex items-center gap-1.5 mt-1">
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <input
                         type="number"
                         min="1"
@@ -1924,11 +1972,16 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                         className="w-12 px-1.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
                       />
                       <span className="text-xs text-secondary">× {formatCurrency(item.price - (item.discount || 0))}</span>
+                      {bogoFreeCount(item) > 0 && (
+                        <span className="text-[10px] text-pink-600 dark:text-pink-400 font-medium">
+                          ({bogoFreeCount(item)} free)
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 flex-shrink-0 pt-0.5">
                     <span className="font-bold text-sm min-w-[56px] text-right">
-                      {formatCurrency((item.price - (item.discount || 0)) * item.quantity)}
+                      {formatCurrency((item.price - (item.discount || 0)) * (item.quantity - bogoFreeCount(item)))}
                     </span>
                     <button
                       type="button"
@@ -1953,6 +2006,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 <span>Subtotal:</span>
                 <span>{formatCurrency(calculateSubtotal())}</span>
               </div>
+              {calculateBogoSavings() > 0 && (
+                <div className="flex justify-between text-pink-600 dark:text-pink-400 text-sm">
+                  <span>🎁 BOGO savings:</span>
+                  <span>-{formatCurrency(calculateBogoSavings())}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>
                   {businessConfig.taxLabel || 'Tax'}

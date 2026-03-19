@@ -33,6 +33,8 @@ interface BusinessInventory {
   remainingCount?: number
   itemCount?: number
   sku?: string
+  bogoActive?: boolean
+  bogoRatio?: number
 }
 
 interface ScannedCustomer {
@@ -275,7 +277,16 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
             variantName: biz.variantName,
             description: biz.description,
             productAttributes: biz.productAttributes || {},
-            variantAttributes: biz.variantAttributes || {}
+            variantAttributes: biz.variantAttributes || {},
+            isBale: biz.isBale,
+            baleId: biz.baleId,
+            batchNumber: biz.batchNumber,
+            categoryName: biz.categoryName,
+            remainingCount: biz.remainingCount,
+            itemCount: biz.itemCount,
+            sku: biz.sku,
+            bogoActive: biz.bogoActive,
+            bogoRatio: biz.bogoRatio,
           })
         })
       }
@@ -316,6 +327,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                   itemCount: currentBizMatch.itemCount,
                   category: { name: currentBizMatch.categoryName },
                   categoryName: currentBizMatch.categoryName,
+                  bogoActive: currentBizMatch.bogoActive,
+                  bogoRatio: currentBizMatch.bogoRatio,
                 },
               })
             )
@@ -502,7 +515,9 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
     const firstAccessible = businesses.find(biz => biz.hasAccess)
     if (!firstAccessible || !firstAccessible.productId) return
 
-    const url = `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addProduct=${firstAccessible.productId}${firstAccessible.variantId ? `&variantId=${firstAccessible.variantId}` : ''}`
+    const url = firstAccessible.isBale
+      ? `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addBale=${firstAccessible.baleId}`
+      : `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addProduct=${firstAccessible.productId}${firstAccessible.variantId ? `&variantId=${firstAccessible.variantId}` : ''}`
     const currentBusinessId = localStorage.getItem('currentBusinessId')
 
     if (currentBusinessId && currentBusinessId !== firstAccessible.businessId) {
@@ -983,6 +998,11 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                         }`}>
                           {business.businessType}
                         </span>
+                        {business.bogoActive && (
+                          <span className="text-xs px-2 py-1 rounded font-semibold bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300">
+                            🎁 BOGO {business.bogoRatio === 2 ? '1+2' : '1+1'}
+                          </span>
+                        )}
                         {business.isInformational && (
                           <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
                             View Only
@@ -1035,7 +1055,9 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                           onClick={(e) => {
                             e.stopPropagation()
                             if (business.productId) {
-                              const url = `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}`
+                              const url = business.isBale
+                                ? `/${business.businessType}/pos?businessId=${business.businessId}&addBale=${business.baleId}`
+                                : `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}`
                               const currentBusinessId = localStorage.getItem('currentBusinessId')
                               if (currentBusinessId && currentBusinessId !== business.businessId) {
                                 setPendingNavigation({ url, business })

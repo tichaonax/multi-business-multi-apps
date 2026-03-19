@@ -88,7 +88,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
               <span className="flex-1 text-right">${Number(item.totalPrice).toFixed(2)}</span>
             </div>
             {item.notes && (
-              <div className="text-[10px] text-gray-600 italic mt-0.5 ml-1">{item.notes}</div>
+              <div className={`text-[10px] mt-0.5 ml-1 ${item.notes.startsWith('[BOGO') ? 'text-pink-600 font-medium' : 'text-gray-600 italic'}`}>{item.notes}</div>
             )}
           </div>
         ))}
