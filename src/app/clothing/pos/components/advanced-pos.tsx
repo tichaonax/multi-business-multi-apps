@@ -1507,9 +1507,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         </div>
       )}
 
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6 items-start p-2 lg:p-4">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 p-2 lg:p-4">
       {/* Main POS Interface */}
-      <div className="xl:col-span-2 space-y-6">
+      <div className="lg:col-span-2 space-y-6">
         {/* Compact mode bar + search — single row */}
         <div className={`p-2 rounded-lg border ${getModeColor()}`}>
           <div className="flex items-center gap-2">
@@ -1907,10 +1907,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         )}
       </div>
 
-      {/* Cart and Checkout */}
-      <div className="sticky top-20 self-start flex flex-col gap-3 max-h-[calc(100vh-5.5rem)]">
-        {/* Customer lookup — shrink-0 so it never gets clipped */}
-        <div className="card p-4 shrink-0">
+      {/* Cart and Checkout — single sticky card matching restaurant POS pattern */}
+      <div className="card p-4 sticky top-20 self-start">
+        {/* Customer lookup */}
+        <div className="mb-4">
           <CustomerLookup
             businessId={businessId}
             selectedCustomer={customerInfo}
@@ -1920,20 +1920,20 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           />
         </div>
 
-        {/* Cart — flex-1 so it takes remaining space, items scroll inside */}
-        <div className="card p-4 flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-4 shrink-0">
-            <h3 className="font-semibold text-primary">Cart ({cart.length})</h3>
-            <button
-              type="button"
-              onClick={() => setCart([])}
-              className="text-sm text-red-600 hover:text-red-700"
-            >
-              Clear All
-            </button>
-          </div>
+        {/* Cart header */}
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-primary">Cart ({cart.length})</h3>
+          <button
+            type="button"
+            onClick={() => setCart([])}
+            className="text-sm text-red-600 hover:text-red-700"
+          >
+            Clear All
+          </button>
+        </div>
 
-          <div className="space-y-1.5 overflow-y-auto flex-1 min-h-0 pr-1">
+        {/* Cart items — scrollable with fixed max height */}
+        <div className="space-y-1.5 overflow-y-auto max-h-[40vh] pr-1 mb-4">
             {cart.length === 0 ? (
               <div className="text-center py-6 text-secondary text-sm">
                 Cart is empty
@@ -1995,13 +1995,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 </div>
               ))
             )}
-          </div>
         </div>
 
-        {/* Totals — shrink-0 so always visible at bottom */}
+        {/* Totals */}
         {cart.length > 0 ? (
-          <div className="card p-4 shrink-0">
-            <div className="space-y-2">
+          <div>
+            <div className="space-y-2 border-t pt-3">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
                 <span>{formatCurrency(calculateSubtotal())}</span>
