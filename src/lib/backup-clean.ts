@@ -1002,6 +1002,11 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  const clothingBaleIds = businessData.clothingBales.map((b: any) => b.id)
+  businessData.clothingBaleBogoHistory = await prisma.clothingBaleBogoHistory.findMany({
+    where: { baleId: { in: clothingBaleIds } }
+  })
+
   // 31. Outgoing loans (disbursed from expense/payroll accounts)
   businessData.accountOutgoingLoans = await prisma.accountOutgoingLoans.findMany({
     where: { createdBy: { in: userIds } }

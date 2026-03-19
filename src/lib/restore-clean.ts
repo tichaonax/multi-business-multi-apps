@@ -157,6 +157,7 @@ const RESTORE_ORDER = [
   'productPriceChanges',      // Product price audit trail
   'clothingBaleCategories',   // No FK dependencies (reference table)
   'clothingBales',            // Depends on businesses, clothingBaleCategories, employees
+  'clothingBaleBogoHistory',  // Depends on clothingBales, users
 
   // Customers and orders
   'businessCustomers',
