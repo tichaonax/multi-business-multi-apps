@@ -8,22 +8,44 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
 import { generatePaymentBatchVoucher } from '@/lib/pdf-utils'
 
+interface CashBucketAllocation { accountName: string; amount: number }
+interface CashBucketBreakdown {
+  cashBalance: number
+  ecocashBalance: number
+  physicalCash: number
+  allocatedTotal: number
+  allocations: CashBucketAllocation[]
+}
+
 function useBusinessBalances(businessId: string) {
   const [cashBalance, setCashBalance] = useState<number | null>(null)
   const [ecocashBalance, setEcocashBalance] = useState<number | null>(null)
   const [salesBalance, setSalesBalance] = useState<number | null>(null)
+  const [bucketBreakdown, setBucketBreakdown] = useState<CashBucketBreakdown | null>(null)
+  const [bucketLoading, setBucketLoading] = useState(true)
 
   useEffect(() => {
     if (!businessId) return
     // Cash + EcoCash bucket
+    setBucketLoading(true)
     fetch(`/api/cash-bucket?businessId=${businessId}`, { credentials: 'include' })
       .then(r => r.json())
       .then(j => {
         const biz = j.data?.balances?.find((b: any) => b.businessId === businessId)
         setCashBalance(biz?.cashBalance ?? 0)
         setEcocashBalance(biz?.ecocashBalance ?? 0)
+        if (biz) {
+          setBucketBreakdown({
+            cashBalance: biz.cashBalance ?? 0,
+            ecocashBalance: biz.ecocashBalance ?? 0,
+            physicalCash: biz.physicalCash ?? 0,
+            allocatedTotal: biz.allocatedTotal ?? 0,
+            allocations: biz.allocations ?? [],
+          })
+        }
       })
       .catch(() => { setCashBalance(null); setEcocashBalance(null) })
+      .finally(() => setBucketLoading(false))
     // Sales / business account balance
     fetch(`/api/business/balance/${businessId}`, { credentials: 'include' })
       .then(r => r.json())
@@ -31,7 +53,7 @@ function useBusinessBalances(businessId: string) {
       .catch(() => setSalesBalance(null))
   }, [businessId])
 
-  return { cashBalance, ecocashBalance, salesBalance }
+  return { cashBalance, ecocashBalance, salesBalance, bucketBreakdown, bucketLoading }
 }
 
 interface BatchPayment {
@@ -52,6 +74,7 @@ interface BatchPayment {
   notes: string | null
   paymentChannel?: string
   priority?: string
+  paymentType?: string
   creator: { id: string; name: string } | null
   createdAt: string
 }
@@ -112,7 +135,8 @@ export default function BatchReviewPage() {
   const [adHocAccounts, setAdHocAccounts] = useState<{ id: string; accountName: string }[]>([])
   const [addingAdHoc, setAddingAdHoc] = useState(false)
 
-  const { cashBalance: cashBoxBalance, ecocashBalance, salesBalance } = useBusinessBalances(batch?.business?.id ?? '')
+  const [showBucketModal, setShowBucketModal] = useState(false)
+  const { cashBalance: cashBoxBalance, ecocashBalance, salesBalance, bucketBreakdown, bucketLoading } = useBusinessBalances(batch?.business?.id ?? '')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -162,6 +186,21 @@ export default function BatchReviewPage() {
   const totalCashApproved = approvedPayments.filter(p => p.paymentChannel !== 'ECOCASH').reduce((s, p) => s + p.amount, 0)
   const totalEcocashApproved = approvedPayments.filter(p => p.paymentChannel === 'ECOCASH').reduce((s, p) => s + p.amount, 0)
   const allDecided = undecidedPayments.length === 0 && pendingPayments.length > 0
+
+  // For each RENT_PAYMENT, check if the CASH_ALLOCATION earmark covers the amount.
+  // Returns { earmarked, required, shortfall } if blocked, null if ok.
+  function getRentBlock(p: BatchPayment): { earmarked: number; required: number; shortfall: number } | null {
+    if (p.paymentType !== 'RENT_PAYMENT') return null
+    if (!bucketBreakdown) return null
+    const accountName = p.expenseAccount?.accountName
+    if (!accountName) return null
+    const earmark = bucketBreakdown.allocations.find(a => a.accountName === accountName)
+    const earmarked = earmark?.amount ?? 0
+    if (earmarked < p.amount) {
+      return { earmarked, required: p.amount, shortfall: p.amount - earmarked }
+    }
+    return null
+  }
 
   function setApprove(id: string) {
     setApproved(prev => new Set([...prev, id]))
@@ -243,6 +282,7 @@ export default function BatchReviewPage() {
   const isLocked = batch.status !== 'PENDING_REVIEW'
 
   return (
+    <>
     <ContentLayout
       title={isLocked ? '✅ Batch Reviewed' : '🔍 Review Payment Batch'}
       breadcrumb={[
@@ -278,8 +318,14 @@ export default function BatchReviewPage() {
           {batch.business?.id && (
             <>
               <div>
-                <p className="text-gray-500 dark:text-gray-400">💵 Cash Bucket</p>
-                <span className={`font-medium ${cashBoxBalance !== null && cashBoxBalance < batch.payments.filter(p => p.status === 'PENDING_APPROVAL' && p.paymentChannel !== 'ECOCASH').reduce((s, p) => s + p.amount, 0) ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                <button
+                  type="button"
+                  onClick={() => bucketBreakdown && setShowBucketModal(true)}
+                  className="text-gray-500 dark:text-gray-400 underline decoration-dotted hover:text-gray-700 dark:hover:text-gray-200 transition-colors text-left"
+                >
+                  💵 Cash Bucket
+                </button>
+                <span className={`block font-medium ${cashBoxBalance !== null && cashBoxBalance < batch.payments.filter(p => p.status === 'PENDING_APPROVAL' && p.paymentChannel !== 'ECOCASH').reduce((s, p) => s + p.amount, 0) ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                   {cashBoxBalance === null ? 'Loading…' : fmt(cashBoxBalance)}
                 </span>
               </div>
@@ -440,6 +486,8 @@ export default function BatchReviewPage() {
                 const catLabel = p.category ? `${p.category.emoji ?? ''} ${p.category.name}`.trim() : ''
                 const isEcocash = p.paymentChannel === 'ECOCASH'
                 const isUrgent = p.priority === 'URGENT'
+                const isRentPayment = p.paymentType === 'RENT_PAYMENT'
+                const rentBlock = getRentBlock(p)
 
                 return (
                   <div key={p.id} className={`flex items-start gap-3 px-5 py-3 ${
@@ -493,11 +541,35 @@ export default function BatchReviewPage() {
                         {fmt(p.amount)}
                       </span>
                       {!isLocked && (
-                        <div className="flex gap-1">
+                        <div className="flex flex-col items-end gap-1">
+                          {isRentPayment && bucketLoading && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 animate-pulse">
+                              Checking allocation…
+                            </span>
+                          )}
+                          {rentBlock && (
+                            <div className="text-[10px] px-1.5 py-1 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-right max-w-[210px] space-y-0.5">
+                              <div>⚡ Insufficient rent allocation</div>
+                              <div>
+                                <span className="text-amber-600 dark:text-amber-400 font-bold">{fmt(rentBlock.earmarked)}</span>
+                                <span> earmarked of </span>
+                                <span className="text-blue-600 dark:text-blue-400 font-bold">{fmt(rentBlock.required)}</span>
+                              </div>
+                              <div>
+                                <span>shortfall </span>
+                                <span className="text-red-600 dark:text-red-400 font-bold">{fmt(rentBlock.shortfall)}</span>
+                              </div>
+                            </div>
+                          )}
+                          <div className="flex gap-1">
                           <button
-                            onClick={() => setApprove(p.id)}
+                            onClick={() => !rentBlock && !bucketLoading && setApprove(p.id)}
+                            disabled={!!rentBlock || (isRentPayment && bucketLoading)}
+                            title={rentBlock ? `Shortfall: ${fmt(rentBlock.shortfall)}` : (isRentPayment && bucketLoading ? 'Checking rent allocation…' : undefined)}
                             className={`px-2.5 py-1 text-xs font-semibold rounded border transition-colors ${
-                              isApprovedDecision
+                              rentBlock || (isRentPayment && bucketLoading)
+                                ? 'border-gray-300 text-gray-400 dark:text-gray-600 bg-gray-100 dark:bg-gray-800 cursor-not-allowed'
+                                : isApprovedDecision
                                 ? 'bg-green-600 text-white border-green-600'
                                 : 'border-green-400 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
                             }`}
@@ -514,6 +586,7 @@ export default function BatchReviewPage() {
                           >
                             ✗ Reject
                           </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -619,5 +692,50 @@ export default function BatchReviewPage() {
         </div>
       </div>
     </ContentLayout>
+
+    {/* Cash Bucket Breakdown Modal */}
+    {showBucketModal && bucketBreakdown && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowBucketModal(false)}>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">💵 Cash Bucket Breakdown</h3>
+            <button onClick={() => setShowBucketModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none">✕</button>
+          </div>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between font-semibold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 pb-2">
+              <span>Physical cash to count</span>
+              <span className="text-green-600 dark:text-green-400">{fmt(bucketBreakdown.physicalCash)}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-600 dark:text-gray-400">
+              <span className="flex items-center gap-1"><span className="text-green-500">✅</span> Free / available</span>
+              <span className="font-medium text-green-600 dark:text-green-400">{fmt(bucketBreakdown.cashBalance)}</span>
+            </div>
+            {bucketBreakdown.allocations.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between text-gray-600 dark:text-gray-400 mb-1">
+                  <span className="flex items-center gap-1"><span>🔒</span> Earmarked ({bucketBreakdown.allocations.length} items)</span>
+                  <span className="font-medium text-amber-600 dark:text-amber-400">{fmt(bucketBreakdown.allocatedTotal)}</span>
+                </div>
+                <div className="pl-4 space-y-1 border-l-2 border-amber-200 dark:border-amber-700">
+                  {bucketBreakdown.allocations.map((a, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                      <span className="truncate pr-2">└ {a.accountName}</span>
+                      <span className="shrink-0 font-medium">{fmt(a.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {bucketBreakdown.ecocashBalance > 0 && (
+              <div className="flex items-center justify-between text-gray-600 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2">
+                <span className="flex items-center gap-1"><span>📱</span> EcoCash wallet</span>
+                <span className="font-medium text-purple-600 dark:text-purple-400">{fmt(bucketBreakdown.ecocashBalance)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

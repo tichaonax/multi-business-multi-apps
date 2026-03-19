@@ -276,7 +276,7 @@ export async function GET() {
     // Includes QUEUED/REQUEST (pre-EOD) and PENDING_APPROVAL (picked up by EOD batch, awaiting cashier).
     const myQueuedGrouped = await prisma.expenseAccountPayments.groupBy({
       by: ['expenseAccountId', 'status'],
-      where: { status: { in: ['QUEUED', 'REQUEST', 'PENDING_APPROVAL'] }, createdBy: user.id },
+      where: { status: { in: ['QUEUED', 'REQUEST', 'PENDING_APPROVAL'] }, createdBy: user.id, paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_EXPENSE'] } },
       _count: { id: true },
       _sum: { amount: true },
     })
@@ -346,18 +346,23 @@ export async function GET() {
           eodDate: true,
           business: { select: { id: true, name: true, type: true } },
           _count: { select: { payments: true } },
-          payments: { select: { amount: true, paymentChannel: true } },
+          payments: { select: { amount: true, paymentChannel: true, paymentType: true } },
         },
         orderBy: { eodDate: 'asc' },
       })
-      // Compute totalAmount and per-channel counts per batch
-      pendingPaymentBatches = (pendingPaymentBatches as any[]).map((b: any) => ({
-        ...b,
-        totalAmount: (b.payments as any[]).reduce((s: number, p: any) => s + Number(p.amount), 0),
-        cashCount: (b.payments as any[]).filter((p: any) => p.paymentChannel !== 'ECOCASH').length,
-        ecocashCount: (b.payments as any[]).filter((p: any) => p.paymentChannel === 'ECOCASH').length,
-        payments: undefined,
-      }))
+      // Compute totalAmount and per-channel counts per batch, excluding LOAN_REPAYMENT entries
+      pendingPaymentBatches = (pendingPaymentBatches as any[])
+        .map((b: any) => {
+          const actionable = (b.payments as any[]).filter((p: any) => p.paymentType !== 'LOAN_REPAYMENT' && p.paymentType !== 'LOAN_EXPENSE')
+          return {
+            ...b,
+            totalAmount: actionable.reduce((s: number, p: any) => s + Number(p.amount), 0),
+            cashCount: actionable.filter((p: any) => p.paymentChannel !== 'ECOCASH').length,
+            ecocashCount: actionable.filter((p: any) => p.paymentChannel === 'ECOCASH').length,
+            payments: undefined,
+          }
+        })
+        .filter((b: any) => b.cashCount + b.ecocashCount > 0) // exclude batches with only loan repayments
 
       // Accounts with pending (QUEUED/REQUEST/SUBMITTED) payments awaiting cashier action
       // Exclude payments submitted by the current user — submitters should not see their own requests
@@ -365,7 +370,7 @@ export async function GET() {
       const pendingPaymentWhere = {
         status: { in: ['QUEUED', 'REQUEST', 'SUBMITTED'] },
         createdBy: { not: user.id },
-        paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_DISBURSEMENT', 'TRANSFER_OUT', 'TRANSFER_RETURN'] },
+        paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_EXPENSE', 'LOAN_DISBURSEMENT', 'TRANSFER_OUT', 'TRANSFER_RETURN'] },
       }
       const grouped = await prisma.expenseAccountPayments.groupBy({
         by: ['expenseAccountId', 'paymentChannel', 'priority'],

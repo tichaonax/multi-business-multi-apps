@@ -146,11 +146,60 @@ export async function GET(request: NextRequest) {
       allocMap.set(row.businessId, items)
     }
 
+    // PAYROLL_FUNDING outflow breakdown (current month) — payroll reserved in the box
+    const payrollRows = await prisma.cashBucketEntry.groupBy({
+      by: ['businessId'] as any,
+      where: {
+        entryType: 'PAYROLL_FUNDING',
+        direction: 'OUTFLOW',
+        deletedAt: null,
+        entryDate: { gte: startOfMonth },
+        ...(businessId && { businessId }),
+      },
+      _sum: { amount: true },
+    })
+    for (const row of payrollRows as any[]) {
+      const items = allocMap.get(row.businessId) ?? []
+      items.push({ accountName: 'Payroll Funding', amount: Number(row._sum.amount ?? 0) })
+      allocMap.set(row.businessId, items)
+    }
+
+    // PAYMENT_APPROVAL outflows this month — cash that already physically left the box.
+    // These reduce the earmarked display: earmarks that have been disbursed should clear.
+    const approvalRows = await prisma.cashBucketEntry.groupBy({
+      by: ['businessId'] as any,
+      where: {
+        entryType: 'PAYMENT_APPROVAL',
+        direction: 'OUTFLOW',
+        paymentChannel: 'CASH',
+        deletedAt: null,
+        entryDate: { gte: startOfMonth },
+        ...(businessId && { businessId }),
+      },
+      _sum: { amount: true },
+    })
+    const approvalMap = new Map<string, number>()
+    for (const row of approvalRows as any[]) {
+      approvalMap.set(row.businessId, Number(row._sum.amount ?? 0))
+    }
+
     const balances = businessIds.map((id) => {
       const { cashInflow, cashOutflow, ecocashInflow, ecocashOutflow } = map.get(id)!
       const cashBalance = cashInflow - cashOutflow
       const ecocashBalance = ecocashInflow - ecocashOutflow
-      const allocations = (allocMap.get(id) ?? []).sort((a, b) => b.amount - a.amount)
+
+      // Net earmarks against disbursements: reduce line items proportionally until paid amounts consumed
+      const rawAllocations = (allocMap.get(id) ?? []).sort((a, b) => b.amount - a.amount)
+      let remaining = approvalMap.get(id) ?? 0
+      const allocations = rawAllocations
+        .map((a) => {
+          if (remaining <= 0) return a
+          const reduction = Math.min(a.amount, remaining)
+          remaining -= reduction
+          return { ...a, amount: a.amount - reduction }
+        })
+        .filter((a) => a.amount > 0.009)
+
       const allocatedTotal = allocations.reduce((s, a) => s + a.amount, 0)
       return {
         businessId: id,

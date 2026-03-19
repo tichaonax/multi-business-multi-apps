@@ -3253,6 +3253,7 @@ model Users {
   loan_withdrawal_requests_rejected                               LoanWithdrawalRequest[]          @relation("WithdrawalRejector")
   loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]          @relation("WithdrawalPayer")
   app_notifications                                               AppNotification[]
+  bale_bogo_history                                               ClothingBaleBogoHistory[] @relation("BaleBogoHistoryUser")
 
   @@map("users")
 }
@@ -4823,9 +4824,27 @@ model ClothingBales {
   category                 ClothingBaleCategories   @relation(fields: [categoryId], references: [id])
   employee                 Employees?               @relation("BaleStockedBy", fields: [employeeId], references: [id])
   inventory_transfer_items InventoryTransferItems[]
+  bogoHistory              ClothingBaleBogoHistory[]
 
   @@unique([businessId, batchNumber])
   @@map("clothing_bales")
+}
+
+model ClothingBaleBogoHistory {
+  id             String        @id @default(cuid())
+  baleId         String
+  bale           ClothingBales @relation(fields: [baleId], references: [id])
+  changedBy      String
+  user           Users         @relation("BaleBogoHistoryUser", fields: [changedBy], references: [id])
+  action         String        // "ENABLED" | "RATIO_CHANGED"
+  previousActive Boolean?
+  newActive      Boolean
+  previousRatio  Int?
+  newRatio       Int
+  notes          String?
+  changedAt      DateTime      @default(now())
+
+  @@map("clothing_bale_bogo_history")
 }
 
 // ============================================================

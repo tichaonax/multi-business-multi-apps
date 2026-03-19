@@ -114,6 +114,44 @@ export async function POST(
       }
     }
 
+    // Verify sufficient rent-specific CASH_ALLOCATION earmark in the cash bucket.
+    // Rent payments must come from the portion of cash that was daily-earmarked for rent,
+    // not just from the total cash bucket balance.
+    const rentPaymentsToApprove = cashApproved.filter((p) => (p as any).paymentType === 'RENT_PAYMENT')
+    if (rentPaymentsToApprove.length > 0) {
+      const startOfMonth = new Date()
+      startOfMonth.setDate(1)
+      startOfMonth.setHours(0, 0, 0, 0)
+
+      for (const rentPayment of rentPaymentsToApprove) {
+        const accountName = (rentPayment as any).expenseAccount?.accountName
+        if (!accountName) continue
+
+        const earmarkAgg = await prisma.cashBucketEntry.aggregate({
+          where: {
+            businessId: batch.businessId,
+            entryType: 'CASH_ALLOCATION',
+            direction: 'OUTFLOW',
+            notes: accountName,
+            entryDate: { gte: startOfMonth },
+            deletedAt: null,
+          },
+          _sum: { amount: true },
+        })
+        const earmarked = Number(earmarkAgg._sum.amount ?? 0)
+        const required = Number(rentPayment.amount)
+
+        if (earmarked < required) {
+          return NextResponse.json(
+            {
+              error: `Insufficient rent allocation for "${accountName}". Only $${earmarked.toFixed(2)} has been earmarked from daily EOD cash allocations this month, but $${required.toFixed(2)} is required. More daily EOD allocations are needed before this rent payment can be approved.`,
+            },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
     // Verify sufficient EcoCash wallet balance (debit happens at Mark as Sent, but check now to prevent approval of undeliverable payments)
     if (ecocashApproved.length > 0) {
       const totalEcocashApproved = ecocashApproved.reduce((s, p) => s + Number(p.amount), 0)
@@ -169,6 +207,9 @@ export async function POST(
         for (const [accountId, accountPayments] of byCashAccount) {
           const accountTotal = accountPayments.reduce((s, p) => s + Number(p.amount), 0)
 
+          // Create BUSINESS deposit for all accounts (including rent).
+          // Rent accounts are funded exactly once at approval — the daily EOD no longer
+          // deposits into the expense account; only the cash bucket earmark is set.
           const deposit = await tx.expenseAccountDeposits.create({
             data: {
               expenseAccountId: accountId,
@@ -180,6 +221,7 @@ export async function POST(
               createdBy: user.id,
             },
           })
+          const depositId = deposit.id
 
           const batchSub = await tx.paymentBatchSubmissions.create({
             data: {
@@ -188,7 +230,7 @@ export async function POST(
               submittedBy: user.id,
               submittedAt: now,
               totalAmount: accountTotal,
-              depositId: deposit.id,
+              depositId: depositId,
               paymentCount: accountPayments.length,
               notes: notes?.trim() || null,
             },

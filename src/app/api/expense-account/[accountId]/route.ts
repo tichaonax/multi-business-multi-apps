@@ -97,14 +97,16 @@ export async function GET(
           ...(
             account.accountType === 'RENT' && account.businessId
               ? await prisma.businessRentConfig.findFirst({
-                  where: { expenseAccountId: accountId, isActive: true },
+                  where: { businessId: account.businessId!, isActive: true },
                   select: {
                     landlordSupplierId: true,
                     landlordSupplier: { select: { name: true } },
+                    monthlyRentAmount: true,
                   },
                 }).then(rc => ({
                   landlordSupplierId: rc?.landlordSupplierId ?? null,
                   landlordSupplierName: rc?.landlordSupplier?.name ?? null,
+                  monthlyRentAmount: rc ? Number(rc.monthlyRentAmount) : null,
                 }))
               : { landlordSupplierId: null, landlordSupplierName: null }
           ),

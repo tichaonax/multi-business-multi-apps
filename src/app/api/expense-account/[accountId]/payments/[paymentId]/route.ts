@@ -308,6 +308,14 @@ export async function PATCH(
       )
     }
 
+    // Rent payments are immutable once submitted — only cancellation is allowed
+    if (existingPayment.paymentType === 'RENT_PAYMENT' && existingPayment.status !== 'DRAFT') {
+      return NextResponse.json(
+        { error: 'Rent payments cannot be edited after submission. Cancel and re-request if needed.' },
+        { status: 403 }
+      )
+    }
+
     // Check if within edit window (5 days for non-admins)
     const editWindowCheck = isWithinEditWindow(existingPayment.createdAt, isAdmin)
     if (!editWindowCheck.allowed) {

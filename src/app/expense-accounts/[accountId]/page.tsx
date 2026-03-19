@@ -47,6 +47,7 @@ interface ExpenseAccount {
   // Landlord info for RENT accounts
   landlordSupplierId?: string | null
   landlordSupplierName?: string | null
+  monthlyRentAmount?: number | null
 }
 
 // ─── Recent Deposits Panel ──────────────────────────────────────────────────
@@ -619,6 +620,8 @@ export default function ExpenseAccountDetailPage() {
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
   const [pendingBatchCount, setPendingBatchCount] = useState(0)
   const [pendingBatchCountOthers, setPendingBatchCountOthers] = useState(0)
+  const [rentPaymentSubmitting, setRentPaymentSubmitting] = useState(false)
+  const [rentPaidThisMonth, setRentPaidThisMonth] = useState(false)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness, businesses } = useBusinessPermissionsContext()
@@ -652,6 +655,18 @@ export default function ExpenseAccountDetailPage() {
     }
   }, [session, accountId])
 
+  // Re-check rent payment status when the user returns to this tab (e.g. after cancelling from another page)
+  useEffect(() => {
+    if (!accountId) return
+    const handleVisibility = () => {
+      if (!document.hidden && session?.user) {
+        loadAccount()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [accountId, session])
+
   const loadAccount = async () => {
     try {
       setLoading(true)
@@ -661,7 +676,21 @@ export default function ExpenseAccountDetailPage() {
 
       if (response.ok) {
         const data = await response.json()
-        setAccount(data.data.account)
+        const acct = data.data.account
+        setAccount(acct)
+        // Check if a rent payment was already made this month (for RENT accounts)
+        if (acct?.accountType === 'RENT') {
+          const now = new Date()
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+          const paymentsRes = await fetch(
+            `/api/expense-account/${accountId}/payment-requests?startDate=${monthStart}&limit=1`,
+            { credentials: 'include' }
+          )
+          if (paymentsRes.ok) {
+            const pd = await paymentsRes.json()
+            setRentPaidThisMonth((pd.data?.length ?? pd.data?.items?.length ?? 0) > 0)
+          }
+        }
       } else {
         router.push('/expense-accounts')
       }
@@ -732,6 +761,41 @@ export default function ExpenseAccountDetailPage() {
 
   const handleRefresh = () => {
     loadAccount()
+  }
+
+  // One-click rent payment request — always for the full configured monthly rent
+  const handleRentPaymentRequest = async () => {
+    if (!account || rentPaymentSubmitting) return
+    const monthlyRent = account.monthlyRentAmount
+    if (!monthlyRent || monthlyRent <= 0) return
+    setRentPaymentSubmitting(true)
+    try {
+      const body: any = {
+        amount: monthlyRent,
+        paymentType: 'RENT_PAYMENT',
+        payeeType: account.landlordSupplierId ? 'SUPPLIER' : 'NONE',
+        ...(account.landlordSupplierId && { payeeSupplierId: account.landlordSupplierId }),
+        notes: `Rent payment — ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}`,
+      }
+      const res = await fetch(`/api/expense-account/${accountId}/payments`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        await alert({ title: 'Error', description: json.error ?? 'Failed to submit rent payment request' })
+        return
+      }
+      setRentPaidThisMonth(true)
+      await loadAccount()
+      setPaymentRefreshKey(k => k + 1)
+    } catch (e: any) {
+      await alert({ title: 'Error', description: e.message ?? 'Failed to submit rent payment request' })
+    } finally {
+      setRentPaymentSubmitting(false)
+    }
   }
 
   const handleDepositSuccess = () => {
@@ -844,14 +908,30 @@ export default function ExpenseAccountDetailPage() {
                 + Deposit
               </button>
             )}
-            {canMakeExpensePayments && (
+            {canMakeExpensePayments && account?.accountType === 'RENT' ? (
+              // Rent accounts: one-click request for the full accumulated balance
+              rentPaidThisMonth ? (
+                <span className="px-2.5 py-1 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                  ✓ Rent requested this month
+                </span>
+              ) : (
+                <button
+                  onClick={handleRentPaymentRequest}
+                  disabled={rentPaymentSubmitting || !account || !account.monthlyRentAmount || account.monthlyRentAmount <= 0}
+                  title={`Request full monthly rent ($${account?.monthlyRentAmount?.toFixed(2) ?? '…'})`}
+                  className="px-2.5 py-1 bg-orange-600 text-white rounded text-xs font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {rentPaymentSubmitting ? 'Requesting…' : `🏠 Request Rent $${account?.monthlyRentAmount?.toFixed(2) ?? '…'}`}
+                </button>
+              )
+            ) : canMakeExpensePayments ? (
               <button
                 onClick={() => setShowQuickPaymentModal(true)}
                 className="px-2.5 py-1 bg-orange-600 text-white rounded text-xs font-medium hover:bg-orange-700"
               >
                 + Payment
               </button>
-            )}
+            ) : null}
             {canMakeExpensePayments && account.accountType !== 'RENT' && (
               <button
                 onClick={() => setShowSmartQuickPayModal(true)}

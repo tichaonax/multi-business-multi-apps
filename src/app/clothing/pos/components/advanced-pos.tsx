@@ -115,6 +115,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [printReceipt, setPrintReceipt] = useState(true)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
+  const [scanResetKey, setScanResetKey] = useState(0)
   const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
   const [autoAddProcessed, setAutoAddProcessed] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
@@ -975,7 +976,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         const res = await fetch(`/api/universal/products/${productId}`)
         if (!res.ok) return
         const data = await res.json()
-        if (data) addToCartFromScanner(data, variantId, 1)
+        if (data?.data) addToCartFromScanner(data.data, variantId, 1)
       } catch (err) {
         console.error('[Clothing POS] pos:add-to-cart handler error:', err)
       }
@@ -1810,6 +1811,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           businessId={currentBusiness?.businessId || ''}
           showScanner={showBarcodeScanner}
           onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
+          scanResetKey={scanResetKey}
         />
         {quickStockBarcode && (
           <QuickStockFromScanModal
@@ -1822,11 +1824,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             onSuccess={async (productId, variantId) => {
               setQuickStockBarcode(null)
               setQuickStockExistingProduct(null)
+              setScanResetKey((k) => k + 1) // reset scanner dedupe so rescan finds new product
               try {
                 const res = await fetch(`/api/universal/products/${productId}`)
                 if (res.ok) {
                   const data = await res.json()
-                  addToCartFromScanner(data, variantId, 1)
+                  addToCartFromScanner(data.data ?? data, variantId, 1)
                 }
               } catch {
                 // Product stocked — user can scan again to add to cart

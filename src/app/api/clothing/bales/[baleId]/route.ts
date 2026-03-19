@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 // GET /api/clothing/bales/[baleId]
 export async function GET(
@@ -43,6 +44,9 @@ export async function PUT(
   { params }: { params: Promise<{ baleId: string }> }
 ) {
   try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+
     const { baleId } = await params
     const data = await request.json()
 
@@ -55,6 +59,27 @@ export async function PUT(
         success: false,
         error: 'Bale not found'
       }, { status: 404 })
+    }
+
+    // BOGO irreversibility guards
+    if (data.bogoActive !== undefined) {
+      const newActive = Boolean(data.bogoActive)
+      if (existing.bogoActive && !newActive) {
+        return NextResponse.json({
+          success: false,
+          error: 'Cannot deactivate BOGO once it has been enabled on a bale'
+        }, { status: 400 })
+      }
+    }
+
+    if (data.bogoRatio !== undefined) {
+      const newRatio = Number(data.bogoRatio)
+      if (newRatio < existing.bogoRatio) {
+        return NextResponse.json({
+          success: false,
+          error: `Cannot reduce BOGO ratio from ${existing.bogoRatio} to ${newRatio} — ratio can only increase`
+        }, { status: 400 })
+      }
     }
 
     // Build update payload — only include fields that were sent
@@ -106,6 +131,25 @@ export async function PUT(
         employee: { select: { firstName: true, lastName: true } }
       }
     })
+
+    // Record BOGO history if bogoActive or bogoRatio changed
+    const bogoActiveChanged = data.bogoActive !== undefined && Boolean(data.bogoActive) !== existing.bogoActive
+    const bogoRatioChanged = data.bogoRatio !== undefined && Number(data.bogoRatio) !== existing.bogoRatio
+
+    if (bogoActiveChanged || bogoRatioChanged) {
+      const action = bogoActiveChanged && Boolean(data.bogoActive) ? 'ENABLED' : 'RATIO_CHANGED'
+      await prisma.clothingBaleBogoHistory.create({
+        data: {
+          baleId,
+          changedBy: user.id,
+          action,
+          previousActive: existing.bogoActive,
+          newActive: bale.bogoActive,
+          previousRatio: existing.bogoRatio,
+          newRatio: bale.bogoRatio,
+        },
+      })
+    }
 
     return NextResponse.json({
       success: true,

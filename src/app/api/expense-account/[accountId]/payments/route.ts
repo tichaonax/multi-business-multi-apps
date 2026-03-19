@@ -294,11 +294,13 @@ export async function POST(
     // Duplicate rent payment guard: if this is a RENT account and it's a single
     // (non-batch) payment, check for an existing payment in the current calendar month.
     if (!Array.isArray(body.payments)) {
-      const isRentAccount = await prisma.businessRentConfig.findFirst({
-        where: { expenseAccountId: accountId, isActive: true },
-        select: { id: true },
-      })
-      if (isRentAccount) {
+      const rentConfig = account.businessId
+        ? await prisma.businessRentConfig.findFirst({
+            where: { businessId: account.businessId, isActive: true },
+            select: { id: true },
+          })
+        : null
+      if (rentConfig) {
         const now = new Date()
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
@@ -306,6 +308,7 @@ export async function POST(
           where: {
             expenseAccountId: accountId,
             paymentDate: { gte: monthStart, lte: monthEnd },
+            status: { notIn: ['CANCELLED', 'REJECTED'] },
           },
           select: { id: true, paymentDate: true, amount: true },
         })
@@ -315,6 +318,31 @@ export async function POST(
               error: `A rent payment of ${existingPayment.amount} was already recorded this month (${existingPayment.paymentDate.toLocaleDateString('en-GB')}). To record another payment, use the full expense account page.`,
               isDuplicateRentPayment: true,
               existingPayment,
+            },
+            { status: 400 }
+          )
+        }
+
+        // Full-amount enforcement: rent payments must always be for the full configured monthly rent
+        const rentConfigFull = account.businessId
+          ? await prisma.businessRentConfig.findFirst({
+              where: { businessId: account.businessId, isActive: true },
+              select: { monthlyRentAmount: true },
+            })
+          : null
+        const monthlyRent = Number(rentConfigFull?.monthlyRentAmount ?? 0)
+        const requestedAmount = Number(body.amount)
+        if (monthlyRent <= 0) {
+          return NextResponse.json(
+            { error: 'Rent configuration not found or monthly rent amount is not set.' },
+            { status: 400 }
+          )
+        }
+        if (Math.abs(requestedAmount - monthlyRent) > 0.01) {
+          return NextResponse.json(
+            {
+              error: `Rent payments must be for the full configured monthly rent ($${monthlyRent.toFixed(2)}). Partial rent payments are not allowed.`,
+              requiredAmount: monthlyRent,
             },
             { status: 400 }
           )
@@ -388,7 +416,7 @@ export async function POST(
         )
       }
 
-      const isClassifiedPayment = payment.paymentType === 'LOAN_REPAYMENT' || payment.paymentType === 'TRANSFER_RETURN'
+      const isClassifiedPayment = payment.paymentType === 'LOAN_REPAYMENT' || payment.paymentType === 'TRANSFER_RETURN' || payment.paymentType === 'RENT_PAYMENT'
       if (!payment.categoryId && !isClassifiedPayment) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Category ID is required`, index: i },
@@ -871,7 +899,10 @@ export async function POST(
     })
 
     // Notify reviewers + submitter of new payment request
+    // LOAN_REPAYMENT payments are record-keeping only — no cashier action needed, skip notifications
+    const isAllLoanRepayment = paymentsToCreate.every((p: any) => p.paymentType === 'LOAN_REPAYMENT' || p.paymentType === 'LOAN_EXPENSE')
     try {
+      if (isAllLoanRepayment) throw new Error('skip') // jump to catch (non-critical)
       const hasUrgent = paymentsToCreate.some((p: any) => p.priority === 'URGENT')
       const channels = [...new Set(paymentsToCreate.map((p: any) => p.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'))]
       const channelStr = channels.join(' & ')

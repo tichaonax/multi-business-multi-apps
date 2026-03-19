@@ -20,6 +20,8 @@ interface BarcodeScannerProps {
   onProductNeedsActivation?: (product: UniversalProduct, barcode: string, variantId?: string) => void
   /** Called when a bale barcode is scanned — passes the bale lookup data */
   onBaleScanned?: (baleData: any) => void
+  /** Increment to reset the dedupe cache (allows immediate rescan after new product registration) */
+  scanResetKey?: number
 }
 
 interface BarcodeMapping {
@@ -40,6 +42,7 @@ export function BarcodeScanner({
   onNotFound,
   onProductNeedsActivation,
   onBaleScanned,
+  scanResetKey,
 }: BarcodeScannerProps) {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null)
@@ -80,6 +83,13 @@ export function BarcodeScanner({
       setInternalShow((s) => !s)
     }
   }
+
+  // Reset dedupe cache when parent signals a new product was registered
+  useEffect(() => {
+    if (scanResetKey === undefined) return
+    lastQueriedBarcodeRef.current = null
+    lastQueriedAtRef.current = 0
+  }, [scanResetKey])
 
   // Debug logging
   useEffect(() => {

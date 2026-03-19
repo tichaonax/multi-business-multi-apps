@@ -75,6 +75,12 @@ export default function CashBucketPage() {
   const confirm = useConfirm()
   const alert = useAlert()
 
+  const sessionUser = (session?.user as any)
+  const currentUserId: string | undefined = sessionUser?.id
+  const isAdmin: boolean = sessionUser?.role === 'admin'
+  // canDeleteCashBucketEntry: true if admin, or if the permission is in the session permissions object
+  const canDeleteBucketEntry: boolean = isAdmin || (sessionUser?.permissions?.canDeleteCashBucketEntry === true)
+
   const [totalBalance, setTotalBalance] = useState(0)
   const [totalAllocated, setTotalAllocated] = useState(0)
   const [totalPhysicalCash, setTotalPhysicalCash] = useState(0)
@@ -418,9 +424,9 @@ export default function CashBucketPage() {
                               <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(b.allocatedTotal)}</span>
                             </div>
                             {b.allocations.map((a, i) => (
-                              <div key={i} className="flex justify-between items-center pl-8 text-gray-400 dark:text-gray-500">
+                              <div key={i} className={`flex justify-between items-center pl-8 py-0.5 rounded text-gray-400 dark:text-gray-400 ${i % 2 === 0 ? 'bg-amber-50/60 dark:bg-amber-900/10' : 'bg-gray-50/60 dark:bg-gray-700/20'}`}>
                                 <span className="truncate max-w-[140px]">{i === b.allocations.length - 1 ? '└──' : '├──'} {a.accountName}</span>
-                                <span>{fmt(a.amount)}</span>
+                                <span className="font-medium">{fmt(a.amount)}</span>
                               </div>
                             ))}
                           </>
@@ -443,6 +449,21 @@ export default function CashBucketPage() {
                 {/* Totals row across all businesses */}
                 {balances.length > 1 && (() => {
                   const tEco = balances.reduce((s, b) => s + b.ecocashBalance, 0)
+                  // Aggregate allocations across all businesses, merging by account type
+                  // Strip business prefix (e.g. "HXI Eats — Rent Account" → "Rent Account")
+                  // so rent/payroll from different businesses collapse into one line
+                  const stripBizPrefix = (name: string) =>
+                    name.includes(' — ') ? name.split(' — ').slice(1).join(' — ') : name
+                  const combinedAllocMap = new Map<string, number>()
+                  for (const b of balances) {
+                    for (const a of b.allocations) {
+                      const key = stripBizPrefix(a.accountName)
+                      combinedAllocMap.set(key, (combinedAllocMap.get(key) ?? 0) + a.amount)
+                    }
+                  }
+                  const combinedAllocs = Array.from(combinedAllocMap.entries())
+                    .map(([accountName, amount]) => ({ accountName, amount }))
+                    .sort((a, b) => b.amount - a.amount)
                   return (
                     <div className="rounded-lg border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10 px-4 py-3 text-xs space-y-1">
                       <p className="font-semibold text-gray-600 dark:text-gray-300 text-sm mb-2">All Businesses — Combined</p>
@@ -451,13 +472,23 @@ export default function CashBucketPage() {
                         <span className="font-bold text-base text-emerald-700 dark:text-emerald-300">{fmt(totalPhysicalCash)}</span>
                       </div>
                       <div className="flex justify-between items-center pl-3">
-                        <span className="text-gray-400 dark:text-gray-500">├── ✅ Free / available</span>
+                        <span className="text-gray-400 dark:text-gray-500">{combinedAllocs.length > 0 ? '├──' : '└──'} ✅ Free / available</span>
                         <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(totalBalance)}</span>
                       </div>
-                      <div className="flex justify-between items-center pl-3">
-                        <span className="text-gray-400 dark:text-gray-500">└── 🔒 Earmarked this month</span>
-                        <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(totalAllocated)}</span>
-                      </div>
+                      {combinedAllocs.length > 0 && (
+                        <>
+                          <div className="flex justify-between items-center pl-3">
+                            <span className="text-gray-400 dark:text-gray-500">└── 🔒 Earmarked this month ({combinedAllocs.length} item{combinedAllocs.length !== 1 ? 's' : ''})</span>
+                            <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(totalAllocated)}</span>
+                          </div>
+                          {combinedAllocs.map((a, i) => (
+                            <div key={i} className={`flex justify-between items-center pl-8 py-0.5 rounded text-gray-400 dark:text-gray-400 ${i % 2 === 0 ? 'bg-amber-50/60 dark:bg-amber-900/10' : 'bg-gray-50/60 dark:bg-gray-700/20'}`}>
+                              <span className="truncate max-w-[180px]">{i === combinedAllocs.length - 1 ? '└──' : '├──'} {a.accountName}</span>
+                              <span className="font-medium">{fmt(a.amount)}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
                       <div className="flex justify-between items-center border-t border-dashed border-teal-200 dark:border-teal-800 pt-2 mt-1">
                         <span className="text-gray-500 dark:text-gray-400">📱 Total EcoCash wallet</span>
                         <span className="font-semibold text-teal-600 dark:text-teal-400">{fmt(tEco)}</span>
@@ -495,8 +526,12 @@ export default function CashBucketPage() {
                   {entries.map(e => {
                     const isDeleted = !!e.deletedAt
                     const isEdited = !!e.editedAt && !isDeleted
-                    const canEdit = e.entryType === 'EOD_RECEIPT' && !isDeleted
-                    const canDelete = e.entryType === 'EOD_RECEIPT' && !isDeleted
+                    const isEodReceipt = e.entryType === 'EOD_RECEIPT'
+                    const isCreator = e.createdBy?.id === currentUserId
+                    // Edit: admin sees all EOD_RECEIPT; others only see their own
+                    const canEdit = isEodReceipt && !isDeleted && (isAdmin || isCreator)
+                    // Delete: admin or explicit canDeleteCashBucketEntry permission only
+                    const canDelete = isEodReceipt && !isDeleted && canDeleteBucketEntry
                     return (
                       <tr key={e.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''}`}>
                         <td className="px-3 py-2 whitespace-nowrap text-secondary">

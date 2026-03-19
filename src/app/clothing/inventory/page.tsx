@@ -55,6 +55,9 @@ function ClothingInventoryContent() {
   })
   const [baleFormLoading, setBaleFormLoading] = useState(false)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
+  const [bogoHistoryBaleId, setBogoHistoryBaleId] = useState<string | null>(null)
+  const [bogoHistory, setBogoHistory] = useState<any[]>([])
+  const [bogoHistoryLoading, setBogoHistoryLoading] = useState(false)
   const searchParams = useSearchParams()
   const customAlert = useAlert()
   const confirm = useConfirm()
@@ -260,6 +263,22 @@ function ClothingInventoryContent() {
       if (data.success) fetchBales()
     } catch (error) {
       console.error('Error changing bale BOGO ratio:', error)
+    }
+  }
+
+  // Open BOGO history modal for a bale
+  const openBogoHistory = async (baleId: string) => {
+    setBogoHistoryBaleId(baleId)
+    setBogoHistory([])
+    setBogoHistoryLoading(true)
+    try {
+      const res = await fetch(`/api/clothing/bales/${baleId}/bogo-history`, { credentials: 'include' })
+      const json = await res.json()
+      if (json.success) setBogoHistory(json.data)
+    } catch (e) {
+      console.error('Error loading BOGO history:', e)
+    } finally {
+      setBogoHistoryLoading(false)
     }
   }
 
@@ -1171,32 +1190,48 @@ function ClothingInventoryContent() {
                                 <td className="hidden md:table-cell px-4 py-3 text-sm font-mono text-xs">{bale.sku}</td>
                                 <td className="hidden lg:table-cell px-4 py-3 text-sm font-mono text-xs">{bale.scanCode || bale.barcode || '—'}</td>
                                 <td className="hidden sm:table-cell px-2 sm:px-4 py-3 text-center">
-                                  <button
-                                    onClick={() => handleBaleBogoToggle(bale.id, bale.bogoActive)}
-                                    disabled={bale.remainingCount === 0}
-                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                                      bale.bogoActive ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                                    } ${bale.remainingCount === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                  >
-                                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                                      bale.bogoActive ? 'translate-x-5' : 'translate-x-1'
-                                    }`} />
-                                  </button>
+                                  {bale.bogoActive ? (
+                                    /* Locked — cannot deactivate once enabled */
+                                    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full">
+                                      🔒 On
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleBaleBogoToggle(bale.id, bale.bogoActive)}
+                                      disabled={bale.remainingCount === 0}
+                                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors bg-gray-300 dark:bg-gray-600 ${bale.remainingCount === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                    >
+                                      <span className="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-1" />
+                                    </button>
+                                  )}
                                 </td>
                                 <td className="hidden sm:table-cell px-2 sm:px-4 py-3 text-center">
                                   {bale.bogoActive && (
-                                    <div className="inline-flex rounded border border-gray-200 dark:border-gray-700 text-xs">
+                                    <div className="inline-flex items-center gap-1">
+                                      <div className="inline-flex rounded border border-gray-200 dark:border-gray-700 text-xs">
+                                        {/* 1+1 disabled if already at 1+2 (cannot go backwards) */}
+                                        <button
+                                          onClick={() => bale.bogoRatio !== 1 ? undefined : undefined}
+                                          disabled={bale.bogoRatio === 2}
+                                          title={bale.bogoRatio === 2 ? 'Cannot reduce ratio' : ''}
+                                          className={`px-2 py-1 rounded-l ${bale.bogoRatio === 1 ? 'bg-green-600 text-white' : 'opacity-40 cursor-not-allowed bg-gray-100 dark:bg-gray-700 text-gray-400'}`}
+                                        >
+                                          1+1
+                                        </button>
+                                        <button
+                                          onClick={() => handleBaleBogoRatio(bale.id, 2)}
+                                          disabled={bale.bogoRatio === 2}
+                                          className={`px-2 py-1 rounded-r ${bale.bogoRatio === 2 ? 'bg-green-600 text-white cursor-default' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                        >
+                                          1+2
+                                        </button>
+                                      </div>
                                       <button
-                                        onClick={() => handleBaleBogoRatio(bale.id, 1)}
-                                        className={`px-2 py-1 rounded-l ${bale.bogoRatio === 1 ? 'bg-green-600 text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                        onClick={() => openBogoHistory(bale.id)}
+                                        title="View BOGO change history"
+                                        className="text-gray-400 hover:text-indigo-500 text-xs px-1"
                                       >
-                                        1+1
-                                      </button>
-                                      <button
-                                        onClick={() => handleBaleBogoRatio(bale.id, 2)}
-                                        className={`px-2 py-1 rounded-r ${bale.bogoRatio === 2 ? 'bg-green-600 text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                                      >
-                                        1+2
+                                        📋
                                       </button>
                                     </div>
                                   )}
@@ -1568,6 +1603,62 @@ function ClothingInventoryContent() {
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>
+
+    {/* BOGO History Modal */}
+    {bogoHistoryBaleId && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[80vh]">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">📋 BOGO Change History</h3>
+            <button
+              onClick={() => setBogoHistoryBaleId(null)}
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-3">
+            {bogoHistoryLoading ? (
+              <p className="text-sm text-gray-400 py-6 text-center">Loading…</p>
+            ) : bogoHistory.length === 0 ? (
+              <p className="text-sm text-gray-400 py-6 text-center">No BOGO changes recorded yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {bogoHistory.map((h) => (
+                  <div key={h.id} className="text-xs border border-gray-100 dark:border-gray-700 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`font-semibold ${h.action === 'ENABLED' ? 'text-green-600 dark:text-green-400' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                        {h.action === 'ENABLED' ? '✅ BOGO Enabled' : '🔄 Ratio Changed'}
+                      </span>
+                      <span className="text-gray-400">{new Date(h.changedAt).toLocaleString()}</span>
+                    </div>
+                    <div className="text-gray-600 dark:text-gray-400">
+                      {h.action === 'ENABLED' && (
+                        <span>Activated with ratio <strong>1+{h.newRatio}</strong></span>
+                      )}
+                      {h.action === 'RATIO_CHANGED' && (
+                        <span>Ratio changed from <strong>1+{h.previousRatio}</strong> → <strong>1+{h.newRatio}</strong></span>
+                      )}
+                    </div>
+                    <div className="text-gray-400 mt-1">By {h.changedBy?.name ?? '—'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setBogoHistoryBaleId(null)}
+              className="w-full py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   )
 }
