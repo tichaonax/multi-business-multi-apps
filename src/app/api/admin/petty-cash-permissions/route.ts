@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const SYSTEM_PERMS = ['petty_cash.request', 'petty_cash.approve', 'cash_allocation.approve']
+    const SYSTEM_PERMS = ['petty_cash.request', 'petty_cash.approve', 'cash_allocation.approve', 'payment.reverse_to_petty_cash']
 
     // Get permission IDs
     const permissions = await prisma.permissions.findMany({

@@ -273,10 +273,40 @@ export default function ExpensePaymentDetailPage() {
               <div className="mt-2">{payment.notes || 'No notes provided'}</div>
             </div>
 
-            <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
-              <div><strong>Status:</strong> <span className="capitalize">{payment.status?.toLowerCase()}</span></div>
+            <div className="mt-4 text-sm text-gray-700 dark:text-gray-300 space-y-1">
+              <div className="flex items-center gap-2">
+                <strong>Status:</strong>
+                {payment.status === 'REVERSED' ? (
+                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 text-xs font-semibold uppercase">
+                    Reversed
+                  </span>
+                ) : (
+                  <span className="capitalize">{payment.status?.toLowerCase()}</span>
+                )}
+              </div>
               <div><strong>Full Payment:</strong> {payment.isFullPayment ? 'Yes' : 'No'}</div>
             </div>
+
+            {/* Reversal metadata (MBM-153) */}
+            {payment.status === 'REVERSED' && (
+              <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3 text-sm space-y-1">
+                <p className="font-semibold text-red-800 dark:text-red-300">Payment Reversed</p>
+                {payment.reversalNote && (
+                  <p className="text-red-700 dark:text-red-400"><strong>Reason:</strong> {payment.reversalNote}</p>
+                )}
+                {payment.reversalPettyCashId && (
+                  <p className="text-red-700 dark:text-red-400">
+                    <strong>Petty Cash:</strong>{' '}
+                    <a
+                      href={`/petty-cash/${payment.reversalPettyCashId}`}
+                      className="underline hover:no-underline"
+                    >
+                      View petty cash request
+                    </a>
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="mt-4 flex gap-2">
               {hasPermission('canEditExpenseTransactions') && payment.paymentType !== 'TRANSFER_OUT' && (

@@ -22,6 +22,7 @@ export type NotificationType =
   | 'PETTY_CASH_REJECTED'
   | 'CASH_ALLOC_RECONCILED'
   | 'CHAT_MESSAGE'
+  | 'PAYMENTS_REVERSED_TO_PETTY_CASH'
 
 export interface NotificationPayload {
   userIds: string[]

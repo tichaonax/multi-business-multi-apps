@@ -1884,6 +1884,16 @@ export function Sidebar() {
               </Link>
             )}
 
+            {(isSystemAdmin(currentUser) || hasPermission('canReversePaymentsToPettyCash')) && (
+              <Link
+                href="/admin/reverse-payments"
+                className="sidebar-link flex items-center space-x-3"
+              >
+                <span className="text-lg">↩️</span>
+                <span>Reverse Payments</span>
+              </Link>
+            )}
+
             {(isSystemAdmin(currentUser) || hasPermission('canManageWifiPortal')) && (
               <Link
                 href={

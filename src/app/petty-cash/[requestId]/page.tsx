@@ -724,7 +724,7 @@ export default function PettyCashDetailPage() {
           {req.notes && (
             <div className="col-span-2">
               <p className="text-gray-500 dark:text-gray-400">Notes</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{req.notes}</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{req.notes}</p>
             </div>
           )}
           {req.signatureData && (

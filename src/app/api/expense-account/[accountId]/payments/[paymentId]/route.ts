@@ -99,6 +99,19 @@ export async function GET(
       )
     }
 
+    // Fetch new reversal fields via raw SQL (not in Prisma client yet — MBM-153)
+    const reversalRows = await prisma.$queryRaw<Array<{
+      reversed_at: Date | null
+      reversed_by: string | null
+      reversal_note: string | null
+      reversal_petty_cash_id: string | null
+    }>>`
+      SELECT reversed_at, reversed_by, reversal_note, reversal_petty_cash_id
+      FROM expense_account_payments
+      WHERE id = ${paymentId}
+    `
+    const reversalData = reversalRows[0] ?? {}
+
     return NextResponse.json({
       success: true,
       data: {
@@ -128,6 +141,11 @@ export async function GET(
           submittedAt: payment.submittedAt?.toISOString(),
           createdAt: payment.createdAt.toISOString(),
           updatedAt: payment.updatedAt.toISOString(),
+          // Reversal fields (MBM-153)
+          reversedAt: reversalData.reversed_at?.toISOString() ?? null,
+          reversedBy: reversalData.reversed_by ?? null,
+          reversalNote: reversalData.reversal_note ?? null,
+          reversalPettyCashId: reversalData.reversal_petty_cash_id ?? null,
         },
       },
     })

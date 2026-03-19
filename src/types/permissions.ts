@@ -256,6 +256,7 @@ export interface CoreBusinessPermissions {
   canSubmitPaymentBatch: boolean;          // Cashier: submit batched expense payment requests & fund from business account
   canViewCashBucketReport: boolean;        // View cash bucket report (managers, owners, admins)
   canDeleteCashBucketEntry: boolean;       // Soft-delete a cash bucket entry within 8 days (owners + admins only)
+  canReversePaymentsToPettyCash: boolean;  // Reverse incorrectly submitted expense payments and convert to petty cash (MBM-153)
 
   // Chicken Run Management
   canManageChickenRun: boolean;
@@ -1071,6 +1072,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canSubmitPaymentBatch', label: 'Submit Payment Batch (Cashier)' },
       { key: 'canViewCashBucketReport', label: 'View Cash Bucket Report' },
       { key: 'canDeleteCashBucketEntry', label: 'Delete Cash Bucket Entry' },
+      { key: 'canReversePaymentsToPettyCash', label: 'Reverse Payments to Petty Cash' },
       { key: 'canViewExpenseReports', label: 'View Reports' },
       { key: 'canCreateIndividualPayees', label: 'Create Individual Payees' },
       { key: 'canDeleteExpenseAccounts', label: 'Delete Expense Accounts' },
@@ -1392,6 +1394,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canSubmitPaymentBatch: true,
   canViewCashBucketReport: true,
   canDeleteCashBucketEntry: true,
+  canReversePaymentsToPettyCash: true,
   canManageChickenRun: true,
 };
 
@@ -1544,6 +1547,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canSubmitPaymentBatch: true,
   canViewCashBucketReport: true,
   canDeleteCashBucketEntry: false,
+  canReversePaymentsToPettyCash: false,
   canManageChickenRun: true,
 };
 
@@ -1696,6 +1700,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canSubmitPaymentBatch: false,
   canViewCashBucketReport: false,
   canDeleteCashBucketEntry: false,
+  canReversePaymentsToPettyCash: false,
   canManageChickenRun: false,
 };
 
@@ -1846,6 +1851,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canSubmitPaymentBatch: false,
   canViewCashBucketReport: false,
   canDeleteCashBucketEntry: false,
+  canReversePaymentsToPettyCash: false,
   canManageChickenRun: false,
 };
 
@@ -1999,6 +2005,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canSubmitPaymentBatch: false,
   canViewCashBucketReport: false,
   canDeleteCashBucketEntry: false,
+  canReversePaymentsToPettyCash: false,
   canManageChickenRun: false,
 };
 
@@ -2152,6 +2159,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canSubmitPaymentBatch: false,
   canViewCashBucketReport: false,
   canDeleteCashBucketEntry: false,
+  canReversePaymentsToPettyCash: false,
   canManageChickenRun: false,
 };
 
@@ -2302,6 +2310,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canSubmitPaymentBatch: true,
   canViewCashBucketReport: true,
   canDeleteCashBucketEntry: true,
+  canReversePaymentsToPettyCash: true,
   canManageChickenRun: true,
 };
 

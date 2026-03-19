@@ -518,6 +518,7 @@ model Businesses {
   grouped_eod_runs                                                         GroupedEODRun[]
   petty_cash_requests                                                      PettyCashRequests[]           @relation("BusinessPettyCash")
   petty_cash_transactions                                                  PettyCashTransaction[]        @relation("PettyCashTransactionBusiness")
+  payment_reversal_logs                                                    PaymentReversalLog[]          @relation("ReversalLogBusiness")
   payment_batch_submissions                                                PaymentBatchSubmissions[]     @relation("BusinessPaymentBatches")
   eod_payment_batches                                                      EODPaymentBatch[]             @relation("BusinessEODPaymentBatches")
   cash_bucket_entries                                                      CashBucketEntry[]             @relation("BusinessCashBucket")
@@ -1531,6 +1532,11 @@ model ExpenseAccountPayments {
   ecocashTransactionCode    String?                          @map("ecocash_transaction_code")
   priority                  String                           @default("NORMAL") @map("priority")
   // NORMAL | URGENT — requester can flag urgent to help cashier prioritize
+  // Reversal fields (MBM-153)
+  reversedAt                DateTime?                        @map("reversed_at")
+  reversedBy                String?                          @map("reversed_by")
+  reversalNote              String?                          @map("reversal_note")
+  reversalPettyCashId       String?                          @map("reversal_petty_cash_id")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -3254,6 +3260,7 @@ model Users {
   loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]          @relation("WithdrawalPayer")
   app_notifications                                               AppNotification[]
   bale_bogo_history                                               ClothingBaleBogoHistory[] @relation("BaleBogoHistoryUser")
+  payment_reversal_logs                                           PaymentReversalLog[]      @relation("ReversalLogReverser")
 
   @@map("users")
 }
@@ -5101,6 +5108,7 @@ model PettyCashRequests {
   canceller      Users?                  @relation("PettyCashCanceller", fields: [cancelledBy], references: [id])
   returnPayment  ExpenseAccountPayments? @relation("PettyCashReturnPayment", fields: [returnPaymentId], references: [id])
   transactions   PettyCashTransaction[]  @relation("PettyCashTransactions")
+  reversalLog    PaymentReversalLog?     @relation("ReversalLogPettyCash")
 
   @@index([businessId])
   @@index([requestedBy])
@@ -5639,4 +5647,25 @@ model ChickenRunSettings {
   business Businesses @relation(fields: [businessId], references: [id])
 
   @@map("chicken_run_settings")
+}
+
+// ─── Payment Reversal Log (MBM-153) ──────────────────────────────────────────
+
+model PaymentReversalLog {
+  id                 String   @id @default(cuid())
+  businessId         String
+  reversedBy         String                    // FK Users — admin who triggered reversal
+  reversalNote       String
+  pettyCashRequestId String   @unique          // FK PettyCashRequests — created by the reversal
+  totalAmount        Decimal  @db.Decimal(12, 2)
+  paymentIds         String   @db.Text         // JSON array of reversed ExpenseAccountPayments.id
+  createdAt          DateTime @default(now())
+
+  business         Businesses        @relation("ReversalLogBusiness", fields: [businessId], references: [id])
+  reversedByUser   Users             @relation("ReversalLogReverser", fields: [reversedBy], references: [id])
+  pettyCashRequest PettyCashRequests @relation("ReversalLogPettyCash", fields: [pettyCashRequestId], references: [id])
+
+  @@index([businessId])
+  @@index([reversedBy])
+  @@map("payment_reversal_logs")
 }
