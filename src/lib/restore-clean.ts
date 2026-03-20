@@ -157,7 +157,8 @@ const RESTORE_ORDER = [
   'productPriceChanges',      // Product price audit trail
   'clothingBaleCategories',   // No FK dependencies (reference table)
   'clothingBales',            // Depends on businesses, clothingBaleCategories, employees
-  'clothingBaleBogoHistory',  // Depends on clothingBales, users
+  'clothingBaleBogoHistory',       // Depends on clothingBales, users
+  'clothingLabelPrintHistory',     // Depends on clothingBales (nullable), businesses, users
 
   // Customers and orders
   'businessCustomers',
@@ -205,6 +206,7 @@ const RESTORE_ORDER = [
   'cashBucketEntries',          // depends on businesses + users
   'pettyCashRequests',          // depends on businesses + expenseAccounts + expenseAccountDeposits + expenseAccountPayments
   'pettyCashTransactions',      // depends on pettyCashRequests + expenseAccountPayments
+  'paymentReversalLogs',        // depends on businesses + users + pettyCashRequests
 
   // Payroll
   'payrollAccounts',
@@ -414,6 +416,7 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'cashAllocationLineItems': 'cashAllocationLineItem',
   // Petty Cash / Per Diem
   'pettyCashTransactions': 'pettyCashTransaction',
+  'paymentReversalLogs': 'paymentReversalLog',
   // Business Loans
   'businessLoans': 'businessLoan',
   'businessLoanManagers': 'businessLoanManager',

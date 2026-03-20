@@ -1007,6 +1007,10 @@ export async function createCleanBackup(
     where: { baleId: { in: clothingBaleIds } }
   })
 
+  businessData.clothingLabelPrintHistory = await prisma.clothingLabelPrintHistory.findMany({
+    where: { baleId: { in: clothingBaleIds } }
+  })
+
   // 31. Outgoing loans (disbursed from expense/payroll accounts)
   businessData.accountOutgoingLoans = await prisma.accountOutgoingLoans.findMany({
     where: { createdBy: { in: userIds } }
@@ -1119,6 +1123,10 @@ export async function createCleanBackup(
   const pettyCashRequestIds = businessData.pettyCashRequests.map((r: any) => r.id)
   businessData.pettyCashTransactions = await prisma.pettyCashTransaction.findMany({
     where: { requestId: { in: pettyCashRequestIds } }
+  })
+
+  businessData.paymentReversalLogs = await prisma.paymentReversalLog.findMany({
+    where: { businessId: { in: businessIds } }
   })
 
   // 41. Per Diem Entries

@@ -19,6 +19,8 @@ import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useToastContext } from '@/components/ui/toast'
+import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
+import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 
 function ClothingInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -58,6 +60,13 @@ function ClothingInventoryContent() {
   const [bogoHistoryBaleId, setBogoHistoryBaleId] = useState<string | null>(null)
   const [bogoHistory, setBogoHistory] = useState<any[]>([])
   const [bogoHistoryLoading, setBogoHistoryLoading] = useState(false)
+  const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string; compact?: boolean } | null>(null)
+  const [labelCount, setLabelCount] = useState('5')
+  const [showAddStockPanel, setShowAddStockPanel] = useState(false)
+  const [printHistoryBaleId, setPrintHistoryBaleId] = useState<string | null>(null)
+  const [printHistoryBale, setPrintHistoryBale] = useState<any | null>(null)
+  const [printHistory, setPrintHistory] = useState<any[]>([])
+  const [printHistoryLoading, setPrintHistoryLoading] = useState(false)
   const searchParams = useSearchParams()
   const customAlert = useAlert()
   const confirm = useConfirm()
@@ -233,6 +242,74 @@ function ClothingInventoryContent() {
       showToast(error.message || 'Failed to register bale', { type: 'error' })
     } finally {
       setBaleFormLoading(false)
+    }
+  }
+
+  // Register bale then open print modal
+  const handleBaleSubmitAndPrint = async () => {
+    if (!currentBusinessId) {
+      showToast('No business selected', { type: 'error' })
+      return
+    }
+    if (!baleForm.categoryId || !baleForm.itemCount || !baleForm.unitPrice || !baleForm.costPrice) {
+      showToast('Category, item count, unit price, and bale cost are required', { type: 'error' })
+      return
+    }
+    setBaleFormLoading(true)
+    try {
+      const response = await fetch('/api/clothing/bales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          categoryId: baleForm.categoryId,
+          ...(baleForm.batchNumber.trim() ? { batchNumber: baleForm.batchNumber.trim() } : {}),
+          itemCount: Number(baleForm.itemCount),
+          unitPrice: Number(baleForm.unitPrice),
+          costPrice: Number(baleForm.costPrice),
+          barcode: baleForm.barcode.trim() || undefined,
+          notes: baleForm.notes.trim() || undefined
+        })
+      })
+      const data = await response.json()
+      if (data.success) {
+        showToast(`Bale ${data.data.batchNumber} registered`, { type: 'success' })
+        const qty = parseInt(labelCount) || 5
+        setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', costPrice: '', barcode: '', notes: '' })
+        setLabelCount('5')
+        setCategorySearch('')
+        setShowBaleForm(false)
+        fetchBales()
+        setBulkPrintModal({ baleId: data.data.id, qty })
+      } else {
+        showToast(data.error || 'Failed to register bale', { type: 'error' })
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Failed to register bale', { type: 'error' })
+    } finally {
+      setBaleFormLoading(false)
+    }
+  }
+
+  // Open compact print modal for an existing bale row
+  const openPrintModal = (bale: any) => {
+    setBulkPrintModal({ baleId: bale.id, compact: true })
+  }
+
+  // Open print history modal for a bale
+  const openPrintHistory = async (bale: any) => {
+    setPrintHistoryBaleId(bale.id)
+    setPrintHistoryBale(bale)
+    setPrintHistory([])
+    setPrintHistoryLoading(true)
+    try {
+      const res = await fetch(`/api/clothing/label-print-history?baleId=${bale.id}`, { credentials: 'include' })
+      const json = await res.json()
+      if (json.success) setPrintHistory(json.data)
+    } catch (e) {
+      console.error('Error loading print history:', e)
+    } finally {
+      setPrintHistoryLoading(false)
     }
   }
 
@@ -965,6 +1042,12 @@ function ClothingInventoryContent() {
                           + Register Bale
                         </button>
                         <button
+                          onClick={() => setShowAddStockPanel(true)}
+                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
+                        >
+                          + Add Stock
+                        </button>
+                        <button
                           onClick={() => router.push('/clothing/bales/bulk-print')}
                           className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
                         >
@@ -1126,12 +1209,31 @@ function ClothingInventoryContent() {
                               className="input-field w-full"
                             />
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">Labels to print</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={labelCount}
+                              onChange={(e) => setLabelCount(e.target.value)}
+                              placeholder="Default 5 — one scan tag per cashier"
+                              className="input-field w-full"
+                            />
+                            <p className="text-xs text-secondary mt-1">Default 5 — one scan tag per cashier</p>
+                          </div>
                         </div>
                         <div className="flex gap-2 mt-4">
                           <button
-                            onClick={handleBaleSubmit}
+                            onClick={handleBaleSubmitAndPrint}
                             disabled={baleFormLoading}
                             className="btn-primary bg-purple-600 hover:bg-purple-700"
+                          >
+                            {baleFormLoading ? 'Registering...' : 'Register and Print'}
+                          </button>
+                          <button
+                            onClick={handleBaleSubmit}
+                            disabled={baleFormLoading}
+                            className="btn-secondary"
                           >
                             {baleFormLoading ? 'Registering...' : 'Register Bale'}
                           </button>
@@ -1268,21 +1370,20 @@ function ClothingInventoryContent() {
                                       <span className="hidden sm:inline whitespace-nowrap">Add to Cart</span>
                                     </button>
                                     <button
-                                      onClick={() => {
-                                        const params = new URLSearchParams({
-                                          barcodeData: bale.scanCode || bale.sku,
-                                          productName: bale.category?.name || 'Bale',
-                                          price: String(bale.unitPrice),
-                                          description: `Batch ${bale.batchNumber}`,
-                                          baleId: bale.id,
-                                        })
-                                        router.push(`/universal/barcode-management/print-jobs/new?${params.toString()}`)
-                                      }}
+                                      onClick={() => openPrintModal(bale)}
                                       className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                                      title="Print Barcode"
+                                      title="Print Labels"
                                     >
                                       <span className="sm:hidden">🏷️</span>
-                                      <span className="hidden sm:inline whitespace-nowrap">Print Barcode</span>
+                                      <span className="hidden sm:inline whitespace-nowrap">Print Labels</span>
+                                    </button>
+                                    <button
+                                      onClick={() => openPrintHistory(bale)}
+                                      className="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+                                      title="Print History"
+                                    >
+                                      <span className="sm:hidden">📋</span>
+                                      <span className="hidden sm:inline whitespace-nowrap">History</span>
                                     </button>
                                   </div>
                                 </td>
@@ -1658,6 +1759,106 @@ function ClothingInventoryContent() {
           </div>
         </div>
       </div>
+    )}
+
+    {/* Add Stock Panel */}
+    {showAddStockPanel && (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4">
+        <div className="w-full max-w-2xl">
+          <AddStockPanel
+            businessId={businessId}
+            onClose={() => setShowAddStockPanel(false)}
+            onBaleAdded={() => { fetchBales(); setShowAddStockPanel(false) }}
+            onPrintReady={(params) => { setShowAddStockPanel(false); setBulkPrintModal({ ...params, compact: !!params.baleId }) }}
+          />
+        </div>
+      </div>
+    )}
+
+    {/* Print History Modal */}
+    {printHistoryBaleId && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div>
+              <h3 className="font-semibold text-base">Print History</h3>
+              {printHistoryBale && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {printHistoryBale.category?.name} — Batch {printHistoryBale.batchNumber}
+                </p>
+              )}
+            </div>
+            <button onClick={() => { setPrintHistoryBaleId(null); setPrintHistoryBale(null) }} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-3">
+            {printHistoryLoading ? (
+              <p className="text-sm text-gray-400 py-6 text-center">Loading…</p>
+            ) : printHistory.length === 0 ? (
+              <p className="text-sm text-gray-400 py-6 text-center">No print history recorded yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {printHistory.map((h: any) => (
+                  <div key={h.id} className="text-xs border border-gray-100 dark:border-gray-700 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-gray-700 dark:text-gray-300">
+                        {h.quantity} label{h.quantity !== 1 ? 's' : ''} printed
+                      </span>
+                      <span className="text-gray-400">{new Date(h.printedAt).toLocaleString()}</span>
+                    </div>
+                    <div className="text-gray-500 dark:text-gray-400 space-y-0.5">
+                      {h.templateName && <div>Template: {h.templateName}</div>}
+                      {h.printerName && <div>By: {h.printerName}</div>}
+                      {h.notes && <div>Note: {h.notes}</div>}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setPrintHistoryBaleId(null)
+                        setBulkPrintModal({ baleId: h.baleId, qty: h.quantity, templateId: h.templateId ?? undefined, compact: true })
+                      }}
+                      className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Reprint
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+            <button
+              onClick={() => {
+                const id = printHistoryBaleId!
+                setPrintHistoryBaleId(null)
+                setPrintHistoryBale(null)
+                setBulkPrintModal({ baleId: id, compact: true })
+              }}
+              className="flex-1 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
+            >
+              Print Labels
+            </button>
+            <button
+              onClick={() => { setPrintHistoryBaleId(null); setPrintHistoryBale(null) }}
+              className="flex-1 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Bulk Print Modal */}
+    {bulkPrintModal && (
+      <BulkPrintModal
+        isOpen={!!bulkPrintModal}
+        onClose={() => setBulkPrintModal(null)}
+        baleId={bulkPrintModal.baleId}
+        qty={bulkPrintModal.qty}
+        templateId={bulkPrintModal.templateId}
+        businessId={businessId}
+        lockTemplate={!!bulkPrintModal.templateId}
+        compact={bulkPrintModal.compact ?? !!bulkPrintModal.baleId}
+      />
     )}
     </>
   )

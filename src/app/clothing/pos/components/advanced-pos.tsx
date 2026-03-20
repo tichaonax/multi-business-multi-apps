@@ -13,6 +13,8 @@ import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
 import { useGlobalCart } from '@/contexts/global-cart-context'
+import { AddStockPanel } from '@/components/clothing/add-stock-panel'
+import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
@@ -144,6 +146,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [browseTab, setBrowseTab] = useState<'quickadd' | 'bales'>('quickadd')
   const [bales, setBales] = useState<any[]>([])
   const [balesLoading, setBalesLoading] = useState(false)
+  const [showAddStockPanel, setShowAddStockPanel] = useState(false)
+  const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string } | null>(null)
   const [baleSearch, setBaleSearch] = useState('')
 
   // Pinned quick-add products (persisted in localStorage)
@@ -1650,6 +1654,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 📦 Bale Items
               </button>
             </div>
+            {browseTab === 'bales' && (
+              <button
+                type="button"
+                onClick={() => setShowAddStockPanel(true)}
+                className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors"
+              >
+                + Add Stock
+              </button>
+            )}
             {browseTab === 'quickadd' && !productsLoading && quickAddProducts.length > 0 && (
               <span className="text-sm text-secondary">
                 ({(() => {
@@ -2361,6 +2374,28 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         }}
       />
     </div>
+
+    {/* Add Stock Panel */}
+    {showAddStockPanel && currentBusiness?.businessId && (
+      <AddStockPanel
+        businessId={currentBusiness.businessId}
+        onClose={() => setShowAddStockPanel(false)}
+        isPosRoute={true}
+        onBaleAdded={() => setBales([])}
+        onPrintReady={(params) => setBulkPrintModal(params)}
+      />
+    )}
+
+    <BulkPrintModal
+      isOpen={!!bulkPrintModal}
+      onClose={() => setBulkPrintModal(null)}
+      baleId={bulkPrintModal?.baleId}
+      qty={bulkPrintModal?.qty}
+      templateId={bulkPrintModal?.templateId}
+      businessId={currentBusiness?.businessId}
+      lockTemplate={!!bulkPrintModal?.templateId}
+      compact={!!bulkPrintModal?.baleId && !!bulkPrintModal?.templateId}
+    />
     </>
   )
 }

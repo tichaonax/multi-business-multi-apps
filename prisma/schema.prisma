@@ -525,6 +525,7 @@ model Businesses {
   per_diem_entries                                                         PerDiemEntries[]              @relation("PerDiemBusiness")
   employee_absences                                                        EmployeeAbsences[]
   chickenBatches                                                           ChickenBatch[]
+  label_print_history                                                      ClothingLabelPrintHistory[] @relation("LabelPrintHistoryBusiness")
   chickenInventory                                                         ChickenInventory[]
   chickenVaccinationSchedules                                              ChickenVaccinationSchedule[]
   chickenUtilityCosts                                                      ChickenUtilityCost[]
@@ -3259,8 +3260,9 @@ model Users {
   loan_withdrawal_requests_rejected                               LoanWithdrawalRequest[]          @relation("WithdrawalRejector")
   loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]          @relation("WithdrawalPayer")
   app_notifications                                               AppNotification[]
-  bale_bogo_history                                               ClothingBaleBogoHistory[] @relation("BaleBogoHistoryUser")
-  payment_reversal_logs                                           PaymentReversalLog[]      @relation("ReversalLogReverser")
+  bale_bogo_history                                               ClothingBaleBogoHistory[]    @relation("BaleBogoHistoryUser")
+  label_print_history                                             ClothingLabelPrintHistory[]  @relation("LabelPrintHistoryUser")
+  payment_reversal_logs                                           PaymentReversalLog[]          @relation("ReversalLogReverser")
 
   @@map("users")
 }
@@ -4832,6 +4834,7 @@ model ClothingBales {
   employee                 Employees?               @relation("BaleStockedBy", fields: [employeeId], references: [id])
   inventory_transfer_items InventoryTransferItems[]
   bogoHistory              ClothingBaleBogoHistory[]
+  printHistory             ClothingLabelPrintHistory[] @relation("LabelPrintHistoryBale")
 
   @@unique([businessId, batchNumber])
   @@map("clothing_bales")
@@ -4852,6 +4855,31 @@ model ClothingBaleBogoHistory {
   changedAt      DateTime      @default(now())
 
   @@map("clothing_bale_bogo_history")
+}
+
+// ============================================================
+// Clothing Label Print History (MBM-154)
+// ============================================================
+
+model ClothingLabelPrintHistory {
+  id         String   @id @default(cuid())
+  businessId String
+  baleId     String?
+  productId  String?
+  templateId String?
+  quantity   Int
+  printedBy  String
+  printedAt  DateTime @default(now())
+  notes      String?
+
+  business      Businesses    @relation("LabelPrintHistoryBusiness", fields: [businessId], references: [id])
+  bale          ClothingBales? @relation("LabelPrintHistoryBale",     fields: [baleId],     references: [id])
+  printedByUser Users          @relation("LabelPrintHistoryUser",     fields: [printedBy],  references: [id])
+
+  @@index([businessId])
+  @@index([baleId])
+  @@index([productId])
+  @@map("clothing_label_print_history")
 }
 
 // ============================================================

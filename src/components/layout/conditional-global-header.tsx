@@ -7,14 +7,19 @@
  * Hides navigation on customer-facing display pages.
  */
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { GlobalHeader } from './global-header'
 
 export function ConditionalGlobalHeader() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
 
-  // Hide header on customer display and all auth pages
-  if (pathname === '/customer-display' || pathname.startsWith('/auth')) {
+  // Hide header on customer display, auth pages, and popup print windows
+  if (
+    pathname === '/customer-display' ||
+    pathname.startsWith('/auth') ||
+    searchParams.get('popup') === '1'
+  ) {
     return null
   }
 

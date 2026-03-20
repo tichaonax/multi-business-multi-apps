@@ -1,6 +1,7 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { MobileSidebar } from './mobile-sidebar'
 
@@ -10,9 +11,16 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const isPopup = searchParams.get('popup') === '1'
 
   // No BusinessPermissionsProvider here - it's already provided by RootLayout
   if (!session) {
+    return <div className="min-h-screen page-background">{children}</div>
+  }
+
+  // Popup mode: opened via window.open — render content only, no sidebar or nav
+  if (isPopup) {
     return <div className="min-h-screen page-background">{children}</div>
   }
 
