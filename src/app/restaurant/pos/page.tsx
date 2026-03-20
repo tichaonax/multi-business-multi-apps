@@ -347,6 +347,66 @@ export default function RestaurantPOS() {
     return () => window.removeEventListener('pos:add-to-cart', handler)
   }, [])
 
+  // Listen for pos:add-inventory-item-to-cart from GlobalBarcodeModal (when already on POS)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const item = (e as CustomEvent).detail
+      if (!item?.inventoryItemId) return
+      const cartItem: any = {
+        id: `inv_${item.inventoryItemId}`,
+        name: item.productName ?? item.name ?? 'Item',
+        price: parseFloat(item.price ?? item.sellingPrice ?? 0),
+        category: 'inventory',
+        isAvailable: true,
+        attributes: { isInventoryItem: true, inventoryItemId: item.inventoryItemId },
+      }
+      addToCartRef.current?.(cartItem)
+    }
+    window.addEventListener('pos:add-inventory-item-to-cart', handler)
+    return () => window.removeEventListener('pos:add-inventory-item-to-cart', handler)
+  }, [])
+
+  // Store pending inventory item to add once cart has finished loading from localStorage
+  const pendingInventoryItemRef = useRef<any>(null)
+
+  // Fetch inventory item from URL param — store it for deferred add after cart loads
+  useEffect(() => {
+    const addInventoryItemId = searchParams?.get('addInventoryItem')
+    if (!addInventoryItemId) return
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/clothing/inventory/item/${addInventoryItemId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.success && data.item) {
+          const inv = data.item
+          pendingInventoryItemRef.current = {
+            id: `inv_${inv.inventoryItemId || inv.id}`,
+            name: inv.name,
+            price: Number(inv.sellingPrice ?? inv.price ?? 0),
+            category: 'inventory',
+            isAvailable: true,
+            attributes: { isInventoryItem: true, inventoryItemId: inv.inventoryItemId || inv.id },
+          }
+        }
+        router.replace(window.location.pathname)
+      } catch (err) {
+        console.error('Error fetching inventory item for restaurant POS:', err)
+      }
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // Once cart finishes loading, add any pending inventory item from URL param
+  useEffect(() => {
+    if (!cartLoaded || !pendingInventoryItemRef.current) return
+    const item = pendingInventoryItemRef.current
+    pendingInventoryItemRef.current = null
+    const alreadyInCart = cart.some(ci => ci.id === item.id)
+    if (!alreadyInCart) addToCartRef.current?.(item)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartLoaded])
+
   // Auto-apply first available ISSUED reward when customer rewards load (skip if coupon active)
   useEffect(() => {
     if (!selectedCustomer || appliedReward || customerRewards.length === 0) return
@@ -374,7 +434,7 @@ export default function RestaurantPOS() {
           sku: item.variants?.[0]?.sku || item.barcode || item.id, // Use variant SKU, barcode, or fallback to ID
           price: item.price,
           quantity: item.quantity,
-          attributes: {},
+          attributes: (item as any).attributes || {},
           imageUrl: item.imageUrl,
           // Include combo data for mini cart display
           isCombo: (item as any).isCombo || false,
@@ -799,12 +859,13 @@ export default function RestaurantPOS() {
         queryParams.set('businessId', currentBusinessId)
       }
 
-      // Fetch products, purchase statistics, WiFi tokens, and menu combos in parallel
-      const [productsResponse, statsResponse, wifiTokensResponse, combosResponse] = await Promise.all([
+      // Fetch products, purchase statistics, WiFi tokens, menu combos, and barcode inventory items in parallel
+      const [productsResponse, statsResponse, wifiTokensResponse, combosResponse, inventoryItemsResponse] = await Promise.all([
         fetch(`/api/universal/products?${queryParams.toString()}`),
         fetch(`/api/restaurant/product-stats?businessId=${currentBusinessId || ''}&timezone=${encodeURIComponent(statsTimezone)}`),
         currentBusinessId ? fetch(`/api/business/${currentBusinessId}/wifi-tokens`) : Promise.resolve({ ok: false }),
-        currentBusinessId ? fetch(`/api/universal/menu-combos?businessId=${currentBusinessId}`) : Promise.resolve({ ok: false })
+        currentBusinessId ? fetch(`/api/universal/menu-combos?businessId=${currentBusinessId}`) : Promise.resolve({ ok: false }),
+        currentBusinessId ? fetch(`/api/clothing/inventory?businessId=${currentBusinessId}`) : Promise.resolve({ ok: false }),
       ])
 
       if (productsResponse.ok) {
@@ -1073,8 +1134,28 @@ export default function RestaurantPOS() {
             }
           }
 
-          // Merge regular items, combos, ESP32 WiFi tokens, and R710 WiFi tokens
-          setMenuItems([...items, ...comboItems, ...wifiTokenItems, ...r710TokenItems])
+          // Merge barcode inventory items (from Add Stock flow, any business type)
+          let inventoryItems: MenuItem[] = []
+          if (inventoryItemsResponse && (inventoryItemsResponse as Response).ok) {
+            try {
+              const invData = await (inventoryItemsResponse as Response).json()
+              if (invData.success && Array.isArray(invData.items)) {
+                inventoryItems = invData.items.map((inv: any) => ({
+                  id: `inv_${inv.id}`,
+                  name: inv.name,
+                  price: Number(inv.sellingPrice || 0),
+                  category: 'inventory',
+                  isAvailable: true,
+                  isInventoryTracked: true,
+                  stockQuantity: inv.stockQuantity,
+                  attributes: { isInventoryItem: true, inventoryItemId: inv.id },
+                } as any))
+              }
+            } catch { /* ignore */ }
+          }
+
+          // Merge regular items, combos, ESP32 WiFi tokens, R710 WiFi tokens, and inventory items
+          setMenuItems([...items, ...comboItems, ...wifiTokenItems, ...r710TokenItems, ...inventoryItems])
         }
       }
     } catch (error) {

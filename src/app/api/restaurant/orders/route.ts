@@ -1052,6 +1052,27 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Handle BarcodeInventoryItem (individual stock added via Add Stock flow)
+      const invItemId = (item as any).attributes?.inventoryItemId || (typeof item.id === 'string' && item.id.startsWith('inv_') ? item.id.replace(/^inv_/, '') : null)
+      if ((item as any).attributes?.isInventoryItem && invItemId) {
+        await prisma.businessOrderItems.create({
+          data: {
+            orderId: newOrder.id,
+            productVariantId: null,
+            quantity: itemQuantity,
+            unitPrice: itemPrice,
+            discountAmount: 0,
+            totalPrice: itemTotal,
+            attributes: { productName: item.name, category: item.category || 'inventory', isInventoryItem: true, inventoryItemId: invItemId }
+          }
+        })
+        await prisma.barcodeInventoryItems.updateMany({
+          where: { id: invItemId, businessId },
+          data: { stockQuantity: { decrement: itemQuantity } }
+        })
+        continue
+      }
+
       // Find the product variant for this item
       let variantId: string | null = null
 

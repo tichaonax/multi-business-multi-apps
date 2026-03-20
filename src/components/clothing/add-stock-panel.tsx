@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useSession } from 'next-auth/react'
 import type { ProductData } from '@/components/clothing/bulk-print-modal'
 
 interface BaleCategory {
@@ -22,6 +21,8 @@ interface AddStockPanelProps {
   initialTab?: 'bale' | 'product'
   /** When true, hides the Bale/Individual tab switcher — use when context already determines the type */
   hideTabs?: boolean
+  /** When true, hides the Bale tab entirely and forces product tab — for no-match/delivery intake flow */
+  hideBaleTab?: boolean
   /** If true, show "Add to cart" checkbox and dispatch pos:add-to-cart on save */
   isPosRoute?: boolean
   /** Pre-filled barcode (from global barcode modal no-match flow) */
@@ -30,11 +31,25 @@ interface AddStockPanelProps {
   onBaleAdded?: () => void
   /** Called with print params so the parent can open BulkPrintModal */
   onPrintReady?: (params: { baleId?: string; qty: number; templateId?: string; productData?: ProductData }) => void
+  /** When true, hides print controls — barcode already exists, just save the stock */
+  disablePrint?: boolean
+  /** When true, shows a business selector dropdown so user can pick destination */
+  showBusinessSelector?: boolean
+  /** Business name shown as "Stocking to: X" banner when on POS */
+  businessName?: string
 }
 
-export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTabs = false, isPosRoute, prefillBarcode, onBaleAdded, onPrintReady }: AddStockPanelProps) {
-  const { data: session } = useSession()
-  const [tab, setTab] = useState<'bale' | 'product'>(initialTab)
+export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTabs = false, hideBaleTab = false, isPosRoute, prefillBarcode, onBaleAdded, onPrintReady, disablePrint = false, showBusinessSelector = false, businessName }: AddStockPanelProps) {
+  // When hideBaleTab is set (no-match flow), always force product tab
+  const [tab, setTab] = useState<'bale' | 'product'>(hideBaleTab ? 'product' : initialTab)
+
+  // Business selector state — used when showBusinessSelector=true (not on POS)
+  const [effectiveBusinessId, setEffectiveBusinessId] = useState(businessId)
+  const [accessibleBusinesses, setAccessibleBusinesses] = useState<{ id: string; name: string }[]>([])
+  const [bizSearch, setBizSearch] = useState('')
+  const [bizDropdownOpen, setBizDropdownOpen] = useState(false)
+  const [bizSelectedName, setBizSelectedName] = useState('')
+  const bizRef = useRef<HTMLDivElement>(null)
 
   // ── Bale tab state ──────────────────────────────────────────────────────────
   const [categories, setCategories] = useState<BaleCategory[]>([])
@@ -57,24 +72,40 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   const [productLoading, setProductLoading] = useState(false)
   const [productError, setProductError] = useState('')
 
+  // Fetch accessible clothing businesses when business selector is shown
   useEffect(() => {
-    if (!businessId) return
+    if (!showBusinessSelector) return
+    fetch('/api/user/business-memberships')
+      .then(r => r.json())
+      .then((d: any) => {
+        const list = (Array.isArray(d) ? d : (d.memberships ?? []))
+          .filter((m: any) => m.businessId && m.businessName)
+          .map((m: any) => ({ id: m.businessId, name: m.businessName }))
+        setAccessibleBusinesses(list)
+      })
+      .catch(() => {})
+  }, [showBusinessSelector])
+
+  useEffect(() => {
+    if (!effectiveBusinessId) return
     // Load bale categories
     fetch('/api/clothing/bale-categories')
       .then(r => r.json())
       .then(d => { if (d.success) setCategories(d.data) })
       .catch(() => {})
-    // Load barcode templates
-    fetch(`/api/universal/barcode-management/templates?businessId=${businessId}&limit=100`)
-      .then(r => r.json())
-      .then(d => {
-        const list: BarcodeTemplate[] = d.templates ?? d.data ?? []
-        setTemplates(list)
-        if (list.length > 0) setProductForm(f => ({ ...f, templateId: list[0].id }))
-        else setUseGenericTemplate(true) // no templates — auto-select generic
-      })
-      .catch(() => {})
-  }, [businessId])
+    // Load barcode templates (only needed when print is enabled)
+    if (!disablePrint) {
+      fetch(`/api/universal/barcode-management/templates?businessId=${effectiveBusinessId}&limit=100`)
+        .then(r => r.json())
+        .then(d => {
+          const list: BarcodeTemplate[] = d.templates ?? d.data ?? []
+          setTemplates(list)
+          if (list.length > 0) setProductForm(f => ({ ...f, templateId: list[0].id }))
+          else setUseGenericTemplate(true) // no templates — auto-select generic
+        })
+        .catch(() => {})
+    }
+  }, [effectiveBusinessId, disablePrint])
 
   // Pre-fill barcode when it changes (from no-match flow)
   useEffect(() => {
@@ -97,7 +128,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessId,
+          businessId: effectiveBusinessId,
           categoryId: baleForm.categoryId,
           ...(baleForm.batchNumber.trim() ? { batchNumber: baleForm.batchNumber.trim() } : {}),
           itemCount: Number(baleForm.itemCount),
@@ -116,7 +147,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       await fetch('/api/clothing/label-print-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, baleId, quantity: qty, notes: 'initial registration' }),
+        body: JSON.stringify({ businessId: effectiveBusinessId, baleId, quantity: qty, notes: 'initial registration' }),
       })
 
       onBaleAdded?.()
@@ -132,7 +163,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   // ── Individual product submit ────────────────────────────────────────────────
   const handleProductAddAndPrint = async () => {
     setProductError('')
-    if (!useGenericTemplate && !productForm.templateId) { setProductError('Please select a barcode template or use generic'); return }
+    if (!disablePrint && !useGenericTemplate && !productForm.templateId) { setProductError('Please select a barcode template or use generic'); return }
     if (!productForm.name.trim()) { setProductError('Product name is required'); return }
     if (!productForm.quantity || Number(productForm.quantity) < 1) { setProductError('Quantity must be >= 1'); return }
     if (!productForm.sellingPrice || Number(productForm.sellingPrice) <= 0) { setProductError('Selling price is required'); return }
@@ -142,8 +173,8 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessId,
-          templateId: useGenericTemplate ? undefined : productForm.templateId,
+          businessId: effectiveBusinessId,
+          templateId: disablePrint ? undefined : (useGenericTemplate ? undefined : productForm.templateId),
           name: productForm.name.trim(),
           quantity: Number(productForm.quantity),
           barcode: productForm.barcode.trim() || undefined,
@@ -161,25 +192,29 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       await fetch('/api/clothing/label-print-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, productId: data.itemId, templateId: useGenericTemplate ? null : productForm.templateId, quantity: qty, notes: 'stock intake' }),
+        body: JSON.stringify({ businessId: effectiveBusinessId, productId: data.itemId, templateId: disablePrint ? null : (useGenericTemplate ? null : productForm.templateId), quantity: qty, notes: 'stock intake' }),
       })
 
       if (addToCart && isPosRoute) {
-        window.dispatchEvent(new CustomEvent('pos:add-to-cart', { detail: { productId: data.itemId } }))
+        window.dispatchEvent(new CustomEvent('pos:add-inventory-item-to-cart', {
+          detail: { inventoryItemId: data.itemId, name: productForm.name.trim(), sellingPrice: Number(productForm.sellingPrice), sku: productForm.sku.trim() || '' }
+        }))
       }
 
       onClose()
-      onPrintReady?.({
-        qty,
-        templateId: useGenericTemplate ? undefined : productForm.templateId,
-        productData: {
-          id: data.itemId,
-          name: productForm.name.trim(),
-          barcodeData: data.barcodeData,
-          sellingPrice: Number(productForm.sellingPrice),
-          sku: productForm.sku.trim() || undefined,
-        },
-      })
+      if (!disablePrint) {
+        onPrintReady?.({
+          qty,
+          templateId: useGenericTemplate ? undefined : productForm.templateId,
+          productData: {
+            id: data.itemId,
+            name: productForm.name.trim(),
+            barcodeData: data.barcodeData,
+            sellingPrice: Number(productForm.sellingPrice),
+            sku: productForm.sku.trim() || undefined,
+          },
+        })
+      }
     } catch (e: any) {
       setProductError(e.message || 'Failed to add stock')
     } finally {
@@ -199,8 +234,63 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold">×</button>
         </div>
 
-        {/* Tabs — hidden when context already determines the type */}
-        {!hideTabs && (
+        {/* Destination business banner (on POS) or selector (off POS) */}
+        {isPosRoute && businessName && (
+          <div className="mx-4 mt-4 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg text-sm text-indigo-700 dark:text-indigo-300">
+            📍 Stocking inventory to: <span className="font-semibold">{businessName}</span>
+          </div>
+        )}
+        {showBusinessSelector && accessibleBusinesses.length > 0 && (
+          <div className="mx-4 mt-4">
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Stock into which business?</label>
+            {accessibleBusinesses.length === 1 ? (
+              <p className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                📍 {accessibleBusinesses[0].name}
+              </p>
+            ) : (
+              <div className="relative" ref={bizRef}>
+                <input
+                  type="text"
+                  placeholder="Search business..."
+                  value={bizSearch}
+                  onChange={e => { setBizSearch(e.target.value); setBizDropdownOpen(true) }}
+                  onFocus={() => setBizDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setBizDropdownOpen(false), 150)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+                {bizSelectedName && (
+                  <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">✓ {bizSelectedName}</p>
+                )}
+                {bizDropdownOpen && (
+                  <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {accessibleBusinesses
+                      .filter(b => b.name.toLowerCase().includes(bizSearch.toLowerCase()))
+                      .map(b => (
+                        <div
+                          key={b.id}
+                          onMouseDown={() => {
+                            setEffectiveBusinessId(b.id)
+                            setBizSelectedName(b.name)
+                            setBizSearch(b.name)
+                            setBizDropdownOpen(false)
+                          }}
+                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/30 ${effectiveBusinessId === b.id ? 'font-medium text-indigo-700 dark:text-indigo-300' : 'text-gray-900 dark:text-gray-100'}`}
+                        >
+                          {b.name}
+                        </div>
+                      ))}
+                    {accessibleBusinesses.filter(b => b.name.toLowerCase().includes(bizSearch.toLowerCase())).length === 0 && (
+                      <p className="px-3 py-2 text-sm text-gray-400">No businesses found</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tabs — hidden when hideBaleTab or hideTabs or context already determines type */}
+        {!hideTabs && !hideBaleTab && (
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 m-4 mb-0 p-1 rounded-xl">
             <button
               onClick={() => setTab('bale')}
@@ -330,34 +420,37 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
           {/* ── Individual Product Tab ── */}
           {tab === 'product' && (
             <div className="space-y-3">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Barcode Template {!useGenericTemplate && '*'}
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={useGenericTemplate}
-                      onChange={e => setUseGenericTemplate(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600"
-                    />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Use generic (CODE128)</span>
-                  </label>
+              {/* Template selector — hidden when barcode already exists (disablePrint) */}
+              {!disablePrint && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Barcode Template {!useGenericTemplate && '*'}
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={useGenericTemplate}
+                        onChange={e => setUseGenericTemplate(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600"
+                      />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Use generic (CODE128)</span>
+                    </label>
+                  </div>
+                  {useGenericTemplate ? (
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400 px-2 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                      Generic CODE128 barcode — works with any scanner
+                    </p>
+                  ) : templates.length === 0 ? (
+                    <p className="text-sm text-amber-600 dark:text-amber-400">No templates found — check "Use generic" above to continue.</p>
+                  ) : (
+                    <select value={productForm.templateId} onChange={e => setProductForm(f => ({ ...f, templateId: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                      {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  )}
                 </div>
-                {useGenericTemplate ? (
-                  <p className="text-xs text-indigo-600 dark:text-indigo-400 px-2 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                    Generic CODE128 barcode — works with any scanner
-                  </p>
-                ) : templates.length === 0 ? (
-                  <p className="text-sm text-amber-600 dark:text-amber-400">No templates found — check "Use generic" above to continue.</p>
-                ) : (
-                  <select value={productForm.templateId} onChange={e => setProductForm(f => ({ ...f, templateId: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                )}
-              </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name *</label>
@@ -374,10 +467,13 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                     placeholder="e.g., 30" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Barcode / Scan Code</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Barcode / Scan Code {disablePrint && <span className="text-xs text-gray-400 font-normal ml-1">(from scan)</span>}
+                  </label>
                   <input type="text" value={productForm.barcode}
-                    onChange={e => setProductForm(f => ({ ...f, barcode: e.target.value }))}
-                    placeholder="Scan or auto-generated" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    onChange={e => !disablePrint && setProductForm(f => ({ ...f, barcode: e.target.value }))}
+                    readOnly={disablePrint}
+                    placeholder="Scan or auto-generated" className={`w-full px-3 py-2 border rounded-lg text-sm ${disablePrint ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-default' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'}`} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost per Item ($) <span className="text-gray-400 font-normal">(optional)</span></label>
@@ -416,9 +512,9 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
               {productError && <p className="text-sm text-red-600 dark:text-red-400">{productError}</p>}
 
               <div className="flex gap-2 pt-1">
-                <button onClick={handleProductAddAndPrint} disabled={productLoading || (!useGenericTemplate && templates.length === 0)}
+                <button onClick={handleProductAddAndPrint} disabled={productLoading || (!disablePrint && !useGenericTemplate && templates.length === 0)}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
-                  {productLoading ? 'Adding...' : '🖨️ Add to Stock & Print'}
+                  {productLoading ? 'Adding...' : disablePrint ? '📦 Add to Stock' : '🖨️ Add to Stock & Print'}
                 </button>
                 <button onClick={onClose} className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
                   Cancel

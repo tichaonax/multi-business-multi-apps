@@ -1229,7 +1229,11 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
         <AddStockPanel
           businessId={currentBusinessId}
           prefillBarcode={currentBarcode}
+          hideBaleTab={true}
+          disablePrint={true}
           isPosRoute={typeof window !== 'undefined' && window.location.pathname.includes('/pos')}
+          showBusinessSelector={typeof window !== 'undefined' && !window.location.pathname.includes('/pos')}
+          businessName={currentBusinessName}
           onClose={() => setShowAddStockPanel(false)}
           onBaleAdded={() => {
             setShowAddStockPanel(false)

@@ -404,16 +404,28 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         // Check if global cart has items to merge
         if (globalCart && globalCart.length > 0) {
           // Convert global cart items to local cart format
-          const importedItems: CartItem[] = globalCart.map(item => ({
-            id: item.id,
-            productId: item.productId,
-            variantId: item.variantId,
-            name: item.name,
-            sku: item.sku,
-            price: item.price,
-            quantity: item.quantity,
-            attributes: item.attributes
-          }))
+          // Skip inventory items that aren't already in the local cart — they likely
+          // belong to another business's POS session and should not contaminate this cart.
+          const importedItems: CartItem[] = globalCart
+            .filter(item => {
+              const isInvItem = item.productId?.startsWith('inv_') || !!item.attributes?.isInventoryItem
+              if (isInvItem) {
+                return existingCart.some(
+                  local => local.productId === item.productId || local.variantId === item.variantId
+                )
+              }
+              return true
+            })
+            .map(item => ({
+              id: item.id,
+              productId: item.productId,
+              variantId: item.variantId,
+              name: item.name,
+              sku: item.sku,
+              price: item.price,
+              quantity: item.quantity,
+              attributes: item.attributes
+            }))
 
           // Merge carts - global cart is the source of truth for price; avoid doubling quantities
           const mergedCart = [...existingCart]
