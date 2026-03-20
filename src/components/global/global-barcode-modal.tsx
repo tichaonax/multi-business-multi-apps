@@ -350,7 +350,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
             // ✅ Inventory item (BarcodeInventoryItems) — dispatch inventory-specific cart event
             window.dispatchEvent(
               new CustomEvent('pos:add-inventory-item-to-cart', {
-                detail: currentBizMatch,
+                detail: { ...currentBizMatch, barcodeData: barcodeToLookup },
               })
             )
           } else {

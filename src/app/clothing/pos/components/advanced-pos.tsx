@@ -28,6 +28,7 @@ interface CartItem {
   variantId?: string
   name: string
   sku: string
+  barcode?: string
   price: number
   quantity: number
   originalPrice?: number
@@ -299,6 +300,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       const detail = (e as CustomEvent).detail
       if (!detail || detail.businessId !== businessId) return
       setCart([])
+      clearGlobalCart()
       setSupervisorOverride(null)
       setCustomerInfo(null)
       setAppliedCoupon(null)
@@ -379,14 +381,23 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 'Unknown Item'
             }
 
-            // Extract sku from nested product/variant if missing
+            // Extract sku from nested product/variant if missing (never fall back to internal IDs)
             if (!normalized.sku) {
               normalized.sku =
                 item.variant?.sku ||
                 item.product?.sku ||
                 item.sku ||
-                normalized.variantId ||
-                normalized.productId ||
+                ''
+            }
+
+            // Extract barcode if no sku
+            if (!normalized.barcode) {
+              normalized.barcode =
+                item.barcode ||
+                item.variant?.barcodes?.[0]?.code ||
+                item.variant?.barcode ||
+                item.product?.barcodes?.[0]?.code ||
+                item.product?.barcode ||
                 ''
             }
 
@@ -422,6 +433,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               variantId: item.variantId,
               name: item.name,
               sku: item.sku,
+              barcode: item.barcode,
               price: item.price,
               quantity: item.quantity,
               attributes: item.attributes
@@ -879,6 +891,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         variantId,
         name: product.name,
         sku: variant.sku,
+        barcode: (variant as any).barcodes?.[0]?.code || (variant as any).barcode || (product as any).barcodes?.[0]?.code || (product as any).barcode,
         price: variant.price,
         quantity: quantity || 1,
         attributes: variant.attributes,
@@ -935,7 +948,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     broadcastCartState(newCart)
   }
 
-  const addToCartFromScanner = (product: any, variantId?: string, quantity: number = 1) => {
+  const addToCartFromScanner = (product: any, variantId?: string, quantity: number = 1, matchedBarcode?: any) => {
     // When no specific variantId is given (product-level barcode), resolve to the
     // first valid variant so the cart item is consistent with quick-add entries
     const effectiveVariantId = variantId ||
@@ -966,6 +979,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         variantId: effectiveVariantId,
         name: product.name,
         sku: variant?.sku || product.sku || `SKU-${product.id}`,
+        barcode: matchedBarcode?.code || variant?.barcodes?.[0]?.code || variant?.barcode || product.barcodes?.[0]?.code || product.barcode,
         price: unitPrice,
         quantity,
         attributes: variant?.attributes || {},
@@ -1022,8 +1036,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     const currentCart = cartRef.current
     const existing = currentCart.find(ci => ci.variantId === variantKey)
     let newCart: CartItem[]
+    const itemBarcode = item.barcodeData || item.barcode || ''
     if (existing) {
-      newCart = currentCart.map(ci => ci.variantId === variantKey ? { ...ci, quantity: ci.quantity + 1 } : ci)
+      newCart = currentCart.map(ci => ci.variantId === variantKey ? { ...ci, quantity: ci.quantity + 1, barcode: ci.barcode || itemBarcode } : ci)
     } else {
       newCart = [...currentCart, {
         id: Date.now().toString(),
@@ -1031,6 +1046,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         variantId: variantKey,
         name: item.productName ?? item.name,
         sku: item.sku || '',
+        barcode: itemBarcode,
         price,
         quantity: 1,
         attributes: { isInventoryItem: true, inventoryItemId: item.inventoryItemId },
@@ -1948,7 +1964,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
         {/* Barcode Scanner */}
         <BarcodeScanner
-          onProductScanned={(product, variantId) => addToCartFromScanner(product, variantId)}
+          onProductScanned={(product, variantId, matchedBarcode) => addToCartFromScanner(product, variantId, 1, matchedBarcode)}
           onNotFound={(barcode) => setQuickStockBarcode(barcode)}
           onProductNeedsActivation={(product, barcode, variantId) => {
             setQuickStockExistingProduct({ id: product.id, name: product.name, variantId })
@@ -2034,7 +2050,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           <h3 className="font-semibold text-primary">Cart ({cart.length})</h3>
           <button
             type="button"
-            onClick={() => setCart([])}
+            onClick={() => { setCart([]); clearGlobalCart() }}
             className="text-sm text-red-600 hover:text-red-700"
           >
             Clear All
@@ -2063,15 +2079,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                         </span>
                       )}
                     </div>
-                    {(item.attributes?.size || item.attributes?.color || item.variant?.name || item.sku || item.isReturn) && (
+                    {(() => {
+                      const displayId = (item.sku && !item.sku.startsWith('inv_') && !item.sku.startsWith('bale_')) ? item.sku : (item.barcode || '')
+                      return (item.attributes?.size || item.attributes?.color || item.variant?.name || displayId || item.isReturn) && (
                       <div className="text-xs text-secondary truncate">
-                        {item.sku && <span className="font-mono">{item.sku}</span>}
+                        {displayId && <span className="font-mono">{displayId}</span>}
                         {item.attributes?.size && ` · ${item.attributes.size}`}
                         {item.attributes?.color && ` · ${item.attributes.color}`}
                         {item.variant?.name && ` · ${item.variant.name}`}
                         {item.isReturn && item.returnReason && ` · ${item.returnReason}`}
                       </div>
-                    )}
+                    )})()}
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <input
                         type="number"
