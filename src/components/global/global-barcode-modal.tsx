@@ -36,6 +36,9 @@ interface BusinessInventory {
   sku?: string
   bogoActive?: boolean
   bogoRatio?: number
+  // Inventory item-specific (BarcodeInventoryItems via Add Stock)
+  isInventoryItem?: boolean
+  inventoryItemId?: string
 }
 
 interface ScannedCustomer {
@@ -296,6 +299,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
             sku: biz.sku,
             bogoActive: biz.bogoActive,
             bogoRatio: biz.bogoRatio,
+            isInventoryItem: biz.isInventoryItem,
+            inventoryItemId: biz.inventoryItemId,
           })
         })
       }
@@ -339,6 +344,13 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                   bogoActive: currentBizMatch.bogoActive,
                   bogoRatio: currentBizMatch.bogoRatio,
                 },
+              })
+            )
+          } else if (currentBizMatch.isInventoryItem) {
+            // ✅ Inventory item (BarcodeInventoryItems) — dispatch inventory-specific cart event
+            window.dispatchEvent(
+              new CustomEvent('pos:add-inventory-item-to-cart', {
+                detail: currentBizMatch,
               })
             )
           } else {
@@ -524,7 +536,9 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
     const firstAccessible = businesses.find(biz => biz.hasAccess)
     if (!firstAccessible || !firstAccessible.productId) return
 
-    const url = firstAccessible.isBale
+    const url = firstAccessible.isInventoryItem
+      ? `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addInventoryItem=${firstAccessible.inventoryItemId}`
+      : firstAccessible.isBale
       ? `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addBale=${firstAccessible.baleId}`
       : `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addProduct=${firstAccessible.productId}${firstAccessible.variantId ? `&variantId=${firstAccessible.variantId}` : ''}`
     const currentBusinessId = localStorage.getItem('currentBusinessId')
@@ -1172,16 +1186,17 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (business.productId) {
-                              const url = business.isBale
-                                ? `/${business.businessType}/pos?businessId=${business.businessId}&addBale=${business.baleId}`
-                                : `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}`
-                              const currentBusinessId = localStorage.getItem('currentBusinessId')
-                              if (currentBusinessId && currentBusinessId !== business.businessId) {
-                                setPendingNavigation({ url, business })
-                              } else {
-                                switchBusinessAndNavigate(business.businessId, url)
-                              }
+                            if (!business.productId) return
+                            const url = business.isInventoryItem
+                              ? `/${business.businessType}/pos?businessId=${business.businessId}&addInventoryItem=${business.inventoryItemId}`
+                              : business.isBale
+                              ? `/${business.businessType}/pos?businessId=${business.businessId}&addBale=${business.baleId}`
+                              : `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}`
+                            const currentBusinessId = localStorage.getItem('currentBusinessId')
+                            if (currentBusinessId && currentBusinessId !== business.businessId) {
+                              setPendingNavigation({ url, business })
+                            } else {
+                              switchBusinessAndNavigate(business.businessId, url)
                             }
                           }}
                           disabled={isSwitching}

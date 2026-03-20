@@ -18,6 +18,7 @@ export function TestPrintModal({ businessId, onClose }: TestPrintModalProps) {
   const [printers, setPrinters] = useState<Printer[]>([])
   const [loading, setLoading] = useState(true)
   const [testingId, setTestingId] = useState<string | null>(null)
+  const [checkingOnlineId, setCheckingOnlineId] = useState<string | null>(null)
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   useEffect(() => {
@@ -35,6 +36,26 @@ export function TestPrintModal({ businessId, onClose }: TestPrintModalProps) {
       // ignore
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleBringOnline = async (printer: Printer) => {
+    setCheckingOnlineId(printer.id)
+    setResult(null)
+    try {
+      const res = await fetch(`/api/printers/${printer.id}/check-connectivity`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to check connectivity')
+      const { isOnline } = await res.json()
+      if (isOnline) {
+        setResult({ type: 'success', message: `${printer.printerName} is now online!` })
+        await fetchPrinters()
+      } else {
+        setResult({ type: 'error', message: `${printer.printerName} is still offline. Check power and network connection.` })
+      }
+    } catch (err: any) {
+      setResult({ type: 'error', message: err.message || 'Failed to check printer status' })
+    } finally {
+      setCheckingOnlineId(null)
     }
   }
 
@@ -113,13 +134,24 @@ export function TestPrintModal({ businessId, onClose }: TestPrintModalProps) {
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleTest(printer)}
-                    disabled={testingId !== null}
-                    className="ml-2 px-3 py-1 text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white flex-shrink-0"
-                  >
-                    {testingId === printer.id ? 'Testing...' : 'Test'}
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    {!printer.isOnline && (
+                      <button
+                        onClick={() => handleBringOnline(printer)}
+                        disabled={checkingOnlineId !== null || testingId !== null}
+                        className="px-3 py-1 text-xs font-medium rounded bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white"
+                      >
+                        {checkingOnlineId === printer.id ? 'Checking...' : 'Bring Online'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleTest(printer)}
+                      disabled={testingId !== null || checkingOnlineId !== null}
+                      className="px-3 py-1 text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white"
+                    >
+                      {testingId === printer.id ? 'Testing...' : 'Test'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

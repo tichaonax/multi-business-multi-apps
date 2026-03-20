@@ -1003,6 +1003,44 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const addInventoryItemToCart = (item: any) => {
+    if (!item?.inventoryItemId) return
+    const price = parseFloat(item.price ?? item.sellingPrice ?? 0)
+    const variantKey = `inv_${item.inventoryItemId}`
+    const currentCart = cartRef.current
+    const existing = currentCart.find(ci => ci.variantId === variantKey)
+    let newCart: CartItem[]
+    if (existing) {
+      newCart = currentCart.map(ci => ci.variantId === variantKey ? { ...ci, quantity: ci.quantity + 1 } : ci)
+    } else {
+      newCart = [...currentCart, {
+        id: Date.now().toString(),
+        productId: variantKey,
+        variantId: variantKey,
+        name: item.productName ?? item.name,
+        sku: item.sku || '',
+        price,
+        quantity: 1,
+        attributes: { isInventoryItem: true, inventoryItemId: item.inventoryItemId },
+        isReturn: false,
+      }]
+    }
+    setCart(newCart)
+    broadcastCartState(newCart)
+  }
+
+  // Listen for pos:add-inventory-item-to-cart dispatched by GlobalBarcodeModal
+  // when an individual BarcodeInventoryItem is scanned.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const item = (e as CustomEvent).detail
+      if (item?.inventoryItemId) addInventoryItemToCart(item)
+    }
+    window.addEventListener('pos:add-inventory-item-to-cart', handler)
+    return () => window.removeEventListener('pos:add-inventory-item-to-cart', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const removeFromCart = (itemId: string) => {
     const newCart = cart.filter(item => item.id !== itemId)
     setCart(newCart)
@@ -1054,11 +1092,35 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       // Fetch the product and add it to cart
       const fetchAndAddProduct = async () => {
         try {
-          // Use businessId from query params (the business where product was found)
-          // Fall back to current businessId if not in query
           const targetBusinessId = queryBusinessId || currentBusiness?.businessId
-
           if (!targetBusinessId) return
+
+          // Inventory items (from Add Stock) use a different API
+          if (addProductId.startsWith('c') && addProductId.length > 20) {
+            // Could be a cuid — check inventory items first
+            const invRes = await fetch(`/api/clothing/inventory/item/${addProductId}`)
+            if (invRes.ok) {
+              const invData = await invRes.json()
+              if (invData.success && invData.item) {
+                const item = invData.item
+                const variantKey = `inv_${item.id}`
+                const newItem = {
+                  id: Date.now().toString(),
+                  productId: variantKey,
+                  variantId: variantKey,
+                  name: item.name,
+                  sku: item.sku || '',
+                  price: Number(item.sellingPrice || 0),
+                  quantity: 1,
+                  attributes: { isInventoryItem: true, inventoryItemId: item.id },
+                  isReturn: false,
+                }
+                setCart(prev => { const next = [...prev, newItem]; broadcastCartState(next); return next })
+                router.replace(window.location.pathname)
+                return
+              }
+            }
+          }
 
           const response = await fetch(`/api/admin/products/${addProductId}?businessId=${targetBusinessId}`)
           if (!response.ok) {
@@ -1068,12 +1130,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
           const data = await response.json()
           if (data.success && data.product) {
-            // Add to cart with variant if specified
             addToCartFromScanner(data.product, variantId || undefined, 1)
-
-            // Clean up the URL
-            const currentPath = window.location.pathname
-            router.replace(currentPath)
+            router.replace(window.location.pathname)
           }
         } catch (err) {
           console.error('Error auto-adding product:', err)
@@ -1083,6 +1141,28 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       fetchAndAddProduct()
     }
   }, [searchParams, autoAddProcessed, currentBusiness?.businessId, router])
+
+  // Auto-add inventory item from query parameters (from barcode scanner modal "Add to Cart")
+  useEffect(() => {
+    const addInventoryItemId = searchParams?.get('addInventoryItem')
+    if (!addInventoryItemId || autoAddProcessed) return
+    setAutoAddProcessed(true)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/clothing/inventory/item/${addInventoryItemId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.success && data.item) {
+          const variantKey = `inv_${data.item.inventoryItemId || data.item.id}`
+          const alreadyInCart = cartRef.current.some(ci => ci.variantId === variantKey)
+          if (!alreadyInCart) addInventoryItemToCart(data.item)
+        }
+        router.replace(window.location.pathname)
+      } catch (err) {
+        console.error('Error auto-adding inventory item:', err)
+      }
+    })()
+  }, [searchParams, autoAddProcessed, router])
 
   // Auto-add bale from query parameters (from barcode scanner modal "Add to Cart")
   useEffect(() => {
@@ -1094,7 +1174,11 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         const res = await fetch(`/api/clothing/bales/${addBaleId}`)
         if (!res.ok) return
         const data = await res.json()
-        if (data.success && data.data) addBaleToCart(data.data)
+        if (data.success && data.data) {
+          const baleVariantId = `bale_${data.data.id}`
+          const alreadyInCart = cartRef.current.some(ci => ci.variantId === baleVariantId || ci.productId === baleVariantId || ci.attributes?.baleId === data.data.id)
+          if (!alreadyInCart) addBaleToCart(data.data)
+        }
         router.replace(window.location.pathname)
       } catch (err) {
         console.error('Error auto-adding bale:', err)

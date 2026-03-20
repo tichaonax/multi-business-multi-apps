@@ -32,6 +32,14 @@ interface NetworkPrinter {
   isOnline?: boolean
 }
 
+export interface ProductData {
+  id: string
+  name: string
+  barcodeData: string
+  sellingPrice: number
+  sku?: string
+}
+
 interface BulkPrintModalProps {
   isOpen: boolean
   onClose: () => void
@@ -39,6 +47,8 @@ interface BulkPrintModalProps {
   qty?: number
   templateId?: string
   businessId?: string
+  /** Individual product data — use instead of baleId for non-bale stock items */
+  productData?: ProductData
   /** When true the template selector is read-only */
   lockTemplate?: boolean
   /**
@@ -59,8 +69,8 @@ function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string, te
   const dateLine = [today, batchLine].filter(Boolean).join(' ')
   const price = `$ ${Number(bale.unitPrice).toFixed(2)}`
   return `
-    <div style="width:220px;border:1px solid #333;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
-      <div style="font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;">&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;</div>
+    <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
       <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
       <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(bale.category.name)}</div>
       <div style="font-size:9px;text-align:center;margin-bottom:2px;">Batch ${escHtml(bale.batchNumber)}</div>
@@ -69,12 +79,31 @@ function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string, te
       <div style="font-size:9px;text-align:center;color:#444;margin-bottom:4px;letter-spacing:0.03em;">${escHtml(bale.scanCode)}</div>
       <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(price)}</div>
       <div style="font-size:8px;text-align:center;color:#666;">${escHtml(template.name)}</div>
-      <div style="font-size:8px;color:#555;font-family:monospace;margin-top:4px;">&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;</div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
     </div>
   `
 }
 
-export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, businessId: propBusinessId, lockTemplate, compact }: BulkPrintModalProps) {
+function buildProductLabelHtml(product: ProductData, barcodeSvg: string, businessName: string, templateName: string): string {
+  const today = formatDate(new Date())
+  const price = `$ ${Number(product.sellingPrice).toFixed(2)}`
+  return `
+    <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
+      <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
+      <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(product.name)}</div>
+      ${product.sku ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">SKU: ${escHtml(product.sku)}</div>` : ''}
+      <div style="font-size:9px;text-align:center;margin-bottom:4px;">${escHtml(today)}</div>
+      <div style="display:flex;justify-content:center;margin-bottom:2px;">${barcodeSvg}</div>
+      <div style="font-size:9px;text-align:center;color:#444;margin-bottom:4px;letter-spacing:0.03em;">${escHtml(product.barcodeData)}</div>
+      <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(price)}</div>
+      <div style="font-size:8px;text-align:center;color:#666;">${escHtml(templateName)}</div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
+    </div>
+  `
+}
+
+export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, businessId: propBusinessId, productData, lockTemplate, compact }: BulkPrintModalProps) {
   const { currentBusinessId, activeBusinesses, loading: contextLoading } = useBusinessPermissionsContext()
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
@@ -98,7 +127,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   // Reset qty when modal opens
   useEffect(() => {
     if (!isOpen) return
-    setQtyPerBale(compact ? 0 : (qty && qty > 0 ? qty : 5))
+    setQtyPerBale(compact && !productData ? 0 : (qty && qty > 0 ? qty : (compact ? 0 : 5)))
   }, [isOpen, qty, compact])
 
   const clothingBusinesses = activeBusinesses.filter(b => b.businessType === 'clothing' && !b.isUmbrellaBusiness)
@@ -171,20 +200,16 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   const [printers, setPrinters] = useState<NetworkPrinter[]>([])
   const [selectedPrinterId, setSelectedPrinterId] = useState<string>('')
   const [printersLoading, setPrintersLoading] = useState(true)
+  const [checkingOnline, setCheckingOnline] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!isOpen || !userId) return
+  const loadPrinters = (currentSelected?: string) => {
     setPrintersLoading(true)
     fetch('/api/printers?printerType=receipt', { credentials: 'include' })
       .then(r => r.ok ? r.json() : { printers: [] })
       .then(data => {
         const list: NetworkPrinter[] = data.printers || []
         setPrinters(list)
-        let saved = localStorage.getItem(printerKey)
-        if (!saved) {
-          const global = localStorage.getItem('lastSelectedPrinterId')
-          if (global) { saved = global; localStorage.setItem(printerKey, global) }
-        }
+        const saved = currentSelected ?? localStorage.getItem(printerKey) ?? localStorage.getItem('lastSelectedPrinterId') ?? ''
         if (saved && list.find(p => p.id === saved)) { setSelectedPrinterId(saved); return }
         const online = list.find(p => p.isOnline)
         if (online) setSelectedPrinterId(online.id)
@@ -192,7 +217,35 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
       })
       .catch(() => {})
       .finally(() => setPrintersLoading(false))
+  }
+
+  useEffect(() => {
+    if (!isOpen || !userId) return
+    let saved = localStorage.getItem(printerKey)
+    if (!saved) {
+      const global = localStorage.getItem('lastSelectedPrinterId')
+      if (global) { saved = global; localStorage.setItem(printerKey, global) }
+    }
+    loadPrinters(saved ?? undefined)
   }, [isOpen, userId, printerKey])
+
+  const handleBringOnline = async (printerId: string) => {
+    setCheckingOnline(printerId)
+    try {
+      const res = await fetch(`/api/printers/${printerId}/check-connectivity`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed')
+      const { isOnline } = await res.json()
+      if (isOnline) {
+        loadPrinters(printerId)
+      } else {
+        alert('Printer is still offline. Check power and network connection.')
+      }
+    } catch {
+      alert('Error checking printer status.')
+    } finally {
+      setCheckingOnline(null)
+    }
+  }
 
   const handlePrinterChange = (id: string) => {
     setSelectedPrinterId(id)
@@ -220,28 +273,40 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   }
 
   const handlePdfPrint = async () => {
-    if (selectedIds.size === 0 || !selectedTemplateId) return
+    if (!productData && selectedIds.size === 0) return
+    if (!productData && !selectedTemplateId) return
     setIsPdfPrinting(true)
     try {
-      const template = templates.find(t => t.id === selectedTemplateId)
-      if (!template) return
-      const selected = bales.filter(b => selectedIds.has(b.id))
       const JsBarcode = (await import('jsbarcode')).default
       const bizName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
+      const genericTemplate = { id: 'generic', name: 'Generic', symbology: 'CODE128', width: 200, height: 100 }
+      const template = templates.find(t => t.id === selectedTemplateId) ?? (productData ? genericTemplate : null)
+      if (!template) return
 
-      const labelHtmls = selected.flatMap(bale => {
+      let labelHtmls: string[]
+
+      if (productData) {
+        // Individual product path
         const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-        JsBarcode(svgEl, bale.scanCode, { format: template.symbology?.toUpperCase() || 'CODE128', width: 1.5, height: 40, displayValue: false, margin: 4 })
-        svgEl.style.maxWidth = '100%'
-        svgEl.style.display = 'block'
-        const html = buildLabelHtml(bale, svgEl.outerHTML, bizName, template)
-        return Array(qtyPerBale).fill(html)
-      })
+        JsBarcode(svgEl, productData.barcodeData, { format: template.symbology?.toUpperCase() || 'CODE128', width: 1.5, height: 40, displayValue: false, margin: 4 })
+        svgEl.style.maxWidth = '100%'; svgEl.style.display = 'block'
+        const html = buildProductLabelHtml(productData, svgEl.outerHTML, bizName, template.name)
+        labelHtmls = Array(qtyPerBale).fill(html)
+      } else {
+        // Bale path (existing)
+        const selected = bales.filter(b => selectedIds.has(b.id))
+        labelHtmls = selected.flatMap(bale => {
+          const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          JsBarcode(svgEl, bale.scanCode, { format: template.symbology?.toUpperCase() || 'CODE128', width: 1.5, height: 40, displayValue: false, margin: 4 })
+          svgEl.style.maxWidth = '100%'; svgEl.style.display = 'block'
+          return Array(qtyPerBale).fill(buildLabelHtml(bale, svgEl.outerHTML, bizName, template))
+        })
+      }
 
       const rows: string[] = []
       for (let i = 0; i < labelHtmls.length; i += 3) {
         const chunk = labelHtmls.slice(i, i + 3)
-        rows.push(`<div style="display:flex;gap:10px;margin-bottom:10px;page-break-inside:avoid;">${chunk.join('')}</div>`)
+        rows.push(`<div style="display:flex;margin-bottom:0;page-break-inside:avoid;">${chunk.join('')}</div>`)
       }
       const title = `Bale Barcodes — ${labelHtmls.length} label${labelHtmls.length !== 1 ? 's' : ''}`
       const printWindow = window.open('', '_blank', 'width=900,height=700')
@@ -275,28 +340,46 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   const [receiptError, setReceiptError] = useState<string | null>(null)
   const [receiptSuccess, setReceiptSuccess] = useState(false)
 
-  const handleReceiptPrint = async () => {
-    if (selectedIds.size === 0 || !selectedPrinterId) return
+  const handleReceiptPrint = async (isRetry = false) => {
+    if (!productData && selectedIds.size === 0) return
+    if (!selectedPrinterId) return
     setIsReceiptPrinting(true)
     setReceiptError(null)
     setReceiptSuccess(false)
     try {
-      const template = templates.find(t => t.id === selectedTemplateId)
-      if (!template) throw new Error('No template selected')
       const { generateBarcodeLabel } = await import('@/lib/barcode-label-generator')
       const bizName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
-      const selected = bales.filter(b => selectedIds.has(b.id))
+      const genericTemplate = { id: 'generic', name: 'Generic', symbology: 'code128', width: 200, height: 100, batchId: undefined }
+      const template = templates.find(t => t.id === selectedTemplateId) ?? (productData ? genericTemplate : null)
+      if (!template) throw new Error('No template selected')
+
       let allLabels = ''
-      for (const bale of selected) {
-        allLabels += generateBarcodeLabel({
-          barcodeData: bale.scanCode, displayText: bale.scanCode,
+
+      if (productData) {
+        // Individual product path
+        allLabels = generateBarcodeLabel({
+          barcodeData: productData.barcodeData, displayText: productData.barcodeData,
           symbology: template.symbology || 'code128', businessName: bizName,
           templateName: template.name, displayValue: true,
-          batchNumber: template.batchId || '', quantity: qtyPerBale,
-          customData: { productName: bale.category.name, description: 'Batch ' + bale.batchNumber, price: String(bale.unitPrice) },
+          batchNumber: '', quantity: qtyPerBale,
+          customData: { productName: productData.name, description: productData.sku ? `SKU: ${productData.sku}` : '', price: String(productData.sellingPrice) },
           width: template.width || 200, height: template.height || 100,
         })
+      } else {
+        // Bale path (existing)
+        const selected = bales.filter(b => selectedIds.has(b.id))
+        for (const bale of selected) {
+          allLabels += generateBarcodeLabel({
+            barcodeData: bale.scanCode, displayText: bale.scanCode,
+            symbology: template.symbology || 'code128', businessName: bizName,
+            templateName: template.name, displayValue: true,
+            batchNumber: template.batchId || '', quantity: qtyPerBale,
+            customData: { productName: bale.category.name, description: 'Batch ' + bale.batchNumber, price: String(bale.unitPrice) },
+            width: template.width || 200, height: template.height || 100,
+          })
+        }
       }
+
       const bytes = new Uint8Array(allLabels.length)
       for (let i = 0; i < allLabels.length; i++) bytes[i] = allLabels.charCodeAt(i) & 0xFF
       const escPosData = btoa(Array.from(bytes).map(b => String.fromCharCode(b)).join(''))
@@ -309,18 +392,37 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || `Print failed (${res.status})`)
       }
-      await logPrintHistory(selected.length * qtyPerBale)
+      await logPrintHistory(qtyPerBale)
       setReceiptSuccess(true)
       setTimeout(() => setReceiptSuccess(false), 4000)
     } catch (err) {
-      setReceiptError(err instanceof Error ? err.message : 'Print failed')
+      const msg = err instanceof Error ? err.message : 'Print failed'
+      if (!isRetry && msg.toLowerCase().includes('offline or unreachable')) {
+        setReceiptError('Printer offline — attempting to reconnect…')
+        setIsReceiptPrinting(false)
+        try {
+          const connRes = await fetch(`/api/printers/${selectedPrinterId}/check-connectivity`, { method: 'POST' })
+          if (connRes.ok) {
+            const { isOnline } = await connRes.json()
+            if (isOnline) {
+              loadPrinters(selectedPrinterId)
+              setReceiptError(null)
+              await handleReceiptPrint(true)
+              return
+            }
+          }
+        } catch {}
+        setReceiptError('Printer is still offline. Please check the connection.')
+        return
+      }
+      setReceiptError(msg)
     } finally {
       setIsReceiptPrinting(false)
     }
   }
 
   const canPrint = selectedIds.size > 0 && !!selectedTemplateId
-  const compactCanPrint = !!selectedTemplateId && qtyPerBale > 0
+  const compactCanPrint = (!!productData || !!selectedTemplateId) && qtyPerBale > 0
   const totalLabels = selectedIds.size * qtyPerBale
 
   if (!isOpen) return null
@@ -338,18 +440,23 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
           </div>
 
           <div className="px-5 py-4 space-y-4">
-            {/* Bale + template summary */}
+            {/* Item summary */}
             <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-sm space-y-1">
-              {selectedBale ? (
+              {productData ? (
+                <>
+                  <p className="font-semibold text-gray-900 dark:text-white">{productData.name}</p>
+                  {productData.sku && <p className="text-xs text-gray-500 dark:text-gray-400">SKU: {productData.sku}</p>}
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Price: ${Number(productData.sellingPrice).toFixed(2)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Template: {selectedTemplate?.name ?? 'Generic (CODE128)'}</p>
+                </>
+              ) : selectedBale ? (
                 <>
                   <p className="font-semibold text-gray-900 dark:text-white">{selectedBale.category.name}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Batch {selectedBale.batchNumber} · SKU {selectedBale.sku}</p>
+                  {selectedTemplate && <p className="text-xs text-gray-500 dark:text-gray-400">Template: {selectedTemplate.name}</p>}
                 </>
               ) : (
-                <p className="text-gray-400 text-xs">{balesLoading ? 'Loading bale…' : 'Bale not found'}</p>
-              )}
-              {selectedTemplate && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">Template: {selectedTemplate.name}</p>
+                <p className="text-gray-400 text-xs">{balesLoading ? 'Loading…' : 'Item not found'}</p>
               )}
             </div>
 
@@ -391,8 +498,34 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                   </select>
                 )}
                 {printers.length === 1 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{printers[0].printerName}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <span className={`inline-block w-2 h-2 rounded-full ${printers[0].isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+                      {printers[0].printerName}
+                    </p>
+                    {!printers[0].isOnline && (
+                      <button
+                        onClick={() => handleBringOnline(printers[0].id)}
+                        disabled={checkingOnline === printers[0].id}
+                        className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                      >
+                        {checkingOnline === printers[0].id ? 'Checking…' : 'Bring Online'}
+                      </button>
+                    )}
+                  </div>
                 )}
+                {selectedPrinterId && (() => { const p = printers.find(x => x.id === selectedPrinterId); return p && !p.isOnline && printers.length > 1 ? (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-red-500">Selected printer is offline</p>
+                    <button
+                      onClick={() => handleBringOnline(selectedPrinterId)}
+                      disabled={checkingOnline === selectedPrinterId}
+                      className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                    >
+                      {checkingOnline === selectedPrinterId ? 'Checking…' : 'Bring Online'}
+                    </button>
+                  </div>
+                ) : null })()}
                 <button
                   onClick={handleReceiptPrint}
                   disabled={!compactCanPrint || isReceiptPrinting || !selectedPrinterId}
@@ -498,7 +631,35 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                       {printers.map(p => <option key={p.id} value={p.id}>{p.printerName}{p.isOnline === false ? ' (offline)' : ''}</option>)}
                     </select>
                   )}
-                  {printers.length === 1 && <p className="text-xs text-gray-500 dark:text-gray-400">{printers[0].printerName}</p>}
+                  {printers.length === 1 && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                        <span className={`inline-block w-2 h-2 rounded-full ${printers[0].isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+                        {printers[0].printerName}
+                      </p>
+                      {!printers[0].isOnline && (
+                        <button
+                          onClick={() => handleBringOnline(printers[0].id)}
+                          disabled={checkingOnline === printers[0].id}
+                          className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                        >
+                          {checkingOnline === printers[0].id ? 'Checking…' : 'Bring Online'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {selectedPrinterId && (() => { const p = printers.find(x => x.id === selectedPrinterId); return p && !p.isOnline && printers.length > 1 ? (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-red-500">Selected printer is offline</p>
+                      <button
+                        onClick={() => handleBringOnline(selectedPrinterId)}
+                        disabled={checkingOnline === selectedPrinterId}
+                        className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                      >
+                        {checkingOnline === selectedPrinterId ? 'Checking…' : 'Bring Online'}
+                      </button>
+                    </div>
+                  ) : null })()}
                   <button onClick={handleReceiptPrint} disabled={!canPrint || isReceiptPrinting || !selectedPrinterId}
                     className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                     {isReceiptPrinting

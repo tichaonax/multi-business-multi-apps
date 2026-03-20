@@ -414,7 +414,7 @@ export async function POST(request: NextRequest) {
     // Separate WiFi tokens (ESP32), R710 tokens, and regular products
     const wifiTokenItems = items.filter(item => item.attributes?.wifiToken === true)
     const r710TokenItems = items.filter(item => item.attributes?.r710Token === true)
-    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true && item.attributes?.businessService !== true && item.attributes?.isService !== true && !item.attributes?.baleId)
+    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true && item.attributes?.businessService !== true && item.attributes?.isService !== true && !item.attributes?.baleId && !item.attributes?.isInventoryItem)
 
     // Verify all product variants exist and get their details (for regular items only)
     const variantIds = regularItems.map(item => item.productVariantId).filter(Boolean) as string[]
@@ -528,7 +528,7 @@ export async function POST(request: NextRequest) {
 
               // For regular products: use connect (Prisma sets productVariantId automatically)
               // For virtual items (WiFi tokens, services, bale items): don't set productVariantId at all
-              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService || item.attributes?.baleId
+              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService || item.attributes?.baleId || item.attributes?.isInventoryItem
               if (item.productVariantId && !isVirtualItem) {
                 orderItem.product_variants = {
                   connect: { id: item.productVariantId }
@@ -605,6 +605,22 @@ export async function POST(request: NextRequest) {
             data: {
               remainingCount: { decrement: qty }
             }
+          })
+        }
+      }
+
+      // Decrement stockQuantity for individual inventory items (BarcodeInventoryItems)
+      const inventoryItems = items.filter(item => item.attributes?.isInventoryItem && item.attributes?.inventoryItemId)
+      if (inventoryItems.length > 0) {
+        const itemQuantities: Record<string, number> = {}
+        for (const item of inventoryItems) {
+          const invId = item.attributes!.inventoryItemId as string
+          itemQuantities[invId] = (itemQuantities[invId] || 0) + item.quantity
+        }
+        for (const [invId, qty] of Object.entries(itemQuantities)) {
+          await tx.barcodeInventoryItems.update({
+            where: { id: invId },
+            data: { stockQuantity: { decrement: qty } },
           })
         }
       }

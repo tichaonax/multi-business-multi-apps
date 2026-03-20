@@ -4207,7 +4207,7 @@ model BarcodeInventoryItems {
   name              String
   sku               String?
   category          String?
-  barcodeTemplateId String
+  barcodeTemplateId String?
   location          String?
   stockQuantity     Int                @default(0)
   businessId        String
@@ -4217,11 +4217,13 @@ model BarcodeInventoryItems {
   batchNumber       String?
   expiryDate        DateTime?
   quantity          Int                @default(1)
+  costPrice         Decimal?           @db.Decimal(10, 2)
+  sellingPrice      Decimal?           @db.Decimal(10, 2)
   isActive          Boolean            @default(true)
   createdById       String
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
-  barcodeTemplate   BarcodeTemplates   @relation(fields: [barcodeTemplateId], references: [id])
+  barcodeTemplate   BarcodeTemplates?  @relation(fields: [barcodeTemplateId], references: [id])
   business          Businesses         @relation(fields: [businessId], references: [id])
   createdBy         Users              @relation(fields: [createdById], references: [id])
   printJobs         BarcodePrintJobs[]

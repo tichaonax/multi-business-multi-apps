@@ -49,6 +49,35 @@ export async function POST(request: NextRequest) {
         !!item.attributes?.baleId ||
         !!item.attributes?.isBale
 
+      const isInventoryItem =
+        item.productId?.startsWith('inv_') ||
+        !!item.attributes?.isInventoryItem
+
+      if (isInventoryItem) {
+        const inventoryItemId =
+          item.attributes?.inventoryItemId ||
+          (item.productId?.startsWith('inv_') ? item.productId.replace(/^inv_/, '') : null)
+
+        if (!inventoryItemId) {
+          invalid.push({ item, reason: 'Inventory item ID could not be determined' })
+          continue
+        }
+
+        const invItem = await prisma.barcodeInventoryItems.findFirst({
+          where: { id: inventoryItemId, businessId, isActive: true },
+          select: { id: true, stockQuantity: true }
+        })
+
+        if (!invItem) {
+          invalid.push({ item, reason: 'Item no longer exists in this business' })
+        } else if (invItem.stockQuantity < 1) {
+          invalid.push({ item, reason: 'Item is out of stock' })
+        } else {
+          valid.push(item)
+        }
+        continue
+      }
+
       if (isBaleItem) {
         // ── Bale validation ───────────────────────────────────────────────
         const baleId =

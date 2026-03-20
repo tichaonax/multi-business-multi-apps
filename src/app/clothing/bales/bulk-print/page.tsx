@@ -51,8 +51,8 @@ function buildLabelHtml(
   const price = `$ ${Number(bale.unitPrice).toFixed(2)}`
 
   return `
-    <div style="width:220px;border:1px solid #333;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
-      <div style="font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;">&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;</div>
+    <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
       <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
       <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(bale.category.name)}</div>
       <div style="font-size:9px;text-align:center;margin-bottom:2px;">Batch ${escHtml(bale.batchNumber)}</div>
@@ -61,7 +61,7 @@ function buildLabelHtml(
       <div style="font-size:9px;text-align:center;color:#444;margin-bottom:4px;letter-spacing:0.03em;">${escHtml(bale.scanCode)}</div>
       <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(price)}</div>
       <div style="font-size:8px;text-align:center;color:#666;">${escHtml(template.name)}</div>
-      <div style="font-size:8px;color:#555;font-family:monospace;margin-top:4px;">&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&nbsp;&#124;</div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
     </div>
   `
 }
@@ -229,7 +229,7 @@ export default function BalesBulkPrintPage() {
       const rows: string[] = []
       for (let i = 0; i < labelHtmls.length; i += 3) {
         const chunk = labelHtmls.slice(i, i + 3)
-        rows.push(`<div style="display:flex;gap:10px;margin-bottom:10px;page-break-inside:avoid;">${chunk.join('')}</div>`)
+        rows.push(`<div style="display:flex;margin-bottom:0;page-break-inside:avoid;">${chunk.join('')}</div>`)
       }
       const allLabels = rows.join('')
       const title = `Bale Barcodes — ${selected.length} label${selected.length !== 1 ? 's' : ''}`

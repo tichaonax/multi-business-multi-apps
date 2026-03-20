@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getGlobalBarcodeScanningAccess } from '@/lib/permission-utils'
+import { getGlobalBarcodeScanningAccess, isSystemAdmin } from '@/lib/permission-utils'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 
@@ -29,24 +29,22 @@ export async function GET(
     // business member can look up barcodes within their own businesses.
     // The accessibleBusinessIds filter below enforces scope automatically.
 
-    // Get user's business memberships for filtering
-    const businessMemberships = await prisma.businessMemberships.findMany({
-      where: {
-        userId: user.id,
-        isActive: true
-      },
-      include: {
-        businesses: {
-          select: {
-            id: true,
-            name: true,
-            type: true
-          }
-        }
-      }
-    })
-
-    const accessibleBusinessIds = businessMemberships.map(m => m.businessId)
+    // Get user's accessible business IDs
+    // System admins have access to all active businesses
+    let accessibleBusinessIds: string[]
+    if (isSystemAdmin(user)) {
+      const allBusinesses = await prisma.businesses.findMany({
+        where: { isActive: true },
+        select: { id: true }
+      })
+      accessibleBusinessIds = allBusinesses.map(b => b.id)
+    } else {
+      const businessMemberships = await prisma.businessMemberships.findMany({
+        where: { userId: user.id, isActive: true },
+        select: { businessId: true }
+      })
+      accessibleBusinessIds = businessMemberships.map(m => m.businessId)
+    }
 
     // Find products with this barcode across all businesses
     const productBarcodes = await prisma.productBarcodes.findMany({
@@ -271,6 +269,47 @@ export async function GET(
           sku: bale.sku,
           bogoActive: bale.bogoActive,
           bogoRatio: bale.bogoRatio,
+        })
+      }
+    }
+
+    // Tier 4: search BarcodeInventoryItems (individual products added via Add Stock)
+    if (businessInventory.length === 0) {
+      const inventoryItems = await prisma.barcodeInventoryItems.findMany({
+        where: {
+          barcodeData: { equals: barcode, mode: 'insensitive' },
+          isActive: true,
+          stockQuantity: { gt: 0 },
+        },
+        include: {
+          business: { select: { id: true, name: true, type: true } },
+        },
+      })
+
+      for (const item of inventoryItems) {
+        const hasAccess = accessibleBusinessIds.includes(item.businessId)
+const isInformational = access.canViewAcrossBusinesses && !hasAccess
+        if (!hasAccess && !isInformational) continue
+        businessInventory.push({
+          businessId: item.businessId,
+          businessName: item.business.name,
+          businessType: item.business.type || 'clothing',
+          productId: item.id,
+          variantId: null,
+          productName: item.name,
+          variantName: null,
+          description: item.customLabel || null,
+          productAttributes: {},
+          variantAttributes: {},
+          stockQuantity: item.stockQuantity,
+          price: Number(item.sellingPrice || 0),
+          hasAccess,
+          isInformational,
+          barcodeType: 'INVENTORY_ITEM',
+          barcodeLabel: 'Inventory item',
+          isInventoryItem: true,
+          inventoryItemId: item.id,
+          sku: item.sku || undefined,
         })
       }
     }

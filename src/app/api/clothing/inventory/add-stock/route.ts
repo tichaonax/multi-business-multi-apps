@@ -16,12 +16,12 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { businessId, templateId, name, quantity, barcode, sku, notes } = body
+    const { businessId, templateId, name, quantity, barcode, sku, notes, costPrice, sellingPrice } = body
 
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
-    if (!templateId) return NextResponse.json({ error: 'templateId is required' }, { status: 400 })
     if (!name?.trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 })
     if (!quantity || Number(quantity) < 1) return NextResponse.json({ error: 'quantity must be >= 1' }, { status: 400 })
+    if (!sellingPrice || Number(sellingPrice) <= 0) return NextResponse.json({ error: 'Selling price is required' }, { status: 400 })
 
     const inventoryItemId = randomBytes(8).toString('hex')
     const barcodeData = barcode?.trim() || randomBytes(4).toString('hex')
@@ -30,13 +30,15 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         sku: sku?.trim() || undefined,
-        barcodeTemplateId: templateId,
+        barcodeTemplateId: templateId || null,
         businessId,
         inventoryItemId,
         barcodeData,
         quantity: Number(quantity),
         stockQuantity: Number(quantity),
         customLabel: notes?.trim() || undefined,
+        costPrice: costPrice ? Number(costPrice) : null,
+        sellingPrice: Number(sellingPrice),
         createdById: user.id,
       },
     })
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[add-stock POST]', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to add stock' },
+      { error: 'Failed to add stock. Please try again.' },
       { status: 500 }
     )
   }

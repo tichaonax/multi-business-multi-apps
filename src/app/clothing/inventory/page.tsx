@@ -60,9 +60,9 @@ function ClothingInventoryContent() {
   const [bogoHistoryBaleId, setBogoHistoryBaleId] = useState<string | null>(null)
   const [bogoHistory, setBogoHistory] = useState<any[]>([])
   const [bogoHistoryLoading, setBogoHistoryLoading] = useState(false)
-  const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string; compact?: boolean } | null>(null)
+  const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string; compact?: boolean; productData?: any } | null>(null)
   const [labelCount, setLabelCount] = useState('5')
-  const [showAddStockPanel, setShowAddStockPanel] = useState(false)
+  const [showAddStockPanel, setShowAddStockPanel] = useState<'bale' | 'product' | false>(false)
   const [printHistoryBaleId, setPrintHistoryBaleId] = useState<string | null>(null)
   const [printHistoryBale, setPrintHistoryBale] = useState<any | null>(null)
   const [printHistory, setPrintHistory] = useState<any[]>([])
@@ -917,6 +917,12 @@ function ClothingInventoryContent() {
                         >
                           ➕ Add Item
                         </button>
+                        <button
+                          onClick={() => setShowAddStockPanel('product')}
+                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors"
+                        >
+                          + Add Stock
+                        </button>
                         {selectedCondition === 'USED' && (
                           <button
                             onClick={() => router.push('/clothing/inventory/transfer')}
@@ -1042,7 +1048,7 @@ function ClothingInventoryContent() {
                           + Register Bale
                         </button>
                         <button
-                          onClick={() => setShowAddStockPanel(true)}
+                          onClick={() => setShowAddStockPanel('bale')}
                           className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
                         >
                           + Add Stock
@@ -1767,9 +1773,11 @@ function ClothingInventoryContent() {
         <div className="w-full max-w-2xl">
           <AddStockPanel
             businessId={businessId}
+            initialTab={showAddStockPanel || 'bale'}
+            hideTabs
             onClose={() => setShowAddStockPanel(false)}
             onBaleAdded={() => { fetchBales(); setShowAddStockPanel(false) }}
-            onPrintReady={(params) => { setShowAddStockPanel(false); setBulkPrintModal({ ...params, compact: !!params.baleId }) }}
+            onPrintReady={(params) => { setShowAddStockPanel(false); setBulkPrintModal({ ...params, compact: !!params.baleId || !!params.productData }) }}
           />
         </div>
       </div>
@@ -1856,8 +1864,9 @@ function ClothingInventoryContent() {
         qty={bulkPrintModal.qty}
         templateId={bulkPrintModal.templateId}
         businessId={businessId}
+        productData={bulkPrintModal.productData}
         lockTemplate={!!bulkPrintModal.templateId}
-        compact={bulkPrintModal.compact ?? !!bulkPrintModal.baleId}
+        compact={bulkPrintModal.compact ?? (!!bulkPrintModal.baleId || !!bulkPrintModal.productData)}
       />
     )}
     </>
