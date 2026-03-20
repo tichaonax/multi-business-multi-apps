@@ -29,6 +29,8 @@ interface AddStockPanelProps {
   prefillBarcode?: string
   /** Called after a bale is registered (so caller can refresh bale list) */
   onBaleAdded?: () => void
+  /** Called after an individual inventory item is successfully created */
+  onItemAdded?: () => void
   /** Called with print params so the parent can open BulkPrintModal */
   onPrintReady?: (params: { baleId?: string; qty: number; templateId?: string; productData?: ProductData }) => void
   /** When true, hides print controls — barcode already exists, just save the stock */
@@ -39,7 +41,7 @@ interface AddStockPanelProps {
   businessName?: string
 }
 
-export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTabs = false, hideBaleTab = false, isPosRoute, prefillBarcode, onBaleAdded, onPrintReady, disablePrint = false, showBusinessSelector = false, businessName }: AddStockPanelProps) {
+export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTabs = false, hideBaleTab = false, isPosRoute, prefillBarcode, onBaleAdded, onItemAdded, onPrintReady, disablePrint = false, showBusinessSelector = false, businessName }: AddStockPanelProps) {
   // When hideBaleTab is set (no-match flow), always force product tab
   const [tab, setTab] = useState<'bale' | 'product'>(hideBaleTab ? 'product' : initialTab)
 
@@ -197,11 +199,12 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
 
       if (addToCart && isPosRoute) {
         window.dispatchEvent(new CustomEvent('pos:add-inventory-item-to-cart', {
-          detail: { inventoryItemId: data.itemId, name: productForm.name.trim(), sellingPrice: Number(productForm.sellingPrice), sku: productForm.sku.trim() || '' }
+          detail: { inventoryItemId: data.itemId, name: productForm.name.trim(), sellingPrice: Number(productForm.sellingPrice), sku: productForm.sku.trim() || '', barcodeData: data.barcodeData || productForm.barcode.trim() }
         }))
       }
 
       onClose()
+      onItemAdded?.()
       if (!disablePrint) {
         onPrintReady?.({
           qty,

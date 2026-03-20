@@ -1235,6 +1235,10 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
           showBusinessSelector={typeof window !== 'undefined' && !window.location.pathname.includes('/pos')}
           businessName={currentBusinessName}
           onClose={() => setShowAddStockPanel(false)}
+          onItemAdded={() => {
+            setShowAddStockPanel(false)
+            onClose()
+          }}
           onBaleAdded={() => {
             setShowAddStockPanel(false)
             onClose()

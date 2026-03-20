@@ -83,7 +83,8 @@ function GroceryPOSContent() {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [pluInput, setPluInput] = useState('')
   const [weightInput, setWeightInput] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'snap' | 'loyalty'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'snap' | 'loyalty' | 'ecocash'>('cash')
+  const [ecocashTxCode, setEcocashTxCode] = useState('')
   const [isScaleConnected, setIsScaleConnected] = useState(true)
   const [currentWeight, setCurrentWeight] = useState(0)
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
@@ -1056,6 +1057,43 @@ function GroceryPOSContent() {
     setCurrentWeight(0)
   }
 
+  // Add inventory item (BarcodeInventoryItem from Add Stock) to cart
+  const addInventoryItemToCart = useCallback((item: any) => {
+    if (!item?.inventoryItemId) return
+    const price = parseFloat(item.sellingPrice ?? item.price ?? 0)
+    if (price <= 0) return
+    const posItem: POSItem = {
+      id: `inv_${item.inventoryItemId}`,
+      name: item.productName ?? item.name ?? 'Unknown Item',
+      barcode: item.barcodeData || item.barcode || undefined,
+      category: 'General',
+      unitType: 'each',
+      price,
+      unit: 'each',
+      taxable: false,
+      weightRequired: false,
+    }
+    setCart(prev => {
+      const existing = prev.find(ci => ci.id === posItem.id)
+      if (existing) {
+        return prev.map(ci => ci.id === posItem.id
+          ? { ...ci, quantity: ci.quantity + 1, subtotal: ci.subtotal + price }
+          : ci)
+      }
+      return [...prev, { ...posItem, quantity: 1, subtotal: price }]
+    })
+  }, [])
+
+  // Listen for inventory items dispatched by global barcode modal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const item = (e as CustomEvent).detail
+      if (item?.inventoryItemId) addInventoryItemToCart(item)
+    }
+    window.addEventListener('pos:add-inventory-item-to-cart', handler)
+    return () => window.removeEventListener('pos:add-inventory-item-to-cart', handler)
+  }, [addInventoryItemToCart])
+
   // Detect if we should auto-add on page load
   useEffect(() => {
     const addProductId = searchParams?.get('addProduct')
@@ -1202,6 +1240,12 @@ function GroceryPOSContent() {
       }
     }
 
+    // For EcoCash, validate transaction code is present
+    if (paymentMethod === 'ecocash' && !ecocashTxCode.trim()) {
+      void customAlert({ title: 'EcoCash code required', description: 'Please enter the EcoCash transaction code.' })
+      return
+    }
+
     // For cash payments, show tender modal
     if (paymentMethod === 'cash') {
       setCashTendered('')
@@ -1220,6 +1264,13 @@ function GroceryPOSContent() {
     setProcessingPayment(true)
     const totals = calculateTotals()
 
+    // Compute EcoCash fee upfront so it's available for both the order and the receipt
+    const ecoFeeType = (currentBusiness as any)?.ecocashFeeType
+    const ecoFeeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+    const computedEcocashFee = paymentMethod === 'ecocash'
+      ? (ecoFeeType === 'PERCENTAGE' ? totals.total * (ecoFeeValue / 100) : ecoFeeType === 'FIXED' ? ecoFeeValue : 0)
+      : 0
+
     try {
       // Create order using universal orders API
       const orderData = {
@@ -1231,6 +1282,12 @@ function GroceryPOSContent() {
         discountAmount: totals.rewardCredit || 0,
         taxAmount: totals.tax,
         rewardId: (appliedReward && !skipRewardThisTime) ? appliedReward.id : undefined,
+        ...(paymentMethod === 'ecocash' ? {
+          ecocashTransactionCode: ecocashTxCode.trim(),
+          ecocashFeeType: ecoFeeType,
+          ecocashFeeValue: ecoFeeValue,
+          ecocashFeeAmount: computedEcocashFee,
+        } : {}),
         attributes: {
           paymentMethod: paymentMethod,
           loyaltyPointsEarned: totals.loyaltyPoints,
@@ -1246,30 +1303,36 @@ function GroceryPOSContent() {
           } : null
         },
         notes: selectedCustomer ? `Customer: ${selectedCustomer.name}` : customer ? `Loyalty member: ${customer.loyaltyNumber}` : 'Walk-in customer',
-        items: cart.map(item => ({
-          productVariantId: (item.wifiToken || item.r710Token) ? null : item.id, // WiFi/R710 tokens don't have variants
-          quantity: item.quantity,
-          unitPrice: item.price,
-          discountAmount: item.discountAmount || 0,
-          attributes: {
-            weight: item.weight,
-            unitType: item.unitType,
-            category: item.category,
-            barcode: item.barcode,
-            pluCode: item.pluCode,
-            organicCertified: item.organicCertified,
-            snapEligible: item.snapEligible,
-            // WiFi token specific attributes (ESP32)
-            wifiToken: item.wifiToken || false,
-            // R710 token specific attributes
-            r710Token: item.r710Token || false,
-            tokenConfigId: item.tokenConfigId,
-            businessTokenMenuItemId: item.businessTokenMenuItemId,
-            productName: item.name,
-            packageName: item.tokenConfig?.name,
-            duration: item.tokenConfig?.durationMinutes || item.tokenConfig?.durationValue
+        items: cart.map(item => {
+          const isInventoryItem = item.id.startsWith('inv_')
+          return {
+            productVariantId: (item.wifiToken || item.r710Token || isInventoryItem) ? null : item.id,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            discountAmount: item.discountAmount || 0,
+            attributes: {
+              weight: item.weight,
+              unitType: item.unitType,
+              category: item.category,
+              barcode: item.barcode,
+              pluCode: item.pluCode,
+              organicCertified: item.organicCertified,
+              snapEligible: item.snapEligible,
+              // WiFi token specific attributes (ESP32)
+              wifiToken: item.wifiToken || false,
+              // R710 token specific attributes
+              r710Token: item.r710Token || false,
+              tokenConfigId: item.tokenConfigId,
+              businessTokenMenuItemId: item.businessTokenMenuItemId,
+              productName: item.name,
+              packageName: item.tokenConfig?.name,
+              duration: item.tokenConfig?.durationMinutes || item.tokenConfig?.durationValue,
+              // Inventory item (BarcodeInventoryItem) flag — tells orders API to skip variant lookup
+              isInventoryItem: isInventoryItem || undefined,
+              inventoryItemId: isInventoryItem ? item.id.replace('inv_', '') : undefined,
+            }
           }
-        }))
+        })
       }
 
       const response = await fetch('/api/universal/orders', {
@@ -1293,8 +1356,12 @@ function GroceryPOSContent() {
           orderNumber: result.data.orderNumber,
           total: totals.total,
           paymentMethod: paymentMethod.toUpperCase(),
-          amountReceived: paymentMethod === 'cash' ? parseFloat(cashTendered) : totals.total,
+          amountReceived: paymentMethod === 'cash' ? parseFloat(cashTendered)
+            : paymentMethod === 'ecocash' ? totals.total + computedEcocashFee
+            : totals.total,
           change: paymentMethod === 'cash' ? (parseFloat(cashTendered) - totals.total) : 0,
+          ecocashFeeAmount: paymentMethod === 'ecocash' ? computedEcocashFee : undefined,
+          ecocashTransactionCode: paymentMethod === 'ecocash' ? ecocashTxCode.trim() : undefined,
           items: cart.map(item => ({
             name: item.name,
             quantity: item.quantity,
@@ -1321,6 +1388,7 @@ function GroceryPOSContent() {
         autoAppliedForRef.current = null
         setShowCashTenderModal(false)
         setCashTendered('')
+        setEcocashTxCode('')
 
         // Show receipt modal
         setShowReceiptModal(true)
@@ -1377,8 +1445,12 @@ function GroceryPOSContent() {
       discountLabel: Number(order.discountAmount) > 0 ? 'Reward Applied' : undefined,
       total: order.total,
       paymentMethod: order.paymentMethod?.toLowerCase() || 'cash',
-      amountPaid: order.amountReceived || order.total,
+      amountPaid: order.paymentMethod?.toUpperCase() === 'ECOCASH'
+        ? order.total + (order.ecocashFeeAmount || 0)
+        : order.amountReceived || order.total,
       changeDue: order.change || 0,
+      ecocashFeeAmount: order.ecocashFeeAmount,
+      ecocashTransactionCode: order.ecocashTransactionCode,
       wifiTokens: order.wifiTokens?.map((token: any) => {
         console.log('📡 [Grocery] Mapping ESP32 WiFi token:', token)
         const mapped = {
@@ -1687,10 +1759,30 @@ function GroceryPOSContent() {
 
                 {/* Total */}
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                  {completedOrder.paymentMethod === 'ECOCASH' && completedOrder.ecocashFeeAmount > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+                        <span className="text-gray-900 dark:text-gray-100">${completedOrder.total.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm mb-1 text-orange-600 dark:text-orange-400">
+                        <span>EcoCash Fee:</span>
+                        <span>+${completedOrder.ecocashFeeAmount.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between text-lg font-bold">
                     <span className="text-gray-700 dark:text-gray-300">Total:</span>
-                    <span className="text-gray-900 dark:text-gray-100">${completedOrder.total.toFixed(2)}</span>
+                    <span className="text-gray-900 dark:text-gray-100">
+                      ${(completedOrder.total + (completedOrder.ecocashFeeAmount || 0)).toFixed(2)}
+                    </span>
                   </div>
+                  {completedOrder.paymentMethod === 'ECOCASH' && completedOrder.ecocashTransactionCode && (
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-600 dark:text-gray-400">EcoCash Ref:</span>
+                      <span className="font-mono text-gray-900 dark:text-gray-100">{completedOrder.ecocashTransactionCode}</span>
+                    </div>
+                  )}
                   {completedOrder.paymentMethod === 'CASH' && (
                     <>
                       <div className="flex justify-between text-sm mt-1">
@@ -2327,6 +2419,9 @@ function GroceryPOSContent() {
                   <div key={`${item.id}-${index}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg gap-2">
                     <div className="flex-1">
                       <div className="font-medium">{item.name}</div>
+                      {(item.barcode && !item.barcode.startsWith('inv_')) && (
+                        <div className="text-xs text-secondary font-mono">{item.barcode}</div>
+                      )}
                       <div className="text-sm text-secondary flex gap-4">
                         <span>{item.quantity.toFixed(item.weightRequired ? 2 : 0)} {item.unit}</span>
                         <span>{formatCurrency(item.price)}/{item.unit}</span>
@@ -2452,6 +2547,9 @@ function GroceryPOSContent() {
                     <div key={`summary-${item.id}-${index}`} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{item.name}</div>
+                        {(item.barcode && !item.barcode.startsWith('inv_')) && (
+                          <div className="text-xs text-secondary font-mono">{item.barcode}</div>
+                        )}
                         <div className="text-xs text-secondary">
                           {item.quantity.toFixed(item.weightRequired ? 2 : 0)} × {formatCurrency(item.price)}
                         </div>
@@ -2554,11 +2652,52 @@ function GroceryPOSContent() {
                   ⭐ Loyalty Points ({Math.ceil(totals.total * 100)} pts needed)
                 </label>
               )}
+              {(currentBusiness as any)?.ecocashEnabled && (
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="ecocash"
+                    checked={paymentMethod === 'ecocash'}
+                    onChange={(e) => { setPaymentMethod(e.target.value as any); setCashTendered('') }}
+                    className="mr-2"
+                  />
+                  <img src="/images/ecocash-logo.png" alt="" className="h-4 w-auto inline-block mr-1" />EcoCash
+                </label>
+              )}
             </div>
+
+            {/* EcoCash Transaction Code input */}
+            {paymentMethod === 'ecocash' && (() => {
+              const feeType = (currentBusiness as any)?.ecocashFeeType
+              const feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+              const fee = feeType === 'PERCENTAGE' ? totals.total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+              const ecocashTotal = totals.total + fee
+              return (
+                <div className="space-y-2 mb-4">
+                  <label className="block text-sm font-medium text-primary">EcoCash Transaction Code</label>
+                  <input
+                    type="text"
+                    value={ecocashTxCode}
+                    onChange={(e) => setEcocashTxCode(e.target.value.toUpperCase())}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
+                    placeholder="Enter EcoCash transaction code"
+                    autoComplete="off"
+                    autoFocus
+                  />
+                  {fee > 0 && (
+                    <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
+                      <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(totals.total)}</span></div>
+                      <div className="flex justify-between"><span>EcoCash fee ({feeType === 'PERCENTAGE' ? `${feeValue}%` : 'fixed'}):</span><span>{formatCurrency(fee)}</span></div>
+                      <div className="flex justify-between font-bold"><span>Total to charge:</span><span>{formatCurrency(ecocashTotal)}</span></div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             <button
               onClick={handlePayment}
-              disabled={cart.length === 0 || processingPayment}
+              disabled={cart.length === 0 || processingPayment || (paymentMethod === 'ecocash' && !ecocashTxCode.trim())}
               className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-base"
             >
               {processingPayment ? 'Processing...' : `Process Payment - ${formatCurrency(totals.total)}`}
