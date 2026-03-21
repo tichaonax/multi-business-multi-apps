@@ -267,11 +267,79 @@ export async function GET(
       filteredItems = filteredItems.filter(item => item.currentStock < 10)
     }
 
+    // Also fetch BarcodeInventoryItems that have a categoryId (individually stocked items)
+    // These are merged into the results so they appear alongside BusinessProducts
+    const barcodeItemsWhere: any = {
+      businessId,
+      categoryId: { not: null },
+      isActive: true,
+      stockQuantity: { gt: 0 },
+    }
+    if (search) {
+      barcodeItemsWhere.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ]
+    }
+    const barcodeItems = await prisma.barcodeInventoryItems.findMany({
+      where: barcodeItemsWhere,
+      include: {
+        business_category: true,
+        business_supplier: true,
+      },
+    })
+    const barcodeItemsMapped = barcodeItems.map(item => ({
+      id: `inv_${item.id}`,
+      businessId: item.businessId,
+      businessType: 'clothing',
+      name: item.name,
+      sku: item.sku || '',
+      description: item.customLabel || '',
+      category: (item as any).business_category?.name || 'Uncategorized',
+      categoryId: item.categoryId || null,
+      categoryEmoji: (item as any).business_category?.emoji || '📦',
+      subcategory: null,
+      subcategoryId: null,
+      subcategoryEmoji: null,
+      currentStock: item.stockQuantity,
+      unit: 'units',
+      costPrice: parseFloat(item.costPrice?.toString() || '0'),
+      sellPrice: parseFloat(item.sellingPrice?.toString() || '0'),
+      supplier: (item as any).business_supplier?.name || '',
+      supplierId: item.supplierId || null,
+      location: '',
+      locationId: null,
+      condition: 'NEW',
+      isActive: item.isActive,
+      isProductTemplate: false,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      barcodes: [],
+      attributes: { isInventoryItem: true },
+      isInventoryTracked: true,
+      barcodeData: item.barcodeData,
+    }))
+
+    // Merge barcodeItems into filteredItems (apply domainId filter only to businessProducts)
+    // BarcodeInventoryItems filtered by category's parentId when domainId is specified
+    let mergedBarcodeItems = barcodeItemsMapped
+    if (domainId && domainId !== 'all') {
+      // domainId here filters by the parent BusinessCategory id
+      mergedBarcodeItems = barcodeItemsMapped.filter(item => {
+        const cat = barcodeItems.find(b => `inv_${b.id}` === item.id)
+        return (cat as any)?.business_category?.parentId === domainId
+      })
+    }
+    const allFilteredItems = [
+      ...filteredItems,
+      ...(lowStock ? mergedBarcodeItems.filter(item => item.currentStock < 10) : mergedBarcodeItems),
+    ]
+
     // Apply pagination after filtering
     const startIndex = (page - 1) * limit
     const endIndex = startIndex + limit
-    const paginatedItems = filteredItems.slice(startIndex, endIndex)
-    const totalFiltered = filteredItems.length
+    const paginatedItems = allFilteredItems.slice(startIndex, endIndex)
+    const totalFiltered = allFilteredItems.length
 
     return NextResponse.json({
       items: paginatedItems,

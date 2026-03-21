@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import type { ProductData } from '@/components/clothing/bulk-print-modal'
+import { SearchableCategorySelector } from '@/components/expense-account/searchable-category-selector'
 
 interface BaleCategory {
   id: string
@@ -12,6 +13,26 @@ interface BarcodeTemplate {
   id: string
   name: string
   symbology: string
+}
+
+interface BusinessCategory {
+  id: string
+  name: string
+  emoji: string
+  color: string
+  parentId: string | null
+  domainId?: string | null
+}
+
+interface Domain {
+  id: string
+  name: string
+  emoji: string
+}
+
+interface Supplier {
+  id: string
+  name: string
 }
 
 interface AddStockPanelProps {
@@ -46,8 +67,9 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   const [tab, setTab] = useState<'bale' | 'product'>(hideBaleTab ? 'product' : initialTab)
 
   // Business selector state — used when showBusinessSelector=true (not on POS)
-  const [effectiveBusinessId, setEffectiveBusinessId] = useState(businessId)
-  const [accessibleBusinesses, setAccessibleBusinesses] = useState<{ id: string; name: string }[]>([])
+  const [effectiveBusinessId, setEffectiveBusinessId] = useState(showBusinessSelector ? '' : businessId)
+  const [effectiveBusinessType, setEffectiveBusinessType] = useState('clothing')
+  const [accessibleBusinesses, setAccessibleBusinesses] = useState<{ id: string; name: string; type: string }[]>([])
   const [bizSearch, setBizSearch] = useState('')
   const [bizDropdownOpen, setBizDropdownOpen] = useState(false)
   const [bizSelectedName, setBizSelectedName] = useState('')
@@ -67,12 +89,41 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   // ── Individual product tab state ────────────────────────────────────────────
   const [templates, setTemplates] = useState<BarcodeTemplate[]>([])
   const [productForm, setProductForm] = useState({
-    templateId: '', name: '', barcode: prefillBarcode || '', quantity: '', sku: '', notes: '', costPrice: '', sellingPrice: '',
+    templateId: '', name: '', barcode: prefillBarcode || '', quantity: '', sku: '', description: '', costPrice: '', sellingPrice: '',
   })
   const [useGenericTemplate, setUseGenericTemplate] = useState(false)
   const [addToCart, setAddToCart] = useState(false)
+  const [isFreeItem, setIsFreeItem] = useState(false)
   const [productLoading, setProductLoading] = useState(false)
   const [productError, setProductError] = useState('')
+
+  // ── Category / Supplier state (individual product tab) ──────────────────────
+  // All categories stored flat; levels derived at load time
+  const [allCats, setAllCats] = useState<BusinessCategory[]>([])
+  const [domains, setDomains] = useState<Domain[]>([])                           // inventory domains (clothing departments)
+  const [departments, setDepartments] = useState<BusinessCategory[]>([])         // either from domains or level-1 parentId
+  const [allCategories, setAllCategories] = useState<BusinessCategory[]>([])     // level 2
+  const [filteredCategories, setFilteredCategories] = useState<BusinessCategory[]>([])
+  const [allSubCategories, setAllSubCategories] = useState<BusinessCategory[]>([]) // level 3
+  const [filteredSubCategories, setFilteredSubCategories] = useState<BusinessCategory[]>([])
+  const [productDepartmentId, setProductDepartmentId] = useState('')
+  const [productCategoryId, setProductCategoryId] = useState('')
+  const [productSubCategoryId, setProductSubCategoryId] = useState('')
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [productSupplierId, setProductSupplierId] = useState('')
+  const [supplierSearch, setSupplierSearch] = useState('')
+  const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false)
+  const supplierRef = useRef<HTMLDivElement>(null)
+
+  // ── Quick-create state ──────────────────────────────────────────────────────
+  // 'category' = create under current dept, 'subcategory' = create under current category
+  const [newCatLevel, setNewCatLevel] = useState<'category' | 'subcategory'>('category')
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryLoading, setNewCategoryLoading] = useState(false)
+  const [showNewSupplierForm, setShowNewSupplierForm] = useState(false)
+  const [newSupplierName, setNewSupplierName] = useState('')
+  const [newSupplierLoading, setNewSupplierLoading] = useState(false)
 
   // Fetch accessible clothing businesses when business selector is shown
   useEffect(() => {
@@ -82,7 +133,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       .then((d: any) => {
         const list = (Array.isArray(d) ? d : (d.memberships ?? []))
           .filter((m: any) => m.businessId && m.businessName)
-          .map((m: any) => ({ id: m.businessId, name: m.businessName }))
+          .map((m: any) => ({ id: m.businessId, name: m.businessName, type: m.businessType || 'clothing' }))
         setAccessibleBusinesses(list)
       })
       .catch(() => {})
@@ -107,7 +158,57 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
         })
         .catch(() => {})
     }
-  }, [effectiveBusinessId, disablePrint])
+    // Load categories + domains together so we can decide the hierarchy in one place
+    const fetchDomains = effectiveBusinessType === 'clothing'
+      ? fetch(`/api/inventory/domains?businessType=clothing`).then(r => r.json())
+      : Promise.resolve({ domains: [] })
+
+    Promise.all([
+      fetch(`/api/universal/categories?businessId=${effectiveBusinessId}&businessType=${effectiveBusinessType}`).then(r => r.json()),
+      fetchDomains,
+    ]).then(([catData, domainData]) => {
+      const list: BusinessCategory[] = Array.isArray(catData) ? catData : (catData.data ?? catData.categories ?? [])
+      setAllCats(list)
+      const domainList: Domain[] = domainData.domains ?? []
+      setDomains(domainList)
+
+      if (domainList.length > 0) {
+        // Domain-based departments (e.g. clothing): categories are flat, filtered by domainId
+        setDepartments(domainList.map(d => ({ id: d.id, name: d.name, emoji: d.emoji || '📦', color: '#6366f1', parentId: null })))
+        setAllCategories(list)
+        setFilteredCategories([]) // empty until domain/dept selected
+        setAllSubCategories([])
+        setFilteredSubCategories([])
+      } else {
+        // ParentId hierarchy fallback (generic businesses)
+        const level1 = list.filter(c => !c.parentId)
+        const level1Ids = new Set(level1.map(c => c.id))
+        const level2 = list.filter(c => c.parentId && level1Ids.has(c.parentId!))
+        const level2Ids = new Set(level2.map(c => c.id))
+        const level3 = list.filter(c => c.parentId && level2Ids.has(c.parentId!))
+        if (level2.length > 0) {
+          setDepartments(level1)
+          setAllCategories(level2)
+          setFilteredCategories([])
+          setAllSubCategories(level3)
+          setFilteredSubCategories([])
+        } else {
+          setDepartments([])
+          setAllCategories(level1)
+          setFilteredCategories(level1)
+          setAllSubCategories([])
+          setFilteredSubCategories([])
+        }
+      }
+    }).catch(() => {})
+    // Load suppliers
+    fetch(`/api/business/${effectiveBusinessId}/suppliers?isActive=true&limit=100`)
+      .then(r => r.json())
+      .then((d: any) => {
+        setSuppliers(Array.isArray(d) ? d : (d.data ?? d.suppliers ?? []))
+      })
+      .catch(() => {})
+  }, [effectiveBusinessId, effectiveBusinessType, disablePrint])
 
   // Pre-fill barcode when it changes (from no-match flow)
   useEffect(() => {
@@ -116,6 +217,99 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       setTab('product')
     }
   }, [prefillBarcode])
+
+  // Cascade: dept → category → sub-category
+  const handleDepartmentChange = (deptId: string) => {
+    setProductDepartmentId(deptId)
+    setProductCategoryId('')
+    setProductSubCategoryId('')
+    if (domains.length > 0) {
+      // Domain-based: filter categories by domainId
+      setFilteredCategories(deptId ? allCategories.filter(c => c.domainId === deptId) : allCategories)
+    } else {
+      // ParentId-based: filter categories by parentId
+      setFilteredCategories(deptId ? allCategories.filter(c => c.parentId === deptId) : allCategories)
+    }
+    setFilteredSubCategories([])
+  }
+
+  const handleCategoryChange = (catId: string) => {
+    setProductCategoryId(catId)
+    setProductSubCategoryId('')
+    setFilteredSubCategories(catId ? allSubCategories.filter(c => c.parentId === catId) : allSubCategories)
+  }
+
+  // ── Quick-create: category (level 2) or sub-category (level 3) ────────────
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return
+    setNewCategoryLoading(true)
+    const parentId = newCatLevel === 'subcategory' ? productCategoryId : productDepartmentId
+    try {
+      const res = await fetch('/api/universal/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: effectiveBusinessId,
+          businessType: effectiveBusinessType,
+          name: newCategoryName.trim(),
+          ...(parentId ? { parentId } : {}),
+        }),
+      })
+      const data = await res.json()
+      if (!data.success && !data.id) { return }
+      const newCat: BusinessCategory = {
+        id: data.id || data.data?.id,
+        name: newCategoryName.trim(),
+        emoji: data.emoji || data.data?.emoji || '📦',
+        color: data.color || data.data?.color || '#3B82F6',
+        parentId: parentId || null,
+      }
+      if (newCatLevel === 'subcategory') {
+        setAllSubCategories(prev => [...prev, newCat])
+        if (!productCategoryId || newCat.parentId === productCategoryId) {
+          setFilteredSubCategories(prev => [...prev, newCat])
+        }
+        setProductSubCategoryId(newCat.id)
+      } else {
+        setAllCategories(prev => [...prev, newCat])
+        if (!productDepartmentId || newCat.parentId === productDepartmentId) {
+          setFilteredCategories(prev => [...prev, newCat])
+        }
+        setProductCategoryId(newCat.id)
+      }
+      setNewCategoryName('')
+      setShowNewCategoryForm(false)
+    } catch (e) {
+      // silent
+    } finally {
+      setNewCategoryLoading(false)
+    }
+  }
+
+  // ── Quick-create: supplier ──────────────────────────────────────────────────
+  const handleCreateSupplier = async () => {
+    if (!newSupplierName.trim()) return
+    setNewSupplierLoading(true)
+    try {
+      const res = await fetch(`/api/business/${effectiveBusinessId}/suppliers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newSupplierName.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { return }
+      const newSup: Supplier = { id: data.supplier?.id || data.id || data.data?.id, name: newSupplierName.trim() }
+      setSuppliers(prev => [...prev, newSup])
+      setProductSupplierId(newSup.id)
+      setSupplierSearch(newSup.name)
+      setNewSupplierName('')
+      setShowNewSupplierForm(false)
+    } catch (e) {
+      // silent
+    } finally {
+      setNewSupplierLoading(false)
+    }
+  }
 
   // ── Bale submit ─────────────────────────────────────────────────────────────
   const handleBaleRegisterAndPrint = async () => {
@@ -167,8 +361,9 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
     setProductError('')
     if (!disablePrint && !useGenericTemplate && !productForm.templateId) { setProductError('Please select a barcode template or use generic'); return }
     if (!productForm.name.trim()) { setProductError('Product name is required'); return }
+    if (!productCategoryId && !productSubCategoryId) { setProductError('Category is required'); return }
     if (!productForm.quantity || Number(productForm.quantity) < 1) { setProductError('Quantity must be >= 1'); return }
-    if (!productForm.sellingPrice || Number(productForm.sellingPrice) <= 0) { setProductError('Selling price is required'); return }
+    if (!isFreeItem && (!productForm.sellingPrice || Number(productForm.sellingPrice) <= 0)) { setProductError('Selling price is required'); return }
     setProductLoading(true)
     try {
       const res = await fetch('/api/clothing/inventory/add-stock', {
@@ -181,9 +376,11 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
           quantity: Number(productForm.quantity),
           barcode: productForm.barcode.trim() || undefined,
           sku: productForm.sku.trim() || undefined,
-          notes: productForm.notes.trim() || undefined,
+          description: productForm.description.trim() || undefined,
           costPrice: productForm.costPrice ? Number(productForm.costPrice) : undefined,
-          sellingPrice: Number(productForm.sellingPrice),
+          sellingPrice: isFreeItem ? 0 : Number(productForm.sellingPrice),
+          categoryId: (productSubCategoryId || productCategoryId) || undefined,
+          supplierId: productSupplierId || undefined,
         }),
       })
       const data = await res.json()
@@ -199,7 +396,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
 
       if (addToCart && isPosRoute) {
         window.dispatchEvent(new CustomEvent('pos:add-inventory-item-to-cart', {
-          detail: { inventoryItemId: data.itemId, name: productForm.name.trim(), sellingPrice: Number(productForm.sellingPrice), sku: productForm.sku.trim() || '', barcodeData: data.barcodeData || productForm.barcode.trim() }
+          detail: { inventoryItemId: data.itemId, name: productForm.name.trim(), sellingPrice: isFreeItem ? 0 : Number(productForm.sellingPrice), sku: productForm.sku.trim() || '', barcodeData: data.barcodeData || productForm.barcode.trim() }
         }))
       }
 
@@ -213,7 +410,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
             id: data.itemId,
             name: productForm.name.trim(),
             barcodeData: data.barcodeData,
-            sellingPrice: Number(productForm.sellingPrice),
+            sellingPrice: isFreeItem ? 0 : Number(productForm.sellingPrice),
             sku: productForm.sku.trim() || undefined,
           },
         })
@@ -252,15 +449,43 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
               </p>
             ) : (
               <div className="relative" ref={bizRef}>
-                <input
-                  type="text"
-                  placeholder="Search business..."
-                  value={bizSearch}
-                  onChange={e => { setBizSearch(e.target.value); setBizDropdownOpen(true) }}
-                  onFocus={() => setBizDropdownOpen(true)}
-                  onBlur={() => setTimeout(() => setBizDropdownOpen(false), 150)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="Search business..."
+                    value={bizSearch}
+                    onChange={e => { setBizSearch(e.target.value); setBizDropdownOpen(true) }}
+                    onFocus={() => setBizDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setBizDropdownOpen(false), 150)}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  />
+                  {bizSelectedName && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBizSearch('')
+                        setBizSelectedName('')
+                        setEffectiveBusinessId('')
+                        setEffectiveBusinessType('clothing')
+                        setDepartments([])
+                        setAllCategories([])
+                        setFilteredCategories([])
+                        setAllSubCategories([])
+                        setFilteredSubCategories([])
+                        setSuppliers([])
+                        setProductDepartmentId('')
+                        setProductCategoryId('')
+                        setProductSubCategoryId('')
+                        setProductSupplierId('')
+                        setSupplierSearch('')
+                      }}
+                      className="px-2 py-2 text-xs text-gray-400 hover:text-red-500 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
+                      title="Clear selection"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
                 {bizSelectedName && (
                   <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">✓ {bizSelectedName}</p>
                 )}
@@ -273,9 +498,16 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                           key={b.id}
                           onMouseDown={() => {
                             setEffectiveBusinessId(b.id)
+                            setEffectiveBusinessType(b.type)
                             setBizSelectedName(b.name)
                             setBizSearch(b.name)
                             setBizDropdownOpen(false)
+                            // Reset category/supplier selections when business changes
+                            setProductDepartmentId('')
+                            setProductCategoryId('')
+                            setProductSubCategoryId('')
+                            setProductSupplierId('')
+                            setSupplierSearch('')
                           }}
                           className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/30 ${effectiveBusinessId === b.id ? 'font-medium text-indigo-700 dark:text-indigo-300' : 'text-gray-900 dark:text-gray-100'}`}
                         >
@@ -455,6 +687,18 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                 </div>
               )}
 
+              {/* Barcode */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Barcode / Scan Code {disablePrint && <span className="text-xs text-gray-400 font-normal ml-1">(from scan)</span>}
+                </label>
+                <input type="text" value={productForm.barcode}
+                  onChange={e => !disablePrint && setProductForm(f => ({ ...f, barcode: e.target.value }))}
+                  readOnly={disablePrint}
+                  placeholder="Scan or auto-generated" className={`w-full px-3 py-2 border rounded-lg text-sm ${disablePrint ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-default' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'}`} />
+              </div>
+
+              {/* Product Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name *</label>
                 <input type="text" value={productForm.name}
@@ -462,7 +706,186 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                   placeholder="e.g., Men's Denim Jacket" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
               </div>
 
+              {/* Department — always shown; empty when business has a flat category structure */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department <span className="text-gray-400 font-normal">(optional)</span></label>
+                <SearchableCategorySelector
+                  categories={departments}
+                  value={productDepartmentId}
+                  onChange={handleDepartmentChange}
+                  disabled={departments.length === 0}
+                />
+                {departments.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5">No departments set up for this business</p>
+                )}
+              </div>
+
+              {/* Category * */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                <div className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <SearchableCategorySelector
+                      categories={filteredCategories}
+                      value={productCategoryId}
+                      onChange={handleCategoryChange}
+                      disabled={departments.length > 0 && !productDepartmentId}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    title="Add new category"
+                    onClick={() => { setNewCatLevel('category'); setShowNewCategoryForm(v => !v); setShowNewSupplierForm(false) }}
+                    className="mt-0.5 w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-base font-bold hover:bg-indigo-100 flex items-center justify-center shrink-0"
+                  >+</button>
+                </div>
+                {departments.length > 0 && !productDepartmentId && (
+                  <p className="text-xs text-gray-400 mt-0.5">Select a department first</p>
+                )}
+                {showNewCategoryForm && newCatLevel === 'category' && (
+                  <div className="mt-2 flex gap-2 items-center">
+                    <input autoFocus type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
+                      placeholder={productDepartmentId ? `New category under "${departments.find(d => d.id === productDepartmentId)?.name}"` : 'New category name'}
+                      className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      onKeyDown={e => { if (e.key === 'Enter') handleCreateCategory() }} />
+                    <button type="button" onClick={handleCreateCategory} disabled={newCategoryLoading || !newCategoryName.trim()}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium disabled:opacity-50">
+                      {newCategoryLoading ? '...' : 'Add'}
+                    </button>
+                    <button type="button" onClick={() => setShowNewCategoryForm(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Sub-category — always shown so users can create and assign one */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Sub-category <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <SearchableCategorySelector
+                      categories={filteredSubCategories}
+                      value={productSubCategoryId}
+                      onChange={setProductSubCategoryId}
+                      disabled={!productCategoryId}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    title="Add new sub-category"
+                    disabled={!productCategoryId}
+                    onClick={() => { setNewCatLevel('subcategory'); setShowNewCategoryForm(v => !v); setShowNewSupplierForm(false) }}
+                    className="mt-0.5 w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-base font-bold hover:bg-indigo-100 flex items-center justify-center shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >+</button>
+                </div>
+                {showNewCategoryForm && newCatLevel === 'subcategory' && (
+                  <div className="mt-2 flex gap-2 items-center">
+                    <input autoFocus type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
+                      placeholder={productCategoryId ? `New sub-category under "${allCategories.find(c => c.id === productCategoryId)?.name}"` : 'Select a category first'}
+                      disabled={!productCategoryId}
+                      className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+                      onKeyDown={e => { if (e.key === 'Enter') handleCreateCategory() }} />
+                    <button type="button" onClick={handleCreateCategory} disabled={newCategoryLoading || !newCategoryName.trim() || !productCategoryId}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium disabled:opacity-50">
+                      {newCategoryLoading ? '...' : 'Add'}
+                    </button>
+                    <button type="button" onClick={() => setShowNewCategoryForm(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Supplier */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier <span className="text-gray-400 font-normal">(optional)</span></label>
+                <div className="flex items-start gap-2">
+                  <div className="relative flex-1" ref={supplierRef}>
+                    <input
+                      type="text"
+                      placeholder="Search supplier..."
+                      value={supplierSearch}
+                      onChange={e => { setSupplierSearch(e.target.value); setSupplierDropdownOpen(true) }}
+                      onFocus={() => setSupplierDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setSupplierDropdownOpen(false), 150)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    />
+                    {productSupplierId && (
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
+                        ✓ {suppliers.find(s => s.id === productSupplierId)?.name}
+                      </p>
+                    )}
+                    {supplierDropdownOpen && suppliers.filter(s => s.name.toLowerCase().includes(supplierSearch.toLowerCase())).length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                        {suppliers
+                          .filter(s => s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
+                          .map(s => (
+                            <div key={s.id} onMouseDown={() => { setProductSupplierId(s.id); setSupplierSearch(s.name); setSupplierDropdownOpen(false) }}
+                              className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/30 ${productSupplierId === s.id ? 'font-medium text-indigo-700 dark:text-indigo-300' : 'text-gray-900 dark:text-gray-100'}`}>
+                              {s.name}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    title="Add new supplier"
+                    onClick={() => { setShowNewSupplierForm(v => !v); setShowNewCategoryForm(false) }}
+                    className="mt-0.5 w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-base font-bold hover:bg-indigo-100 flex items-center justify-center shrink-0"
+                  >+</button>
+                </div>
+                {showNewSupplierForm && (
+                  <div className="mt-2 flex gap-2 items-center">
+                    <input autoFocus type="text" value={newSupplierName} onChange={e => setNewSupplierName(e.target.value)}
+                      placeholder="Supplier name"
+                      className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      onKeyDown={e => { if (e.key === 'Enter') handleCreateSupplier() }} />
+                    <button type="button" onClick={handleCreateSupplier} disabled={newSupplierLoading || !newSupplierName.trim()}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium disabled:opacity-50">
+                      {newSupplierLoading ? '...' : 'Add'}
+                    </button>
+                    <button type="button" onClick={() => setShowNewSupplierForm(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input type="text" value={productForm.description}
+                  onChange={e => setProductForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="e.g., Size M, Red, summer collection" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+              </div>
+
+              {/* Prices + Quantity */}
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sell Price ($) *</label>
+                    <label className="flex items-center gap-1 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isFreeItem}
+                        onChange={e => {
+                          setIsFreeItem(e.target.checked)
+                          if (e.target.checked) setProductForm(f => ({ ...f, sellingPrice: '0' }))
+                        }}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600"
+                      />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Free Item</span>
+                    </label>
+                  </div>
+                  <input type="number" min="0" step="0.01" value={productForm.sellingPrice}
+                    disabled={isFreeItem}
+                    onChange={e => setProductForm(f => ({ ...f, sellingPrice: e.target.value }))}
+                    placeholder="e.g., 12.00" className={`w-full px-3 py-2 border rounded-lg text-sm ${isFreeItem ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-400 cursor-default' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'}`} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost Price ($) <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input type="number" min="0" step="0.01" value={productForm.costPrice}
+                    onChange={e => setProductForm(f => ({ ...f, costPrice: e.target.value }))}
+                    placeholder="e.g., 5.00" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quantity *</label>
                   <input type="number" min="1" value={productForm.quantity}
@@ -470,37 +893,10 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                     placeholder="e.g., 30" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Barcode / Scan Code {disablePrint && <span className="text-xs text-gray-400 font-normal ml-1">(from scan)</span>}
-                  </label>
-                  <input type="text" value={productForm.barcode}
-                    onChange={e => !disablePrint && setProductForm(f => ({ ...f, barcode: e.target.value }))}
-                    readOnly={disablePrint}
-                    placeholder="Scan or auto-generated" className={`w-full px-3 py-2 border rounded-lg text-sm ${disablePrint ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-default' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'}`} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost per Item ($) <span className="text-gray-400 font-normal">(optional)</span></label>
-                  <input type="number" min="0" step="0.01" value={productForm.costPrice}
-                    onChange={e => setProductForm(f => ({ ...f, costPrice: e.target.value }))}
-                    placeholder="e.g., 5.00" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Selling Price ($) *</label>
-                  <input type="number" min="0.01" step="0.01" value={productForm.sellingPrice}
-                    onChange={e => setProductForm(f => ({ ...f, sellingPrice: e.target.value }))}
-                    placeholder="e.g., 12.00" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SKU (optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SKU <span className="text-gray-400 font-normal">(optional)</span></label>
                   <input type="text" value={productForm.sku}
                     onChange={e => setProductForm(f => ({ ...f, sku: e.target.value }))}
-                    placeholder="Stock keeping unit" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
-                  <input type="text" value={productForm.notes}
-                    onChange={e => setProductForm(f => ({ ...f, notes: e.target.value }))}
-                    placeholder="e.g., Size M, Red" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    placeholder="Leave blank to auto-generate" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
                 </div>
               </div>
 

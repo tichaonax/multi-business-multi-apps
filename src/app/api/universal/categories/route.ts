@@ -184,7 +184,8 @@ export async function POST(request: NextRequest) {
     const category = await prisma.businessCategories.create({
       data: {
         ...validatedData,
-        businessType: validatedData.businessType || business.type
+        businessType: validatedData.businessType || business.type,
+        updatedAt: new Date(),
       } as any,
       include: {
         businesses: {

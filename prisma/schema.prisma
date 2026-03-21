@@ -120,6 +120,7 @@ model BusinessCategories {
   business_categories       BusinessCategories?      @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
   other_business_categories BusinessCategories[]     @relation("business_categoriesTobusiness_categories")
   business_products         BusinessProducts[]
+  barcode_inventory_items   BarcodeInventoryItems[]
   inventory_subcategories   InventorySubcategories[]
 
   @@unique([businessType, domainId, name])
@@ -340,6 +341,7 @@ model BusinessSuppliers {
   discontinued              Boolean                   @default(false)
   supplierType              String?
   business_products         BusinessProducts[]        @relation("ProductSupplier")
+  barcode_inventory_items   BarcodeInventoryItems[]   @relation("InventoryItemSupplier")
   businesses                Businesses?               @relation(fields: [businessId], references: [id])
   supplier_products         SupplierProducts[]
   expense_account_payments  ExpenseAccountPayments[]  @relation("ExpensePaymentPayeeSupplier")
@@ -4203,29 +4205,33 @@ model BarcodePrintJobs {
 }
 
 model BarcodeInventoryItems {
-  id                String             @id @default(cuid())
+  id                String              @id @default(cuid())
   name              String
   sku               String?
   category          String?
   barcodeTemplateId String?
   location          String?
-  stockQuantity     Int                @default(0)
+  stockQuantity     Int                 @default(0)
   businessId        String
   inventoryItemId   String
   barcodeData       String?
   customLabel       String?
   batchNumber       String?
   expiryDate        DateTime?
-  quantity          Int                @default(1)
-  costPrice         Decimal?           @db.Decimal(10, 2)
-  sellingPrice      Decimal?           @db.Decimal(10, 2)
-  isActive          Boolean            @default(true)
+  quantity          Int                 @default(1)
+  costPrice         Decimal?            @db.Decimal(10, 2)
+  sellingPrice      Decimal?            @db.Decimal(10, 2)
+  isActive          Boolean             @default(true)
   createdById       String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  barcodeTemplate   BarcodeTemplates?  @relation(fields: [barcodeTemplateId], references: [id])
-  business          Businesses         @relation(fields: [businessId], references: [id])
-  createdBy         Users              @relation(fields: [createdById], references: [id])
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  categoryId        String?
+  supplierId        String?
+  barcodeTemplate   BarcodeTemplates?   @relation(fields: [barcodeTemplateId], references: [id])
+  business          Businesses          @relation(fields: [businessId], references: [id])
+  createdBy         Users               @relation(fields: [createdById], references: [id])
+  business_category BusinessCategories? @relation(fields: [categoryId], references: [id])
+  business_supplier BusinessSuppliers?  @relation("InventoryItemSupplier", fields: [supplierId], references: [id])
   printJobs         BarcodePrintJobs[]
 
   @@map("barcode_inventory_items")

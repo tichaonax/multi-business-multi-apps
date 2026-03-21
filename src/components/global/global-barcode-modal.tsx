@@ -1186,7 +1186,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (!business.productId) return
+                            if (!business.productId && !business.inventoryItemId && !business.baleId) return
                             const url = business.isInventoryItem
                               ? `/${business.businessType}/pos?businessId=${business.businessId}&addInventoryItem=${business.inventoryItemId}`
                               : business.isBale

@@ -21,6 +21,7 @@ import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useToastContext } from '@/components/ui/toast'
 import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
 import { AddStockPanel } from '@/components/clothing/add-stock-panel'
+import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 
 function ClothingInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -63,6 +64,7 @@ function ClothingInventoryContent() {
   const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string; compact?: boolean; productData?: any } | null>(null)
   const [labelCount, setLabelCount] = useState('5')
   const [showAddStockPanel, setShowAddStockPanel] = useState<'bale' | 'product' | false>(false)
+  const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [printHistoryBaleId, setPrintHistoryBaleId] = useState<string | null>(null)
   const [printHistoryBale, setPrintHistoryBale] = useState<any | null>(null)
   const [printHistory, setPrintHistory] = useState<any[]>([])
@@ -923,6 +925,12 @@ function ClothingInventoryContent() {
                         >
                           + Add Stock
                         </button>
+                        <button
+                          onClick={() => setShowBulkStockPanel(true)}
+                          className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-sm font-medium transition-colors"
+                        >
+                          📦 Bulk Stock
+                        </button>
                         {selectedCondition === 'USED' && (
                           <button
                             onClick={() => router.push('/clothing/inventory/transfer')}
@@ -1781,6 +1789,16 @@ function ClothingInventoryContent() {
           />
         </div>
       </div>
+    )}
+
+    {/* Bulk Stock Panel */}
+    {showBulkStockPanel && currentBusiness && (
+      <BulkStockPanel
+        businessId={businessId}
+        businessName={currentBusiness.businessName}
+        businessType={currentBusiness.businessType}
+        onClose={() => setShowBulkStockPanel(false)}
+      />
     )}
 
     {/* Print History Modal */}

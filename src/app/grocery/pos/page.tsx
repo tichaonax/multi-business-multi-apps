@@ -34,7 +34,8 @@ import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
 import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
-import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
+import { AddStockPanel } from '@/components/clothing/add-stock-panel'
+import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 
 interface POSItem {
   id: string
@@ -93,6 +94,7 @@ function GroceryPOSContent() {
   const [showScanner, setShowScanner] = useState(false)
   const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
   const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
+  const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [products, setProducts] = useState<POSItem[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
@@ -2004,12 +2006,20 @@ function GroceryPOSContent() {
                           On small screens it will be full-width; on larger screens it will
                           naturally size to its content. */}
                       <div className="mt-4">
-                        <button
-                          onClick={() => setShowScanner(!showScanner)}
-                          className="mb-2 px-3 py-2 w-full sm:w-auto bg-blue-100 text-blue-800 rounded text-sm"
-                        >
-                          {showScanner ? 'Hide Scanner' : 'Show Scanner'}
-                        </button>
+                        <div className="flex gap-2 mb-2 flex-wrap">
+                          <button
+                            onClick={() => setShowScanner(!showScanner)}
+                            className="px-3 py-2 bg-blue-100 text-blue-800 rounded text-sm"
+                          >
+                            {showScanner ? 'Hide Scanner' : 'Show Scanner'}
+                          </button>
+                          <button
+                            onClick={() => setShowBulkStockPanel(true)}
+                            className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded text-sm font-medium"
+                          >
+                            📦 Bulk Stock
+                          </button>
+                        </div>
 
                         {showScanner && (
                           <div className="w-full md:w-80 max-w-full">
@@ -2052,43 +2062,19 @@ function GroceryPOSContent() {
                     </div>
               </div>
 
-              {/* Quick Stock from Scan Modal */}
+              {/* Add Stock Modal */}
               {quickStockBarcode && (
-                <QuickStockFromScanModal
-                  isOpen={true}
-                  barcode={quickStockBarcode}
+                <AddStockPanel
                   businessId={currentBusinessId!}
-                  businessType="grocery"
-                  existingProduct={quickStockExistingProduct ?? undefined}
-                  suggestedName={quickStockExistingProduct?.name}
-                  onSuccess={async (productId, variantId) => {
+                  prefillBarcode={quickStockBarcode}
+                  isPosRoute={true}
+                  hideBaleTab={true}
+                  disablePrint={true}
+                  onClose={() => {
                     setQuickStockBarcode(null)
                     setQuickStockExistingProduct(null)
-                    try {
-                      const res = await fetch(`/api/universal/products/${productId}`)
-                      if (res.ok) {
-                        const product = await res.json()
-                        const price = variantId && product?.variants?.length
-                          ? parseFloat((product.variants.find((v: any) => v.id === variantId)?.price ?? product.basePrice) || 0)
-                          : parseFloat(product.basePrice || 0)
-                        const posItem: POSItem = {
-                          id: variantId || product.id,
-                          name: product.name,
-                          barcode: product.barcodes?.find((b: any) => b.isPrimary)?.code,
-                          category: product.businessType || 'General',
-                          unitType: 'each',
-                          price,
-                          unit: 'each',
-                          taxable: false,
-                          weightRequired: false
-                        }
-                        addToCart(posItem, 1)
-                      }
-                    } catch {
-                      // Product stocked — user can scan again to add to cart
-                    }
                   }}
-                  onClose={() => {
+                  onItemAdded={() => {
                     setQuickStockBarcode(null)
                     setQuickStockExistingProduct(null)
                   }}
@@ -2723,6 +2709,16 @@ function GroceryPOSContent() {
           </div>
         </div>
       </div>
+    )}
+
+    {/* Bulk Stock Panel */}
+    {showBulkStockPanel && currentBusiness && currentBusinessId && (
+      <BulkStockPanel
+        businessId={currentBusinessId}
+        businessName={currentBusiness.businessName}
+        businessType={currentBusiness.businessType}
+        onClose={() => setShowBulkStockPanel(false)}
+      />
     )}
     </>
   )

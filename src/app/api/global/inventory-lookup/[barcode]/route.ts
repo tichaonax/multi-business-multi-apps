@@ -310,6 +310,8 @@ const isInformational = access.canViewAcrossBusinesses && !hasAccess
           isInventoryItem: true,
           inventoryItemId: item.id,
           sku: item.sku || undefined,
+          categoryId: item.categoryId || null,
+          supplierId: item.supplierId || null,
         })
       }
     }

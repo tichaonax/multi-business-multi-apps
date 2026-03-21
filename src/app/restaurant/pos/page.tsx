@@ -34,7 +34,8 @@ import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
 import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 import { CloseBooksBanner } from '@/components/pos/close-books-banner'
-import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
+import { AddStockPanel } from '@/components/clothing/add-stock-panel'
+import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { MealProgramPanel } from '@/components/restaurant/meal-program/MealProgramPanel'
 import { MealProgramDetailsModal } from '@/components/restaurant/meal-program/MealProgramDetailsModal'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
@@ -137,6 +138,7 @@ export default function RestaurantPOS() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
   const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
+  const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE' | 'ECOCASH'>('CASH')
   const [ecocashTxCode, setEcocashTxCode] = useState('')
@@ -369,7 +371,7 @@ export default function RestaurantPOS() {
   // Store pending inventory item to add once cart has finished loading from localStorage
   const pendingInventoryItemRef = useRef<any>(null)
 
-  // Fetch inventory item from URL param — store it for deferred add after cart loads
+  // Fetch inventory item from URL param and add to cart once addToCartRef is ready
   useEffect(() => {
     const addInventoryItemId = searchParams?.get('addInventoryItem')
     if (!addInventoryItemId) return
@@ -380,7 +382,7 @@ export default function RestaurantPOS() {
         const data = await res.json()
         if (data.success && data.item) {
           const inv = data.item
-          pendingInventoryItemRef.current = {
+          const cartItem = {
             id: `inv_${inv.inventoryItemId || inv.id}`,
             name: inv.name,
             price: Number(inv.sellingPrice ?? inv.price ?? 0),
@@ -388,6 +390,8 @@ export default function RestaurantPOS() {
             isAvailable: true,
             attributes: { isInventoryItem: true, inventoryItemId: inv.inventoryItemId || inv.id },
           }
+          // addToCartRef is kept current on every render — safe to call directly
+          addToCartRef.current?.(cartItem)
         }
         router.replace(window.location.pathname)
       } catch (err) {
@@ -396,16 +400,6 @@ export default function RestaurantPOS() {
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
-
-  // Once cart finishes loading, add any pending inventory item from URL param
-  useEffect(() => {
-    if (!cartLoaded || !pendingInventoryItemRef.current) return
-    const item = pendingInventoryItemRef.current
-    pendingInventoryItemRef.current = null
-    const alreadyInCart = cart.some(ci => ci.id === item.id)
-    if (!alreadyInCart) addToCartRef.current?.(item)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartLoaded])
 
   // Auto-apply first available ISSUED reward when customer rewards load (skip if coupon active)
   useEffect(() => {
@@ -2997,36 +2991,27 @@ export default function RestaurantPOS() {
                 showScanner={showBarcodeScanner}
                 onToggleScanner={() => setShowBarcodeScanner(!showBarcodeScanner)}
               />
+              {isAdmin && (
+                <button
+                  onClick={() => setShowBulkStockPanel(true)}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium whitespace-nowrap"
+                  title="Bulk Stock"
+                >
+                  📦
+                </button>
+              )}
               {quickStockBarcode && (
-                <QuickStockFromScanModal
-                  isOpen={true}
-                  barcode={quickStockBarcode}
+                <AddStockPanel
                   businessId={businessId}
-                  businessType="restaurant"
-                  existingProduct={quickStockExistingProduct ?? undefined}
-                  suggestedName={quickStockExistingProduct?.name}
-                  onSuccess={async (productId, variantId, productName) => {
+                  prefillBarcode={quickStockBarcode}
+                  isPosRoute={true}
+                  hideBaleTab={true}
+                  disablePrint={true}
+                  onClose={() => {
                     setQuickStockBarcode(null)
                     setQuickStockExistingProduct(null)
-                    try {
-                      const res = await fetch(`/api/universal/products/${productId}`)
-                      if (res.ok) {
-                        const product = await res.json()
-                        const variant = variantId ? product.variants?.find((v: any) => v.id === variantId) : undefined
-                        const menuItem: MenuItem = {
-                          id: variantId ? `${productId}-${variantId}` : productId,
-                          name: productName + (variant?.name ? ` (${variant.name})` : ''),
-                          price: variant?.price || product.basePrice || 0,
-                          category: 'stocked',
-                          isAvailable: true,
-                        }
-                        addToCart(menuItem)
-                      }
-                    } catch {
-                      // Product stocked — user can scan again to add to cart
-                    }
                   }}
-                  onClose={() => {
+                  onItemAdded={() => {
                     setQuickStockBarcode(null)
                     setQuickStockExistingProduct(null)
                   }}
@@ -4177,6 +4162,16 @@ export default function RestaurantPOS() {
           date={dailySales.businessDay.date}
           summary={dailySales.expenseAccountSales}
           onClose={() => setShowMealProgramDetails(false)}
+        />
+      )}
+
+      {/* Bulk Stock Panel */}
+      {showBulkStockPanel && currentBusiness && (
+        <BulkStockPanel
+          businessId={currentBusiness.businessId}
+          businessName={currentBusiness.businessName}
+          businessType={currentBusiness.businessType}
+          onClose={() => setShowBulkStockPanel(false)}
         />
       )}
     </BusinessTypeRoute>

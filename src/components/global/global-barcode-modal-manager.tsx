@@ -36,6 +36,12 @@ export function GlobalBarcodeModalManager() {
         console.log('🎯 GlobalBarcodeModalManager: Service enabled?', globalBarcodeService.isEnabled())
         console.log('🎯 GlobalBarcodeModalManager: Service initialized?', globalBarcodeService.isServiceInitialized())
 
+        // Suppress when bulk stocking panel is active — it owns the scanner
+        if ((window as any).__bulkStockingActive) {
+          console.log('🎯 GlobalBarcodeModalManager: Suppressed — bulk stocking active')
+          return
+        }
+
         // Show the modal with the scanned barcode.
         // currentBusinessId / currentBusiness are read from the closure at call time —
         // they are already the correct values for the active session because the context
