@@ -544,7 +544,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
       ? `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addInventoryItem=${firstAccessible.inventoryItemId}`
       : firstAccessible.isBale
       ? `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addBale=${firstAccessible.baleId}`
-      : `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addProduct=${firstAccessible.productId}${firstAccessible.variantId ? `&variantId=${firstAccessible.variantId}` : ''}`
+      : `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addProduct=${firstAccessible.productId}${firstAccessible.variantId ? `&variantId=${firstAccessible.variantId}` : ''}&autoAdd=true`
     const currentBusinessId = localStorage.getItem('currentBusinessId')
 
     if (currentBusinessId && currentBusinessId !== firstAccessible.businessId) {
@@ -1182,7 +1182,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                               ? `/${business.businessType}/pos?businessId=${business.businessId}&addInventoryItem=${business.inventoryItemId}`
                               : business.isBale
                               ? `/${business.businessType}/pos?businessId=${business.businessId}&addBale=${business.baleId}`
-                              : `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}`
+                              : `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}&autoAdd=true`
                             const currentBusinessId = localStorage.getItem('currentBusinessId')
                             if (currentBusinessId && currentBusinessId !== business.businessId) {
                               setPendingNavigation({ url, business })

@@ -21,10 +21,12 @@ import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
+import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 
 function RestaurantInventoryContent() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts' | 'receiving'>('ingredients')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -296,6 +298,12 @@ function RestaurantInventoryContent() {
         ]}
         headerActions={
           <div className="flex gap-3">
+            <button
+              onClick={() => setShowBulkStockPanel(true)}
+              className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
+            >
+              📦 Bulk Stock
+            </button>
             <button
               onClick={() => router.push('/restaurant/inventory/receive')}
               className="btn-secondary"
@@ -670,6 +678,13 @@ function RestaurantInventoryContent() {
           )}
         </div>
       </ContentLayout>
+      {showBulkStockPanel && currentBusiness && currentBusinessId && (
+        <BulkStockPanel
+          business={currentBusiness}
+          businessId={currentBusinessId}
+          onClose={() => setShowBulkStockPanel(false)}
+        />
+      )}
       </BusinessProvider>
     </BusinessTypeRoute>
   )

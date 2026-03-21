@@ -114,8 +114,18 @@ export async function POST(request: NextRequest) {
 
         let baleError: string | undefined
         if (businessType === 'clothing' && baleCount > 0) {
+          // Count bales created today for this business so SEQ doesn't collide on repeated runs
+          const now = new Date()
+          const yy = String(now.getFullYear()).slice(2)
+          const mm = String(now.getMonth() + 1).padStart(2, '0')
+          const dd = String(now.getDate()).padStart(2, '0')
+          const todayPrefix = `B-${yy}${mm}${dd}-`
+          const existingTodayCount = await prisma.clothingBales.count({
+            where: { businessId, batchNumber: { startsWith: todayPrefix } },
+          })
+
           for (let i = 0; i < baleCount; i++) {
-            const b = generateBale(refs, i)
+            const b = generateBale(refs, i, existingTodayCount)
 
             if (!b.categoryId) {
               // No bale categories configured — skip silently
@@ -125,7 +135,7 @@ export async function POST(request: NextRequest) {
             if (shouldStock) {
               try {
                 // scanCode: 4 bytes = 8 hex chars, matching real bale creation
-                const scanCode = randomBytes(4).toString('hex')
+                const scanCode = randomBytes(4).toString('hex').toUpperCase()
                 // sku: BALE-{SHORTNAME}-{batchNumber}, matching real bale creation
                 const baleSku  = `BALE-${bizShortName}-${b.batchNumber}`
                 await prisma.clothingBales.create({

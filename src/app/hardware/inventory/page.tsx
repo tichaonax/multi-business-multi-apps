@@ -20,10 +20,12 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 
 function HardwareInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
@@ -339,15 +341,23 @@ function HardwareInventoryContent() {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                       <h3 className="text-lg font-semibold">Inventory Items</h3>
-                      <button
-                        onClick={() => {
-                          setSelectedItem(null)
-                          setShowAddForm(true)
-                        }}
-                        className="btn-primary bg-orange-600 hover:bg-orange-700"
-                      >
-                        ➕ Add Hardware Item
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowBulkStockPanel(true)}
+                          className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
+                        >
+                          📦 Bulk Stock
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedItem(null)
+                            setShowAddForm(true)
+                          }}
+                          className="btn-primary bg-orange-600 hover:bg-orange-700"
+                        >
+                          ➕ Add Hardware Item
+                        </button>
+                      </div>
                     </div>
 
                     <UniversalInventoryGrid
@@ -511,6 +521,14 @@ function HardwareInventoryContent() {
             </div>
           )}
         </ContentLayout>
+      {showBulkStockPanel && currentBusiness && currentBusinessId && (
+        <BulkStockPanel
+          business={currentBusiness}
+          businessId={currentBusinessId}
+          onClose={() => setShowBulkStockPanel(false)}
+          onStockAdded={() => setRefreshKey(k => k + 1)}
+        />
+      )}
       </BusinessTypeRoute>
     </BusinessProvider>
   )

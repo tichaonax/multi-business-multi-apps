@@ -1945,6 +1945,10 @@ function GroceryPOSContent() {
           </button>
         </div>
       )}
+    </ContentLayout>
+
+    {/* Grids rendered outside ContentLayout so sticky right panel works (matches restaurant/clothing POS pattern) */}
+    <div className="px-2 sm:px-0 lg:px-6 xl:px-8 pb-6">
 
       {/* Manual Entry Mode */}
       {posMode === 'manual' && currentBusinessId && (
@@ -2432,7 +2436,7 @@ function GroceryPOSContent() {
         </div>
 
         {/* Sidebar - Customer & Payment */}
-  <div className="space-y-4 mt-4 lg:mt-0">
+        <div className="space-y-4 mt-4 lg:mt-0 sticky top-20 self-start">
           {/* Customer Info */}
           <div className="card p-4 sm:p-6">
             <CustomerLookup
@@ -2692,7 +2696,7 @@ function GroceryPOSContent() {
         </div>
       </div>
       )}
-    </ContentLayout>
+    </div>{/* end grids outer wrapper */}
 
     {/* Loading Overlay for Auto-Add Product */}
     {isAutoAdding && (

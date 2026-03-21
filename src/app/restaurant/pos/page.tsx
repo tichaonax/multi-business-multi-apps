@@ -371,6 +371,23 @@ export default function RestaurantPOS() {
   // Store pending inventory item to add once cart has finished loading from localStorage
   const pendingInventoryItemRef = useRef<any>(null)
 
+  // Auto-add product from URL param (cross-business navigation via global barcode modal)
+  useEffect(() => {
+    const addProductId = searchParams?.get('addProduct')
+    const autoAdd = searchParams?.get('autoAdd')
+    if (!addProductId || autoAdd !== 'true' || menuItems.length === 0) return
+
+    const itemId = searchParams?.get('variantId')
+      ? `${addProductId}-${searchParams.get('variantId')}`
+      : addProductId
+    const found = menuItemsRef.current.find(m => m.id === itemId || m.id === addProductId)
+    if (found) {
+      addToCartRef.current?.(found)
+      router.replace(window.location.pathname)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, menuItems])
+
   // Fetch inventory item from URL param and add to cart once addToCartRef is ready
   useEffect(() => {
     const addInventoryItemId = searchParams?.get('addInventoryItem')

@@ -87,6 +87,13 @@ export function generateBarcodeLabel(options: BarcodeLabelOptions): string {
     label += customData.description + '\n';
   }
 
+  // Print item count if provided (centered) — used for bales
+  if (customData?.itemCount) {
+    label += '\x1B\x61\x01'; // Center alignment
+    label += '\x1B\x21\x00'; // Normal size
+    label += customData.itemCount + ' Items\n';
+  }
+
   // Print size if provided (centered, large number)
   if (customData?.size) {
     label += '\x1B\x61\x01'; // Center alignment

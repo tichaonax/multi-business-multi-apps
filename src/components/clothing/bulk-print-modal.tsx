@@ -71,24 +71,25 @@ function escHtml(str: string) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string, template: BarcodeTemplate): string {
+function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string, template: BarcodeTemplate, qty: number = 1): string {
   const today = formatDate(new Date())
   const refCode = bale.scanCode.substring(0, 6).toUpperCase()
-  const batchLine = template.batchId ? `1-${template.batchId}` : ''
+  const batchLine = template.batchId ? `${qty}-${template.batchId}` : ''
   const dateLine = [refCode, today, batchLine].filter(Boolean).join(' · ')
   const price = `$ ${Number(bale.unitPrice).toFixed(2)}`
   return `
     <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
-      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
       <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
       <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(bale.category.name)}</div>
       <div style="font-size:9px;text-align:center;margin-bottom:2px;">Batch ${escHtml(bale.batchNumber)}</div>
+      ${bale.itemCount ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">${escHtml(String(bale.itemCount))} Items</div>` : ''}
       <div style="font-size:9px;text-align:center;margin-bottom:4px;">${escHtml(dateLine)}</div>
       <div style="display:flex;justify-content:center;margin-bottom:2px;">${barcodeSvg}</div>
       <div style="font-size:9px;text-align:center;color:#444;margin-bottom:4px;letter-spacing:0.03em;">${escHtml(bale.scanCode)}</div>
       <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(price)}</div>
       <div style="font-size:8px;text-align:center;color:#666;">${escHtml(template.name)}</div>
-      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
     </div>
   `
 }
@@ -217,12 +218,15 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   const [quickTplName, setQuickTplName] = useState('')
   const [quickTplBatchId, setQuickTplBatchId] = useState('')
   const [quickTplSaving, setQuickTplSaving] = useState(false)
+  const [quickTplError, setQuickTplError] = useState<string | null>(null)
 
   async function saveQuickTemplate() {
-    if (!quickTplName.trim() || !selectedBusinessId) return
+    if (!quickTplName.trim()) { setQuickTplError('Enter a template name first'); return }
+    if (!selectedBusinessId) { setQuickTplError('No business selected — cannot create template'); return }
     setQuickTplSaving(true)
+    setQuickTplError(null)
     try {
-      const bizType = activeBusinesses.find(b => b.businessId === selectedBusinessId)?.businessType ?? 'general'
+      const bizType = activeBusinesses.find(b => b.businessId === selectedBusinessId)?.businessType ?? 'clothing'
       const res = await fetch('/api/universal/barcode-management/templates', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -237,7 +241,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Failed to create template')
+      if (!res.ok) throw new Error(json.error ?? `Failed to create template (${res.status})`)
       const newId = json.template?.id ?? json.id
       // Reload templates then select new one
       const listRes = await fetch(`/api/universal/barcode-management/templates?businessId=${selectedBusinessId}&limit=100`, { credentials: 'include' })
@@ -248,7 +252,12 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
       setShowQuickTemplate(false)
       setQuickTplName('')
       setQuickTplBatchId('')
-    } catch { /* ignore */ } finally { setQuickTplSaving(false) }
+      setQuickTplError(null)
+    } catch (err: any) {
+      setQuickTplError(err?.message ?? 'Failed to create template')
+    } finally {
+      setQuickTplSaving(false)
+    }
   }
 
   // Receipt printers
@@ -363,7 +372,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
           JsBarcode(svgEl, bale.scanCode, { format: template.symbology?.toUpperCase() || 'CODE128', width: 1.5, height: 40, displayValue: false, margin: 4 })
           svgEl.style.maxWidth = '100%'; svgEl.style.display = 'block'
-          return Array(qtyPerBale).fill(buildLabelHtml(bale, svgEl.outerHTML, bizName, template))
+          return Array(qtyPerBale).fill(buildLabelHtml(bale, svgEl.outerHTML, bizName, template, qtyPerBale))
         })
       }
 
@@ -452,7 +461,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
             symbology: template.symbology || 'code128', businessName: bizName,
             templateName: template.name, displayValue: true,
             batchNumber: template.batchId || '', quantity: qtyPerBale,
-            customData: { productName: bale.category.name, description: 'Batch ' + bale.batchNumber, price: String(bale.unitPrice) },
+            customData: { productName: bale.category.name, description: 'Batch ' + bale.batchNumber, price: String(bale.unitPrice), itemCount: bale.itemCount },
             width: template.width || 200, height: template.height || 100,
           })
         }
@@ -580,6 +589,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                       disabled={!quickTplName.trim() || quickTplSaving}
                       className="w-full py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded disabled:opacity-50"
                     >{quickTplSaving ? 'Saving…' : 'Create & Use'}</button>
+                    {quickTplError && <p className="text-xs text-red-500">{quickTplError}</p>}
                   </div>
                 )}
               </div>
@@ -661,7 +671,20 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                     : receiptSuccess ? '✅ Printed!'
                     : <>🧾 Print to Receipt Printer {qtyPerBale > 0 && `(${qtyPerBale})`}</>}
                 </button>
-                {receiptError && <p className="text-xs text-red-500">{receiptError}</p>}
+                {receiptError && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs text-red-500">{receiptError}</p>
+                    {receiptError.toLowerCase().includes('offline') && selectedPrinterId && (
+                      <button
+                        onClick={() => handleBringOnline(selectedPrinterId)}
+                        disabled={checkingOnline === selectedPrinterId}
+                        className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {checkingOnline === selectedPrinterId ? 'Checking…' : 'Bring Online'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -792,7 +815,20 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                       : receiptSuccess ? '✅ Printed!'
                       : <>🧾 Receipt {selectedIds.size > 0 && `(${totalLabels} label${totalLabels !== 1 ? 's' : ''})`}</>}
                   </button>
-                  {receiptError && <p className="text-xs text-red-500 mt-1">{receiptError}</p>}
+                  {receiptError && (
+                    <div className="flex items-center gap-2 flex-wrap mt-1">
+                      <p className="text-xs text-red-500">{receiptError}</p>
+                      {receiptError.toLowerCase().includes('offline') && selectedPrinterId && (
+                        <button
+                          onClick={() => handleBringOnline(selectedPrinterId)}
+                          disabled={checkingOnline === selectedPrinterId}
+                          className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50 whitespace-nowrap"
+                        >
+                          {checkingOnline === selectedPrinterId ? 'Checking…' : 'Bring Online'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

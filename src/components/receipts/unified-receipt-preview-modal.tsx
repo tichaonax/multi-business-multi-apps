@@ -262,7 +262,13 @@ export function UnifiedReceiptPreviewModal({
 
     } catch (error) {
       console.error('Print failed:', error)
-      toast.error('Print failed - ' + (error instanceof Error ? error.message : 'Unknown error'))
+      const errMsg = error instanceof Error ? error.message : 'Unknown error'
+      toast.error('Print failed - ' + errMsg)
+      // If the error indicates the printer is offline, update its status in state
+      // so the "Bring Online" button becomes visible without navigating away
+      if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('unreachable')) {
+        setPrinters(prev => prev.map(p => p.id === selectedPrinterId ? { ...p, isOnline: false } : p))
+      }
     } finally {
       isPrintingRef.current = false
       setLoading(false)

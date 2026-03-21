@@ -198,22 +198,24 @@ export function generateProduct(
 
 export function generateBale(
   refs: Pick<ProductRefs, 'baleCategoryIds'>,
-  index: number
+  index: number,
+  seqOffset: number = 0
 ): GeneratedBale {
   const baseName = BALE_NAMES[index % BALE_NAMES.length]
   const unitPrice = randBetween(20, 200)
   const costPrice = Math.round(unitPrice * (0.58 + Math.random() * 0.22) * 100) / 100
 
   // Match real bale creation: B-{YY}{MM}{DD}-{SEQ padded to 3}
+  // seqOffset accounts for bales already created today to avoid unique constraint collisions
   const now = new Date()
   const yy = String(now.getFullYear()).slice(2)
   const mm = String(now.getMonth() + 1).padStart(2, '0')
   const dd = String(now.getDate()).padStart(2, '0')
-  const seq = String(index + 1).padStart(3, '0')
+  const seq = String(seqOffset + index + 1).padStart(3, '0')
   const batchNumber = `B-${yy}${mm}${dd}-${seq}`
 
   // scanCode matches real system: randomBytes(4) = 8 hex chars
-  const scanCode = randomBytes(4).toString('hex')
+  const scanCode = randomBytes(4).toString('hex').toUpperCase()
 
   return {
     name: `[TEST] ${baseName} Bale`,
