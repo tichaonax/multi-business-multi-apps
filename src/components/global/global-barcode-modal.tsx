@@ -328,6 +328,10 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
           b => b.businessId === currentBusinessId && b.hasAccess && b.productId
         )
         if (currentBizMatch) {
+          // Mark this barcode as handled by the global modal so BarcodeScanner
+          // skips its own independent lookup and avoids a duplicate cart add.
+          ;(window as any).__globalBarcodeHandled = { barcode: barcodeToLookup, ts: Date.now() }
+
           if (currentBizMatch.isBale) {
             // ✅ Bale in current business — dispatch bale-specific cart event
             window.dispatchEvent(

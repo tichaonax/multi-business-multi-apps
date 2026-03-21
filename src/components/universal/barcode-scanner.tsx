@@ -268,6 +268,12 @@ export function BarcodeScanner({
 
     // If forceImmediate, cancel any scheduled lookup and run lookup now
     const performLookup = async (toLookup: string) => {
+      // Skip if the global barcode modal already handled this scan to prevent double cart adds
+      const globalHandled = (window as any).__globalBarcodeHandled
+      if (globalHandled && globalHandled.barcode === toLookup && (Date.now() - globalHandled.ts) < 1500) {
+        return
+      }
+
       // Dedupe identical queries in a short window to reduce noise
       const now = Date.now()
       if (lastQueriedBarcodeRef.current === toLookup && (now - lastQueriedAtRef.current) < 3000) {
