@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { UniversalSupplierForm } from '@/components/universal/supplier'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface BulkStockRow {
   rowId: string
@@ -108,12 +110,20 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [allSubCategories, setAllSubCategories] = useState<BusinessCategory[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
 
-  // Quick-create state
+  // Per-row validation errors: rowId → set of field names
+  const [rowFieldErrors, setRowFieldErrors] = useState<Record<string, Set<string>>>({})
+
+  // Quick-create state (categories only)
   const [quickCreateTargetRowId, setQuickCreateTargetRowId] = useState<string | null>(null)
-  const [quickCreateLevel, setQuickCreateLevel] = useState<'category' | 'subcategory' | 'supplier'>('category')
+  const [quickCreateLevel, setQuickCreateLevel] = useState<'category' | 'subcategory'>('category')
   const [showQuickCreate, setShowQuickCreate] = useState(false)
   const [quickCreateName, setQuickCreateName] = useState('')
   const [quickCreateLoading, setQuickCreateLoading] = useState(false)
+
+  // Full supplier form modal
+  const [showSupplierFormModal, setShowSupplierFormModal] = useState(false)
+  const [supplierFormTargetRowId, setSupplierFormTargetRowId] = useState<string | null>(null)
+  const [creatingSupplier, setCreatingSupplier] = useState(false)
 
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableEndRef = useRef<HTMLDivElement>(null)
@@ -186,6 +196,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
     setScanLoading(true)
     setScanInput('')
+    // Yield to the browser so the loading state renders before the fetch starts
+    await new Promise(r => setTimeout(r, 0))
     try {
       const res = await fetch(`/api/global/inventory-lookup/${encodeURIComponent(trimmed)}`)
       const data = await res.json()
@@ -231,10 +243,26 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     focusScanInput()
   }
 
-  const removeRow = (rowId: string) => setRows(prev => prev.filter(r => r.rowId !== rowId))
+  const removeRow = (rowId: string) => {
+    setRows(prev => prev.filter(r => r.rowId !== rowId))
+    setRowFieldErrors(prev => {
+      if (!prev[rowId]) return prev
+      const next = { ...prev }
+      delete next[rowId]
+      return next
+    })
+  }
 
-  const updateRow = (rowId: string, patch: Partial<BulkStockRow>) =>
+  const updateRow = (rowId: string, patch: Partial<BulkStockRow>) => {
     setRows(prev => prev.map(r => r.rowId === rowId ? { ...r, ...patch } : r))
+    // Clear validation errors for fields being updated
+    setRowFieldErrors(prev => {
+      if (!prev[rowId]) return prev
+      const next = new Set(prev[rowId])
+      Object.keys(patch).forEach(k => next.delete(k))
+      return { ...prev, [rowId]: next }
+    })
+  }
 
   const handleGoToDuplicate = () => {
     if (!duplicateAlert) return
@@ -248,12 +276,40 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     focusScanInput()
   }
 
-  // Quick-create opener
-  const openQuickCreate = (rowId: string, level: 'category' | 'subcategory' | 'supplier') => {
+  // Quick-create opener (categories only)
+  const openQuickCreate = (rowId: string, level: 'category' | 'subcategory') => {
     setQuickCreateTargetRowId(rowId)
     setQuickCreateLevel(level)
     setQuickCreateName('')
     setShowQuickCreate(true)
+  }
+
+  // Open full supplier form
+  const openSupplierForm = (rowId: string) => {
+    setSupplierFormTargetRowId(rowId)
+    setShowSupplierFormModal(true)
+  }
+
+  // Handle full supplier form submit
+  const handleNewSupplierSubmit = async (data: any) => {
+    setCreatingSupplier(true)
+    try {
+      const res = await fetch(`/api/business/${businessId}/suppliers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      const json = await res.json()
+      if (res.ok && (json.id || json.supplier?.id)) {
+        const newSup: Supplier = { id: json.id || json.supplier?.id, name: data.name }
+        setSuppliers(prev => [...prev, newSup])
+        if (supplierFormTargetRowId) updateRow(supplierFormTargetRowId, { supplierId: newSup.id })
+        setShowSupplierFormModal(false)
+        setSupplierFormTargetRowId(null)
+      }
+    } finally {
+      setCreatingSupplier(false)
+    }
   }
 
   const handleQuickCreate = async () => {
@@ -261,48 +317,42 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     const targetRow = rows.find(r => r.rowId === quickCreateTargetRowId)
     setQuickCreateLoading(true)
     try {
-      if (quickCreateLevel === 'supplier') {
-        const res = await fetch(`/api/business/${businessId}/suppliers`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: quickCreateName.trim() }),
-        })
-        const data = await res.json()
-        if (!res.ok) return
-        const newSup: Supplier = { id: data.supplier?.id || data.id || data.data?.id, name: quickCreateName.trim() }
-        setSuppliers(prev => [...prev, newSup])
-        updateRow(quickCreateTargetRowId, { supplierId: newSup.id })
-      } else {
-        const parentId = quickCreateLevel === 'subcategory'
-          ? targetRow?.categoryId
-          : targetRow?.departmentId
-        const res = await fetch('/api/universal/categories', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            businessId,
-            businessType,
-            name: quickCreateName.trim(),
-            ...(parentId ? { parentId } : {}),
-          }),
-        })
-        const data = await res.json()
-        if (!data.success && !data.id) return
-        const newCat: BusinessCategory = {
-          id: data.id || data.data?.id,
+      // For domain-based businesses (clothing): top-level categories link via domainId, not parentId
+      const isDomainBased = domains.length > 0
+      const parentId = quickCreateLevel === 'subcategory'
+        ? targetRow?.categoryId
+        : (isDomainBased ? undefined : targetRow?.departmentId)
+      const domainId = quickCreateLevel !== 'subcategory' && isDomainBased
+        ? targetRow?.departmentId
+        : undefined
+      const res = await fetch('/api/universal/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          businessType,
           name: quickCreateName.trim(),
-          emoji: data.emoji || data.data?.emoji || '📦',
-          color: data.color || data.data?.color || '#3B82F6',
-          parentId: parentId || null,
-        }
-        setAllCats(prev => [...prev, newCat])
-        if (quickCreateLevel === 'subcategory') {
-          setAllSubCategories(prev => [...prev, newCat])
-          updateRow(quickCreateTargetRowId, { subCategoryId: newCat.id })
-        } else {
-          setAllCategories(prev => [...prev, newCat])
-          updateRow(quickCreateTargetRowId, { categoryId: newCat.id, subCategoryId: '' })
-        }
+          ...(parentId ? { parentId } : {}),
+          ...(domainId ? { domainId } : {}),
+        }),
+      })
+      const data = await res.json()
+      if (!data.success && !data.id) return
+      const newCat: BusinessCategory = {
+        id: data.id || data.data?.id,
+        name: quickCreateName.trim(),
+        emoji: data.emoji || data.data?.emoji || '📦',
+        color: data.color || data.data?.color || '#3B82F6',
+        parentId: parentId || null,
+        domainId: domainId || data.domainId || data.data?.domainId || null,
+      }
+      setAllCats(prev => [...prev, newCat])
+      if (quickCreateLevel === 'subcategory') {
+        setAllSubCategories(prev => [...prev, newCat])
+        updateRow(quickCreateTargetRowId, { subCategoryId: newCat.id })
+      } else {
+        setAllCategories(prev => [...prev, newCat])
+        updateRow(quickCreateTargetRowId, { categoryId: newCat.id, subCategoryId: '' })
       }
       setQuickCreateName('')
       setShowQuickCreate(false)
@@ -315,15 +365,28 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   // Submit batch
   const handleSubmit = async () => {
     setSubmitError('')
-    const errors: string[] = []
-    rows.forEach((r, i) => {
-      if (!r.name.trim()) errors.push(`Row ${i + 1}: Name is required`)
-      if (!r.categoryId && !r.subCategoryId) errors.push(`Row ${i + 1}: Category is required`)
-      if (!r.quantity || Number(r.quantity) < 1) errors.push(`Row ${i + 1}: Quantity must be >= 1`)
-      if (!r.isFreeItem && (!r.sellingPrice || Number(r.sellingPrice) < 0)) errors.push(`Row ${i + 1}: Selling price is required`)
-    })
-    if (errors.length > 0) { setSubmitError(errors.join('\n')); return }
     if (rows.length === 0) { setSubmitError('Add at least one item before submitting'); return }
+
+    const fieldErrorMap: Record<string, Set<string>> = {}
+    rows.forEach(r => {
+      const bad = new Set<string>()
+      if (!r.name.trim()) bad.add('name')
+      if (!r.categoryId && !r.subCategoryId) bad.add('categoryId')
+      if (!r.quantity || Number(r.quantity) < 1) bad.add('quantity')
+      if (!r.isFreeItem && (!r.sellingPrice || Number(r.sellingPrice) < 0)) bad.add('sellingPrice')
+      if (bad.size > 0) fieldErrorMap[r.rowId] = bad
+    })
+
+    if (Object.keys(fieldErrorMap).length > 0) {
+      setRowFieldErrors(fieldErrorMap)
+      // Scroll to first failing row
+      const firstBadId = rows.find(r => fieldErrorMap[r.rowId])?.rowId
+      if (firstBadId) {
+        rowRefs.current[firstBadId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      return
+    }
+    setRowFieldErrors({})
 
     setSubmitLoading(true)
     setRows(prev => prev.map(r => ({ ...r, status: 'saving' })))
@@ -374,7 +437,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
   const pendingCount = rows.filter(r => r.status === 'pending' || r.status === 'error').length
   const hasDeptCol = departments.length > 0
-  const hasSubCatCol = allSubCategories.length > 0
+  const hasSubCatCol = true // always show sub-category column
 
   // Label for quick-create form
   const quickCreateLabel =
@@ -383,6 +446,14 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
   return (
     <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col">
+
+      {/* Barcode lookup overlay — blocks UI and shows centered spinner */}
+      {scanLoading && (
+        <div className="fixed inset-0 z-[70] bg-black/40 flex flex-col items-center justify-center cursor-wait">
+          <div className="animate-spin rounded-full h-14 w-14 border-4 border-white/20 border-t-white mb-4" />
+          <p className="text-white text-sm font-medium tracking-wide">Looking up barcode…</p>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
         <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
@@ -394,18 +465,30 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       {/* Scan bar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 shrink-0 flex-wrap">
         <label className="text-sm font-medium text-gray-600 dark:text-gray-400 shrink-0">Barcode:</label>
-        <input
-          ref={scanInputRef}
-          autoFocus
-          type="text"
-          value={scanInput}
-          onChange={e => setScanInput(e.target.value)}
-          onKeyDown={handleScanKeyDown}
-          placeholder="Scan or type barcode, press Enter"
-          disabled={scanLoading}
-          className="flex-1 min-w-[180px] px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500"
-        />
-        {scanLoading && <span className="text-xs text-gray-400">Looking up…</span>}
+        <div className="relative flex-1 min-w-[180px]">
+          <input
+            ref={scanInputRef}
+            autoFocus
+            type="text"
+            value={scanInput}
+            onChange={e => setScanInput(e.target.value)}
+            onKeyDown={handleScanKeyDown}
+            placeholder="Scan or type barcode, press Enter"
+            disabled={scanLoading}
+            className={`w-full px-3 py-1.5 border rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 pr-8 ${scanLoading ? 'border-indigo-400 dark:border-indigo-500 opacity-60' : 'border-gray-300 dark:border-gray-600'}`}
+          />
+          {scanLoading && (
+            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          )}
+        </div>
+        {scanLoading && (
+          <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 animate-pulse shrink-0">
+            Looking up barcode…
+          </span>
+        )}
         <div className="flex gap-2 ml-auto">
           <button onClick={addBlankRow} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
             + Add Row
@@ -432,8 +515,14 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         </div>
       )}
 
+      {Object.keys(rowFieldErrors).length > 0 && (
+        <div className="mx-4 mt-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
+          <span className="font-medium">⚠ {Object.keys(rowFieldErrors).length} row{Object.keys(rowFieldErrors).length !== 1 ? 's' : ''} need attention</span>
+          <span className="text-xs text-red-500">— highlighted below</span>
+        </div>
+      )}
       {submitError && (
-        <div className="mx-4 mt-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-xs text-red-800 dark:text-red-300 whitespace-pre-wrap">
+        <div className="mx-4 mt-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-xs text-red-800 dark:text-red-300">
           {submitError}
         </div>
       )}
@@ -450,18 +539,19 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400">
                 <th className="px-2 py-2 text-center w-8">#</th>
-                <th className="px-2 py-2 text-left min-w-[120px]">Barcode</th>
-                <th className="px-2 py-2 text-left min-w-[160px]">Name *</th>
-                {hasDeptCol && <th className="px-2 py-2 text-left min-w-[130px]">Department</th>}
-                <th className="px-2 py-2 text-left min-w-[150px]">Category *</th>
-                {hasSubCatCol && <th className="px-2 py-2 text-left min-w-[150px]">Sub-category</th>}
-                <th className="px-2 py-2 text-left min-w-[140px]">Supplier</th>
-                <th className="px-2 py-2 text-left min-w-[130px]">Description</th>
-                <th className="px-2 py-2 text-center min-w-[70px]">Stock</th>
-                <th className="px-2 py-2 text-center min-w-[70px]">Qty *</th>
-                <th className="px-2 py-2 text-center min-w-[110px]">Sell Price *</th>
-                <th className="px-2 py-2 text-center min-w-[80px]">Cost</th>
-                <th className="px-2 py-2 text-left min-w-[90px]">SKU</th>
+                <th className="px-2 py-2 text-left min-w-[110px]">Barcode</th>
+                <th className="px-2 py-2 text-left min-w-[180px]">Name *</th>
+                {hasDeptCol && <th className="px-2 py-2 text-left min-w-[150px]">Department</th>}
+                <th className="px-2 py-2 text-left min-w-[160px]">Category *</th>
+                {hasSubCatCol && <th className="px-2 py-2 text-left min-w-[160px]">Sub-category</th>}
+                <th className="px-2 py-2 text-left min-w-[160px]">Supplier</th>
+                <th className="px-2 py-2 text-left min-w-[150px]">Description</th>
+                <th className="px-2 py-2 text-center w-12">Stock</th>
+                <th className="px-2 py-2 text-center w-24">Qty *</th>
+                <th className="px-2 py-2 text-center w-28">Sell Price *</th>
+                <th className="px-2 py-2 text-center w-14">Free?</th>
+                <th className="px-2 py-2 text-center w-28">Cost</th>
+                <th className="px-2 py-2 text-left w-32">SKU</th>
                 <th className="px-2 py-2 w-8"></th>
               </tr>
             </thead>
@@ -478,11 +568,12 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                   suppliers={suppliers}
                   hasDeptCol={hasDeptCol}
                   hasSubCatCol={hasSubCatCol}
+                  invalidFields={rowFieldErrors[row.rowId] ?? new Set()}
                   onChange={patch => updateRow(row.rowId, patch)}
                   onRemove={() => removeRow(row.rowId)}
                   onNewCategory={() => openQuickCreate(row.rowId, 'category')}
                   onNewSubCategory={() => openQuickCreate(row.rowId, 'subcategory')}
-                  onNewSupplier={() => openQuickCreate(row.rowId, 'supplier')}
+                  onNewSupplier={() => openSupplierForm(row.rowId)}
                   rowRef={(el: HTMLTableRowElement | null) => { rowRefs.current[row.rowId] = el }}
                 />
               ))}
@@ -492,11 +583,24 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         <div ref={tableEndRef} />
       </div>
 
-      {/* Quick-create bottom panel */}
+      {/* Full supplier creation modal */}
+      {showSupplierFormModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4">
+          <UniversalSupplierForm
+            businessId={businessId}
+            businessType={businessType as any}
+            onSubmit={handleNewSupplierSubmit}
+            onCancel={() => { setShowSupplierFormModal(false); setSupplierFormTargetRowId(null) }}
+            loading={creatingSupplier}
+          />
+        </div>
+      )}
+
+      {/* Quick-create modal overlay (categories only) */}
       {showQuickCreate && (
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{quickCreateLabel}:</span>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{quickCreateLabel}</h3>
             <input
               autoFocus
               type="text"
@@ -504,19 +608,28 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               value={quickCreateName}
               onChange={e => setQuickCreateName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleQuickCreate() }}
-              className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 mb-4"
             />
-            <button onClick={handleQuickCreate} disabled={quickCreateLoading || !quickCreateName.trim()}
-              className="px-3 py-1 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded">
-              {quickCreateLoading ? 'Saving…' : 'Save'}
-            </button>
-            <button onClick={() => { setShowQuickCreate(false); setQuickCreateTargetRowId(null) }} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setShowQuickCreate(false); setQuickCreateTargetRowId(null) }}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                Cancel
+              </button>
+              <button onClick={handleQuickCreate} disabled={quickCreateLoading || !quickCreateName.trim()}
+                className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
+                {quickCreateLoading ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
   )
 }
+
+// ── Shared constants ──────────────────────────────────────────────────────────
+
+const cellInputClass = 'w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-400'
 
 // ── Per-row editor ────────────────────────────────────────────────────────────
 
@@ -530,6 +643,7 @@ interface BulkRowEditorProps {
   suppliers: Supplier[]
   hasDeptCol: boolean
   hasSubCatCol: boolean
+  invalidFields: Set<string>
   onChange: (patch: Partial<BulkStockRow>) => void
   onRemove: () => void
   onNewCategory: () => void
@@ -538,120 +652,29 @@ interface BulkRowEditorProps {
   rowRef: (el: HTMLTableRowElement | null) => void
 }
 
-function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef }: BulkRowEditorProps) {
-  const [catOpen, setCatOpen] = useState(false)
-  const [catSearch, setCatSearch] = useState('')
-  const catRef = useRef<HTMLDivElement>(null)
-
-  const [subCatOpen, setSubCatOpen] = useState(false)
-  const [subCatSearch, setSubCatSearch] = useState('')
-  const subCatRef = useRef<HTMLDivElement>(null)
-
-  const [supOpen, setSupOpen] = useState(false)
-  const [supSearch, setSupSearch] = useState('')
-  const supRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
-      if (subCatRef.current && !subCatRef.current.contains(e.target as Node)) setSubCatOpen(false)
-      if (supRef.current && !supRef.current.contains(e.target as Node)) setSupOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  // Derive filtered lists based on row's current selections
+function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, invalidFields, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef }: BulkRowEditorProps) {
+  const inv = (field: string) => invalidFields.has(field)
+  // Hierarchy-filtered lists (SearchableSelect handles text search internally)
   const filteredCats = allCategories.filter(c => {
-    if (row.departmentId) {
-      // Domain-based: filter by domainId
-      if (domains.length > 0 && c.domainId !== row.departmentId) return false
-      // ParentId-based: filter by parentId
-      if (domains.length === 0 && c.parentId && c.parentId !== row.departmentId) return false
-    }
-    return !catSearch || c.name.toLowerCase().includes(catSearch.toLowerCase())
+    if (!row.departmentId) return true
+    if (domains.length > 0) return c.domainId === row.departmentId
+    return !c.parentId || c.parentId === row.departmentId
   })
-  const filteredSubCats = allSubCategories.filter(c => {
-    if (row.categoryId && c.parentId && c.parentId !== row.categoryId) return false
-    return !subCatSearch || c.name.toLowerCase().includes(subCatSearch.toLowerCase())
-  })
-  const filteredSups = suppliers.filter(s =>
-    !supSearch || s.name.toLowerCase().includes(supSearch.toLowerCase())
+  const filteredSubCats = allSubCategories.filter(c =>
+    !row.categoryId || !c.parentId || c.parentId === row.categoryId
   )
 
-  const selectedCatName = allCategories.find(c => c.id === row.categoryId)?.name || ''
-  const selectedSubCatName = allSubCategories.find(c => c.id === row.subCategoryId)?.name || ''
-  const selectedSupName = suppliers.find(s => s.id === row.supplierId)?.name || ''
-
+  const hasValidationError = invalidFields.size > 0
   const rowStatusClass =
     row.status === 'saved' ? 'bg-green-50 dark:bg-green-900/10' :
     row.status === 'error' ? 'bg-red-50 dark:bg-red-900/10' :
-    row.status === 'saving' ? 'opacity-60' : ''
+    row.status === 'saving' ? 'opacity-60' :
+    hasValidationError ? 'bg-red-50 dark:bg-red-900/10 ring-1 ring-inset ring-red-300 dark:ring-red-700' : ''
 
-  const inputClass = 'w-full px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-400'
+  const inputClass = cellInputClass
   const roClass = `${inputClass} bg-gray-50 dark:bg-gray-700 text-gray-500 cursor-not-allowed`
 
-  // Shared dropdown cell pattern
-  const DropdownCell = ({
-    cellRef, value, displayName, open, setOpen, search, setSearch,
-    items, onSelect, onNew, newLabel, required,
-    disabled = false,
-  }: {
-    cellRef: React.RefObject<HTMLDivElement | null>
-    value: string
-    displayName: string
-    open: boolean
-    setOpen: (v: boolean) => void
-    search: string
-    setSearch: (v: string) => void
-    items: { id: string; name: string; emoji?: string }[]
-    onSelect: (id: string) => void
-    onNew: () => void
-    newLabel: string
-    required?: boolean
-    disabled?: boolean
-  }) => (
-    <div className="flex items-center gap-0.5">
-      <div className="relative flex-1" ref={cellRef}>
-        <input
-          type="text"
-          value={open ? search : displayName}
-          onFocus={() => { if (!disabled) { setOpen(true); setSearch('') } }}
-          onChange={e => { setSearch(e.target.value); setOpen(true) }}
-          placeholder={disabled ? '—' : 'Search…'}
-          disabled={disabled}
-          className={`${inputClass} ${required && !value ? 'border-red-300' : ''} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-        />
-        {open && (
-          <div className="absolute z-50 left-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded shadow-lg max-h-40 overflow-y-auto text-xs">
-            {value && (
-              <div onMouseDown={() => { onSelect(''); setOpen(false); setSearch('') }}
-                className="px-2 py-1.5 cursor-pointer text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
-                — clear —
-              </div>
-            )}
-            {items.map(item => (
-              <div key={item.id} onMouseDown={() => { onSelect(item.id); setOpen(false); setSearch('') }}
-                className={`px-2 py-1.5 cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/30 ${value === item.id ? 'font-medium text-indigo-700' : ''}`}>
-                {item.emoji ? `${item.emoji} ` : ''}{item.name}
-              </div>
-            ))}
-            {items.length === 0 && search && (
-              <div className="px-2 py-1.5 text-gray-400">No matches</div>
-            )}
-          </div>
-        )}
-      </div>
-      {/* "+" button outside the dropdown */}
-      <button
-        type="button"
-        title={newLabel}
-        disabled={disabled}
-        onMouseDown={e => { e.preventDefault(); setOpen(false); onNew() }}
-        className="w-5 h-5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 text-xs font-bold flex items-center justify-center hover:bg-indigo-100 shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
-      >+</button>
-    </div>
-  )
+  const plusBtnClass = 'w-5 h-5 shrink-0 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 text-xs font-bold flex items-center justify-center hover:bg-indigo-100'
 
   return (
     <tr ref={rowRef} className={`border-b border-gray-100 dark:border-gray-700 transition-all ${rowStatusClass}`}>
@@ -668,56 +691,73 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
       <td className="px-2 py-1.5">
         <input type="text" value={row.name} readOnly={row.nameReadOnly}
           onChange={e => onChange({ name: e.target.value })}
-          className={row.nameReadOnly ? roClass : inputClass} placeholder="Product name" />
+          className={`${row.nameReadOnly ? roClass : inputClass} ${inv('name') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="Product name" />
       </td>
 
       {/* Department */}
       {hasDeptCol && (
         <td className="px-2 py-1.5">
-          <select value={row.departmentId}
-            onChange={e => onChange({ departmentId: e.target.value, categoryId: '', subCategoryId: '' })}
-            className={inputClass}>
-            <option value="">— dept —</option>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
+          <SearchableSelect
+            options={departments}
+            value={row.departmentId}
+            onChange={id => onChange({ departmentId: id, categoryId: '', subCategoryId: '' })}
+            placeholder="Select dept…"
+            allLabel="— none —"
+          />
         </td>
       )}
 
       {/* Category */}
       <td className="px-2 py-1.5">
-        <DropdownCell
-          cellRef={catRef} value={row.categoryId} displayName={selectedCatName}
-          open={catOpen} setOpen={setCatOpen} search={catSearch} setSearch={setCatSearch}
-          items={filteredCats}
-          onSelect={id => onChange({ categoryId: id, subCategoryId: '' })}
-          onNew={onNewCategory} newLabel="+ New category" required
-          disabled={departments.length > 0 && !row.departmentId}
-        />
+        <div className="flex items-center gap-0.5">
+          <SearchableSelect
+            className="flex-1 min-w-0"
+            options={filteredCats}
+            value={row.categoryId}
+            onChange={id => onChange({ categoryId: id, subCategoryId: '' })}
+            placeholder={departments.length > 0 && !row.departmentId ? 'Select dept first' : 'Select category…'}
+            allLabel="— none —"
+            disabled={departments.length > 0 && !row.departmentId}
+            required
+            error={inv('categoryId') ? ' ' : undefined}
+          />
+          <button type="button" title="New category" onClick={onNewCategory} className={plusBtnClass}>+</button>
+        </div>
       </td>
 
       {/* Sub-category */}
       {hasSubCatCol && (
         <td className="px-2 py-1.5">
-          <DropdownCell
-            cellRef={subCatRef} value={row.subCategoryId} displayName={selectedSubCatName}
-            open={subCatOpen} setOpen={setSubCatOpen} search={subCatSearch} setSearch={setSubCatSearch}
-            items={filteredSubCats}
-            onSelect={id => onChange({ subCategoryId: id })}
-            onNew={onNewSubCategory} newLabel="+ New sub-category"
-            disabled={!row.categoryId}
-          />
+          <div className="flex items-center gap-0.5">
+            <SearchableSelect
+              className="flex-1 min-w-0"
+              options={filteredSubCats}
+              value={row.subCategoryId}
+              onChange={id => onChange({ subCategoryId: id })}
+              placeholder={!row.categoryId ? 'Select category first' : 'Select sub-cat…'}
+              allLabel="— none —"
+              disabled={!row.categoryId}
+            />
+            <button type="button" title={!row.categoryId ? 'Select a category first' : 'New sub-category'}
+              onClick={onNewSubCategory} disabled={!row.categoryId}
+              className={`${plusBtnClass} disabled:opacity-30 disabled:cursor-not-allowed`}>+</button>
+          </div>
         </td>
       )}
 
       {/* Supplier */}
       <td className="px-2 py-1.5">
-        <DropdownCell
-          cellRef={supRef} value={row.supplierId} displayName={selectedSupName}
-          open={supOpen} setOpen={setSupOpen} search={supSearch} setSearch={setSupSearch}
-          items={filteredSups}
-          onSelect={id => onChange({ supplierId: id })}
-          onNew={onNewSupplier} newLabel="+ New supplier"
-        />
+        <div className="flex items-center gap-0.5">
+          <SearchableSelect
+            className="flex-1 min-w-0"
+            options={suppliers}
+            value={row.supplierId}
+            onChange={id => onChange({ supplierId: id })}
+            placeholder="Select supplier…"
+            allLabel="— none —"
+          />
+          <button type="button" title="New supplier" onClick={onNewSupplier} className={plusBtnClass}>+</button>
+        </div>
       </td>
 
       {/* Description */}
@@ -734,28 +774,27 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
       {/* Qty */}
       <td className="px-2 py-1.5">
         <input type="number" min="1" value={row.quantity} onChange={e => onChange({ quantity: e.target.value })}
-          className={`${inputClass} w-14 text-center`} placeholder="qty" />
+          className={`${inputClass} w-full text-center ${inv('quantity') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="qty" />
       </td>
 
-      {/* Sell Price + Free checkbox */}
+      {/* Sell Price */}
       <td className="px-2 py-1.5">
-        <div className="flex items-center gap-1">
-          <input type="number" min="0" step="0.01" value={row.sellingPrice} disabled={row.isFreeItem}
-            onChange={e => onChange({ sellingPrice: e.target.value })}
-            className={`${row.isFreeItem ? roClass : inputClass} w-14 text-center`} placeholder="price" />
-          <label className="flex items-center gap-0.5 text-xs text-gray-500 cursor-pointer whitespace-nowrap">
-            <input type="checkbox" checked={row.isFreeItem}
-              onChange={e => onChange({ isFreeItem: e.target.checked, sellingPrice: e.target.checked ? '0' : row.sellingPrice })}
-              className="w-3 h-3" />
-            Free
-          </label>
-        </div>
+        <input type="number" min="0" step="0.01" value={row.sellingPrice} disabled={row.isFreeItem}
+          onChange={e => onChange({ sellingPrice: e.target.value })}
+          className={`${row.isFreeItem ? roClass : inputClass} w-full text-center ${inv('sellingPrice') && !row.isFreeItem ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="price" />
+      </td>
+
+      {/* Free */}
+      <td className="px-2 py-1.5 text-center">
+        <input type="checkbox" checked={row.isFreeItem}
+          onChange={e => onChange({ isFreeItem: e.target.checked, sellingPrice: e.target.checked ? '0' : row.sellingPrice })}
+          className="w-4 h-4 cursor-pointer accent-indigo-600" />
       </td>
 
       {/* Cost */}
       <td className="px-2 py-1.5">
         <input type="number" min="0" step="0.01" value={row.costPrice} onChange={e => onChange({ costPrice: e.target.value })}
-          className={`${inputClass} w-16 text-center`} placeholder="cost" />
+          className={`${inputClass} w-full text-center`} placeholder="cost" />
       </td>
 
       {/* SKU */}

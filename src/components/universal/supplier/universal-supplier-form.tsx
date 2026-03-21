@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { UniversalSupplier, UniversalSupplierFormProps, BusinessType, SupplierStatus, PaymentTerms, ReliabilityRating } from '@/types/supplier'
 
 const paymentTermsOptions = [
@@ -368,16 +369,14 @@ export function UniversalSupplierForm({
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Category *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={(businessCategoryOptions[businessType] ?? []).map(c => ({ id: c, name: c }))}
                     value={formData.category || ''}
-                    onChange={(e) => handleInputChange('category', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">Select category</option>
-                    {businessCategoryOptions[businessType]?.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
+                    onChange={val => handleInputChange('category', val)}
+                    placeholder="Select category"
+                    required
+                    error={errors['category']}
+                  />
                   {renderError('category')}
                 </div>
 
