@@ -38,6 +38,8 @@ export interface ProductData {
   barcodeData: string
   sellingPrice: number
   sku?: string
+  batchNumber?: string
+  itemCount?: number
 }
 
 interface BulkPrintModalProps {
@@ -49,6 +51,8 @@ interface BulkPrintModalProps {
   businessId?: string
   /** Individual product data — use instead of baleId for non-bale stock items */
   productData?: ProductData
+  /** Multiple products — use when printing a batch of generated items */
+  products?: ProductData[]
   /** When true the template selector is read-only */
   lockTemplate?: boolean
   /**
@@ -65,8 +69,9 @@ function escHtml(str: string) {
 
 function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string, template: BarcodeTemplate): string {
   const today = formatDate(new Date())
+  const refCode = bale.scanCode.substring(0, 6).toUpperCase()
   const batchLine = template.batchId ? `1-${template.batchId}` : ''
-  const dateLine = [today, batchLine].filter(Boolean).join(' ')
+  const dateLine = [refCode, today, batchLine].filter(Boolean).join(' · ')
   const price = `$ ${Number(bale.unitPrice).toFixed(2)}`
   return `
     <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
@@ -86,6 +91,8 @@ function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string, te
 
 function buildProductLabelHtml(product: ProductData, barcodeSvg: string, businessName: string, templateName: string): string {
   const today = formatDate(new Date())
+  const refCode = product.barcodeData.substring(0, 6).toUpperCase()
+  const dateLine = `${refCode} · ${today}`
   const price = `$ ${Number(product.sellingPrice).toFixed(2)}`
   return `
     <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
@@ -93,7 +100,9 @@ function buildProductLabelHtml(product: ProductData, barcodeSvg: string, busines
       <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
       <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(product.name)}</div>
       ${product.sku ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">SKU: ${escHtml(product.sku)}</div>` : ''}
-      <div style="font-size:9px;text-align:center;margin-bottom:4px;">${escHtml(today)}</div>
+      ${product.batchNumber ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">Batch: ${escHtml(product.batchNumber)}</div>` : ''}
+      ${product.itemCount ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">Items: ${product.itemCount}</div>` : ''}
+      <div style="font-size:9px;text-align:center;margin-bottom:4px;">${escHtml(dateLine)}</div>
       <div style="display:flex;justify-content:center;margin-bottom:2px;">${barcodeSvg}</div>
       <div style="font-size:9px;text-align:center;color:#444;margin-bottom:4px;letter-spacing:0.03em;">${escHtml(product.barcodeData)}</div>
       <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(price)}</div>
@@ -103,7 +112,7 @@ function buildProductLabelHtml(product: ProductData, barcodeSvg: string, busines
   `
 }
 
-export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, businessId: propBusinessId, productData, lockTemplate, compact }: BulkPrintModalProps) {
+export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, businessId: propBusinessId, productData, products, lockTemplate, compact }: BulkPrintModalProps) {
   const { currentBusinessId, activeBusinesses, loading: contextLoading } = useBusinessPermissionsContext()
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
@@ -273,19 +282,27 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   }
 
   const handlePdfPrint = async () => {
-    if (!productData && selectedIds.size === 0) return
-    if (!productData && !selectedTemplateId) return
+    if (!productData && !products?.length && selectedIds.size === 0) return
+    if (!productData && !products?.length && !selectedTemplateId) return
     setIsPdfPrinting(true)
     try {
       const JsBarcode = (await import('jsbarcode')).default
-      const bizName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
+      const bizName = activeBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
       const genericTemplate = { id: 'generic', name: 'Generic', symbology: 'CODE128', width: 200, height: 100 }
-      const template = templates.find(t => t.id === selectedTemplateId) ?? (productData ? genericTemplate : null)
+      const template = templates.find(t => t.id === selectedTemplateId) ?? ((productData || products?.length) ? genericTemplate : null)
       if (!template) return
 
       let labelHtmls: string[]
 
-      if (productData) {
+      if (products?.length) {
+        // Multiple products path
+        labelHtmls = products.flatMap(p => {
+          const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          JsBarcode(svgEl, p.barcodeData, { format: template.symbology?.toUpperCase() || 'CODE128', width: 1.5, height: 40, displayValue: false, margin: 4 })
+          svgEl.style.maxWidth = '100%'; svgEl.style.display = 'block'
+          return Array(qtyPerBale).fill(buildProductLabelHtml(p, svgEl.outerHTML, bizName, template.name))
+        })
+      } else if (productData) {
         // Individual product path
         const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
         JsBarcode(svgEl, productData.barcodeData, { format: template.symbology?.toUpperCase() || 'CODE128', width: 1.5, height: 40, displayValue: false, margin: 4 })
@@ -341,21 +358,33 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   const [receiptSuccess, setReceiptSuccess] = useState(false)
 
   const handleReceiptPrint = async (isRetry = false) => {
-    if (!productData && selectedIds.size === 0) return
+    if (!productData && !products?.length && selectedIds.size === 0) return
     if (!selectedPrinterId) return
     setIsReceiptPrinting(true)
     setReceiptError(null)
     setReceiptSuccess(false)
     try {
       const { generateBarcodeLabel } = await import('@/lib/barcode-label-generator')
-      const bizName = clothingBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
+      const bizName = activeBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
       const genericTemplate = { id: 'generic', name: 'Generic', symbology: 'code128', width: 200, height: 100, batchId: undefined }
-      const template = templates.find(t => t.id === selectedTemplateId) ?? (productData ? genericTemplate : null)
+      const template = templates.find(t => t.id === selectedTemplateId) ?? ((productData || products?.length) ? genericTemplate : null)
       if (!template) throw new Error('No template selected')
 
       let allLabels = ''
 
-      if (productData) {
+      if (products?.length) {
+        // Multiple products path
+        for (const p of products) {
+          allLabels += generateBarcodeLabel({
+            barcodeData: p.barcodeData, displayText: p.barcodeData,
+            symbology: template.symbology || 'code128', businessName: bizName,
+            templateName: template.name, displayValue: true,
+            batchNumber: '', quantity: qtyPerBale,
+            customData: { productName: p.name, description: p.sku ? `SKU: ${p.sku}` : '', price: String(p.sellingPrice) },
+            width: template.width || 200, height: template.height || 100,
+          })
+        }
+      } else if (productData) {
         // Individual product path
         allLabels = generateBarcodeLabel({
           barcodeData: productData.barcodeData, displayText: productData.barcodeData,
@@ -422,7 +451,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   }
 
   const canPrint = selectedIds.size > 0 && !!selectedTemplateId
-  const compactCanPrint = (!!productData || !!selectedTemplateId) && qtyPerBale > 0
+  const compactCanPrint = (!!productData || !!products?.length || !!selectedTemplateId) && qtyPerBale > 0
   const totalLabels = selectedIds.size * qtyPerBale
 
   if (!isOpen) return null
@@ -442,7 +471,13 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
           <div className="px-5 py-4 space-y-4">
             {/* Item summary */}
             <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-sm space-y-1">
-              {productData ? (
+              {products?.length ? (
+                <>
+                  <p className="font-semibold text-gray-900 dark:text-white">{products.length} product{products.length !== 1 ? 's' : ''} selected</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Labels per product: {qtyPerBale}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Template: {selectedTemplate?.name ?? 'Generic (CODE128)'}</p>
+                </>
+              ) : productData ? (
                 <>
                   <p className="font-semibold text-gray-900 dark:text-white">{productData.name}</p>
                   {productData.sku && <p className="text-xs text-gray-500 dark:text-gray-400">SKU: {productData.sku}</p>}

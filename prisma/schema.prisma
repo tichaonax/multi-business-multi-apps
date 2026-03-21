@@ -3552,6 +3552,7 @@ model SystemSettings {
   defaultIdFormatTemplateId      String?
   defaultMileageUnit             String   @default("km")
   maxPaymentWithoutId            Decimal  @default(50) @db.Decimal(10, 2)
+  minBarcodeLength               Int      @default(5)
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
 

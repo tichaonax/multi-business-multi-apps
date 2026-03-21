@@ -11,6 +11,7 @@ import { MiniCart } from '@/components/global/mini-cart'
 import { TestPrintModal } from '@/components/printing/test-print-modal'
 import { BusinessCreationModal } from '@/components/user-management/business-creation-modal'
 import { QuickActivityModal } from '@/components/admin/quick-activity-modal'
+import { TestBarcodeGeneratorModal } from '@/components/admin/test-barcode-generator-modal'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { useRentIndicator } from '@/hooks/use-rent-indicator'
 import { usePendingActionsCount, usePendingActions } from '@/hooks/use-pending-actions-count'
@@ -30,6 +31,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
   const [showTestPrint, setShowTestPrint] = useState(false)
   const [showQuickActivity, setShowQuickActivity] = useState(false)
+  const [showTestBarcodeGenerator, setShowTestBarcodeGenerator] = useState(false)
   const [showEditBusiness, setShowEditBusiness] = useState(false)
   const [editBusinessInitial, setEditBusinessInitial] = useState<Record<string, any> | null>(null)
   const [showBusinessSwitcher, setShowBusinessSwitcher] = useState(false)
@@ -1066,6 +1068,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                   showMenu={showUserMenu}
                   setShowMenu={setShowUserMenu}
                   onQuickActivity={() => setShowQuickActivity(true)}
+                  onTestBarcodeGenerator={() => setShowTestBarcodeGenerator(true)}
                 />
               </>
             )}
@@ -1087,6 +1090,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         <QuickActivityModal
           businesses={businesses}
           onClose={() => setShowQuickActivity(false)}
+        />
+      )}
+
+      {/* Test Barcode Generator — admin only, localhost:8080 */}
+      {showTestBarcodeGenerator && (
+        <TestBarcodeGeneratorModal
+          businesses={businesses}
+          onClose={() => setShowTestBarcodeGenerator(false)}
         />
       )}
 
@@ -1272,9 +1283,10 @@ interface UserDropdownProps {
   showMenu: boolean
   setShowMenu: (show: boolean) => void
   onQuickActivity?: () => void
+  onTestBarcodeGenerator?: () => void
 }
 
-function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity }: UserDropdownProps) {
+function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarcodeGenerator }: UserDropdownProps) {
   const pathname = usePathname()
   const { hasPermission, currentBusiness } = useBusinessPermissionsContext()
   const userMenuOpenedByClick = useRef(false)
@@ -1475,6 +1487,7 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity }: UserDrop
                     </div>
                   </Link>
                   {typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1):8080$/.test(window.location.host) && (
+                  <>
                   <button
                     onClick={() => { closeUserMenu(); onQuickActivity?.() }}
                     className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -1484,6 +1497,16 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity }: UserDrop
                       <span>Quick Activity</span>
                     </div>
                   </button>
+                  <button
+                    onClick={() => { closeUserMenu(); onTestBarcodeGenerator?.() }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>🏷️</span>
+                      <span>Test Barcode Generator</span>
+                    </div>
+                  </button>
+                  </>
                   )}
                 </>
               )}
