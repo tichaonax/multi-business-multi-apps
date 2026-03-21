@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { UniversalProduct, BarcodeType } from './product-card'
+import { globalBarcodeService } from '@/lib/services/global-barcode-service'
 
 interface BarcodeScannerProps {
   onProductScanned: (product: UniversalProduct, variantId?: string, matchedBarcode?: any) => void
@@ -152,7 +153,7 @@ export function BarcodeScanner({
           const buf = scanBufferRef.current
           scanBufferRef.current = ''
           setScanBuffer('')
-          const effectiveMin = typeof minBarcodeLength === 'number' ? minBarcodeLength : 4
+          const effectiveMin = typeof minBarcodeLength === 'number' ? minBarcodeLength : globalBarcodeService.getMinBarcodeLength()
           if (buf.length >= effectiveMin) {
             handleBarcodeInput(buf.trim())
           }
@@ -260,7 +261,7 @@ export function BarcodeScanner({
   // Scheduling barcode lookup
 
     // Minimal length to avoid firing API for short/partial inputs
-    const effectiveMinLength = typeof minBarcodeLength === 'number' ? minBarcodeLength : 4
+    const effectiveMinLength = typeof minBarcodeLength === 'number' ? minBarcodeLength : globalBarcodeService.getMinBarcodeLength()
     if (trimmedBarcode.length < effectiveMinLength) {
       return
     }

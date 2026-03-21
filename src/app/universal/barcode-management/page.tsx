@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
+import { useSettings } from '@/contexts/settings-context';
 
 interface DashboardStats {
   totalTemplates: number;
@@ -51,10 +52,18 @@ export default function BarcodeManagementDashboard() {
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('all');
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const { settings, refreshSettings } = useSettings();
+  const [minBarcodeLengthInput, setMinBarcodeLengthInput] = useState<number>(settings.minBarcodeLength);
+  const [isSavingBarcodeSetting, setIsSavingBarcodeSetting] = useState(false);
+  const isAdmin = (session?.user as any)?.role === 'admin';
 
   useEffect(() => {
     fetchBusinesses();
   }, []);
+
+  useEffect(() => {
+    setMinBarcodeLengthInput(settings.minBarcodeLength);
+  }, [settings.minBarcodeLength]);
 
   useEffect(() => {
     if (businesses.length > 0) {
@@ -211,6 +220,28 @@ export default function BarcodeManagementDashboard() {
     }
   };
 
+  const handleSaveMinBarcodeLength = async () => {
+    setIsSavingBarcodeSetting(true);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...settings, minBarcodeLength: minBarcodeLengthInput }),
+      });
+      if (res.ok) {
+        await refreshSettings();
+        await alert({ title: 'Saved', description: 'Minimum barcode length updated.' });
+      } else {
+        const data = await res.json();
+        await alert({ title: 'Error', description: data.error || 'Failed to save setting.' });
+      }
+    } catch {
+      await alert({ title: 'Error', description: 'Failed to save setting.' });
+    } finally {
+      setIsSavingBarcodeSetting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -361,6 +392,39 @@ export default function BarcodeManagementDashboard() {
             </button>
           </div>
         </div>
+
+        {/* Admin: Scan Settings */}
+        {isAdmin && (
+          <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Scan Settings</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Controls the minimum number of characters required before a barcode scan is recognised system-wide.
+              Existing printed barcodes are unaffected — only the detection threshold changes.
+            </p>
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Minimum Barcode Length
+                </label>
+                <input
+                  type="number"
+                  min={3}
+                  max={20}
+                  value={minBarcodeLengthInput}
+                  onChange={(e) => setMinBarcodeLengthInput(Math.max(3, Math.min(20, Number(e.target.value))))}
+                  className="w-24 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                onClick={handleSaveMinBarcodeLength}
+                disabled={isSavingBarcodeSetting || minBarcodeLengthInput === settings.minBarcodeLength}
+                className="mt-5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSavingBarcodeSetting ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Recent Print Jobs */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">

@@ -17,6 +17,7 @@ interface SystemSettings {
   defaultIdFormatTemplateId: string;
   defaultMileageUnit: string;
   maxPaymentWithoutId: number;
+  minBarcodeLength: number;
 }
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -29,7 +30,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   defaultCountryCode: 'ZW',
   defaultIdFormatTemplateId: 'cmfm8wyzp00001pek06cu95hb', // Zimbabwe National ID
   defaultMileageUnit: 'km',
-  maxPaymentWithoutId: 100, // Maximum payment amount to individuals without national ID
+  maxPaymentWithoutId: 100,
+  minBarcodeLength: 5,
 };
 
 export async function GET() {
@@ -62,6 +64,7 @@ export async function GET() {
           defaultIdFormatTemplateId: DEFAULT_SETTINGS.defaultIdFormatTemplateId,
           defaultMileageUnit: DEFAULT_SETTINGS.defaultMileageUnit,
           maxPaymentWithoutId: DEFAULT_SETTINGS.maxPaymentWithoutId,
+          minBarcodeLength: DEFAULT_SETTINGS.minBarcodeLength,
         }
       });
     }
@@ -118,6 +121,7 @@ export async function PUT(req: NextRequest) {
           defaultIdFormatTemplateId: newSettings.defaultIdFormatTemplateId,
           defaultMileageUnit: newSettings.defaultMileageUnit,
           maxPaymentWithoutId: newSettings.maxPaymentWithoutId,
+          minBarcodeLength: newSettings.minBarcodeLength ?? DEFAULT_SETTINGS.minBarcodeLength,
         }
       });
     } else {
@@ -134,6 +138,7 @@ export async function PUT(req: NextRequest) {
           defaultIdFormatTemplateId: newSettings.defaultIdFormatTemplateId,
           defaultMileageUnit: newSettings.defaultMileageUnit,
           maxPaymentWithoutId: newSettings.maxPaymentWithoutId,
+          minBarcodeLength: newSettings.minBarcodeLength ?? DEFAULT_SETTINGS.minBarcodeLength,
         }
       });
     }

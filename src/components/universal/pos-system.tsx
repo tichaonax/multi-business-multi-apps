@@ -76,6 +76,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
   )
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
   const [cashTendered, setCashTendered] = useState('')
+  const [ecocashTxCode, setEcocashTxCode] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autoAddProcessed, setAutoAddProcessed] = useState<string | null>(null)
@@ -525,6 +526,13 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
       // Use selected customer ID if available (walk-in customers have null ID)
       const customerId = selectedCustomer?.id || null
 
+      // Compute EcoCash fee upfront so it's available for both the order and the receipt
+      const ecoFeeType = (config as any)?.ecocashFeeType
+      const ecoFeeValue = (config as any)?.ecocashFeeValue ?? 0
+      const computedEcocashFee = paymentMethod === 'ECOCASH'
+        ? (ecoFeeType === 'PERCENTAGE' ? totalAmount * (ecoFeeValue / 100) : ecoFeeValue)
+        : 0
+
       // Create order
       const orderData = {
         businessId,
@@ -540,7 +548,13 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           posOrder: true,
           customerInfo: selectedCustomer?.name || 'Walk-in Customer',
           cashTendered: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
-          change: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totalAmount : undefined
+          change: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totalAmount : undefined,
+          ...(paymentMethod === 'ECOCASH' ? {
+            ecocashTransactionCode: ecocashTxCode.trim(),
+            ecocashFeeType: ecoFeeType,
+            ecocashFeeValue: ecoFeeValue,
+            ecocashFeeAmount: computedEcocashFee,
+          } : {}),
         },
         items: cart.map(item => ({
           productVariantId: item.variantId || item.product.variants?.[0]?.id || null,
@@ -593,6 +607,8 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           paymentMethod,
           cashTendered: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) : undefined,
           change: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totalAmount : undefined,
+          ecocashFeeAmount: paymentMethod === 'ECOCASH' ? computedEcocashFee : undefined,
+          ecocashTransactionCode: paymentMethod === 'ECOCASH' ? ecocashTxCode.trim() : undefined,
           customerName: selectedCustomer?.name || 'Walk-in Customer',
           customerPhone: customerInfo.phone,
           date: new Date(),
@@ -609,6 +625,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
         clearCart()
         setCashTendered('')
+        setEcocashTxCode('')
 
         // Send CLEAR_CART to customer display after successful checkout
         if (terminalId) {
@@ -934,9 +951,38 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                   <option value="CARD">💳 Card</option>
                   <option value="MOBILE_MONEY">📱 Mobile Money</option>
                   <option value="BANK_TRANSFER">🏦 Bank Transfer</option>
+                  {(config as any)?.ecocashEnabled && <option value="ECOCASH">EcoCash</option>}
                   {businessFeatures.isConsulting() && <option value="NET_30">📄 Net 30</option>}
                 </select>
               </div>
+
+              {/* EcoCash Transaction Code + fee breakdown */}
+              {paymentMethod === 'ECOCASH' && (() => {
+                const feeType = (config as any)?.ecocashFeeType
+                const feeValue = (config as any)?.ecocashFeeValue ?? 0
+                const fee = feeType === 'PERCENTAGE' ? totalAmount * (feeValue / 100) : feeValue
+                const ecocashTotal = totalAmount + fee
+                return (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      EcoCash Transaction Code <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter EcoCash transaction code"
+                      value={ecocashTxCode}
+                      onChange={(e) => setEcocashTxCode(e.target.value.toUpperCase())}
+                      className="input-field w-full text-base font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    />
+                    {fee > 0 && (
+                      <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                        <div className="flex justify-between"><span>EcoCash fee ({feeType === 'PERCENTAGE' ? `${feeValue}%` : 'fixed'}):</span><span>+{formatCurrency(fee)}</span></div>
+                        <div className="flex justify-between font-bold"><span>Total to charge:</span><span>{formatCurrency(ecocashTotal)}</span></div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Cash Tender Input - only show if total > 0 */}
               {paymentMethod === 'CASH' && totalAmount > 0 && (
@@ -1006,7 +1052,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           {cart.length > 0 && (
             <button
               onClick={processOrder}
-              disabled={isProcessing || (paymentMethod === 'CASH' && totalAmount > 0 && (!cashTendered || parseFloat(cashTendered) < totalAmount))}
+              disabled={isProcessing || (paymentMethod === 'CASH' && totalAmount > 0 && (!cashTendered || parseFloat(cashTendered) < totalAmount)) || (paymentMethod === 'ECOCASH' && !ecocashTxCode.trim())}
               className="w-full mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-3 rounded-lg font-bold text-base shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
             >
               {isProcessing ? (

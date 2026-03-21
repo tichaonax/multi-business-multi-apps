@@ -232,7 +232,7 @@ export async function processAutoDeposits(
           data: { isPausedByCap: true },
         })
         await prisma.businessLoan.updateMany({
-          where: { expenseAccountId: config.expenseAccountId, status: { not: 'SETTLED' } },
+          where: { expenseAccountId: config.expenseAccountId, status: 'LOCKED' },
           data: { status: 'SETTLED', settledAt: new Date() },
         })
         results.push({ ...base, status: 'skipped_cap_reached', errorMessage: 'Loan fully repaid — config frozen.' })
@@ -380,7 +380,7 @@ export async function processAutoDeposits(
         if (newBalance >= 0) {
           await prisma.expenseAccountAutoDeposit.update({ where: { id: config.id }, data: { isPausedByCap: true } })
           await prisma.businessLoan.updateMany({
-            where: { expenseAccountId: config.expenseAccountId, status: { not: 'SETTLED' } },
+            where: { expenseAccountId: config.expenseAccountId, status: 'LOCKED' },
             data: { status: 'SETTLED', settledAt: new Date() },
           })
         }

@@ -17,7 +17,9 @@ export async function GET(
     }
 
     const { barcode } = await params
-    if (!barcode || barcode.length < 4) {
+    const systemSettings = await prisma.systemSettings.findFirst({ select: { minBarcodeLength: true } })
+    const minLength = systemSettings?.minBarcodeLength ?? 5
+    if (!barcode || barcode.length < minLength) {
       return NextResponse.json(
         { success: false, error: 'Invalid barcode' },
         { status: 400 }

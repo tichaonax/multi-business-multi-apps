@@ -329,6 +329,36 @@ export default function LoanDetailPage() {
     } catch (e: any) { toast.error(e.message) }
   }
 
+  async function handleUnlock() {
+    if (!await confirm({
+      title: 'Un-lock Loan',
+      description: 'This will reverse the Locked status back to Recording so expenses and repayments can be edited. Only allowed when there are no withdrawal requests. Use this to fix loans that were locked by mistake.',
+      confirmText: 'Un-lock',
+    })) return
+    try {
+      const res = await fetch(`/api/business-loans/${loanId}/unlock`, { method: 'POST', credentials: 'include' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to un-lock loan')
+      toast.push('Loan un-locked — status restored to Recording', { type: 'success' })
+      fetchLoan()
+    } catch (e: any) { toast.error(e.message) }
+  }
+
+  async function handleUnsettle() {
+    if (!await confirm({
+      title: 'Un-settle Loan',
+      description: 'This will reverse the Settled status back to Locked so EOD repayments can continue. Only do this if the loan was settled by mistake.',
+      confirmText: 'Un-settle',
+    })) return
+    try {
+      const res = await fetch(`/api/business-loans/${loanId}/unsettle`, { method: 'POST', credentials: 'include' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to un-settle loan')
+      toast.push('Loan un-settled — status restored to Locked', { type: 'success' })
+      fetchLoan()
+    } catch (e: any) { toast.error(e.message) }
+  }
+
   async function adminWithdrawalAction(requestId: string, action: 'approve' | 'reject' | 'pay', extra?: { approvedAmount?: number; rejectionReason?: string }) {
     setActionSubmitting(true)
     try {
@@ -599,6 +629,26 @@ export default function LoanDetailPage() {
               className="px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm font-medium hover:bg-yellow-700 transition-colors"
             >
               ✅ Approve Lock
+            </button>
+          )}
+
+          {/* Admin: Un-lock (LOCKED only, no withdrawal requests — corrects accidental lock) */}
+          {isSystemAdmin && isLocked && loan.withdrawalRequests.length === 0 && (
+            <button
+              onClick={handleUnlock}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+            >
+              🔓 Un-lock (Admin)
+            </button>
+          )}
+
+          {/* Admin: Un-settle (SETTLED only — corrects accidental settlement) */}
+          {isSystemAdmin && isSettled && (
+            <button
+              onClick={handleUnsettle}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            >
+              ↩ Un-settle (Admin)
             </button>
           )}
 

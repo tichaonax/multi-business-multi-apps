@@ -234,6 +234,22 @@ export function ReceiptPreview({
                       )}
                     </>
                   )}
+                  {receiptData.paymentMethod?.toUpperCase() === 'ECOCASH' && (
+                    <>
+                      {Number(receiptData.ecocashFeeAmount) > 0 && (
+                        <div className="flex justify-between">
+                          <span>EcoCash Fee:</span>
+                          <span>+{formatCurrency(Number(receiptData.ecocashFeeAmount))}</span>
+                        </div>
+                      )}
+                      {receiptData.ecocashTransactionCode && (
+                        <div className="flex justify-between">
+                          <span>EcoCash Ref:</span>
+                          <span className="font-mono">{receiptData.ecocashTransactionCode}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 

@@ -22,6 +22,7 @@ class GlobalBarcodeService {
   private isInitialized = false
   private currentUser: SessionUser | null = null
   private cleanup: (() => void) | null = null
+  private _minBarcodeLength = 5
 
   private constructor() {}
 
@@ -30,6 +31,17 @@ class GlobalBarcodeService {
       GlobalBarcodeService.instance = new GlobalBarcodeService()
     }
     return GlobalBarcodeService.instance
+  }
+
+  /**
+   * Set the minimum barcode length from system settings
+   */
+  setMinBarcodeLength(length: number): void {
+    this._minBarcodeLength = Math.max(1, length)
+  }
+
+  getMinBarcodeLength(): number {
+    return this._minBarcodeLength
   }
 
   /**
@@ -177,7 +189,7 @@ class GlobalBarcodeService {
           const barcode = this.scanBuffer.trim()
           this.clearScanBuffer()
 
-          if (barcode.length >= 4) { // Minimum barcode length
+          if (barcode.length >= this._minBarcodeLength) {
             this.emitBarcodeEvent({
               barcode,
               timestamp: Date.now(),
@@ -223,7 +235,7 @@ class GlobalBarcodeService {
 
       // Only intercept paste if NOT in an input field (barcode scanner pasting to document)
       const pasted = (e.clipboardData || (window as any).clipboardData)?.getData('text') || ''
-      if (pasted && pasted.trim().length >= 4) {
+      if (pasted && pasted.trim().length >= this._minBarcodeLength) {
         e.preventDefault() // Prevent the paste from going to focused element
 
         console.log('📋 GlobalBarcodeService: Intercepting paste as barcode:', pasted.trim())

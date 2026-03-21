@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, useRef } from 'react'
+import { globalBarcodeService } from '@/lib/services/global-barcode-service'
 
 interface SystemSettings {
   allowSelfRegistration: boolean
@@ -12,6 +13,7 @@ interface SystemSettings {
   defaultCountryCode: string
   defaultIdFormatTemplateId: string
   defaultMileageUnit: string
+  minBarcodeLength: number
 }
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -25,6 +27,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   // Use seeded stable ID for the default template
   defaultIdFormatTemplateId: 'zw-national-id',
   defaultMileageUnit: 'km',
+  minBarcodeLength: 5,
 }
 
 interface SettingsContextType {
@@ -51,6 +54,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (response.ok) {
         const data = await response.json()
         setSettings(data)
+        if (typeof data.minBarcodeLength === 'number') {
+          globalBarcodeService.setMinBarcodeLength(data.minBarcodeLength)
+        }
       } else {
         // If we can't fetch settings (e.g., not authorized), use defaults
         setSettings(DEFAULT_SETTINGS)

@@ -948,138 +948,125 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
             </div>
           ) : businesses.length === 0 ? (
             <div className="py-4">
-              {/* Clothing-specific no-match workflow */}
-              {currentBusinessType === 'clothing' && currentBusinessId ? (
-                <div className="space-y-3">
-                  <div className="text-center pb-2">
-                    <p className="text-gray-600 dark:text-gray-400 text-sm">
-                      ⚠️ Barcode <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs">{currentBarcode}</code> not found.
-                    </p>
-                  </div>
-
-                  {linkSuccess ? (
-                    <div className="text-center py-4">
-                      <p className="text-green-600 dark:text-green-400 font-medium">✅ {linkSuccess}</p>
-                      <button onClick={onClose} className="mt-3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-                        Close
-                      </button>
-                    </div>
-                  ) : showLinkExisting ? (
-                    <div className="space-y-3">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Search for a bale to link this barcode to:</p>
-                      <input
-                        type="text"
-                        value={linkSearch}
-                        onChange={async e => {
-                          setLinkSearch(e.target.value)
-                          if (e.target.value.trim().length < 2) { setLinkResults([]); return }
-                          setLinkLoading(true)
-                          try {
-                            const res = await fetch(`/api/clothing/bales?businessId=${currentBusinessId}`)
-                            const data = await res.json()
-                            const q = e.target.value.toLowerCase()
-                            const list = (data.data ?? []).filter((b: any) =>
-                              b.category?.name?.toLowerCase().includes(q) ||
-                              b.batchNumber?.toLowerCase().includes(q) ||
-                              b.sku?.toLowerCase().includes(q)
-                            ).slice(0, 8)
-                            setLinkResults(list)
-                          } catch { setLinkResults([]) }
-                          finally { setLinkLoading(false) }
-                        }}
-                        placeholder="Search by category, batch, or SKU…"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                        autoFocus
-                      />
-                      {linkLoading && <p className="text-xs text-gray-400 text-center">Searching…</p>}
-                      {linkResults.length > 0 && (
-                        <div className="space-y-1 max-h-48 overflow-y-auto">
-                          {linkResults.map((b: any) => (
-                            <button
-                              key={b.id}
-                              onClick={async () => {
-                                setLinkLoading(true)
-                                try {
-                                  const res = await fetch('/api/clothing/products/link-barcode', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ itemId: b.id, itemType: 'bale', barcode: currentBarcode }),
-                                  })
-                                  const data = await res.json()
-                                  if (data.success) {
-                                    setLinkSuccess(`Barcode linked to ${b.category?.name} — Batch ${b.batchNumber}`)
-                                    setShowLinkExisting(false)
-                                  }
-                                } catch { /* ignore */ }
-                                finally { setLinkLoading(false) }
-                              }}
-                              className="w-full text-left px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-sm"
-                            >
-                              <span className="font-medium text-gray-900 dark:text-white">{b.category?.name}</span>
-                              <span className="text-gray-500 dark:text-gray-400 ml-2 text-xs font-mono">{b.batchNumber}</span>
-                              <span className="text-gray-400 dark:text-gray-500 ml-2 text-xs">{b.remainingCount} left</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <button
-                        onClick={() => { setShowLinkExisting(false); setLinkSearch(''); setLinkResults([]) }}
-                        className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700"
-                      >
-                        ← Back
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <button
-                        onClick={() => setShowLinkExisting(true)}
-                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                      >
-                        🔗 Link to Existing Bale
-                      </button>
-                      <button
-                        onClick={() => setShowAddStockPanel(true)}
-                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                      >
-                        📦 Create New Stock
-                      </button>
-                      <button
-                        onClick={onClose}
-                        className="w-full py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  )}
+              <div className="space-y-3">
+                {/* Shared message */}
+                <div className="text-center pb-2">
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    ⚠️ Barcode <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs">{currentBarcode}</code> not found.
+                  </p>
                 </div>
-              ) : (
-                /* Non-clothing businesses: original flow */
-                <div className="text-center py-8">
-                  <div className="mb-4">
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">
-                      {typeof window !== 'undefined' && window.location.pathname.includes('/pos')
-                        ? '⚠️ This item is not stocked in any business.'
-                        : '⚠️ Product not found in any business.'}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">
-                      {typeof window !== 'undefined' && window.location.pathname.includes('/pos')
-                        ? 'Add it to your current business inventory to sell it now.'
-                        : 'This product is not in your inventory. Would you like to add it?'}
-                    </p>
-                    {currentBusinessId && currentBusinessType && hasPermission('canManageMenu') && (
+
+                {linkSuccess ? (
+                  <div className="text-center py-4">
+                    <p className="text-green-600 dark:text-green-400 font-medium">✅ {linkSuccess}</p>
+                    <button onClick={onClose} className="mt-3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">
+                      Close
+                    </button>
+                  </div>
+                ) : showLinkExisting ? (
+                  /* Clothing: link-to-bale search flow */
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Search for a bale to link this barcode to:</p>
+                    <input
+                      type="text"
+                      value={linkSearch}
+                      onChange={async e => {
+                        setLinkSearch(e.target.value)
+                        if (e.target.value.trim().length < 2) { setLinkResults([]); return }
+                        setLinkLoading(true)
+                        try {
+                          const res = await fetch(`/api/clothing/bales?businessId=${currentBusinessId}`)
+                          const data = await res.json()
+                          const q = e.target.value.toLowerCase()
+                          const list = (data.data ?? []).filter((b: any) =>
+                            b.category?.name?.toLowerCase().includes(q) ||
+                            b.batchNumber?.toLowerCase().includes(q) ||
+                            b.sku?.toLowerCase().includes(q)
+                          ).slice(0, 8)
+                          setLinkResults(list)
+                        } catch { setLinkResults([]) }
+                        finally { setLinkLoading(false) }
+                      }}
+                      placeholder="Search by category, batch, or SKU…"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      autoFocus
+                    />
+                    {linkLoading && <p className="text-xs text-gray-400 text-center">Searching…</p>}
+                    {linkResults.length > 0 && (
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {linkResults.map((b: any) => (
+                          <button
+                            key={b.id}
+                            onClick={async () => {
+                              setLinkLoading(true)
+                              try {
+                                const res = await fetch('/api/clothing/products/link-barcode', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ itemId: b.id, itemType: 'bale', barcode: currentBarcode }),
+                                })
+                                const data = await res.json()
+                                if (data.success) {
+                                  setLinkSuccess(`Barcode linked to ${b.category?.name} — Batch ${b.batchNumber}`)
+                                  setShowLinkExisting(false)
+                                }
+                              } catch { /* ignore */ }
+                              finally { setLinkLoading(false) }
+                            }}
+                            className="w-full text-left px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-sm"
+                          >
+                            <span className="font-medium text-gray-900 dark:text-white">{b.category?.name}</span>
+                            <span className="text-gray-500 dark:text-gray-400 ml-2 text-xs font-mono">{b.batchNumber}</span>
+                            <span className="text-gray-400 dark:text-gray-500 ml-2 text-xs">{b.remainingCount} left</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { setShowLinkExisting(false); setLinkSearch(''); setLinkResults([]) }}
+                      className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700"
+                    >
+                      ← Back
+                    </button>
+                  </div>
+                ) : (
+                  /* Action buttons — clothing gets bale-specific options, others get inventory add */
+                  <div className="flex flex-col gap-2">
+                    {currentBusinessType === 'clothing' && currentBusinessId ? (
+                      <>
+                        <button
+                          onClick={() => setShowLinkExisting(true)}
+                          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                        >
+                          🔗 Link to Existing Bale
+                        </button>
+                        <button
+                          onClick={() => setShowAddStockPanel(true)}
+                          className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                        >
+                          📦 Create New Stock
+                        </button>
+                      </>
+                    ) : currentBusinessId && currentBusinessType && hasPermission('canManageMenu') ? (
                       <button
                         onClick={() => setShowQuickStock(true)}
                         disabled={isLoading}
-                        className="px-6 py-3 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {typeof window !== 'undefined' && window.location.pathname.includes('/pos')
-                          ? '📦 Add to Inventory & Sell'
-                          : `📦 Add to ${currentBusinessName ?? 'Current Business'} Inventory`}
+                        📦 {typeof window !== 'undefined' && window.location.pathname.includes('/pos')
+                          ? 'Add to Inventory & Sell'
+                          : `Add to ${currentBusinessName ?? 'Current Business'} Inventory`}
                       </button>
-                    )}
+                    ) : null}
+                    <button
+                      onClick={onClose}
+                      className="w-full py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      Dismiss
+                    </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
