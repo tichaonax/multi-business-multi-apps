@@ -38,6 +38,10 @@ export interface ProductData {
   barcodeData: string
   sellingPrice: number
   sku?: string
+  description?: string
+  size?: string
+  color?: string
+  itemName?: string
   batchNumber?: string
   itemCount?: number
 }
@@ -89,16 +93,18 @@ function buildLabelHtml(bale: Bale, barcodeSvg: string, businessName: string, te
   `
 }
 
-function buildProductLabelHtml(product: ProductData, barcodeSvg: string, businessName: string, templateName: string): string {
+function buildProductLabelHtml(product: ProductData, barcodeSvg: string, businessName: string, templateName: string, batchId?: string, qty?: number): string {
   const today = formatDate(new Date())
-  const refCode = product.barcodeData.substring(0, 6).toUpperCase()
-  const dateLine = `${refCode} · ${today}`
+  const batchSuffix = batchId ? ` ${qty ?? 1}-${batchId}` : ''
+  const dateLine = today + batchSuffix
   const price = `$ ${Number(product.sellingPrice).toFixed(2)}`
   return `
     <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
       <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
       <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
       <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(product.name)}</div>
+      ${product.description ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">${escHtml(product.description)}</div>` : ''}
+      ${product.size ? `<div style="font-size:16px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(product.size)}</div>` : ''}
       ${product.sku ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">SKU: ${escHtml(product.sku)}</div>` : ''}
       ${product.batchNumber ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">Batch: ${escHtml(product.batchNumber)}</div>` : ''}
       ${product.itemCount ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">Items: ${product.itemCount}</div>` : ''}
@@ -106,6 +112,8 @@ function buildProductLabelHtml(product: ProductData, barcodeSvg: string, busines
       <div style="display:flex;justify-content:center;margin-bottom:2px;">${barcodeSvg}</div>
       <div style="font-size:9px;text-align:center;color:#444;margin-bottom:4px;letter-spacing:0.03em;">${escHtml(product.barcodeData)}</div>
       <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(price)}</div>
+      ${product.color ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">${escHtml(product.color)}</div>` : ''}
+      ${product.itemName ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">${escHtml(product.itemName)}</div>` : ''}
       <div style="font-size:8px;text-align:center;color:#666;">${escHtml(templateName)}</div>
       <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
     </div>
@@ -204,6 +212,45 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
     setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
+  // Quick template creation (compact mode)
+  const [showQuickTemplate, setShowQuickTemplate] = useState(false)
+  const [quickTplName, setQuickTplName] = useState('')
+  const [quickTplBatchId, setQuickTplBatchId] = useState('')
+  const [quickTplSaving, setQuickTplSaving] = useState(false)
+
+  async function saveQuickTemplate() {
+    if (!quickTplName.trim() || !selectedBusinessId) return
+    setQuickTplSaving(true)
+    try {
+      const bizType = activeBusinesses.find(b => b.businessId === selectedBusinessId)?.businessType ?? 'general'
+      const res = await fetch('/api/universal/barcode-management/templates', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: quickTplName.trim(),
+          barcodeValue: `${quickTplName.trim().toUpperCase().replace(/\s+/g, '-')}-TPL`,
+          batchId: quickTplBatchId.trim() || undefined,
+          type: bizType,
+          description: 'Quick template',
+          symbology: 'code128',
+          businessId: selectedBusinessId,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed to create template')
+      const newId = json.template?.id ?? json.id
+      // Reload templates then select new one
+      const listRes = await fetch(`/api/universal/barcode-management/templates?businessId=${selectedBusinessId}&limit=100`, { credentials: 'include' })
+      const listJson = await listRes.json()
+      const list: BarcodeTemplate[] = listJson.templates ?? listJson.data ?? []
+      setTemplates(list)
+      if (newId) setSelectedTemplateId(newId)
+      setShowQuickTemplate(false)
+      setQuickTplName('')
+      setQuickTplBatchId('')
+    } catch { /* ignore */ } finally { setQuickTplSaving(false) }
+  }
+
   // Receipt printers
   const printerKey = userId ? `lastSelectedPrinterId-${userId}` : 'lastSelectedPrinterId'
   const [printers, setPrinters] = useState<NetworkPrinter[]>([])
@@ -300,14 +347,14 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
           JsBarcode(svgEl, p.barcodeData, { format: template.symbology?.toUpperCase() || 'CODE128', width: 1.5, height: 40, displayValue: false, margin: 4 })
           svgEl.style.maxWidth = '100%'; svgEl.style.display = 'block'
-          return Array(qtyPerBale).fill(buildProductLabelHtml(p, svgEl.outerHTML, bizName, template.name))
+          return Array(qtyPerBale).fill(buildProductLabelHtml(p, svgEl.outerHTML, bizName, template.name, template.batchId, qtyPerBale))
         })
       } else if (productData) {
         // Individual product path
         const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
         JsBarcode(svgEl, productData.barcodeData, { format: template.symbology?.toUpperCase() || 'CODE128', width: 1.5, height: 40, displayValue: false, margin: 4 })
         svgEl.style.maxWidth = '100%'; svgEl.style.display = 'block'
-        const html = buildProductLabelHtml(productData, svgEl.outerHTML, bizName, template.name)
+        const html = buildProductLabelHtml(productData, svgEl.outerHTML, bizName, template.name, template.batchId, qtyPerBale)
         labelHtmls = Array(qtyPerBale).fill(html)
       } else {
         // Bale path (existing)
@@ -379,8 +426,9 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
             barcodeData: p.barcodeData, displayText: p.barcodeData,
             symbology: template.symbology || 'code128', businessName: bizName,
             templateName: template.name, displayValue: true,
-            batchNumber: '', quantity: qtyPerBale,
-            customData: { productName: p.name, description: p.sku ? `SKU: ${p.sku}` : '', price: String(p.sellingPrice) },
+            batchNumber: template.batchId || p.batchNumber || '', quantity: qtyPerBale,
+            sku: p.sku, itemName: p.itemName,
+            customData: { productName: p.name, description: p.description, price: String(p.sellingPrice), size: p.size, color: p.color },
             width: template.width || 200, height: template.height || 100,
           })
         }
@@ -390,8 +438,9 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
           barcodeData: productData.barcodeData, displayText: productData.barcodeData,
           symbology: template.symbology || 'code128', businessName: bizName,
           templateName: template.name, displayValue: true,
-          batchNumber: '', quantity: qtyPerBale,
-          customData: { productName: productData.name, description: productData.sku ? `SKU: ${productData.sku}` : '', price: String(productData.sellingPrice) },
+          batchNumber: template.batchId || productData.batchNumber || '', quantity: qtyPerBale,
+          sku: productData.sku, itemName: productData.itemName,
+          customData: { productName: productData.name, description: productData.description, price: String(productData.sellingPrice), size: productData.size, color: productData.color },
           width: template.width || 200, height: template.height || 100,
         })
       } else {
@@ -494,6 +543,47 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                 <p className="text-gray-400 text-xs">{balesLoading ? 'Loading…' : 'Item not found'}</p>
               )}
             </div>
+
+            {/* Template selector */}
+            {!lockTemplate && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedTemplateId}
+                    onChange={e => setSelectedTemplateId(e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="">Generic (CODE128)</option>
+                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}{t.batchId ? ` [${t.batchId}]` : ''}</option>)}
+                  </select>
+                  <button
+                    onClick={() => setShowQuickTemplate(v => !v)}
+                    title="Create a quick template"
+                    className="px-2 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
+                  >＋</button>
+                </div>
+                {showQuickTemplate && (
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg space-y-2">
+                    <p className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Quick Template</p>
+                    <input
+                      type="text" placeholder="Template name (e.g. OZL)"
+                      value={quickTplName} onChange={e => setQuickTplName(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    />
+                    <input
+                      type="text" placeholder="Batch ID (e.g. OZL)" maxLength={10}
+                      value={quickTplBatchId} onChange={e => setQuickTplBatchId(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    />
+                    <button
+                      onClick={saveQuickTemplate}
+                      disabled={!quickTplName.trim() || quickTplSaving}
+                      className="w-full py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded disabled:opacity-50"
+                    >{quickTplSaving ? 'Saving…' : 'Create & Use'}</button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Quantity */}
             <div>

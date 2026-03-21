@@ -3,6 +3,8 @@
  * All generated names are prefixed with [TEST] for easy identification and bulk deletion.
  */
 
+import { randomBytes } from 'crypto'
+
 export type SupportedBusinessType = 'restaurant' | 'grocery' | 'hardware' | 'clothing'
 
 export interface ProductRefs {
@@ -21,6 +23,8 @@ export interface GeneratedProduct {
   sellingPrice: number
   costPrice: number
   quantity: number
+  size?: string
+  color?: string
 }
 
 export interface GeneratedBale {
@@ -49,8 +53,12 @@ function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
+function randHex(bytes: number): string {
+  return randomBytes(bytes).toString('hex').toUpperCase()
+}
+
 function randCode(prefix: string): string {
-  return `${prefix}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+  return `${prefix}-${randHex(5)}`
 }
 
 // ── Word Banks ────────────────────────────────────────────────────────────────
@@ -124,8 +132,18 @@ const DESCRIPTIONS: Record<SupportedBusinessType, string[]> = {
   ],
 }
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
-const COLORS = ['Black', 'White', 'Navy', 'Grey', 'Red', 'Green', 'Blue', 'Brown', 'Beige', 'Yellow', 'Maroon', 'Khaki']
+const SIZES: Record<SupportedBusinessType, string[]> = {
+  clothing:   ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+  restaurant: ['Small', 'Medium', 'Large', 'Full Portion', 'Half Portion'],
+  hardware:   ['60cm', '1m', '2m', '5m', '10mm', '25mm', '50kg', '25kg'],
+  grocery:    [],
+}
+const COLORS: Record<SupportedBusinessType, string[]> = {
+  clothing:   ['Black', 'White', 'Navy', 'Grey', 'Red', 'Green', 'Blue', 'Brown', 'Beige', 'Yellow', 'Maroon', 'Khaki'],
+  restaurant: [],
+  hardware:   ['Silver', 'Black', 'Galvanised', 'Raw', 'Painted'],
+  grocery:    [],
+}
 
 const PRICE_RANGES: Record<SupportedBusinessType, { min: number; max: number }> = {
   restaurant: { min: 3, max: 25 },
@@ -162,18 +180,19 @@ export function generateProduct(
   const qtyRange = QTY_RANGES[type]
   const sellingPrice = randBetween(priceRange.min, priceRange.max)
   const costPrice = Math.round(sellingPrice * (0.58 + Math.random() * 0.22) * 100) / 100
-  const suffix = Math.random().toString(36).substring(2, 6).toUpperCase()
 
   return {
     name: `[TEST] ${baseName}`,
     description: pick(DESCRIPTIONS[type]) ?? '',
-    sku: `${prefix}-SKU-${suffix}`,
+    sku: `${prefix}-SKU-${randHex(3)}`,
     barcode: randCode(prefix),
     categoryId: pick(refs.categoryIds),
     supplierId: pick(refs.supplierIds),
     sellingPrice,
     costPrice,
     quantity: randInt(qtyRange.min, qtyRange.max),
+    size: SIZES[type].length ? pick(SIZES[type]) : undefined,
+    color: COLORS[type].length ? pick(COLORS[type]) : undefined,
   }
 }
 
@@ -184,12 +203,22 @@ export function generateBale(
   const baseName = BALE_NAMES[index % BALE_NAMES.length]
   const unitPrice = randBetween(20, 200)
   const costPrice = Math.round(unitPrice * (0.58 + Math.random() * 0.22) * 100) / 100
-  const suffix = Math.random().toString(36).substring(2, 6).toUpperCase()
+
+  // Match real bale creation: B-{YY}{MM}{DD}-{SEQ padded to 3}
+  const now = new Date()
+  const yy = String(now.getFullYear()).slice(2)
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  const seq = String(index + 1).padStart(3, '0')
+  const batchNumber = `B-${yy}${mm}${dd}-${seq}`
+
+  // scanCode matches real system: randomBytes(4) = 8 hex chars
+  const scanCode = randomBytes(4).toString('hex')
 
   return {
     name: `[TEST] ${baseName} Bale`,
-    barcode: randCode('BAL'),
-    batchNumber: `BAL-BATCH-${suffix}`,
+    barcode: scanCode,
+    batchNumber,
     categoryId: pick(refs.baleCategoryIds),
     itemCount: randInt(10, 100),
     unitPrice,

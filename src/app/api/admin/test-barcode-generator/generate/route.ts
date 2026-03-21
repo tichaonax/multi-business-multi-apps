@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       try {
         // ── Fetch reference data ─────────────────────────────────────────────
 
-        const [categoriesRaw, suppliersRaw, baleCategoriesRaw] = await Promise.all([
+        const [categoriesRaw, suppliersRaw, baleCategoriesRaw, businessRaw] = await Promise.all([
           prisma.businessCategories.findMany({
             where: { businessId, isActive: true },
             select: { id: true },
@@ -64,7 +64,13 @@ export async function POST(request: NextRequest) {
                 select: { id: true },
               })
             : Promise.resolve([]),
+          prisma.businesses.findUnique({
+            where: { id: businessId },
+            select: { shortName: true },
+          }),
         ])
+
+        const bizShortName = (businessRaw?.shortName || 'CLO').toUpperCase().slice(0, 4)
 
         const refs: ProductRefs = {
           categoryIds:     categoriesRaw.map(c => c.id),
@@ -101,7 +107,7 @@ export async function POST(request: NextRequest) {
             })
           }
 
-          productsGenerated.push({ name: p.name, barcode: p.barcode, price: p.sellingPrice })
+          productsGenerated.push({ name: p.name, barcode: p.barcode, price: p.sellingPrice, sku: p.sku, description: p.description, size: p.size, color: p.color })
         }
 
         // ── Generate + stock bales (clothing only) ───────────────────────────
@@ -118,14 +124,16 @@ export async function POST(request: NextRequest) {
 
             if (shouldStock) {
               try {
-                const scanCode  = randomBytes(8).toString('hex')
-                const baleSku   = `BAL-${randomBytes(4).toString('hex').toUpperCase()}`
+                // scanCode: 4 bytes = 8 hex chars, matching real bale creation
+                const scanCode = randomBytes(4).toString('hex')
+                // sku: BALE-{SHORTNAME}-{batchNumber}, matching real bale creation
+                const baleSku  = `BALE-${bizShortName}-${b.batchNumber}`
                 await prisma.clothingBales.create({
                   data: {
                     businessId,
                     sku:           baleSku,
                     scanCode,
-                    barcode:       b.barcode,
+                    barcode:       b.barcode, // already set to scanCode in generateBale
                     batchNumber:   b.batchNumber,
                     itemCount:     b.itemCount,
                     remainingCount: b.itemCount,

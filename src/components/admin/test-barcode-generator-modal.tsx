@@ -125,6 +125,11 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
             name:         p.name,
             barcodeData:  p.barcode,
             sellingPrice: p.price,
+            sku:          p.sku,
+            description:  p.description,
+            size:         p.size,
+            color:        p.color,
+            itemName:     p.name,
           })),
           ...(r?.bales ?? []).map((b: any) => ({
             id:           b.barcode,
