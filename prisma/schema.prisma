@@ -426,6 +426,7 @@ model Businesses {
   ecocashEnabled                                                           Boolean                       @default(false)
   ecocashFeeType                                                           String?                       @default("FIXED") @map("ecocash_fee_type")
   ecocashFeeValue                                                          Decimal?                      @default(0) @db.Decimal(10, 2) @map("ecocash_fee_value")
+  ecocashMinimumFee                                                        Decimal?                      @default(0) @db.Decimal(10, 2) @map("ecocash_minimum_fee")
   couponsEnabled                                                           Boolean                       @default(false)
   promosEnabled                                                            Boolean                       @default(false)
   receiptReturnPolicy                                                      String?
@@ -567,9 +568,10 @@ model SavedReports {
   signedAt      DateTime
 
   // Till reconciliation (for day reports)
-  expectedCash Decimal? @db.Decimal(10, 2)
-  cashCounted  Decimal? @db.Decimal(10, 2)
-  variance     Decimal? @db.Decimal(10, 2)
+  expectedCash           Decimal? @db.Decimal(10, 2)
+  cashCounted            Decimal? @db.Decimal(10, 2)
+  variance               Decimal? @db.Decimal(10, 2)
+  confirmedEcocashAmount Decimal? @db.Decimal(10, 2) @map("confirmed_ecocash_amount")
 
   // Summary metrics (for quick queries)
   totalSales     Decimal @db.Decimal(10, 2)
@@ -5326,7 +5328,8 @@ model GroupedEODRun {
   businessId        String
   managerName       String
   notes             String?
-  totalCashReceived Float? // lump sum handed over by manager to cashier
+  totalCashReceived    Float? // lump sum handed over by manager to cashier
+  totalEcocashReceived Float? @map("total_ecocash_received") // lump sum EcoCash confirmed over catch-up period
   runDate           DateTime @default(now())
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

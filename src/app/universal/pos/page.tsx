@@ -496,6 +496,7 @@ export default function UniversalPOS() {
           onCheckout={handleCheckout}
           ecocashFeeType={currentBusiness?.ecocashFeeType}
           ecocashFeeValue={currentBusiness?.ecocashFeeValue}
+          ecocashMinimumFee={currentBusiness?.ecocashMinimumFee}
           businessId={currentBusinessId || undefined}
           businessName={currentBusiness?.businessName || undefined}
           businessPhone={currentBusiness?.phone || undefined}

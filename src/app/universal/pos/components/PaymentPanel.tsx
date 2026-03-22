@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { CreditCard, Banknote, Smartphone, UtensilsCrossed, Gift } from 'lucide-react'
 import type { BusinessTypeConfig, PaymentMethod } from '../config/business-type-config'
 import type { CartTotals } from '../hooks/useUniversalCart'
+import { calcEcocashFee } from '@/lib/ecocash-utils'
 
 export interface EcocashCheckoutData {
   ecocashTransactionCode: string
@@ -18,8 +19,9 @@ interface PaymentPanelProps {
   isProcessing: boolean
   onCheckout: (paymentMethod: PaymentMethod, amountPaid?: number, ecocashData?: EcocashCheckoutData) => void
   disabled?: boolean
-  ecocashFeeType?: string   // 'FIXED' | 'PERCENTAGE'
-  ecocashFeeValue?: number  // fee amount or percentage
+  ecocashFeeType?: string    // 'FIXED' | 'PERCENTAGE'
+  ecocashFeeValue?: number   // fee amount or percentage
+  ecocashMinimumFee?: number // minimum fee floor (PERCENTAGE only)
 }
 
 const PAYMENT_METHOD_ICONS: Record<PaymentMethod, React.ReactNode> = {
@@ -51,7 +53,8 @@ export function PaymentPanel({
   onCheckout,
   disabled = false,
   ecocashFeeType = 'FIXED',
-  ecocashFeeValue = 0
+  ecocashFeeValue = 0,
+  ecocashMinimumFee = 0
 }: PaymentPanelProps) {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash')
   const [cashAmount, setCashAmount] = useState<string>('')
@@ -60,9 +63,7 @@ export function PaymentPanel({
 
   // Calculate EcoCash fee and total
   const ecocashFeeAmount = selectedMethod === 'ecocash'
-    ? (ecocashFeeType === 'PERCENTAGE'
-        ? totals.total * (ecocashFeeValue / 100)
-        : ecocashFeeValue)
+    ? calcEcocashFee(totals.total, ecocashFeeType, ecocashFeeValue, ecocashMinimumFee)
     : 0
   const ecocashTotal = totals.total + ecocashFeeAmount
 
@@ -219,7 +220,9 @@ export function PaymentPanel({
               <div className="flex justify-between text-orange-600 dark:text-orange-400">
                 <span>
                   EcoCash Fee
-                  {ecocashFeeType === 'PERCENTAGE' ? ` (${ecocashFeeValue}%)` : ''}
+                  {ecocashFeeType === 'PERCENTAGE'
+                    ? ` (${ecocashFeeValue}%${ecocashMinimumFee > 0 ? `, min $${ecocashMinimumFee.toFixed(2)}` : ''})`
+                    : ''}
                 </span>
                 <span>+${ecocashFeeAmount.toFixed(2)}</span>
               </div>

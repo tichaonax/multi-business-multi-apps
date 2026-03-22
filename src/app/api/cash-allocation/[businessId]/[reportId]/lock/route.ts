@@ -276,18 +276,23 @@ export async function POST(request: NextRequest, { params }: Params) {
 
       const now = new Date()
 
-      // INFLOW: total cash the cashier counted at EOD for this date
+      // INFLOW: total cash + EcoCash counted at EOD for this date
       let cashCounted: number | null = null
+      let ecocashCounted: number | null = null
       if (!report.isGrouped && report.reportDate) {
         const dayStart = new Date(Date.UTC(report.reportDate.getUTCFullYear(), report.reportDate.getUTCMonth(), report.reportDate.getUTCDate(), 0, 0, 0))
         const dayEnd   = new Date(Date.UTC(report.reportDate.getUTCFullYear(), report.reportDate.getUTCMonth(), report.reportDate.getUTCDate(), 23, 59, 59, 999))
         const eodSaved = await prisma.savedReports.findFirst({
           where: { businessId, reportType: 'END_OF_DAY', reportDate: { gte: dayStart, lte: dayEnd } },
-          select: { cashCounted: true },
+          select: { cashCounted: true, confirmedEcocashAmount: true },
         })
         if (eodSaved?.cashCounted != null) cashCounted = Number(eodSaved.cashCounted)
+        if ((eodSaved as any)?.confirmedEcocashAmount != null) ecocashCounted = Number((eodSaved as any).confirmedEcocashAmount)
       } else if (report.isGrouped && report.groupedRun?.totalCashReceived != null) {
         cashCounted = Number(report.groupedRun.totalCashReceived)
+        if ((report.groupedRun as any).totalEcocashReceived != null) {
+          ecocashCounted = Number((report.groupedRun as any).totalEcocashReceived)
+        }
       }
 
       if (cashCounted != null && cashCounted > 0) {
@@ -296,10 +301,28 @@ export async function POST(request: NextRequest, { params }: Params) {
             businessId,
             entryType: 'EOD_RECEIPT',
             direction: 'INFLOW',
+            paymentChannel: 'CASH',
             amount: cashCounted,
             referenceType: 'CASH_ALLOCATION',
             referenceId: reportId,
             notes: `EOD cash counted — ${report.reportDate?.toISOString().split('T')[0] ?? 'grouped'}`,
+            entryDate: now,
+            createdBy: user.id,
+          },
+        })
+      }
+
+      if (ecocashCounted != null && ecocashCounted > 0) {
+        await prisma.cashBucketEntry.create({
+          data: {
+            businessId,
+            entryType: 'EOD_RECEIPT',
+            direction: 'INFLOW',
+            paymentChannel: 'ECOCASH',
+            amount: ecocashCounted,
+            referenceType: 'CASH_ALLOCATION',
+            referenceId: reportId,
+            notes: `EOD EcoCash confirmed — ${report.reportDate?.toISOString().split('T')[0] ?? 'grouped'}`,
             entryDate: now,
             createdBy: user.id,
           },

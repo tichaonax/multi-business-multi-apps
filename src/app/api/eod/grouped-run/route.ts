@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { businessId, managerName, notes, totalCashReceived, dates } = body
+    const { businessId, managerName, notes, totalCashReceived, totalEcocashReceived, dates } = body
 
     // ── Validate input ──────────────────────────────────────────────────────
     if (!businessId || !managerName) {
@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
     if (typeof totalCashReceived !== 'number' || totalCashReceived < 0) {
       return NextResponse.json({ error: 'totalCashReceived must be a non-negative number' }, { status: 400 })
     }
+    const ecocashReceived = typeof totalEcocashReceived === 'number' && totalEcocashReceived > 0 ? totalEcocashReceived : 0
     const dateStrings: string[] = dates.map((d: { date: string }) => d.date)
     const invalidDate = dateStrings.find((d: string) => !/^\d{4}-\d{2}-\d{2}$/.test(d))
     if (invalidDate) {
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
         managerName,
         notes: notes || null,
         totalCashReceived,
+        totalEcocashReceived: ecocashReceived > 0 ? ecocashReceived : null,
         runDate: new Date(),
       },
     })

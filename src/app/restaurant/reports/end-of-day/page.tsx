@@ -47,6 +47,11 @@ export default function EndOfDayReport() {
   // Grouped EOD catch-up wizard
   const [showCatchupWizard, setShowCatchupWizard] = useState(false)
 
+  // EcoCash verification checklist
+  const [ecocashTxns, setEcocashTxns] = useState<{ orderId: string; transactionCode: string | null; grossAmount: number; feeAmount: number; netAmount: number; createdAt: string }[]>([])
+  const [checkedTxnIds, setCheckedTxnIds] = useState<Set<string>>(new Set())
+  const confirmedEcocashTotal = ecocashTxns.filter(t => checkedTxnIds.has(t.orderId)).reduce((s, t) => s + t.netAmount, 0)
+
   const {
     currentBusiness,
     currentBusinessId,
@@ -131,8 +136,18 @@ export default function EndOfDayReport() {
     if (showSaveModal) {
       setModalStep('auto-deposits')
       setConfirmedDepositEntries(null)
+      setCheckedTxnIds(new Set())
     }
   }, [showSaveModal])
+
+  // Load EcoCash transactions for verification when save modal opens
+  useEffect(() => {
+    if (!showSaveModal || !currentBusinessId || !dailySales?.businessDay?.date) return
+    fetch(`/api/reports/eod-ecocash-transactions?businessId=${currentBusinessId}&date=${dailySales.businessDay.date}`)
+      .then(r => r.ok ? r.json() : { transactions: [] })
+      .then(d => setEcocashTxns(d.transactions || []))
+      .catch(() => setEcocashTxns([]))
+  }, [showSaveModal, currentBusinessId, dailySales?.businessDay?.date])
 
   // Handle save report
   const handleSaveReport = async () => {
@@ -217,6 +232,7 @@ export default function EndOfDayReport() {
           periodEnd: dailySales.businessDay.end,
           managerName: managerSignature,
           cashCounted: cashCounted ? parseFloat(cashCounted) : null,
+          confirmedEcocashAmount: confirmedEcocashTotal > 0 ? confirmedEcocashTotal : null,
           reportData: reportData
         })
       })
@@ -1045,6 +1061,63 @@ export default function EndOfDayReport() {
                   {cashCounted && ` | Variance: ${formatCurrency(variance)}`}
                 </p>
               </div>
+
+              {/* EcoCash Transaction Verification — only shown when there are EcoCash orders today */}
+              {ecocashTxns.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      📱 EcoCash Transaction Verification:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (checkedTxnIds.size === ecocashTxns.length) {
+                          setCheckedTxnIds(new Set())
+                        } else {
+                          setCheckedTxnIds(new Set(ecocashTxns.map(t => t.orderId)))
+                        }
+                      }}
+                      className="text-xs text-teal-600 dark:text-teal-400 underline"
+                    >
+                      {checkedTxnIds.size === ecocashTxns.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+                  <div className="border border-teal-200 dark:border-teal-700 rounded-lg overflow-hidden">
+                    {ecocashTxns.map((txn) => (
+                      <label key={txn.orderId} className="flex items-center gap-3 px-3 py-2 border-b border-teal-100 dark:border-teal-800 last:border-b-0 cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-900/20">
+                        <input
+                          type="checkbox"
+                          checked={checkedTxnIds.has(txn.orderId)}
+                          onChange={(e) => {
+                            const next = new Set(checkedTxnIds)
+                            e.target.checked ? next.add(txn.orderId) : next.delete(txn.orderId)
+                            setCheckedTxnIds(next)
+                          }}
+                          className="h-4 w-4 text-teal-600 rounded"
+                        />
+                        <span className="flex-1 text-sm font-mono text-gray-700 dark:text-gray-300">
+                          {txn.transactionCode || '—'}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(txn.createdAt).toLocaleTimeString('en-ZW', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-20 text-right">
+                          {formatCurrency(txn.netAmount)}
+                        </span>
+                      </label>
+                    ))}
+                    <div className="px-3 py-2 bg-teal-50 dark:bg-teal-900/30 flex justify-between items-center">
+                      <span className="text-sm font-semibold text-teal-800 dark:text-teal-200">
+                        Confirmed EcoCash total ({checkedTxnIds.size}/{ecocashTxns.length}):
+                      </span>
+                      <span className="text-sm font-bold text-teal-800 dark:text-teal-200">
+                        {formatCurrency(confirmedEcocashTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {saveError && (
                 <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg p-3">

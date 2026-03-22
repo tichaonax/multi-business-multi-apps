@@ -23,6 +23,7 @@ interface BusinessCreationModalProps {
     ecocashEnabled?: boolean
     ecocashFeeType?: string
     ecocashFeeValue?: string
+    ecocashMinimumFee?: string
     couponsEnabled?: boolean
     promosEnabled?: boolean
     receiptReturnPolicy?: string
@@ -70,6 +71,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     ecocashEnabled: initial?.ecocashEnabled !== undefined ? initial.ecocashEnabled : false,
     ecocashFeeType: initial?.ecocashFeeType || 'FIXED',
     ecocashFeeValue: initial?.ecocashFeeValue || '',
+    ecocashMinimumFee: initial?.ecocashMinimumFee || '',
     couponsEnabled: initial?.couponsEnabled !== undefined ? initial.couponsEnabled : false,
     promosEnabled: initial?.promosEnabled !== undefined ? initial.promosEnabled : false,
     receiptReturnPolicy: initial?.receiptReturnPolicy || 'All sales are final, returns not accepted',
@@ -326,11 +328,27 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                               className="w-24 px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
                             />
                           </div>
+                          {formData.ecocashFeeType === 'PERCENTAGE' && (
+                            <div>
+                              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                Min Fee ($)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={formData.ecocashMinimumFee}
+                                onChange={(e) => setFormData({ ...formData, ecocashMinimumFee: e.target.value })}
+                                placeholder="0.00"
+                                className="w-24 px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
+                              />
+                            </div>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                           {formData.ecocashFeeType === 'FIXED'
                             ? `A fixed $${formData.ecocashFeeValue || '0.00'} fee is added to every EcoCash transaction.`
-                            : `${formData.ecocashFeeValue || '0'}% of the sale total is added as an EcoCash fee.`}
+                            : `${formData.ecocashFeeValue || '0'}% of the sale total is added as an EcoCash fee${formData.ecocashMinimumFee ? `, minimum $${formData.ecocashMinimumFee}` : ''}.`}
                         </p>
                       </div>
                     )}

@@ -41,6 +41,7 @@ interface UniversalPOSLayoutProps {
   onCheckout: (paymentMethod: PaymentMethod, amountPaid?: number, ecocashData?: { ecocashTransactionCode: string; ecocashFeeAmount: number; totalWithFee: number }) => void
   ecocashFeeType?: string
   ecocashFeeValue?: number
+  ecocashMinimumFee?: number
 
   // Business info
   businessId?: string
@@ -84,6 +85,7 @@ export function UniversalPOSLayout({
   onCheckout,
   ecocashFeeType,
   ecocashFeeValue,
+  ecocashMinimumFee,
   businessId,
   businessName,
   businessPhone,
@@ -265,6 +267,7 @@ export function UniversalPOSLayout({
           disabled={cart.length === 0}
           ecocashFeeType={ecocashFeeType}
           ecocashFeeValue={ecocashFeeValue}
+          ecocashMinimumFee={ecocashMinimumFee}
         />
       </div>
     </div>

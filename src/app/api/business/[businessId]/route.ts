@@ -43,6 +43,7 @@ export async function GET(
         ecocashEnabled: true,
         ecocashFeeType: true,
         ecocashFeeValue: true,
+        ecocashMinimumFee: true,
         receiptReturnPolicy: true,
         isActive: true,
         isDemo: true,
@@ -70,6 +71,7 @@ export async function GET(
       ecocashEnabled: business.ecocashEnabled,
       ecocashFeeType: (business as any).ecocashFeeType ?? 'FIXED',
       ecocashFeeValue: (business as any).ecocashFeeValue != null ? Number((business as any).ecocashFeeValue) : 0,
+      ecocashMinimumFee: (business as any).ecocashMinimumFee != null ? Number((business as any).ecocashMinimumFee) : 0,
       receiptReturnPolicy: business.receiptReturnPolicy || 'All sales are final',
       isActive: business.isActive,
       isDemo: business.isDemo,
@@ -113,7 +115,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { address, phone, ecocashEnabled, ecocashFeeType, ecocashFeeValue } = body
+    const { address, phone, ecocashEnabled, ecocashFeeType, ecocashFeeValue, ecocashMinimumFee } = body
 
     // Update business details
     const updatedBusiness = await prisma.businesses.update({
@@ -124,6 +126,7 @@ export async function PUT(
         ...(ecocashEnabled !== undefined && { ecocashEnabled }),
         ...(ecocashFeeType !== undefined && { ecocashFeeType: ecocashFeeType || 'FIXED' }),
         ...(ecocashFeeValue !== undefined && { ecocashFeeValue: ecocashFeeValue !== '' && ecocashFeeValue !== null ? parseFloat(ecocashFeeValue) : null }),
+        ...(ecocashMinimumFee !== undefined && { ecocashMinimumFee: ecocashMinimumFee !== '' && ecocashMinimumFee !== null ? parseFloat(ecocashMinimumFee) : 0 }),
       },
       select: {
         id: true,
@@ -135,6 +138,7 @@ export async function PUT(
         ecocashEnabled: true,
         ecocashFeeType: true,
         ecocashFeeValue: true,
+        ecocashMinimumFee: true,
         receiptReturnPolicy: true,
         isActive: true,
         isDemo: true,
@@ -158,6 +162,7 @@ export async function PUT(
       ecocashEnabled: updatedBusiness.ecocashEnabled,
       ecocashFeeType: (updatedBusiness as any).ecocashFeeType ?? 'FIXED',
       ecocashFeeValue: (updatedBusiness as any).ecocashFeeValue != null ? Number((updatedBusiness as any).ecocashFeeValue) : 0,
+      ecocashMinimumFee: (updatedBusiness as any).ecocashMinimumFee != null ? Number((updatedBusiness as any).ecocashMinimumFee) : 0,
       receiptReturnPolicy: updatedBusiness.receiptReturnPolicy || 'All sales are final',
       isActive: updatedBusiness.isActive,
       isDemo: updatedBusiness.isDemo,

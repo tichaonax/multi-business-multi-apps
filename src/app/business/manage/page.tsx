@@ -49,6 +49,7 @@ function BusinessManagePageContent() {
     ecocashEnabled?: boolean
     ecocashFeeType?: string
     ecocashFeeValue?: string
+    ecocashMinimumFee?: string
     couponsEnabled?: boolean
     promosEnabled?: boolean
     receiptReturnPolicy?: string
@@ -398,6 +399,7 @@ function BusinessManagePageContent() {
                               ecocashEnabled: biz?.ecocashEnabled !== undefined ? biz.ecocashEnabled : false,
                               ecocashFeeType: biz?.ecocashFeeType || 'FIXED',
                               ecocashFeeValue: biz?.ecocashFeeValue !== undefined ? String(biz.ecocashFeeValue) : '',
+                              ecocashMinimumFee: biz?.ecocashMinimumFee !== undefined ? String(biz.ecocashMinimumFee) : '',
                               couponsEnabled: biz?.couponsEnabled !== undefined ? biz.couponsEnabled : false,
                               promosEnabled: biz?.promosEnabled !== undefined ? biz.promosEnabled : false,
                               receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',

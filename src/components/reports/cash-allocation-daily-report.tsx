@@ -553,11 +553,20 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
           <div className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
             {/* Cash tendered */}
             <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-sm text-gray-600 dark:text-gray-400">💵 Cash Tendered (from EOD report)</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">💵 Cash Received (manager EOD)</span>
               <span className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100">
                 {cashTendered !== null ? `$${cashTendered.toFixed(2)}` : <span className="text-gray-400 italic">No EOD report locked for {date}</span>}
               </span>
             </div>
+            {/* EcoCash confirmed — read-only, confirmed by manager at EOD */}
+            {dayBucket !== null && dayBucket.ecocashInflow > 0 && (
+              <div className="flex items-center justify-between px-4 py-3 bg-teal-50 dark:bg-teal-900/10">
+                <span className="text-sm text-teal-700 dark:text-teal-300">📱 EcoCash Confirmed (manager EOD)</span>
+                <span className="text-sm font-mono font-semibold text-teal-700 dark:text-teal-300">
+                  ${dayBucket.ecocashInflow.toFixed(2)}
+                </span>
+              </div>
+            )}
             {/* Rent deduction */}
             {rentConfig && (
               <div className="flex items-center justify-between px-4 py-3 bg-orange-50 dark:bg-orange-900/10">

@@ -84,6 +84,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
   // Step 3
   const [managerName, setManagerName] = useState('')
   const [totalCashReceived, setTotalCashReceived] = useState('')
+  const [totalEcocashReceived, setTotalEcocashReceived] = useState('')
   const [notes, setNotes] = useState('')
 
   // Step 4 (submit)
@@ -146,6 +147,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
           managerName: managerName.trim(),
           notes: notes.trim() || undefined,
           totalCashReceived: parseFloat(totalCashReceived) || 0,
+          totalEcocashReceived: parseFloat(totalEcocashReceived) || 0,
           dates: previewData.map(d => ({ date: d.date, totalSales: d.totalSales })),
         }),
       })
@@ -162,6 +164,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
 
   const totalSales = previewData.reduce((s, d) => s + d.totalSales, 0)
   const cashNum = parseFloat(totalCashReceived) || 0
+  const ecocashNum = parseFloat(totalEcocashReceived) || 0
 
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -378,6 +381,29 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Total EcoCash Received (period) <span className="text-gray-400 font-normal text-xs">(optional)</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={totalEcocashReceived}
+                  onChange={e => setTotalEcocashReceived(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full border rounded-md pl-7 pr-3 py-2 text-sm font-mono
+                    border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700
+                    text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Confirmed EcoCash transactions received to the business phone over the catch-up period.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Notes <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <textarea
@@ -401,6 +427,16 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
             <p className="text-gray-600 dark:text-gray-400">
               Combined sales: <span className="font-semibold font-mono">${totalSales.toFixed(2)}</span>
             </p>
+            {cashNum > 0 && (
+              <p className="text-gray-600 dark:text-gray-400">
+                Cash to record: <span className="font-semibold font-mono">${cashNum.toFixed(2)}</span>
+              </p>
+            )}
+            {ecocashNum > 0 && (
+              <p className="text-teal-700 dark:text-teal-300">
+                EcoCash to record: <span className="font-semibold font-mono">${ecocashNum.toFixed(2)}</span>
+              </p>
+            )}
           </div>
 
           <div className="flex justify-between gap-3 pt-2">

@@ -1308,11 +1308,14 @@ function line(char: string = '='): string {
 function formatPaymentLines(data: ReceiptData): string {
   let out = `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
   if (data.paymentMethod.toUpperCase() === 'ECOCASH') {
-    if (data.ecocashFeeAmount && data.ecocashFeeAmount > 0) {
-      out += formatTotal('EcoCash Fee', data.ecocashFeeAmount);
-    }
     if (data.ecocashTransactionCode) {
       out += `EcoCash Ref: ${data.ecocashTransactionCode}` + LF;
+    }
+    const fee = data.ecocashFeeAmount || 0;
+    if (fee > 0) {
+      out += formatTotal('Sub-total', data.total);
+      out += formatTotal('EcoCash Fee', fee);
+      out += formatTotal('Total Paid', data.total + fee);
     }
   } else {
     if (data.amountPaid) {
