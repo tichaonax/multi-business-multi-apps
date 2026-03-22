@@ -22,6 +22,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
 import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
+import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 
 function ClothingInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -83,8 +84,12 @@ function ClothingInventoryContent() {
     currentBusinessId,
     isAuthenticated,
     loading: businessLoading,
-    businesses
+    businesses,
+    isSystemAdmin,
+    hasPermission,
   } = useBusinessPermissionsContext()
+  const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const [showStockTakeReports, setShowStockTakeReports] = useState(false)
 
   // Handle productId from URL parameters
   useEffect(() => {
@@ -931,6 +936,14 @@ function ClothingInventoryContent() {
                         >
                           📦 Bulk Stock
                         </button>
+                        {canAccessFinancialData && (
+                          <button
+                            onClick={() => setShowStockTakeReports(true)}
+                            className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-md text-sm font-medium transition-colors"
+                          >
+                            📋 Stock Take Reports
+                          </button>
+                        )}
                         {selectedCondition === 'USED' && (
                           <button
                             onClick={() => router.push('/clothing/inventory/transfer')}
@@ -1798,6 +1811,16 @@ function ClothingInventoryContent() {
         businessName={currentBusiness.businessName}
         businessType={currentBusiness.businessType}
         onClose={() => setShowBulkStockPanel(false)}
+      />
+    )}
+
+    {/* Stock Take Reports */}
+    {showStockTakeReports && currentBusiness && (
+      <StockTakeReportsList
+        businessId={businessId}
+        businessName={currentBusiness.businessName}
+        canManage={canAccessFinancialData}
+        onClose={() => setShowStockTakeReports(false)}
       />
     )}
 

@@ -118,6 +118,7 @@ export default function PayrollPeriodDetailPage() {
   } | null>(null)
   const [syncingBenefits, setSyncingBenefits] = useState(false)
   const [syncingAll, setSyncingAll] = useState(false)
+  const [syncingStockShortfall, setSyncingStockShortfall] = useState(false)
   const [loanSyncNeeded, setLoanSyncNeeded] = useState(false)
   const [syncingLoans, setSyncingLoans] = useState(false)
   const [perDiemMap, setPerDiemMap] = useState<Record<string, number>>({})
@@ -901,6 +902,30 @@ export default function PayrollPeriodDetailPage() {
                     title="Sync per diem, absences and clock-in for all employees"
                   >
                     {syncingAll ? '↻ Syncing...' : '↻ Sync All'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setSyncingStockShortfall(true)
+                      try {
+                        const res = await fetch(`/api/payroll/periods/${period.id}/sync-stock-shortfall`, { method: 'POST' })
+                        const data = await res.json()
+                        if (res.ok) {
+                          showNotification('success', data.message || 'Stock shortfall sync complete')
+                          await loadPeriod()
+                        } else {
+                          showNotification('error', data.error || 'Stock shortfall sync failed')
+                        }
+                      } catch {
+                        showNotification('error', 'Stock shortfall sync failed')
+                      } finally {
+                        setSyncingStockShortfall(false)
+                      }
+                    }}
+                    disabled={syncingStockShortfall}
+                    className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50"
+                    title="Sync stock shortfall deductions from signed-off stock take reports"
+                  >
+                    {syncingStockShortfall ? '↻ Syncing...' : '↻ Sync Stock Shortfall'}
                   </button>
                   <button
                     onClick={handleClearAllEntries}

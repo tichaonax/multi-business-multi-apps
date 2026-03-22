@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
+import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 
 function GroceryInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -40,8 +41,12 @@ function GroceryInventoryContent() {
     currentBusinessId,
     isAuthenticated,
     loading: businessLoading,
-    businesses
+    businesses,
+    isSystemAdmin,
+    hasPermission,
   } = useBusinessPermissionsContext()
+  const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const [showStockTakeReports, setShowStockTakeReports] = useState(false)
 
   // Handle productId from URL parameters
   useEffect(() => {
@@ -302,6 +307,14 @@ function GroceryInventoryContent() {
                           >
                             📦 Bulk Stock
                           </button>
+                          {canAccessFinancialData && (
+                            <button
+                              onClick={() => setShowStockTakeReports(true)}
+                              className="px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded-md text-sm font-medium"
+                            >
+                              📋 Stock Take Reports
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setSelectedItem(null)
@@ -708,6 +721,14 @@ function GroceryInventoryContent() {
           businessName={currentBusiness.businessName}
           businessType={currentBusiness.businessType}
           onClose={() => setShowBulkStockPanel(false)}
+        />
+      )}
+      {showStockTakeReports && currentBusiness && currentBusinessId && (
+        <StockTakeReportsList
+          businessId={currentBusinessId}
+          businessName={currentBusiness.businessName}
+          canManage={canAccessFinancialData}
+          onClose={() => setShowStockTakeReports(false)}
         />
       )}
       </BusinessTypeRoute>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { StockTakeReportPreview } from './stock-take-report-preview'
 
 interface BulkStockRow {
   rowId: string
@@ -22,9 +23,16 @@ interface BulkStockRow {
   sku: string
   isFreeItem: boolean
   isExistingItem: boolean
-  currentStock: number | null
+  currentStock: number | null   // systemQuantity from DB at time of scan/sync
+  physicalCount: string         // actual physical shelf count entered by user
   status: 'pending' | 'saving' | 'saved' | 'error'
   errorMessage?: string
+}
+
+interface DraftResumeInfo {
+  id: string
+  updatedAt: string
+  itemCount: number
 }
 
 interface BusinessCategory {
@@ -73,9 +81,20 @@ function makeRow(overrides: Partial<BulkStockRow> = {}): BulkStockRow {
     isFreeItem: false,
     isExistingItem: false,
     currentStock: null,
+    physicalCount: '',
     status: 'pending',
     ...overrides,
   }
+}
+
+function formatTimeAgo(date: Date): string {
+  const diffMs = Date.now() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'just now'
+  if (diffMin === 1) return '1 min ago'
+  if (diffMin < 60) return `${diffMin} min ago`
+  const diffHr = Math.floor(diffMin / 60)
+  return diffHr === 1 ? '1 hr ago' : `${diffHr} hrs ago`
 }
 
 /** Resolve a stored leaf categoryId back to dept/category/subCat ids */
@@ -125,6 +144,18 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [supplierFormTargetRowId, setSupplierFormTargetRowId] = useState<string | null>(null)
   const [creatingSupplier, setCreatingSupplier] = useState(false)
 
+  // Draft state
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null)
+  const [draftUnsaved, setDraftUnsaved] = useState(false)
+  const [draftLoading, setDraftLoading] = useState(false)
+  const [showResumeDraft, setShowResumeDraft] = useState<DraftResumeInfo | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [submittedReportId, setSubmittedReportId] = useState<string | null>(null)
+  // Tick state to force re-render for "X min ago" updates
+  const [, setTick] = useState(0)
+
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableEndRef = useRef<HTMLDivElement>(null)
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
@@ -133,6 +164,36 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   useEffect(() => {
     ;(window as any).__bulkStockingActive = true
     return () => { ;(window as any).__bulkStockingActive = false }
+  }, [])
+
+  // Store full draft data for resume (loaded on mount, used by handleResumeDraft)
+  const resumeDraftRef = useRef<any>(null)
+
+  // On mount: check for existing active draft
+  useEffect(() => {
+    fetch(`/api/stock-take/drafts?businessId=${businessId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.draft) {
+          resumeDraftRef.current = d.draft
+          setShowResumeDraft({ id: d.draft.id, updatedAt: d.draft.updatedAt, itemCount: d.draft.items?.length ?? 0 })
+        }
+      })
+      .catch(() => {})
+  }, [businessId])
+
+  // Auto-save draft every 60 seconds when there are unsaved rows
+  useEffect(() => {
+    if (!draftUnsaved || rows.length === 0) return
+    const timer = setInterval(() => saveDraft(), 60000)
+    return () => clearInterval(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftUnsaved, rows.length])
+
+  // Tick every 30s to update "X min ago" display
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 30000)
+    return () => clearInterval(timer)
   }, [])
 
   // Load categories and suppliers once
@@ -226,6 +287,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         } : {}),
       })
       setRows(prev => [...prev, newRow])
+      setDraftUnsaved(true)
       tableEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     } finally {
       setScanLoading(false)
@@ -239,12 +301,14 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
   const addBlankRow = () => {
     setRows(prev => [...prev, makeRow()])
+    setDraftUnsaved(true)
     tableEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     focusScanInput()
   }
 
   const removeRow = (rowId: string) => {
     setRows(prev => prev.filter(r => r.rowId !== rowId))
+    setDraftUnsaved(true)
     setRowFieldErrors(prev => {
       if (!prev[rowId]) return prev
       const next = { ...prev }
@@ -255,6 +319,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
   const updateRow = (rowId: string, patch: Partial<BulkStockRow>) => {
     setRows(prev => prev.map(r => r.rowId === rowId ? { ...r, ...patch } : r))
+    setDraftUnsaved(true)
     // Clear validation errors for fields being updated
     setRowFieldErrors(prev => {
       if (!prev[rowId]) return prev
@@ -262,6 +327,141 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       Object.keys(patch).forEach(k => next.delete(k))
       return { ...prev, [rowId]: next }
     })
+  }
+
+  const saveDraft = async () => {
+    if (rows.length === 0) return
+    setDraftLoading(true)
+    try {
+      const items = rows.map((r, i) => ({
+        barcode: r.barcode,
+        name: r.name,
+        categoryId: r.subCategoryId || r.categoryId || undefined,
+        supplierId: r.supplierId || undefined,
+        description: r.description || undefined,
+        newQuantity: r.quantity ? Number(r.quantity) : 0,
+        sellingPrice: r.sellingPrice ? Number(r.sellingPrice) : 0,
+        costPrice: r.costPrice ? Number(r.costPrice) : undefined,
+        sku: r.sku || undefined,
+        isExistingItem: r.isExistingItem,
+        systemQuantity: r.currentStock ?? undefined,
+        physicalCount: r.physicalCount !== '' ? Number(r.physicalCount) : undefined,
+        displayOrder: i,
+      }))
+
+      if (draftId) {
+        const res = await fetch(`/api/stock-take/drafts/${draftId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        })
+        if (res.ok) {
+          setDraftSavedAt(new Date())
+          setDraftUnsaved(false)
+        }
+      } else {
+        const res = await fetch('/api/stock-take/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessId }),
+        })
+        const d = await res.json()
+        let createdDraftId: string | null = null
+        if (res.status === 409 && d.draftId) {
+          // Draft already exists — use it
+          createdDraftId = d.draftId
+        } else if (d.success && d.draft?.id) {
+          createdDraftId = d.draft.id
+        }
+        if (createdDraftId) {
+          setDraftId(createdDraftId)
+          // Now save items to the draft we just created/found
+          const putRes = await fetch(`/api/stock-take/drafts/${createdDraftId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items }),
+          })
+          if (putRes.ok) {
+            setDraftSavedAt(new Date())
+            setDraftUnsaved(false)
+          }
+        }
+      }
+    } catch (e) {
+      // silent — user can retry manually
+    } finally {
+      setDraftLoading(false)
+    }
+  }
+
+  const handleSync = async () => {
+    if (!draftId) return
+    setSyncing(true)
+    try {
+      const res = await fetch(`/api/stock-take/drafts/${draftId}/sync`, { method: 'POST' })
+      const d = await res.json()
+      if (d.success && d.updates) {
+        const changeMap: Record<string, number> = {}
+        d.updates.forEach((c: any) => { if (c.changed) changeMap[c.barcode] = c.newSystemQty })
+        setRows(prev => prev.map(r => {
+          if (changeMap[r.barcode] !== undefined) return { ...r, currentStock: changeMap[r.barcode] }
+          return r
+        }))
+      }
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleResumeDraft = async () => {
+    if (!showResumeDraft) return
+    const draft = resumeDraftRef.current
+    if (!draft) { setShowResumeDraft(null); return }
+    setDraftLoading(true)
+    try {
+      // Sort by displayOrder, reconstruct rows from stored draft data
+      const sortedItems = [...(draft.items ?? [])].sort((a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+      const restoredRows: BulkStockRow[] = sortedItems.map((item: any) => {
+        const hierarchyPatch = item.categoryId && allCats.length > 0
+          ? resolveHierarchy(item.categoryId, allCats)
+          : { departmentId: '', categoryId: item.categoryId || '', subCategoryId: '' }
+        return makeRow({
+          barcode: item.barcode || '',
+          barcodeReadOnly: !!item.barcode,
+          name: item.name || '',
+          nameReadOnly: item.isExistingItem,
+          isExistingItem: item.isExistingItem,
+          currentStock: item.systemQuantity ?? null,
+          physicalCount: item.physicalCount != null ? String(item.physicalCount) : '',
+          quantity: item.newQuantity != null ? String(item.newQuantity) : '',
+          sellingPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
+          costPrice: item.costPrice != null ? String(item.costPrice) : '',
+          sku: item.sku || '',
+          supplierId: item.supplierId || '',
+          description: item.description || '',
+          ...hierarchyPatch,
+        })
+      })
+      setRows(restoredRows)
+      setDraftId(draft.id)
+      setDraftSavedAt(new Date(draft.updatedAt))
+      setDraftUnsaved(false)
+    } finally {
+      setDraftLoading(false)
+      setShowResumeDraft(null)
+      resumeDraftRef.current = null
+    }
+  }
+
+  const handleStartFresh = async () => {
+    if (showResumeDraft) {
+      // Delete the existing draft silently
+      fetch(`/api/stock-take/drafts/${showResumeDraft.id}`, { method: 'DELETE' }).catch(() => {})
+    }
+    setShowResumeDraft(null)
+    setDraftId(null)
+    setDraftSavedAt(null)
+    setDraftUnsaved(false)
   }
 
   const handleGoToDuplicate = () => {
@@ -407,6 +607,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             sellingPrice: r.isFreeItem ? 0 : Number(r.sellingPrice),
             costPrice: r.costPrice ? Number(r.costPrice) : undefined,
             sku: r.sku.trim() || undefined,
+            physicalCount: r.isExistingItem && r.physicalCount !== '' ? Number(r.physicalCount) : undefined,
           })),
         }),
       })
@@ -423,6 +624,13 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
       const created = data.created ?? rows.length
       setSuccessSummary(`${created} item${created !== 1 ? 's' : ''} added to inventory`)
+      // Clean up draft after successful submission
+      if (draftId) {
+        fetch(`/api/stock-take/drafts/${draftId}`, { method: 'DELETE' }).catch(() => {})
+        setDraftId(null)
+        setDraftSavedAt(null)
+        setDraftUnsaved(false)
+      }
       setTimeout(() => {
         setRows(prev => prev.filter(r => r.status !== 'saved'))
         setSuccessSummary(null)
@@ -438,11 +646,10 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const pendingCount = rows.filter(r => r.status === 'pending' || r.status === 'error').length
   const hasDeptCol = departments.length > 0
   const hasSubCatCol = true // always show sub-category column
+  const hasExistingItems = rows.some(r => r.isExistingItem)
 
   // Label for quick-create form
-  const quickCreateLabel =
-    quickCreateLevel === 'supplier' ? 'New Supplier' :
-    quickCreateLevel === 'subcategory' ? 'New Sub-category' : 'New Category'
+  const quickCreateLabel = quickCreateLevel === 'subcategory' ? 'New Sub-category' : 'New Category'
 
   return (
     <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col">
@@ -460,6 +667,26 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           ← Back
         </button>
         <h1 className="font-bold text-gray-900 dark:text-white text-base">Bulk Stocking — {businessName}</h1>
+        {/* Draft status */}
+        <div className="ml-auto flex items-center gap-2">
+          {draftSavedAt && !draftUnsaved && (
+            <span className="text-xs text-green-600 dark:text-green-400">✓ Saved {formatTimeAgo(draftSavedAt)}</span>
+          )}
+          {draftUnsaved && (
+            <span className="text-xs text-amber-600 dark:text-amber-400 animate-pulse">● Unsaved changes</span>
+          )}
+          {draftId && (
+            <button onClick={handleSync} disabled={syncing}
+              title="Re-fetch live stock quantities for existing items"
+              className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+              {syncing ? 'Syncing…' : '↻ Sync Stock'}
+            </button>
+          )}
+          <button onClick={saveDraft} disabled={draftLoading || rows.length === 0}
+            className="px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50">
+            {draftLoading ? 'Saving…' : '💾 Save Draft'}
+          </button>
+        </div>
       </div>
 
       {/* Scan bar */}
@@ -493,9 +720,9 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           <button onClick={addBlankRow} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
             + Add Row
           </button>
-          <button onClick={handleSubmit} disabled={submitLoading || rows.length === 0}
+          <button onClick={() => setShowReviewModal(true)} disabled={rows.length === 0}
             className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
-            {submitLoading ? 'Saving…' : `Submit Batch (${pendingCount} item${pendingCount !== 1 ? 's' : ''})`}
+            Review & Submit ({pendingCount} item{pendingCount !== 1 ? 's' : ''})
           </button>
         </div>
       </div>
@@ -546,7 +773,9 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                 {hasSubCatCol && <th className="px-2 py-2 text-left min-w-[160px]">Sub-category</th>}
                 <th className="px-2 py-2 text-left min-w-[160px]">Supplier</th>
                 <th className="px-2 py-2 text-left min-w-[150px]">Description</th>
-                <th className="px-2 py-2 text-center w-12">Stock</th>
+                <th className="px-2 py-2 text-center w-16">System</th>
+                {hasExistingItems && <th className="px-2 py-2 text-center w-24">Physical</th>}
+                {hasExistingItems && <th className="px-2 py-2 text-center w-20">Variance</th>}
                 <th className="px-2 py-2 text-center w-24">Qty *</th>
                 <th className="px-2 py-2 text-center w-28">Sell Price *</th>
                 <th className="px-2 py-2 text-center w-14">Free?</th>
@@ -575,6 +804,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                   onNewSubCategory={() => openQuickCreate(row.rowId, 'subcategory')}
                   onNewSupplier={() => openSupplierForm(row.rowId)}
                   rowRef={(el: HTMLTableRowElement | null) => { rowRefs.current[row.rowId] = el }}
+                  hasPhysicalCountCol={hasExistingItems}
                 />
               ))}
             </tbody>
@@ -593,6 +823,76 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             onCancel={() => { setShowSupplierFormModal(false); setSupplierFormTargetRowId(null) }}
             loading={creatingSupplier}
           />
+        </div>
+      )}
+
+      {/* Resume Draft prompt */}
+      {showResumeDraft && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Resume saved draft?</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              You have a draft from {new Date(showResumeDraft.updatedAt).toLocaleString()} with{' '}
+              <strong>{showResumeDraft.itemCount} item{showResumeDraft.itemCount !== 1 ? 's' : ''}</strong>.
+            </p>
+            {draftLoading && <p className="text-xs text-indigo-500 mb-3 animate-pulse">Loading draft…</p>}
+            <div className="flex justify-end gap-2">
+              <button onClick={handleStartFresh} disabled={draftLoading}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+                Start Fresh
+              </button>
+              <button onClick={handleResumeDraft} disabled={draftLoading}
+                className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
+                Resume Draft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review & Submit — full-screen StockTakeReportPreview */}
+      {showReviewModal && !submittedReportId && (
+        <StockTakeReportPreview
+          businessId={businessId}
+          businessName={businessName}
+          draftId={draftId}
+          rows={rows.map(r => ({
+            barcode: r.barcode,
+            name: r.name,
+            isExistingItem: r.isExistingItem,
+            currentStock: r.currentStock,
+            physicalCount: r.physicalCount,
+            quantity: r.quantity,
+            sellingPrice: r.sellingPrice,
+            isFreeItem: r.isFreeItem,
+          }))}
+          onBack={() => setShowReviewModal(false)}
+          onSubmitSuccess={reportId => {
+            setSubmittedReportId(reportId)
+            setDraftId(null)
+            setDraftSavedAt(null)
+            setDraftUnsaved(false)
+            setRows([])
+          }}
+        />
+      )}
+
+      {/* Post-submit success screen */}
+      {submittedReportId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 w-full max-w-sm mx-4 text-center">
+            <div className="text-4xl mb-3">✅</div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Stock Take Submitted</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              The report has been created and is pending sign-off.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => { setSubmittedReportId(null); setShowReviewModal(false); onClose() }}
+                className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -650,9 +950,10 @@ interface BulkRowEditorProps {
   onNewSubCategory: () => void
   onNewSupplier: () => void
   rowRef: (el: HTMLTableRowElement | null) => void
+  hasPhysicalCountCol: boolean
 }
 
-function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, invalidFields, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef }: BulkRowEditorProps) {
+function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef }: BulkRowEditorProps) {
   const inv = (field: string) => invalidFields.has(field)
   // Hierarchy-filtered lists (SearchableSelect handles text search internally)
   const filteredCats = allCategories.filter(c => {
@@ -664,11 +965,18 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
     !row.categoryId || !c.parentId || c.parentId === row.categoryId
   )
 
+  // Variance = physicalCount − systemQuantity (only for existing items)
+  const variance = row.isExistingItem && row.physicalCount !== '' && row.currentStock !== null
+    ? Number(row.physicalCount) - row.currentStock
+    : null
+  const isShortfall = variance !== null && variance < 0
+
   const hasValidationError = invalidFields.size > 0
   const rowStatusClass =
     row.status === 'saved' ? 'bg-green-50 dark:bg-green-900/10' :
     row.status === 'error' ? 'bg-red-50 dark:bg-red-900/10' :
     row.status === 'saving' ? 'opacity-60' :
+    isShortfall ? 'bg-red-50 dark:bg-red-900/10' :
     hasValidationError ? 'bg-red-50 dark:bg-red-900/10 ring-1 ring-inset ring-red-300 dark:ring-red-700' : ''
 
   const inputClass = cellInputClass
@@ -774,10 +1082,36 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
           className={row.isExistingItem ? roClass : inputClass} placeholder="optional" />
       </td>
 
-      {/* Current Stock */}
+      {/* System Quantity */}
       <td className="px-2 py-1.5 text-center text-xs text-gray-500">
         {row.currentStock !== null ? row.currentStock : '—'}
       </td>
+
+      {/* Physical Count — only editable for existing items */}
+      {hasPhysicalCountCol && (
+        <td className="px-2 py-1.5">
+          {row.isExistingItem ? (
+            <input type="number" min="0" value={row.physicalCount}
+              onChange={e => onChange({ physicalCount: e.target.value })}
+              className={`${cellInputClass} w-full text-center`} placeholder="count" />
+          ) : (
+            <span className="block text-center text-xs text-gray-300 dark:text-gray-600">—</span>
+          )}
+        </td>
+      )}
+
+      {/* Variance */}
+      {hasPhysicalCountCol && (
+        <td className="px-2 py-1.5 text-center text-xs font-medium">
+          {variance !== null ? (
+            <span className={variance < 0 ? 'text-red-600 dark:text-red-400' : variance > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500'}>
+              {variance > 0 ? '+' : ''}{variance}
+            </span>
+          ) : (
+            <span className="text-gray-300 dark:text-gray-600">—</span>
+          )}
+        </td>
+      )}
 
       {/* Qty */}
       <td className="px-2 py-1.5">

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     for (const item of items) {
       try {
-        const { name, categoryId, supplierId, description, quantity, sellingPrice, costPrice, sku, barcode } = item
+        const { name, categoryId, supplierId, description, quantity, sellingPrice, costPrice, sku, barcode, physicalCount } = item
 
         if (!name?.trim()) throw new Error('Name is required')
         if (!quantity || Number(quantity) < 1) throw new Error('Quantity must be >= 1')
@@ -44,12 +44,18 @@ export async function POST(request: NextRequest) {
           : null
 
         if (existing) {
-          // Existing item — add to stock quantity and update price
+          // Existing item — if physicalCount provided (stock take), set stock = physical + new quantity
+          // Otherwise fall back to incrementing (standard restock)
+          const hasPhysicalCount = physicalCount !== undefined && physicalCount !== null && physicalCount !== ''
+          const newStock = hasPhysicalCount
+            ? Number(physicalCount) + Number(quantity)
+            : existing.stockQuantity + Number(quantity)
+
           const updatedRecord = await prisma.barcodeInventoryItems.update({
             where: { id: existing.id },
             data: {
-              stockQuantity: { increment: Number(quantity) },
-              quantity: { increment: Number(quantity) },
+              stockQuantity: newStock,
+              quantity: newStock,
               sellingPrice: Number(sellingPrice),
               ...(costPrice !== undefined && costPrice !== '' ? { costPrice: Number(costPrice) } : {}),
             },

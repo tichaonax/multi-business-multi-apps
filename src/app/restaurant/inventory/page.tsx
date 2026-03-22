@@ -22,6 +22,7 @@ import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
+import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 
 function RestaurantInventoryContent() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts' | 'receiving'>('ingredients')
@@ -47,8 +48,12 @@ function RestaurantInventoryContent() {
     currentBusinessId,
     isAuthenticated,
     loading: businessLoading,
-    businesses
+    businesses,
+    isSystemAdmin,
+    hasPermission,
   } = useBusinessPermissionsContext()
+  const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const [showStockTakeReports, setShowStockTakeReports] = useState(false)
 
   const toast = useToastContext()
 
@@ -304,6 +309,14 @@ function RestaurantInventoryContent() {
             >
               📦 Bulk Stock
             </button>
+            {canAccessFinancialData && (
+              <button
+                onClick={() => setShowStockTakeReports(true)}
+                className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-md text-sm font-medium"
+              >
+                📋 Stock Take Reports
+              </button>
+            )}
             <button
               onClick={() => router.push('/restaurant/inventory/receive')}
               className="btn-secondary"
@@ -684,6 +697,14 @@ function RestaurantInventoryContent() {
           businessName={currentBusiness.businessName}
           businessType={currentBusiness.businessType}
           onClose={() => setShowBulkStockPanel(false)}
+        />
+      )}
+      {showStockTakeReports && currentBusiness && currentBusinessId && (
+        <StockTakeReportsList
+          businessId={currentBusinessId}
+          businessName={currentBusiness.businessName}
+          canManage={canAccessFinancialData}
+          onClose={() => setShowStockTakeReports(false)}
         />
       )}
       </BusinessProvider>
