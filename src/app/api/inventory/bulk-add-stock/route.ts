@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(items) || items.length === 0) return NextResponse.json({ error: 'items array is required' }, { status: 400 })
 
     let created = 0
-    const results: { success: boolean; itemId?: string; error?: string }[] = []
+    let updated = 0
+    const results: { success: boolean; itemId?: string; action?: 'created' | 'updated'; error?: string }[] = []
 
     for (const item of items) {
       try {
@@ -33,29 +34,51 @@ export async function POST(request: NextRequest) {
         if (sellingPrice === undefined || sellingPrice === null || sellingPrice === '') throw new Error('Selling price is required')
         if (Number(sellingPrice) < 0) throw new Error('Selling price cannot be negative')
 
-        const inventoryItemId = randomBytes(8).toString('hex')
         const barcodeData = barcode?.trim() || randomBytes(4).toString('hex')
 
-        const record = await prisma.barcodeInventoryItems.create({
-          data: {
-            name: name.trim(),
-            sku: sku?.trim() || undefined,
-            businessId,
-            inventoryItemId,
-            barcodeData,
-            quantity: Number(quantity),
-            stockQuantity: Number(quantity),
-            customLabel: description?.trim() || undefined,
-            costPrice: costPrice !== undefined && costPrice !== '' ? Number(costPrice) : null,
-            sellingPrice: Number(sellingPrice),
-            categoryId: categoryId || null,
-            supplierId: supplierId || null,
-            createdById: user.id,
-          },
-        })
+        // Check if this barcode already exists for this business
+        const existing = barcodeData
+          ? await prisma.barcodeInventoryItems.findFirst({
+              where: { businessId, barcodeData },
+            })
+          : null
 
-        created++
-        results.push({ success: true, itemId: record.id })
+        if (existing) {
+          // Existing item — add to stock quantity and update price
+          const updatedRecord = await prisma.barcodeInventoryItems.update({
+            where: { id: existing.id },
+            data: {
+              stockQuantity: { increment: Number(quantity) },
+              quantity: { increment: Number(quantity) },
+              sellingPrice: Number(sellingPrice),
+              ...(costPrice !== undefined && costPrice !== '' ? { costPrice: Number(costPrice) } : {}),
+            },
+          })
+          updated++
+          results.push({ success: true, itemId: updatedRecord.id, action: 'updated' })
+        } else {
+          // New item — create
+          const inventoryItemId = randomBytes(8).toString('hex')
+          const record = await prisma.barcodeInventoryItems.create({
+            data: {
+              name: name.trim(),
+              sku: sku?.trim() || undefined,
+              businessId,
+              inventoryItemId,
+              barcodeData,
+              quantity: Number(quantity),
+              stockQuantity: Number(quantity),
+              customLabel: description?.trim() || undefined,
+              costPrice: costPrice !== undefined && costPrice !== '' ? Number(costPrice) : null,
+              sellingPrice: Number(sellingPrice),
+              categoryId: categoryId || null,
+              supplierId: supplierId || null,
+              createdById: user.id,
+            },
+          })
+          created++
+          results.push({ success: true, itemId: record.id, action: 'created' })
+        }
       } catch (e: any) {
         results.push({ success: false, error: e.message || 'Failed to save item' })
       }

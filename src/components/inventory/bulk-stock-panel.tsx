@@ -371,7 +371,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     rows.forEach(r => {
       const bad = new Set<string>()
       if (!r.name.trim()) bad.add('name')
-      if (!r.categoryId && !r.subCategoryId) bad.add('categoryId')
+      if (!r.isExistingItem && !r.categoryId && !r.subCategoryId) bad.add('categoryId')
       if (!r.quantity || Number(r.quantity) < 1) bad.add('quantity')
       if (!r.isFreeItem && (!r.sellingPrice || Number(r.sellingPrice) < 0)) bad.add('sellingPrice')
       if (bad.size > 0) fieldErrorMap[r.rowId] = bad
@@ -678,7 +678,10 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
   return (
     <tr ref={rowRef} className={`border-b border-gray-100 dark:border-gray-700 transition-all ${rowStatusClass}`}>
-      <td className="px-2 py-1.5 text-center text-xs text-gray-400">{rowNumber}</td>
+      <td className="px-2 py-1.5 text-center text-xs text-gray-400">
+        {rowNumber}
+        {row.isExistingItem && <div className="text-[9px] font-medium text-blue-500 leading-none mt-0.5">Existing</div>}
+      </td>
 
       {/* Barcode */}
       <td className="px-2 py-1.5">
@@ -703,6 +706,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             onChange={id => onChange({ departmentId: id, categoryId: '', subCategoryId: '' })}
             placeholder="Select dept…"
             allLabel="— none —"
+            disabled={row.isExistingItem}
           />
         </td>
       )}
@@ -717,11 +721,11 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             onChange={id => onChange({ categoryId: id, subCategoryId: '' })}
             placeholder={departments.length > 0 && !row.departmentId ? 'Select dept first' : 'Select category…'}
             allLabel="— none —"
-            disabled={departments.length > 0 && !row.departmentId}
+            disabled={row.isExistingItem || (departments.length > 0 && !row.departmentId)}
             required
             error={inv('categoryId') ? ' ' : undefined}
           />
-          <button type="button" title="New category" onClick={onNewCategory} className={plusBtnClass}>+</button>
+          {!row.isExistingItem && <button type="button" title="New category" onClick={onNewCategory} className={plusBtnClass}>+</button>}
         </div>
       </td>
 
@@ -736,11 +740,13 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
               onChange={id => onChange({ subCategoryId: id })}
               placeholder={!row.categoryId ? 'Select category first' : 'Select sub-cat…'}
               allLabel="— none —"
-              disabled={!row.categoryId}
+              disabled={row.isExistingItem || !row.categoryId}
             />
-            <button type="button" title={!row.categoryId ? 'Select a category first' : 'New sub-category'}
-              onClick={onNewSubCategory} disabled={!row.categoryId}
-              className={`${plusBtnClass} disabled:opacity-30 disabled:cursor-not-allowed`}>+</button>
+            {!row.isExistingItem && (
+              <button type="button" title={!row.categoryId ? 'Select a category first' : 'New sub-category'}
+                onClick={onNewSubCategory} disabled={!row.categoryId}
+                className={`${plusBtnClass} disabled:opacity-30 disabled:cursor-not-allowed`}>+</button>
+            )}
           </div>
         </td>
       )}
@@ -755,15 +761,17 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             onChange={id => onChange({ supplierId: id })}
             placeholder="Select supplier…"
             allLabel="— none —"
+            disabled={row.isExistingItem}
           />
-          <button type="button" title="New supplier" onClick={onNewSupplier} className={plusBtnClass}>+</button>
+          {!row.isExistingItem && <button type="button" title="New supplier" onClick={onNewSupplier} className={plusBtnClass}>+</button>}
         </div>
       </td>
 
       {/* Description */}
       <td className="px-2 py-1.5">
-        <input type="text" value={row.description} onChange={e => onChange({ description: e.target.value })}
-          className={inputClass} placeholder="optional" />
+        <input type="text" value={row.description} readOnly={row.isExistingItem}
+          onChange={e => onChange({ description: e.target.value })}
+          className={row.isExistingItem ? roClass : inputClass} placeholder="optional" />
       </td>
 
       {/* Current Stock */}
@@ -786,21 +794,23 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
       {/* Free */}
       <td className="px-2 py-1.5 text-center">
-        <input type="checkbox" checked={row.isFreeItem}
+        <input type="checkbox" checked={row.isFreeItem} disabled={row.isExistingItem}
           onChange={e => onChange({ isFreeItem: e.target.checked, sellingPrice: e.target.checked ? '0' : row.sellingPrice })}
-          className="w-4 h-4 cursor-pointer accent-indigo-600" />
+          className="w-4 h-4 cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed" />
       </td>
 
       {/* Cost */}
       <td className="px-2 py-1.5">
-        <input type="number" min="0" step="0.01" value={row.costPrice} onChange={e => onChange({ costPrice: e.target.value })}
-          className={`${inputClass} w-full text-center`} placeholder="cost" />
+        <input type="number" min="0" step="0.01" value={row.costPrice} readOnly={row.isExistingItem}
+          onChange={e => onChange({ costPrice: e.target.value })}
+          className={`${row.isExistingItem ? roClass : inputClass} w-full text-center`} placeholder="cost" />
       </td>
 
       {/* SKU */}
       <td className="px-2 py-1.5">
-        <input type="text" value={row.sku} onChange={e => onChange({ sku: e.target.value })}
-          className={inputClass} placeholder="Auto" />
+        <input type="text" value={row.sku} readOnly={row.isExistingItem}
+          onChange={e => onChange({ sku: e.target.value })}
+          className={row.isExistingItem ? roClass : inputClass} placeholder="Auto" />
       </td>
 
       {/* Remove */}

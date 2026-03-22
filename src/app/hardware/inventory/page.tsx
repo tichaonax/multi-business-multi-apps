@@ -523,10 +523,10 @@ function HardwareInventoryContent() {
         </ContentLayout>
       {showBulkStockPanel && currentBusiness && currentBusinessId && (
         <BulkStockPanel
-          business={currentBusiness}
           businessId={currentBusinessId}
+          businessName={currentBusiness.businessName}
+          businessType={currentBusiness.businessType}
           onClose={() => setShowBulkStockPanel(false)}
-          onStockAdded={() => setRefreshKey(k => k + 1)}
         />
       )}
       </BusinessTypeRoute>

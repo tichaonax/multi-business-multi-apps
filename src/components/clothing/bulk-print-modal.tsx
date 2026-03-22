@@ -101,7 +101,7 @@ function buildProductLabelHtml(product: ProductData, barcodeSvg: string, busines
   const price = `$ ${Number(product.sellingPrice).toFixed(2)}`
   return `
     <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
-      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
       <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
       <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(product.name)}</div>
       ${product.description ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">${escHtml(product.description)}</div>` : ''}
@@ -116,7 +116,7 @@ function buildProductLabelHtml(product: ProductData, barcodeSvg: string, busines
       ${product.color ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">${escHtml(product.color)}</div>` : ''}
       ${product.itemName ? `<div style="font-size:9px;text-align:center;margin-bottom:2px;">${escHtml(product.itemName)}</div>` : ''}
       <div style="font-size:8px;text-align:center;color:#666;">${escHtml(templateName)}</div>
-      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
     </div>
   `
 }
@@ -381,7 +381,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
         const chunk = labelHtmls.slice(i, i + 3)
         rows.push(`<div style="display:flex;margin-bottom:0;page-break-inside:avoid;">${chunk.join('')}</div>`)
       }
-      const title = `Bale Barcodes — ${labelHtmls.length} label${labelHtmls.length !== 1 ? 's' : ''}`
+      const title = `Barcodes — ${labelHtmls.length} label${labelHtmls.length !== 1 ? 's' : ''}`
       const printWindow = window.open('', '_blank', 'width=900,height=700')
       if (!printWindow) { alert('Popup blocked — please allow popups for this site.'); return }
       printWindow.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
@@ -437,7 +437,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
             templateName: template.name, displayValue: true,
             batchNumber: template.batchId || p.batchNumber || '', quantity: qtyPerBale,
             sku: p.sku, itemName: p.itemName,
-            customData: { productName: p.name, description: p.description, price: String(p.sellingPrice), size: p.size, color: p.color },
+            customData: { productName: p.name, description: p.description, price: String(p.sellingPrice), size: p.size, color: p.color, itemCount: p.itemCount },
             width: template.width || 200, height: template.height || 100,
           })
         }
@@ -449,7 +449,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
           templateName: template.name, displayValue: true,
           batchNumber: template.batchId || productData.batchNumber || '', quantity: qtyPerBale,
           sku: productData.sku, itemName: productData.itemName,
-          customData: { productName: productData.name, description: productData.description, price: String(productData.sellingPrice), size: productData.size, color: productData.color },
+          customData: { productName: productData.name, description: productData.description, price: String(productData.sellingPrice), size: productData.size, color: productData.color, itemCount: productData.itemCount },
           width: template.width || 200, height: template.height || 100,
         })
       } else {
@@ -461,7 +461,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
             symbology: template.symbology || 'code128', businessName: bizName,
             templateName: template.name, displayValue: true,
             batchNumber: template.batchId || '', quantity: qtyPerBale,
-            customData: { productName: bale.category.name, description: 'Batch ' + bale.batchNumber, price: String(bale.unitPrice), itemCount: bale.itemCount },
+            customData: { productName: bale.category.name, description: 'Batch: ' + bale.batchNumber, price: String(bale.unitPrice), itemCount: bale.itemCount },
             width: template.width || 200, height: template.height || 100,
           })
         }
@@ -704,7 +704,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
 
         {/* Modal header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">🖨️ Print Bale Barcodes</h2>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">🖨️ Print Barcodes</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl leading-none">&times;</button>
         </div>
 

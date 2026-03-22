@@ -50,7 +50,13 @@ export async function POST(request: NextRequest) {
 
         const [categoriesRaw, suppliersRaw, baleCategoriesRaw, businessRaw] = await Promise.all([
           prisma.businessCategories.findMany({
-            where: { businessId, isActive: true },
+            where: {
+              isActive: true,
+              OR: [
+                { businessId: null, businessType: businessType },
+                { businessId },
+              ],
+            },
             select: { id: true },
           }),
           prisma.businessSuppliers.findMany({
