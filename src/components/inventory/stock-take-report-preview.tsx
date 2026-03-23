@@ -26,6 +26,7 @@ interface StockTakeReportPreviewProps {
   rows: PreviewRow[]
   onBack: () => void
   onSubmitSuccess: (reportId: string) => void
+  isStockTakeMode?: boolean
 }
 
 function fmt(n: number) {
@@ -39,6 +40,7 @@ export function StockTakeReportPreview({
   rows,
   onBack,
   onSubmitSuccess,
+  isStockTakeMode = false,
 }: StockTakeReportPreviewProps) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
@@ -91,6 +93,11 @@ export function StockTakeReportPreview({
     const finalQty = r.physCount !== null ? r.physCount + r.newQty : r.sysQty + r.newQty
     return s + finalQty * r.price
   }, 0) + newCalc.reduce((s, r) => s + r.newStockValue, 0)
+
+  // Sold-out items (stock take mode only): physical count = 0 OR system qty = 0
+  const soldOutRows = isStockTakeMode
+    ? existingCalc.filter(r => r.physCount === 0 || r.sysQty === 0)
+    : []
 
   const perEmployeeDeduction = selectedEmployeeIds.length > 0 && totalShortfallValue > 0
     ? totalShortfallValue / selectedEmployeeIds.length
@@ -252,6 +259,46 @@ export function StockTakeReportPreview({
             <span className="font-medium text-gray-900 dark:text-white">${fmt(totalStockValueAfter)}</span>
           </div>
         </section>
+
+        {/* Sold Out / Zero Stock (stock take mode only) */}
+        {isStockTakeMode && soldOutRows.length > 0 && (
+          <section>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-orange-500 dark:text-orange-400 mb-2">
+              Sold Out / Zero Stock — Restock Candidates ({soldOutRows.length})
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              These items had zero physical count or zero system stock. Consider restocking before the next trading period.
+            </p>
+            <div className="overflow-x-auto border border-orange-200 dark:border-orange-800 rounded-lg">
+              <table className="min-w-max w-full text-xs">
+                <thead className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Barcode</th>
+                    <th className="px-3 py-2 text-left">Name</th>
+                    <th className="px-3 py-2 text-center w-20">System Qty</th>
+                    <th className="px-3 py-2 text-center w-20">Physical Count</th>
+                    <th className="px-3 py-2 text-right w-24">Last Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {soldOutRows.map(r => (
+                    <tr key={r.barcode || r.name} className="border-t border-orange-100 dark:border-orange-900/30">
+                      <td className="px-3 py-1.5 font-mono text-gray-700 dark:text-gray-300">{r.barcode || '—'}</td>
+                      <td className="px-3 py-1.5 text-gray-900 dark:text-white max-w-[200px] truncate" title={r.name}>{r.name}</td>
+                      <td className="px-3 py-1.5 text-center text-gray-500">{r.sysQty}</td>
+                      <td className="px-3 py-1.5 text-center font-medium text-orange-600 dark:text-orange-400">
+                        {r.physCount !== null ? r.physCount : '—'}
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-gray-700 dark:text-gray-300">
+                        {r.isFreeItem ? 'Free' : `$${fmt(r.price)}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {/* Responsible Employees */}
         <section>

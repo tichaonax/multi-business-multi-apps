@@ -49,7 +49,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params
     const body = await request.json()
-    const { title, lastSyncedAt, items } = body
+    const { title, lastSyncedAt, isStockTakeMode, items } = body
 
     const draft = await prisma.stockTakeDrafts.findUnique({ where: { id } })
     if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
@@ -91,6 +91,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         data: {
           title: title !== undefined ? (title?.trim() || null) : draft.title,
           lastSyncedAt: lastSyncedAt ? new Date(lastSyncedAt) : draft.lastSyncedAt,
+          // isStockTakeMode is locked once set to true — only allow setting, never unsetting
+          ...(isStockTakeMode === true ? { isStockTakeMode: true } : {}),
         },
         include: { items: { orderBy: { displayOrder: 'asc' } } },
       })

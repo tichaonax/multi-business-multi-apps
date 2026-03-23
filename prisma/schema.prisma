@@ -5723,9 +5723,10 @@ model StockTakeDrafts {
   id           String                @id @default(cuid())
   businessId   String
   createdById  String
-  status       StockTakeDraftStatus  @default(DRAFT)
-  title        String?
-  lastSyncedAt DateTime?
+  status           StockTakeDraftStatus  @default(DRAFT)
+  title            String?
+  isStockTakeMode  Boolean               @default(false)
+  lastSyncedAt     DateTime?
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
 

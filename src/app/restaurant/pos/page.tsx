@@ -244,6 +244,8 @@ export default function RestaurantPOS() {
   // Cart validation warning — populated when stale/invalid items are found on load
   const [cartValidationWarnings, setCartValidationWarnings] = useState<Array<{ name: string; reason: string }>>([])
   const [showCartWarning, setShowCartWarning] = useState(false)
+  const [showStockTakeWarning, setShowStockTakeWarning] = useState(false)
+  const [pendingStockTakeOrderBody, setPendingStockTakeOrderBody] = useState<any>(null)
 
   // Load cart from localStorage on mount (per-business persistence)
   useEffect(() => {
@@ -2217,6 +2219,16 @@ export default function RestaurantPOS() {
 
         console.log('✅ Order created:', result.orderNumber)
 
+      } else if (response.status === 409) {
+        const errorData = await response.json().catch(() => null)
+        if (errorData?.warning === 'stock_take_in_progress') {
+          // Store the original request body so we can retry with acknowledgeStockTake=true
+          setPendingStockTakeOrderBody(requestBody)
+          setShowStockTakeWarning(true)
+          return
+        }
+        const errorMessage = errorData?.error || errorData?.message || 'Failed to process order'
+        toast.error(`Order Failed:\n\n${errorMessage}`)
       } else {
         // Handle error response
         const errorData = await response.json().catch(() => null)
@@ -2246,6 +2258,63 @@ export default function RestaurantPOS() {
   }
   return (
     <BusinessTypeRoute requiredBusinessType="restaurant">
+      {/* ── Stock Take in-progress warning dialog ─────────────────────────── */}
+      {showStockTakeWarning && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+            <div className="px-5 py-4 bg-amber-500 dark:bg-amber-600 flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="text-base font-bold text-white">Stock Take In Progress</h3>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                A stock take is currently in progress for this business. Processing this sale may affect stock count accuracy.
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                Do you want to proceed with this sale?
+              </p>
+            </div>
+            <div className="px-5 pb-4 flex gap-2 justify-end">
+              <button
+                onClick={() => { setShowStockTakeWarning(false); setPendingStockTakeOrderBody(null) }}
+                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setShowStockTakeWarning(false)
+                  if (!pendingStockTakeOrderBody) return
+                  try {
+                    setOrderSubmitting(true)
+                    const retryBody = { ...pendingStockTakeOrderBody, acknowledgeStockTake: true }
+                    const response = await fetch('/api/restaurant/orders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(retryBody),
+                    })
+                    if (response.ok) {
+                      const result = await response.json()
+                      setCompletedOrder({ orderNumber: result.orderNumber, items: [...cart], subtotal: 0, total: 0, paymentMethod, amountReceived: 0, change: 0, date: new Date().toISOString(), wifiTokens: result.wifiTokens, r710Tokens: result.r710Tokens, businessInfo: result.businessInfo })
+                      setShowPaymentModal(false)
+                      setShowReceiptModal(true)
+                      setCart([])
+                    } else {
+                      const errData = await response.json().catch(() => null)
+                      toast.error(errData?.error || 'Failed to process order')
+                    }
+                  } finally {
+                    setOrderSubmitting(false)
+                    setPendingStockTakeOrderBody(null)
+                  }
+                }}
+                className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium">
+                Proceed Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Cart validation warning dialog ────────────────────────────────── */}
       {showCartWarning && cartValidationWarnings.length > 0 && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">

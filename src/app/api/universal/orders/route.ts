@@ -353,6 +353,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Stock take warning: if an active stock take draft exists for this business, warn before processing
+    if (!body.acknowledgeStockTake) {
+      const activeStockTake = await prisma.stockTakeDrafts.findFirst({
+        where: { businessId: orderData.businessId, isStockTakeMode: true, status: 'DRAFT' },
+        select: { id: true },
+      })
+      if (activeStockTake) {
+        return NextResponse.json(
+          { warning: 'stock_take_in_progress', message: 'A stock take is currently in progress for this business. Processing this sale may affect stock count accuracy.' },
+          { status: 409 }
+        )
+      }
+    }
+
     // Verify customer exists if specified — check current business first, then any business
     // Customers registered at one business can shop at any other business (shared umbrella system)
     if (orderData.customerId) {

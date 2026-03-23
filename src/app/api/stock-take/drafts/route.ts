@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         title: true,
         updatedAt: true,
         createdAt: true,
+        isStockTakeMode: true,
         _count: { select: { items: true } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { businessId, title } = body
+    const { businessId, title, isStockTakeMode } = body
 
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     if (!title?.trim()) return NextResponse.json({ error: 'title is required' }, { status: 400 })
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
         createdById: user.id,
         title: title.trim(),
         status: 'DRAFT',
+        isStockTakeMode: Boolean(isStockTakeMode),
       },
     })
 

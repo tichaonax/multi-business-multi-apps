@@ -34,6 +34,7 @@ interface DraftListItem {
   title: string | null
   updatedAt: string
   itemCount: number
+  isStockTakeMode?: boolean
 }
 
 interface BusinessCategory {
@@ -161,8 +162,17 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   // Tick state to force re-render for "X min ago" updates
   const [, setTick] = useState(0)
 
+  // Stock Take Mode state
+  const [isStockTakeMode, setIsStockTakeMode] = useState(false)
+  const [stockTakeLoading, setStockTakeLoading] = useState(false)
+  const [stockTakeLoadProgress, setStockTakeLoadProgress] = useState<{ loaded: number; total: number } | null>(null)
+  const [showStockTakeModeConfirm, setShowStockTakeModeConfirm] = useState(false)
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null)
+  const [syncResetNotice, setSyncResetNotice] = useState(false)
+
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableEndRef = useRef<HTMLDivElement>(null)
+  const tableTopRef = useRef<HTMLDivElement>(null)
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
 
   // Suppress global barcode modal while panel is open
@@ -183,6 +193,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             title: dr.title,
             updatedAt: dr.updatedAt,
             itemCount: dr._count?.items ?? 0,
+            isStockTakeMode: dr.isStockTakeMode ?? false,
           }))
           setDraftList(list)
           setShowDraftSelector(true)
@@ -258,20 +269,142 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     setTimeout(() => scanInputRef.current?.focus(), 50)
   }, [])
 
+  const activateStockTakeMode = async () => {
+    setIsStockTakeMode(true)
+    setStockTakeLoading(true)
+    setStockTakeLoadProgress(null)
+
+    // Default draft title for stock take
+    const defaultTitle = `Stock Take ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+    if (!draftTitle.trim()) setDraftTitle(defaultTitle)
+
+    try {
+      // Create the draft immediately with isStockTakeMode=true so it's persisted
+      if (!draftId) {
+        const title = draftTitle.trim() || defaultTitle
+        const createRes = await fetch('/api/stock-take/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessId, title, isStockTakeMode: true }),
+        })
+        const createData = await createRes.json()
+        if (createData.success && createData.draft?.id) {
+          setDraftId(createData.draft.id)
+          setDraftTitle(title)
+        }
+      }
+
+      // Load all active inventory
+      const res = await fetch(`/api/stock-take/load-inventory?businessId=${businessId}`)
+      const data = await res.json()
+      if (!data.success) return
+
+      setStockTakeLoadProgress({ loaded: 0, total: data.total })
+
+      // Map API items to BulkStockRow format
+      const loadedRows: BulkStockRow[] = []
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i]
+        const hierarchyPatch = item.categoryId && allCats.length > 0
+          ? resolveHierarchy(item.categoryId, allCats)
+          : { departmentId: '', categoryId: item.categoryId || '', subCategoryId: '' }
+
+        loadedRows.push(makeRow({
+          barcode: item.barcode || '',
+          barcodeReadOnly: true,
+          name: item.name || '',
+          nameReadOnly: true,
+          isExistingItem: true,
+          currentStock: item.systemQuantity ?? 0,
+          sellingPrice: String(item.sellingPrice || ''),
+          costPrice: item.costPrice != null ? String(item.costPrice) : '',
+          sku: item.sku || '',
+          supplierId: item.supplierId || '',
+          ...hierarchyPatch,
+        }))
+
+        // Update progress every 50 items
+        if (i % 50 === 0) setStockTakeLoadProgress({ loaded: i + 1, total: data.total })
+      }
+
+      setStockTakeLoadProgress({ loaded: data.items.length, total: data.total })
+      setRows(loadedRows)
+      setDraftUnsaved(true)
+    } finally {
+      setStockTakeLoading(false)
+      setStockTakeLoadProgress(null)
+      focusScanInput()
+    }
+  }
+
+  const highlightRow = (rowId: string) => {
+    setHighlightedRowId(rowId)
+    setTimeout(() => setHighlightedRowId(null), 1500)
+  }
+
   const handleScan = async (barcodeValue: string) => {
     const trimmed = barcodeValue.trim()
     if (!trimmed) return
 
-    // Duplicate detection
+    setScanInput('')
+
+    // ── Stock Take Mode: existing row → move to top; new row → prepend ──
+    if (isStockTakeMode) {
+      const existingRow = rows.find(r => r.barcode === trimmed)
+      if (existingRow) {
+        // Move existing row to top for immediate physical count entry
+        setRows(prev => [existingRow, ...prev.filter(r => r.rowId !== existingRow.rowId)])
+        tableTopRef.current?.scrollIntoView({ behavior: 'smooth' })
+        highlightRow(existingRow.rowId)
+        focusScanInput()
+        return
+      }
+      // New product not in list — look up and prepend
+      setScanLoading(true)
+      await new Promise(r => setTimeout(r, 0))
+      try {
+        const res = await fetch(`/api/global/inventory-lookup/${encodeURIComponent(trimmed)}`)
+        const data = await res.json()
+        const match = data?.data?.businesses?.find(
+          (b: any) => b.businessId === businessId && b.isInventoryItem
+        )
+        let hierarchyPatch: Partial<BulkStockRow> = {}
+        if (match?.categoryId && allCats.length > 0) {
+          hierarchyPatch = resolveHierarchy(match.categoryId, allCats)
+        }
+        const newRow = makeRow({
+          barcode: trimmed,
+          barcodeReadOnly: true,
+          ...(match ? {
+            name: match.productName || '',
+            nameReadOnly: true,
+            isExistingItem: true,
+            currentStock: match.stockQuantity ?? null,
+            sellingPrice: String(match.price || ''),
+            sku: match.sku || '',
+            supplierId: match.supplierId || '',
+            ...hierarchyPatch,
+          } : {}),
+        })
+        setRows(prev => [newRow, ...prev])
+        setDraftUnsaved(true)
+        tableTopRef.current?.scrollIntoView({ behavior: 'smooth' })
+        highlightRow(newRow.rowId)
+      } finally {
+        setScanLoading(false)
+        focusScanInput()
+      }
+      return
+    }
+
+    // ── Normal Mode ──
     const existing = rows.find(r => r.barcode === trimmed)
     if (existing) {
       setDuplicateAlert({ barcode: trimmed, rowId: existing.rowId })
-      setScanInput('')
       return
     }
 
     setScanLoading(true)
-    setScanInput('')
     // Yield to the browser so the loading state renders before the fetch starts
     await new Promise(r => setTimeout(r, 0))
     try {
@@ -374,7 +507,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         const createRes = await fetch('/api/stock-take/drafts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ businessId, title }),
+          body: JSON.stringify({ businessId, title, isStockTakeMode }),
         })
         const createData = await createRes.json()
         if (createData.success && createData.draft?.id) {
@@ -387,7 +520,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         const res = await fetch(`/api/stock-take/drafts/${activeDraftId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: draftTitle.trim() || undefined, items }),
+          body: JSON.stringify({ title: draftTitle.trim() || undefined, isStockTakeMode, items }),
         })
         if (res.ok) {
           setDraftSavedAt(new Date())
@@ -455,6 +588,32 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       setDraftSavedAt(new Date(draft.updatedAt))
       setDraftUnsaved(false)
       setShowDraftSelector(false)
+
+      // Stock Take Mode: restore mode flag, auto-sync, and reset all physical counts
+      if (draft.isStockTakeMode) {
+        setIsStockTakeMode(true)
+        setSyncing(true)
+        try {
+          const syncRes = await fetch(`/api/stock-take/drafts/${draft.id}/sync`, { method: 'POST' })
+          const syncData = await syncRes.json()
+          if (syncData.success && syncData.updates) {
+            const changeMap: Record<string, number> = {}
+            syncData.updates.forEach((c: any) => { if (c.changed) changeMap[c.barcode] = c.newSystemQty })
+            setRows(prev => prev.map(r => ({
+              ...r,
+              currentStock: changeMap[r.barcode] !== undefined ? changeMap[r.barcode] : r.currentStock,
+              physicalCount: '',  // reset all counts — force fresh count every session
+            })))
+          } else {
+            // Sync failed or no updates — still reset counts
+            setRows(prev => prev.map(r => ({ ...r, physicalCount: '' })))
+          }
+          setSyncResetNotice(true)
+          setTimeout(() => setSyncResetNotice(false), 5000)
+        } finally {
+          setSyncing(false)
+        }
+      }
     } finally {
       setDraftLoading(false)
     }
@@ -491,7 +650,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     const d = await res.json()
     if (d.success && Array.isArray(d.drafts)) {
       setDraftList(d.drafts.map((dr: any) => ({
-        id: dr.id, title: dr.title, updatedAt: dr.updatedAt, itemCount: dr._count?.items ?? 0,
+        id: dr.id, title: dr.title, updatedAt: dr.updatedAt, itemCount: dr._count?.items ?? 0, isStockTakeMode: dr.isStockTakeMode ?? false,
       })))
     }
     setShowDraftSelector(true)
@@ -690,17 +849,36 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const hasSubCatCol = true // always show sub-category column
   const hasExistingItems = rows.some(r => r.isExistingItem)
 
+  // Stock take progress counts
+  const countedCount = isStockTakeMode ? rows.filter(r => r.isExistingItem && r.physicalCount !== '').length : 0
+  const totalCountable = isStockTakeMode ? rows.filter(r => r.isExistingItem).length : 0
+
   // Label for quick-create form
   const quickCreateLabel = quickCreateLevel === 'subcategory' ? 'New Sub-category' : 'New Category'
 
   return (
     <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col">
 
-      {/* Barcode lookup overlay — blocks UI and shows centered spinner */}
+      {/* Barcode lookup overlay */}
       {scanLoading && (
         <div className="fixed inset-0 z-[70] bg-black/40 flex flex-col items-center justify-center cursor-wait">
           <div className="animate-spin rounded-full h-14 w-14 border-4 border-white/20 border-t-white mb-4" />
           <p className="text-white text-sm font-medium tracking-wide">Looking up barcode…</p>
+        </div>
+      )}
+
+      {/* Stock Take inventory load overlay */}
+      {stockTakeLoading && (
+        <div className="fixed inset-0 z-[70] bg-black/60 flex flex-col items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4 min-w-[280px]">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-200 border-t-indigo-600" />
+            <p className="text-base font-semibold text-gray-800 dark:text-white">Loading inventory…</p>
+            {stockTakeLoadProgress && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {stockTakeLoadProgress.loaded} / {stockTakeLoadProgress.total} products
+              </p>
+            )}
+          </div>
         </div>
       )}
       {/* Header */}
@@ -708,7 +886,14 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 shrink-0">
           ← Back
         </button>
-        <span className="font-bold text-gray-900 dark:text-white text-base shrink-0">Bulk Stocking — {businessName}</span>
+        <span className="font-bold text-gray-900 dark:text-white text-base shrink-0">
+          {isStockTakeMode ? '📋 Stock Take' : 'Bulk Stocking'} — {businessName}
+        </span>
+        {isStockTakeMode && totalCountable > 0 && (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 shrink-0">
+            Counted: {countedCount} / {totalCountable}
+          </span>
+        )}
         {/* Editable draft title */}
         {!showDraftSelector && !draftCheckLoading && (
           <input
@@ -778,10 +963,25 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             Looking up barcode…
           </span>
         )}
-        <div className="flex gap-2 ml-auto">
-          <button onClick={addBlankRow} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-            + Add Row
-          </button>
+        <div className="flex gap-2 ml-auto flex-wrap">
+          {/* Stock Take Mode toggle */}
+          {!isStockTakeMode ? (
+            <button
+              onClick={() => rows.length > 0 ? setShowStockTakeModeConfirm(true) : activateStockTakeMode()}
+              disabled={draftCheckLoading || stockTakeLoading}
+              className="px-3 py-1.5 text-sm border border-teal-400 dark:border-teal-600 rounded-lg text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 font-medium disabled:opacity-40">
+              📋 Stock Take Mode
+            </button>
+          ) : (
+            <span className="px-3 py-1.5 text-sm rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 font-medium border border-teal-300 dark:border-teal-700 cursor-default">
+              📋 Stock Take — Active
+            </span>
+          )}
+          {!isStockTakeMode && (
+            <button onClick={addBlankRow} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+              + Add Row
+            </button>
+          )}
           <button onClick={() => { if (validateRows()) setShowReviewModal(true) }} disabled={rows.length === 0}
             className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
             Review & Submit ({pendingCount} item{pendingCount !== 1 ? 's' : ''})
@@ -816,8 +1016,17 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         </div>
       )}
 
+      {/* Sync-reset notice (stock take mode resume) */}
+      {syncResetNotice && (
+        <div className="mx-4 mt-3 px-3 py-2 bg-teal-50 dark:bg-teal-900/20 border border-teal-300 dark:border-teal-700 rounded-lg text-sm text-teal-800 dark:text-teal-300 flex items-center justify-between">
+          <span>↻ Stock levels synced — physical counts have been reset for a fresh count.</span>
+          <button onClick={() => setSyncResetNotice(false)} className="text-teal-600 ml-3">✕</button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="flex-1 overflow-auto px-4 py-3">
+        <div ref={tableTopRef} />
         {rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <p className="text-lg">📦</p>
@@ -867,6 +1076,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                   onNewSupplier={() => openSupplierForm(row.rowId)}
                   rowRef={(el: HTMLTableRowElement | null) => { rowRefs.current[row.rowId] = el }}
                   hasPhysicalCountCol={hasExistingItems}
+                  isStockTakeMode={isStockTakeMode}
+                  isHighlighted={highlightedRowId === row.rowId}
                 />
               ))}
             </tbody>
@@ -900,7 +1111,10 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               {draftList.map(d => (
                 <div key={d.id} className="flex items-center gap-3 px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <button onClick={() => handleResumeDraft(d.id)} disabled={draftLoading} className="flex-1 text-left">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{d.title || 'Unnamed Draft'}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
+                      {d.isStockTakeMode && <span className="text-teal-600 dark:text-teal-400">📋</span>}
+                      {d.title || 'Unnamed Draft'}
+                    </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {d.itemCount} item{d.itemCount !== 1 ? 's' : ''} · Last saved {new Date(d.updatedAt).toLocaleString()}
                     </p>
@@ -952,6 +1166,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             sellingPrice: r.sellingPrice,
             isFreeItem: r.isFreeItem,
           }))}
+          isStockTakeMode={isStockTakeMode}
           onBack={() => setShowReviewModal(false)}
           onSubmitSuccess={reportId => {
             setSubmittedReportId(reportId)
@@ -977,6 +1192,37 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               <button onClick={() => { setSubmittedReportId(null); setShowReviewModal(false); onClose() }}
                 className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Take Mode confirmation (shown when rows already exist) */}
+      {showStockTakeModeConfirm && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Start Stock Take Mode?</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+              Your current work will be saved as a draft. A new Stock Take draft will be created and all active inventory will be loaded automatically.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowStockTakeModeConfirm(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+              <button onClick={async () => {
+                  setShowStockTakeModeConfirm(false)
+                  await saveDraft()
+                  // Reset to fresh state then activate
+                  setRows([])
+                  setDraftId(null)
+                  setDraftSavedAt(null)
+                  setDraftUnsaved(false)
+                  await activateStockTakeMode()
+                }}
+                className="px-4 py-2 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium">
+                Save &amp; Start Stock Take
               </button>
             </div>
           </div>
@@ -1038,9 +1284,11 @@ interface BulkRowEditorProps {
   onNewSupplier: () => void
   rowRef: (el: HTMLTableRowElement | null) => void
   hasPhysicalCountCol: boolean
+  isStockTakeMode: boolean
+  isHighlighted: boolean
 }
 
-function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef }: BulkRowEditorProps) {
+function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef, isStockTakeMode, isHighlighted }: BulkRowEditorProps) {
   const inv = (field: string) => invalidFields.has(field)
   // Hierarchy-filtered lists (SearchableSelect handles text search internally)
   const filteredCats = allCategories.filter(c => {
@@ -1059,12 +1307,15 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
   const isShortfall = variance !== null && variance < 0
 
   const hasValidationError = invalidFields.size > 0
+  const isCounted = isStockTakeMode && row.isExistingItem && row.physicalCount !== ''
   const rowStatusClass =
     row.status === 'saved' ? 'bg-green-50 dark:bg-green-900/10' :
     row.status === 'error' ? 'bg-red-50 dark:bg-red-900/10' :
     row.status === 'saving' ? 'opacity-60' :
+    hasValidationError ? 'bg-red-50 dark:bg-red-900/10 ring-1 ring-inset ring-red-300 dark:ring-red-700' :
     isShortfall ? 'bg-red-50 dark:bg-red-900/10' :
-    hasValidationError ? 'bg-red-50 dark:bg-red-900/10 ring-1 ring-inset ring-red-300 dark:ring-red-700' : ''
+    isCounted ? 'bg-emerald-50 dark:bg-emerald-900/10' : ''
+  const highlightClass = isHighlighted ? 'ring-2 ring-inset ring-teal-400 dark:ring-teal-500' : ''
 
   const inputClass = cellInputClass
   const roClass = `${inputClass} bg-gray-50 dark:bg-gray-700 text-gray-500 cursor-not-allowed`
@@ -1072,9 +1323,9 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
   const plusBtnClass = 'w-5 h-5 shrink-0 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 text-xs font-bold flex items-center justify-center hover:bg-indigo-100'
 
   return (
-    <tr ref={rowRef} className={`border-b border-gray-100 dark:border-gray-700 transition-all ${rowStatusClass}`}>
+    <tr ref={rowRef} className={`border-b border-gray-100 dark:border-gray-700 transition-all ${rowStatusClass} ${highlightClass}`}>
       <td className="px-2 py-1.5 text-center text-xs text-gray-400">
-        {rowNumber}
+        {isCounted ? <span className="text-emerald-500 font-bold">✓</span> : rowNumber}
         {row.isExistingItem && <div className="text-[9px] font-medium text-blue-500 leading-none mt-0.5">Existing</div>}
       </td>
 

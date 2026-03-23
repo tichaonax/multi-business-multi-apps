@@ -115,6 +115,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showSupervisorModal, setShowSupervisorModal] = useState(false)
+  const [showStockTakeWarning, setShowStockTakeWarning] = useState(false)
+  const [pendingStockTakeOrderBody, setPendingStockTakeOrderBody] = useState<any>(null)
   const [printReceipt, setPrintReceipt] = useState(true)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
@@ -1393,6 +1395,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
       const result = await response.json()
 
+      // Stock take in-progress warning — show override dialog instead of throwing
+      if (response.status === 409 && result.warning === 'stock_take_in_progress') {
+        setPendingStockTakeOrderBody(orderData)
+        setShowStockTakeWarning(true)
+        return
+      }
+
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to process order')
       }
@@ -2442,6 +2451,58 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   Authorize
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Take in-progress warning dialog */}
+      {showStockTakeWarning && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+            <div className="px-5 py-4 bg-amber-500 dark:bg-amber-600 flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="text-base font-bold text-white">Stock Take In Progress</h3>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                A stock take is currently in progress for this business. Processing this sale may affect stock count accuracy.
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">Do you want to proceed with this sale?</p>
+            </div>
+            <div className="px-5 pb-4 flex gap-2 justify-end">
+              <button
+                onClick={() => { setShowStockTakeWarning(false); setPendingStockTakeOrderBody(null) }}
+                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setShowStockTakeWarning(false)
+                  if (!pendingStockTakeOrderBody) return
+                  try {
+                    const retryBody = { ...pendingStockTakeOrderBody, acknowledgeStockTake: true }
+                    const response = await fetch('/api/universal/orders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(retryBody),
+                    })
+                    const result = await response.json()
+                    if (!response.ok || !result.success) {
+                      throw new Error(result.error || 'Failed to process order')
+                    }
+                    setCompletedOrderReceipt(null)
+                    setShowPaymentModal(false)
+                    setShowReceiptPreview(true)
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to process order')
+                  } finally {
+                    setPendingStockTakeOrderBody(null)
+                  }
+                }}
+                className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium">
+                Proceed Anyway
+              </button>
             </div>
           </div>
         </div>
