@@ -18,12 +18,6 @@ export function ConditionalHealthIndicator() {
     return null
   }
 
-  // Show health indicator on all other pages
-  return (
-    <HealthIndicator
-      position="top-right"
-      showFullOnDesktop={true}
-      enableClickToExpand={true}
-    />
-  )
+  // Health indicator is shown in the user dropdown menu (next to Sign Out)
+  return null
 }

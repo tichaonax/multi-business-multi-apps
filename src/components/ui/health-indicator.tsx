@@ -20,13 +20,15 @@ interface HealthIndicatorProps {
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'bottom-center'
   showFullOnDesktop?: boolean
   enableClickToExpand?: boolean
+  inline?: boolean
 }
 
 export default function HealthIndicator({
   pollInterval = 30000,
   position = 'bottom-center',
   showFullOnDesktop = true,
-  enableClickToExpand = true
+  enableClickToExpand = true,
+  inline = false,
 }: HealthIndicatorProps) {
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -283,6 +285,16 @@ export default function HealthIndicator({
     if (isMobile && enableClickToExpand) {
       setIsExpanded(!isExpanded)
     }
+  }
+
+  // Inline mode — no fixed positioning, just a compact dot + label
+  if (inline) {
+    return (
+      <span className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${statusInfo.bgColor} ${statusInfo.borderColor} ${statusInfo.textColor}`}>
+        <span className={`h-2 w-2 rounded-full ${statusInfo.color}`} />
+        {statusInfo.label}
+      </span>
+    )
   }
 
   // Mobile LED-only view

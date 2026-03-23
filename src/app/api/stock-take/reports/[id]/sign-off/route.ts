@@ -59,12 +59,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     } else {
       // Employee sign-off — find the responsible employee row linked to this user
       const employee = await prisma.employees.findFirst({
-        where: { email: user.email, primaryBusinessId: report.businessId, isActive: true },
+        where: { email: user.email, isActive: true },
         select: { id: true },
       })
 
       if (!employee) {
-        return NextResponse.json({ error: 'No active employee record found for your account in this business' }, { status: 403 })
+        return NextResponse.json({ error: 'No active employee record found for your account' }, { status: 403 })
       }
 
       const empRow = report.employees.find(e => e.employeeId === employee.id)

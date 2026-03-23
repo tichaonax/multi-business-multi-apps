@@ -335,11 +335,15 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const updateRow = (rowId: string, patch: Partial<BulkStockRow>) => {
     setRows(prev => prev.map(r => r.rowId === rowId ? { ...r, ...patch } : r))
     setDraftUnsaved(true)
-    // Clear validation errors for fields being updated
+    // Clear validation errors for fields being updated; remove row entry when no errors remain
     setRowFieldErrors(prev => {
       if (!prev[rowId]) return prev
       const next = new Set(prev[rowId])
       Object.keys(patch).forEach(k => next.delete(k))
+      if (next.size === 0) {
+        const { [rowId]: _, ...rest } = prev
+        return rest
+      }
       return { ...prev, [rowId]: next }
     })
   }
@@ -597,30 +601,34 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   }
 
   // Submit batch
-  const handleSubmit = async () => {
-    setSubmitError('')
-    if (rows.length === 0) { setSubmitError('Add at least one item before submitting'); return }
-
+  const validateRows = (): boolean => {
     const fieldErrorMap: Record<string, Set<string>> = {}
     rows.forEach(r => {
       const bad = new Set<string>()
       if (!r.name.trim()) bad.add('name')
       if (!r.isExistingItem && !r.categoryId && !r.subCategoryId) bad.add('categoryId')
-      if (!r.quantity || Number(r.quantity) < 1) bad.add('quantity')
-      if (!r.isFreeItem && (!r.sellingPrice || Number(r.sellingPrice) < 0)) bad.add('sellingPrice')
+      if (!r.isExistingItem && (!r.quantity || Number(r.quantity) < 1)) bad.add('quantity')
+      if (r.isExistingItem && r.currentStock !== null && r.currentStock > 0 && (r.physicalCount === '' || Number(r.physicalCount) === 0)) bad.add('physicalCount')
+      if (!r.isFreeItem && !r.isExistingItem && Number(r.sellingPrice) <= 0) bad.add('sellingPrice')
+      if (!r.isFreeItem && r.isExistingItem && (!r.sellingPrice || Number(r.sellingPrice) < 0)) bad.add('sellingPrice')
       if (bad.size > 0) fieldErrorMap[r.rowId] = bad
     })
-
     if (Object.keys(fieldErrorMap).length > 0) {
       setRowFieldErrors(fieldErrorMap)
-      // Scroll to first failing row
       const firstBadId = rows.find(r => fieldErrorMap[r.rowId])?.rowId
       if (firstBadId) {
         rowRefs.current[firstBadId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
-      return
+      return false
     }
     setRowFieldErrors({})
+    return true
+  }
+
+  const handleSubmit = async () => {
+    setSubmitError('')
+    if (rows.length === 0) { setSubmitError('Add at least one item before submitting'); return }
+    if (!validateRows()) return
 
     setSubmitLoading(true)
     setRows(prev => prev.map(r => ({ ...r, status: 'saving' })))
@@ -774,7 +782,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           <button onClick={addBlankRow} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
             + Add Row
           </button>
-          <button onClick={() => setShowReviewModal(true)} disabled={rows.length === 0}
+          <button onClick={() => { if (validateRows()) setShowReviewModal(true) }} disabled={rows.length === 0}
             className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
             Review & Submit ({pendingCount} item{pendingCount !== 1 ? 's' : ''})
           </button>
@@ -1172,7 +1180,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
           {row.isExistingItem ? (
             <input type="number" min="0" value={row.physicalCount}
               onChange={e => onChange({ physicalCount: e.target.value })}
-              className={`${cellInputClass} w-full text-center`} placeholder="count" />
+              className={`${cellInputClass} w-full text-center ${inv('physicalCount') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="count" />
           ) : (
             <span className="block text-center text-xs text-gray-300 dark:text-gray-600">—</span>
           )}

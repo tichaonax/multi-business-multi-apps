@@ -16,6 +16,7 @@ import { useTimeDisplay } from '@/hooks/use-time-display'
 import { useRentIndicator } from '@/hooks/use-rent-indicator'
 import { usePendingActionsCount, usePendingActions } from '@/hooks/use-pending-actions-count'
 import { useNotifications } from '@/components/providers/notification-provider'
+import HealthIndicator from '@/components/ui/health-indicator'
 
 interface GlobalHeaderProps {
   title?: string
@@ -1137,6 +1138,39 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         />
       )}
 
+      {/* Bulk Stock draft — business switch confirmation */}
+      {pendingDraftNav && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Switch Business?</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              The draft <span className="font-semibold">&ldquo;{pendingDraftNav.title}&rdquo;</span> belongs to:
+            </p>
+            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-4">{pendingDraftNav.businessName}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              You will be switched to that business to continue the stock job.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setPendingDraftNav(null)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem('currentBusinessId', pendingDraftNav.businessId)
+                  window.location.href = pendingDraftNav.url
+                }}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium"
+              >
+                📦 Switch & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Inline Edit Business Modal — no page navigation needed */}
       {showEditBusiness && currentBusiness?.businessId && editBusinessInitial && (
         <BusinessCreationModal
@@ -1669,43 +1703,15 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                   <span>Sign Out</span>
                 </div>
               </button>
+
+              <div className="px-4 py-2">
+                <HealthIndicator inline pollInterval={30000} />
+              </div>
             </div>
           </div>
         </>
       )}
 
-      {/* Bulk Stock draft — business switch confirmation */}
-      {pendingDraftNav && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Switch Business?</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-              The draft <span className="font-semibold">"{pendingDraftNav.title}"</span> belongs to:
-            </p>
-            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-4">{pendingDraftNav.businessName}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              You will be switched to that business to continue the stock job.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setPendingDraftNav(null)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  localStorage.setItem('currentBusinessId', pendingDraftNav.businessId)
-                  window.location.href = pendingDraftNav.url
-                }}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium"
-              >
-                📦 Switch & Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

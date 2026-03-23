@@ -511,10 +511,12 @@ function ClothingInventoryContent() {
 
   const businessId = currentBusinessId!
 
+  const isClothingBusiness = (currentBusiness as any)?.businessType === 'clothing' || (currentBusiness as any)?.type === 'clothing'
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'inventory', label: 'Items', icon: '👕' },
-    { id: 'bales', label: 'Bales', icon: '📦' },
+    ...(isClothingBusiness ? [{ id: 'bales', label: 'Bales', icon: '📦' }] : []),
     { id: 'movements', label: 'Stock Movements', icon: '🔄' },
     { id: 'alerts', label: 'Low Stock & Alerts', icon: '⚠️' },
     { id: 'reports', label: 'Analytics', icon: '📈' }
