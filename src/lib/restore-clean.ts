@@ -330,6 +330,12 @@ const RESTORE_ORDER = [
   'chickenUtilityCosts',         // Depends on businesses
   'chickenLaborLogs',            // Depends on businesses
 
+  // Stock Take Workflow (depends on businesses, users, employees, businessProducts)
+  'stockTakeDrafts',           // Depends on businesses, users
+  'stockTakeDraftItems',       // Depends on stockTakeDrafts, businessProducts, productVariants
+  'stockTakeReports',          // Depends on businesses, users, stockTakeDrafts
+  'stockTakeReportEmployees',  // Depends on stockTakeReports, employees, users
+
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs'           // Depends on users
 ]

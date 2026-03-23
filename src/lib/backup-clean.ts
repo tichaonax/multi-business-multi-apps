@@ -1234,6 +1234,22 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // 47. Stock Take Workflow
+  businessData.stockTakeDrafts = await prisma.stockTakeDrafts.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const stockTakeDraftIds = businessData.stockTakeDrafts.map((d: any) => d.id)
+  businessData.stockTakeDraftItems = await prisma.stockTakeDraftItems.findMany({
+    where: { draftId: { in: stockTakeDraftIds } }
+  })
+  businessData.stockTakeReports = await prisma.stockTakeReports.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const stockTakeReportIds = businessData.stockTakeReports.map((r: any) => r.id)
+  businessData.stockTakeReportEmployees = await prisma.stockTakeReportEmployees.findMany({
+    where: { reportId: { in: stockTakeReportIds } }
+  })
+
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined
 
