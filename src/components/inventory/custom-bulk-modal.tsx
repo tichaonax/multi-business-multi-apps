@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { randomBytes } from 'crypto'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 
 interface Category {
   id: string
@@ -20,6 +21,17 @@ interface CustomBulkModalProps {
   businessType: string
   onClose: () => void
   onSaved?: () => void
+}
+
+interface ExistingBulkProduct {
+  id: string
+  name: string
+  batchNumber: string
+  itemCount: number
+  remainingCount: number
+  unitPrice: string | number
+  barcode: string
+  isActive: boolean
 }
 
 function generateScanCode() {
@@ -41,6 +53,10 @@ const emptyForm = {
 }
 
 export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: CustomBulkModalProps) {
+  const confirm = useConfirm()
+  const { push: toast, error: toastError } = useToastContext()
+
+  const [tab, setTab] = useState<'register' | 'manage'>('register')
   const [form, setForm] = useState(emptyForm)
   const [categories, setCategories] = useState<Category[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -48,6 +64,20 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
   const [error, setError] = useState('')
   const [savedBatch, setSavedBatch] = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
+
+  // Manage tab state
+  const [existing, setExisting] = useState<ExistingBulkProduct[]>([])
+  const [existingLoading, setExistingLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const loadExisting = () => {
+    setExistingLoading(true)
+    fetch(`/api/custom-bulk?businessId=${businessId}&includeEmpty=true`)
+      .then(r => r.json())
+      .then(d => setExisting(Array.isArray(d.data) ? d.data : []))
+      .catch(() => {})
+      .finally(() => setExistingLoading(false))
+  }
 
   useEffect(() => {
     // Load categories flat list
@@ -65,6 +95,11 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
       .then(d => setSuppliers(Array.isArray(d) ? d : (d.data ?? d.suppliers ?? [])))
       .catch(() => {})
   }, [businessId, businessType])
+
+  useEffect(() => {
+    if (tab === 'manage') loadExisting()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
 
   useEffect(() => {
     nameRef.current?.focus()
@@ -123,10 +158,39 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
     setTimeout(() => nameRef.current?.focus(), 50)
   }
 
+  const handleDelete = async (product: ExistingBulkProduct) => {
+    const hasSales = product.remainingCount < product.itemCount
+    const ok = await confirm({
+      title: hasSales ? 'Deactivate bulk product?' : 'Delete bulk product?',
+      description: hasSales
+        ? `${product.name} has sales history (${product.itemCount - product.remainingCount} sold). It will be deactivated instead of deleted.`
+        : `Permanently delete ${product.name}? This cannot be undone.`,
+      confirmText: hasSales ? 'Deactivate' : 'Delete',
+      cancelText: 'Cancel',
+    })
+    if (!ok) return
+    setDeletingId(product.id)
+    try {
+      const res = await fetch(`/api/custom-bulk/${product.id}`, { method: 'DELETE' })
+      const d = await res.json()
+      if (d.success) {
+        toast(d.message ?? 'Done', { type: 'success' })
+        setExisting(prev => prev.filter(p => p.id !== product.id))
+        onSaved?.()
+      } else {
+        toastError(d.error || 'Failed')
+      }
+    } catch {
+      toastError('Failed to delete bulk product')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   // ── Success screen ────────────────────────────────────────────────────────
   if (savedBatch) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6 text-center">
           <div className="text-4xl mb-3">📦</div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Bulk Product Registered</h3>
@@ -149,16 +213,54 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
 
   // ── Form ─────────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <h2 className="text-base font-bold text-gray-900 dark:text-white">📦 Register Bulk Product</h2>
+          <h2 className="text-base font-bold text-gray-900 dark:text-white">📦 Bulk Products</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 dark:border-gray-700 shrink-0">
+          {(['register', 'manage'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex-1 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-orange-500 text-orange-600 dark:text-orange-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+              {t === 'register' ? '+ Register New' : '📋 Manage Existing'}
+            </button>
+          ))}
+        </div>
+
+        {/* Manage tab */}
+        {tab === 'manage' && (
+          <div className="overflow-y-auto flex-1 px-5 py-4">
+            {existingLoading ? (
+              <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-2 border-orange-400 border-t-transparent" /></div>
+            ) : existing.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-10">No active bulk products found.</p>
+            ) : (
+              <div className="space-y-2">
+                {existing.map(p => (
+                  <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{p.batchNumber} · {p.remainingCount}/{p.itemCount} remaining · ${Number(p.unitPrice).toFixed(2)}/item</p>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(p)}
+                      disabled={deletingId === p.id}
+                      className="shrink-0 px-2.5 py-1 text-xs border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40">
+                      {deletingId === p.id ? '…' : p.remainingCount < p.itemCount ? 'Deactivate' : 'Delete'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Register tab body */}
+        {tab === 'register' && <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
 
           {/* Name */}
           <div>
@@ -287,20 +389,22 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
               {error}
             </p>
           )}
-        </div>
+        </div>}
 
-        {/* Footer */}
-        <div className="flex gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
-          <button onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="flex-1 px-4 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-medium">
-            {loading ? 'Registering…' : 'Register Bulk Product'}
-          </button>
-        </div>
+        {/* Footer — only on register tab */}
+        {tab === 'register' && (
+          <div className="flex gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+            <button onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={loading}
+              className="flex-1 px-4 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-medium">
+              {loading ? 'Registering…' : 'Register Bulk Product'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

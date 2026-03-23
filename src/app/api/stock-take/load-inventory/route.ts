@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
       sellingPrice: number
       costPrice: number | null
       systemQuantity: number
+      itemType: string
     }> = []
 
     for (const product of products) {
@@ -109,6 +110,7 @@ export async function GET(request: NextRequest) {
           sellingPrice,
           costPrice: product.costPrice != null ? Number(product.costPrice) : null,
           systemQuantity: variant.stockQuantity,
+          itemType: 'product',
         })
       }
     }
@@ -142,6 +144,7 @@ export async function GET(request: NextRequest) {
         sellingPrice: Number(bi.sellingPrice ?? 0),
         costPrice: bi.costPrice != null ? Number(bi.costPrice) : null,
         systemQuantity: bi.stockQuantity,
+        itemType: 'barcode',
       })
     }
 
@@ -174,6 +177,41 @@ export async function GET(request: NextRequest) {
         sellingPrice: Number(bulk.unitPrice),
         costPrice: bulk.costPrice != null ? Number(bulk.costPrice) : null,
         systemQuantity: bulk.remainingCount,
+        itemType: 'bulk',
+      })
+    }
+
+    // Load active clothing bales for this business
+    const bales = await prisma.clothingBales.findMany({
+      where: { businessId, isActive: true },
+      select: {
+        id: true,
+        batchNumber: true,
+        remainingCount: true,
+        unitPrice: true,
+        costPrice: true,
+        sku: true,
+        scanCode: true,
+        barcode: true,
+        categoryId: true,
+        category: { select: { name: true } },
+      },
+      orderBy: { batchNumber: 'asc' },
+    })
+
+    for (const bale of bales) {
+      items.push({
+        productId: `bale_${bale.id}`,
+        variantId: `bale_${bale.id}`,
+        barcode: bale.scanCode || bale.barcode || '',
+        name: `${bale.batchNumber} — ${bale.category.name} [Bale]`,
+        categoryId: bale.categoryId,
+        supplierId: null,
+        sku: bale.sku,
+        sellingPrice: Number(bale.unitPrice),
+        costPrice: bale.costPrice != null ? Number(bale.costPrice) : null,
+        systemQuantity: bale.remainingCount,
+        itemType: 'bale',
       })
     }
 

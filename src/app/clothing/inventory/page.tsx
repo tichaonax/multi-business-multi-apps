@@ -67,6 +67,7 @@ function ClothingInventoryContent() {
   const [showAddStockPanel, setShowAddStockPanel] = useState<'bale' | 'product' | false>(false)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
+  const [selectedBaleIds, setSelectedBaleIds] = useState<Set<string>>(new Set())
   const [printHistoryBaleId, setPrintHistoryBaleId] = useState<string | null>(null)
   const [printHistoryBale, setPrintHistoryBale] = useState<any | null>(null)
   const [printHistory, setPrintHistory] = useState<any[]>([])
@@ -353,6 +354,48 @@ function ClothingInventoryContent() {
   }
 
   // Open BOGO history modal for a bale
+  const handleDeleteBale = async (bale: any) => {
+    if (!confirm(`Delete bale ${bale.batchNumber}? This cannot be undone.`)) return
+    try {
+      const res = await fetch(`/api/clothing/bales/${bale.id}`, { method: 'DELETE', credentials: 'include' })
+      const json = await res.json()
+      if (json.success) {
+        showToast(`Bale ${bale.batchNumber} deleted`, { type: 'success' })
+        setBales((prev: any[]) => prev.filter((b: any) => b.id !== bale.id))
+      } else {
+        showToast(json.error || 'Failed to delete bale', { type: 'error' })
+      }
+    } catch {
+      showToast('Failed to delete bale', { type: 'error' })
+    }
+  }
+
+  const handleBulkDeleteBales = async () => {
+    if (selectedBaleIds.size === 0) return
+    if (!confirm(`Delete ${selectedBaleIds.size} bale(s)? This cannot be undone.`)) return
+    const ids = [...selectedBaleIds]
+    let deleted: string[] = []
+    let failed: string[] = []
+    await Promise.all(ids.map(async (id) => {
+      try {
+        const res = await fetch(`/api/clothing/bales/${id}`, { method: 'DELETE', credentials: 'include' })
+        const json = await res.json()
+        if (json.success) deleted.push(id)
+        else failed.push(id)
+      } catch {
+        failed.push(id)
+      }
+    }))
+    if (deleted.length > 0) {
+      setBales((prev: any[]) => prev.filter((b: any) => !deleted.includes(b.id)))
+      setSelectedBaleIds(new Set())
+      showToast(`${deleted.length} bale(s) deleted`, { type: 'success' })
+    }
+    if (failed.length > 0) {
+      showToast(`${failed.length} bale(s) could not be deleted`, { type: 'error' })
+    }
+  }
+
   const openBogoHistory = async (baleId: string) => {
     setBogoHistoryBaleId(baleId)
     setBogoHistory([])
@@ -1096,6 +1139,14 @@ function ClothingInventoryContent() {
                         >
                           Transfer Bales
                         </button>
+                        {session?.user?.role === 'admin' && selectedBaleIds.size > 0 && (
+                          <button
+                            onClick={handleBulkDeleteBales}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
+                          >
+                            🗑️ Delete ({selectedBaleIds.size})
+                          </button>
+                        )}
                         <button
                           onClick={() => router.push('/clothing/inventory/transfer?endOfSale=true')}
                           className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs sm:text-sm font-medium transition-colors"
@@ -1303,6 +1354,18 @@ function ClothingInventoryContent() {
                         <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                           <thead className="bg-gray-50 dark:bg-gray-800">
                             <tr>
+                              {session?.user?.role === 'admin' && (() => {
+                                const deletable = bales.filter((b: any) => b.remainingCount === b.itemCount)
+                                const allChecked = deletable.length > 0 && deletable.every((b: any) => selectedBaleIds.has(b.id))
+                                return (
+                                  <th className="px-2 py-2 sm:py-3 w-8">
+                                    <input type="checkbox" checked={allChecked} onChange={() => {
+                                      if (allChecked) setSelectedBaleIds(new Set())
+                                      else setSelectedBaleIds(new Set(deletable.map((b: any) => b.id)))
+                                    }} className="rounded" />
+                                  </th>
+                                )
+                              })()}
                               <th className="px-1 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-secondary uppercase">Batch</th>
                               <th className="px-1 sm:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-secondary uppercase">Category</th>
                               <th className="px-1 sm:px-4 py-2 sm:py-3 text-right text-[10px] sm:text-xs font-medium text-secondary uppercase">Price</th>
@@ -1317,6 +1380,21 @@ function ClothingInventoryContent() {
                           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {bales.map((bale: any) => (
                               <tr key={bale.id} className={`${bale.remainingCount === 0 ? 'opacity-50' : ''}`}>
+                                {session?.user?.role === 'admin' && (
+                                  <td className="px-2 py-2 sm:py-3 w-8">
+                                    {bale.remainingCount === bale.itemCount && (
+                                      <input type="checkbox"
+                                        checked={selectedBaleIds.has(bale.id)}
+                                        onChange={() => setSelectedBaleIds(prev => {
+                                          const next = new Set(prev)
+                                          next.has(bale.id) ? next.delete(bale.id) : next.add(bale.id)
+                                          return next
+                                        })}
+                                        className="rounded"
+                                      />
+                                    )}
+                                  </td>
+                                )}
                                 <td className="px-1 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium">{bale.batchNumber}</td>
                                 <td className="px-1 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">{bale.category?.name}</td>
                                 <td className="px-1 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-right">${Number(bale.unitPrice).toFixed(2)}</td>
@@ -1422,6 +1500,16 @@ function ClothingInventoryContent() {
                                       <span className="sm:hidden">📋</span>
                                       <span className="hidden sm:inline whitespace-nowrap">History</span>
                                     </button>
+                                    {session?.user?.role === 'admin' && bale.remainingCount === bale.itemCount && (
+                                      <button
+                                        onClick={() => handleDeleteBale(bale)}
+                                        className="text-xs text-red-500 dark:text-red-400 hover:underline"
+                                        title="Delete bale (no sales)"
+                                      >
+                                        <span className="sm:hidden">🗑️</span>
+                                        <span className="hidden sm:inline whitespace-nowrap">Delete</span>
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>

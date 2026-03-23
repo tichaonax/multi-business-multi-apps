@@ -73,6 +73,9 @@ export default function CashBucketReportPage() {
   const [showDeleted, setShowDeleted] = useState(false)
   const [offset, setOffset] = useState(0)
   const limit = 100
+  const [selectedEntry, setSelectedEntry] = useState<BucketEntry | null>(null)
+  const [entryDetail, setEntryDetail] = useState<any>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const buildUrl = useCallback(() => {
     const p = new URLSearchParams()
@@ -336,7 +339,17 @@ export default function CashBucketReportPage() {
                       const isDeleted = !!e.deletedAt
                       const isEdited = !!e.editedAt && !isDeleted
                       return (
-                        <tr key={e.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''}`}>
+                        <tr key={e.id} onClick={async () => {
+                          setSelectedEntry(e)
+                          setEntryDetail(null)
+                          setDetailLoading(true)
+                          try {
+                            const res = await fetch(`/api/cash-bucket/${e.id}`, { credentials: 'include' })
+                            if (res.ok) setEntryDetail((await res.json()).data)
+                          } finally {
+                            setDetailLoading(false)
+                          }
+                        }} className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''}`}>
                           <td className="px-3 py-2 whitespace-nowrap text-secondary">
                             {new Date(e.entryDate).toLocaleDateString()}
                           </td>
@@ -413,6 +426,119 @@ export default function CashBucketReportPage() {
         </div>
 
       </div>
+
+      {/* Entry detail modal */}
+      {selectedEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedEntry(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+              <div>
+                <h2 className="text-base font-semibold text-primary">
+                  {ENTRY_TYPE_LABEL[selectedEntry.entryType] ?? selectedEntry.entryType}
+                </h2>
+                <p className="text-xs text-secondary mt-0.5">
+                  {selectedEntry.business?.name} · {new Date(selectedEntry.entryDate).toLocaleDateString()}
+                </p>
+              </div>
+              <button onClick={() => setSelectedEntry(null)} className="text-secondary hover:text-primary text-xl leading-none">×</button>
+            </div>
+
+            {/* Summary row */}
+            <div className="px-5 py-3 border-b border-border shrink-0 flex items-center justify-between text-sm">
+              <span className="text-secondary">
+                {selectedEntry.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'} ·
+                {selectedEntry.direction === 'INFLOW' ? ' Inflow' : ' Outflow'}
+              </span>
+              <span className={`text-lg font-bold ${selectedEntry.direction === 'INFLOW' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {selectedEntry.direction === 'OUTFLOW' ? '−' : '+'}{fmt(selectedEntry.amount)}
+              </span>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4 text-sm">
+
+              {selectedEntry.notes && (
+                <p className="text-secondary italic">"{selectedEntry.notes}"</p>
+              )}
+
+              {/* Payment list */}
+              {detailLoading && (
+                <p className="text-secondary text-xs">Loading payments…</p>
+              )}
+
+              {!detailLoading && entryDetail?.payments?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">
+                    Payments ({entryDetail.payments.length})
+                  </p>
+                  <div className="space-y-2">
+                    {entryDetail.payments.map((p: any) => (
+                      <div key={p.id} className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50">
+                        <div className="min-w-0">
+                          <p className="font-medium text-primary truncate">{p.payeeName}</p>
+                          {p.category && <p className="text-xs text-secondary mt-0.5">{p.category}</p>}
+                          {p.notes   && <p className="text-xs text-secondary truncate">{p.notes}</p>}
+                          <p className="text-xs text-secondary mt-0.5">
+                            {p.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'} · {p.status}
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-red-600 dark:text-red-400 shrink-0">
+                          {fmt(p.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Petty cash detail */}
+              {!detailLoading && entryDetail?.pettyCash && (
+                <div className="rounded-lg border border-border px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50 space-y-1.5">
+                  <p className="font-medium text-primary">{entryDetail.pettyCash.purpose}</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-secondary">
+                    <span>Requested by</span><span className="text-primary font-medium">{entryDetail.pettyCash.requestedBy}</span>
+                    <span>Requested</span><span>{fmt(entryDetail.pettyCash.requestedAmount)}</span>
+                    {entryDetail.pettyCash.approvedAmount != null && <><span>Approved</span><span>{fmt(entryDetail.pettyCash.approvedAmount)}</span></>}
+                    {entryDetail.pettyCash.spentAmount   != null && <><span>Spent</span><span>{fmt(entryDetail.pettyCash.spentAmount)}</span></>}
+                    {entryDetail.pettyCash.returnAmount  != null && <><span>Returned</span><span>{fmt(entryDetail.pettyCash.returnAmount)}</span></>}
+                    <span>Status</span><span>{entryDetail.pettyCash.status}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Audit trail */}
+              <div className="space-y-1.5 pt-1 border-t border-border">
+                <Row label="Recorded by" value={selectedEntry.createdBy?.name ?? '—'} />
+                {selectedEntry.editedAt && (
+                  <Row label="Edited" value={`${selectedEntry.editedBy?.name ?? '?'} · ${new Date(selectedEntry.editedAt).toLocaleDateString()}`} highlight="amber" />
+                )}
+                {selectedEntry.deletedAt && (
+                  <>
+                    <Row label="Deleted" value={`${selectedEntry.deletedBy?.name ?? '?'} · ${new Date(selectedEntry.deletedAt).toLocaleDateString()}`} highlight="red" />
+                    {selectedEntry.deletionReason && <Row label="Reason" value={selectedEntry.deletionReason} highlight="red" />}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </ContentLayout>
+  )
+}
+
+function Row({ label, value, bold, highlight }: { label: string; value: string; bold?: boolean; highlight?: 'amber' | 'red' }) {
+  const valueClass = highlight === 'amber'
+    ? 'text-amber-700 dark:text-amber-400'
+    : highlight === 'red'
+    ? 'text-red-600 dark:text-red-400'
+    : bold ? 'font-semibold text-primary' : 'text-secondary'
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-secondary shrink-0">{label}</span>
+      <span className={`text-right ${valueClass}`}>{value}</span>
+    </div>
   )
 }

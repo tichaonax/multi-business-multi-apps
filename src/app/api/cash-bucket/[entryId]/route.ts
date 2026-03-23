@@ -5,6 +5,134 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 
 const EDIT_WINDOW_DAYS = 8
 
+/**
+ * GET /api/cash-bucket/[entryId]
+ * Returns the entry plus resolved payment details for the modal.
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ entryId: string }> }
+) {
+  try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { entryId } = await params
+    const entry = await prisma.cashBucketEntry.findUnique({
+      where: { id: entryId },
+      include: {
+        business: { select: { id: true, name: true, type: true } },
+        creator: { select: { id: true, name: true } },
+        editor:  { select: { id: true, name: true } },
+        deleter: { select: { id: true, name: true } },
+      },
+    })
+    if (!entry) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
+
+    let payments: any[] = []
+
+    // Resolve individual payments for PAYMENT_APPROVAL entries
+    if (entry.entryType === 'PAYMENT_APPROVAL' && entry.referenceId) {
+      const paymentWhere: any =
+        entry.referenceType === 'EOD_BATCH'
+          ? { eod_batch_id: entry.referenceId }
+          : entry.referenceType === 'EXPENSE_PAYMENT'
+          ? { id: entry.referenceId }
+          : null
+
+      if (paymentWhere) {
+        const rows = await prisma.expenseAccountPayments.findMany({
+          where: paymentWhere,
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            notes: true,
+            paymentDate: true,
+            paymentType: true,
+            paymentChannel: true,
+            payeeType: true,
+            payeeUserId: true,
+            payeeEmployeeId: true,
+            payeePersonId: true,
+            payeeSupplierId: true,
+            categoryId: true,
+            users_expenseAccountPayments_payeeUserIdTousers: { select: { name: true } },
+            employees: { select: { firstName: true, lastName: true } },
+            persons: { select: { firstName: true, lastName: true } },
+            business_suppliers: { select: { name: true } },
+            expense_categories: { select: { name: true } },
+          },
+        })
+
+        payments = rows.map((p: any) => {
+          let payeeName = '—'
+          if (p.payeeType === 'USER' && p.users_expenseAccountPayments_payeeUserIdTousers)
+            payeeName = p.users_expenseAccountPayments_payeeUserIdTousers.name
+          else if (p.payeeType === 'EMPLOYEE' && p.employees)
+            payeeName = `${p.employees.firstName} ${p.employees.lastName}`
+          else if (p.payeeType === 'PERSON' && p.persons)
+            payeeName = `${p.persons.firstName} ${p.persons.lastName}`
+          else if (p.payeeType === 'SUPPLIER' && p.business_suppliers)
+            payeeName = p.business_suppliers.name
+
+          return {
+            id: p.id,
+            amount: Number(p.amount),
+            status: p.status,
+            notes: p.notes,
+            paymentDate: p.paymentDate,
+            paymentChannel: p.paymentChannel,
+            payeeName,
+            category: p.expense_categories?.name ?? null,
+          }
+        })
+      }
+    }
+
+    // Resolve petty cash request details
+    let pettyCash: any = null
+    if ((entry.entryType === 'PETTY_CASH' || entry.entryType === 'PETTY_CASH_RETURN') && entry.referenceId) {
+      const pc = await prisma.pettyCashRequests.findUnique({
+        where: { id: entry.referenceId },
+        select: {
+          id: true, purpose: true, requestedAmount: true, approvedAmount: true,
+          spentAmount: true, returnAmount: true, status: true, requestedAt: true,
+          users_petty_cash_requests_requestedByTousers: { select: { name: true } },
+        },
+      })
+      if (pc) {
+        pettyCash = {
+          id: pc.id,
+          purpose: pc.purpose,
+          requestedAmount: Number(pc.requestedAmount),
+          approvedAmount: pc.approvedAmount ? Number(pc.approvedAmount) : null,
+          spentAmount: pc.spentAmount ? Number(pc.spentAmount) : null,
+          returnAmount: pc.returnAmount ? Number(pc.returnAmount) : null,
+          status: pc.status,
+          requestedAt: pc.requestedAt,
+          requestedBy: (pc as any).users_petty_cash_requests_requestedByTousers?.name ?? '—',
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: entry.id,
+        entryType: entry.entryType,
+        referenceType: entry.referenceType,
+        referenceId: entry.referenceId,
+        payments,
+        pettyCash,
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching cash bucket entry detail:', error)
+    return NextResponse.json({ error: 'Failed to fetch entry detail' }, { status: 500 })
+  }
+}
+
 function isWithinEditWindow(createdAt: Date): boolean {
   const diffMs = Date.now() - createdAt.getTime()
   return diffMs <= EDIT_WINDOW_DAYS * 24 * 60 * 60 * 1000

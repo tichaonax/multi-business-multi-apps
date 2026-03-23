@@ -163,3 +163,36 @@ export async function PUT(
     }, { status: 500 })
   }
 }
+
+// DELETE /api/clothing/bales/[baleId]
+// Admin only. Allowed only if the bale has no sales (no BusinessOrderItems reference it).
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ baleId: string }> }
+) {
+  try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    if (user.role !== 'admin') return NextResponse.json({ success: false, error: 'Admin only' }, { status: 403 })
+
+    const { baleId } = await params
+
+    const bale = await prisma.clothingBales.findUnique({ where: { id: baleId } })
+    if (!bale) return NextResponse.json({ success: false, error: 'Bale not found' }, { status: 404 })
+
+    // Block deletion if any items have been sold (remainingCount < itemCount)
+    if (bale.remainingCount < bale.itemCount) {
+      return NextResponse.json({
+        success: false,
+        error: `Cannot delete — ${bale.itemCount - bale.remainingCount} item(s) have already been sold from this bale`
+      }, { status: 400 })
+    }
+
+    await prisma.clothingBales.delete({ where: { id: baleId } })
+
+    return NextResponse.json({ success: true, message: `Bale ${bale.batchNumber} deleted` })
+  } catch (error) {
+    console.error('Bale delete error:', error)
+    return NextResponse.json({ success: false, error: 'Failed to delete bale' }, { status: 500 })
+  }
+}

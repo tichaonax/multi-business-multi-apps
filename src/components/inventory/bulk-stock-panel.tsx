@@ -5,6 +5,8 @@ import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StockTakeReportPreview } from './stock-take-report-preview'
 import { CustomBulkModal } from './custom-bulk-modal'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 
 interface BulkStockRow {
   rowId: string
@@ -24,6 +26,7 @@ interface BulkStockRow {
   sku: string
   isFreeItem: boolean
   isExistingItem: boolean
+  itemType?: string             // 'product' | 'barcode' | 'bulk' | 'bale' — set for stock-take loaded rows
   currentStock: number | null   // systemQuantity from DB at time of scan/sync
   physicalCount: string         // actual physical shelf count entered by user
   status: 'pending' | 'saving' | 'saved' | 'error'
@@ -84,6 +87,7 @@ function makeRow(overrides: Partial<BulkStockRow> = {}): BulkStockRow {
     sku: '',
     isFreeItem: false,
     isExistingItem: false,
+    itemType: undefined,
     currentStock: null,
     physicalCount: '',
     status: 'pending',
@@ -117,6 +121,9 @@ function resolveHierarchy(categoryId: string, allCats: BusinessCategory[]) {
 }
 
 export function BulkStockPanel({ businessId, businessName, businessType, onClose, initialMode }: BulkStockPanelProps) {
+  const confirm = useConfirm()
+  const { push: toast, error: toastError } = useToastContext()
+
   const [rows, setRows] = useState<BulkStockRow[]>([])
   const [scanInput, setScanInput] = useState('')
   const [scanLoading, setScanLoading] = useState(false)
@@ -159,6 +166,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [showDraftSelector, setShowDraftSelector] = useState(false)
   const [newDraftTitle, setNewDraftTitle] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [submittedReportId, setSubmittedReportId] = useState<string | null>(null)
   // Tick state to force re-render for "X min ago" updates
@@ -323,6 +331,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           name: item.name || '',
           nameReadOnly: true,
           isExistingItem: true,
+          itemType: item.itemType,
           currentStock: item.systemQuantity ?? 0,
           sellingPrice: String(item.sellingPrice || ''),
           costPrice: item.costPrice != null ? String(item.costPrice) : '',
@@ -581,12 +590,18 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         const hierarchyPatch = item.categoryId && allCats.length > 0
           ? resolveHierarchy(item.categoryId, allCats)
           : { departmentId: '', categoryId: item.categoryId || '', subCategoryId: '' }
+        // Infer itemType from name suffix when not stored (legacy drafts)
+        const inferredType = item.itemType
+          ?? (item.name?.endsWith('[Bale]') ? 'bale'
+            : item.name?.endsWith('[Bulk]') ? 'bulk'
+            : undefined)
         return makeRow({
           barcode: item.barcode || '',
           barcodeReadOnly: !!item.barcode,
           name: item.name || '',
           nameReadOnly: item.isExistingItem,
           isExistingItem: item.isExistingItem,
+          itemType: inferredType,
           currentStock: item.systemQuantity ?? null,
           physicalCount: item.physicalCount != null ? String(item.physicalCount) : '',
           quantity: item.newQuantity != null ? String(item.newQuantity) : '',
@@ -672,9 +687,48 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     setShowDraftSelector(true)
   }
 
-  const handleDeleteDraftFromList = async (id: string) => {
-    await fetch(`/api/stock-take/drafts/${id}`, { method: 'DELETE' }).catch(() => {})
-    setDraftList(prev => prev.filter(d => d.id !== id))
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
+
+  const handleDeleteDraftFromList = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    const ok = await confirm({ title: 'Delete draft', description: 'This draft will be permanently deleted. This cannot be undone.', confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
+    setDeletingDraftId(id)
+    try {
+      const res = await fetch(`/api/stock-take/drafts/${id}`, { method: 'DELETE' })
+      const d = await res.json()
+      if (d.success || res.status === 404) {
+        setDraftList(prev => prev.filter(dr => dr.id !== id))
+        toast('Draft deleted', { type: 'success' })
+      } else {
+        toastError(d.error || 'Failed to delete draft')
+      }
+    } catch {
+      toastError('Failed to delete draft')
+    } finally {
+      setDeletingDraftId(null)
+    }
+  }
+
+  const handleDeleteCurrentDraft = async () => {
+    if (!draftId) return
+    const ok = await confirm({ title: 'Delete this draft?', description: 'All rows and progress in this draft will be permanently deleted.', confirmText: 'Delete', cancelText: 'Cancel' })
+    if (!ok) return
+    setDraftLoading(true)
+    try {
+      const res = await fetch(`/api/stock-take/drafts/${draftId}`, { method: 'DELETE' })
+      const d = await res.json()
+      if (d.success) {
+        toast('Draft deleted', { type: 'success' })
+        onClose()
+      } else {
+        toastError(d.error || 'Failed to delete draft')
+      }
+    } catch {
+      toastError('Failed to delete draft')
+    } finally {
+      setDraftLoading(false)
+    }
   }
 
   const handleGoToDuplicate = () => {
@@ -969,6 +1023,12 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
             ⇄ Switch Draft
           </button>
+          {draftId && (
+            <button onClick={handleDeleteCurrentDraft} disabled={draftLoading}
+              className="px-2.5 py-1 text-xs border border-red-300 dark:border-red-700 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50">
+              🗑 Delete Draft
+            </button>
+          )}
           <button onClick={saveDraft} disabled={draftLoading || rows.length === 0}
             className="px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50">
             {draftLoading ? 'Saving…' : '💾 Save Draft'}
@@ -1040,6 +1100,34 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         </div>
       </div>
 
+      {/* Search / filter bar */}
+      {rows.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
+          <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Filter by barcode, name, description…"
+            className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+          />
+          {searchQuery && (
+            <>
+              <span className="text-xs text-gray-400 shrink-0">
+                {rows.filter(r => {
+                  const q = searchQuery.toLowerCase()
+                  return r.barcode.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q)
+                }).length} of {rows.length}
+              </span>
+              <button onClick={() => setSearchQuery('')}
+                className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 shrink-0">
+                Reset
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Duplicate alert */}
       {duplicateAlert && (
         <div className="mx-4 mt-3 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-3">
@@ -1107,7 +1195,11 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => (
+              {rows.filter(row => {
+                if (!searchQuery) return true
+                const q = searchQuery.toLowerCase()
+                return row.barcode.toLowerCase().includes(q) || row.name.toLowerCase().includes(q) || row.description.toLowerCase().includes(q)
+              }).map((row, idx) => (
                 <BulkRowEditor
                   key={row.rowId}
                   row={row}
@@ -1170,10 +1262,10 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                       {d.itemCount} item{d.itemCount !== 1 ? 's' : ''} · Last saved {new Date(d.updatedAt).toLocaleString()}
                     </p>
                   </button>
-                  <button onClick={() => handleDeleteDraftFromList(d.id)} disabled={draftLoading}
-                    className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40 shrink-0 px-1"
+                  <button onClick={e => handleDeleteDraftFromList(e, d.id)} disabled={draftLoading || deletingDraftId === d.id}
+                    className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40 shrink-0 px-2 py-0.5 rounded border border-red-200 hover:border-red-400"
                     title="Delete this draft">
-                    🗑
+                    {deletingDraftId === d.id ? '…' : '🗑 Delete'}
                   </button>
                 </div>
               ))}
@@ -1387,7 +1479,10 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
     <tr ref={rowRef} className={`border-b border-gray-100 dark:border-gray-700 transition-all ${rowStatusClass} ${highlightClass}`}>
       <td className="px-2 py-1.5 text-center text-xs text-gray-400">
         {isCounted ? <span className="text-emerald-500 font-bold">✓</span> : rowNumber}
-        {row.isExistingItem && <div className="text-[9px] font-medium text-blue-500 leading-none mt-0.5">Existing</div>}
+        {row.itemType === 'bale'    && <div className="text-[9px] font-bold text-orange-500 leading-none mt-0.5">Bale</div>}
+        {row.itemType === 'bulk'    && <div className="text-[9px] font-bold text-purple-500 leading-none mt-0.5">Bulk</div>}
+        {row.itemType === 'barcode' && <div className="text-[9px] font-bold text-teal-600 leading-none mt-0.5">BCI</div>}
+        {row.isExistingItem && !row.itemType && <div className="text-[9px] font-medium text-blue-500 leading-none mt-0.5">Stk</div>}
       </td>
 
       {/* Barcode */}

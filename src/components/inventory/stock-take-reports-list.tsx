@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { StockTakeReportDetail } from './stock-take-report-detail'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 
 interface ReportEmployee {
   id: string
@@ -44,6 +46,9 @@ function fmt(n: number | string) {
 }
 
 export function StockTakeReportsList({ businessId, businessName, canManage, onClose }: StockTakeReportsListProps) {
+  const confirm = useConfirm()
+  const { push: toast, error: toastError } = useToastContext()
+
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -51,6 +56,27 @@ export function StockTakeReportsList({ businessId, businessName, canManage, onCl
   const [totalPages, setTotalPages] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
+  const [voidingId, setVoidingId] = useState<string | null>(null)
+
+  const handleVoid = async (id: string) => {
+    const ok = await confirm({ title: 'Void stock take report?', description: 'This will mark the report as voided. Stock changes already recorded are not reversed.', confirmText: 'Void Report', cancelText: 'Cancel' })
+    if (!ok) return
+    setVoidingId(id)
+    try {
+      const res = await fetch(`/api/stock-take/reports/${id}/void`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const d = await res.json()
+      if (d.success) {
+        setReports(prev => prev.map(r => r.id === id ? { ...r, status: 'VOIDED' } : r))
+        toast('Report voided', { type: 'success' })
+      } else {
+        toastError(d.error || 'Void failed')
+      }
+    } catch {
+      toastError('Void failed')
+    } finally {
+      setVoidingId(null)
+    }
+  }
 
   const fetchReports = useCallback(() => {
     setLoading(true)
@@ -166,10 +192,18 @@ export function StockTakeReportsList({ businessId, businessName, canManage, onCl
                       </td>
                       <td className="px-3 py-2.5 text-xs text-gray-500">{r.submittedBy?.name ?? '—'}</td>
                       <td className="px-3 py-2.5 text-center">
-                        <button onClick={() => setSelectedReportId(r.id)}
-                          className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-                          View
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => setSelectedReportId(r.id)}
+                            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+                            View
+                          </button>
+                          {canManage && r.status === 'PENDING_SIGNOFF' && (
+                            <button onClick={() => handleVoid(r.id)} disabled={voidingId === r.id}
+                              className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40 font-medium">
+                              {voidingId === r.id ? '…' : 'Void'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )

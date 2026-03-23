@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
 
 const include = {
   category: { select: { id: true, name: true } },
@@ -100,5 +101,34 @@ export async function PUT(
   } catch (error) {
     console.error('Custom bulk update error:', error)
     return NextResponse.json({ success: false, error: 'Failed to update custom bulk product' }, { status: 500 })
+  }
+}
+
+// DELETE /api/custom-bulk/[id]
+// Hard-deletes if no items sold; soft-deletes (isActive=false) if sales exist.
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    if (user.role !== 'admin') return NextResponse.json({ success: false, error: 'Admin only' }, { status: 403 })
+
+    const { id } = await params
+    const product = await prisma.customBulkProducts.findUnique({ where: { id } })
+    if (!product) return NextResponse.json({ success: false, error: 'Bulk product not found' }, { status: 404 })
+
+    if (product.remainingCount < product.itemCount) {
+      // Items have been sold — soft-delete only
+      await prisma.customBulkProducts.update({ where: { id }, data: { isActive: false } })
+      return NextResponse.json({ success: true, deactivated: true, message: 'Product deactivated (has sales history)' })
+    }
+
+    await prisma.customBulkProducts.delete({ where: { id } })
+    return NextResponse.json({ success: true, deleted: true, message: 'Product deleted' })
+  } catch (error) {
+    console.error('Custom bulk delete error:', error)
+    return NextResponse.json({ success: false, error: 'Failed to delete bulk product' }, { status: 500 })
   }
 }
