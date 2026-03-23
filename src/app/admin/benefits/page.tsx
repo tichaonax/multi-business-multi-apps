@@ -802,7 +802,7 @@ export default function BenefitsPage() {
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       value={benefitForm.defaultAmount}
                       onChange={(e) => setBenefitForm(prev => ({ ...prev, defaultAmount: e.target.value }))}
                       className="input w-full px-4 py-2.5 text-base"
@@ -902,7 +902,7 @@ export default function BenefitsPage() {
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       value={compensationForm.baseAmount}
                       onChange={(e) => setCompensationForm(prev => ({ ...prev, baseAmount: e.target.value }))}
                       className="input w-full px-4 py-2.5 text-base"
@@ -915,7 +915,7 @@ export default function BenefitsPage() {
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       value={compensationForm.commissionPercentage}
                       onChange={(e) => setCompensationForm(prev => ({ ...prev, commissionPercentage: e.target.value }))}
                       className="input w-full px-4 py-2.5 text-base"

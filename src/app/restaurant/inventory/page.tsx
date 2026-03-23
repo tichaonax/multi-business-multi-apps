@@ -89,6 +89,10 @@ function RestaurantInventoryContent() {
     }
   }, [searchParams, currentBusinessId, router])
 
+  useEffect(() => {
+    if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
+  }, [searchParams])
+
   // Pre-fill inventory tracking fields when editing an existing item
   useEffect(() => {
     if (selectedItem) {

@@ -790,7 +790,7 @@ export default function ProjectExpensesPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         placeholder="0.00"
                         min="0"
-                        step="0.01"
+                        step="0.10"
                         required
                       />
                     </div>
@@ -994,7 +994,7 @@ export default function ProjectExpensesPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         placeholder="0.00"
                         min="0"
-                        step="0.01"
+                        step="0.10"
                         required
                       />
                     </div>
@@ -1516,7 +1516,7 @@ export default function ProjectExpensesPage() {
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       value={stageForm.estimatedAmount}
                       onChange={(e) => setStageForm({ ...stageForm, estimatedAmount: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"

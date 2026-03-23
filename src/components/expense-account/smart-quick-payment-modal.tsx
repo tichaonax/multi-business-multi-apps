@@ -713,7 +713,7 @@ export default function SmartQuickPaymentModal({
                         <input
                           type="number"
                           min="0.01"
-                          step="0.01"
+                          step="0.10"
                           placeholder="Amount"
                           value={line.amount}
                           onChange={e => updateLine(line.id, { amount: e.target.value })}

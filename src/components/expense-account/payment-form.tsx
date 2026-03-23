@@ -1341,7 +1341,7 @@ export function PaymentForm({
                 <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400">$</span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.10"
                   min="0"
                   max="999999999.99"
                   value={formData.amount}
@@ -1453,7 +1453,7 @@ export function PaymentForm({
                     <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400">$</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       min="0"
                       value={formData.interestAmount}
                       onChange={(e) => setFormData({ ...formData, interestAmount: e.target.value })}

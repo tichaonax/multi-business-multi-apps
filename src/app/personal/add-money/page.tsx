@@ -218,7 +218,7 @@ export default function AddMoneyPage() {
               <input
                 type="number"
                 id="amount"
-                step="0.01"
+                step="0.10"
                 min="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

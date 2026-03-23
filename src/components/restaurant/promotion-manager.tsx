@@ -488,7 +488,7 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
                   </label>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.10"
                     min="0"
                     value={formData.value}
                     onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
@@ -502,7 +502,7 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
                   </label>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.10"
                     min="0"
                     value={formData.minOrderAmount}
                     onChange={(e) => setFormData(prev => ({ ...prev, minOrderAmount: e.target.value }))}
@@ -515,7 +515,7 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
                   </label>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.10"
                     min="0"
                     value={formData.maxDiscountAmount}
                     onChange={(e) => setFormData(prev => ({ ...prev, maxDiscountAmount: e.target.value }))}

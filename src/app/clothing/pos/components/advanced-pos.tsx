@@ -1313,8 +1313,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       // Compute EcoCash fee upfront so it's available for both the order and the receipt
       const ecoFeeType = (currentBusiness as any)?.ecocashFeeType
       const ecoFeeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+      const ecoMinimumFee = (currentBusiness as any)?.ecocashMinimumFee ?? 0
       const computedEcocashFee = selectedPaymentMethod === 'ECOCASH'
-        ? (ecoFeeType === 'PERCENTAGE' ? total * (ecoFeeValue / 100) : ecoFeeType === 'FIXED' ? ecoFeeValue : 0)
+        ? (() => {
+            const rawFee = ecoFeeType === 'PERCENTAGE' ? total * (ecoFeeValue / 100) : ecoFeeType === 'FIXED' ? ecoFeeValue : 0
+            return ecoFeeType === 'PERCENTAGE' ? Math.max(rawFee, ecoMinimumFee) : rawFee
+          })()
         : 0
 
       const totals = {
@@ -2290,7 +2294,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   <label className="block text-sm font-medium text-primary mb-2">Amount Received</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.10"
                     min="0"
                     placeholder="Enter amount received"
                     value={cashTendered}
@@ -2322,7 +2326,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               {selectedPaymentMethod === 'ECOCASH' && (() => {
                 const feeType = (currentBusiness as any)?.ecocashFeeType
                 const feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
-                const fee = feeType === 'PERCENTAGE' ? calculateTotal() * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+                const minimumFee = (currentBusiness as any)?.ecocashMinimumFee ?? 0
+                const rawFee = feeType === 'PERCENTAGE' ? calculateTotal() * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+                const fee = feeType === 'PERCENTAGE' ? Math.max(rawFee, minimumFee) : rawFee
                 const ecocashTotal = calculateTotal() + fee
                 return (
                   <div className="space-y-2">

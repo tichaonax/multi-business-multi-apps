@@ -472,7 +472,7 @@ export default function CouponsManagementPage() {
                       </label>
                       <input
                         type="number"
-                        step="0.01"
+                        step="0.10"
                         min="0.01"
                         max="20"
                         value={formData.discountAmount}

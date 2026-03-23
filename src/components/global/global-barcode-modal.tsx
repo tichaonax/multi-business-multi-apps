@@ -359,17 +359,25 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
             )
           } else {
             // ✅ Product in current business — add to cart silently
-            window.dispatchEvent(
-              new CustomEvent('pos:add-to-cart', {
-                detail: {
-                  productId: currentBizMatch.productId,
-                  variantId: currentBizMatch.variantId ?? undefined,
-                  productName: currentBizMatch.productName,
-                  price: currentBizMatch.price,
-                  variantAttributes: currentBizMatch.variantAttributes,
-                },
-              })
-            )
+            // Skip if BarcodeScanner already handled this product to prevent double-add
+            const scannerHandled = (window as any).__barcodeScannerHandled
+            const alreadyHandledByScanner = scannerHandled &&
+              scannerHandled.productId === currentBizMatch.productId &&
+              (scannerHandled.variantId ?? null) === (currentBizMatch.variantId ?? null) &&
+              (Date.now() - scannerHandled.ts) < 1000
+            if (!alreadyHandledByScanner) {
+              window.dispatchEvent(
+                new CustomEvent('pos:add-to-cart', {
+                  detail: {
+                    productId: currentBizMatch.productId,
+                    variantId: currentBizMatch.variantId ?? undefined,
+                    productName: currentBizMatch.productName,
+                    price: currentBizMatch.price,
+                    variantAttributes: currentBizMatch.variantAttributes,
+                  },
+                })
+              )
+            }
           }
           onClose()
           return

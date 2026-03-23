@@ -78,6 +78,10 @@ function GroceryInventoryContent() {
   }, [searchParams, currentBusinessId, router])
 
   useEffect(() => {
+    if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
+  }, [searchParams])
+
+  useEffect(() => {
     if (status === 'loading') return
     if (!session) router.push('/auth/signin')
   }, [session, status, router])

@@ -29,8 +29,9 @@ interface BulkStockRow {
   errorMessage?: string
 }
 
-interface DraftResumeInfo {
+interface DraftListItem {
   id: string
+  title: string | null
   updatedAt: string
   itemCount: number
 }
@@ -146,10 +147,14 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
   // Draft state
   const [draftId, setDraftId] = useState<string | null>(null)
+  const [draftTitle, setDraftTitle] = useState('')
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null)
   const [draftUnsaved, setDraftUnsaved] = useState(false)
   const [draftLoading, setDraftLoading] = useState(false)
-  const [showResumeDraft, setShowResumeDraft] = useState<DraftResumeInfo | null>(null)
+  const [draftCheckLoading, setDraftCheckLoading] = useState(true)
+  const [draftList, setDraftList] = useState<DraftListItem[]>([])
+  const [showDraftSelector, setShowDraftSelector] = useState(false)
+  const [newDraftTitle, setNewDraftTitle] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [submittedReportId, setSubmittedReportId] = useState<string | null>(null)
@@ -166,20 +171,30 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     return () => { ;(window as any).__bulkStockingActive = false }
   }, [])
 
-  // Store full draft data for resume (loaded on mount, used by handleResumeDraft)
-  const resumeDraftRef = useRef<any>(null)
-
-  // On mount: check for existing active draft
+  // On mount: check for existing active drafts
   useEffect(() => {
+    setDraftCheckLoading(true)
     fetch(`/api/stock-take/drafts?businessId=${businessId}`)
       .then(r => r.json())
       .then(d => {
-        if (d.success && d.draft) {
-          resumeDraftRef.current = d.draft
-          setShowResumeDraft({ id: d.draft.id, updatedAt: d.draft.updatedAt, itemCount: d.draft.items?.length ?? 0 })
+        if (d.success && Array.isArray(d.drafts) && d.drafts.length > 0) {
+          const list: DraftListItem[] = d.drafts.map((dr: any) => ({
+            id: dr.id,
+            title: dr.title,
+            updatedAt: dr.updatedAt,
+            itemCount: dr._count?.items ?? 0,
+          }))
+          setDraftList(list)
+          setShowDraftSelector(true)
+        } else {
+          // No drafts — auto-set a default title so user can start immediately
+          setDraftTitle(`Stock ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`)
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        setDraftTitle(`Stock ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`)
+      })
+      .finally(() => setDraftCheckLoading(false))
   }, [businessId])
 
   // Auto-save draft every 60 seconds when there are unsaved rows
@@ -349,42 +364,30 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         displayOrder: i,
       }))
 
-      if (draftId) {
-        const res = await fetch(`/api/stock-take/drafts/${draftId}`, {
+      let activeDraftId = draftId
+      if (!activeDraftId) {
+        const title = draftTitle.trim() || `Stock ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+        const createRes = await fetch('/api/stock-take/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessId, title }),
+        })
+        const createData = await createRes.json()
+        if (createData.success && createData.draft?.id) {
+          activeDraftId = createData.draft.id
+          setDraftId(activeDraftId)
+          setDraftTitle(title)
+        }
+      }
+      if (activeDraftId) {
+        const res = await fetch(`/api/stock-take/drafts/${activeDraftId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items }),
+          body: JSON.stringify({ title: draftTitle.trim() || undefined, items }),
         })
         if (res.ok) {
           setDraftSavedAt(new Date())
           setDraftUnsaved(false)
-        }
-      } else {
-        const res = await fetch('/api/stock-take/drafts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ businessId }),
-        })
-        const d = await res.json()
-        let createdDraftId: string | null = null
-        if (res.status === 409 && d.draftId) {
-          // Draft already exists — use it
-          createdDraftId = d.draftId
-        } else if (d.success && d.draft?.id) {
-          createdDraftId = d.draft.id
-        }
-        if (createdDraftId) {
-          setDraftId(createdDraftId)
-          // Now save items to the draft we just created/found
-          const putRes = await fetch(`/api/stock-take/drafts/${createdDraftId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items }),
-          })
-          if (putRes.ok) {
-            setDraftSavedAt(new Date())
-            setDraftUnsaved(false)
-          }
         }
       }
     } catch (e) {
@@ -413,13 +416,13 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     }
   }
 
-  const handleResumeDraft = async () => {
-    if (!showResumeDraft) return
-    const draft = resumeDraftRef.current
-    if (!draft) { setShowResumeDraft(null); return }
+  const handleResumeDraft = async (selectedDraftId: string) => {
     setDraftLoading(true)
     try {
-      // Sort by displayOrder, reconstruct rows from stored draft data
+      const res = await fetch(`/api/stock-take/drafts/${selectedDraftId}`)
+      const d = await res.json()
+      if (!d.success || !d.draft) return
+      const draft = d.draft
       const sortedItems = [...(draft.items ?? [])].sort((a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
       const restoredRows: BulkStockRow[] = sortedItems.map((item: any) => {
         const hierarchyPatch = item.categoryId && allCats.length > 0
@@ -444,24 +447,55 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       })
       setRows(restoredRows)
       setDraftId(draft.id)
+      setDraftTitle(draft.title || '')
       setDraftSavedAt(new Date(draft.updatedAt))
       setDraftUnsaved(false)
+      setShowDraftSelector(false)
     } finally {
       setDraftLoading(false)
-      setShowResumeDraft(null)
-      resumeDraftRef.current = null
     }
   }
 
-  const handleStartFresh = async () => {
-    if (showResumeDraft) {
-      // Delete the existing draft silently
-      fetch(`/api/stock-take/drafts/${showResumeDraft.id}`, { method: 'DELETE' }).catch(() => {})
+  const handleStartNewDraft = async () => {
+    const title = newDraftTitle.trim() || `Stock ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+    setDraftLoading(true)
+    try {
+      const res = await fetch('/api/stock-take/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, title }),
+      })
+      const d = await res.json()
+      if (d.success && d.draft?.id) {
+        setDraftId(d.draft.id)
+        setDraftTitle(title)
+        setDraftSavedAt(null)
+        setDraftUnsaved(false)
+        setRows([])
+        setShowDraftSelector(false)
+        setNewDraftTitle('')
+      }
+    } finally {
+      setDraftLoading(false)
     }
-    setShowResumeDraft(null)
-    setDraftId(null)
-    setDraftSavedAt(null)
-    setDraftUnsaved(false)
+  }
+
+  const handleSwitchDraft = async () => {
+    // Save current work first, then reload the draft list and show selector
+    if (rows.length > 0) await saveDraft()
+    const res = await fetch(`/api/stock-take/drafts?businessId=${businessId}`)
+    const d = await res.json()
+    if (d.success && Array.isArray(d.drafts)) {
+      setDraftList(d.drafts.map((dr: any) => ({
+        id: dr.id, title: dr.title, updatedAt: dr.updatedAt, itemCount: dr._count?.items ?? 0,
+      })))
+    }
+    setShowDraftSelector(true)
+  }
+
+  const handleDeleteDraftFromList = async (id: string) => {
+    await fetch(`/api/stock-take/drafts/${id}`, { method: 'DELETE' }).catch(() => {})
+    setDraftList(prev => prev.filter(d => d.id !== id))
   }
 
   const handleGoToDuplicate = () => {
@@ -662,13 +696,24 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         </div>
       )}
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
-        <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0 flex-wrap">
+        <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 shrink-0">
           ← Back
         </button>
-        <h1 className="font-bold text-gray-900 dark:text-white text-base">Bulk Stocking — {businessName}</h1>
+        <span className="font-bold text-gray-900 dark:text-white text-base shrink-0">Bulk Stocking — {businessName}</span>
+        {/* Editable draft title */}
+        {!showDraftSelector && !draftCheckLoading && (
+          <input
+            type="text"
+            value={draftTitle}
+            onChange={e => { setDraftTitle(e.target.value); setDraftUnsaved(true) }}
+            onBlur={() => { if (draftId && draftTitle.trim()) saveDraft() }}
+            placeholder="Draft name…"
+            className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-400 w-48"
+          />
+        )}
         {/* Draft status */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
           {draftSavedAt && !draftUnsaved && (
             <span className="text-xs text-green-600 dark:text-green-400">✓ Saved {formatTimeAgo(draftSavedAt)}</span>
           )}
@@ -682,6 +727,10 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               {syncing ? 'Syncing…' : '↻ Sync Stock'}
             </button>
           )}
+          <button onClick={handleSwitchDraft} disabled={draftLoading || draftCheckLoading}
+            className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+            ⇄ Switch Draft
+          </button>
           <button onClick={saveDraft} disabled={draftLoading || rows.length === 0}
             className="px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50">
             {draftLoading ? 'Saving…' : '💾 Save Draft'}
@@ -700,18 +749,23 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             value={scanInput}
             onChange={e => setScanInput(e.target.value)}
             onKeyDown={handleScanKeyDown}
-            placeholder="Scan or type barcode, press Enter"
-            disabled={scanLoading}
-            className={`w-full px-3 py-1.5 border rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 pr-8 ${scanLoading ? 'border-indigo-400 dark:border-indigo-500 opacity-60' : 'border-gray-300 dark:border-gray-600'}`}
+            placeholder={draftCheckLoading ? 'Checking for drafts…' : 'Scan or type barcode, press Enter'}
+            disabled={scanLoading || draftCheckLoading}
+            className={`w-full px-3 py-1.5 border rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 pr-8 ${(scanLoading || draftCheckLoading) ? 'border-indigo-400 dark:border-indigo-500 opacity-60' : 'border-gray-300 dark:border-gray-600'}`}
           />
-          {scanLoading && (
+          {(scanLoading || draftCheckLoading) && (
             <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
             </svg>
           )}
         </div>
-        {scanLoading && (
+        {draftCheckLoading && (
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 animate-pulse shrink-0">
+            Checking for drafts…
+          </span>
+        )}
+        {scanLoading && !draftCheckLoading && (
           <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 animate-pulse shrink-0">
             Looking up barcode…
           </span>
@@ -826,25 +880,49 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         </div>
       )}
 
-      {/* Resume Draft prompt */}
-      {showResumeDraft && (
+      {/* Draft selector modal */}
+      {showDraftSelector && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Resume saved draft?</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              You have a draft from {new Date(showResumeDraft.updatedAt).toLocaleString()} with{' '}
-              <strong>{showResumeDraft.itemCount} item{showResumeDraft.itemCount !== 1 ? 's' : ''}</strong>.
-            </p>
-            {draftLoading && <p className="text-xs text-indigo-500 mb-3 animate-pulse">Loading draft…</p>}
-            <div className="flex justify-end gap-2">
-              <button onClick={handleStartFresh} disabled={draftLoading}
-                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
-                Start Fresh
-              </button>
-              <button onClick={handleResumeDraft} disabled={draftLoading}
-                className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
-                Resume Draft
-              </button>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Your Saved Drafts</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Select a draft to continue, or start a new one.</p>
+
+            {/* Existing drafts list */}
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+              {draftList.map(d => (
+                <div key={d.id} className="flex items-center gap-3 px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <button onClick={() => handleResumeDraft(d.id)} disabled={draftLoading} className="flex-1 text-left">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{d.title || 'Unnamed Draft'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {d.itemCount} item{d.itemCount !== 1 ? 's' : ''} · Last saved {new Date(d.updatedAt).toLocaleString()}
+                    </p>
+                  </button>
+                  <button onClick={() => handleDeleteDraftFromList(d.id)} disabled={draftLoading}
+                    className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40 shrink-0 px-1"
+                    title="Delete this draft">
+                    🗑
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Start new draft */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Start a new draft</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newDraftTitle}
+                  onChange={e => setNewDraftTitle(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleStartNewDraft() }}
+                  placeholder={`Stock ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                  className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500"
+                />
+                <button onClick={handleStartNewDraft} disabled={draftLoading}
+                  className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium shrink-0">
+                  {draftLoading ? 'Creating…' : '+ New Draft'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -870,6 +948,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           onSubmitSuccess={reportId => {
             setSubmittedReportId(reportId)
             setDraftId(null)
+            setDraftTitle('')
             setDraftSavedAt(null)
             setDraftUnsaved(false)
             setRows([])
@@ -1121,7 +1200,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
       {/* Sell Price */}
       <td className="px-2 py-1.5">
-        <input type="number" min="0" step="0.01" value={row.sellingPrice} disabled={row.isFreeItem}
+        <input type="number" min="0" step="0.10" value={row.sellingPrice} disabled={row.isFreeItem}
           onChange={e => onChange({ sellingPrice: e.target.value })}
           className={`${row.isFreeItem ? roClass : inputClass} w-full text-center ${inv('sellingPrice') && !row.isFreeItem ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="price" />
       </td>
@@ -1135,7 +1214,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
       {/* Cost */}
       <td className="px-2 py-1.5">
-        <input type="number" min="0" step="0.01" value={row.costPrice} readOnly={row.isExistingItem}
+        <input type="number" min="0" step="0.10" value={row.costPrice} readOnly={row.isExistingItem}
           onChange={e => onChange({ costPrice: e.target.value })}
           className={`${row.isExistingItem ? roClass : inputClass} w-full text-center`} placeholder="cost" />
       </td>

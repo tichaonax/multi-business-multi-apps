@@ -12,6 +12,7 @@ body {
   position: relative;
   width: 100%;
   max-width: 100%;
+  padding-bottom: 80px; /* Ensure content is scrollable above Windows taskbar */
 }
 
 /* Force modal visibility - only use inset positioning, not explicit width */

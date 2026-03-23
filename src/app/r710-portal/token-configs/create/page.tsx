@@ -316,7 +316,7 @@ function CreateTokenConfigContent() {
                 value={formData.basePrice}
                 onChange={handleChange}
                 min="0"
-                step="0.01"
+                step="0.10"
                 className={`w-full px-3 py-2 border ${errors.basePrice ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white`}
               />
               {errors.basePrice && <p className="mt-1 text-sm text-red-500">{errors.basePrice}</p>}

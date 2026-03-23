@@ -174,6 +174,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/pos`, icon: '🍽️', label: 'POS System' },
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
+        { href: `/${businessType}/inventory?bulkStock=1`, icon: '📥', label: 'Bulk Stock', permissions: ['canManageInventory'] },
         { href: `/${businessType}/menu`, icon: '📋', label: 'Menu Management', permissions: ['canManageMenu'] },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] },
         { href: '/restaurant/meal-program/participants', icon: '👥', label: 'Meal Program · Participants', permissions: ['canManageEmployees', 'canManageMenu', 'canManageInventory'] },
@@ -183,6 +184,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/pos`, icon: '🛒', label: 'POS System' },
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/inventory?bulkStock=1`, icon: '📥', label: 'Bulk Stock', permissions: ['canManageInventory'] },
         { href: '/clothing/inventory?tab=bales', icon: '📦', label: 'Bales Inventory' },
         { href: `/${businessType}/products`, icon: '📦', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
@@ -191,6 +193,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/pos`, icon: '👕', label: 'POS System' },
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
+        { href: `/${businessType}/inventory?bulkStock=1`, icon: '📥', label: 'Bulk Stock', permissions: ['canManageInventory'] },
         { href: '/clothing/inventory?tab=bales', icon: '📦', label: 'Bales Inventory' },
         { href: `/${businessType}/products`, icon: '👗', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
@@ -199,6 +202,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/pos`, icon: '🔧', label: 'POS System' },
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },  // Salespersons need this for item search
+        { href: `/${businessType}/inventory?bulkStock=1`, icon: '📥', label: 'Bulk Stock', permissions: ['canManageInventory'] },
         { href: `/${businessType}/products`, icon: '🛠️', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
       ],
@@ -242,6 +246,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         label: accountTypeLabel(ea.accountName),
         permissions: ['canAccessExpenseAccount']
       }))
+      .filter((link, idx, arr) => arr.findIndex(l => l.label === link.label) === idx) // deduplicate same-label accounts
 
     // Coupon management link - only if business has coupons enabled
     const couponLinks: MenuLink[] = currentBusiness?.couponsEnabled

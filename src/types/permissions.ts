@@ -84,6 +84,9 @@ export interface UserLevelPermissions {
   canViewPayees: boolean;             // View all payees (individuals, employees, users, businesses)
   canCreatePayees: boolean;           // Create new individual payees (persons)
   canEditPayees: boolean;             // Edit individual payees and toggle active status
+
+  // Inventory Management (User-level - cross-business capability)
+  canManageInventory: boolean;        // Add/edit/delete inventory items and bulk stock operations
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -257,6 +260,9 @@ export interface CoreBusinessPermissions {
   canViewCashBucketReport: boolean;        // View cash bucket report (managers, owners, admins)
   canDeleteCashBucketEntry: boolean;       // Soft-delete a cash bucket entry within 8 days (owners + admins only)
   canReversePaymentsToPettyCash: boolean;  // Reverse incorrectly submitted expense payments and convert to petty cash (MBM-153)
+
+  // Inventory Management
+  canManageInventory: boolean;             // Add/edit/delete inventory items and bulk stock operations
 
   // Chicken Run Management
   canManageChickenRun: boolean;
@@ -976,6 +982,13 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
     ]
   },
+  inventoryManagement: {
+    title: 'Inventory Management',
+    description: 'Add, edit, and delete inventory items and perform bulk stock operations',
+    permissions: [
+      { key: 'canManageInventory', label: 'Manage Inventory' },
+    ]
+  },
   inventoryCategories: {
     title: 'Inventory Categories',
     description: 'Manage business inventory categories and subcategories with emoji support',
@@ -1183,6 +1196,9 @@ export const CORE_PERMISSIONS = {
     { key: 'canCreateBusinessSubcategories', label: 'Create Subcategories' },
     { key: 'canEditBusinessSubcategories', label: 'Edit Subcategories' },
     { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
+  ],
+  inventoryManagement: [
+    { key: 'canManageInventory', label: 'Manage Inventory' },
   ],
   inventoryCategories: [
     { key: 'canCreateInventoryCategories', label: 'Create Inventory Categories' },
@@ -1395,6 +1411,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canViewCashBucketReport: true,
   canDeleteCashBucketEntry: true,
   canReversePaymentsToPettyCash: true,
+  canManageInventory: true,
   canManageChickenRun: true,
 };
 
@@ -1548,6 +1565,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canViewCashBucketReport: true,
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
+  canManageInventory: true,
   canManageChickenRun: true,
 };
 
@@ -1701,6 +1719,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canViewCashBucketReport: false,
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
+  canManageInventory: false,
   canManageChickenRun: false,
 };
 
@@ -1852,6 +1871,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewCashBucketReport: false,
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
+  canManageInventory: false,
   canManageChickenRun: false,
 };
 
@@ -2006,6 +2026,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canViewCashBucketReport: false,
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
+  canManageInventory: false,
   canManageChickenRun: false,
 };
 
@@ -2160,6 +2181,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canViewCashBucketReport: false,
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
+  canManageInventory: false,
   canManageChickenRun: false,
 };
 
@@ -2311,6 +2333,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canViewCashBucketReport: true,
   canDeleteCashBucketEntry: true,
   canReversePaymentsToPettyCash: true,
+  canManageInventory: true,
   canManageChickenRun: true,
 };
 
@@ -2398,6 +2421,9 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canViewPayees: false,
   canCreatePayees: false,
   canEditPayees: false,
+
+  // Inventory Management - No access by default
+  canManageInventory: false,
 };
 
 export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
@@ -2491,6 +2517,9 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canViewPayees: true,
   canCreatePayees: true,
   canEditPayees: true,
+
+  // Inventory Management - Full access for admins
+  canManageInventory: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
@@ -2577,6 +2606,9 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canViewPayees: false,
   canCreatePayees: false,
   canEditPayees: false,
+
+  // Inventory Management - No access for drivers
+  canManageInventory: false,
 };
 
 // Restaurant Associate Permission Preset - Minimal permissions with receipt printing for POS operations
@@ -2663,6 +2695,9 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
   canViewPayees: false,
   canCreatePayees: false,
   canEditPayees: false,
+
+  // Inventory Management - No access
+  canManageInventory: false,
 };
 
 // Permission presets for easy management
@@ -2710,6 +2745,7 @@ export interface BusinessMembership {
   ecocashEnabled?: boolean; // Whether EcoCash payments are accepted
   ecocashFeeType?: string; // 'FIXED' | 'PERCENTAGE'
   ecocashFeeValue?: number; // Fee amount or percentage
+  ecocashMinimumFee?: number; // Minimum fee floor for PERCENTAGE type
   defaultPage?: string | null; // Default landing page for business
   expenseAccounts?: { id: string; accountName: string }[]; // Linked expense accounts for quick navigation
   joinedAt: Date;

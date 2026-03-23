@@ -627,7 +627,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
               </label>
               <Input
                 type="number"
-                step="0.01"
+                step="0.10"
                 min="0"
                 value={formData.basePrice}
                 onChange={(e) => handleInputChange('basePrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
@@ -644,7 +644,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
               </label>
               <Input
                 type="number"
-                step="0.01"
+                step="0.10"
                 min="0"
                 value={formData.originalPrice}
                 onChange={(e) => handleInputChange('originalPrice', e.target.value)}
@@ -917,7 +917,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
                 <div className="col-span-3">
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.10"
                     min="0"
                     value={variant.price}
                     onChange={(e) => updateVariant(index, 'price', e.target.value === '' ? 0 : parseFloat(e.target.value))}

@@ -757,7 +757,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                       ) : (
                         <input
                           type="number"
-                          step="0.01"
+                          step="0.10"
                           min="0"
                           value={localAmt}
                           onChange={e => setLocalAmounts(prev => ({ ...prev, [item.id]: e.target.value }))}

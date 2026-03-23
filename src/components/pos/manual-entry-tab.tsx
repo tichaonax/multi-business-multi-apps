@@ -209,7 +209,7 @@ export function ManualEntryTab({
               type="number"
               placeholder="Price"
               min={0}
-              step={0.01}
+              step={0.1}
               value={customPrice}
               onChange={(e) => setCustomPrice(e.target.value)}
               className="w-24 pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -520,7 +520,7 @@ function LegacyManualEntryForm({ businessId, businessType }: { businessId: strin
                 className="w-16 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-center" />
               <div className="relative">
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                <input type="number" placeholder="Price" min={0} step={0.01} value={item.unitPrice || ''} onChange={(e) => updateItem(item.id, 'unitPrice', Math.max(0, parseFloat(e.target.value) || 0))}
+                <input type="number" placeholder="Price" min={0} step={0.1} value={item.unitPrice || ''} onChange={(e) => updateItem(item.id, 'unitPrice', Math.max(0, parseFloat(e.target.value) || 0))}
                   className="w-24 pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
               </div>
               <button onClick={() => removeItem(item.id)} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" disabled={items.length === 1}>

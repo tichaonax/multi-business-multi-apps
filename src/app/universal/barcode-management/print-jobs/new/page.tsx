@@ -827,7 +827,7 @@ function NewPrintJobPageContent() {
                         id="price"
                         name="price"
                         type="number"
-                        step="0.01"
+                        step="0.10"
                         min="0"
                         value={formData.price}
                         onChange={handleChange}

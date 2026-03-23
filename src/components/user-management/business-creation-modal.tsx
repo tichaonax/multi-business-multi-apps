@@ -88,6 +88,28 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
   const [showRentSetupModal, setShowRentSetupModal] = useState(false)
   const [showRentManageModal, setShowRentManageModal] = useState(false)
 
+  // When editing an existing business, fetch missing ecocash fields directly from business-config.
+  // The parent (manage page) may have a stale compiled version that omits ecocashMinimumFee.
+  useEffect(() => {
+    if (method === 'PUT' && id) {
+      fetch(`/api/universal/business-config?businessId=${id}`)
+        .then(r => r.json())
+        .then(data => {
+          const cfg = data?.data
+          if (!cfg) return
+          setFormData(prev => ({
+            ...prev,
+            ecocashEnabled: cfg.ecocashEnabled !== undefined ? cfg.ecocashEnabled : prev.ecocashEnabled,
+            ecocashFeeType: cfg.ecocashFeeType || prev.ecocashFeeType,
+            ecocashFeeValue: cfg.ecocashFeeValue !== undefined ? String(cfg.ecocashFeeValue) : prev.ecocashFeeValue,
+            ecocashMinimumFee: cfg.ecocashMinimumFee !== undefined ? String(cfg.ecocashMinimumFee) : prev.ecocashMinimumFee,
+          }))
+        })
+        .catch(() => {/* silently ignore, initial values remain */})
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (method === 'PUT' && id) {
       fetch(`/api/rent-account/${id}/balance`)
@@ -321,7 +343,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                             <input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="0.10"
                               value={formData.ecocashFeeValue}
                               onChange={(e) => setFormData({ ...formData, ecocashFeeValue: e.target.value })}
                               placeholder="0.00"
@@ -336,7 +358,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                               <input
                                 type="number"
                                 min="0"
-                                step="0.01"
+                                step="0.10"
                                 value={formData.ecocashMinimumFee}
                                 onChange={(e) => setFormData({ ...formData, ecocashMinimumFee: e.target.value })}
                                 placeholder="0.00"
@@ -505,7 +527,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                           </label>
                           <input
                             type="number"
-                            step="0.01"
+                            step="0.10"
                             min="0"
                             max="100"
                             value={formData.taxRate}

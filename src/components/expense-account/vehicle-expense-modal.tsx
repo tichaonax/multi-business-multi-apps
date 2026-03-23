@@ -758,7 +758,7 @@ export default function VehicleExpenseModal({
                         <input
                           type="number"
                           min="0.01"
-                          step="0.01"
+                          step="0.10"
                           placeholder="0.00"
                           value={line.amount}
                           onChange={e => updateLine(line.id, { amount: e.target.value })}

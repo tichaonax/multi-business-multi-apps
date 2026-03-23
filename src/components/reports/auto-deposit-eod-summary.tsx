@@ -416,7 +416,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
                           <span className="text-gray-500 dark:text-gray-400 text-xs">$</span>
                           <input
                             type="number"
-                            step="0.01"
+                            step="0.10"
                             min={config.isRentAccount && config.rentMinimum != null ? config.rentMinimum : 0}
                             value={entry.overrideAmount}
                             disabled={!entry.isIncluded && !config.isRentAccount}

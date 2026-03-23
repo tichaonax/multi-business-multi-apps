@@ -275,10 +275,13 @@ export function BarcodeScanner({
       }
 
       // Dedupe identical queries in a short window to reduce noise
+      // NOTE: set BEFORE the fetch so concurrent calls for the same barcode are caught
       const now = Date.now()
       if (lastQueriedBarcodeRef.current === toLookup && (now - lastQueriedAtRef.current) < 3000) {
         return
       }
+      lastQueriedBarcodeRef.current = toLookup
+      lastQueriedAtRef.current = now
 
       // Abort any previous in-flight request — we only care about the latest scan
       try {
@@ -301,9 +304,6 @@ export function BarcodeScanner({
     body: JSON.stringify({ barcode: toLookup, businessId }),
     signal: controller.signal
   })
-        // Record that we queried this barcode (even if 404) so we don't hammer the server
-        lastQueriedBarcodeRef.current = toLookup
-        lastQueriedAtRef.current = Date.now()
 
         if (response.ok) {
           const result = await response.json()
@@ -326,6 +326,12 @@ export function BarcodeScanner({
               setBarcodeInput('')
               clearLastScanned()
               return
+            }
+            // Mark as handled by BarcodeScanner so GlobalBarcodeModal skips cart dispatch
+            ;(window as any).__barcodeScannerHandled = {
+              productId: typedProduct.id,
+              variantId: variantId ?? null,
+              ts: Date.now()
             }
             onProductScanned(typedProduct, variantId, matchedBarcode)
             setLastScannedBarcode(toLookup)

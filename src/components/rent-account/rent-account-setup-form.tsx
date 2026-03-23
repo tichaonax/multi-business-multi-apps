@@ -45,7 +45,7 @@ export function RentAccountSetupForm({ businessId, businessType, value, onChange
           <label className="block text-xs font-medium text-secondary mb-1">Monthly Rent Amount *</label>
           <input
             type="number"
-            step="0.01"
+            step="0.10"
             min="0.01"
             required
             disabled={disabled}

@@ -326,7 +326,7 @@ export default function CashBucketPage() {
                   <input
                     type="number"
                     min="0.01"
-                    step="0.01"
+                    step="0.10"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
                     required
@@ -347,7 +347,7 @@ export default function CashBucketPage() {
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="0.10"
                     value={ecocashAmount}
                     onChange={e => setEcocashAmount(e.target.value)}
                     placeholder="0.00 (optional)"
@@ -613,7 +613,7 @@ export default function CashBucketPage() {
                 <input
                   type="number"
                   min="0.01"
-                  step="0.01"
+                  step="0.10"
                   value={editAmount}
                   onChange={e => setEditAmount(e.target.value)}
                   required

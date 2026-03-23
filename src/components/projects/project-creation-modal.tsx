@@ -383,7 +383,7 @@ export function ProjectCreationModal({ isOpen, onClose, onSuccess, defaultBusine
             <Input
               id="budget"
               type="number"
-              step="0.01"
+              step="0.10"
               min="0"
               value={formData.budget}
               onChange={(e) => handleInputChange('budget', e.target.value)}

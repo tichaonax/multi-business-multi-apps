@@ -435,7 +435,7 @@ export default function BatchReviewPage() {
                 <div>
                   <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Amount</label>
                   <input
-                    type="number" min="0.01" step="0.01" required
+                    type="number" min="0.01" step="0.10" required
                     value={adHocForm.amount}
                     onChange={e => setAdHocForm(f => ({ ...f, amount: e.target.value }))}
                     className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-gray-100"

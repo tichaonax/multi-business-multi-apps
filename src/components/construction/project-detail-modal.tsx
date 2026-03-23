@@ -330,7 +330,7 @@ export function ProjectDetailModal({ projectId, isOpen, onClose, onUpdate }: Pro
                   {isEditing ? (
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       value={editForm.totalCost}
                       onChange={(e) => setEditForm({...editForm, totalCost: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"

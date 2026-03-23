@@ -74,7 +74,7 @@ export function MaintenanceServiceExpenseInput({
           <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             type="number"
-            step="0.01"
+            step="0.10"
             min="0"
             value={expense.amount || ''}
             onChange={(e) => handleChange('amount', e.target.value === '' ? 0 : parseFloat(e.target.value))}

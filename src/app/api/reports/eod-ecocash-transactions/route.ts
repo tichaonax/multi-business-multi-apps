@@ -17,29 +17,28 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const businessId = searchParams.get('businessId')
-    const date = searchParams.get('date') // YYYY-MM-DD
+    const date = searchParams.get('date') // YYYY-MM-DD (fallback)
+    const startParam = searchParams.get('start') // ISO timestamp (preferred)
+    const endParam = searchParams.get('end')     // ISO timestamp (preferred)
 
-    if (!businessId || !date) {
-      return NextResponse.json({ error: 'businessId and date are required' }, { status: 400 })
+    if (!businessId || (!date && (!startParam || !endParam))) {
+      return NextResponse.json({ error: 'businessId and date (or start+end) are required' }, { status: 400 })
     }
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
-    }
+    // Use timezone-correct start/end if provided, otherwise fall back to UTC date boundaries
+    const dayStart = startParam ? new Date(startParam) : new Date(date + 'T00:00:00.000Z')
+    const dayEnd   = endParam   ? new Date(endParam)   : new Date(date + 'T23:59:59.999Z')
 
-    const dayStart = new Date(date + 'T00:00:00.000Z')
-    const dayEnd = new Date(date + 'T23:59:59.999Z')
-
-    const orders = await prisma.orders.findMany({
+    const orders = await prisma.businessOrders.findMany({
       where: {
         businessId,
         paymentMethod: 'ECOCASH',
-        status: 'COMPLETED',
+        paymentStatus: 'PAID',
         createdAt: { gte: dayStart, lte: dayEnd },
       },
       select: {
         id: true,
-        total: true,
+        totalAmount: true,
         attributes: true,
         createdAt: true,
       },
@@ -48,7 +47,7 @@ export async function GET(req: NextRequest) {
 
     const transactions = orders.map((order) => {
       const attrs = (order.attributes as any) || {}
-      const grossAmount = Number(order.total)
+      const grossAmount = Number(order.totalAmount)
       const feeAmount = Number(attrs.ecocashFeeAmount ?? 0)
       return {
         orderId: order.id,

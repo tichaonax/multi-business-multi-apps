@@ -237,7 +237,7 @@ export default function ReceiveGroceryInventoryPage() {
                             <input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="0.10"
                               placeholder={`$${item.basePrice.toFixed(2)}`}
                               value={selectedItems[item.id]?.costPerUnit || ''}
                               onChange={(e) => handleBatchInfo(item.id, 'costPerUnit', e.target.value)}

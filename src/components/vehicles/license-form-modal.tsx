@@ -383,7 +383,7 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
             <input
               type="number"
               min="0"
-              step="0.01"
+              step="0.10"
               value={formData.renewalCost}
               onChange={(e) => setFormData({ ...formData, renewalCost: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
@@ -400,7 +400,7 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
             <input
               type="number"
               min="0"
-              step="0.01"
+              step="0.10"
               value={formData.lateFee}
               onChange={(e) => setFormData({ ...formData, lateFee: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"

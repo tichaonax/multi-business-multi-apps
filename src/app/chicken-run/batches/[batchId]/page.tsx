@@ -822,7 +822,7 @@ export default function BatchDetailPage() {
                     type="number"
                     required
                     min={0}
-                    step="0.01"
+                    step="0.10"
                     value={feedForm.totalCost}
                     onChange={e => {
                       const total = e.target.value
@@ -965,7 +965,7 @@ export default function BatchDetailPage() {
                     type="number"
                     required
                     min={0}
-                    step="0.01"
+                    step="0.10"
                     value={medForm.totalCost}
                     onChange={e => setMedForm(p => ({ ...p, totalCost: e.target.value }))}
                     className={INPUT_CLS}
@@ -1081,7 +1081,7 @@ export default function BatchDetailPage() {
                     type="number"
                     required
                     min={0}
-                    step="0.01"
+                    step="0.10"
                     value={weightForm.avgWeightKg}
                     onChange={e => setWeightForm(p => ({ ...p, avgWeightKg: e.target.value }))}
                     className={INPUT_CLS}

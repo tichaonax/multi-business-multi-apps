@@ -682,7 +682,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                       id="purchasePrice"
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="0.10"
                       value={formData.purchasePrice}
                       onChange={(e) => handleInputChange('purchasePrice', e.target.value)}
                       placeholder="Enter purchase price"

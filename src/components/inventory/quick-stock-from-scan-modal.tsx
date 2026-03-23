@@ -637,7 +637,7 @@ export function QuickStockFromScanModal({
                   autoFocus
                   type="number"
                   min="0.01"
-                  step="0.01"
+                  step="0.10"
                   value={basePrice}
                   onChange={(e) => setBasePrice(e.target.value)}
                   placeholder="0.00"
@@ -655,7 +655,7 @@ export function QuickStockFromScanModal({
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.10"
                   value={costPrice}
                   onChange={(e) => setCostPrice(e.target.value)}
                   placeholder="0.00"
@@ -986,7 +986,7 @@ export function QuickStockFromScanModal({
                   ref={priceInputRef}
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.10"
                   value={isFreeItem ? '0.00' : basePrice}
                   onChange={(e) => setBasePrice(e.target.value)}
                   disabled={isFreeItem}
@@ -1014,7 +1014,7 @@ export function QuickStockFromScanModal({
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.10"
                   value={costPrice}
                   onChange={(e) => setCostPrice(e.target.value)}
                   placeholder="0.00"
@@ -1147,7 +1147,7 @@ export function QuickStockFromScanModal({
                 <input
                   type="number"
                   min="0.01"
-                  step="0.01"
+                  step="0.10"
                   value={linkPrice}
                   onChange={(e) => setLinkPrice(e.target.value)}
                   placeholder="0.00"
@@ -1164,7 +1164,7 @@ export function QuickStockFromScanModal({
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.10"
                   value={linkCostPrice}
                   onChange={(e) => setLinkCostPrice(e.target.value)}
                   placeholder="0.00"

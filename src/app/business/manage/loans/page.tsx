@@ -957,7 +957,7 @@ function BusinessLoansPageContent() {
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       min="0.01"
                       value={newLoan.principalAmount}
                       onChange={(e) => setNewLoan({...newLoan, principalAmount: e.target.value})}
@@ -1260,7 +1260,7 @@ function BusinessLoansPageContent() {
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       min="0.01"
                       max={newPayment.transactionType === 'payment' ? selectedLoan.remainingBalance : undefined}
                       value={newPayment.amount}

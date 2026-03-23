@@ -137,6 +137,7 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
             barcodeData:  b.barcode,
             sellingPrice: b.price,
             batchNumber:  b.batchNumber,
+            description:  b.batchNumber ? 'Batch: ' + b.batchNumber : undefined,
             itemCount:    b.itemCount,
           })),
         ]

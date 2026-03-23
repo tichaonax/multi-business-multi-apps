@@ -87,7 +87,7 @@ export function EodRentTransferSection({
               <span className="text-sm text-gray-700 dark:text-gray-300">$</span>
               <input
                 type="number"
-                step="0.01"
+                step="0.10"
                 min="0"
                 value={amount}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0, included)}

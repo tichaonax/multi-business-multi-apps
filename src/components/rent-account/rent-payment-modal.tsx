@@ -220,7 +220,7 @@ export function RentPaymentModal({
               <span className="text-gray-700 dark:text-gray-300">$</span>
               <input
                 type="number"
-                step="0.01"
+                step="0.10"
                 min="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

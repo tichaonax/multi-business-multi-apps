@@ -51,12 +51,11 @@ export async function GET(
       )
     }
 
-    // LANDLORD suppliers are global — not scoped to any businessType
-    // All other suppliers are isolated by businessType
+    // Suppliers are shared across all business types — same supplier can supply multiple business types
+    // LANDLORD suppliers are always global
     const supplierFilter: any = supplierType === 'LANDLORD'
       ? { supplierType: 'LANDLORD' }
       : {
-          businessType: business.type,
           OR: [
             { businessId: null }, // Shared suppliers (no owner) always visible
             ...(business.isDemo

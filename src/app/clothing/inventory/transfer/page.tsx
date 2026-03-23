@@ -346,7 +346,7 @@ function TransferContent() {
                               <input
                                 type="number"
                                 min={0}
-                                step={0.01}
+                                step={0.1}
                                 value={item.newPrice}
                                 onChange={(e) => updateNewPrice(item.id, parseFloat(e.target.value) || 0)}
                                 disabled={!item.selected}

@@ -21,7 +21,7 @@ export function ConditionalHealthIndicator() {
   // Show health indicator on all other pages
   return (
     <HealthIndicator
-      position="bottom-right"
+      position="top-right"
       showFullOnDesktop={true}
       enableClickToExpand={true}
     />

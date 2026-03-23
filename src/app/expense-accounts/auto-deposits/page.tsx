@@ -374,7 +374,7 @@ export default function AutoDepositsPage() {
                         <input
                           type="number"
                           min="0.01"
-                          step="0.01"
+                          step="0.10"
                           className="w-full bg-input border border-border rounded px-3 py-1.5 text-sm text-primary"
                           value={editForm.dailyAmount}
                           onChange={e => setEditForm(f => ({ ...f, dailyAmount: e.target.value }))}
@@ -631,7 +631,7 @@ export default function AutoDepositsPage() {
                       type="number"
                       required
                       min="0.01"
-                      step="0.01"
+                      step="0.10"
                       placeholder="e.g. 50.00"
                       className="w-full bg-input border border-border rounded px-3 py-1.5 text-sm text-primary"
                       value={createForm.dailyAmount}

@@ -122,6 +122,7 @@ function ClothingInventoryContent() {
     if (tabParam && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports'].includes(tabParam)) {
       setActiveTab(tabParam as typeof activeTab)
     }
+    if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
   }, [searchParams])
 
   // Fetch BOGO promotion status
@@ -1195,7 +1196,7 @@ function ClothingInventoryContent() {
                             <input
                               type="number"
                               min="0.01"
-                              step="0.01"
+                              step="0.10"
                               value={baleForm.unitPrice}
                               onChange={(e) => setBaleForm({ ...baleForm, unitPrice: e.target.value })}
                               placeholder="e.g., 3.00"
@@ -1207,7 +1208,7 @@ function ClothingInventoryContent() {
                             <input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="0.10"
                               required
                               value={baleForm.costPrice}
                               onChange={(e) => setBaleForm({ ...baleForm, costPrice: e.target.value })}

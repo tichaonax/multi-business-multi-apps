@@ -250,8 +250,14 @@ function GroceryPOSContent() {
       const savedCart = localStorage.getItem(`cart-${currentBusinessId}`)
       if (savedCart) {
         const parsedCart = JSON.parse(savedCart)
-        setCart(parsedCart)
-        console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
+        // Rehydrate subtotal from price × quantity in case it was lost or is stale
+        const rehydrated = parsedCart.map((item: CartItem) => ({
+          ...item,
+          price: Number(item.price) || 0,
+          subtotal: (Number(item.price) || 0) * (item.quantity || 1),
+        }))
+        setCart(rehydrated)
+        console.log('✅ Cart restored from localStorage:', rehydrated.length, 'items')
       } else {
         // CRITICAL: Clear cart when switching to a business with no saved cart
         setCart([])
@@ -309,7 +315,7 @@ function GroceryPOSContent() {
           variantId: item.id, // Grocery items don't have variants
           name: item.name,
           sku: item.barcode || item.pluCode || item.id,
-          price: item.price,
+          price: Number(item.price) || 0,
           quantity: item.quantity,
           attributes: {}
         }))
@@ -1550,7 +1556,7 @@ function GroceryPOSContent() {
                 <input
                   ref={cashTenderInputRef}
                   type="number"
-                  step="0.01"
+                  step="0.10"
                   min="0"
                   value={cashTendered}
                   onChange={(e) => setCashTendered(e.target.value)}

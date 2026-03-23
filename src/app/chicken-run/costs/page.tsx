@@ -224,7 +224,7 @@ export default function CostsPage() {
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="0.10"
                     className={INPUT_CLS}
                     placeholder="0.00"
                     value={uForm.totalCost}
@@ -341,7 +341,7 @@ export default function CostsPage() {
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="0.10"
                     className={INPUT_CLS}
                     placeholder="0.00"
                     value={lForm.hourlyRate}

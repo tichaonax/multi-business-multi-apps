@@ -168,7 +168,7 @@ export default function NewBatchPage() {
             </label>
             <input
               type="number"
-              step="0.01"
+              step="0.10"
               min="0"
               value={form.purchaseCostTotal}
               onChange={e => handleChange('purchaseCostTotal', e.target.value)}

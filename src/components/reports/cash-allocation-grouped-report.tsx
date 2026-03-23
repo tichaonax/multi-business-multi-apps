@@ -381,7 +381,7 @@ export function CashAllocationGroupedReport({ businessId, reportId }: Props) {
                     ) : (
                       <input
                         type="number"
-                        step="0.01"
+                        step="0.10"
                         value={localAmounts[li.id] ?? ''}
                         onChange={e => setLocalAmounts(prev => ({ ...prev, [li.id]: e.target.value }))}
                         onBlur={e => {

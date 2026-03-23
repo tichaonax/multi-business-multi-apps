@@ -161,7 +161,7 @@ export function AddCompensationTypeModal({ isOpen, onClose, onSuccess, onError }
               </label>
               <input
                 type="number"
-                step="0.01"
+                step="0.10"
                 min="0"
                 value={formData.baseAmount}
                 onChange={(e) => setFormData({...formData, baseAmount: e.target.value})}
@@ -176,7 +176,7 @@ export function AddCompensationTypeModal({ isOpen, onClose, onSuccess, onError }
               </label>
               <input
                 type="number"
-                step="0.01"
+                step="0.10"
                 min="0"
                 max="100"
                 value={formData.commissionPercentage}

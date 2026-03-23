@@ -2102,9 +2102,13 @@ export default function RestaurantPOS() {
 
         // Compute EcoCash fee client-side (more reliable than reading from API response attributes)
         const ecocashFee = paymentMethod === 'ECOCASH'
-          ? (currentBusiness?.ecocashFeeType === 'PERCENTAGE'
-            ? total * ((currentBusiness?.ecocashFeeValue ?? 0) / 100)
-            : (currentBusiness?.ecocashFeeValue ?? 0))
+          ? (() => {
+              const feeType = currentBusiness?.ecocashFeeType
+              const feeValue = currentBusiness?.ecocashFeeValue ?? 0
+              const minimumFee = currentBusiness?.ecocashMinimumFee ?? 0
+              const rawFee = feeType === 'PERCENTAGE' ? total * (feeValue / 100) : feeValue
+              return feeType === 'PERCENTAGE' ? Math.max(rawFee, minimumFee) : rawFee
+            })()
           : 0
 
         const orderForReceipt: {
@@ -3765,7 +3769,7 @@ export default function RestaurantPOS() {
                       type="number"
                       value={amountReceived}
                       onChange={(e) => setAmountReceived(e.target.value)}
-                      step="0.01"
+                      step="0.10"
                       min="0"
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
                       placeholder="Enter amount received"
@@ -3789,7 +3793,9 @@ export default function RestaurantPOS() {
               {mealProgramCashDue === null && paymentMethod === 'ECOCASH' && (() => {
                 const feeType = currentBusiness?.ecocashFeeType
                 const feeValue = currentBusiness?.ecocashFeeValue ?? 0
-                const fee = feeType === 'PERCENTAGE' ? total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+                const minimumFee = currentBusiness?.ecocashMinimumFee ?? 0
+                const rawFee = feeType === 'PERCENTAGE' ? total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+                const fee = feeType === 'PERCENTAGE' ? Math.max(rawFee, minimumFee) : rawFee
                 const ecocashTotal = total + fee
                 return (
                   <div className="space-y-2">

@@ -277,7 +277,7 @@ export function AutoDepositAdminPanel({ accountId }: Props) {
                   <input
                     type="number"
                     min="0.01"
-                    step="0.01"
+                    step="0.10"
                     placeholder="e.g. 10000.00"
                     className="w-48 bg-input border border-border rounded px-3 py-1.5 text-sm text-primary"
                     value={capInput}

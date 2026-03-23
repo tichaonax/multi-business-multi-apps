@@ -236,7 +236,7 @@ export default function AdminSettingsPage() {
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.10"
                   className="input-field max-w-xs"
                   value={settings?.maxPaymentWithoutId ?? 100}
                   onChange={(e) => {

@@ -444,7 +444,7 @@ export function RestaurantWasteLog() {
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.10"
                   placeholder="0.00"
                   className="input-field"
                 />

@@ -184,7 +184,7 @@ export function MaintenanceForm({ onSuccess, onCancel, vehicleId, maintenance }:
 
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">Cost *</label>
-            <input type="number" name="cost" required min="0" step="0.01" value={formData.cost || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="0.00" />
+            <input type="number" name="cost" required min="0" step="0.10" value={formData.cost || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors" placeholder="0.00" />
           </div>
 
           <div>

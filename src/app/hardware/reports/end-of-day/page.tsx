@@ -141,12 +141,12 @@ export default function EndOfDayReport() {
 
   // Load EcoCash transactions for verification when save modal opens
   useEffect(() => {
-    if (!showSaveModal || !currentBusinessId || !dailySales?.businessDay?.date) return
-    fetch(`/api/reports/eod-ecocash-transactions?businessId=${currentBusinessId}&date=${dailySales.businessDay.date}`)
+    if (!showSaveModal || !currentBusinessId || !dailySales?.businessDay?.start || !dailySales?.businessDay?.end) return
+    fetch(`/api/reports/eod-ecocash-transactions?businessId=${currentBusinessId}&start=${encodeURIComponent(dailySales.businessDay.start)}&end=${encodeURIComponent(dailySales.businessDay.end)}`)
       .then(r => r.ok ? r.json() : { transactions: [] })
       .then(d => setEcocashTxns(d.transactions || []))
       .catch(() => setEcocashTxns([]))
-  }, [showSaveModal, currentBusinessId, dailySales?.businessDay?.date])
+  }, [showSaveModal, currentBusinessId, dailySales?.businessDay?.start, dailySales?.businessDay?.end])
 
   // Handle save report
   const handleSaveReport = async () => {
@@ -159,8 +159,8 @@ export default function EndOfDayReport() {
       setSaving(true)
       setSaveError(null)
 
-      // Fire EOD rent transfer first — skip if no cash was collected
-      if (rentConfig && includeRentTransfer && !rentAlreadyTransferred && parseFloat(cashCounted || '0') > 0) {
+      // Fire EOD rent transfer first
+      if (rentConfig && includeRentTransfer && !rentAlreadyTransferred) {
         try {
           const rentRes = await fetch(`/api/rent-account/${currentBusinessId}/eod-transfer`, {
             method: 'POST',
@@ -180,8 +180,8 @@ export default function EndOfDayReport() {
         }
       }
 
-      // Fire EOD auto-deposits — skip if no cash was collected
-      if (parseFloat(cashCounted || '0') > 0) try {
+      // Fire EOD auto-deposits
+      try {
         const adRes = await fetch(`/api/auto-deposits/${currentBusinessId}/process-eod`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -225,7 +225,7 @@ export default function EndOfDayReport() {
           periodStart: dailySales.businessDay.start,
           periodEnd: dailySales.businessDay.end,
           managerName: managerSignature,
-          cashCounted: cashCounted ? parseFloat(cashCounted) : null,
+          cashCounted: parseFloat(cashCounted || '0'),
           confirmedEcocashAmount: confirmedEcocashTotal > 0 ? confirmedEcocashTotal : null,
           reportData: reportData
         })
@@ -798,7 +798,7 @@ export default function EndOfDayReport() {
                   <span className="text-lg text-gray-900 dark:text-gray-100 print:text-gray-900">$</span>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.10"
                     value={cashCounted}
                     onChange={(e) => setCashCounted(e.target.value)}
                     placeholder="0.00"
@@ -862,12 +862,24 @@ export default function EndOfDayReport() {
             <p>This report is for internal use only. Keep with daily records.</p>
             <p className="mt-1">Business Day: {dailySales.businessDay.date}</p>
           </div>
+
+          {/* Bottom Save & Lock button */}
+          {!existingReport && (
+            <div className="no-print mt-6 flex justify-center">
+              <button
+                onClick={() => setShowSaveModal(true)}
+                className="inline-flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold shadow"
+              >
+                💾 Save & Lock Report
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Save Confirmation Modal */}
         {showSaveModal && (
           <div className="no-print fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full mx-4 p-6 ${modalStep === 'auto-deposits' ? 'max-w-lg' : 'max-w-md'}`}>
+            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full mx-4 p-6 overflow-y-auto max-h-[calc(100vh-100px)] ${modalStep === 'auto-deposits' ? 'max-w-lg' : 'max-w-md'}`}>
               {/* Step 1 — Auto-deposit preview */}
               {modalStep === 'auto-deposits' && (
                 <>
@@ -950,7 +962,7 @@ export default function EndOfDayReport() {
                   <span className="text-lg text-gray-700 dark:text-gray-300">$</span>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.10"
                     value={cashCounted}
                     onChange={(e) => setCashCounted(e.target.value)}
                     placeholder="0.00"
@@ -985,6 +997,7 @@ export default function EndOfDayReport() {
                     </button>
                   </div>
                   <div className="border border-teal-200 dark:border-teal-700 rounded-lg overflow-hidden">
+                    <div className="max-h-[220px] overflow-y-auto">
                     {ecocashTxns.map((txn) => (
                       <label key={txn.orderId} className="flex items-center gap-3 px-3 py-2 border-b border-teal-100 dark:border-teal-800 last:border-b-0 cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-900/20">
                         <input
@@ -1008,7 +1021,8 @@ export default function EndOfDayReport() {
                         </span>
                       </label>
                     ))}
-                    <div className="px-3 py-2 bg-teal-50 dark:bg-teal-900/30 flex justify-between items-center">
+                    </div>
+                    <div className="px-3 py-2 bg-teal-50 dark:bg-teal-900/30 flex justify-between items-center border-t border-teal-200 dark:border-teal-700">
                       <span className="text-sm font-semibold text-teal-800 dark:text-teal-200">
                         Confirmed EcoCash total ({checkedTxnIds.size}/{ecocashTxns.length}):
                       </span>

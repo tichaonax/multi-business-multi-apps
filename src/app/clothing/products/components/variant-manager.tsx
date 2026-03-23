@@ -336,7 +336,7 @@ export function ClothingVariantManager({
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bulk Update Price</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.10"
                     placeholder="New price"
                     value={bulkPrice}
                     onChange={(e) => setBulkPrice(e.target.value)}
@@ -463,7 +463,7 @@ export function ClothingVariantManager({
                                   />
                                   <input
                                     type="number"
-                                    step="0.01"
+                                    step="0.10"
                                     value={variant.price || ''}
                                     onChange={(e) => updateVariant(variant.id, 'price', parseFloat(e.target.value) || undefined)}
                                     className="w-20 px-1 py-1 text-xs text-center border rounded"

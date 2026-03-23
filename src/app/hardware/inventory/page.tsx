@@ -77,6 +77,10 @@ function HardwareInventoryContent() {
     }
   }, [searchParams, currentBusinessId, router])
 
+  useEffect(() => {
+    if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
+  }, [searchParams])
+
   // Redirect to signin if not authenticated
   React.useEffect(() => {
     if (status === 'loading') return

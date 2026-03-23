@@ -21,6 +21,27 @@ import { getServerUser } from '@/lib/get-server-user'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+export async function GET(_request: NextRequest, context: RouteContext) {
+  try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { id } = await context.params
+
+    const draft = await prisma.stockTakeDrafts.findUnique({
+      where: { id },
+      include: { items: { orderBy: { displayOrder: 'asc' } } },
+    })
+    if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+    if (draft.createdById !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    return NextResponse.json({ success: true, draft })
+  } catch (error) {
+    console.error('[stock-take/drafts/:id GET]', error)
+    return NextResponse.json({ error: 'Failed to fetch draft' }, { status: 500 })
+  }
+}
+
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     const user = await getServerUser()

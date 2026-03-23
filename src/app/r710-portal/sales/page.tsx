@@ -848,7 +848,7 @@ export default function R710SalesPage() {
                       value={customPrice}
                       onChange={(e) => setCustomPrice(e.target.value)}
                       min="0"
-                      step="0.01"
+                      step="0.10"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       placeholder="Enter price"
                     />
@@ -990,7 +990,7 @@ export default function R710SalesPage() {
                     type="number"
                     value={amountReceived}
                     onChange={(e) => setAmountReceived(e.target.value)}
-                    step="0.01"
+                    step="0.10"
                     min="0"
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
                     placeholder="Enter amount received"

@@ -4,11 +4,11 @@ import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/stock-take/drafts?businessId=
- * Returns the single active DRAFT for the current user + business, or null.
+ * Returns all active DRAFTs for the current user + business (metadata only, no items).
  *
  * POST /api/stock-take/drafts
- * Body: { businessId, title? }
- * Creates a new DRAFT. Errors if an active DRAFT already exists for this user + business.
+ * Body: { businessId, title }
+ * Creates a new DRAFT. Multiple drafts per user+business are allowed.
  */
 
 export async function GET(request: NextRequest) {
@@ -19,17 +19,22 @@ export async function GET(request: NextRequest) {
     const businessId = request.nextUrl.searchParams.get('businessId')
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
 
-    const draft = await prisma.stockTakeDrafts.findFirst({
+    const drafts = await prisma.stockTakeDrafts.findMany({
       where: { businessId, createdById: user.id, status: 'DRAFT' },
-      include: {
-        items: { orderBy: { displayOrder: 'asc' } },
+      select: {
+        id: true,
+        title: true,
+        updatedAt: true,
+        createdAt: true,
+        _count: { select: { items: true } },
       },
+      orderBy: { updatedAt: 'desc' },
     })
 
-    return NextResponse.json({ success: true, draft: draft ?? null })
+    return NextResponse.json({ success: true, drafts })
   } catch (error) {
     console.error('[stock-take/drafts GET]', error)
-    return NextResponse.json({ error: 'Failed to fetch draft' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch drafts' }, { status: 500 })
   }
 }
 
@@ -42,23 +47,13 @@ export async function POST(request: NextRequest) {
     const { businessId, title } = body
 
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
-
-    // Only one active DRAFT per user per business
-    const existing = await prisma.stockTakeDrafts.findFirst({
-      where: { businessId, createdById: user.id, status: 'DRAFT' },
-    })
-    if (existing) {
-      return NextResponse.json(
-        { error: 'An active draft already exists. Delete it before creating a new one.', draftId: existing.id },
-        { status: 409 }
-      )
-    }
+    if (!title?.trim()) return NextResponse.json({ error: 'title is required' }, { status: 400 })
 
     const draft = await prisma.stockTakeDrafts.create({
       data: {
         businessId,
         createdById: user.id,
-        title: title?.trim() || null,
+        title: title.trim(),
         status: 'DRAFT',
       },
     })

@@ -480,7 +480,7 @@ function MyQueuePanel({
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.10"
                       min="0.01"
                       value={editAmount}
                       onChange={e => setEditAmount(e.target.value)}

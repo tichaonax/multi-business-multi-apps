@@ -531,7 +531,7 @@ function NewTemplatePageContent() {
                         id="defaultPrice"
                         name="defaultPrice"
                         type="number"
-                        step="0.01"
+                        step="0.10"
                         min="0"
                         value={formData.defaultPrice || ''}
                         onChange={handleChange}

@@ -148,7 +148,7 @@ export function MaintenanceServiceInput({
             <Input
               id={`cost-${service.id}`}
               type="number"
-              step="0.01"
+              step="0.10"
               min="0"
               value={service.cost || ''}
               onChange={(e) => handleCostChange(e.target.value === '' ? 0 : parseFloat(e.target.value))}

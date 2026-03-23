@@ -135,14 +135,17 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
 
     const isPhysical = (p: any) => !p.productType || p.productType === 'PHYSICAL' || p.productType === 'COMBO'
 
-    type SellableItem = { productVariantId: string | null; productId: string; name: string; price: number; physical: boolean }
+    type SellableItem = { productVariantId: string | null; productId: string; name: string; price: number; physical: boolean; inventoryItemId?: string; isInventoryItem?: boolean }
     const sellable: SellableItem[] = []
     const baseStock = new Map<string, number>()
+
+    // Grocery businesses don't enforce stock counts (fresh/weight-based items have no tracked qty)
+    const ignoreStock = cfg.businessType === 'grocery'
 
     for (const p of allProducts) {
       const basePrice = Number(p.basePrice ?? 0)
       if (basePrice <= 0) continue
-      const physical = isPhysical(p)
+      const physical = isPhysical(p) && !ignoreStock
 
       const variants: any[] = p.variants || []
       if (variants.length === 0) {
@@ -150,10 +153,23 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
       } else {
         for (const v of variants) {
           const price = Number(v.price ?? basePrice)
-          if (price <= 0 || v.isAvailable === false) continue
+          if (price <= 0) continue
+          if (!ignoreStock && v.isAvailable === false) continue
           if (physical && (v.stockQuantity ?? 0) <= 0) continue
           if (physical) baseStock.set(v.id, Number(v.stockQuantity))
           sellable.push({ productVariantId: v.id, productId: p.id, name: p.name, price, physical })
+        }
+      }
+    }
+
+    // Fallback: try barcode inventory items (used by grocery and similar businesses)
+    if (sellable.length === 0) {
+      const invRes = await fetch(`/api/inventory/${cfg.businessId}/barcode-items`)
+      if (invRes.ok) {
+        const invData = await invRes.json()
+        for (const item of (invData.items || [])) {
+          baseStock.set(item.id, item.stockQuantity)
+          sellable.push({ productVariantId: null, productId: item.id, name: item.name, price: item.sellingPrice, physical: true, inventoryItemId: item.id, isInventoryItem: true })
         }
       }
     }
@@ -176,20 +192,22 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
         if (affordable.length === 0) { budgetExhausted = true; break }
 
         const itemCount = randBetween(1, cfg.maxItems)
-        const orderItems: { productVariantId: string | null; productId: string; name: string; unitPrice: number; quantity: number }[] = []
+        const orderItems: { productVariantId: string | null; productId: string; name: string; unitPrice: number; quantity: number; inventoryItemId?: string; isInventoryItem?: boolean }[] = []
         let orderTotal = 0
 
         for (let i = 0; i < itemCount; i++) {
           const item = pick(affordable)
           if (item.productVariantId && orderItems.some(o => o.productVariantId === item.productVariantId)) continue
-          const maxQty = item.physical && item.productVariantId
-            ? Math.min(3, localStock.get(item.productVariantId) ?? 1)
+          if (item.inventoryItemId && orderItems.some(o => o.inventoryItemId === item.inventoryItemId)) continue
+          const trackId = item.inventoryItemId ?? item.productVariantId
+          const maxQty = (item.physical || item.isInventoryItem) && trackId
+            ? Math.min(3, localStock.get(trackId) ?? 1)
             : 3
           if (maxQty <= 0) continue
           const qty = orderItems.length === 0 ? 1 : randBetween(1, maxQty)
           const lineTotal = item.price * qty
           if (orderItems.length > 0 && orderTotal + lineTotal > remaining) break
-          orderItems.push({ productVariantId: item.productVariantId, productId: item.productId, name: item.name, unitPrice: item.price, quantity: qty })
+          orderItems.push({ productVariantId: item.productVariantId, productId: item.productId, name: item.name, unitPrice: item.price, quantity: qty, inventoryItemId: item.inventoryItemId, isInventoryItem: item.isInventoryItem })
           orderTotal += lineTotal
         }
 
@@ -197,6 +215,9 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
 
         // EcoCash fee: 1.5% of order total
         const ecocashFee = paymentMethod === 'ECOCASH' ? Math.round(orderTotal * 0.015 * 100) / 100 : 0
+        const ecocashTxCode = paymentMethod === 'ECOCASH'
+          ? `ECO${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+          : undefined
 
         const orderRes = await fetch('/api/universal/orders', {
           method: 'POST',
@@ -212,14 +233,18 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
             taxAmount:     0,
             discountAmount: 0,
             attributes: paymentMethod === 'ECOCASH'
-              ? { posOrder: true, ecocashFeeAmount: ecocashFee }
+              ? { posOrder: true, ecocashFeeAmount: ecocashFee, ecocashTransactionCode: ecocashTxCode }
               : { posOrder: true },
             items: orderItems.map(i => ({
               productVariantId: i.productVariantId,
               quantity:         i.quantity,
               unitPrice:        i.unitPrice,
               discountAmount:   0,
-              attributes:       { productId: i.productId, productName: i.name },
+              attributes:       {
+                productId: i.productId,
+                productName: i.name,
+                ...(i.isInventoryItem && { isInventoryItem: true, inventoryItemId: i.inventoryItemId }),
+              },
             })),
           }),
         })
@@ -232,15 +257,18 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
 
           // Decrement local stock
           for (const i of orderItems) {
-            if (i.productVariantId) {
-              const prev = localStock.get(i.productVariantId) ?? 0
+            const trackId = i.inventoryItemId ?? i.productVariantId
+            if (trackId) {
+              const prev = localStock.get(trackId) ?? 0
               const next = prev - i.quantity
               if (next <= 0) {
-                localStock.delete(i.productVariantId)
-                const idx = pool.findIndex(s => s.productVariantId === i.productVariantId)
+                localStock.delete(trackId)
+                const idx = i.inventoryItemId
+                  ? pool.findIndex(s => s.inventoryItemId === trackId)
+                  : pool.findIndex(s => s.productVariantId === trackId)
                 if (idx !== -1) pool.splice(idx, 1)
               } else {
-                localStock.set(i.productVariantId, next)
+                localStock.set(trackId, next)
               }
             }
           }

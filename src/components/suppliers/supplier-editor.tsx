@@ -560,7 +560,7 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.10"
                   value={formData.creditLimit || ''}
                   onChange={(e) => handleInputChange('creditLimit', e.target.value ? parseFloat(e.target.value) : null)}
                   readOnly={viewOnly}
@@ -575,7 +575,7 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.10"
                   value={formData.accountBalance || 0}
                   onChange={(e) => handleInputChange('accountBalance', e.target.value ? parseFloat(e.target.value) : 0)}
                   readOnly={viewOnly}

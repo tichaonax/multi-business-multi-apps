@@ -37,6 +37,7 @@ export async function GET() {
           ecocashEnabled: true,
           ecocashFeeType: true,
           ecocashFeeValue: true,
+          ecocashMinimumFee: true,
           expense_accounts: {
             select: { id: true, accountName: true },
             where: { isActive: true, isSibling: false },
@@ -58,6 +59,7 @@ export async function GET() {
         ecocashEnabled: business.ecocashEnabled ?? false,
         ecocashFeeType: (business as any).ecocashFeeType ?? 'FIXED',
         ecocashFeeValue: (business as any).ecocashFeeValue != null ? Number((business as any).ecocashFeeValue) : 0,
+        ecocashMinimumFee: (business as any).ecocashMinimumFee != null ? Number((business as any).ecocashMinimumFee) : 0,
         role: 'admin' as any,
         permissions: {
           // Grant all permissions for system admins
@@ -116,6 +118,7 @@ export async function GET() {
             ecocashEnabled: true,
             ecocashFeeType: true,
             ecocashFeeValue: true,
+            ecocashMinimumFee: true,
             expense_accounts: {
               select: { id: true, accountName: true },
               where: { isActive: true, isSibling: false },
@@ -147,6 +150,7 @@ export async function GET() {
       ecocashEnabled: (membership.businesses as any).ecocashEnabled ?? false,
       ecocashFeeType: (membership.businesses as any).ecocashFeeType ?? 'FIXED',
       ecocashFeeValue: (membership.businesses as any).ecocashFeeValue != null ? Number((membership.businesses as any).ecocashFeeValue) : 0,
+      ecocashMinimumFee: (membership.businesses as any).ecocashMinimumFee != null ? Number((membership.businesses as any).ecocashMinimumFee) : 0,
       role: membership.role as any,
       permissions: mergeWithBusinessPermissions({
         ...(membership.permissions as any),
