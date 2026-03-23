@@ -66,6 +66,7 @@ function ClothingInventoryContent() {
   const [labelCount, setLabelCount] = useState('5')
   const [showAddStockPanel, setShowAddStockPanel] = useState<'bale' | 'product' | false>(false)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
+  const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [printHistoryBaleId, setPrintHistoryBaleId] = useState<string | null>(null)
   const [printHistoryBale, setPrintHistoryBale] = useState<any | null>(null)
   const [printHistory, setPrintHistory] = useState<any[]>([])
@@ -934,10 +935,16 @@ function ClothingInventoryContent() {
                           + Add Stock
                         </button>
                         <button
-                          onClick={() => setShowBulkStockPanel(true)}
+                          onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
                           className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-sm font-medium transition-colors"
                         >
                           📦 Bulk Stock
+                        </button>
+                        <button
+                          onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium transition-colors"
+                        >
+                          📋 Stock Take
                         </button>
                         {canAccessFinancialData && (
                           <button
@@ -1814,6 +1821,7 @@ function ClothingInventoryContent() {
         businessName={currentBusiness.businessName}
         businessType={currentBusiness.businessType}
         onClose={() => setShowBulkStockPanel(false)}
+        initialMode={bulkStockInitialMode}
       />
     )}
 

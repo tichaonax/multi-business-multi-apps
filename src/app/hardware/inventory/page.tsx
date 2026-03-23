@@ -27,6 +27,7 @@ function HardwareInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
+  const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
@@ -352,10 +353,16 @@ function HardwareInventoryContent() {
                       <h3 className="text-lg font-semibold">Inventory Items</h3>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setShowBulkStockPanel(true)}
+                          onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
                           className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
                         >
                           📦 Bulk Stock
+                        </button>
+                        <button
+                          onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                        >
+                          📋 Stock Take
                         </button>
                         {canAccessFinancialData && (
                           <button
@@ -544,6 +551,7 @@ function HardwareInventoryContent() {
           businessName={currentBusiness.businessName}
           businessType={currentBusiness.businessType}
           onClose={() => setShowBulkStockPanel(false)}
+          initialMode={bulkStockInitialMode}
         />
       )}
       {showStockTakeReports && currentBusiness && currentBusinessId && (

@@ -28,6 +28,7 @@ function RestaurantInventoryContent() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts' | 'receiving'>('ingredients')
   const [showAddForm, setShowAddForm] = useState(false)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
+  const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -308,10 +309,16 @@ function RestaurantInventoryContent() {
         headerActions={
           <div className="flex gap-3">
             <button
-              onClick={() => setShowBulkStockPanel(true)}
+              onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
               className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
             >
               📦 Bulk Stock
+            </button>
+            <button
+              onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
+              className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+            >
+              📋 Stock Take
             </button>
             {canAccessFinancialData && (
               <button
@@ -701,6 +708,7 @@ function RestaurantInventoryContent() {
           businessName={currentBusiness.businessName}
           businessType={currentBusiness.businessType}
           onClose={() => setShowBulkStockPanel(false)}
+          initialMode={bulkStockInitialMode}
         />
       )}
       {showStockTakeReports && currentBusiness && currentBusinessId && (

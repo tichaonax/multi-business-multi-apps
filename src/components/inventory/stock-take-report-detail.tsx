@@ -87,7 +87,7 @@ export function StockTakeReportDetail({ reportId, businessName, canManage, onBac
 
   useEffect(() => { fetchReport() }, [reportId])
 
-  const handleSignOff = async (role: 'employee' | 'manager') => {
+  const handleSignOff = async (role: 'employee' | 'manager', employeeId?: string) => {
     if (!report) return
     setSigningAs(role === 'manager' ? 'manager' : 'employee')
     setSignError('')
@@ -95,7 +95,7 @@ export function StockTakeReportDetail({ reportId, businessName, canManage, onBac
       const res = await fetch(`/api/stock-take/reports/${reportId}/sign-off`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ role, ...(employeeId ? { employeeId } : {}) }),
       })
       const d = await res.json()
       if (!d.success) { setSignError(d.error || 'Sign-off failed'); return }
@@ -315,7 +315,7 @@ export function StockTakeReportDetail({ reportId, businessName, canManage, onBac
                   </div>
                 ) : canStillSignOff ? (
                   <button
-                    onClick={() => handleSignOff('employee')}
+                    onClick={() => handleSignOff('employee', empRow.employeeId)}
                     disabled={signingAs === 'employee'}
                     className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
                     {signingAs === 'employee' ? 'Signing…' : 'Sign Off'}

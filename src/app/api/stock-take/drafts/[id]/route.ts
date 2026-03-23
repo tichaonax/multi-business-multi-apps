@@ -58,15 +58,16 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     if (!Array.isArray(items)) return NextResponse.json({ error: 'items array is required' }, { status: 400 })
 
-    // Replace all items in a transaction
-    const updated = await prisma.$transaction(async (tx) => {
-      // Delete existing items
-      await tx.stockTakeDraftItems.deleteMany({ where: { draftId: id } })
+    // Replace all items — delete + bulk insert + metadata update
+    // Use sequential operations (no transaction) to avoid timeout on large inventories
+    await prisma.stockTakeDraftItems.deleteMany({ where: { draftId: id } })
 
-      // Insert fresh items
-      if (items.length > 0) {
-        await tx.stockTakeDraftItems.createMany({
-          data: items.map((item: any, idx: number) => ({
+    if (items.length > 0) {
+      // Insert in chunks of 500 to avoid parameter limits
+      const CHUNK = 500
+      for (let i = 0; i < items.length; i += CHUNK) {
+        await prisma.stockTakeDraftItems.createMany({
+          data: items.slice(i, i + CHUNK).map((item: any, relIdx: number) => ({
             draftId: id,
             barcode: item.barcode?.trim() || null,
             name: item.name?.trim() || '',
@@ -80,25 +81,23 @@ export async function PUT(request: NextRequest, context: RouteContext) {
             isExistingItem: Boolean(item.isExistingItem),
             systemQuantity: item.systemQuantity !== undefined ? Number(item.systemQuantity) : null,
             physicalCount: item.physicalCount !== undefined && item.physicalCount !== '' ? Number(item.physicalCount) : null,
-            displayOrder: item.displayOrder ?? idx,
+            displayOrder: item.displayOrder ?? (i + relIdx),
           })),
         })
       }
+    }
 
-      // Update draft metadata
-      return tx.stockTakeDrafts.update({
-        where: { id },
-        data: {
-          title: title !== undefined ? (title?.trim() || null) : draft.title,
-          lastSyncedAt: lastSyncedAt ? new Date(lastSyncedAt) : draft.lastSyncedAt,
-          // isStockTakeMode is locked once set to true — only allow setting, never unsetting
-          ...(isStockTakeMode === true ? { isStockTakeMode: true } : {}),
-        },
-        include: { items: { orderBy: { displayOrder: 'asc' } } },
-      })
+    // Update draft metadata
+    await prisma.stockTakeDrafts.update({
+      where: { id },
+      data: {
+        title: title !== undefined ? (title?.trim() || null) : draft.title,
+        lastSyncedAt: lastSyncedAt ? new Date(lastSyncedAt) : draft.lastSyncedAt,
+        ...(isStockTakeMode === true ? { isStockTakeMode: true } : {}),
+      },
     })
 
-    return NextResponse.json({ success: true, draft: updated })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[stock-take/drafts PUT]', error)
     return NextResponse.json({ error: 'Failed to save draft' }, { status: 500 })

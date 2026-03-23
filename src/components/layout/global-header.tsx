@@ -1701,12 +1701,9 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                 <div className="flex items-center space-x-2">
                   <span>🚪</span>
                   <span>Sign Out</span>
+                  <HealthIndicator inline pollInterval={30000} />
                 </div>
               </button>
-
-              <div className="px-4 py-2">
-                <HealthIndicator inline pollInterval={30000} />
-              </div>
             </div>
           </div>
         </>

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params
     const body = await request.json()
-    const { role } = body
+    const { role, employeeId: targetEmployeeId } = body
 
     if (!role || !['employee', 'manager'].includes(role)) {
       return NextResponse.json({ error: 'role must be "employee" or "manager"' }, { status: 400 })
@@ -57,19 +57,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
         data: { managerSignedAt: now, managerSignedById: user.id },
       })
     } else {
-      // Employee sign-off — find the responsible employee row linked to this user
+      // Employee sign-off
+      // First: try the current user's own employee record
       const employee = await prisma.employees.findFirst({
         where: { email: user.email, isActive: true },
         select: { id: true },
       })
 
-      if (!employee) {
-        return NextResponse.json({ error: 'No active employee record found for your account' }, { status: 403 })
+      const ownEmpRow = employee ? report.employees.find(e => e.employeeId === employee.id) : null
+
+      let empRow = ownEmpRow
+
+      if (!empRow) {
+        // Not their own row — check if they're a manager signing on behalf of a specific employee
+        const canManage = isSystemAdmin(user) || hasPermission(user, 'canAccessFinancialData', report.businessId)
+        if (!canManage || !targetEmployeeId) {
+          return NextResponse.json({ error: 'You are not listed as a responsible employee on this report' }, { status: 403 })
+        }
+        empRow = report.employees.find(e => e.employeeId === targetEmployeeId) ?? null
+        if (!empRow) return NextResponse.json({ error: 'Employee not found on this report' }, { status: 404 })
       }
 
-      const empRow = report.employees.find(e => e.employeeId === employee.id)
-      if (!empRow) return NextResponse.json({ error: 'You are not listed as a responsible employee on this report' }, { status: 403 })
-      if (empRow.signedAt) return NextResponse.json({ error: 'You have already signed off this report' }, { status: 409 })
+      if (empRow.signedAt) return NextResponse.json({ error: 'This employee has already signed off' }, { status: 409 })
 
       await prisma.stockTakeReportEmployees.update({
         where: { id: empRow.id },

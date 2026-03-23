@@ -63,6 +63,7 @@ interface BulkStockPanelProps {
   businessName: string
   businessType: string
   onClose: () => void
+  initialMode?: 'bulkStock' | 'stockTake'
 }
 
 function makeRow(overrides: Partial<BulkStockRow> = {}): BulkStockRow {
@@ -115,7 +116,7 @@ function resolveHierarchy(categoryId: string, allCats: BusinessCategory[]) {
   return { departmentId: grandparent?.id || '', categoryId: parent.id, subCategoryId: cat.id }
 }
 
-export function BulkStockPanel({ businessId, businessName, businessType, onClose }: BulkStockPanelProps) {
+export function BulkStockPanel({ businessId, businessName, businessType, onClose, initialMode }: BulkStockPanelProps) {
   const [rows, setRows] = useState<BulkStockRow[]>([])
   const [scanInput, setScanInput] = useState('')
   const [scanLoading, setScanLoading] = useState(false)
@@ -171,6 +172,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null)
   const [syncResetNotice, setSyncResetNotice] = useState(false)
   const [showCustomBulkModal, setShowCustomBulkModal] = useState(false)
+  const [showModeSelector, setShowModeSelector] = useState(false)
 
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableEndRef = useRef<HTMLDivElement>(null)
@@ -200,8 +202,11 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           setDraftList(list)
           setShowDraftSelector(true)
         } else {
-          // No drafts — auto-set a default title so user can start immediately
           setDraftTitle(`Stock ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`)
+          if (initialMode !== 'stockTake') {
+            setShowModeSelector(true)
+          }
+          // Note: stockTake auto-activation is triggered after draftCheckLoading → false (see below)
         }
       })
       .catch(() => {
@@ -209,6 +214,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       })
       .finally(() => setDraftCheckLoading(false))
   }, [businessId])
+
 
   // Auto-save draft every 60 seconds when there are unsaved rows
   useEffect(() => {
@@ -338,6 +344,14 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       focusScanInput()
     }
   }
+
+  // Auto-activate stock take when initialMode='stockTake' and no existing drafts found
+  useEffect(() => {
+    if (initialMode === 'stockTake' && !draftCheckLoading && !showDraftSelector) {
+      activateStockTakeMode()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftCheckLoading])
 
   const highlightRow = (rowId: string) => {
     setHighlightedRowId(rowId)
@@ -883,6 +897,35 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           </div>
         </div>
       )}
+      {/* Mode Selector — shown on fresh start when no existing drafts */}
+      {showModeSelector && !draftCheckLoading && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">What would you like to do?</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Choose a mode for this session</p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setShowModeSelector(false)}
+                className="w-full text-left px-5 py-4 rounded-xl border-2 border-indigo-200 dark:border-indigo-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                <p className="font-semibold text-gray-900 dark:text-white">📦 Bulk Stocking</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Scan barcodes to add or receive new stock</p>
+              </button>
+              <button
+                onClick={() => { setShowModeSelector(false); activateStockTakeMode() }}
+                className="w-full text-left px-5 py-4 rounded-xl border-2 border-teal-200 dark:border-teal-700 hover:border-teal-400 dark:hover:border-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors">
+                <p className="font-semibold text-gray-900 dark:text-white">📋 Stock Take Mode</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Count all existing inventory and record physical counts</p>
+              </button>
+            </div>
+            <button
+              onClick={onClose}
+              className="mt-4 w-full text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-center">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0 flex-wrap">
         <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 shrink-0">

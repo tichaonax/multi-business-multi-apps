@@ -25,6 +25,7 @@ function GroceryInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
+  const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [showViewModal, setShowViewModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -306,10 +307,16 @@ function GroceryInventoryContent() {
                       headerActions={(
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => setShowBulkStockPanel(true)}
+                            onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
                             className="px-3 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
                           >
                             📦 Bulk Stock
+                          </button>
+                          <button
+                            onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
+                            className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                          >
+                            📋 Stock Take
                           </button>
                           {canAccessFinancialData && (
                             <button
@@ -725,6 +732,7 @@ function GroceryInventoryContent() {
           businessName={currentBusiness.businessName}
           businessType={currentBusiness.businessType}
           onClose={() => setShowBulkStockPanel(false)}
+          initialMode={bulkStockInitialMode}
         />
       )}
       {showStockTakeReports && currentBusiness && currentBusinessId && (

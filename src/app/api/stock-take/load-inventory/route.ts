@@ -113,6 +113,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Also load BarcodeInventoryItems (used by grocery / bulk-stock businesses)
+    const barcodeItems = await prisma.barcodeInventoryItems.findMany({
+      where: { businessId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        barcodeData: true,
+        sku: true,
+        sellingPrice: true,
+        costPrice: true,
+        categoryId: true,
+        supplierId: true,
+        stockQuantity: true,
+      },
+      orderBy: { name: 'asc' },
+    })
+
+    for (const bi of barcodeItems) {
+      items.push({
+        productId: `bii_${bi.id}`,
+        variantId: `bii_${bi.id}`,
+        barcode: bi.barcodeData || '',
+        name: bi.name,
+        categoryId: bi.categoryId ?? '',
+        supplierId: bi.supplierId ?? null,
+        sku: bi.sku ?? '',
+        sellingPrice: Number(bi.sellingPrice ?? 0),
+        costPrice: bi.costPrice != null ? Number(bi.costPrice) : null,
+        systemQuantity: bi.stockQuantity,
+      })
+    }
+
     // Also load active custom bulk products for this business
     const bulkProducts = await prisma.customBulkProducts.findMany({
       where: { businessId, isActive: true },
