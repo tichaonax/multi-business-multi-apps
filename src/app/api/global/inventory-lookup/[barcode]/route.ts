@@ -318,6 +318,51 @@ const isInformational = access.canViewAcrossBusinesses && !hasAccess
       }
     }
 
+    // Tier 5: search CustomBulkProducts — runs independently (not a fallback tier)
+    // so bulk products with supplier barcodes surface alongside regular products
+    const customBulkMatches = await prisma.customBulkProducts.findMany({
+      where: {
+        barcode: { equals: barcode, mode: 'insensitive' },
+        isActive: true,
+        remainingCount: { gt: 0 },
+      },
+      include: {
+        business:  { select: { id: true, name: true, type: true } },
+        category:  { select: { name: true } },
+      },
+    })
+
+    for (const item of customBulkMatches) {
+      const hasAccess = accessibleBusinessIds.includes(item.businessId)
+      const isInformational = access.canViewAcrossBusinesses && !hasAccess
+      if (!hasAccess && !isInformational) continue
+      businessInventory.push({
+        businessId: item.businessId,
+        businessName: item.business.name,
+        businessType: item.business.type || 'retail',
+        productId: item.id,
+        variantId: null,
+        productName: item.name,
+        variantName: null,
+        description: `${item.remainingCount}/${item.itemCount} items remaining`,
+        productAttributes: {},
+        variantAttributes: {},
+        stockQuantity: item.remainingCount,
+        price: Number(item.unitPrice),
+        hasAccess,
+        isInformational,
+        barcodeType: 'CUSTOM_BULK',
+        barcodeLabel: 'Custom bulk product',
+        isCustomBulk: true,
+        customBulkId: item.id,
+        batchNumber: item.batchNumber,
+        categoryName: item.category?.name || null,
+        remainingCount: item.remainingCount,
+        itemCount: item.itemCount,
+        sku: item.sku,
+      })
+    }
+
     // Sort by accessibility (accessible businesses first, then informational)
     businessInventory.sort((a, b) => {
       if (a.hasAccess && !b.hasAccess) return -1

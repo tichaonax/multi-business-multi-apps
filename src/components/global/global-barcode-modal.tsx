@@ -39,6 +39,9 @@ interface BusinessInventory {
   // Inventory item-specific (BarcodeInventoryItems via Add Stock)
   isInventoryItem?: boolean
   inventoryItemId?: string
+  // Custom bulk product-specific
+  isCustomBulk?: boolean
+  customBulkId?: string
 }
 
 interface ScannedCustomer {
@@ -301,6 +304,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
             bogoRatio: biz.bogoRatio,
             isInventoryItem: biz.isInventoryItem,
             inventoryItemId: biz.inventoryItemId,
+            isCustomBulk: biz.isCustomBulk,
+            customBulkId: biz.customBulkId,
           })
         })
       }
@@ -324,7 +329,11 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
       const isOnPOSPage =
         typeof window !== 'undefined' && window.location.pathname.includes('/pos')
       if (isOnPOSPage && currentBusinessId) {
-        const currentBizMatch = filteredBusinesses.find(
+        // Custom bulk takes priority over regular products when both match the same barcode
+        const currentBizCustomBulk = filteredBusinesses.find(
+          b => b.businessId === currentBusinessId && b.hasAccess && b.isCustomBulk
+        )
+        const currentBizMatch = currentBizCustomBulk || filteredBusinesses.find(
           b => b.businessId === currentBusinessId && b.hasAccess && b.productId
         )
         if (currentBizMatch) {
@@ -332,7 +341,23 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
           // skips its own independent lookup and avoids a duplicate cart add.
           ;(window as any).__globalBarcodeHandled = { barcode: barcodeToLookup, ts: Date.now() }
 
-          if (currentBizMatch.isBale) {
+          if (currentBizMatch.isCustomBulk) {
+            // ✅ Custom bulk product — dispatch bulk-specific cart event
+            window.dispatchEvent(
+              new CustomEvent('pos:add-custom-bulk-to-cart', {
+                detail: {
+                  id: currentBizMatch.customBulkId,
+                  name: currentBizMatch.productName,
+                  batchNumber: currentBizMatch.batchNumber,
+                  unitPrice: currentBizMatch.price,
+                  sku: currentBizMatch.sku,
+                  remainingCount: currentBizMatch.remainingCount,
+                  itemCount: currentBizMatch.itemCount,
+                  categoryName: currentBizMatch.categoryName,
+                },
+              })
+            )
+          } else if (currentBizMatch.isBale) {
             // ✅ Bale in current business — dispatch bale-specific cart event
             window.dispatchEvent(
               new CustomEvent('pos:add-bale-to-cart', {

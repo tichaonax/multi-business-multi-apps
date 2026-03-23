@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StockTakeReportPreview } from './stock-take-report-preview'
+import { CustomBulkModal } from './custom-bulk-modal'
 
 interface BulkStockRow {
   rowId: string
@@ -169,6 +170,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [showStockTakeModeConfirm, setShowStockTakeModeConfirm] = useState(false)
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null)
   const [syncResetNotice, setSyncResetNotice] = useState(false)
+  const [showCustomBulkModal, setShowCustomBulkModal] = useState(false)
 
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableEndRef = useRef<HTMLDivElement>(null)
@@ -964,6 +966,12 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           </span>
         )}
         <div className="flex gap-2 ml-auto flex-wrap">
+          {/* Register Custom Bulk Product */}
+          <button
+            onClick={() => setShowCustomBulkModal(true)}
+            className="px-3 py-1.5 text-sm border border-orange-400 dark:border-orange-600 rounded-lg text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-medium">
+            📦 Bulk Product
+          </button>
           {/* Stock Take Mode toggle */}
           {!isStockTakeMode ? (
             <button
@@ -1227,6 +1235,16 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             </div>
           </div>
         </div>
+      )}
+
+      {/* Custom Bulk Product registration modal */}
+      {showCustomBulkModal && (
+        <CustomBulkModal
+          businessId={businessId}
+          businessType={businessType}
+          onClose={() => setShowCustomBulkModal(false)}
+          onSaved={() => {}}
+        />
       )}
 
       {/* Quick-create modal overlay (categories only) */}

@@ -1073,6 +1073,14 @@ export function Sidebar() {
               </Link>
             )}
 
+            {/* Custom Bulk Products — shown for users who can manage inventory */}
+            {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
+              <Link href="/inventory/custom-bulk" className={getLinkClasses('/inventory/custom-bulk')}>
+                <span className="text-lg">📦</span>
+                <span>Custom Bulk Products</span>
+              </Link>
+            )}
+
             {/* Petty Cash — shown for users with petty_cash.approve OR petty_cash.request permission */}
             {(canApprovePettyCashSys || canRequestPettyCashSys) && (
               <Link

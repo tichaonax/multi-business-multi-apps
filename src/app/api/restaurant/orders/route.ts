@@ -1066,6 +1066,31 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Handle CustomBulkProduct item — decrement remainingCount
+      const customBulkId = (item as any).attributes?.customBulkId
+      if ((item as any).attributes?.isCustomBulk && customBulkId) {
+        await prisma.businessOrderItems.create({
+          data: {
+            orderId: newOrder.id,
+            productVariantId: null,
+            quantity: itemQuantity,
+            unitPrice: itemPrice,
+            discountAmount: 0,
+            totalPrice: itemTotal,
+            attributes: { productName: item.name, isCustomBulk: true, customBulkId },
+          }
+        })
+        const updated = await prisma.customBulkProducts.update({
+          where: { id: customBulkId },
+          data: { remainingCount: { decrement: itemQuantity } },
+          select: { remainingCount: true },
+        })
+        if (updated.remainingCount <= 0) {
+          await prisma.customBulkProducts.update({ where: { id: customBulkId }, data: { isActive: false } })
+        }
+        continue
+      }
+
       // Handle BarcodeInventoryItem (individual stock added via Add Stock flow)
       const invItemId = (item as any).attributes?.inventoryItemId || (typeof item.id === 'string' && item.id.startsWith('inv_') ? item.id.replace(/^inv_/, '') : null)
       if ((item as any).attributes?.isInventoryItem && invItemId) {

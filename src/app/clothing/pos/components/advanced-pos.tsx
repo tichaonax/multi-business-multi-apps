@@ -1071,6 +1071,50 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Add a custom bulk product item to cart (one individual item from the container)
+  const addCustomBulkToCart = (bulk: any) => {
+    const price = parseFloat(bulk.unitPrice)
+    const bulkKey = `cbulk_${bulk.id}`
+    const isSameBulk = (item: CartItem) =>
+      item.attributes?.customBulkId === bulk.id || item.variantId === bulkKey
+    const currentCart = cartRef.current
+    const existing = currentCart.find(isSameBulk)
+    let newCart: CartItem[]
+    if (existing) {
+      newCart = currentCart.map(item =>
+        isSameBulk(item) ? { ...item, quantity: item.quantity + 1 } : item
+      )
+    } else {
+      newCart = [...currentCart, {
+        id: Date.now().toString(),
+        productId: bulkKey,
+        variantId: bulkKey,
+        name: bulk.name || `Bulk - ${bulk.batchNumber}`,
+        sku: bulk.sku || bulk.batchNumber,
+        price,
+        quantity: 1,
+        attributes: {
+          customBulkId: bulk.id,
+          isCustomBulk: true,
+        },
+        isReturn: false,
+      }]
+    }
+    setCart(newCart)
+    broadcastCartState(newCart)
+  }
+
+  // Listen for pos:add-custom-bulk-to-cart dispatched by GlobalBarcodeModal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bulk = (e as CustomEvent).detail
+      if (bulk?.id) addCustomBulkToCart(bulk)
+    }
+    window.addEventListener('pos:add-custom-bulk-to-cart', handler)
+    return () => window.removeEventListener('pos:add-custom-bulk-to-cart', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const removeFromCart = (itemId: string) => {
     const newCart = cart.filter(item => item.id !== itemId)
     setCart(newCart)

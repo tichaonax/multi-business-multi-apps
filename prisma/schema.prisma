@@ -122,6 +122,7 @@ model BusinessCategories {
   business_products         BusinessProducts[]
   barcode_inventory_items   BarcodeInventoryItems[]
   inventory_subcategories   InventorySubcategories[]
+  customBulkProducts        CustomBulkProducts[]      @relation("CustomBulkCategory")
 
   @@unique([businessType, domainId, name])
   @@index([businessType])
@@ -351,6 +352,7 @@ model BusinessSuppliers {
   chicken_batches           ChickenBatch[]            @relation("ChickenBatchSupplier")
   chicken_feed_logs         ChickenFeedLog[]          @relation("ChickenFeedSupplier")
   chicken_inventory         ChickenInventory[]        @relation("ChickenInventorySupplier")
+  customBulkProducts        CustomBulkProducts[]      @relation("CustomBulkSupplier")
 
   @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
@@ -536,6 +538,7 @@ model Businesses {
   chickenRunSettings                                                       ChickenRunSettings?
   stock_take_drafts                                                        StockTakeDrafts[]     @relation("StockTakeDraftBusiness")
   stock_take_reports                                                       StockTakeReports[]    @relation("StockTakeReportBusiness")
+  customBulkProducts                                                       CustomBulkProducts[]  @relation("CustomBulkBusiness")
 
   @@map("businesses")
 }
@@ -1286,6 +1289,7 @@ model Employees {
   coupon_approvals                                                          CouponUsages[]                @relation("CouponApprovedBy")
   inventory_transfers                                                       InventoryTransfers[]          @relation("TransferEmployee")
   clothing_bales_stocked                                                    ClothingBales[]               @relation("BaleStockedBy")
+  customBulkProducts                                                        CustomBulkProducts[]          @relation("CustomBulkStockedBy")
   meal_program_participant                                                  MealProgramParticipants?
   meal_program_transactions_sold                                            MealProgramTransactions[]     @relation("MealProgramSoldByEmployee")
   outgoing_loans_as_recipient                                               AccountOutgoingLoans[]        @relation("OutgoingLoanEmployee")
@@ -4898,6 +4902,40 @@ model ClothingLabelPrintHistory {
   @@index([baleId])
   @@index([productId])
   @@map("clothing_label_print_history")
+}
+
+// ============================================================
+// Custom Bulk Products (MBM-162)
+// ============================================================
+
+model CustomBulkProducts {
+  id             String   @id @default(uuid())
+  businessId     String
+  name           String
+  categoryId     String?
+  supplierId     String?
+  employeeId     String?
+  batchNumber    String
+  itemCount      Int
+  remainingCount Int
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  costPrice      Decimal? @db.Decimal(10, 2)
+  sku            String
+  barcode        String
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  business  Businesses         @relation("CustomBulkBusiness", fields: [businessId], references: [id])
+  category  BusinessCategories? @relation("CustomBulkCategory", fields: [categoryId], references: [id])
+  supplier  BusinessSuppliers?  @relation("CustomBulkSupplier", fields: [supplierId], references: [id])
+  employee  Employees?          @relation("CustomBulkStockedBy", fields: [employeeId], references: [id])
+
+  @@unique([businessId, batchNumber])
+  @@index([businessId])
+  @@index([barcode])
+  @@map("custom_bulk_products")
 }
 
 // ============================================================

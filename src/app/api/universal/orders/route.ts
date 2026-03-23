@@ -542,7 +542,7 @@ export async function POST(request: NextRequest) {
 
               // For regular products: use connect (Prisma sets productVariantId automatically)
               // For virtual items (WiFi tokens, services, bale items): don't set productVariantId at all
-              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService || item.attributes?.baleId || item.attributes?.isInventoryItem
+              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService || item.attributes?.baleId || item.attributes?.isInventoryItem || item.attributes?.customBulkId
               if (item.productVariantId && !isVirtualItem) {
                 orderItem.product_variants = {
                   connect: { id: item.productVariantId }
@@ -620,6 +620,30 @@ export async function POST(request: NextRequest) {
               remainingCount: { decrement: qty }
             }
           })
+        }
+      }
+
+      // Decrement remainingCount for custom bulk product items
+      const customBulkItems = items.filter(item => item.attributes?.customBulkId)
+      if (customBulkItems.length > 0) {
+        const bulkQuantities: Record<string, number> = {}
+        for (const item of customBulkItems) {
+          const bulkId = item.attributes!.customBulkId as string
+          bulkQuantities[bulkId] = (bulkQuantities[bulkId] || 0) + item.quantity
+        }
+        for (const [bulkId, qty] of Object.entries(bulkQuantities)) {
+          const updated = await tx.customBulkProducts.update({
+            where: { id: bulkId },
+            data: { remainingCount: { decrement: qty } },
+            select: { remainingCount: true },
+          })
+          // Auto-deactivate when exhausted
+          if (updated.remainingCount <= 0) {
+            await tx.customBulkProducts.update({
+              where: { id: bulkId },
+              data: { isActive: false },
+            })
+          }
         }
       }
 

@@ -113,7 +113,44 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, total, items })
+    // Also load active custom bulk products for this business
+    const bulkProducts = await prisma.customBulkProducts.findMany({
+      where: { businessId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        barcode: true,
+        sku: true,
+        unitPrice: true,
+        costPrice: true,
+        categoryId: true,
+        supplierId: true,
+        remainingCount: true,
+      },
+      orderBy: { name: 'asc' },
+    })
+
+    for (const bulk of bulkProducts) {
+      items.push({
+        productId: `cbulk_${bulk.id}`,
+        variantId: `cbulk_${bulk.id}`,
+        barcode: bulk.barcode,
+        name: `${bulk.name} [Bulk]`,
+        categoryId: bulk.categoryId ?? '',
+        supplierId: bulk.supplierId ?? null,
+        sku: bulk.sku,
+        sellingPrice: Number(bulk.unitPrice),
+        costPrice: bulk.costPrice != null ? Number(bulk.costPrice) : null,
+        systemQuantity: bulk.remainingCount,
+      })
+    }
+
+    // Sort combined list alphabetically by name
+    items.sort((a, b) => a.name.localeCompare(b.name))
+
+    const finalTotal = items.length
+
+    return NextResponse.json({ success: true, total: finalTotal, items })
   } catch (error) {
     console.error('[stock-take/load-inventory GET]', error)
     return NextResponse.json({ error: 'Failed to load inventory' }, { status: 500 })

@@ -41,6 +41,10 @@ export interface UniversalCartItem {
   bogoActive?: boolean
   bogoRatio?: number
 
+  // Custom bulk product
+  customBulkId?: string
+  isCustomBulk?: boolean
+
   // WiFi Token specific
   isWiFiToken?: boolean
   tokenConfigId?: string

@@ -134,6 +134,29 @@ export default function UniversalPOS() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Listen for pos:add-custom-bulk-to-cart dispatched by GlobalBarcodeModal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bulk = (e as CustomEvent).detail
+      if (!bulk?.id) return
+      const bulkKey = `cbulk_${bulk.id}`
+      addToCart({
+        id: `cbulk_${bulk.id}_${Date.now()}`,
+        name: bulk.name || `Bulk - ${bulk.batchNumber}`,
+        sku: bulk.sku || bulk.batchNumber || '',
+        quantity: 1,
+        unitPrice: parseFloat(bulk.unitPrice),
+        productId: bulkKey,
+        variantId: bulkKey,
+        customBulkId: bulk.id,
+        isCustomBulk: true,
+      })
+    }
+    window.addEventListener('pos:add-custom-bulk-to-cart', handler)
+    return () => window.removeEventListener('pos:add-custom-bulk-to-cart', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addToCart])
+
   const handleApplyReward = (reward: CustomerReward) => {
     if (appliedCoupon) {
       toast.error('Cannot combine a reward with a coupon — remove the coupon first')
