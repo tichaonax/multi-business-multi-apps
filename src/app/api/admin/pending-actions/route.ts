@@ -408,6 +408,29 @@ export async function GET() {
       }
     }
 
+    // Pending bulk stock (stock-take) drafts — drafts started by the current user that are still DRAFT
+    const stockTakeDraftRows = await prisma.stockTakeDrafts.findMany({
+      where: { createdById: user.id, status: 'DRAFT' },
+      select: {
+        id: true,
+        title: true,
+        updatedAt: true,
+        _count: { select: { items: true } },
+        business: { select: { id: true, name: true, type: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+    })
+    const pendingStockTakeDrafts = (stockTakeDraftRows as any[]).map((d) => ({
+      id: d.id,
+      title: d.title ?? 'Untitled Stock Take',
+      itemCount: d._count.items,
+      updatedAt: d.updatedAt.toISOString(),
+      businessId: d.business?.id ?? null,
+      businessName: d.business?.name ?? '—',
+      businessType: d.business?.type ?? 'clothing',
+    }))
+
     const total =
       (loanLockRequests as unknown[]).length +
       (pendingSupplierPayments as unknown[]).length +
@@ -419,7 +442,8 @@ export async function GET() {
       (pendingMealPrograms as unknown[]).length +
       (myPendingPayments as unknown[]).length +
       myApprovedPaymentsMapped.length +
-      myApprovedPettyCash.length
+      myApprovedPettyCash.length +
+      pendingStockTakeDrafts.length
 
     return NextResponse.json({
       loanLockRequests,
@@ -434,6 +458,7 @@ export async function GET() {
       myPendingPayments,
       myApprovedPayments: myApprovedPaymentsMapped,
       myApprovedPettyCash,
+      pendingStockTakeDrafts,
       canApprovePettyCash,
       canRequestPettyCash,
       canApproveCashAlloc: canApproveCashAllocation,

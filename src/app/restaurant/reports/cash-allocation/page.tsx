@@ -16,8 +16,9 @@ function RestaurantCashAllocationContent() {
   const reportId = searchParams.get('reportId')
   const businessIdOverride = searchParams.get('businessId')
 
-  const businessId = currentBusinessId ||
+  const contextBusinessId = currentBusinessId ||
     (isSystemAdmin ? businesses?.find(b => b.businessType === 'restaurant' && b.isActive)?.businessId ?? null : null)
+  const businessId = businessIdOverride || contextBusinessId
 
   if (!businessId) return null
 
@@ -32,13 +33,13 @@ function RestaurantCashAllocationContent() {
       ]}
     >
       {reportId ? (
-        <CashAllocationGroupedReport businessId={businessIdOverride || businessId} reportId={reportId} />
+        <CashAllocationGroupedReport businessId={businessId} reportId={reportId} />
       ) : (
         <CashAllocationDailyReport
           businessId={businessId}
           businessType="restaurant"
           lockedDate={lockedDate}
-          businessIdOverride={businessIdOverride}
+          businessIdOverride={null}
         />
       )}
     </ContentLayout>

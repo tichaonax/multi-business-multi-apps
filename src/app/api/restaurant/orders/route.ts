@@ -1363,23 +1363,7 @@ export async function POST(req: NextRequest) {
           createdBy: user.id
         })
 
-        // For EcoCash, create a CashBucketEntry INFLOW immediately (digitally confirmed via txCode)
-        if (isEcocash && creditAmount > 0) {
-          await prisma.cashBucketEntry.create({
-            data: {
-              businessId,
-              entryType: 'POS_SALE',
-              direction: 'INFLOW',
-              paymentChannel: 'ECOCASH',
-              amount: creditAmount,
-              referenceType: 'order',
-              referenceId: newOrder.id,
-              notes: `EcoCash sale - ${orderNumber} | Ref: ${orderAttrs.ecocashTransactionCode || ''}`,
-              entryDate: new Date(),
-              createdBy: user.id
-            } as any
-          })
-        }
+        // EcoCash bucket entry is recorded at cash allocation lock (confirmed by manager), not per-order
       } catch (balanceError) {
         console.error('Failed to credit business balance for order:', balanceError)
       }

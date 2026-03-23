@@ -46,9 +46,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
   const businessId = businessIdOverride || propBusinessId
 
   const today = new Date().toISOString().split('T')[0]
-  // Default to yesterday — most likely to have completed EOD data
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-  const [date, setDate] = useState(lockedDate ?? yesterday)
+  const [date, setDate] = useState(lockedDate ?? today)
   const [report, setReport] = useState<Report | null>(null)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [allChecked, setAllChecked] = useState(false)

@@ -22,6 +22,8 @@ export default function EndOfDayReport() {
   const [cashCounted, setCashCounted] = useState('')
   const [variance, setVariance] = useState(0)
   const [managerSignature, setManagerSignature] = useState('')
+  const [confirmName, setConfirmName] = useState('')
+  const [nameError, setNameError] = useState(false)
 
   // Report saving state
   const [existingReport, setExistingReport] = useState<any>(null)
@@ -149,10 +151,22 @@ export default function EndOfDayReport() {
       .catch(() => setEcocashTxns([]))
   }, [showSaveModal, currentBusinessId, dailySales?.businessDay?.date])
 
+  const openSaveModal = () => {
+    if (!managerSignature.trim()) {
+      setNameError(true)
+      document.getElementById('manager-signature-input')?.focus()
+      return
+    }
+    setNameError(false)
+    setConfirmName('')
+    setModalStep('auto-deposits')
+    setShowSaveModal(true)
+  }
+
   // Handle save report
   const handleSaveReport = async () => {
-    if (!managerSignature.trim()) {
-      setSaveError('Manager name is required')
+    if (!confirmName.trim()) {
+      setSaveError('Manager signature is required')
       return
     }
     // Synchronous guard — prevents double-fire before React re-render disables the button
@@ -230,7 +244,7 @@ export default function EndOfDayReport() {
           reportDate: dailySales.businessDay.date,
           periodStart: dailySales.businessDay.start,
           periodEnd: dailySales.businessDay.end,
-          managerName: managerSignature,
+          managerName: confirmName,
           cashCounted: parseFloat(cashCounted || '0'),
           confirmedEcocashAmount: confirmedEcocashTotal > 0 ? confirmedEcocashTotal : null,
           reportData: reportData
@@ -456,7 +470,7 @@ export default function EndOfDayReport() {
             </Link>
             {!existingReport && (
               <button
-                onClick={() => setShowSaveModal(true)}
+                onClick={openSaveModal}
                 className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm whitespace-nowrap"
               >
                 💾 Save & Lock Report
@@ -932,14 +946,20 @@ export default function EndOfDayReport() {
           <div className="mt-12 pt-8 border-t-2 border-gray-300 dark:border-gray-600 print:border-gray-300">
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 print:text-gray-700">Manager Name:</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 print:text-gray-700">
+                  Manager Name: <span className="text-red-500">*</span>
+                </label>
                 <input
+                  id="manager-signature-input"
                   type="text"
                   value={managerSignature}
-                  onChange={(e) => setManagerSignature(e.target.value)}
+                  onChange={(e) => { setManagerSignature(e.target.value); setNameError(false) }}
                   placeholder="Enter manager name"
-                  className="w-full px-3 py-2 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded no-print"
+                  className={`w-full px-3 py-2 border-2 rounded dark:bg-gray-700 dark:text-gray-100 no-print ${nameError && !managerSignature.trim() ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                 />
+                {nameError && !managerSignature.trim() && (
+                  <p className="text-xs text-red-500 mt-1 no-print">⚠️ Manager signature is required before saving</p>
+                )}
                 <div className="print-only border-b-2 border-gray-400 pb-1 mb-2 text-gray-900">
                   {managerSignature || '_________________________'}
                 </div>
@@ -966,7 +986,7 @@ export default function EndOfDayReport() {
           {!existingReport && (
             <div className="no-print mt-6 flex justify-center">
               <button
-                onClick={() => setShowSaveModal(true)}
+                onClick={openSaveModal}
                 className="inline-flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold shadow"
               >
                 💾 Save & Lock Report
@@ -1041,16 +1061,19 @@ export default function EndOfDayReport() {
 
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Manager Name: <span className="text-red-500">*</span>
+                  Manager Signature: <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={managerSignature}
-                  onChange={(e) => setManagerSignature(e.target.value)}
-                  placeholder="Enter your name"
-                  className="w-full px-3 py-2 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  value={confirmName}
+                  onChange={(e) => setConfirmName(e.target.value)}
+                  placeholder="Type your full name to confirm"
+                  className={`w-full px-3 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-gray-100 ${!confirmName.trim() ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                   autoFocus
                 />
+                {!confirmName.trim() && (
+                  <p className="text-xs text-red-500 mt-1">⚠️ Manager signature is required to save & lock</p>
+                )}
               </div>
 
               <div className="mb-6">
@@ -1165,7 +1188,7 @@ export default function EndOfDayReport() {
                 </button>
                 <button
                   onClick={handleSaveReport}
-                  disabled={saving || !managerSignature.trim()}
+                  disabled={saving || !confirmName.trim()}
                   className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
                 >
                   {saving ? '💾 Saving...' : '💾 Save & Lock'}

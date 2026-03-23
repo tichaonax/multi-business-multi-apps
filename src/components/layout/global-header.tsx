@@ -75,6 +75,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const { unreadCount: notifUnreadCount, notifications: notifList, markRead, markAllRead } = useNotifications()
   const [showBellPreview, setShowBellPreview] = useState(false)
   const [showNotifPanel, setShowNotifPanel] = useState(false)
+  const [pendingDraftNav, setPendingDraftNav] = useState<{ businessId: string; businessName: string; url: string; title: string } | null>(null)
   const [showUnreadOnly, setShowUnreadOnly] = useState(true)
   const [canPettyCashRequest, setCanPettyCashRequest] = useState(false)
 
@@ -876,6 +877,36 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </Link>
                             )
                           })}
+                          {(pendingActions.pendingStockTakeDrafts?.length ?? 0) > 0 && (
+                            <>
+                              <div className="px-3 py-1.5 bg-teal-50 dark:bg-teal-900/20 border-t border-border">
+                                <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wide">
+                                  📦 Bulk Stock — {pendingActions.pendingStockTakeDrafts!.length} draft{pendingActions.pendingStockTakeDrafts!.length !== 1 ? 's' : ''} in progress
+                                </span>
+                              </div>
+                              {pendingActions.pendingStockTakeDrafts!.map((d) => (
+                                <button
+                                  key={d.id}
+                                  onClick={() => {
+                                    setShowBellPreview(false)
+                                    const url = `/${d.businessType}/inventory?bulkStock=1`
+                                    if (d.businessId && currentBusiness?.businessId && d.businessId !== currentBusiness.businessId) {
+                                      setPendingDraftNav({ businessId: d.businessId, businessName: d.businessName, url, title: d.title })
+                                    } else {
+                                      window.location.href = url
+                                    }
+                                  }}
+                                  className="w-full flex items-start gap-2 px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-900/10 text-xs text-left"
+                                >
+                                  <span className="mt-0.5 shrink-0">📦</span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium text-primary truncate">{d.title}</p>
+                                    <p className="text-secondary">{d.businessName} · <span className="text-teal-600 dark:text-teal-400 font-medium">{d.itemCount} item{d.itemCount !== 1 ? 's' : ''} saved</span></p>
+                                  </div>
+                                </button>
+                              ))}
+                            </>
+                          )}
                           {pendingActions.pendingSupplierPayments?.map((s: any) => (
                             <Link key={s.id} href="/supplier-payments" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
                               <span className="mt-0.5 shrink-0">🏭</span>
@@ -1641,6 +1672,39 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
             </div>
           </div>
         </>
+      )}
+
+      {/* Bulk Stock draft — business switch confirmation */}
+      {pendingDraftNav && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Switch Business?</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              The draft <span className="font-semibold">"{pendingDraftNav.title}"</span> belongs to:
+            </p>
+            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-4">{pendingDraftNav.businessName}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              You will be switched to that business to continue the stock job.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setPendingDraftNav(null)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem('currentBusinessId', pendingDraftNav.businessId)
+                  window.location.href = pendingDraftNav.url
+                }}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium"
+              >
+                📦 Switch & Continue
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -132,6 +132,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         const t: any = token
         t.role = (user as any).role
+        t.name = (user as any).name || null
         // Only store role in JWT — permissions and businessMemberships are
         // fetched from DB per-request via getServerUser() to keep cookies small.
         t.sub = (user as any).id
@@ -149,6 +150,7 @@ export const authOptions: NextAuthOptions = {
         s.user = s.user || {}
         s.user.id = t.sub || s.user.id
         s.user.role = t.role
+        s.user.name = t.name || s.user.name || null
         s.sessionId = t.sessionId
         s.loginTime = t.loginTime
       }

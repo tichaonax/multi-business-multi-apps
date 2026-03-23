@@ -16,8 +16,9 @@ function GroceryCashAllocationContent() {
   const reportId = searchParams.get('reportId')
   const businessIdOverride = searchParams.get('businessId')
 
-  const businessId = currentBusinessId ||
+  const contextBusinessId = currentBusinessId ||
     (isSystemAdmin ? businesses?.find(b => b.businessType === 'grocery' && b.isActive)?.businessId ?? null : null)
+  const businessId = businessIdOverride || contextBusinessId
 
   if (!businessId) return null
 
@@ -32,13 +33,13 @@ function GroceryCashAllocationContent() {
       ]}
     >
       {reportId ? (
-        <CashAllocationGroupedReport businessId={businessIdOverride || businessId} reportId={reportId} />
+        <CashAllocationGroupedReport businessId={businessId} reportId={reportId} />
       ) : (
         <CashAllocationDailyReport
           businessId={businessId}
           businessType="grocery"
           lockedDate={lockedDate}
-          businessIdOverride={businessIdOverride}
+          businessIdOverride={null}
         />
       )}
     </ContentLayout>

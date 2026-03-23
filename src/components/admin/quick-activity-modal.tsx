@@ -162,6 +162,18 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
       }
     }
 
+    // Fetch business ecocash fee config
+    let ecocashFeeType: string = 'PERCENTAGE'
+    let ecocashFeeValue: number = 0
+    try {
+      const bizRes = await fetch(`/api/business/${cfg.businessId}`)
+      if (bizRes.ok) {
+        const bizData = await bizRes.json()
+        ecocashFeeType  = bizData.ecocashFeeType  ?? 'PERCENTAGE'
+        ecocashFeeValue = Number(bizData.ecocashFeeValue ?? 0)
+      }
+    } catch { /* use defaults */ }
+
     // Fallback: try barcode inventory items (used by grocery and similar businesses)
     if (sellable.length === 0) {
       const invRes = await fetch(`/api/inventory/${cfg.businessId}/barcode-items`)
@@ -213,8 +225,9 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
 
         if (orderItems.length === 0) break
 
-        // EcoCash fee: 1.5% of order total
-        const ecocashFee = paymentMethod === 'ECOCASH' ? Math.round(orderTotal * 0.015 * 100) / 100 : 0
+        const ecocashFee = paymentMethod === 'ECOCASH'
+          ? Math.round((ecocashFeeType === 'PERCENTAGE' ? orderTotal * (ecocashFeeValue / 100) : ecocashFeeValue) * 100) / 100
+          : 0
         const ecocashTxCode = paymentMethod === 'ECOCASH'
           ? `ECO${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`
           : undefined
