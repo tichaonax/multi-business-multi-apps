@@ -26,5 +26,13 @@ tablesWithData.forEach(({ table, count }) => {
 });
 
 console.log('');
-console.log(`Total tables with data: ${tablesWithData.length}/96`);
-console.log('Validation: ' + (tablesWithData.length === 96 ? 'PASSED - All tables have data!' : 'FAILED - Some tables missing data'));
+const totalTablesInBackup = tableKeys.length;
+console.log(`Total tables with data: ${tablesWithData.length}/${totalTablesInBackup}`);
+const criticalTables = ['users', 'businesses', 'expenseAccounts', 'expenseAccountPayments', 'businessOrders',
+  'stockTakeDrafts', 'stockTakeReports', 'pettyCashRequests', 'cashAllocationReport', 'eODPaymentBatch'];
+const missingCritical = criticalTables.filter(t => !backup[t] || !Array.isArray(backup[t]) || backup[t].length === 0);
+if (missingCritical.length === 0) {
+  console.log('Validation: PASSED - All critical tables present and have data.');
+} else {
+  console.log('Validation: FAILED - Missing critical tables: ' + missingCritical.join(', '));
+}

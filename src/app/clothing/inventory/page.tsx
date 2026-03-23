@@ -511,7 +511,7 @@ function ClothingInventoryContent() {
 
   const businessId = currentBusinessId!
 
-  const isClothingBusiness = (currentBusiness as any)?.businessType === 'clothing' || (currentBusiness as any)?.type === 'clothing'
+  const isClothingBusiness = currentBusiness?.businessType === 'clothing'
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },

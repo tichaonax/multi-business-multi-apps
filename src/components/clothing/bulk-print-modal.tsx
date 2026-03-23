@@ -301,12 +301,13 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
       if (!res.ok) throw new Error('Failed')
       const { isOnline } = await res.json()
       if (isOnline) {
+        setReceiptError(null)
         loadPrinters(printerId)
       } else {
-        alert('Printer is still offline. Check power and network connection.')
+        setReceiptError('Printer is still offline. Check power and network connection.')
       }
     } catch {
-      alert('Error checking printer status.')
+      setReceiptError('Error checking printer status.')
     } finally {
       setCheckingOnline(null)
     }
