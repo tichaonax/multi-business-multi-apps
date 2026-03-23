@@ -131,6 +131,7 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'cashAllocationLineItems': 'cashAllocationLineItem',
   // Petty Cash / Per Diem
   'pettyCashTransactions': 'pettyCashTransaction',
+  'paymentReversalLogs': 'paymentReversalLog',
   // Business Loans
   'businessLoans': 'businessLoan',
   'businessLoanManagers': 'businessLoanManager',
@@ -153,6 +154,11 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'chickenInventoryMovements': 'chickenInventoryMovement',
   'chickenUtilityCosts': 'chickenUtilityCost',
   'chickenLaborLogs': 'chickenLaborLog',
+  // Stock Take Workflow
+  'stockTakeDraftItems': 'stockTakeDraftItems',
+  'stockTakeReportEmployees': 'stockTakeReportEmployees',
+  // Custom Bulk Products
+  'customBulkProducts': 'customBulkProducts',
 }
 
 /**
@@ -160,7 +166,7 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
  * Differences for these tables are expected and should not be flagged as errors.
  * - images: only employee profile photos are backed up (not clock-in photos, product images, etc.)
  */
-const KNOWN_PARTIAL_BACKUP_TABLES = new Set(['images'])
+const KNOWN_PARTIAL_BACKUP_TABLES = new Set(['images', 'clothingLabelPrintHistory'])
 
 /**
  * Tables that have a businessId field but should NOT be scoped by backedUpBusinessIds

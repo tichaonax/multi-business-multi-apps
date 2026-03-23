@@ -1250,6 +1250,11 @@ export async function createCleanBackup(
     where: { reportId: { in: stockTakeReportIds } }
   })
 
+  // 48. Custom Bulk Products
+  businessData.customBulkProducts = await prisma.customBulkProducts.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined
 

@@ -336,6 +336,9 @@ const RESTORE_ORDER = [
   'stockTakeReports',          // Depends on businesses, users, stockTakeDrafts
   'stockTakeReportEmployees',  // Depends on stockTakeReports, employees, users
 
+  // Custom Bulk Products (depends on businesses, categories, suppliers, employees)
+  'customBulkProducts',
+
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs'           // Depends on users
 ]
