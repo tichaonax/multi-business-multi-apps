@@ -927,7 +927,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const quickCreateLabel = quickCreateLevel === 'subcategory' ? 'New Sub-category' : 'New Category'
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col">
+    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col pb-20">
 
       {/* Barcode lookup overlay */}
       {scanLoading && (

@@ -155,7 +155,7 @@ export function StockTakeReportDetail({ reportId, businessName, canManage, onBac
   const currentUserEmail = session?.user?.email ?? ''
 
   return (
-    <div className="fixed inset-0 z-[55] bg-white dark:bg-gray-900 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[55] bg-white dark:bg-gray-900 flex flex-col overflow-hidden pb-20">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
         <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
