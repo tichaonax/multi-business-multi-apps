@@ -360,6 +360,19 @@ export default function AdminPage() {
 
           {isSysAdmin && (
             <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <AlertTriangle className="h-6 w-6 mr-2 text-amber-500" />
+                <h3 className="text-lg font-semibold text-primary">Stock Take Drafts</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">View and delete blocking stock take drafts that prevent businesses from processing sales.</p>
+              <Link href="/admin/stock-take-drafts" className="btn-primary inline-block text-sm">
+                Manage Blocking Drafts
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
                   <Wifi className="h-6 w-6 mr-2 text-purple-500" />

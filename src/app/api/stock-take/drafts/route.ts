@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 
 /**
  * GET /api/stock-take/drafts?businessId=
@@ -19,8 +20,20 @@ export async function GET(request: NextRequest) {
     const businessId = request.nextUrl.searchParams.get('businessId')
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
 
+    // Manager/admin can fetch all blocking drafts for a business (used by reports list UI)
+    const isStockTakeModeFilter = request.nextUrl.searchParams.get('isStockTakeMode') === 'true'
+    const isManager = isSystemAdmin(user) || hasPermission(user, 'canAccessFinancialData', businessId)
+
+    const where: any = { businessId, status: 'DRAFT' }
+    if (isStockTakeModeFilter && isManager) {
+      where.isStockTakeMode = true
+      // Show all users' drafts, not just own
+    } else {
+      where.createdById = user.id
+    }
+
     const drafts = await prisma.stockTakeDrafts.findMany({
-      where: { businessId, createdById: user.id, status: 'DRAFT' },
+      where,
       select: {
         id: true,
         title: true,
@@ -32,7 +45,7 @@ export async function GET(request: NextRequest) {
       orderBy: { updatedAt: 'desc' },
     })
 
-    return NextResponse.json({ success: true, drafts })
+    return NextResponse.json({ success: true, data: drafts, drafts })
   } catch (error) {
     console.error('[stock-take/drafts GET]', error)
     return NextResponse.json({ error: 'Failed to fetch drafts' }, { status: 500 })

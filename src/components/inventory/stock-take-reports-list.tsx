@@ -58,6 +58,44 @@ export function StockTakeReportsList({ businessId, businessName, canManage, onCl
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
   const [voidingId, setVoidingId] = useState<string | null>(null)
 
+  // Blocking drafts (stock take mode active)
+  const [blockingDrafts, setBlockingDrafts] = useState<{ id: string; title: string | null; createdAt: string }[]>([])
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
+
+  const fetchBlockingDrafts = useCallback(() => {
+    fetch(`/api/stock-take/drafts?businessId=${businessId}&isStockTakeMode=true&status=DRAFT`)
+      .then(r => r.json())
+      .then(d => setBlockingDrafts(d.data ?? []))
+      .catch(() => {})
+  }, [businessId])
+
+  useEffect(() => { fetchBlockingDrafts() }, [fetchBlockingDrafts])
+
+  const handleDeleteDraft = async (draft: { id: string; title: string | null }) => {
+    const ok = await confirm({
+      title: 'Delete blocking draft?',
+      description: `Delete "${draft.title || 'Untitled'}"? This unblocks sales for this business immediately.`,
+      confirmText: 'Delete Draft',
+      cancelText: 'Cancel'
+    })
+    if (!ok) return
+    setDeletingDraftId(draft.id)
+    try {
+      const res = await fetch(`/api/stock-take/drafts/${draft.id}`, { method: 'DELETE' })
+      const d = await res.json()
+      if (d.success) {
+        setBlockingDrafts(prev => prev.filter(bd => bd.id !== draft.id))
+        toast('Draft deleted — sales unblocked', { type: 'success' })
+      } else {
+        toastError(d.error || 'Delete failed')
+      }
+    } catch {
+      toastError('Delete failed')
+    } finally {
+      setDeletingDraftId(null)
+    }
+  }
+
   const handleVoid = async (id: string) => {
     const ok = await confirm({ title: 'Void stock take report?', description: 'This will mark the report as voided. Stock changes already recorded are not reversed.', confirmText: 'Void Report', cancelText: 'Cancel' })
     if (!ok) return
@@ -125,6 +163,29 @@ export function StockTakeReportsList({ businessId, businessName, canManage, onCl
           <option value="VOIDED">Voided</option>
         </select>
       </div>
+
+      {/* Blocking Drafts Banner */}
+      {canManage && blockingDrafts.length > 0 && (
+        <div className="shrink-0 px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-700">
+          <p className="text-xs font-semibold text-red-700 dark:text-red-300 mb-1.5">⚠️ Sales blocked — active stock take draft(s)</p>
+          <div className="flex flex-col gap-1">
+            {blockingDrafts.map(bd => (
+              <div key={bd.id} className="flex items-center justify-between bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-gray-700 dark:text-gray-300">
+                  {bd.title || 'Untitled'} — <span className="text-gray-400">{new Date(bd.createdAt).toLocaleDateString()}</span>
+                </span>
+                <button
+                  onClick={() => handleDeleteDraft(bd)}
+                  disabled={deletingDraftId === bd.id}
+                  className="text-xs font-semibold text-red-600 hover:text-red-800 dark:text-red-400 disabled:opacity-40 ml-4"
+                >
+                  {deletingDraftId === bd.id ? '…' : 'Delete & Unblock'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 overflow-auto px-4 py-4">

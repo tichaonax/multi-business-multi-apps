@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 
 /**
  * PUT /api/stock-take/drafts/[id]
@@ -113,7 +114,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     const draft = await prisma.stockTakeDrafts.findUnique({ where: { id } })
     if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
-    if (draft.createdById !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    const isOwner = draft.createdById === user.id
+    const isManager = isSystemAdmin(user) || hasPermission(user, 'canAccessFinancialData', draft.businessId)
+    if (!isOwner && !isManager) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // Items cascade-delete via FK
     await prisma.stockTakeDrafts.delete({ where: { id } })
