@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { randomUUID } from 'crypto'
+import { randomUUID, randomBytes } from 'crypto'
 import { getServerUser } from '@/lib/get-server-user'
 
 interface TransferItem {
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
     })
     const employeeId = employee?.id || null
 
-    // Run the entire transfer in a single transaction
+    // Run the entire transfer in a single transaction (60s timeout for large multi-bale transfers)
     const result = await prisma.$transaction(async (tx: any) => {
       // 1. Create the transfer record
       const transfer = await tx.inventoryTransfers.create({
@@ -207,11 +207,14 @@ export async function POST(request: NextRequest) {
 
           // Decrement bale remaining count; deactivate if fully transferred
           const newRemaining = bale.remainingCount - item.quantity
+          const isFullTransfer = newRemaining === 0
           await tx.clothingBales.update({
             where: { id: item.baleId },
             data: {
               remainingCount: newRemaining,
-              isActive: newRemaining > 0,
+              isActive: !isFullTransfer,
+              // On full transfer, free the scanCode so target bale can take it
+              ...(isFullTransfer && { scanCode: `XFER-${randomBytes(3).toString('hex').toUpperCase()}` }),
               updatedAt: new Date()
             }
           })
@@ -249,6 +252,9 @@ export async function POST(request: NextRequest) {
               unitPrice: item.targetPrice,
               sku: targetBaleSku,
               barcode: bale.barcode || null,
+              // Full transfer: inherit original scanCode so physical labels work in target business
+              // Partial transfer: new scanCode (transferred items need re-labeling)
+              scanCode: isFullTransfer ? bale.scanCode : randomBytes(4).toString('hex').toUpperCase(),
               bogoActive: false,
               bogoRatio: 1,
               isActive: true,
@@ -431,7 +437,30 @@ export async function POST(request: NextRequest) {
       }
 
       return { transfer, transferredCount }
-    })
+    }, { timeout: 60000 })
+
+    // Send notifications to target business members (fire-and-forget)
+    try {
+      const targetMembers = await prisma.businessMemberships.findMany({
+        where: { businessId: targetBusinessId, isActive: true },
+        select: { userId: true }
+      })
+      if (targetMembers.length > 0) {
+        const targetLink = targetBusiness.type === 'grocery'
+          ? '/grocery/inventory?tab=bales'
+          : '/clothing/inventory?tab=bales'
+        await prisma.appNotification.createMany({
+          data: targetMembers.map(m => ({
+            userId: m.userId,
+            type: 'INVENTORY_TRANSFER_RECEIVED',
+            title: 'Bales Received',
+            message: `${result.transferredCount} bale(s) transferred from ${sourceBusiness.name}`,
+            linkUrl: targetLink,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          }))
+        })
+      }
+    } catch { /* non-critical — transfer already succeeded */ }
 
     return NextResponse.json({
       success: true,

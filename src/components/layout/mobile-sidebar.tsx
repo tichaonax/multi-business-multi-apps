@@ -146,7 +146,7 @@ export function MobileSidebar() {
             {canReport && navLink('/grocery/reports', '📊', 'Sales Reports')}
             {navLink('/grocery/inventory', '📦', 'Inventory')}
             {navLink('/grocery/products', '📦', 'Products')}
-            {navLink('/clothing/inventory?tab=bales', '📦', 'Bales Inventory')}
+            {navLink('/grocery/inventory?tab=bales', '📦', 'Bales Inventory')}
             {canViewOrders && navLink('/grocery/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}

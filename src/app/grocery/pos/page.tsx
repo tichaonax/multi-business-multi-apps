@@ -53,6 +53,7 @@ interface POSItem {
   organicCertified?: boolean
   loyaltyPoints?: number
   imageUrl?: string  // Product image for customer display
+  baleId?: string   // set for bale items transferred from clothing
 }
 
 interface CartItem extends POSItem {
@@ -1032,31 +1033,32 @@ function GroceryPOSContent() {
       }
     }
 
-    const existingItem = cart.find(item => item.id === product.id)
     const actualQuantity = product.weightRequired ? (weight || currentWeight) : quantity
     const subtotal = product.price * actualQuantity
 
-    let newCart: CartItem[]
-    if (existingItem) {
-      newCart = cart.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + actualQuantity, subtotal: item.subtotal + subtotal }
-          : item
-      )
-      setCart(newCart)
-    } else {
-      const cartItem: CartItem = {
-        ...product,
-        quantity: actualQuantity,
-        weight: product.weightRequired ? actualQuantity : undefined,
-        subtotal
+    // Use setCart with functional updater to always read latest cart state
+    // (avoids stale closure when called after awaits or from event handlers)
+    setCart(prev => {
+      const existingItem = prev.find(item => item.id === product.id)
+      let newCart: CartItem[]
+      if (existingItem) {
+        newCart = prev.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + actualQuantity, subtotal: item.subtotal + subtotal }
+            : item
+        )
+      } else {
+        const cartItem: CartItem = {
+          ...product,
+          quantity: actualQuantity,
+          weight: product.weightRequired ? actualQuantity : undefined,
+          subtotal
+        }
+        newCart = [...prev, cartItem]
       }
-      newCart = [...cart, cartItem]
-      setCart(newCart)
-    }
-
-    // Broadcast updated cart to customer display
-    broadcastCartState(newCart)
+      broadcastCartState(newCart)
+      return newCart
+    })
 
     // Clear inputs
     setBarcodeInput('')
@@ -1158,6 +1160,60 @@ function GroceryPOSContent() {
     }
   }, [searchParams, products, productsLoading, currentBusinessId, router, isAutoAdding])
 
+  // Handle addBale URL param — navigated here from GlobalBarcodeModal "Add to Cart"
+  useEffect(() => {
+    const addBaleId = searchParams?.get('addBale')
+    if (!addBaleId || !currentBusinessId) return
+    fetch(`/api/clothing/bales/${addBaleId}?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data) {
+          const bale = data.data
+          addToCart({
+            id: bale.id,
+            name: `${bale.category?.name || bale.categoryName || 'Bale'} - ${bale.batchNumber}`,
+            category: bale.category?.name || bale.categoryName || 'Bale',
+            unitType: 'each',
+            price: parseFloat(bale.unitPrice),
+            unit: 'each',
+            taxable: false,
+            weightRequired: false,
+            baleId: bale.id,
+          })
+          router.replace(`/grocery/pos?businessId=${currentBusinessId}`, { scroll: false })
+        }
+      })
+      .catch(() => {})
+  }, [searchParams, currentBusinessId])
+
+  // Handle pos:add-bale-to-cart event — dispatched by GlobalBarcodeModal when already on POS
+  // Uses functional setCart updater to avoid stale closure over `cart`
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bale = (e as CustomEvent).detail
+      if (!bale?.id) return
+      const price = parseFloat(bale.unitPrice)
+      const name = `${bale.category?.name || bale.categoryName || 'Bale'} - ${bale.batchNumber}`
+      const category = bale.category?.name || bale.categoryName || 'Bale'
+      setCart(prev => {
+        const existing = prev.find(item => item.id === bale.id)
+        if (existing) {
+          return prev.map(item => item.id === bale.id
+            ? { ...item, quantity: item.quantity + 1, subtotal: item.subtotal + price }
+            : item
+          )
+        }
+        return [...prev, {
+          id: bale.id, name, category, unitType: 'each' as const, price,
+          unit: 'each', taxable: false, weightRequired: false, baleId: bale.id,
+          quantity: 1, subtotal: price,
+        }]
+      })
+    }
+    window.addEventListener('pos:add-bale-to-cart', handler)
+    return () => window.removeEventListener('pos:add-bale-to-cart', handler)
+  }, [])
+
   const removeFromCart = (productId: string) => {
     const newCart = cart.filter(item => item.id !== productId)
     setCart(newCart)
@@ -1174,21 +1230,51 @@ function GroceryPOSContent() {
     broadcastCartState(newCart)
   }
 
-  const handleBarcodeSubmit = (e: React.FormEvent) => {
+  const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (barcodeInput) {
-      const product = findProductByBarcode(barcodeInput)
-      if (product) {
-        if (product.weightRequired) {
-          // Need to weigh the item
-          void customAlert({ title: 'Weight required', description: 'Please place item on scale and confirm weight' })
+    if (!barcodeInput) return
+    const product = findProductByBarcode(barcodeInput)
+    if (product) {
+      if (product.weightRequired) {
+        void customAlert({ title: 'Weight required', description: 'Please place item on scale and confirm weight' })
+      } else {
+        addToCart(product)
+      }
+      setBarcodeInput('')
+      return
+    }
+    // Fall back to scan API — handles transferred bales
+    try {
+      const res = await fetch('/api/universal/barcode-management/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ barcode: barcodeInput.trim(), businessId: currentBusinessId })
+      })
+      const data = await res.json()
+      if (data.type === 'bale') {
+        const bale = data.data.bale
+        if (bale.remainingCount <= 0) {
+          void customAlert({ title: 'Out of stock', description: `Bale ${bale.batchNumber} has no remaining items.` })
         } else {
-          addToCart(product)
+          addToCart({
+            id: bale.id,
+            name: `${bale.categoryName} - ${bale.batchNumber}`,
+            category: bale.categoryName,
+            unitType: 'each',
+            price: bale.unitPrice,
+            unit: 'each',
+            taxable: false,
+            weightRequired: false,
+            baleId: bale.id,
+          })
         }
       } else {
         void customAlert({ title: 'Not found', description: 'Product not found' })
       }
+    } catch {
+      void customAlert({ title: 'Not found', description: 'Product not found' })
     }
+    setBarcodeInput('')
   }
 
   const handlePLUSubmit = (e: React.FormEvent) => {
@@ -1313,8 +1399,9 @@ function GroceryPOSContent() {
         notes: selectedCustomer ? `Customer: ${selectedCustomer.name}` : customer ? `Loyalty member: ${customer.loyaltyNumber}` : 'Walk-in customer',
         items: cart.map(item => {
           const isInventoryItem = item.id.startsWith('inv_')
+          const isBale = !!item.baleId
           return {
-            productVariantId: (item.wifiToken || item.r710Token || isInventoryItem) ? null : item.id,
+            productVariantId: (item.wifiToken || item.r710Token || isInventoryItem || isBale) ? null : item.id,
             quantity: item.quantity,
             unitPrice: item.price,
             discountAmount: item.discountAmount || 0,
@@ -1338,6 +1425,9 @@ function GroceryPOSContent() {
               // Inventory item (BarcodeInventoryItem) flag — tells orders API to skip variant lookup
               isInventoryItem: isInventoryItem || undefined,
               inventoryItemId: isInventoryItem ? item.id.replace('inv_', '') : undefined,
+              // Bale item — triggers ClothingBales.remainingCount decrement in orders API
+              baleId: item.baleId || undefined,
+              isBale: isBale || undefined,
             }
           }
         })

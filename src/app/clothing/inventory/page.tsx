@@ -24,8 +24,72 @@ import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 
+// ── Transfer History Panel ──────────────────────────────────────────────────
+
+function TransferHistoryPanel({ businessId, businessName }: { businessId: string; businessName: string }) {
+  const [transfers, setTransfers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/inventory/transfer?businessId=${businessId}`)
+      .then(r => r.json())
+      .then(data => setTransfers(data.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [businessId])
+
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading transfer history...</div>
+  if (transfers.length === 0) return <div className="p-8 text-center text-gray-500">No transfer history found for this business.</div>
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Transfer History</h3>
+      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
+            <tr>
+              <th className="px-4 py-3 text-left">Date</th>
+              <th className="px-4 py-3 text-left">Direction</th>
+              <th className="px-4 py-3 text-left">Other Business</th>
+              <th className="px-4 py-3 text-right">Bales</th>
+              <th className="px-4 py-3 text-right">Items</th>
+              <th className="px-4 py-3 text-right">Stock Value</th>
+              <th className="px-4 py-3 text-left">Notes</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            {transfers.map((t: any) => {
+              const isOut = t.sourceBusinessId === businessId
+              const other = isOut ? t.targetBusiness?.businessName : t.sourceBusiness?.businessName
+              const totalItems = (t.items || []).reduce((s: number, i: any) => s + i.quantity, 0)
+              const stockValue = (t.items || []).reduce((s: number, i: any) => s + i.quantity * Number(isOut ? i.sourcePrice : i.targetPrice), 0)
+              return (
+                <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <td className="px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                    {new Date(t.transferDate || t.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${isOut ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'}`}>
+                      {isOut ? '↑ OUT' : '↓ IN'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{other || '—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{(t.items || []).filter((i: any) => i.baleId).length}</td>
+                  <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{totalItems}</td>
+                  <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">${stockValue.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate">{t.notes || '—'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function ClothingInventoryContent() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports' | 'transfers'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [showViewModal, setShowViewModal] = useState(false)
@@ -152,7 +216,7 @@ function ClothingInventoryContent() {
   // Handle tab param from URL (e.g. returning from barcode printing or nav menu)
   useEffect(() => {
     const tabParam = searchParams?.get('tab')
-    if (tabParam && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports'].includes(tabParam)) {
+    if (tabParam && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports', 'transfers'].includes(tabParam)) {
       setActiveTab(tabParam as typeof activeTab)
     }
     if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
@@ -519,7 +583,7 @@ function ClothingInventoryContent() {
     const urlTab = searchParams?.get('tab')
     if (urlTab) return // URL tab param takes priority
     const savedTab = sessionStorage.getItem('clothing-inventory-active-tab')
-    if (savedTab && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports'].includes(savedTab)) {
+    if (savedTab && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports', 'transfers'].includes(savedTab)) {
       setActiveTab(savedTab as any)
     }
   }, [])
@@ -594,7 +658,8 @@ function ClothingInventoryContent() {
     ...(isClothingBusiness ? [{ id: 'bales', label: 'Bales', icon: '📦' }] : []),
     { id: 'movements', label: 'Stock Movements', icon: '🔄' },
     { id: 'alerts', label: 'Low Stock & Alerts', icon: '⚠️' },
-    { id: 'reports', label: 'Analytics', icon: '📈' }
+    { id: 'reports', label: 'Analytics', icon: '📈' },
+    { id: 'transfers', label: 'Transfer History', icon: '🔀' }
   ]
 
   const handleItemEdit = (item: any) => {
@@ -1670,6 +1735,11 @@ function ClothingInventoryContent() {
                       layout="dashboard"
                     />
                   </div>
+                )}
+
+                {/* Transfer History Tab */}
+                {activeTab === 'transfers' && (
+                  <TransferHistoryPanel businessId={businessId} businessName={currentBusiness?.businessName || ''} />
                 )}
               </div>
             </div>

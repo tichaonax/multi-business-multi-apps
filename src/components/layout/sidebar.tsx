@@ -792,7 +792,7 @@ export function Sidebar() {
                   <span className="text-lg">📦</span>
                   <span>Products</span>
                 </Link>
-                <Link href="/clothing/inventory?tab=bales" className={getLinkClasses('/clothing/inventory')}>
+                <Link href="/grocery/inventory?tab=bales" className={getLinkClasses('/grocery/inventory')}>
                   <span className="text-lg">📦</span>
                   <span>Bales Inventory</span>
                 </Link>

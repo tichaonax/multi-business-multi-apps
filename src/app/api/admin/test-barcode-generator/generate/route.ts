@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto'
 import {
   generateProduct,
   generateBale,
+  generateCustomBulk,
   type SupportedBusinessType,
   type ProductRefs,
 } from '@/lib/test-product-data'
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
         businessType: SupportedBusinessType
         productCount: number
         baleCount?: number
+        bulkCount?: number
         autoStock?: boolean
       }[]
       autoStock?: boolean
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
     const results: any[] = []
 
     for (const item of items) {
-      const { businessId, businessType, productCount, baleCount = 0 } = item
+      const { businessId, businessType, productCount, baleCount = 0, bulkCount = 0 } = item
       const shouldStock = item.autoStock ?? autoStock
 
       try {
@@ -181,17 +183,65 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // ── Generate + stock custom bulk products (all 4 business types) ────────
+
+        const bulkGenerated: { name: string; barcode: string; price: number; batchNumber: string; itemCount: number; domainId?: string }[] = []
+        let bulkError: string | undefined
+
+        if (bulkCount > 0) {
+          const now = new Date()
+          const yy = String(now.getFullYear()).slice(2)
+          const mm = String(now.getMonth() + 1).padStart(2, '0')
+          const dd = String(now.getDate()).padStart(2, '0')
+          const todayPrefix = `CB-${yy}${mm}${dd}-`
+          const existingTodayCount = await prisma.customBulkProducts.count({
+            where: { businessId, batchNumber: { startsWith: todayPrefix } },
+          })
+
+          for (let i = 0; i < bulkCount; i++) {
+            const b = generateCustomBulk(businessType, refs, i, existingTodayCount)
+            const sku = `CBULK-${bizShortName}-${b.batchNumber}`
+
+            if (shouldStock) {
+              try {
+                await prisma.customBulkProducts.create({
+                  data: {
+                    businessId,
+                    name:           b.name,
+                    barcode:        b.barcode,
+                    batchNumber:    b.batchNumber,
+                    sku,
+                    itemCount:      b.itemCount,
+                    remainingCount: b.itemCount,
+                    unitPrice:      b.unitPrice,
+                    costPrice:      b.costPrice,
+                    categoryId:     b.categoryId ?? null,
+                    notes:          b.notes,
+                    isActive:       true,
+                  },
+                })
+              } catch (bulkErr: any) {
+                bulkError = bulkErr.message ?? 'Custom bulk creation failed'
+              }
+            }
+            bulkGenerated.push({ name: b.name, barcode: b.barcode, price: b.unitPrice, batchNumber: b.batchNumber, itemCount: b.itemCount, domainId: b.domainId })
+          }
+        }
+
         results.push({
           businessId,
           businessType,
           success: true,
           productsGenerated: productsGenerated.length,
           balesGenerated:    balesGenerated.length,
+          bulkGenerated:     bulkGenerated.length,
           stocked:           shouldStock,
           noBaleCategories:  businessType === 'clothing' && baleCount > 0 && refs.baleCategoryIds.length === 0,
           baleError,
+          bulkError,
           products: productsGenerated,
           bales:    balesGenerated,
+          bulk:     bulkGenerated,
         })
       } catch (err: any) {
         results.push({

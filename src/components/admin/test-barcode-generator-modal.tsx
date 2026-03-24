@@ -15,6 +15,7 @@ interface BizConfig extends BusinessEntry {
   selected: boolean
   productCount: number
   baleCount: number   // clothing only
+  bulkCount: number   // all business types
 }
 
 type RunStatus = 'idle' | 'running' | 'done' | 'error'
@@ -23,6 +24,7 @@ interface BizRun {
   status: RunStatus
   productsCreated: number
   balesCreated: number
+  bulkCreated: number
   note?: string
   generatedProducts: ProductData[]
 }
@@ -59,6 +61,7 @@ function toConfigs(businesses: BusinessEntry[]): BizConfig[] {
       selected:     false,
       productCount: 5,
       baleCount:    0,
+      bulkCount:    0,
     }))
 }
 
@@ -78,7 +81,7 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
   }, [businesses])
 
   const updateRun = useCallback((bId: string, upd: Partial<BizRun>) => {
-    setRuns(prev => ({ ...prev, [bId]: { ...(prev[bId] ?? { status: 'idle', productsCreated: 0, balesCreated: 0, generatedProducts: [] }), ...upd } }))
+    setRuns(prev => ({ ...prev, [bId]: { ...(prev[bId] ?? { status: 'idle', productsCreated: 0, balesCreated: 0, bulkCreated: 0, generatedProducts: [] }), ...upd } }))
   }, [])
 
   function setField(businessId: string, field: keyof BizConfig, value: any) {
@@ -96,7 +99,7 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
     setIsRunning(true)
 
     // Reset runs for selected
-    selected.forEach(c => updateRun(c.businessId, { status: 'idle', productsCreated: 0, balesCreated: 0, note: undefined, generatedProducts: [] }))
+    selected.forEach(c => updateRun(c.businessId, { status: 'idle', productsCreated: 0, balesCreated: 0, bulkCreated: 0, note: undefined, generatedProducts: [] }))
 
     for (const cfg of selected) {
       updateRun(cfg.businessId, { status: 'running' })
@@ -111,6 +114,7 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
               businessType: cfg.businessType,
               productCount: cfg.productCount,
               baleCount:    cfg.businessType === 'clothing' ? cfg.baleCount : 0,
+              bulkCount:    cfg.bulkCount,
               autoStock,
             }],
           }),
@@ -151,18 +155,29 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
             description:  b.batchNumber ? 'Batch: ' + b.batchNumber : undefined,
             itemCount:    b.itemCount,
           })),
+          ...(r?.bulk ?? []).map((b: any) => ({
+            id:           b.barcode,
+            name:         b.name,
+            barcodeData:  b.barcode,
+            sellingPrice: b.price,
+            batchNumber:  b.batchNumber,
+            description:  `${b.itemCount} units · ${b.batchNumber}`,
+            itemCount:    b.itemCount,
+            domainId:     b.domainId,
+          })),
         ]
 
-        const note = r?.noBaleCategories
-          ? 'No bale categories — bales skipped'
-          : r?.baleError
-          ? `Bale error: ${r.baleError}`
-          : undefined
+        const noteParts: string[] = []
+        if (r?.noBaleCategories)  noteParts.push('No bale categories — bales skipped')
+        if (r?.baleError)         noteParts.push(`Bale error: ${r.baleError}`)
+        if (r?.bulkError)         noteParts.push(`Bulk error: ${r.bulkError}`)
+        const note = noteParts.length ? noteParts.join(' · ') : undefined
 
         updateRun(cfg.businessId, {
           status:            'done',
           productsCreated:   r?.productsGenerated ?? 0,
           balesCreated:      r?.balesGenerated    ?? 0,
+          bulkCreated:       r?.bulkGenerated     ?? 0,
           note,
           generatedProducts,
         })
@@ -191,7 +206,6 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            disabled={isRunning}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none"
           >✕</button>
         </div>
@@ -266,20 +280,20 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
                   </div>
 
                   {/* Count inputs */}
-                  {cfg.businessType === 'clothing' ? (
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Products</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={50}
-                          value={cfg.productCount}
-                          onChange={e => setField(cfg.businessId, 'productCount', Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
-                          disabled={isRunning || !cfg.selected}
-                          className="w-14 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
-                        />
-                      </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Prod</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={50}
+                        value={cfg.productCount}
+                        onChange={e => setField(cfg.businessId, 'productCount', Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
+                        disabled={isRunning || !cfg.selected}
+                        className="w-12 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+                      />
+                    </div>
+                    {cfg.businessType === 'clothing' && (
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-gray-500 dark:text-gray-400">Bales</span>
                         <input
@@ -289,24 +303,23 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
                           value={cfg.baleCount}
                           onChange={e => setField(cfg.businessId, 'baleCount', Math.max(0, Math.min(20, parseInt(e.target.value) || 0)))}
                           disabled={isRunning || !cfg.selected}
-                          className="w-14 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+                          className="w-12 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
                         />
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Products</span>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Bulk</span>
                       <input
                         type="number"
-                        min={1}
-                        max={50}
-                        value={cfg.productCount}
-                        onChange={e => setField(cfg.businessId, 'productCount', Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+                        min={0}
+                        max={20}
+                        value={cfg.bulkCount}
+                        onChange={e => setField(cfg.businessId, 'bulkCount', Math.max(0, Math.min(20, parseInt(e.target.value) || 0)))}
                         disabled={isRunning || !cfg.selected}
-                        className="w-14 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+                        className="w-12 text-center text-sm border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50"
                       />
                     </div>
-                  )}
+                  </div>
 
                   {/* Status */}
                   <div className="flex-shrink-0 text-right flex flex-col items-end gap-1">
@@ -317,7 +330,7 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
                     ) : r.status === 'done' ? (
                       <>
                         <span className="text-xs text-green-600 dark:text-green-400">
-                          ✅ {r.productsCreated}p {r.balesCreated > 0 ? `${r.balesCreated}b` : ''}
+                          ✅ {r.productsCreated}p {r.balesCreated > 0 ? `${r.balesCreated}b` : ''}{r.bulkCreated > 0 ? ` ${r.bulkCreated}bulk` : ''}
                         </span>
                         {/* Domain breakdown */}
                         {r.generatedProducts.length > 0 && (() => {
@@ -372,10 +385,9 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={onClose}
-            disabled={isRunning}
-            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-50"
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
           >
-            Close
+            {isRunning ? 'Cancel' : 'Close'}
           </button>
 
           <div className="flex items-center gap-3">

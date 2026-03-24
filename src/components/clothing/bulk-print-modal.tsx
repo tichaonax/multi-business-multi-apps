@@ -340,14 +340,12 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
 
   const handlePdfPrint = async () => {
     if (!productData && !products?.length && selectedIds.size === 0) return
-    if (!productData && !products?.length && !selectedTemplateId) return
     setIsPdfPrinting(true)
     try {
       const JsBarcode = (await import('jsbarcode')).default
       const bizName = activeBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
       const genericTemplate = { id: 'generic', name: 'Generic', symbology: 'CODE128', width: 200, height: 100 }
-      const template = templates.find(t => t.id === selectedTemplateId) ?? ((productData || products?.length) ? genericTemplate : null)
-      if (!template) return
+      const template = templates.find(t => t.id === selectedTemplateId) ?? genericTemplate
 
       let labelHtmls: string[]
 
@@ -424,8 +422,7 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
       const { generateBarcodeLabel } = await import('@/lib/barcode-label-generator')
       const bizName = activeBusinesses.find(b => b.businessId === selectedBusinessId)?.businessName ?? ''
       const genericTemplate = { id: 'generic', name: 'Generic', symbology: 'code128', width: 200, height: 100, batchId: undefined }
-      const template = templates.find(t => t.id === selectedTemplateId) ?? ((productData || products?.length) ? genericTemplate : null)
-      if (!template) throw new Error('No template selected')
+      const template = templates.find(t => t.id === selectedTemplateId) ?? genericTemplate
 
       let allLabels = ''
 
@@ -509,8 +506,8 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
     }
   }
 
-  const canPrint = selectedIds.size > 0 && !!selectedTemplateId
-  const compactCanPrint = (!!productData || !!products?.length || !!selectedTemplateId) && qtyPerBale > 0
+  const canPrint = selectedIds.size > 0
+  const compactCanPrint = qtyPerBale > 0 && (!!productData || !!products?.length || selectedIds.size > 0)
   const totalLabels = selectedIds.size * qtyPerBale
 
   if (!isOpen) return null
@@ -738,10 +735,10 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                   {templates.find(t => t.id === selectedTemplateId)?.name ?? (templatesLoading ? 'Loading…' : '—')}
                 </span>
               ) : templatesLoading ? <span className="text-xs text-gray-400">Loading...</span>
-                : templates.length === 0 ? <span className="text-xs text-red-500">No templates found</span>
                 : (
                   <select value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}
                     className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    <option value="">Generic (CODE128)</option>
                     {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 )}

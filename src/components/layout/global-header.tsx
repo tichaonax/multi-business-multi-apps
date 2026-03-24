@@ -187,7 +187,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/inventory`, icon: '📦', label: 'Inventory' },
         { href: `/${businessType}/inventory?bulkStock=1`, icon: '📥', label: 'Bulk Stock', permissions: ['canManageInventory'] },
-        { href: '/clothing/inventory?tab=bales', icon: '📦', label: 'Bales Inventory' },
+        { href: `/${businessType}/inventory?tab=bales`, icon: '📦', label: 'Bales Inventory' },
         { href: `/${businessType}/products`, icon: '📦', label: 'Products' },
         { href: `/${businessType}/orders`, icon: '📦', label: 'Orders', permissions: ['canEnterManualOrders', 'canAccessFinancialData'] }
       ],

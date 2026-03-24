@@ -20,9 +20,72 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
+import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
+
+function GroceryTransferHistoryPanel({ businessId }: { businessId: string }) {
+  const [transfers, setTransfers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/inventory/transfer?businessId=${businessId}`)
+      .then(r => r.json())
+      .then(data => setTransfers(data.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [businessId])
+
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading transfer history...</div>
+  if (transfers.length === 0) return <div className="p-8 text-center text-gray-500">No transfer history found.</div>
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Transfer History</h3>
+      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
+            <tr>
+              <th className="px-4 py-3 text-left">Date</th>
+              <th className="px-4 py-3 text-left">Direction</th>
+              <th className="px-4 py-3 text-left">Other Business</th>
+              <th className="px-4 py-3 text-right">Bales</th>
+              <th className="px-4 py-3 text-right">Items</th>
+              <th className="px-4 py-3 text-right">Stock Value</th>
+              <th className="px-4 py-3 text-left">Notes</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            {transfers.map((t: any) => {
+              const isOut = t.sourceBusinessId === businessId
+              const other = isOut ? t.targetBusiness?.businessName : t.sourceBusiness?.businessName
+              const totalItems = (t.items || []).reduce((s: number, i: any) => s + i.quantity, 0)
+              const stockValue = (t.items || []).reduce((s: number, i: any) => s + i.quantity * Number(isOut ? i.sourcePrice : i.targetPrice), 0)
+              return (
+                <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <td className="px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                    {new Date(t.transferDate || t.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${isOut ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'}`}>
+                      {isOut ? '↑ OUT' : '↓ IN'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{other || '—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{(t.items || []).filter((i: any) => i.baleId).length}</td>
+                  <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{totalItems}</td>
+                  <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">${stockValue.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate">{t.notes || '—'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 function GroceryInventoryContent() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports' | 'transfers'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
@@ -32,6 +95,11 @@ function GroceryInventoryContent() {
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [stats, setStats] = useState<any>(null)
+  const [receivedBales, setReceivedBales] = useState<any[]>([])
+  const [balesLoading, setBalesLoading] = useState(false)
+  const [printBaleId, setPrintBaleId] = useState<string | undefined>(undefined)
+  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [showBulkPrintModal, setShowBulkPrintModal] = useState(false)
   const searchParams = useSearchParams()
 
   const { data: session, status } = useSession()
@@ -113,7 +181,21 @@ function GroceryInventoryContent() {
 
   useEffect(() => {
     if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
+    const tabParam = searchParams?.get('tab')
+    if (tabParam && ['overview', 'inventory', 'bales', 'movements', 'alerts', 'reports', 'transfers'].includes(tabParam)) {
+      setActiveTab(tabParam as typeof activeTab)
+    }
   }, [searchParams])
+
+  useEffect(() => {
+    if (activeTab !== 'bales' || !currentBusinessId) return
+    setBalesLoading(true)
+    fetch(`/api/clothing/bales?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(data => setReceivedBales(data.data || []))
+      .catch(() => {})
+      .finally(() => setBalesLoading(false))
+  }, [activeTab, currentBusinessId])
 
   useEffect(() => {
     if (!currentBusinessId) return
@@ -170,9 +252,11 @@ function GroceryInventoryContent() {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'inventory', label: 'Items', icon: '📦' },
+    { id: 'bales', label: 'Bales', icon: '📦' },
     { id: 'movements', label: 'Stock Movements', icon: '🔄' },
     { id: 'alerts', label: 'Alerts & Expiration', icon: '⚠️' },
-    { id: 'reports', label: 'Analytics', icon: '📈' }
+    { id: 'reports', label: 'Analytics', icon: '📈' },
+    { id: 'transfers', label: 'Transfer History', icon: '🔀' }
   ]
 
   const handleItemEdit = (item: any) => {
@@ -554,9 +638,105 @@ function GroceryInventoryContent() {
                     />
                   </div>
                 )}
+
+                {/* Received Bales Tab */}
+                {activeTab === 'bales' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Received Bales</h3>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-500">{receivedBales.filter(b => b.remainingCount > 0).length} active bale(s)</span>
+                        {receivedBales.length > 0 && (
+                          <button
+                            onClick={() => setShowBulkPrintModal(true)}
+                            className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                          >
+                            Bulk Print Labels
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {balesLoading ? (
+                      <div className="p-8 text-center text-gray-500">Loading bales...</div>
+                    ) : receivedBales.length === 0 ? (
+                      <div className="p-8 text-center text-gray-500">No bales received yet. Bales transferred from a clothing business will appear here.</div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                              <th className="px-4 py-3 text-left">Batch</th>
+                              <th className="px-4 py-3 text-left">Category</th>
+                              <th className="px-4 py-3 text-right">Total Items</th>
+                              <th className="px-4 py-3 text-right">Remaining</th>
+                              <th className="px-4 py-3 text-right">Unit Price</th>
+                              <th className="px-4 py-3 text-left">Scan Code</th>
+                              <th className="px-4 py-3 text-left">Status</th>
+                              <th className="px-4 py-3 text-left">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {receivedBales.map((bale: any) => (
+                              <tr key={bale.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                <td className="px-4 py-3">
+                                  <div className="font-medium text-gray-900 dark:text-gray-100">{bale.batchNumber}</div>
+                                  <div className="text-xs text-gray-500">{bale.sku}</div>
+                                </td>
+                                <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{bale.category?.name || '—'}</td>
+                                <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{bale.itemCount}</td>
+                                <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">{bale.remainingCount}</td>
+                                <td className="px-4 py-3 text-right text-gray-900 dark:text-gray-100">${Number(bale.unitPrice).toFixed(2)}</td>
+                                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{bale.scanCode}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${bale.remainingCount > 0 && bale.isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                                    {bale.remainingCount > 0 && bale.isActive ? 'Active' : 'Depleted'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <button
+                                    onClick={() => { setPrintBaleId(bale.id); setShowPrintModal(true) }}
+                                    className="text-sm text-purple-600 dark:text-purple-400 hover:underline"
+                                  >
+                                    Print Labels
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Transfer History Tab */}
+                {activeTab === 'transfers' && (
+                  <GroceryTransferHistoryPanel businessId={businessId} />
+                )}
               </div>
             </div>
           </div>
+
+          {/* Bale Print Modal (single bale) */}
+          {showPrintModal && (
+            <BulkPrintModal
+              isOpen={showPrintModal}
+              onClose={() => { setShowPrintModal(false); setPrintBaleId(undefined) }}
+              baleId={printBaleId}
+              businessId={currentBusinessId}
+              compact={true}
+            />
+          )}
+
+          {/* Bulk Print Modal (multi-bale selection) */}
+          {showBulkPrintModal && (
+            <BulkPrintModal
+              isOpen={showBulkPrintModal}
+              onClose={() => setShowBulkPrintModal(false)}
+              businessId={currentBusinessId}
+              compact={false}
+            />
+          )}
 
           {/* Add/Edit Item Form Modal */}
           {showAddForm && (

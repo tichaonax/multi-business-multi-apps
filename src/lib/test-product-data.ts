@@ -31,6 +31,18 @@ export interface GeneratedProduct {
   color?: string
 }
 
+export interface GeneratedCustomBulk {
+  name: string
+  barcode: string
+  batchNumber: string
+  categoryId?: string
+  domainId?: string
+  itemCount: number
+  unitPrice: number
+  costPrice: number
+  notes: string
+}
+
 export interface GeneratedBale {
   name: string
   barcode: string
@@ -219,6 +231,34 @@ const BALE_NAMES = [
   'Shoes Mixed', 'Accessories Bale', 'Baby Clothing', 'Underwear Mix',
 ]
 
+// Names for custom bulk products (box/bag of items sold individually)
+const BULK_NAMES: Record<SupportedBusinessType, string[]> = {
+  grocery: [
+    'Sweets Box 200pc', 'Lollipops Bag 100pc', 'Chewing Gum 50pc',
+    'Sugar Sachets Box 200pc', 'Plastic Bags 100pc', 'Matches 10pk Box',
+    'Biscuits Assorted 50pc', 'Snack Chips 24pc', 'Lighters Box 50pc',
+    'Mints Tin 100pc', 'Chocolate Bars 24pc', 'Instant Noodles 30pc',
+  ],
+  hardware: [
+    'Nails Box 200pc', 'Screws Assorted 100pc', 'Cable Ties Bag 100pc',
+    'Rawl Bolts Bag 50pc', 'Nuts & Bolts 50pc', 'Wire Connectors 50pc',
+    'Sandpaper Sheets 20pc', 'Paint Brushes Box 12pc', 'Drill Bits Set 10pc',
+    'Wall Plugs 100pc', 'Washers 100pc', 'Fuses Assorted 50pc',
+  ],
+  restaurant: [
+    'Sugar Sachets Box 200pc', 'Salt Sachets Box 200pc', 'Straws Box 500pc',
+    'Serviettes Pack 100pc', 'Toothpicks Box 500pc', 'Sauce Sachets 100pc',
+    'Butter Portions 100pc', 'Creamer Sachets 100pc', 'Teabags Box 100pc',
+    'Coffee Sachets 50pc', 'Tissue Packs 50pc', 'Gloves Box 100pc',
+  ],
+  clothing: [
+    'Socks Bulk 24pk', 'Underwear Box 12pk', 'T-Shirts Bulk 12pc',
+    'Caps Box 10pc', 'Belts Box 10pc', 'Hair Ties 50pc',
+    'Earrings Assorted 20pk', 'Bangles Set 12pc', 'Headbands 24pc',
+    'Handkerchiefs 12pc', 'Shoelaces 24pc', 'Scarves 10pc',
+  ],
+}
+
 const DESCRIPTIONS: Record<SupportedBusinessType, string[]> = {
   restaurant: [
     'Freshly prepared daily', "Chef's special recipe", 'Served with rice and vegetables',
@@ -308,6 +348,45 @@ export function generateProduct(
     quantity:    randInt(qtyRange.min, qtyRange.max),
     size:        SIZES[type].length  ? pick(SIZES[type])  : undefined,
     color:       COLORS[type].length ? pick(COLORS[type]) : undefined,
+  }
+}
+
+export function generateCustomBulk(
+  type: SupportedBusinessType,
+  refs: Pick<ProductRefs, 'categoryIds' | 'categoriesByDomain'>,
+  index: number,
+  seqOffset: number = 0
+): GeneratedCustomBulk {
+  const names = BULK_NAMES[type]
+  const baseName = names[index % names.length]
+
+  // Pick domain-matched category if available
+  const domainEntry = refs.categoriesByDomain.length > 0 ? pick(refs.categoriesByDomain) : undefined
+  const categoryId = domainEntry ? pick(domainEntry.categoryIds) : pick(refs.categoryIds)
+
+  const itemCount = randInt(20, 200)
+  const unitPrice = randBetween(0.5, 15)
+  const containerCost = Math.round(unitPrice * itemCount * (0.55 + Math.random() * 0.2) * 100) / 100
+  const costPrice = Math.round((containerCost / itemCount) * 100) / 100
+
+  const now = new Date()
+  const yy = String(now.getFullYear()).slice(2)
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  const seq = String(seqOffset + index + 1).padStart(3, '0')
+  const batchNumber = `CB-${yy}${mm}${dd}-${seq}`
+  const barcode = randomBytes(4).toString('hex').toUpperCase()
+
+  return {
+    name:        `[TEST] ${baseName}`,
+    barcode,
+    batchNumber,
+    categoryId,
+    domainId:    domainEntry?.domainId,
+    itemCount,
+    unitPrice,
+    costPrice,
+    notes:       '[TEST] auto-generated custom bulk',
   }
 }
 

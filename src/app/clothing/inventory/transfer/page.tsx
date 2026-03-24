@@ -8,6 +8,7 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { BusinessProvider } from '@/components/universal'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface BaleTransferItem {
   id: string
@@ -44,6 +45,7 @@ function TransferContent() {
   const [targetBusinessId, setTargetBusinessId] = useState('')
   const [notes, setNotes] = useState('')
   const [resetBogo, setResetBogo] = useState(false)
+  const [transferSuccess, setTransferSuccess] = useState<string | null>(null)
 
   // Get "endOfSale" flag from URL params
   const isEndOfSale = searchParams?.get('endOfSale') === 'true'
@@ -171,11 +173,25 @@ function TransferContent() {
       const data = await response.json()
 
       if (data.success) {
-        await customAlert({
-          title: 'Transfer Complete',
-          description: `Successfully transferred ${data.data.itemsTransferred} item(s) to ${targetName}.`
-        })
-        router.push('/clothing/inventory')
+        setTransferSuccess(`Transferred ${data.data.itemsTransferred} item(s) to ${targetName}.`)
+        setNotes('')
+        setItems(prev => prev.map(i => ({ ...i, selected: false })))
+        // Reload bales
+        const refreshRes = await fetch(`/api/clothing/bales?businessId=${currentBusinessId}`)
+        const refreshData = await refreshRes.json()
+        if (refreshData.success) {
+          setItems((refreshData.data || [])
+            .filter((bale: any) => bale.isActive && bale.remainingCount > 0)
+            .map((bale: any) => ({
+              id: bale.id, baleId: bale.id,
+              name: `${bale.category?.name || 'Bale'} - ${bale.batchNumber}`,
+              batchNumber: bale.batchNumber, category: bale.category?.name || 'Unknown',
+              sku: bale.sku, barcode: bale.barcode || undefined,
+              remainingCount: bale.remainingCount, unitPrice: parseFloat(bale.unitPrice),
+              bogoActive: bale.bogoActive, transferQty: bale.remainingCount,
+              newPrice: parseFloat(bale.unitPrice), selected: false
+            })))
+        }
       } else {
         await customAlert({
           title: 'Transfer Failed',
@@ -216,6 +232,14 @@ function TransferContent() {
               </div>
             )}
 
+            {/* Success banner */}
+            {transferSuccess && (
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center justify-between">
+                <p className="text-green-800 dark:text-green-200 text-sm font-medium">✅ {transferSuccess}</p>
+                <button onClick={() => setTransferSuccess(null)} className="text-green-600 dark:text-green-400 hover:text-green-800 text-lg leading-none">×</button>
+              </div>
+            )}
+
             {/* Target Business Selection */}
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
               <h3 className="text-lg font-semibold mb-3">Transfer Destination</h3>
@@ -224,18 +248,17 @@ function TransferContent() {
                   No grocery businesses found. Create a grocery business first to transfer inventory.
                 </p>
               ) : (
-                <select
-                  value={targetBusinessId}
-                  onChange={(e) => setTargetBusinessId(e.target.value)}
-                  className="w-full max-w-md border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                >
-                  <option value="">Select grocery business...</option>
-                  {groceryBusinesses.map((b: any) => (
-                    <option key={b.businessId} value={b.businessId}>
-                      {b.businessName}
-                    </option>
-                  ))}
-                </select>
+                <div className="max-w-md">
+                  <SearchableSelect
+                    options={groceryBusinesses.map((b: any) => ({ value: b.businessId, label: b.businessName }))}
+                    value={targetBusinessId}
+                    onChange={setTargetBusinessId}
+                    placeholder="Select grocery business..."
+                    searchPlaceholder="Search business..."
+                    emptyMessage="No grocery businesses found"
+                    required
+                  />
+                </div>
               )}
 
               <div className="mt-3">

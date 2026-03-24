@@ -135,7 +135,7 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
 
     const isPhysical = (p: any) => !p.productType || p.productType === 'PHYSICAL' || p.productType === 'COMBO'
 
-    type SellableItem = { productVariantId: string | null; productId: string; name: string; price: number; physical: boolean; inventoryItemId?: string; isInventoryItem?: boolean }
+    type SellableItem = { productVariantId: string | null; productId: string; name: string; price: number; physical: boolean; inventoryItemId?: string; isInventoryItem?: boolean; customBulkId?: string; baleId?: string }
     const sellable: SellableItem[] = []
     const baseStock = new Map<string, number>()
 
@@ -186,6 +186,37 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
       }
     }
 
+    // Fetch custom bulk products (all business types)
+    try {
+      const bulkRes = await fetch(`/api/custom-bulk?businessId=${cfg.businessId}`)
+      if (bulkRes.ok) {
+        const bulkData = await bulkRes.json()
+        for (const b of (bulkData.data || [])) {
+          const price = Number(b.unitPrice ?? 0)
+          if (price <= 0 || (b.remainingCount ?? 0) <= 0) continue
+          baseStock.set(b.id, b.remainingCount)
+          sellable.push({ productVariantId: null, productId: b.id, name: b.name, price, physical: true, customBulkId: b.id })
+        }
+      }
+    } catch { /* skip if unavailable */ }
+
+    // Fetch clothing bales (clothing only)
+    if (cfg.businessType === 'clothing') {
+      try {
+        const baleRes = await fetch(`/api/clothing/bales?businessId=${cfg.businessId}`)
+        if (baleRes.ok) {
+          const baleData = await baleRes.json()
+          for (const b of (baleData.data || [])) {
+            const price = Number(b.unitPrice ?? 0)
+            if (price <= 0 || (b.remainingCount ?? 0) <= 0) continue
+            baseStock.set(b.id, b.remainingCount)
+            const baleName = b.category?.name ? `Bale – ${b.category.name} (${b.batchNumber})` : `Bale ${b.batchNumber}`
+            sellable.push({ productVariantId: null, productId: b.id, name: baleName, price, physical: true, baleId: b.id })
+          }
+        }
+      } catch { /* skip if unavailable */ }
+    }
+
     if (sellable.length === 0) {
       updateSalesRun(cfg.businessId, { status: 'skipped', note: 'No sellable products found' })
       return
@@ -204,22 +235,24 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
         if (affordable.length === 0) { budgetExhausted = true; break }
 
         const itemCount = randBetween(1, cfg.maxItems)
-        const orderItems: { productVariantId: string | null; productId: string; name: string; unitPrice: number; quantity: number; inventoryItemId?: string; isInventoryItem?: boolean }[] = []
+        const orderItems: { productVariantId: string | null; productId: string; name: string; unitPrice: number; quantity: number; inventoryItemId?: string; isInventoryItem?: boolean; customBulkId?: string; baleId?: string }[] = []
         let orderTotal = 0
 
         for (let i = 0; i < itemCount; i++) {
           const item = pick(affordable)
           if (item.productVariantId && orderItems.some(o => o.productVariantId === item.productVariantId)) continue
           if (item.inventoryItemId && orderItems.some(o => o.inventoryItemId === item.inventoryItemId)) continue
-          const trackId = item.inventoryItemId ?? item.productVariantId
-          const maxQty = (item.physical || item.isInventoryItem) && trackId
+          if (item.customBulkId && orderItems.some(o => o.customBulkId === item.customBulkId)) continue
+          if (item.baleId && orderItems.some(o => o.baleId === item.baleId)) continue
+          const trackId = item.customBulkId ?? item.baleId ?? item.inventoryItemId ?? item.productVariantId
+          const maxQty = item.physical && trackId
             ? Math.min(3, localStock.get(trackId) ?? 1)
             : 3
           if (maxQty <= 0) continue
           const qty = orderItems.length === 0 ? 1 : randBetween(1, maxQty)
           const lineTotal = item.price * qty
           if (orderItems.length > 0 && orderTotal + lineTotal > remaining) break
-          orderItems.push({ productVariantId: item.productVariantId, productId: item.productId, name: item.name, unitPrice: item.price, quantity: qty, inventoryItemId: item.inventoryItemId, isInventoryItem: item.isInventoryItem })
+          orderItems.push({ productVariantId: item.productVariantId, productId: item.productId, name: item.name, unitPrice: item.price, quantity: qty, inventoryItemId: item.inventoryItemId, isInventoryItem: item.isInventoryItem, customBulkId: item.customBulkId, baleId: item.baleId })
           orderTotal += lineTotal
         }
 
@@ -257,6 +290,8 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
                 productId: i.productId,
                 productName: i.name,
                 ...(i.isInventoryItem && { isInventoryItem: true, inventoryItemId: i.inventoryItemId }),
+                ...(i.customBulkId && { customBulkId: i.customBulkId }),
+                ...(i.baleId && { baleId: i.baleId }),
               },
             })),
           }),
@@ -270,13 +305,17 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
 
           // Decrement local stock
           for (const i of orderItems) {
-            const trackId = i.inventoryItemId ?? i.productVariantId
+            const trackId = i.customBulkId ?? i.baleId ?? i.inventoryItemId ?? i.productVariantId
             if (trackId) {
               const prev = localStock.get(trackId) ?? 0
               const next = prev - i.quantity
               if (next <= 0) {
                 localStock.delete(trackId)
-                const idx = i.inventoryItemId
+                const idx = i.customBulkId
+                  ? pool.findIndex(s => s.customBulkId === trackId)
+                  : i.baleId
+                  ? pool.findIndex(s => s.baleId === trackId)
+                  : i.inventoryItemId
                   ? pool.findIndex(s => s.inventoryItemId === trackId)
                   : pool.findIndex(s => s.productVariantId === trackId)
                 if (idx !== -1) pool.splice(idx, 1)
