@@ -46,6 +46,8 @@ export function usePaymentProcessor(
   const { data: session } = useSession()
   const [isProcessing, setIsProcessing] = useState(false)
   const [lastReceipt, setLastReceipt] = useState<ReceiptData | null>(null)
+  const [showStockTakeWarning, setShowStockTakeWarning] = useState(false)
+  const [pendingOrderPayload, setPendingOrderPayload] = useState<any>(null)
 
   /**
    * Process checkout and generate receipt
@@ -200,6 +202,13 @@ export function usePaymentProcessor(
 
         if (!response.ok) {
           const errorData = await response.json()
+          // Stock take in progress — show override dialog instead of failing
+          if (response.status === 409 && errorData.warning === 'stock_take_in_progress') {
+            setPendingOrderPayload(orderPayload)
+            setShowStockTakeWarning(true)
+            setIsProcessing(false)
+            return null
+          }
           throw new Error(errorData.error || 'Failed to create order')
         }
 
@@ -307,9 +316,66 @@ export function usePaymentProcessor(
     [businessInfo, session, options]
   )
 
+  // Called when user clicks "Proceed anyway" on the stock take warning dialog
+  const proceedDespiteStockTake = useCallback(async () => {
+    if (!pendingOrderPayload) return null
+    setShowStockTakeWarning(false)
+    setIsProcessing(true)
+    try {
+      const response = await fetch('/api/universal/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...pendingOrderPayload, acknowledgeStockTake: true })
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Failed to create order')
+
+      const receiptData = buildReceiptWithBusinessInfo(
+        {
+          id: result.data.id,
+          orderNumber: result.data.orderNumber,
+          orderDate: new Date().toISOString(),
+          orderType: 'SALE',
+          status: result.data.status,
+          subtotal: pendingOrderPayload.subtotal,
+          taxAmount: pendingOrderPayload.taxAmount,
+          discountAmount: pendingOrderPayload.discountAmount,
+          totalAmount: pendingOrderPayload.totalAmount,
+          paymentMethod: pendingOrderPayload.paymentMethod,
+          paymentStatus: result.data.paymentStatus,
+          items: result.data.items ?? [],
+          wifiTokens: result.data.wifiTokens ?? [],
+          r710Tokens: result.data.r710Tokens ?? [],
+          attributes: pendingOrderPayload.attributes
+        },
+        {
+          id: businessInfo!.businessId,
+          name: businessInfo!.businessName,
+          type: businessInfo!.businessType,
+          address: businessInfo!.address,
+          phone: businessInfo!.phone
+        }
+      )
+      setLastReceipt(receiptData)
+      setPendingOrderPayload(null)
+      if (options.onSuccess) options.onSuccess(result.data.id, receiptData)
+      toast.success('Order completed successfully!')
+      return { orderId: result.data.id, receiptData }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to process payment')
+      if (options.onError) options.onError(error instanceof Error ? error : new Error('Unknown error'))
+      return null
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [pendingOrderPayload, businessInfo, options])
+
   return {
     processCheckout,
     isProcessing,
-    lastReceipt
+    lastReceipt,
+    showStockTakeWarning,
+    setShowStockTakeWarning,
+    proceedDespiteStockTake
   }
 }

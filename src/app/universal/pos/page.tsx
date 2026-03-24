@@ -250,7 +250,7 @@ export default function UniversalPOS() {
   }, [appliedCoupon, setDiscount])
 
   // Payment processor with business info - no auto-print, show preview instead
-  const { processCheckout, isProcessing, lastReceipt } = usePaymentProcessor(
+  const { processCheckout, isProcessing, lastReceipt, showStockTakeWarning, setShowStockTakeWarning, proceedDespiteStockTake } = usePaymentProcessor(
     currentBusiness && currentBusinessId
       ? {
           businessId: currentBusinessId,
@@ -571,6 +571,25 @@ export default function UniversalPOS() {
         />
 
         {/* Receipt Preview Modal - same pattern as restaurant POS */}
+        {/* Stock Take Warning Dialog */}
+        {showStockTakeWarning && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+              <div className="p-5">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2">⚠️ Stock Take In Progress</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  A stock take is currently in progress for this business. Proceeding with this sale may affect stock count accuracy.
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">Do you want to proceed with this sale?</p>
+              </div>
+              <div className="flex border-t border-gray-200 dark:border-gray-700">
+                <button onClick={() => setShowStockTakeWarning(false)} className="flex-1 py-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+                <button onClick={proceedDespiteStockTake} className="flex-1 py-3 text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700">Proceed Anyway</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <UnifiedReceiptPreviewModal
           isOpen={showReceiptPreview}
           onClose={() => {
