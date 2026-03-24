@@ -69,9 +69,20 @@ interface BulkStockPanelProps {
   initialMode?: 'bulkStock' | 'stockTake'
 }
 
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // Fallback for HTTP (non-secure) contexts
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 function makeRow(overrides: Partial<BulkStockRow> = {}): BulkStockRow {
   return {
-    rowId: crypto.randomUUID(),
+    rowId: generateId(),
     barcode: '',
     barcodeReadOnly: false,
     name: '',
@@ -286,6 +297,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   }, [])
 
   const activateStockTakeMode = async () => {
+    setShowModeSelector(false)
     setIsStockTakeMode(true)
     setStockTakeLoading(true)
     setStockTakeLoadProgress(null)
@@ -373,6 +385,11 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
     setScanInput('')
 
+    // If mode selector is still showing, auto-select Bulk Stocking mode and continue
+    if (showModeSelector) {
+      setShowModeSelector(false)
+    }
+
     // ── Stock Take Mode: existing row → move to top; new row → prepend ──
     if (isStockTakeMode) {
       const existingRow = rows.find(r => r.barcode === trimmed)
@@ -432,40 +449,40 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     setScanLoading(true)
     // Yield to the browser so the loading state renders before the fetch starts
     await new Promise(r => setTimeout(r, 0))
+    let match: any = null
+    let hierarchyPatch: Partial<BulkStockRow> = {}
     try {
       const res = await fetch(`/api/global/inventory-lookup/${encodeURIComponent(trimmed)}`)
       const data = await res.json()
-      const match = data?.data?.businesses?.find(
+      match = data?.data?.businesses?.find(
         (b: any) => b.businessId === businessId && b.isInventoryItem
       )
-
-      let hierarchyPatch: Partial<BulkStockRow> = {}
       if (match?.categoryId && allCats.length > 0) {
-        const resolved = resolveHierarchy(match.categoryId, allCats)
-        hierarchyPatch = resolved
+        hierarchyPatch = resolveHierarchy(match.categoryId, allCats)
       }
-
-      const newRow = makeRow({
-        barcode: trimmed,
-        barcodeReadOnly: true,
-        ...(match ? {
-          name: match.productName || '',
-          nameReadOnly: true,
-          isExistingItem: true,
-          currentStock: match.stockQuantity ?? null,
-          sellingPrice: String(match.price || ''),
-          sku: match.sku || '',
-          supplierId: match.supplierId || '',
-          ...hierarchyPatch,
-        } : {}),
-      })
-      setRows(prev => [...prev, newRow])
-      setDraftUnsaved(true)
-      tableEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    } finally {
-      setScanLoading(false)
-      focusScanInput()
+    } catch {
+      // Lookup failed — still add a blank row with the scanned barcode
     }
+
+    const newRow = makeRow({
+      barcode: trimmed,
+      barcodeReadOnly: true,
+      ...(match ? {
+        name: match.productName || '',
+        nameReadOnly: true,
+        isExistingItem: true,
+        currentStock: match.stockQuantity ?? null,
+        sellingPrice: String(match.price || ''),
+        sku: match.sku || '',
+        supplierId: match.supplierId || '',
+        ...hierarchyPatch,
+      } : {}),
+    })
+    setRows(prev => [...prev, newRow])
+    setDraftUnsaved(true)
+    tableEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    setScanLoading(false)
+    focusScanInput()
   }
 
   const handleScanKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
