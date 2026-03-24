@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
+import { UniversalSupplierForm } from '@/components/universal/supplier'
+import { BulkPrintModal, ProductData } from '@/components/clothing/bulk-print-modal'
 
 interface Category {
   id: string
@@ -31,6 +33,7 @@ interface ExistingBulkProduct {
   remainingCount: number
   unitPrice: string | number
   barcode: string
+  sku: string
   isActive: boolean
 }
 
@@ -63,12 +66,23 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [savedBatch, setSavedBatch] = useState('')
+  const [printTarget, setPrintTarget] = useState<ProductData | null>(null)
+  const [showPrintModal, setShowPrintModal] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
   // Manage tab state
   const [existing, setExisting] = useState<ExistingBulkProduct[]>([])
   const [existingLoading, setExistingLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Inline new category
+  const [showNewCat, setShowNewCat] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatLoading, setNewCatLoading] = useState(false)
+
+  // Inline new supplier
+  const [showNewSupplier, setShowNewSupplier] = useState(false)
+  const [creatingSupplier, setCreatingSupplier] = useState(false)
 
   const loadExisting = () => {
     setExistingLoading(true)
@@ -84,15 +98,27 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
     fetch(`/api/universal/categories?businessId=${businessId}&businessType=${businessType}`)
       .then(r => r.json())
       .then(d => {
-        const list: Category[] = Array.isArray(d) ? d : (d.data ?? d.categories ?? [])
-        setCategories(list.sort((a, b) => a.name.localeCompare(b.name)))
+        const raw: Category[] = Array.isArray(d) ? d : (d.data ?? d.categories ?? [])
+        // Deduplicate by name (case-insensitive) — business-specific entries appear first
+        // so we keep those over global/seed duplicates with the same name
+        const seenNames = new Set<string>()
+        const list = raw.filter(c => {
+          const key = (c.name || '').toLowerCase().trim()
+          if (!key || seenNames.has(key)) return false
+          seenNames.add(key)
+          return true
+        })
+        setCategories(list.sort((a, b) => (a.name || '').localeCompare(b.name || '')))
       })
       .catch(() => {})
 
     // Load suppliers
     fetch(`/api/business/${businessId}/suppliers?isActive=true&limit=100`)
       .then(r => r.json())
-      .then(d => setSuppliers(Array.isArray(d) ? d : (d.data ?? d.suppliers ?? [])))
+      .then(d => {
+        const raw = Array.isArray(d) ? d : (d.data ?? d.suppliers ?? [])
+        setSuppliers(raw.filter((s: Supplier) => s?.id && s?.name))
+      })
       .catch(() => {})
   }, [businessId, businessType])
 
@@ -108,8 +134,72 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
   const set = (field: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }))
 
+  // Auto-calculate unit price = container cost / item count
+  const handleCountOrCostChange = (field: 'itemCount' | 'costPrice', value: string) => {
+    setForm(f => {
+      const next = { ...f, [field]: value }
+      const count = Number(field === 'itemCount' ? value : f.itemCount)
+      const cost  = Number(field === 'costPrice'  ? value : f.costPrice)
+      if (count > 0 && cost > 0) {
+        next.unitPrice = (cost / count).toFixed(4).replace(/\.?0+$/, '')
+      }
+      return next
+    })
+  }
+
   const handleGenerateBarcode = () => {
     setForm(f => ({ ...f, barcode: generateScanCode() }))
+  }
+
+  const handleCreateCategory = async () => {
+    if (!newCatName.trim()) return
+    setNewCatLoading(true)
+    try {
+      const res = await fetch('/api/universal/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, businessType, name: newCatName.trim() }),
+      })
+      const d = await res.json()
+      if (d.success && d.data?.id) {
+        const newCat: Category = { id: d.data.id, name: d.data.name, emoji: d.data.emoji }
+        setCategories(prev => [...prev, newCat].sort((a, b) => a.name.localeCompare(b.name)))
+        setForm(f => ({ ...f, categoryId: d.data.id }))
+        setShowNewCat(false)
+        setNewCatName('')
+      } else {
+        toastError(d.error || 'Failed to create category')
+      }
+    } catch {
+      toastError('Failed to create category')
+    } finally {
+      setNewCatLoading(false)
+    }
+  }
+
+  const handleNewSupplierSubmit = async (data: any) => {
+    setCreatingSupplier(true)
+    try {
+      const res = await fetch(`/api/business/${businessId}/suppliers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      const json = await res.json()
+      if (res.ok && (json.id || json.supplier?.id)) {
+        const newSup: Supplier = { id: json.id || json.supplier?.id, name: data.name }
+        setSuppliers(prev => [...prev, newSup])
+        setForm(f => ({ ...f, supplierId: newSup.id }))
+        setShowNewSupplier(false)
+        toast('Supplier added', { type: 'success' })
+      } else {
+        toastError(json.error || 'Failed to create supplier')
+      }
+    } catch {
+      toastError('Failed to create supplier')
+    } finally {
+      setCreatingSupplier(false)
+    }
   }
 
   const handleSave = async () => {
@@ -143,6 +233,19 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
         return
       }
       setSavedBatch(data.data.batchNumber)
+      if (data.data.barcode) {
+        const pd: ProductData = {
+          id: data.data.id,
+          name: data.data.name,
+          barcodeData: data.data.barcode,
+          sellingPrice: Number(data.data.unitPrice),
+          sku: data.data.sku,
+          batchNumber: data.data.batchNumber,
+          itemCount: data.data.itemCount,
+        }
+        setPrintTarget(pd)
+        setShowPrintModal(true)
+      }
       onSaved?.()
     } catch {
       setError('Network error — please try again')
@@ -154,6 +257,8 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
   const handleRegisterAnother = () => {
     setForm(emptyForm)
     setSavedBatch('')
+    setPrintTarget(null)
+    setShowPrintModal(false)
     setError('')
     setTimeout(() => nameRef.current?.focus(), 50)
   }
@@ -196,15 +301,23 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Bulk Product Registered</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Batch: <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">{savedBatch}</span></p>
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-6">Items are now available for sale in POS</p>
-          <div className="flex gap-3">
-            <button onClick={handleRegisterAnother}
-              className="flex-1 px-4 py-2 text-sm border border-orange-400 rounded-lg text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-medium">
-              Register Another
-            </button>
-            <button onClick={onClose}
-              className="flex-1 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
-              Done
-            </button>
+          <div className="flex flex-col gap-2">
+            {printTarget && (
+              <button onClick={() => setShowPrintModal(true)}
+                className="w-full px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium">
+                🖨 Print Barcode Label
+              </button>
+            )}
+            <div className="flex gap-3">
+              <button onClick={handleRegisterAnother}
+                className="flex-1 px-4 py-2 text-sm border border-orange-400 rounded-lg text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-medium">
+                Register Another
+              </button>
+              <button onClick={onClose}
+                className="flex-1 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
+                Done
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -213,6 +326,7 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
 
   // ── Form ─────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
@@ -246,6 +360,24 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{p.batchNumber} · {p.remainingCount}/{p.itemCount} remaining · ${Number(p.unitPrice).toFixed(2)}/item</p>
                     </div>
+                    {p.barcode && (
+                      <button
+                        onClick={() => {
+                          setPrintTarget({
+                            id: p.id,
+                            name: p.name,
+                            barcodeData: p.barcode,
+                            sellingPrice: Number(p.unitPrice),
+                            sku: p.sku,
+                            batchNumber: p.batchNumber,
+                            itemCount: p.itemCount,
+                          })
+                          setShowPrintModal(true)
+                        }}
+                        className="shrink-0 px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                        🖨 Print
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(p)}
                       disabled={deletingId === p.id}
@@ -302,10 +434,23 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                 type="number"
                 min="1"
                 value={form.itemCount}
-                onChange={set('itemCount')}
+                onChange={e => handleCountOrCostChange('itemCount', e.target.value)}
                 placeholder="50"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Container Cost</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.costPrice}
+                onChange={e => handleCountOrCostChange('costPrice', e.target.value)}
+                placeholder="25.00"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <p className="text-xs text-gray-400 mt-0.5">whole box cost</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Unit Price <span className="text-red-500">*</span></label>
@@ -315,29 +460,20 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                 step="0.01"
                 value={form.unitPrice}
                 onChange={set('unitPrice')}
-                placeholder="0.50"
+                placeholder="auto"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
               <p className="text-xs text-gray-400 mt-0.5">per item sold</p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Container Cost</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.costPrice}
-                onChange={set('costPrice')}
-                placeholder="25.00"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
-              <p className="text-xs text-gray-400 mt-0.5">whole box cost</p>
             </div>
           </div>
 
           {/* Category */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Category</label>
+              <button type="button" onClick={() => { setNewCatName(''); setShowNewCat(true) }}
+                className="text-xs text-orange-600 dark:text-orange-400 hover:underline">+ New category</button>
+            </div>
             <SearchableSelect
               options={categories}
               value={form.categoryId}
@@ -350,7 +486,11 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
 
           {/* Supplier */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Supplier</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Supplier</label>
+              <button type="button" onClick={() => setShowNewSupplier(true)}
+                className="text-xs text-orange-600 dark:text-orange-400 hover:underline">+ New supplier</button>
+            </div>
             <SearchableSelect
               options={suppliers}
               value={form.supplierId}
@@ -407,5 +547,59 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
         )}
       </div>
     </div>
+
+    {/* Inline modals rendered outside main modal so z-index stacks correctly */}
+    {/* New category mini-modal */}
+    {showNewCat && (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">New Category</h3>
+          <input
+            autoFocus
+            type="text"
+            value={newCatName}
+            onChange={e => setNewCatName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreateCategory() }}
+            placeholder="Category name"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400 mb-4"
+          />
+          <div className="flex gap-3">
+            <button onClick={() => setShowNewCat(false)}
+              className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+              Cancel
+            </button>
+            <button onClick={handleCreateCategory} disabled={newCatLoading || !newCatName.trim()}
+              className="flex-1 px-4 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-medium">
+              {newCatLoading ? 'Creating…' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* New supplier modal */}
+    {showNewSupplier && (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
+        <UniversalSupplierForm
+          businessId={businessId}
+          businessType={businessType as any}
+          onSubmit={handleNewSupplierSubmit}
+          onCancel={() => setShowNewSupplier(false)}
+          loading={creatingSupplier}
+        />
+      </div>
+    )}
+
+    {/* Barcode print modal — reuses the same BulkPrintModal used by bales */}
+    {printTarget && (
+      <BulkPrintModal
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        businessId={businessId}
+        productData={printTarget}
+        compact
+      />
+    )}
+    </>
   )
 }

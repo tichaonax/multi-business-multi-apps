@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { BulkPrintModal, ProductData } from '@/components/clothing/bulk-print-modal'
 
 interface BulkProduct {
   id: string
@@ -32,6 +34,7 @@ const LOW_STOCK_THRESHOLD = 5
 
 export default function CustomBulkInventoryPage() {
   const { currentBusiness } = useBusinessPermissionsContext()
+  const confirm = useConfirm()
   const businessId = currentBusiness?.businessId
   const businessName = currentBusiness?.businessName ?? ''
 
@@ -42,6 +45,7 @@ export default function CustomBulkInventoryPage() {
   const [editState, setEditState] = useState<EditState>({ name: '', unitPrice: '', costPrice: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [printTarget, setPrintTarget] = useState<ProductData | null>(null)
 
   const load = useCallback(async () => {
     if (!businessId) return
@@ -100,7 +104,8 @@ export default function CustomBulkInventoryPage() {
   }
 
   const deactivate = async (id: string) => {
-    if (!confirm('Mark this bulk product as inactive?')) return
+    const ok = await confirm({ title: 'Deactivate bulk product?', description: 'This will mark the product as inactive. Stock history is preserved.', confirmText: 'Deactivate', cancelText: 'Cancel' })
+    if (!ok) return
     try {
       const res = await fetch(`/api/custom-bulk/${id}`, {
         method: 'PUT',
@@ -292,6 +297,13 @@ export default function CustomBulkInventoryPage() {
                               className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
                               Edit
                             </button>
+                            {p.barcode && (
+                              <button
+                                onClick={() => setPrintTarget({ id: p.id, name: p.name, barcodeData: p.barcode, sellingPrice: Number(p.unitPrice), sku: p.sku, batchNumber: p.batchNumber, itemCount: p.itemCount })}
+                                className="px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 rounded text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                🖨 Print
+                              </button>
+                            )}
                             {p.isActive && (
                               <button
                                 onClick={() => deactivate(p.id)}
@@ -318,6 +330,14 @@ export default function CustomBulkInventoryPage() {
           </div>
         )}
       </div>
+
+      <BulkPrintModal
+        isOpen={printTarget !== null}
+        onClose={() => setPrintTarget(null)}
+        businessId={businessId}
+        productData={printTarget ?? undefined}
+        compact
+      />
     </ContentLayout>
   )
 }

@@ -1210,11 +1210,13 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (!business.productId && !business.inventoryItemId && !business.baleId) return
+                            if (!business.productId && !business.inventoryItemId && !business.baleId && !business.customBulkId) return
                             const url = business.isInventoryItem
                               ? `/${business.businessType}/pos?businessId=${business.businessId}&addInventoryItem=${business.inventoryItemId}`
                               : business.isBale
                               ? `/${business.businessType}/pos?businessId=${business.businessId}&addBale=${business.baleId}`
+                              : business.isCustomBulk
+                              ? `/${business.businessType}/pos?businessId=${business.businessId}&addCustomBulk=${business.customBulkId}`
                               : `/${business.businessType}/pos?businessId=${business.businessId}&addProduct=${business.productId}${business.variantId ? `&variantId=${business.variantId}` : ''}&autoAdd=true`
                             const currentBusinessId = localStorage.getItem('currentBusinessId')
                             if (currentBusinessId && currentBusinessId !== business.businessId) {

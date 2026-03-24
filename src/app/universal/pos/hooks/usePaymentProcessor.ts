@@ -128,6 +128,21 @@ export function usePaymentProcessor(
             }
           }
 
+          // Custom bulk products — no productVariantId
+          if (item.isCustomBulk) {
+            return {
+              productVariantId: null,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discountAmount: 0,
+              attributes: {
+                isCustomBulk: true,
+                customBulkId: item.customBulkId,
+                productName: item.name,
+              }
+            }
+          }
+
           return {
             productVariantId: item.variantId || null,
             quantity: item.quantity,

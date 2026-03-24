@@ -157,6 +157,35 @@ export default function UniversalPOS() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addToCart])
 
+  // Handle addCustomBulk URL param (navigated from non-POS barcode modal "Add to Cart")
+  const autoAddCustomBulkProcessed = useRef(false)
+  useEffect(() => {
+    const addCustomBulkId = searchParams.get('addCustomBulk')
+    if (!addCustomBulkId || autoAddCustomBulkProcessed.current) return
+    autoAddCustomBulkProcessed.current = true
+    fetch(`/api/custom-bulk/${addCustomBulkId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.data) {
+          const bulk = d.data
+          const bulkKey = `cbulk_${bulk.id}`
+          addToCart({
+            id: `cbulk_${bulk.id}_${Date.now()}`,
+            name: bulk.name,
+            sku: bulk.sku || '',
+            quantity: 1,
+            unitPrice: Number(bulk.unitPrice),
+            productId: bulkKey,
+            variantId: bulkKey,
+            customBulkId: bulk.id,
+            isCustomBulk: true,
+          })
+        }
+      })
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
   const handleApplyReward = (reward: CustomerReward) => {
     if (appliedCoupon) {
       toast.error('Cannot combine a reward with a coupon — remove the coupon first')
