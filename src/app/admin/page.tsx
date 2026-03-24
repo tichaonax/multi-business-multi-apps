@@ -238,6 +238,17 @@ export default function AdminPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="card p-6">
+            <h3 className="text-lg font-semibold mb-4 text-primary">Category Management</h3>
+            <p className="text-secondary mb-4">Browse, edit, and seed inventory categories across all business types</p>
+            <a
+              href="/admin/categories"
+              className="btn-primary inline-block"
+            >
+              Manage Categories
+            </a>
+          </div>
+
+          <div className="card p-6">
             <h3 className="text-lg font-semibold mb-4 text-primary">Data Management</h3>
             <p className="text-secondary mb-4">Export data, import CSV files, and manage database backups</p>
             <a

@@ -511,6 +511,76 @@ const RESTAURANT_CATEGORIES: SeedCategory[] = [
   { name: 'Cling Wrap & Foil', emoji: '📋', color: '#6B7280', domainId: 'domain_restaurant_packaging' },
 ]
 
+const CLOTHING_CATEGORIES: SeedCategory[] = [
+  // Men's Fashion
+  { name: "T-Shirts & Polos", emoji: "👕", color: "#3B82F6", domainId: "domain_clothing_mens" },
+  { name: "Shirts & Dress Shirts", emoji: "👔", color: "#3B82F6", domainId: "domain_clothing_mens" },
+  { name: "Trousers & Chinos", emoji: "👖", color: "#3B82F6", domainId: "domain_clothing_mens" },
+  { name: "Jeans", emoji: "👖", color: "#3B82F6", domainId: "domain_clothing_mens" },
+  { name: "Suits & Blazers", emoji: "🤵", color: "#3B82F6", domainId: "domain_clothing_mens" },
+  { name: "Shorts", emoji: "🩳", color: "#3B82F6", domainId: "domain_clothing_mens" },
+  // Women's Fashion
+  { name: "Dresses", emoji: "👗", color: "#EC4899", domainId: "domain_clothing_womens" },
+  { name: "Tops & Blouses", emoji: "👚", color: "#EC4899", domainId: "domain_clothing_womens" },
+  { name: "Skirts", emoji: "👗", color: "#EC4899", domainId: "domain_clothing_womens" },
+  { name: "Trousers & Leggings", emoji: "👖", color: "#EC4899", domainId: "domain_clothing_womens" },
+  { name: "Jumpsuits & Playsuits", emoji: "👗", color: "#EC4899", domainId: "domain_clothing_womens" },
+  // Kids
+  { name: "Boys Clothing", emoji: "👦", color: "#10B981", domainId: "domain_clothing_kids" },
+  { name: "Girls Clothing", emoji: "👧", color: "#10B981", domainId: "domain_clothing_kids" },
+  { name: "Baby & Toddler", emoji: "👶", color: "#10B981", domainId: "domain_clothing_kids" },
+  // Footwear
+  { name: "Sneakers & Trainers", emoji: "👟", color: "#F59E0B", domainId: "domain_clothing_footwear" },
+  { name: "Formal Shoes", emoji: "👞", color: "#F59E0B", domainId: "domain_clothing_footwear" },
+  { name: "Sandals & Flip Flops", emoji: "🩴", color: "#F59E0B", domainId: "domain_clothing_footwear" },
+  { name: "Boots", emoji: "👢", color: "#F59E0B", domainId: "domain_clothing_footwear" },
+  { name: "Heels & Wedges", emoji: "👠", color: "#F59E0B", domainId: "domain_clothing_footwear" },
+  // Accessories
+  { name: "Belts", emoji: "👛", color: "#8B5CF6", domainId: "domain_clothing_accessories" },
+  { name: "Ties & Bow Ties", emoji: "👔", color: "#8B5CF6", domainId: "domain_clothing_accessories" },
+  { name: "Scarves & Wraps", emoji: "🧣", color: "#8B5CF6", domainId: "domain_clothing_accessories" },
+  { name: "Caps & Hats", emoji: "🎩", color: "#8B5CF6", domainId: "domain_clothing_accessories" },
+  // Sportswear
+  { name: "Track Suits", emoji: "🏃", color: "#14B8A6", domainId: "domain_clothing_sportswear" },
+  { name: "Gym Wear", emoji: "💪", color: "#14B8A6", domainId: "domain_clothing_sportswear" },
+  { name: "Sports Shorts", emoji: "🩳", color: "#14B8A6", domainId: "domain_clothing_sportswear" },
+  // Underwear
+  { name: "Boxers & Briefs", emoji: "🩲", color: "#6B7280", domainId: "domain_clothing_underwear" },
+  { name: "Bras & Underwear", emoji: "👙", color: "#6B7280", domainId: "domain_clothing_underwear" },
+  { name: "Socks", emoji: "🧦", color: "#6B7280", domainId: "domain_clothing_underwear" },
+  // Outerwear
+  { name: "Jackets & Coats", emoji: "🧥", color: "#64748B", domainId: "domain_clothing_outerwear" },
+  { name: "Hoodies & Sweaters", emoji: "🧶", color: "#64748B", domainId: "domain_clothing_outerwear" },
+  // Workwear
+  { name: "Overalls & Boiler Suits", emoji: "👷", color: "#D97706", domainId: "domain_clothing_workwear" },
+  { name: "Work Shirts & Trousers", emoji: "👔", color: "#D97706", domainId: "domain_clothing_workwear" },
+  { name: "Safety Boots", emoji: "👢", color: "#D97706", domainId: "domain_clothing_workwear" },
+  // School Uniforms
+  { name: "School Shirts", emoji: "👕", color: "#0EA5E9", domainId: "domain_clothing_schoolwear" },
+  { name: "School Trousers & Skirts", emoji: "👖", color: "#0EA5E9", domainId: "domain_clothing_schoolwear" },
+  { name: "School Bags", emoji: "🎒", color: "#0EA5E9", domainId: "domain_clothing_schoolwear" },
+  // Beauty
+  { name: "Skincare", emoji: "🧴", color: "#F472B6", domainId: "domain_clothing_beauty" },
+  { name: "Hair Care", emoji: "💇", color: "#F472B6", domainId: "domain_clothing_beauty" },
+  { name: "Makeup & Cosmetics", emoji: "💄", color: "#F472B6", domainId: "domain_clothing_beauty" },
+  // Jewellery
+  { name: "Necklaces & Chains", emoji: "📿", color: "#FBBF24", domainId: "domain_clothing_jewellery" },
+  { name: "Earrings", emoji: "💎", color: "#FBBF24", domainId: "domain_clothing_jewellery" },
+  { name: "Bracelets & Bangles", emoji: "⌚", color: "#FBBF24", domainId: "domain_clothing_jewellery" },
+  { name: "Rings", emoji: "💍", color: "#FBBF24", domainId: "domain_clothing_jewellery" },
+  { name: "Watches", emoji: "⌚", color: "#FBBF24", domainId: "domain_clothing_jewellery" },
+  // Bags
+  { name: "Handbags & Purses", emoji: "👜", color: "#A78BFA", domainId: "domain_clothing_bags" },
+  { name: "Backpacks", emoji: "🎒", color: "#A78BFA", domainId: "domain_clothing_bags" },
+  { name: "Luggage & Travel Bags", emoji: "🧳", color: "#A78BFA", domainId: "domain_clothing_bags" },
+  // Maternity
+  { name: "Maternity Wear", emoji: "🤰", color: "#EC4899", domainId: "domain_clothing_maternity" },
+  // Swimwear
+  { name: "Swimwear", emoji: "🩱", color: "#06B6D4", domainId: "domain_clothing_swimwear" },
+  // Nightwear
+  { name: "Pyjamas & Nightgowns", emoji: "😴", color: "#8B5CF6", domainId: "domain_clothing_nightwear" },
+]
+
 export function getSeedCategories(businessType: string): SeedCategory[] {
   switch (businessType) {
     case 'grocery':
@@ -519,6 +589,8 @@ export function getSeedCategories(businessType: string): SeedCategory[] {
       return HARDWARE_CATEGORIES
     case 'restaurant':
       return RESTAURANT_CATEGORIES
+    case 'clothing':
+      return CLOTHING_CATEGORIES
     default:
       return []
   }

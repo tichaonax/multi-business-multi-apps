@@ -38,25 +38,22 @@ export async function GET(request: NextRequest) {
       select: { id: true, name: true }
     })
 
-    // IMPORTANT: Fetch all domains first so departments are always visible (even with 0 products)
-    // This ensures department navigation displays the structure regardless of product count
-    // We fetch domains through categories to include both clothing-specific AND universal domains (like Accessories)
-    const clothingCategories = await prisma.businessCategories.findMany({
-      where: {
-        businessType: 'clothing',
-        domainId: { not: null }
-      },
-      select: {
-        domainId: true,
-        domain: {
-          select: { id: true, name: true, emoji: true, isActive: true }
-        }
-      }
-    })
+    // Fetch ALL domains for clothing directly — includes new domains even if no categories exist yet
+    // Also pull in universal domains used by existing clothing categories
+    const [directDomains, categoryDomains] = await Promise.all([
+      prisma.inventoryDomains.findMany({
+        where: { businessType: 'clothing', isActive: true },
+        select: { id: true, name: true, emoji: true }
+      }),
+      prisma.businessCategories.findMany({
+        where: { businessType: 'clothing', domainId: { not: null } },
+        select: { domain: { select: { id: true, name: true, emoji: true, isActive: true } } }
+      })
+    ])
 
-    // Extract unique domains from categories (includes both clothing and universal domains)
     const domainMap = new Map()
-    clothingCategories.forEach(cat => {
+    directDomains.forEach(d => domainMap.set(d.id, d))
+    categoryDomains.forEach(cat => {
       if (cat.domain && cat.domain.isActive && !domainMap.has(cat.domain.id)) {
         domainMap.set(cat.domain.id, cat.domain)
       }

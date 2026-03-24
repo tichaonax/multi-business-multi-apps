@@ -57,8 +57,39 @@ function RestaurantInventoryContent() {
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
+  const [seedingCategories, setSeedingCategories] = useState(false)
+  const [categoriesSeeded, setCategoriesSeeded] = useState(false)
 
   const toast = useToastContext()
+
+  useEffect(() => {
+    fetch('/api/admin/seed-categories?businessType=restaurant')
+      .then(r => r.json())
+      .then(d => { if (d.seeded) setCategoriesSeeded(true) })
+      .catch(() => {})
+  }, [])
+
+  const handleSeedCategories = async () => {
+    setSeedingCategories(true)
+    try {
+      const res = await fetch('/api/admin/seed-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessType: 'restaurant' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setCategoriesSeeded(true)
+        toast.push(`Seed complete: created ${data.created}, skipped ${data.skipped}`)
+      } else {
+        toast.error(data.error || 'Seed failed')
+      }
+    } catch {
+      toast.error('Network error seeding categories')
+    } finally {
+      setSeedingCategories(false)
+    }
+  }
 
   // Get user info
   const sessionUser = session?.user as SessionUser
@@ -318,6 +349,16 @@ function RestaurantInventoryContent() {
         ]}
         headerActions={
           <div className="flex gap-3">
+            {isSystemAdmin && (
+              <button
+                onClick={handleSeedCategories}
+                disabled={seedingCategories || categoriesSeeded}
+                title={categoriesSeeded ? 'Categories already seeded' : 'Seed standard categories'}
+                className="px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {seedingCategories ? 'Seeding...' : categoriesSeeded ? '✅ Categories Seeded' : '🌱 Seed Categories'}
+              </button>
+            )}
             <button
               onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
               className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"

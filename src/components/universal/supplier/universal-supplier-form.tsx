@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { UniversalSupplier, UniversalSupplierFormProps, BusinessType, SupplierStatus, PaymentTerms, ReliabilityRating } from '@/types/supplier'
@@ -29,57 +29,55 @@ const reliabilityOptions = [
   { value: 'poor', label: 'Poor' }
 ]
 
-const businessCategoryOptions = {
+// Fallback categories when API returns nothing yet
+const fallbackCategoryOptions: Record<string, { name: string; emoji: string }[]> = {
   hardware: [
-    'Lumber & Building Materials',
-    'Fasteners & Hardware',
-    'Paint & Finishing',
-    'Tools & Equipment',
-    'Electrical Supplies',
-    'Plumbing Supplies',
-    'HVAC Supplies',
-    'Safety Equipment'
+    { name: 'Lumber & Building Materials', emoji: '🪵' },
+    { name: 'Fasteners & Hardware', emoji: '🔩' },
+    { name: 'Paint & Finishing', emoji: '🎨' },
+    { name: 'Tools & Equipment', emoji: '🔧' },
+    { name: 'Electrical Supplies', emoji: '💡' },
+    { name: 'Plumbing Supplies', emoji: '🚿' },
+    { name: 'Safety Equipment', emoji: '🦺' },
   ],
   grocery: [
-    'Fresh Produce',
-    'Dairy & Eggs',
-    'Meat & Seafood',
-    'Frozen Foods',
-    'Bakery Goods',
-    'Beverages',
-    'Packaged Foods',
-    'Health & Beauty'
+    { name: 'Fresh Produce', emoji: '🥬' },
+    { name: 'Dairy & Eggs', emoji: '🥛' },
+    { name: 'Meat & Seafood', emoji: '🥩' },
+    { name: 'Frozen Foods', emoji: '🧊' },
+    { name: 'Bakery Goods', emoji: '🍞' },
+    { name: 'Beverages', emoji: '🥤' },
+    { name: 'Packaged Foods', emoji: '📦' },
+    { name: 'Health & Beauty', emoji: '💊' },
   ],
   restaurant: [
-    'Fresh Produce',
-    'Proteins & Meat',
-    'Dairy Products',
-    'Beverages',
-    'Bakery & Bread',
-    'Spices & Seasonings',
-    'Kitchen Equipment',
-    'Disposables'
+    { name: 'Fresh Produce', emoji: '🥬' },
+    { name: 'Proteins & Meat', emoji: '🥩' },
+    { name: 'Dairy Products', emoji: '🥛' },
+    { name: 'Beverages', emoji: '🥤' },
+    { name: 'Bakery & Bread', emoji: '🍞' },
+    { name: 'Spices & Seasonings', emoji: '🌿' },
+    { name: 'Kitchen Equipment', emoji: '🍳' },
+    { name: 'Disposables', emoji: '📦' },
   ],
   clothing: [
-    'Fabrics & Materials',
-    'Finished Garments',
-    'Accessories',
-    'Footwear',
-    'Jewelry',
-    'Bags & Luggage',
-    'Seasonal Items',
-    'Designer Collections'
+    { name: 'Fabrics & Materials', emoji: '🧵' },
+    { name: 'Finished Garments', emoji: '👗' },
+    { name: 'Accessories', emoji: '👜' },
+    { name: 'Footwear', emoji: '👟' },
+    { name: 'Jewelry', emoji: '💍' },
+    { name: 'Bags & Luggage', emoji: '🧳' },
+    { name: 'Seasonal Items', emoji: '🎄' },
+    { name: 'Designer Collections', emoji: '✨' },
   ],
   construction: [
-    'Heavy Equipment',
-    'Construction Materials',
-    'Concrete & Masonry',
-    'Steel & Metal',
-    'Roofing Materials',
-    'Excavation Services',
-    'Rental Equipment',
-    'Specialty Tools'
-  ]
+    { name: 'Heavy Equipment', emoji: '🏗️' },
+    { name: 'Construction Materials', emoji: '🧱' },
+    { name: 'Concrete & Masonry', emoji: '🪨' },
+    { name: 'Steel & Metal', emoji: '⚙️' },
+    { name: 'Roofing Materials', emoji: '🏠' },
+    { name: 'Specialty Tools', emoji: '🔨' },
+  ],
 }
 
 export function UniversalSupplierForm({
@@ -140,12 +138,87 @@ export function UniversalSupplierForm({
 
   const [activeTab, setActiveTab] = useState('basic')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [categories, setCategories] = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [showAddCategory, setShowAddCategory] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatEmoji, setNewCatEmoji] = useState('')
+  const [addingCat, setAddingCat] = useState(false)
+  const newCatInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch live categories from the inventory categories API
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch(`/api/inventory/categories?businessType=${businessType}&businessId=${businessId}`)
+      const data = await res.json()
+      if (data.categories && data.categories.length > 0) {
+        // Deduplicate by name — many business types have the same category name under multiple domains
+        const seen = new Set<string>()
+        const unique = data.categories
+          .filter((c: any) => {
+            const key = c.name.toLowerCase()
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+          .map((c: any) => ({ id: c.id, name: c.name, emoji: c.emoji || '' }))
+        setCategories(unique)
+      } else {
+        // Fall back to static list with emojis
+        const fallback = fallbackCategoryOptions[businessType] ?? []
+        setCategories(fallback.map((c, i) => ({ id: `fallback_${i}`, name: c.name, emoji: c.emoji })))
+      }
+    } catch {
+      const fallback = fallbackCategoryOptions[businessType] ?? []
+      setCategories(fallback.map((c, i) => ({ id: `fallback_${i}`, name: c.name, emoji: c.emoji })))
+    }
+  }
+
+  const handleAddCategory = async () => {
+    if (!newCatName.trim() || !newCatEmoji.trim()) return
+    setAddingCat(true)
+    try {
+      const res = await fetch('/api/inventory/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          businessType,
+          name: newCatName.trim(),
+          emoji: newCatEmoji.trim(),
+          color: '#3B82F6',
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.category) {
+        const created = { id: data.category.id, name: data.category.name, emoji: data.category.emoji || newCatEmoji }
+        setCategories(prev => [...prev, created])
+        handleInputChange('category', created.name)
+        setShowAddCategory(false)
+        setNewCatName('')
+        setNewCatEmoji('')
+      }
+    } catch {
+      // silently fail — category list still usable
+    } finally {
+      setAddingCat(false)
+    }
+  }
 
   useEffect(() => {
     if (supplier) {
       setFormData(supplier)
     }
   }, [supplier])
+
+  useEffect(() => {
+    fetchCategories()
+  }, [businessType, businessId])
+
+  useEffect(() => {
+    if (showAddCategory) {
+      setTimeout(() => newCatInputRef.current?.focus(), 50)
+    }
+  }, [showAddCategory])
 
   const generateSupplierCode = (name: string, businessType: BusinessType) => {
     const prefix = businessType.substring(0, 3).toUpperCase()
@@ -366,11 +439,54 @@ export function UniversalSupplierForm({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Category *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Category *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCategory(v => !v)}
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                    >
+                      {showAddCategory ? 'Cancel' : '+ New'}
+                    </button>
+                  </div>
+
+                  {showAddCategory && (
+                    <div className="mb-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          ref={newCatInputRef}
+                          type="text"
+                          value={newCatEmoji}
+                          onChange={e => setNewCatEmoji(e.target.value)}
+                          placeholder="😀"
+                          className="w-14 text-center px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          maxLength={4}
+                        />
+                        <input
+                          type="text"
+                          value={newCatName}
+                          onChange={e => setNewCatName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory() } }}
+                          placeholder="Category name"
+                          className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddCategory}
+                          disabled={addingCat || !newCatName.trim() || !newCatEmoji.trim()}
+                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          {addingCat ? '…' : 'Add'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400">Enter an emoji and a name, then press Add or Enter</p>
+                    </div>
+                  )}
+
                   <SearchableSelect
-                    options={(businessCategoryOptions[businessType] ?? []).map(c => ({ id: c, name: c }))}
+                    options={categories.map(c => ({ id: c.name, name: c.name, emoji: c.emoji }))}
                     value={formData.category || ''}
                     onChange={val => handleInputChange('category', val)}
                     placeholder="Select category"

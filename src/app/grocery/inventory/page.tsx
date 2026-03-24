@@ -50,6 +50,37 @@ function GroceryInventoryContent() {
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
+  const [seedingCategories, setSeedingCategories] = useState(false)
+  const [categoriesSeeded, setCategoriesSeeded] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/seed-categories?businessType=grocery')
+      .then(r => r.json())
+      .then(d => { if (d.seeded) setCategoriesSeeded(true) })
+      .catch(() => {})
+  }, [])
+
+  const handleSeedCategories = async () => {
+    setSeedingCategories(true)
+    try {
+      const res = await fetch('/api/admin/seed-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessType: 'grocery' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setCategoriesSeeded(true)
+        await customAlert({ title: 'Seed Complete', description: `Created ${data.created} categories, skipped ${data.skipped} existing.` })
+      } else {
+        await customAlert({ title: 'Seed Failed', description: data.error || 'Unknown error' })
+      }
+    } catch {
+      await customAlert({ title: 'Seed Failed', description: 'Network error' })
+    } finally {
+      setSeedingCategories(false)
+    }
+  }
 
   // Handle productId from URL parameters
   useEffect(() => {
@@ -364,6 +395,16 @@ function GroceryInventoryContent() {
                       refreshTrigger={refreshKey}
                       headerActions={(
                         <div className="flex items-center gap-2">
+                          {isSystemAdmin && (
+                            <button
+                              onClick={handleSeedCategories}
+                              disabled={seedingCategories || categoriesSeeded}
+                              title={categoriesSeeded ? 'Categories already seeded' : 'Seed standard categories'}
+                              className="px-3 py-1 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {seedingCategories ? 'Seeding...' : categoriesSeeded ? '✅ Categories Seeded' : '🌱 Seed Categories'}
+                            </button>
+                          )}
                           <button
                             onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
                             className="px-3 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"

@@ -21,16 +21,20 @@ export async function GET(request: NextRequest) {
     })
 
     // Fetch all grocery domains for navigation (shows departments even with 0 products)
-    const groceryCategories = await prisma.businessCategories.findMany({
-      where: { businessType: 'grocery', domainId: { not: null } },
-      select: {
-        domainId: true,
-        domain: { select: { id: true, name: true, emoji: true, isActive: true } }
-      }
-    })
+    const [directDomains, categoryDomains] = await Promise.all([
+      prisma.inventoryDomains.findMany({
+        where: { businessType: 'grocery', isActive: true },
+        select: { id: true, name: true, emoji: true }
+      }),
+      prisma.businessCategories.findMany({
+        where: { businessType: 'grocery', domainId: { not: null } },
+        select: { domain: { select: { id: true, name: true, emoji: true, isActive: true } } }
+      })
+    ])
 
     const domainMap = new Map()
-    groceryCategories.forEach(cat => {
+    directDomains.forEach(d => domainMap.set(d.id, d))
+    categoryDomains.forEach(cat => {
       if (cat.domain && cat.domain.isActive && !domainMap.has(cat.domain.id)) {
         domainMap.set(cat.domain.id, cat.domain)
       }
