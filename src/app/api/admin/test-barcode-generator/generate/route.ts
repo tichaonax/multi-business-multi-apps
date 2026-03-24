@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
                 { businessId },
               ],
             },
-            select: { id: true },
+            select: { id: true, domainId: true },
           }),
           prisma.businessSuppliers.findMany({
             where: { businessId, isActive: true },
@@ -78,10 +78,21 @@ export async function POST(request: NextRequest) {
 
         const bizShortName = (businessRaw?.shortName || 'CLO').toUpperCase().slice(0, 4)
 
+        // Group categories by domainId for domain-aware generation
+        const domainMap = new Map<string, string[]>()
+        for (const c of categoriesRaw) {
+          if (c.domainId) {
+            if (!domainMap.has(c.domainId)) domainMap.set(c.domainId, [])
+            domainMap.get(c.domainId)!.push(c.id)
+          }
+        }
+        const categoriesByDomain = Array.from(domainMap.entries()).map(([domainId, categoryIds]) => ({ domainId, categoryIds }))
+
         const refs: ProductRefs = {
-          categoryIds:     categoriesRaw.map(c => c.id),
-          supplierIds:     suppliersRaw.map(s => s.id),
-          baleCategoryIds: baleCategoriesRaw.map(c => c.id),
+          categoryIds:      categoriesRaw.map(c => c.id),
+          supplierIds:      suppliersRaw.map(s => s.id),
+          baleCategoryIds:  baleCategoriesRaw.map(c => c.id),
+          categoriesByDomain,
         }
 
         const productsGenerated: { name: string; barcode: string; price: number }[] = []
@@ -93,6 +104,7 @@ export async function POST(request: NextRequest) {
           const p = generateProduct(businessType, refs, i)
 
           if (shouldStock) {
+
             const inventoryItemId = randomBytes(8).toString('hex')
             await prisma.barcodeInventoryItems.create({
               data: {
@@ -113,7 +125,7 @@ export async function POST(request: NextRequest) {
             })
           }
 
-          productsGenerated.push({ name: p.name, barcode: p.barcode, price: p.sellingPrice, sku: p.sku, description: p.description, size: p.size, color: p.color })
+          productsGenerated.push({ name: p.name, barcode: p.barcode, price: p.sellingPrice, sku: p.sku, description: p.description, size: p.size, color: p.color, domainId: p.domainId })
         }
 
         // ── Generate + stock bales (clothing only) ───────────────────────────

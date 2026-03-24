@@ -323,6 +323,16 @@ function HardwareInventoryContent() {
             { label: 'Hardware', href: '/hardware' },
             { label: 'Inventory', isActive: true }
           ]}
+          headerActions={isSystemAdmin ? (
+            <button
+              onClick={handleSeedCategories}
+              disabled={seedingCategories || categoriesSeeded}
+              title={categoriesSeeded ? 'Categories already seeded' : 'Seed standard categories'}
+              className="px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {seedingCategories ? 'Seeding...' : categoriesSeeded ? '✅ Categories Seeded' : '🌱 Seed Categories'}
+            </button>
+          ) : undefined}
         >
           <div className="space-y-6">
             {/* Tab Navigation */}
@@ -394,16 +404,6 @@ function HardwareInventoryContent() {
                       <h3 className="text-lg font-semibold">Inventory Items</h3>
                       <div className="flex gap-2">
 
-                        {isSystemAdmin && (
-                          <button
-                            onClick={handleSeedCategories}
-                            disabled={seedingCategories || categoriesSeeded}
-                            title={categoriesSeeded ? 'Categories already seeded' : 'Seed standard categories'}
-                            className="px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {seedingCategories ? 'Seeding...' : categoriesSeeded ? '✅ Categories Seeded' : '🌱 Seed Categories'}
-                          </button>
-                        )}
                         <button
                           onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
                           className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"

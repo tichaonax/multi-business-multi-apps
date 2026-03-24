@@ -1133,7 +1133,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       {/* Test Barcode Generator — admin only, localhost:8080 */}
       {showTestBarcodeGenerator && (
         <TestBarcodeGeneratorModal
-          businesses={businesses}
+          businesses={businesses.filter((b: any) => ['grocery', 'hardware', 'restaurant', 'clothing'].includes(b.businessType))}
           onClose={() => setShowTestBarcodeGenerator(false)}
         />
       )}

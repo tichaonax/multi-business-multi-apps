@@ -34,6 +34,16 @@ interface Props {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Convert a domainId like "domain_grocery_bakery" → "Bakery" */
+function domainLabel(domainId?: string): string {
+  if (!domainId) return 'Unassigned'
+  // Strip prefix: domain_grocery_bakery → bakery, domain_hardware_hand_tools → hand_tools
+  const parts = domainId.split('_')
+  // Drop first two segments (domain + businessType)
+  const suffix = parts.slice(2).join(' ')
+  return suffix.replace(/\b\w/g, c => c.toUpperCase())
+}
+
 const TYPE_EMOJI: Record<string, string> = {
   restaurant: '🍽️',
   grocery:    '🛒',
@@ -130,6 +140,7 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
             size:         p.size,
             color:        p.color,
             itemName:     p.name,
+            domainId:     p.domainId,
           })),
           ...(r?.bales ?? []).map((b: any) => ({
             id:           b.barcode,
@@ -308,6 +319,21 @@ export function TestBarcodeGeneratorModal({ businesses, onClose }: Props) {
                         <span className="text-xs text-green-600 dark:text-green-400">
                           ✅ {r.productsCreated}p {r.balesCreated > 0 ? `${r.balesCreated}b` : ''}
                         </span>
+                        {/* Domain breakdown */}
+                        {r.generatedProducts.length > 0 && (() => {
+                          const byDomain: Record<string, number> = {}
+                          r.generatedProducts.forEach((p: any) => {
+                            const label = domainLabel(p.domainId)
+                            byDomain[label] = (byDomain[label] ?? 0) + 1
+                          })
+                          return (
+                            <div className="text-xs text-gray-400 dark:text-gray-500 text-right leading-snug">
+                              {Object.entries(byDomain).map(([label, count]) => (
+                                <div key={label}>{label}: {count}</div>
+                              ))}
+                            </div>
+                          )
+                        })()}
                         {r.generatedProducts.length > 0 && (
                           <button
                             onClick={() => setPrintModal({ businessId: cfg.businessId, products: r.generatedProducts })}
