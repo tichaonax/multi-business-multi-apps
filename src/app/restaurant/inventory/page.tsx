@@ -32,6 +32,8 @@ function RestaurantInventoryContent() {
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedDepartment, setSelectedDepartment] = useState('')
+  const [stats, setStats] = useState<any>(null)
   const [menuOnlyFilter, setMenuOnlyFilter] = useState(false)
   const [priceFilter, setPriceFilter] = useState<'all' | 'with' | 'without'>('with')
   const [posTrackedFilter, setPosTrackedFilter] = useState(false)
@@ -93,6 +95,14 @@ function RestaurantInventoryContent() {
   useEffect(() => {
     if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
   }, [searchParams])
+
+  useEffect(() => {
+    if (!currentBusinessId) return
+    fetch(`/api/admin/restaurant/stats?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setStats(d.data) })
+      .catch(() => {})
+  }, [currentBusinessId])
 
   // Pre-fill inventory tracking fields when editing an existing item
   useEffect(() => {
@@ -531,11 +541,48 @@ function RestaurantInventoryContent() {
                     )}
                   </div>
 
+                  {/* Active Department Filter Badge */}
+                  {selectedDepartment && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-secondary">Department filter:</span>
+                      <span className="inline-flex items-center gap-2 rounded-md bg-orange-100 dark:bg-orange-900 px-3 py-1 text-sm font-medium text-orange-800 dark:text-orange-200">
+                        {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
+                        <button type="button" onClick={() => setSelectedDepartment('')} className="hover:text-orange-600 dark:hover:text-orange-400" title="Clear">×</button>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Department Quick Navigation */}
+                  {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
+                    <div className="card p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold">Browse by Department</h4>
+                        <span className="text-sm text-secondary">{Object.keys(stats.byDepartment).length} departments</span>
+                      </div>
+                      <div className="grid gap-2 grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                        {Object.entries(stats.byDepartment)
+                          .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
+                          .map(([id, dept]: [string, any]) => (
+                            <button
+                              key={id}
+                              onClick={() => setSelectedDepartment(id)}
+                              className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-500 dark:hover:border-orange-400 transition-all text-center group"
+                            >
+                              <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">{dept.emoji}</span>
+                              <span className="text-xs font-medium leading-tight">{dept.name}</span>
+                              <span className="text-xs text-secondary mt-1">{dept.count}</span>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Universal Inventory Grid */}
                   <UniversalInventoryGrid
                     businessId={businessId}
                     businessType="restaurant"
                     categoryFilter={selectedCategory || undefined}
+                    departmentFilter={selectedDepartment}
                     menuOnlyFilter={menuOnlyFilter}
                     posTrackedFilter={posTrackedFilter}
                     priceFilter={priceFilter}

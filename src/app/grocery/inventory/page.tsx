@@ -30,6 +30,8 @@ function GroceryInventoryContent() {
   const [showViewModal, setShowViewModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
+  const [selectedDepartment, setSelectedDepartment] = useState('')
+  const [stats, setStats] = useState<any>(null)
   const searchParams = useSearchParams()
 
   const { data: session, status } = useSession()
@@ -81,6 +83,14 @@ function GroceryInventoryContent() {
   useEffect(() => {
     if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
   }, [searchParams])
+
+  useEffect(() => {
+    if (!currentBusinessId) return
+    fetch(`/api/admin/grocery/stats?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setStats(d.data) })
+      .catch(() => {})
+  }, [currentBusinessId])
 
   useEffect(() => {
     if (status === 'loading') return
@@ -297,9 +307,57 @@ function GroceryInventoryContent() {
                       <h3 className="text-lg font-semibold">Inventory Items</h3>
                     </div>
 
+                    {/* Active Department Filter Badge */}
+                    {selectedDepartment && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm text-secondary">Active filter:</span>
+                        <span className="inline-flex items-center gap-2 rounded-md bg-green-100 dark:bg-green-900 px-3 py-1 text-sm font-medium text-green-800 dark:text-green-200">
+                          Department: {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDepartment('')}
+                            className="hover:text-green-600 dark:hover:text-green-400"
+                            title="Clear department filter"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Department Quick Navigation */}
+                    {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
+                      <div className="card p-4 sm:p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold">Browse by Department</h3>
+                          <span className="text-sm text-secondary">
+                            {Object.keys(stats.byDepartment).length} departments • Click to filter
+                          </span>
+                        </div>
+                        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+                          {Object.entries(stats.byDepartment)
+                            .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
+                            .map(([id, dept]: [string, any]) => (
+                              <button
+                                key={id}
+                                onClick={() => setSelectedDepartment(id)}
+                                className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 hover:border-green-500 dark:hover:border-green-400 transition-all text-center group"
+                              >
+                                <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{dept.emoji}</span>
+                                <span className="text-sm font-medium mb-1">{dept.name}</span>
+                                <span className="text-xs text-secondary">
+                                  {dept.count} product{dept.count !== 1 ? 's' : ''}
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
                     <UniversalInventoryGrid
                       businessId={businessId}
                       businessType="grocery"
+                      departmentFilter={selectedDepartment}
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
