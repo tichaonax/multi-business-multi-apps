@@ -337,7 +337,7 @@ export async function POST(req: NextRequest) {
       // If we're on the last attempt and still have a collision, add timestamp
       if (attempts === maxAttempts) {
         const timestamp = Date.now().toString().slice(-4)
-        orderNumber = `RST-${date}-${counter}-${timestamp}`
+        orderNumber = `RST-${localDateStr}-${counter}-${timestamp}`
       }
     }
 
