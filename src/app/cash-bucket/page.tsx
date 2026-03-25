@@ -686,7 +686,7 @@ export default function CashBucketPage() {
       {/* Detail modal — PAYMENT_APPROVAL / PETTY_CASH */}
       {detailEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDetailEntry(null)}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl w-full max-w-lg mx-4 p-5 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl w-full max-w-2xl mx-4 p-5 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-primary">
                 {ENTRY_TYPE_LABEL[detailEntry.entryType] ?? detailEntry.entryType} — {detailEntry.business?.name ?? '—'}
@@ -701,32 +701,38 @@ export default function CashBucketPage() {
             {detailLoading ? (
               <p className="text-sm text-secondary py-4 text-center">Loading…</p>
             ) : detailData?.payments && detailData.payments.length > 0 ? (
-              <div className="overflow-y-auto flex-1">
-                <table className="w-full text-xs">
+              <div className="overflow-y-auto overflow-x-hidden flex-1">
+                <table className="w-full text-xs table-fixed">
+                  <colgroup>
+                    <col className="w-[28%]" />
+                    <col className="w-[25%]" />
+                    <col className="w-[27%]" />
+                    <col className="w-[20%]" />
+                  </colgroup>
                   <thead className="bg-gray-50 dark:bg-gray-700/50 text-secondary uppercase sticky top-0">
                     <tr>
-                      <th className="px-3 py-2 text-left">Payee</th>
-                      <th className="px-3 py-2 text-left">Category</th>
-                      <th className="px-3 py-2 text-left">Notes</th>
-                      <th className="px-3 py-2 text-left">Channel</th>
-                      <th className="px-3 py-2 text-right">Amount</th>
+                      <th className="px-2 py-2 text-left">Payee</th>
+                      <th className="px-2 py-2 text-left">Category</th>
+                      <th className="px-2 py-2 text-left">Notes</th>
+                      <th className="px-2 py-2 text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {detailData.payments.map((p: any) => (
                       <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20">
-                        <td className="px-3 py-2 font-medium text-primary">{p.payeeName}</td>
-                        <td className="px-3 py-2 text-secondary">{p.category ?? '—'}</td>
-                        <td className="px-3 py-2 text-secondary max-w-[140px] truncate">{p.notes ?? '—'}</td>
-                        <td className="px-3 py-2 text-secondary">{p.paymentChannel === 'ECOCASH' ? '📱' : '💵'} {p.paymentChannel}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-red-600 dark:text-red-400">{fmt(p.amount)}</td>
+                        <td className="px-2 py-2 font-medium text-primary truncate">{p.payeeName}</td>
+                        <td className="px-2 py-2 text-secondary truncate">{p.category ?? '—'}</td>
+                        <td className="px-2 py-2 text-secondary truncate">{p.notes ?? '—'}</td>
+                        <td className="px-2 py-2 text-right font-semibold text-red-600 dark:text-red-400 whitespace-nowrap">
+                          {p.paymentChannel === 'ECOCASH' ? '📱' : '💵'} {fmt(p.amount)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
-                      <td colSpan={4} className="px-3 py-2 text-xs font-semibold text-secondary text-right">Total</td>
-                      <td className="px-3 py-2 text-right font-bold text-red-600 dark:text-red-400">
+                      <td colSpan={3} className="px-2 py-2 text-xs font-semibold text-secondary text-right">Total</td>
+                      <td className="px-2 py-2 text-right font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
                         {fmt(detailData.payments.reduce((s: number, p: any) => s + p.amount, 0))}
                       </td>
                     </tr>
