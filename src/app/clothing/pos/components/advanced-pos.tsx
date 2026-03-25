@@ -114,6 +114,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     } catch { return null }
   })
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
+  const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showSupervisorModal, setShowSupervisorModal] = useState(false)
@@ -334,6 +335,19 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       pageContext: 'pos'
     })
   }, [terminalId, sendToDisplay])
+
+  // One-time effect: after page.tsx's 2000ms initial greeting fires (which uses session user),
+  // re-send with the correct salesperson name if one was restored from localStorage
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const sp = selectedSalespersonRef.current
+      if (sp) {
+        sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
+      }
+    }, 2200)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Track if cart has been loaded from localStorage to prevent overwriting on mount
   const [cartLoaded, setCartLoaded] = useState(false)
@@ -2112,6 +2126,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             currentUserName={session?.user?.name || 'Staff'}
             onSalespersonChange={(sp) => {
               setSelectedSalesperson(sp)
+              selectedSalespersonRef.current = sp
               sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
             }}
           />

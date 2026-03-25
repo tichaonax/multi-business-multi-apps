@@ -100,6 +100,7 @@ export default function RestaurantPOS() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; address?: string; city?: string; customerType: string } | null>(null)
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
+  const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
   const [skipRewardThisTime, setSkipRewardThisTime] = useState(true)
   const autoAppliedForRef = useRef<string | null>(null)
@@ -566,9 +567,11 @@ export default function RestaurantPOS() {
         if (!isActive) return
 
         // Send employee greeting only (business info comes from customer display API)
+        // Use selected salesperson if already set from localStorage restore (fires before this 2000ms delay)
+        const sp = selectedSalespersonRef.current
         const greetingData = {
-          employeeName: sessionUser?.name || 'Staff',
-          employeePhotoUrl: photoData?.profilePhotoUrl || undefined,
+          employeeName: sp?.name || sessionUser?.name || 'Staff',
+          employeePhotoUrl: sp?.photoUrl || photoData?.profilePhotoUrl || undefined,
           subtotal: 0,
           tax: 0,
           total: 0
@@ -3633,6 +3636,7 @@ export default function RestaurantPOS() {
                       currentUserName={sessionUser.name || 'Staff'}
                       onSalespersonChange={(sp) => {
                         setSelectedSalesperson(sp)
+                        selectedSalespersonRef.current = sp
                         sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
                       }}
                     />

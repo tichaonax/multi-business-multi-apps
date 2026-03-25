@@ -12,7 +12,7 @@ import {
   UniversalPOS
 } from '@/components/universal'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { useOpenCustomerDisplay, useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 
 export default function HardwarePOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
@@ -43,6 +44,9 @@ export default function HardwarePOSPage() {
   const employeeId = sessionUser?.id
   // Check if current business is a hardware business
   const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
+
+  const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
+  const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
 
   // Customer Display - generate terminal ID
   const [terminalId] = useState(() => {
@@ -148,9 +152,11 @@ export default function HardwarePOSPage() {
 
         console.log('[Hardware POS] Sending greeting message...')
         // Send greeting and business info
+        // Use selected salesperson if already set from localStorage restore
+        const sp = selectedSalespersonRef.current
         const greetingData = {
-          employeeName: sessionUser?.name || 'Staff',
-          employeePhotoUrl: photoData?.profilePhotoUrl || undefined,
+          employeeName: sp?.name || sessionUser?.name || 'Staff',
+          employeePhotoUrl: sp?.photoUrl || photoData?.profilePhotoUrl || undefined,
           businessName: businessData?.name || businessData?.umbrellaBusinessName || currentBusiness.businessName || '',
           businessPhone: businessData?.phone || businessData?.umbrellaBusinessPhone || '',
           customMessage: businessData?.receiptReturnPolicy || 'All sales are final',
@@ -330,6 +336,22 @@ export default function HardwarePOSPage() {
                 </button>
               </div>
             </div>
+
+            {/* Salesperson selector */}
+            {currentBusinessId && sessionUser?.id && (
+              <div className="mb-2">
+                <SalespersonSelector
+                  businessId={currentBusinessId}
+                  currentUserId={sessionUser.id}
+                  currentUserName={sessionUser.name || 'Staff'}
+                  onSalespersonChange={(sp) => {
+                    setSelectedSalesperson(sp)
+                    selectedSalespersonRef.current = sp
+                    sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
+                  }}
+                />
+              </div>
+            )}
 
             {/* POS System */}
             <div className={`grid gap-6 ${showProductGrid ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>

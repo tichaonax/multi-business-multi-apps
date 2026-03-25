@@ -525,46 +525,9 @@ function CustomerDisplayContent() {
           })
         }
 
-        // Fetch current session user (for same-device scenarios)
-        try {
-          console.log('[CustomerDisplay] Fetching session user from:', `${baseUrl}/api/auth/session`)
-          const sessionResponse = await fetch(`${baseUrl}/api/auth/session`)
-
-          if (sessionResponse.ok) {
-            const sessionData = await sessionResponse.json()
-            console.log('[CustomerDisplay] Session data:', sessionData)
-
-            if (sessionData.user?.name) {
-              setEmployeeName(sessionData.user.name)
-              console.log('[CustomerDisplay] Employee name set to:', sessionData.user.name)
-            } else {
-              setEmployeeName('Our Staff')
-              console.log('[CustomerDisplay] No user name in session, using default')
-            }
-
-            // Fetch employee profile photo directly (same session = same device as POS)
-            // This ensures the photo persists across display refreshes without needing POS to re-broadcast
-            if (sessionData.user) {
-              try {
-                const photoRes = await fetch(`${baseUrl}/api/employees/my-photo`)
-                if (photoRes.ok) {
-                  const photoData = await photoRes.json()
-                  if (photoData.profilePhotoUrl) {
-                    setEmployeePhotoUrl(photoData.profilePhotoUrl)
-                    try { localStorage.setItem('cd_employeePhotoUrl', photoData.profilePhotoUrl) } catch { /* ignore */ }
-                    console.log('[CustomerDisplay] Employee photo loaded from API')
-                  }
-                }
-              } catch { /* ignore - photo is optional */ }
-            }
-          } else {
-            console.log('[CustomerDisplay] No active session, using default employee name')
-            setEmployeeName('Our Staff')
-          }
-        } catch (sessionErr) {
-          console.warn('[CustomerDisplay] Could not fetch session, using default employee name:', sessionErr)
-          setEmployeeName('Our Staff')
-        }
+        // Employee name and photo come exclusively from SET_GREETING messages sent by the POS.
+        // The POS sends the selected salesperson's name (not necessarily the logged-in user),
+        // so fetching the session here would overwrite the salesperson with the logged-in user.
       } catch (err) {
         console.error('[CustomerDisplay] Error fetching business data:', err)
       }

@@ -427,6 +427,7 @@ function GroceryPOSContent() {
   const employeeId = sessionUser?.id
   const isAdmin = sessionUser?.role === 'admin'
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
+  const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
   // Check if current business is a grocery business
   const isGroceryBusiness = currentBusiness?.businessType === 'grocery'
 
@@ -896,9 +897,11 @@ function GroceryPOSContent() {
 
         console.log('[Grocery POS] Sending greeting message...')
         // Send greeting and business info
+        // Use selected salesperson if already set from localStorage restore (SalespersonSelector fires before this 2000ms delay)
+        const sp = selectedSalespersonRef.current
         const greetingData = {
-          employeeName: sessionUser?.name || 'Staff',
-          employeePhotoUrl: photoData?.profilePhotoUrl || undefined,
+          employeeName: sp?.name || sessionUser?.name || 'Staff',
+          employeePhotoUrl: sp?.photoUrl || photoData?.profilePhotoUrl || undefined,
           businessName: businessData?.name || businessData?.umbrellaBusinessName || currentBusiness.businessName || '',
           businessPhone: businessData?.phone || businessData?.umbrellaBusinessPhone || '',
           customMessage: businessData?.receiptReturnPolicy || 'All sales are final',
@@ -2591,6 +2594,7 @@ function GroceryPOSContent() {
                   currentUserName={sessionUser.name || 'Staff'}
                   onSalespersonChange={(sp) => {
                     setSelectedSalesperson(sp)
+                    selectedSalespersonRef.current = sp
                     sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
                   }}
                 />
