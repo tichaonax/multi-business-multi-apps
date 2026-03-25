@@ -2525,7 +2525,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   setShowStockTakeWarning(false)
                   if (!pendingStockTakeOrderBody) return
                   try {
-                    const retryBody = { ...pendingStockTakeOrderBody, acknowledgeStockTake: true }
+                    const retryBody = { ...pendingStockTakeOrderBody }
                     const response = await fetch('/api/universal/orders', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },

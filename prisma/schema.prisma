@@ -5765,6 +5765,8 @@ model StockTakeDrafts {
   title            String?
   isStockTakeMode  Boolean               @default(false)
   lastSyncedAt     DateTime?
+  salesOccurredAt  DateTime?
+  salesCount       Int                   @default(0)
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
 
@@ -5794,6 +5796,7 @@ model StockTakeDraftItems {
   isExistingItem Boolean  @default(false)
   systemQuantity Int?
   physicalCount  Int?
+  needsReview    Boolean  @default(false)
   displayOrder   Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

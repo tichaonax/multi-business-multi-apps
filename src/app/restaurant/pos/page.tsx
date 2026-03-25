@@ -2221,12 +2221,6 @@ export default function RestaurantPOS() {
 
       } else if (response.status === 409) {
         const errorData = await response.json().catch(() => null)
-        if (errorData?.warning === 'stock_take_in_progress') {
-          // Store the original request body so we can retry with acknowledgeStockTake=true
-          setPendingStockTakeOrderBody(requestBody)
-          setShowStockTakeWarning(true)
-          return
-        }
         const errorMessage = errorData?.error || errorData?.message || 'Failed to process order'
         toast.error(`Order Failed:\n\n${errorMessage}`)
       } else {
@@ -2286,7 +2280,7 @@ export default function RestaurantPOS() {
                   if (!pendingStockTakeOrderBody) return
                   try {
                     setOrderSubmitting(true)
-                    const retryBody = { ...pendingStockTakeOrderBody, acknowledgeStockTake: true }
+                    const retryBody = { ...pendingStockTakeOrderBody }
                     const response = await fetch('/api/restaurant/orders', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },

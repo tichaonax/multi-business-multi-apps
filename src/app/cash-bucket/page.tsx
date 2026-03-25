@@ -109,6 +109,24 @@ export default function CashBucketPage() {
   const [deleteReason, setDeleteReason] = useState('')
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
+  // Detail modal state (PAYMENT_APPROVAL / PETTY_CASH)
+  const [detailEntry, setDetailEntry] = useState<BucketEntry | null>(null)
+  const [detailData, setDetailData] = useState<{ payments: any[]; pettyCash: any } | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  const openDetailModal = async (entry: BucketEntry) => {
+    setDetailEntry(entry)
+    setDetailData(null)
+    setDetailLoading(true)
+    try {
+      const res = await fetch(`/api/cash-bucket/${entry.id}`, { credentials: 'include' })
+      const json = await res.json()
+      if (res.ok) setDetailData({ payments: json.data.payments ?? [], pettyCash: json.data.pettyCash ?? null })
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -532,8 +550,13 @@ export default function CashBucketPage() {
                     const canEdit = isEodReceipt && !isDeleted && (isAdmin || isCreator)
                     // Delete: admin or explicit canDeleteCashBucketEntry permission only
                     const canDelete = isEodReceipt && !isDeleted && canDeleteBucketEntry
+                    const hasDetails = e.entryType === 'PAYMENT_APPROVAL' || e.entryType === 'PETTY_CASH' || e.entryType === 'PETTY_CASH_RETURN'
                     return (
-                      <tr key={e.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''}`}>
+                      <tr
+                        key={e.id}
+                        onClick={hasDetails ? () => openDetailModal(e) : undefined}
+                        className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''} ${hasDetails ? 'cursor-pointer' : ''}`}
+                      >
                         <td className="px-3 py-2 whitespace-nowrap text-secondary">
                           {new Date(e.entryDate).toLocaleDateString()}
                         </td>
@@ -571,9 +594,18 @@ export default function CashBucketPage() {
                         <td className="px-3 py-2 text-secondary whitespace-nowrap">{e.createdBy?.name ?? '—'}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">
+                            {hasDetails && (
+                              <button
+                                onClick={e2 => { e2.stopPropagation(); openDetailModal(e) }}
+                                className="p-1 rounded text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors text-xs font-medium"
+                                title="View details"
+                              >
+                                🔍
+                              </button>
+                            )}
                             {canEdit && (
                               <button
-                                onClick={() => openEditModal(e)}
+                                onClick={e2 => { e2.stopPropagation(); openEditModal(e) }}
                                 className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                                 title="Edit entry"
                               >
@@ -582,7 +614,7 @@ export default function CashBucketPage() {
                             )}
                             {canDelete && (
                               <button
-                                onClick={() => openDeleteModal(e)}
+                                onClick={e2 => { e2.stopPropagation(); openDeleteModal(e) }}
                                 className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                 title="Delete entry"
                               >
@@ -605,7 +637,7 @@ export default function CashBucketPage() {
       {/* Edit modal */}
       {editEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card rounded-lg border border-border shadow-xl w-full max-w-sm mx-4 p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl w-full max-w-sm mx-4 p-5">
             <h3 className="text-sm font-semibold text-primary mb-4">✏️ Edit Entry</h3>
             <form onSubmit={handleEditSubmit} className="space-y-3">
               <div>
@@ -651,10 +683,83 @@ export default function CashBucketPage() {
         </div>
       )}
 
+      {/* Detail modal — PAYMENT_APPROVAL / PETTY_CASH */}
+      {detailEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDetailEntry(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl w-full max-w-lg mx-4 p-5 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-primary">
+                {ENTRY_TYPE_LABEL[detailEntry.entryType] ?? detailEntry.entryType} — {detailEntry.business?.name ?? '—'}
+              </h3>
+              <button onClick={() => setDetailEntry(null)} className="text-secondary hover:text-primary text-lg leading-none">✕</button>
+            </div>
+            <div className="text-xs text-secondary mb-3 space-y-0.5">
+              <div>{new Date(detailEntry.entryDate).toLocaleDateString()} · {fmt(detailEntry.amount)}</div>
+              {detailEntry.notes && <div>{detailEntry.notes}</div>}
+            </div>
+
+            {detailLoading ? (
+              <p className="text-sm text-secondary py-4 text-center">Loading…</p>
+            ) : detailData?.payments && detailData.payments.length > 0 ? (
+              <div className="overflow-y-auto flex-1">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 dark:bg-gray-700/50 text-secondary uppercase sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Payee</th>
+                      <th className="px-3 py-2 text-left">Category</th>
+                      <th className="px-3 py-2 text-left">Notes</th>
+                      <th className="px-3 py-2 text-left">Channel</th>
+                      <th className="px-3 py-2 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {detailData.payments.map((p: any) => (
+                      <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                        <td className="px-3 py-2 font-medium text-primary">{p.payeeName}</td>
+                        <td className="px-3 py-2 text-secondary">{p.category ?? '—'}</td>
+                        <td className="px-3 py-2 text-secondary max-w-[140px] truncate">{p.notes ?? '—'}</td>
+                        <td className="px-3 py-2 text-secondary">{p.paymentChannel === 'ECOCASH' ? '📱' : '💵'} {p.paymentChannel}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-red-600 dark:text-red-400">{fmt(p.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                      <td colSpan={4} className="px-3 py-2 text-xs font-semibold text-secondary text-right">Total</td>
+                      <td className="px-3 py-2 text-right font-bold text-red-600 dark:text-red-400">
+                        {fmt(detailData.payments.reduce((s: number, p: any) => s + p.amount, 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            ) : detailData?.pettyCash ? (
+              <div className="text-sm space-y-2">
+                <div className="flex justify-between"><span className="text-secondary">Purpose</span><span className="font-medium">{detailData.pettyCash.purpose}</span></div>
+                <div className="flex justify-between"><span className="text-secondary">Requested by</span><span>{detailData.pettyCash.requestedBy}</span></div>
+                <div className="flex justify-between"><span className="text-secondary">Requested amount</span><span>{fmt(detailData.pettyCash.requestedAmount)}</span></div>
+                {detailData.pettyCash.approvedAmount != null && <div className="flex justify-between"><span className="text-secondary">Approved amount</span><span className="text-emerald-600 font-semibold">{fmt(detailData.pettyCash.approvedAmount)}</span></div>}
+                {detailData.pettyCash.spentAmount != null && <div className="flex justify-between"><span className="text-secondary">Amount spent</span><span>{fmt(detailData.pettyCash.spentAmount)}</span></div>}
+                {detailData.pettyCash.returnAmount != null && <div className="flex justify-between"><span className="text-secondary">Returned</span><span className="text-emerald-600">{fmt(detailData.pettyCash.returnAmount)}</span></div>}
+                <div className="flex justify-between"><span className="text-secondary">Status</span><span className="capitalize">{detailData.pettyCash.status?.toLowerCase()}</span></div>
+              </div>
+            ) : (
+              <p className="text-sm text-secondary py-4 text-center">No details available.</p>
+            )}
+
+            <div className="mt-4 pt-3 border-t border-border">
+              <button onClick={() => setDetailEntry(null)} className="w-full py-2 px-4 rounded-md text-sm font-medium border border-border text-secondary hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete confirmation modal */}
       {deleteEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card rounded-lg border border-border shadow-xl w-full max-w-sm mx-4 p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl w-full max-w-sm mx-4 p-5">
             <h3 className="text-sm font-semibold text-red-600 mb-1">🗑️ Delete Entry</h3>
             <p className="text-xs text-secondary mb-4">
               This will zero out the entry ({fmt(deleteEntry.amount)}) and record the reason. This cannot be undone.

@@ -353,20 +353,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Stock take warning: if an active stock take draft exists for this business, warn before processing
-    if (!body.acknowledgeStockTake) {
-      const activeStockTake = await prisma.stockTakeDrafts.findFirst({
-        where: { businessId: orderData.businessId, isStockTakeMode: true, status: 'DRAFT' },
-        select: { id: true },
-      })
-      if (activeStockTake) {
-        return NextResponse.json(
-          { warning: 'stock_take_in_progress', message: 'A stock take is currently in progress for this business. Processing this sale may affect stock count accuracy.' },
-          { status: 409 }
-        )
-      }
-    }
-
     // Verify customer exists if specified — check current business first, then any business
     // Customers registered at one business can shop at any other business (shared umbrella system)
     if (orderData.customerId) {
@@ -942,6 +928,57 @@ export async function POST(request: NextRequest) {
       } catch (balanceError) {
         console.error('Failed to credit business balance for order:', balanceError)
       }
+    }
+
+    // Post-commit: track sale against any active stock take (fire-and-forget — never affects the order response)
+    try {
+      const activeDraft = await prisma.stockTakeDrafts.findFirst({
+        where: { businessId: orderData.businessId, isStockTakeMode: true, status: 'DRAFT' },
+        select: { id: true, createdById: true, title: true }
+      })
+
+      if (activeDraft) {
+        // Collect barcodes from sold items (attributes.barcode covers inventory items; also check productVariant barcodes)
+        const soldBarcodes: string[] = []
+        for (const item of items) {
+          if (item.attributes?.barcode) {
+            soldBarcodes.push(item.attributes.barcode as string)
+          } else if (item.productVariantId) {
+            const variant = await prisma.productVariants.findUnique({
+              where: { id: item.productVariantId },
+              select: { barcode: true }
+            })
+            if (variant?.barcode) soldBarcodes.push(variant.barcode)
+          }
+        }
+
+        // Mark draft dirty and flag affected items
+        await prisma.stockTakeDrafts.update({
+          where: { id: activeDraft.id },
+          data: { salesOccurredAt: new Date(), salesCount: { increment: 1 } }
+        })
+
+        if (soldBarcodes.length > 0) {
+          await prisma.stockTakeDraftItems.updateMany({
+            where: { draftId: activeDraft.id, barcode: { in: soldBarcodes } },
+            data: { needsReview: true }
+          })
+        }
+
+        // Notify the stock take owner
+        await prisma.appNotification.create({
+          data: {
+            userId: activeDraft.createdById,
+            type: 'STOCK_TAKE_SALE_OCCURRED',
+            title: 'Stock Take: Sale Processed',
+            message: `A sale was processed while your stock take "${activeDraft.title ?? 'Untitled'}" is in progress. Sync required before submitting.`,
+            linkUrl: `/${orderData.businessType}/inventory?tab=bulk-stock`,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          }
+        })
+      }
+    } catch (trackingError) {
+      console.error('Stock take sale tracking failed (non-critical):', trackingError)
     }
 
     return NextResponse.json({

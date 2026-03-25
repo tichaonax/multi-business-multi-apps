@@ -325,7 +325,7 @@ export function usePaymentProcessor(
       const response = await fetch('/api/universal/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...pendingOrderPayload, acknowledgeStockTake: true })
+        body: JSON.stringify(pendingOrderPayload)
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Failed to create order')

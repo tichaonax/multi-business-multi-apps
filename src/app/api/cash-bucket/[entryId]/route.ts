@@ -35,7 +35,7 @@ export async function GET(
     if (entry.entryType === 'PAYMENT_APPROVAL' && entry.referenceId) {
       const paymentWhere: any =
         entry.referenceType === 'EOD_BATCH'
-          ? { eod_batch_id: entry.referenceId }
+          ? { eodBatchId: entry.referenceId }
           : entry.referenceType === 'EXPENSE_PAYMENT'
           ? { id: entry.referenceId }
           : null
@@ -49,32 +49,26 @@ export async function GET(
             status: true,
             notes: true,
             paymentDate: true,
-            paymentType: true,
             paymentChannel: true,
             payeeType: true,
-            payeeUserId: true,
-            payeeEmployeeId: true,
-            payeePersonId: true,
-            payeeSupplierId: true,
-            categoryId: true,
-            users_expenseAccountPayments_payeeUserIdTousers: { select: { name: true } },
-            employees: { select: { firstName: true, lastName: true } },
-            persons: { select: { firstName: true, lastName: true } },
-            business_suppliers: { select: { name: true } },
-            expense_categories: { select: { name: true } },
+            payeeUser:     { select: { name: true } },
+            payeeEmployee: { select: { firstName: true, lastName: true } },
+            payeePerson:   { select: { fullName: true } },
+            payeeSupplier: { select: { name: true } },
+            category:      { select: { name: true } },
           },
         })
 
         payments = rows.map((p: any) => {
           let payeeName = '—'
-          if (p.payeeType === 'USER' && p.users_expenseAccountPayments_payeeUserIdTousers)
-            payeeName = p.users_expenseAccountPayments_payeeUserIdTousers.name
-          else if (p.payeeType === 'EMPLOYEE' && p.employees)
-            payeeName = `${p.employees.firstName} ${p.employees.lastName}`
-          else if (p.payeeType === 'PERSON' && p.persons)
-            payeeName = `${p.persons.firstName} ${p.persons.lastName}`
-          else if (p.payeeType === 'SUPPLIER' && p.business_suppliers)
-            payeeName = p.business_suppliers.name
+          if (p.payeeType === 'USER' && p.payeeUser)
+            payeeName = p.payeeUser.name
+          else if (p.payeeType === 'EMPLOYEE' && p.payeeEmployee)
+            payeeName = `${p.payeeEmployee.firstName} ${p.payeeEmployee.lastName}`
+          else if (p.payeeType === 'PERSON' && p.payeePerson)
+            payeeName = p.payeePerson.fullName
+          else if (p.payeeType === 'SUPPLIER' && p.payeeSupplier)
+            payeeName = p.payeeSupplier.name
 
           return {
             id: p.id,
@@ -84,7 +78,7 @@ export async function GET(
             paymentDate: p.paymentDate,
             paymentChannel: p.paymentChannel,
             payeeName,
-            category: p.expense_categories?.name ?? null,
+            category: p.category?.name ?? null,
           }
         })
       }
@@ -98,7 +92,7 @@ export async function GET(
         select: {
           id: true, purpose: true, requestedAmount: true, approvedAmount: true,
           spentAmount: true, returnAmount: true, status: true, requestedAt: true,
-          users_petty_cash_requests_requestedByTousers: { select: { name: true } },
+          requester: { select: { name: true } },
         },
       })
       if (pc) {
@@ -111,7 +105,7 @@ export async function GET(
           returnAmount: pc.returnAmount ? Number(pc.returnAmount) : null,
           status: pc.status,
           requestedAt: pc.requestedAt,
-          requestedBy: (pc as any).users_petty_cash_requests_requestedByTousers?.name ?? '—',
+          requestedBy: (pc as any).requester?.name ?? '—',
         }
       }
     }

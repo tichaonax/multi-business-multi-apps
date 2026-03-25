@@ -280,21 +280,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue, acknowledgeStockTake } = await req.json()
-
-    // Stock take warning: if an active stock take draft exists for this business, warn before processing
-    if (!acknowledgeStockTake) {
-      const activeStockTake = await prisma.stockTakeDrafts.findFirst({
-        where: { businessId, isStockTakeMode: true, status: 'DRAFT' },
-        select: { id: true },
-      })
-      if (activeStockTake) {
-        return NextResponse.json(
-          { warning: 'stock_take_in_progress', message: 'A stock take is currently in progress for this business. Processing this sale may affect stock count accuracy.' },
-          { status: 409 }
-        )
-      }
-    }
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue } = await req.json()
     const ecocashFeeAmount = paymentMethod === 'ECOCASH' && ecocashFeeType
       ? (ecocashFeeType === 'PERCENTAGE' ? total * ((ecocashFeeValue || 0) / 100) : (ecocashFeeValue || 0))
       : 0

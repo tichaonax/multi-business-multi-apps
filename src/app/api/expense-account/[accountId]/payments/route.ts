@@ -271,7 +271,7 @@ export async function POST(
     // Check if expense account exists and is active
     const account = await prisma.expenseAccounts.findUnique({
       where: { id: accountId },
-      select: { id: true, accountName: true, isActive: true, balance: true, businessId: true },
+      select: { id: true, accountName: true, isActive: true, balance: true, businessId: true, accountType: true },
     })
 
     if (!account) {
@@ -293,7 +293,7 @@ export async function POST(
 
     // Duplicate rent payment guard: if this is a RENT account and it's a single
     // (non-batch) payment, check for an existing payment in the current calendar month.
-    if (!Array.isArray(body.payments)) {
+    if (!Array.isArray(body.payments) && account.accountType === 'RENT') {
       const rentConfig = account.businessId
         ? await prisma.businessRentConfig.findFirst({
             where: { businessId: account.businessId, isActive: true },

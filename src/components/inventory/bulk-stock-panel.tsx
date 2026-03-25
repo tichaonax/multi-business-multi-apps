@@ -29,6 +29,7 @@ interface BulkStockRow {
   itemType?: string             // 'product' | 'barcode' | 'bulk' | 'bale' — set for stock-take loaded rows
   currentStock: number | null   // systemQuantity from DB at time of scan/sync
   physicalCount: string         // actual physical shelf count entered by user
+  needsReview: boolean          // true when a sale occurred for this item during stock take
   status: 'pending' | 'saving' | 'saved' | 'error'
   errorMessage?: string
 }
@@ -101,6 +102,7 @@ function makeRow(overrides: Partial<BulkStockRow> = {}): BulkStockRow {
     itemType: undefined,
     currentStock: null,
     physicalCount: '',
+    needsReview: false,
     status: 'pending',
     ...overrides,
   }
@@ -177,6 +179,9 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [showDraftSelector, setShowDraftSelector] = useState(false)
   const [newDraftTitle, setNewDraftTitle] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [salesOccurredAt, setSalesOccurredAt] = useState<string | null>(null)
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [salesCount, setSalesCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [submittedReportId, setSubmittedReportId] = useState<string | null>(null)
@@ -582,13 +587,22 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     try {
       const res = await fetch(`/api/stock-take/drafts/${draftId}/sync`, { method: 'POST' })
       const d = await res.json()
-      if (d.success && d.updates) {
+      if (d.success) {
         const changeMap: Record<string, number> = {}
-        d.updates.forEach((c: any) => { if (c.changed) changeMap[c.barcode] = c.newSystemQty })
-        setRows(prev => prev.map(r => {
-          if (changeMap[r.barcode] !== undefined) return { ...r, currentStock: changeMap[r.barcode] }
-          return r
-        }))
+        ;(d.updates ?? []).forEach((c: any) => { if (c.changed) changeMap[c.barcode] = c.newSystemQty })
+        const removedSet = new Set<string>(d.removedBarcodes ?? [])
+        setRows(prev => prev
+          .filter(r => !removedSet.has(r.barcode))
+          .map(r => ({
+            ...r,
+            currentStock: changeMap[r.barcode] !== undefined ? changeMap[r.barcode] : r.currentStock,
+            needsReview: false,
+          }))
+        )
+        setLastSyncedAt(d.syncedAt ?? new Date().toISOString())
+        if (d.removedBaleCount > 0) {
+          toast(`${d.removedBaleCount} bale(s) removed — transferred to another business.`, { type: 'warning' })
+        }
       }
     } finally {
       setSyncing(false)
@@ -602,7 +616,12 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       const d = await res.json()
       if (!d.success || !d.draft) return
       const draft = d.draft
-      const sortedItems = [...(draft.items ?? [])].sort((a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+      // needsReview items float to top, then sort by displayOrder
+      const sortedItems = [...(draft.items ?? [])].sort((a: any, b: any) => {
+        if (a.needsReview && !b.needsReview) return -1
+        if (!a.needsReview && b.needsReview) return 1
+        return (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
+      })
       const restoredRows: BulkStockRow[] = sortedItems.map((item: any) => {
         const hierarchyPatch = item.categoryId && allCats.length > 0
           ? resolveHierarchy(item.categoryId, allCats)
@@ -621,6 +640,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           itemType: inferredType,
           currentStock: item.systemQuantity ?? null,
           physicalCount: item.physicalCount != null ? String(item.physicalCount) : '',
+          needsReview: item.needsReview ?? false,
           quantity: item.newQuantity != null ? String(item.newQuantity) : '',
           sellingPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
           costPrice: item.costPrice != null ? String(item.costPrice) : '',
@@ -636,6 +656,9 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       setDraftSavedAt(new Date(draft.updatedAt))
       setDraftUnsaved(false)
       setShowDraftSelector(false)
+      setSalesOccurredAt(draft.salesOccurredAt ?? null)
+      setLastSyncedAt(draft.lastSyncedAt ?? null)
+      setSalesCount(draft.salesCount ?? 0)
 
       // Stock Take Mode: restore mode flag, auto-sync, and reset all physical counts
       if (draft.isStockTakeMode) {
@@ -932,6 +955,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   }
 
   const pendingCount = rows.filter(r => r.status === 'pending' || r.status === 'error').length
+  const syncRequired = isStockTakeMode && !!salesOccurredAt && (!lastSyncedAt || new Date(lastSyncedAt) < new Date(salesOccurredAt))
+  const needsReviewCount = rows.filter(r => r.needsReview).length
   const hasDeptCol = departments.length > 0
   const hasSubCatCol = true // always show sub-category column
   const hasExistingItems = rows.some(r => r.isExistingItem)
@@ -1110,8 +1135,11 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               + Add Row
             </button>
           )}
-          <button onClick={() => { if (validateRows()) setShowReviewModal(true) }} disabled={rows.length === 0}
-            className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
+          <button
+            onClick={() => { if (validateRows()) setShowReviewModal(true) }}
+            disabled={rows.length === 0 || syncRequired}
+            title={syncRequired ? 'Sync required before submitting' : undefined}
+            className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium">
             Review & Submit ({pendingCount} item{pendingCount !== 1 ? 's' : ''})
           </button>
         </div>
@@ -1180,6 +1208,29 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         </div>
       )}
 
+      {/* Sales-during-stock-take warning banner */}
+      {syncRequired && (
+        <div className="mx-4 mt-3 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-400 dark:border-amber-600 rounded-lg flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              ⚠️ {salesCount} sale{salesCount !== 1 ? 's' : ''} occurred during this stock take
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+              {needsReviewCount > 0
+                ? `${needsReviewCount} affected row${needsReviewCount !== 1 ? 's' : ''} highlighted below and moved to the top.`
+                : 'No matching items found in this draft.'}{' '}
+              Sync to update system quantities before submitting.
+            </p>
+          </div>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">
+            {syncing ? 'Syncing…' : '↻ Sync Now'}
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="flex-1 overflow-auto px-4 py-3">
         <div ref={tableTopRef} />
@@ -1238,6 +1289,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                   hasPhysicalCountCol={hasExistingItems}
                   isStockTakeMode={isStockTakeMode}
                   isHighlighted={highlightedRowId === row.rowId}
+                  needsReview={row.needsReview}
                 />
               ))}
             </tbody>
@@ -1456,9 +1508,10 @@ interface BulkRowEditorProps {
   hasPhysicalCountCol: boolean
   isStockTakeMode: boolean
   isHighlighted: boolean
+  needsReview?: boolean
 }
 
-function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef, isStockTakeMode, isHighlighted }: BulkRowEditorProps) {
+function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef, isStockTakeMode, isHighlighted, needsReview }: BulkRowEditorProps) {
   const inv = (field: string) => invalidFields.has(field)
   // Hierarchy-filtered lists (SearchableSelect handles text search internally)
   const filteredCats = allCategories.filter(c => {
@@ -1483,6 +1536,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
     row.status === 'error' ? 'bg-red-50 dark:bg-red-900/10' :
     row.status === 'saving' ? 'opacity-60' :
     hasValidationError ? 'bg-red-50 dark:bg-red-900/10 ring-1 ring-inset ring-red-300 dark:ring-red-700' :
+    needsReview ? 'bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400' :
     isShortfall ? 'bg-red-50 dark:bg-red-900/10' :
     isCounted ? 'bg-emerald-50 dark:bg-emerald-900/10' : ''
   const highlightClass = isHighlighted ? 'ring-2 ring-inset ring-teal-400 dark:ring-teal-500' : ''
@@ -1500,6 +1554,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
         {row.itemType === 'bulk'    && <div className="text-[9px] font-bold text-purple-500 leading-none mt-0.5">Bulk</div>}
         {row.itemType === 'barcode' && <div className="text-[9px] font-bold text-teal-600 leading-none mt-0.5">BCI</div>}
         {row.isExistingItem && !row.itemType && <div className="text-[9px] font-medium text-blue-500 leading-none mt-0.5">Stk</div>}
+        {needsReview && <div className="text-[9px] font-bold text-amber-600 leading-none mt-0.5">⚠ Review</div>}
       </td>
 
       {/* Barcode */}

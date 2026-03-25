@@ -45,6 +45,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (draft.status !== 'DRAFT') return NextResponse.json({ error: 'Draft already submitted' }, { status: 409 })
     if (draft.items.length === 0) return NextResponse.json({ error: 'Draft has no items' }, { status: 400 })
 
+    // Block submission if sales occurred since the last sync
+    if (draft.isStockTakeMode && draft.salesOccurredAt) {
+      const needsSync = !draft.lastSyncedAt || draft.lastSyncedAt < draft.salesOccurredAt
+      if (needsSync) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'sync_required',
+            message: 'Sales occurred since your last sync. Please sync the stock take before submitting.'
+          },
+          { status: 409 }
+        )
+      }
+    }
+
     // Verify employees exist
     const employees = await prisma.employees.findMany({
       where: { id: { in: employeeIds }, isActive: true },
@@ -79,7 +94,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const newQty = Number(item.newQuantity)
 
       if (item.isExistingItem) {
-        // Find existing inventory record
+        // 1. Try BarcodeInventoryItems
         const existing = item.barcode
           ? await prisma.barcodeInventoryItems.findFirst({
               where: { businessId: draft.businessId, barcodeData: item.barcode },
@@ -121,6 +136,95 @@ export async function POST(request: NextRequest, context: RouteContext) {
             sellingPrice,
             shortfallValue,
           })
+        } else {
+          // 2. Try CustomBulkProducts
+          const bulkProd = item.barcode
+            ? await prisma.customBulkProducts.findFirst({
+                where: { businessId: draft.businessId, barcode: item.barcode },
+              })
+            : null
+
+          if (bulkProd) {
+            const hasPhysicalCount = item.physicalCount !== null && item.physicalCount !== undefined
+            const physCount = hasPhysicalCount ? Number(item.physicalCount) : null
+            const sysQty = Number(item.systemQuantity ?? bulkProd.remainingCount)
+            const variance = hasPhysicalCount ? (physCount! - sysQty) : null
+            const shortfall = variance !== null && variance < 0 ? Math.abs(variance) : 0
+            const shortfallValue = shortfall * sellingPrice
+            const newStock = hasPhysicalCount ? physCount! + newQty : sysQty + newQty
+
+            await prisma.customBulkProducts.update({
+              where: { id: bulkProd.id },
+              data: { remainingCount: newStock },
+            })
+
+            totalShortfallQty += shortfall
+            totalShortfallValue += shortfallValue
+            totalNewStockValue += newQty * sellingPrice
+            totalStockValueAfter += newStock * sellingPrice
+
+            reportItems.push({
+              barcode: item.barcode,
+              productName: item.name,
+              isExistingItem: true,
+              systemQty: sysQty,
+              physicalCount: physCount,
+              variance,
+              newStockAdded: newQty,
+              sellingPrice,
+              shortfallValue,
+            })
+          } else {
+            // 3. Try ClothingBales (still owned by this business)
+            const baleRecord = item.barcode
+              ? await prisma.clothingBales.findFirst({
+                  where: {
+                    businessId: draft.businessId,
+                    isActive: true,
+                    OR: [
+                      { scanCode: item.barcode },
+                      { barcode: item.barcode },
+                    ],
+                  },
+                })
+              : null
+
+            if (baleRecord) {
+              const hasPhysicalCount = item.physicalCount !== null && item.physicalCount !== undefined
+              const physCount = hasPhysicalCount ? Number(item.physicalCount) : null
+              const sysQty = Number(item.systemQuantity ?? baleRecord.remainingCount)
+              const variance = hasPhysicalCount ? (physCount! - sysQty) : null
+              const shortfall = variance !== null && variance < 0 ? Math.abs(variance) : 0
+              const shortfallValue = shortfall * sellingPrice
+              const newStock = hasPhysicalCount ? physCount! + newQty : sysQty + newQty
+
+              await prisma.clothingBales.update({
+                where: { id: baleRecord.id },
+                data: {
+                  remainingCount: newStock,
+                  isActive: newStock > 0,
+                },
+              })
+
+              totalShortfallQty += shortfall
+              totalShortfallValue += shortfallValue
+              totalNewStockValue += newQty * sellingPrice
+              totalStockValueAfter += newStock * sellingPrice
+
+              reportItems.push({
+                barcode: item.barcode,
+                productName: item.name,
+                isExistingItem: true,
+                systemQty: sysQty,
+                physicalCount: physCount,
+                variance,
+                newStockAdded: newQty,
+                sellingPrice,
+                shortfallValue,
+              })
+            }
+            // If none found (e.g. bale transferred away), skip the item silently
+          }
         }
       } else {
         // New item — create
