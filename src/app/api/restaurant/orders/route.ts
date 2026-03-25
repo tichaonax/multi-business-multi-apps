@@ -733,6 +733,7 @@ export async function POST(req: NextRequest) {
         }
       } else if ((item as any).r710Token === true) {
         // Handle R710 WiFi token sales
+        const soldTokenIdsForRollback: string[] = [];
         try {
           // Verify R710 integration exists and is active
           const r710IntegrationForSale = await prisma.r710BusinessIntegrations.findFirst({
@@ -798,6 +799,7 @@ export async function POST(req: NextRequest) {
               where: { id: token.id },
               data: { status: 'SOLD' }
             });
+            soldTokenIdsForRollback.push(token.id);
 
             // Create sale record
             await prisma.r710TokenSales.create({
@@ -857,6 +859,17 @@ export async function POST(req: NextRequest) {
           await prisma.businessOrders.delete({
             where: { id: newOrder.id }
           });
+
+          // Reset any tokens that were marked SOLD before the failure
+          if (soldTokenIdsForRollback.length > 0) {
+            await prisma.r710TokenSales.deleteMany({
+              where: { tokenId: { in: soldTokenIdsForRollback } }
+            });
+            await prisma.r710Tokens.updateMany({
+              where: { id: { in: soldTokenIdsForRollback } },
+              data: { status: 'AVAILABLE' }
+            });
+          }
 
           const errorMessage = r710Error instanceof Error ? r710Error.message : 'Unknown error';
           return NextResponse.json({
