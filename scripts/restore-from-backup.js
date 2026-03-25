@@ -170,6 +170,57 @@ const RESTORE_ORDER = [
   'inventoryTransfers',
   'inventoryTransferItems',
 
+  // Employee absences (depends on employees, businesses)
+  'employeeAbsences',
+
+  // Per diem (depends on employees, payrollEntries)
+  'perDiemEntries',
+
+  // Cash allocation reports (depends on businesses, users)
+  'cashAllocationReport',
+  'cashAllocationLineItem',
+
+  // Petty cash (depends on businesses, users, expenseAccounts)
+  'pettyCashRequests',
+  'pettyCashTransaction',
+
+  // Business loans (depends on businesses, expenseAccounts)
+  'businessLoan',
+  'businessLoanManager',
+  'businessLoanExpense',
+  'businessLoanPreLockRepayment',
+  'loanWithdrawalRequest',
+
+  // EOD payment workflow (depends on businesses, users, expenseAccounts)
+  'expenseAccountAutoDeposit',
+  'paymentBatchSubmissions',
+  'eODPaymentBatch',
+  'cashBucketEntry',
+  'groupedEODRun',
+  'groupedEODRunDate',
+
+  // Rent config (depends on businesses)
+  'businessRentConfig',
+
+  // Notifications (depends on users)
+  'appNotification',
+
+  // Chicken run management (depends on businesses, businessSuppliers)
+  'chickenBatch',
+  'chickenMortality',
+  'chickenFeedLog',
+  'chickenMedicationLog',
+  'chickenWeightLog',
+  'chickenVaccinationSchedule',
+  'chickenVaccinationLog',
+  'chickenCulling',
+  'chickenInventory',
+  'chickenBirdWeight',
+  'chickenInventoryMovement',
+  'chickenUtilityCost',
+  'chickenLaborLog',
+  'chickenRunSettings',
+
   // Clothing bales
   'clothingBaleCategories',
   'clothingBales',
@@ -190,8 +241,24 @@ const RESTORE_ORDER = [
   'r710TokenSales',
   'r710BusinessTokenMenuItems',
 
+  // Clothing bale history (depends on clothingBales, barcodeTemplates)
+  'clothingBaleBogoHistory',
+  'clothingLabelPrintHistory',
+
+  // Payment reversal log (depends on expenseAccountPayments, users)
+  'paymentReversalLog',
+
   // Saved reports
   'savedReports',
+
+  // Stock take workflow (depends on businesses, users, employees, businessProducts)
+  'stockTakeDrafts',
+  'stockTakeDraftItems',
+  'stockTakeReports',
+  'stockTakeReportEmployees',
+
+  // Custom bulk products (depends on businesses, businessCategories, businessSuppliers, employees)
+  'customBulkProducts',
 
   // Miscellaneous
   'supplierProducts',
