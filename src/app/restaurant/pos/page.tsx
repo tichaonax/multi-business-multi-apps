@@ -39,6 +39,7 @@ import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { MealProgramPanel } from '@/components/restaurant/meal-program/MealProgramPanel'
 import { MealProgramDetailsModal } from '@/components/restaurant/meal-program/MealProgramDetailsModal'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
 import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
@@ -87,6 +88,8 @@ export default function RestaurantPOS() {
   // Ref so the pos:add-to-cart event handler can call addToCart without capturing
   // a TDZ reference (addToCart is declared later in the component body)
   const addToCartRef = useRef<((item: MenuItem) => void) | null>(null)
+  const autoAddProductIdRef = useRef<string | null>(null)
+  const autoAddVariantIdRef = useRef<string | null>(null)
   const submitInFlightRef = useRef<{ current: boolean } | any>({ current: false })
   const menuSectionRef = useRef<HTMLDivElement>(null)
   const [orderSubmitting, setOrderSubmitting] = useState(false)
@@ -96,6 +99,7 @@ export default function RestaurantPOS() {
   const sendToDisplayRef = useRef<((type: string, payload: Record<string, unknown>) => void) | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; address?: string; city?: string; customerType: string } | null>(null)
+  const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
   const [skipRewardThisTime, setSkipRewardThisTime] = useState(true)
   const autoAppliedForRef = useRef<string | null>(null)
@@ -373,22 +377,42 @@ export default function RestaurantPOS() {
   // Store pending inventory item to add once cart has finished loading from localStorage
   const pendingInventoryItemRef = useRef<any>(null)
 
-  // Auto-add product from URL param (cross-business navigation via global barcode modal)
+  // Step 1: Capture addProduct from URL ONCE on mount.
+  // Use window.history.replaceState (synchronous) so React Strict Mode's second
+  // mount sees a clean URL and doesn't re-capture the same product twice.
   useEffect(() => {
-    const addProductId = searchParams?.get('addProduct')
-    const autoAdd = searchParams?.get('autoAdd')
-    if (!addProductId || autoAdd !== 'true' || menuItems.length === 0) return
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const addProductId = params.get('addProduct')
+    const autoAdd = params.get('autoAdd')
+    if (!addProductId || autoAdd !== 'true') return
+    autoAddProductIdRef.current = addProductId
+    autoAddVariantIdRef.current = params.get('variantId')
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [])
 
-    const itemId = searchParams?.get('variantId')
-      ? `${addProductId}-${searchParams.get('variantId')}`
-      : addProductId
-    const found = menuItemsRef.current.find(m => m.id === itemId || m.id === addProductId)
-    if (found) {
-      addToCartRef.current?.(found)
-      router.replace(window.location.pathname)
-    }
+  // Step 2: Once menu items AND cart are loaded, add the captured product exactly once.
+  // Waits for cartLoaded so we can see the restored localStorage cart and skip the
+  // auto-add if the item is already present (prevents doubling on repeated test scans).
+  useEffect(() => {
+    if (!autoAddProductIdRef.current || menuItems.length === 0 || !cartLoaded) return
+    const productId = autoAddProductIdRef.current
+    const variantId = autoAddVariantIdRef.current
+    autoAddProductIdRef.current = null  // clear immediately — prevents any re-run
+    autoAddVariantIdRef.current = null
+
+    const itemId = variantId ? `${productId}-${variantId}` : productId
+    const found = menuItemsRef.current.find(m => m.id === itemId || m.id === productId)
+    if (!found) return
+
+    // Use setCart directly (not addToCart) so we can skip if already in cart.
+    // Cart may have been restored from localStorage — adding again would double-count.
+    setCart(prev => {
+      if (prev.some(i => i.id === found.id)) return prev  // already in cart — skip
+      return [...prev, { ...found, quantity: 1 }]
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, menuItems])
+  }, [menuItems, cartLoaded])
 
   // Fetch inventory item from URL param and add to cart once addToCartRef is ready
   useEffect(() => {
@@ -716,15 +740,45 @@ export default function RestaurantPOS() {
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
     const tendered = parseFloat(amountReceived) || 0
+    const _ecoFeeType2 = currentBusiness?.ecocashFeeType
+    const _ecoFeeValue2 = currentBusiness?.ecocashFeeValue ?? 0
+    const _ecoMinFee2 = currentBusiness?.ecocashMinimumFee ?? 0
+    const _ecoRawFee2 = _ecoFeeType2 === 'PERCENTAGE' ? total * (_ecoFeeValue2 / 100) : (_ecoFeeType2 === 'FIXED' ? _ecoFeeValue2 : 0)
+    const _ecoFee2 = _ecoFeeType2 === 'PERCENTAGE' ? Math.max(_ecoRawFee2, _ecoMinFee2) : _ecoRawFee2
+    const displayTotal2 = paymentMethod === 'ECOCASH' ? total + _ecoFee2 : total
 
     sendToDisplay('PAYMENT_AMOUNT', {
       subtotal,
       tax,
-      total,
+      total: displayTotal2,
       amountTendered: tendered,
       paymentMethod: paymentMethod
     })
   }, [amountReceived, showPaymentModal, cart, taxRate, taxIncludedInPrice, paymentMethod])
+
+  // Re-broadcast PAYMENT_STARTED when payment method changes inside the modal
+  // (handles switching to EcoCash after modal is already open)
+  useEffect(() => {
+    if (!showPaymentModal) return
+    const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
+    const tax = taxIncludedInPrice
+      ? subtotal * (taxRate / (100 + taxRate))
+      : subtotal * (taxRate / 100)
+    const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
+    const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
+    const feeType = currentBusiness?.ecocashFeeType
+    const feeValue = currentBusiness?.ecocashFeeValue ?? 0
+    const minFee = currentBusiness?.ecocashMinimumFee ?? 0
+    const rawFee = feeType === 'PERCENTAGE' ? total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+    const fee = feeType === 'PERCENTAGE' ? Math.max(rawFee, minFee) : rawFee
+    const displayTotal = paymentMethod === 'ECOCASH' ? total + fee : total
+    sendToDisplay('PAYMENT_STARTED', {
+      subtotal, tax,
+      total: displayTotal,
+      ecocashFee: paymentMethod === 'ECOCASH' ? fee : 0,
+      paymentMethod
+    })
+  }, [paymentMethod, showPaymentModal])
 
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
@@ -1383,8 +1437,8 @@ export default function RestaurantPOS() {
       businessEmail: actualBusiness?.email || actualBusiness?.settings?.email,
       transactionId: order.orderNumber,
       transactionDate: new Date(),
-      salespersonName: session?.user?.name || 'Staff',
-      salespersonId: session?.user?.id || '',
+      salespersonName: selectedSalesperson?.name ?? session?.user?.name ?? 'Staff',
+      salespersonId: selectedSalesperson?.employeeId ?? session?.user?.id ?? '',
       items: order.items.map((item: any, index: number) => ({
         name: item.name,
         sku: item.sku,
@@ -1957,12 +2011,19 @@ export default function RestaurantPOS() {
       : subtotal * (taxRate / 100)
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
+    const _ecoFeeType = currentBusiness?.ecocashFeeType
+    const _ecoFeeValue = currentBusiness?.ecocashFeeValue ?? 0
+    const _ecoMinFee = currentBusiness?.ecocashMinimumFee ?? 0
+    const _ecoRawFee = _ecoFeeType === 'PERCENTAGE' ? total * (_ecoFeeValue / 100) : (_ecoFeeType === 'FIXED' ? _ecoFeeValue : 0)
+    const _ecoFee = _ecoFeeType === 'PERCENTAGE' ? Math.max(_ecoRawFee, _ecoMinFee) : _ecoRawFee
+    const displayTotal = paymentMethod === 'ECOCASH' ? total + _ecoFee : total
 
     // Broadcast payment started to customer display
     sendToDisplay('PAYMENT_STARTED', {
       subtotal,
       tax,
-      total,
+      total: displayTotal,
+      ecocashFee: paymentMethod === 'ECOCASH' ? _ecoFee : 0,
       paymentMethod: paymentMethod
     })
 
@@ -2072,6 +2133,7 @@ export default function RestaurantPOS() {
         idempotencyKey,
         customerId: selectedCustomer?.id || null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        ...(selectedSalesperson?.employeeId ? { salespersonEmployeeId: selectedSalesperson.employeeId } : {}),
       }
       console.log('Request body:', requestBody)
 
@@ -3562,6 +3624,21 @@ export default function RestaurantPOS() {
                   />
                 )}
 
+                {/* Salesperson selector */}
+                {currentBusinessId && sessionUser?.id && (
+                  <div className="mt-2">
+                    <SalespersonSelector
+                      businessId={currentBusinessId}
+                      currentUserId={sessionUser.id}
+                      currentUserName={sessionUser.name || 'Staff'}
+                      onSalespersonChange={(sp) => {
+                        setSelectedSalesperson(sp)
+                        sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* Applied Reward */}
                 {appliedReward && (
                   <div className="space-y-1">
@@ -3762,13 +3839,29 @@ export default function RestaurantPOS() {
                   </>
                 ) : (
                   <>
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-medium">Total Amount:</span>
-                      <span className="text-2xl font-bold text-green-600">${total.toFixed(2)}</span>
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      {cart.length} item{cart.length !== 1 ? 's' : ''}
-                    </div>
+                    {(() => {
+                      const _feeType = currentBusiness?.ecocashFeeType
+                      const _feeValue = currentBusiness?.ecocashFeeValue ?? 0
+                      const _minFee = currentBusiness?.ecocashMinimumFee ?? 0
+                      const _rawFee = _feeType === 'PERCENTAGE' ? total * (_feeValue / 100) : (_feeType === 'FIXED' ? _feeValue : 0)
+                      const _fee = _feeType === 'PERCENTAGE' ? Math.max(_rawFee, _minFee) : _rawFee
+                      const _isEcocash = paymentMethod === 'ECOCASH'
+                      const _displayTotal = _isEcocash ? total + _fee : total
+                      return (
+                        <>
+                          <div className="flex justify-between items-center">
+                            <span className="text-lg font-medium">Total Amount:</span>
+                            <span className="text-2xl font-bold text-green-600">${_displayTotal.toFixed(2)}</span>
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {cart.length} item{cart.length !== 1 ? 's' : ''}
+                            {_isEcocash && _fee > 0 && (
+                              <span className="ml-2 text-yellow-600 dark:text-yellow-400">· incl. EcoCash fee (${_fee.toFixed(2)})</span>
+                            )}
+                          </div>
+                        </>
+                      )
+                    })()}
                   </>
                 )}
               </div>
@@ -3832,7 +3925,7 @@ export default function RestaurantPOS() {
                       type="number"
                       value={amountReceived}
                       onChange={(e) => setAmountReceived(e.target.value)}
-                      step="0.10"
+                      step="0.01"
                       min="0"
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
                       placeholder="Enter amount received"

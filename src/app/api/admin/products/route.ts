@@ -30,29 +30,22 @@ export async function GET(request: NextRequest) {
       where.businessId = businessId
     }
 
-    // If categoryId specified, include products from this category AND its subcategories
+    // Resolve category IDs (used for both product tables)
+    let categoryIds: string[] | null = null
     if (categoryId) {
-      // Find all subcategories of the selected category
       const subcategories = await prisma.businessCategories.findMany({
         where: { parentId: categoryId },
         select: { id: true }
       })
-
-      // Include the parent category and all subcategories
-      const categoryIds = [categoryId, ...subcategories.map(c => c.id)]
-      where.categoryId = {
-        in: categoryIds
-      }
-    }
-    // If domainId specified (and no specific categoryId), filter by categories in that domain
-    else if (domainId) {
+      categoryIds = [categoryId, ...subcategories.map(c => c.id)]
+      where.categoryId = { in: categoryIds }
+    } else if (domainId) {
       const categoriesInDomain = await prisma.businessCategories.findMany({
         where: { domainId },
         select: { id: true }
       })
-      where.categoryId = {
-        in: categoriesInDomain.map(c => c.id)
-      }
+      categoryIds = categoriesInDomain.map(c => c.id)
+      where.categoryId = { in: categoryIds }
     }
 
     // Search by name or SKU
@@ -63,36 +56,65 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    // Get products with includes
-    const [products, total] = await Promise.all([
+    // Build barcodeInventoryItems where clause (same filters, different field names)
+    const barcodeWhere: any = { isActive: true, business: { type: businessType } }
+    if (businessId) barcodeWhere.businessId = businessId
+    if (categoryIds) barcodeWhere.categoryId = { in: categoryIds }
+    if (search) {
+      barcodeWhere.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } }
+      ]
+    }
+
+    const categoryInclude = {
+      select: {
+        id: true, name: true, emoji: true,
+        domain: { select: { id: true, name: true, emoji: true } }
+      }
+    }
+
+    // Fetch from both tables
+    const [stdProducts, barcodeItems] = await Promise.all([
       prisma.businessProducts.findMany({
         where,
         include: {
-          businesses: {
-            select: { id: true, name: true, type: true }
-          },
-          business_categories: {
-            select: {
-              id: true,
-              name: true,
-              emoji: true,
-              domain: {
-                select: { id: true, name: true, emoji: true }
-              }
-            }
-          },
-          inventory_subcategory: {
-            select: { id: true, name: true }
-          }
+          businesses: { select: { id: true, name: true, type: true } },
+          business_categories: categoryInclude,
+          inventory_subcategory: { select: { id: true, name: true } }
         },
-        orderBy: [
-          { updatedAt: 'desc' }
-        ],
-        skip,
-        take: limit
+        orderBy: [{ updatedAt: 'desc' }]
       }),
-      prisma.businessProducts.count({ where })
+      prisma.barcodeInventoryItems.findMany({
+        where: barcodeWhere,
+        include: {
+          business: { select: { id: true, name: true, type: true } },
+          business_category: categoryInclude
+        },
+        orderBy: [{ updatedAt: 'desc' }]
+      })
     ])
+
+    // Normalize barcodeInventoryItems to same shape as businessProducts
+    const normalizedBarcodeItems = barcodeItems.map(item => ({
+      id: `inv_${item.id}`,
+      name: item.name,
+      sku: item.sku || '',
+      barcode: item.barcodeData || null,
+      basePrice: item.sellingPrice ? Number(item.sellingPrice) : 0,
+      costPrice: item.costPrice ? Number(item.costPrice) : null,
+      isAvailable: item.isActive,
+      businessType: (item.business as any)?.type || businessType,
+      businesses: item.business,
+      business_categories: item.business_category,
+      inventory_subcategory: null,
+      _source: 'barcode' as const,
+    }))
+
+    // Merge, sort by updatedAt desc (barcodeItems already sorted, interleave by position)
+    const allProducts = [...stdProducts, ...normalizedBarcodeItems]
+    const total = allProducts.length
+    const products = allProducts.slice(skip, skip + limit)
 
     return NextResponse.json({
       success: true,

@@ -1184,7 +1184,7 @@ export default function NewContractPage() {
                     <div className="flex-1">
                       <input
                         type="number"
-                        step="0.10"
+                        step="0.01"
                         value={formData.baseSalary}
                         onChange={(e) => {
                           setFormData(prev => ({ ...prev, baseSalary: e.target.value }))
@@ -1544,7 +1544,7 @@ export default function NewContractPage() {
                       </label>
                       <input
                         type="number"
-                        step="0.10"
+                        step="0.01"
                         value={benefit.amount}
                         onChange={(e) => {
                           updateBenefit(index, 'amount', e.target.value)

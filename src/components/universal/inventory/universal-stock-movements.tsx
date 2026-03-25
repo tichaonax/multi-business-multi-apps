@@ -712,7 +712,7 @@ export function UniversalStockMovements({
                     <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Quantity</label>
                     <input
                       type="number"
-                      step="0.10"
+                      step="0.01"
                       value={formData.quantity}
                       onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
                       className="input-field"
@@ -737,7 +737,7 @@ export function UniversalStockMovements({
                     <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Unit Cost (Optional)</label>
                     <input
                       type="number"
-                      step="0.10"
+                      step="0.01"
                       value={formData.unitCost}
                       onChange={(e) => setFormData(prev => ({ ...prev, unitCost: e.target.value }))}
                       className="input-field"

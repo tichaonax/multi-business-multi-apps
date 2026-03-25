@@ -32,6 +32,8 @@ export interface CheckoutData {
   attributes?: Record<string, any>
   ecocashTransactionCode?: string
   ecocashFeeAmount?: number
+  salespersonEmployeeId?: string   // override for shared-terminal attribution
+  salespersonName?: string         // override for receipt display
 }
 
 /**
@@ -176,7 +178,7 @@ export function usePaymentProcessor(
           paymentMethod: checkoutData.paymentMethod.toUpperCase(),
           paymentStatus: 'PAID',
           orderType: 'SALE',
-          employeeId: session?.user?.id,
+          employeeId: checkoutData.salespersonEmployeeId ?? session?.user?.id,
           customerId: checkoutData.customerId || null,
           customerName: checkoutData.customerName,
           customerPhone: checkoutData.customerPhone,
@@ -239,8 +241,8 @@ export function usePaymentProcessor(
             paymentStatus: result.data.paymentStatus,
             customerName: checkoutData.customerName,
             customerPhone: checkoutData.customerPhone,
-            employeeName: session?.user?.name ?? undefined,
-            employeeId: session?.user?.id,
+            employeeName: checkoutData.salespersonName ?? session?.user?.name ?? undefined,
+            employeeId: checkoutData.salespersonEmployeeId ?? session?.user?.id,
             notes: checkoutData.notes,
             items: cart.map((item) => ({
               name: item.name,

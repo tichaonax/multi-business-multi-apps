@@ -462,7 +462,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
                 <Input
                   type="number"
                   min="0"
-                  step="0.10"
+                  step="0.01"
                   value={item.unitPrice}
                   onChange={(e) => updateItem(index, 'unitPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   required
@@ -559,7 +559,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
             id="serviceFee"
             type="number"
             min="0"
-            step="0.10"
+            step="0.01"
             value={formData.serviceFee}
             onChange={(e) => setFormData({ ...formData, serviceFee: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
           />
@@ -571,7 +571,7 @@ export function LaybyForm({ businessId, onSubmit, onCancel, loading }: LaybyForm
             id="administrationFee"
             type="number"
             min="0"
-            step="0.10"
+            step="0.01"
             value={formData.administrationFee}
             onChange={(e) => setFormData({ ...formData, administrationFee: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
           />

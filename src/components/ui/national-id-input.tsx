@@ -61,7 +61,7 @@ export function NationalIdInput({
         const defaultTemplate = idTemplates.find(t => t.id === settings.defaultIdFormatTemplateId)
         if (defaultTemplate) { onChange(value, defaultTemplate.id); return }
       }
-      const zimTemplate = idTemplates.find(t => t.countryCode === 'ZIM')
+      const zimTemplate = idTemplates.find(t => t.countryCode === 'ZW')
       if (zimTemplate) onChange(value, zimTemplate.id)
     }
   }, [idTemplates, settings.defaultIdFormatTemplateId])
@@ -69,7 +69,7 @@ export function NationalIdInput({
   const fetchIdTemplates = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/id-format-templates?isActive=true', {
+      const response = await fetch('/api/id-format-templates?isActive=true&type=national_id', {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -132,9 +132,10 @@ export function NationalIdInput({
     return formatted
   }
 
-  // Common Zimbabwe national ID patterns (DD-DDDDDDDLDD or DD-DDDDDDDDDD)
+  // Common Zimbabwe national ID patterns (DD-DDDDDDLDD or DD-DDDDDDDLDD)
   const ZIMBABWE_ID_PATTERNS = [
-    /^\d{2}-\d{7}[A-Za-z]\d{2}$/,   // e.g. 27-2018980D27, 22-0216080A04
+    /^\d{2}-\d{6}[A-Za-z]\d{2}$/,    // e.g. 63-123456A78 (6 digits)
+    /^\d{2}-\d{7}[A-Za-z]\d{2}$/,    // e.g. 27-2015556G27 (7 digits)
     /^\d{2}-\d{6,7}[A-Za-z]\d{2,3}$/, // slight variations
     /^\d{2}-\d{9,10}$/,               // all-numeric format
   ]

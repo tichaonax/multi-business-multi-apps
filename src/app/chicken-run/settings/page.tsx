@@ -134,7 +134,7 @@ export default function ChickenRunSettingsPage() {
                   type="number"
                   min="0"
                   max="100"
-                  step="0.1"
+                  step="0.01"
                   className={INPUT_CLS}
                   value={form.highMortalityThreshold}
                   onChange={e => setForm(f => ({ ...f, highMortalityThreshold: e.target.value }))}

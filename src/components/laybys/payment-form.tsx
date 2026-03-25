@@ -115,7 +115,7 @@ export function PaymentForm({ layby, onSubmit, onCancel, loading }: PaymentFormP
             id="amount"
             type="number"
             min="0.01"
-            step="0.10"
+            step="0.01"
             max={layby.balanceRemaining}
             value={formData.amount || ''}
             onChange={(e) => handleAmountChange(e.target.value)}

@@ -93,7 +93,7 @@ export function FundPayrollModal({
               <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400 font-medium">$</span>
               <input
                 type="number"
-                step="0.10"
+                step="0.01"
                 min="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

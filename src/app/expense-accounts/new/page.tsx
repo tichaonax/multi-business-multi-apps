@@ -230,7 +230,7 @@ export default function NewExpenseAccountPage() {
                   className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   min="0"
                   max="999999999.99"
-                  step="0.10"
+                  step="0.01"
                 />
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

@@ -485,7 +485,7 @@ export default function SubmitSupplierPaymentRequestPage() {
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
                       <input
                         type="number"
-                        step="0.10"
+                        step="0.01"
                         min="0.01"
                         value={line.amount}
                         onChange={e => updateLine(line.id, { amount: e.target.value })}

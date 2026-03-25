@@ -803,7 +803,7 @@ export default function BatchDetailPage() {
                     type="number"
                     required
                     min={0}
-                    step="0.1"
+                    step="0.01"
                     value={feedForm.quantityKg}
                     onChange={e => {
                       const qty = e.target.value
@@ -822,7 +822,7 @@ export default function BatchDetailPage() {
                     type="number"
                     required
                     min={0}
-                    step="0.10"
+                    step="0.01"
                     value={feedForm.totalCost}
                     onChange={e => {
                       const total = e.target.value
@@ -940,7 +940,7 @@ export default function BatchDetailPage() {
                   <input
                     type="number"
                     min={0}
-                    step="0.1"
+                    step="0.01"
                     value={medForm.quantityMl}
                     onChange={e => setMedForm(p => ({ ...p, quantityMl: e.target.value }))}
                     className={INPUT_CLS}
@@ -952,7 +952,7 @@ export default function BatchDetailPage() {
                   <input
                     type="number"
                     min={0}
-                    step="0.1"
+                    step="0.01"
                     value={medForm.quantityG}
                     onChange={e => setMedForm(p => ({ ...p, quantityG: e.target.value }))}
                     className={INPUT_CLS}
@@ -965,7 +965,7 @@ export default function BatchDetailPage() {
                     type="number"
                     required
                     min={0}
-                    step="0.10"
+                    step="0.01"
                     value={medForm.totalCost}
                     onChange={e => setMedForm(p => ({ ...p, totalCost: e.target.value }))}
                     className={INPUT_CLS}
@@ -1081,7 +1081,7 @@ export default function BatchDetailPage() {
                     type="number"
                     required
                     min={0}
-                    step="0.10"
+                    step="0.01"
                     value={weightForm.avgWeightKg}
                     onChange={e => setWeightForm(p => ({ ...p, avgWeightKg: e.target.value }))}
                     className={INPUT_CLS}

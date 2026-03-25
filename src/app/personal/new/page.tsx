@@ -686,7 +686,7 @@ export default function NewExpensePage() {
                 <div className="space-y-2">
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     min="0.01"
                     value={formData.amount}
                     onChange={(e) => setFormData({...formData, amount: e.target.value})}
@@ -1203,7 +1203,7 @@ export default function NewExpensePage() {
                         </label>
                         <input
                           type="number"
-                          step="0.1"
+                          step="0.01"
                           min="0"
                           max="100"
                           value={formData.interestRate || '0'}

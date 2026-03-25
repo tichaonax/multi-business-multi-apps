@@ -812,7 +812,7 @@ export default function EndOfDayReport() {
                   <span className="text-lg text-gray-900 dark:text-gray-100 print:text-gray-900">$</span>
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     value={cashCounted}
                     onChange={(e) => setCashCounted(e.target.value)}
                     placeholder="0.00"
@@ -985,7 +985,7 @@ export default function EndOfDayReport() {
                   <span className="text-lg text-gray-700 dark:text-gray-300">$</span>
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     value={cashCounted}
                     onChange={(e) => setCashCounted(e.target.value)}
                     placeholder="0.00"

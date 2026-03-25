@@ -1362,7 +1362,7 @@ function ClothingInventoryContent() {
                             <input
                               type="number"
                               min="0.01"
-                              step="0.10"
+                              step="0.01"
                               value={baleForm.unitPrice}
                               onChange={(e) => setBaleForm({ ...baleForm, unitPrice: e.target.value })}
                               placeholder="e.g., 3.00"
@@ -1374,7 +1374,7 @@ function ClothingInventoryContent() {
                             <input
                               type="number"
                               min="0"
-                              step="0.10"
+                              step="0.01"
                               required
                               value={baleForm.costPrice}
                               onChange={(e) => setBaleForm({ ...baleForm, costPrice: e.target.value })}

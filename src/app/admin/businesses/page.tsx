@@ -580,7 +580,7 @@ export default function AdminBusinessesPage() {
                         </label>
                         <input
                           type="number"
-                          step="0.10"
+                          step="0.01"
                           min="0"
                           max="100"
                           value={formData.taxRate}
@@ -839,7 +839,7 @@ export default function AdminBusinessesPage() {
                             </label>
                             <input
                               type="number"
-                              step="0.10"
+                              step="0.01"
                               min="0"
                               max="100"
                               value={formData.taxRate}
@@ -1131,7 +1131,7 @@ export default function AdminBusinessesPage() {
                           </label>
                           <input
                             type="number"
-                            step="0.10"
+                            step="0.01"
                             min="0"
                             max="100"
                             value={formData.taxRate}

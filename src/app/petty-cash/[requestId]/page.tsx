@@ -973,7 +973,7 @@ export default function PettyCashDetailPage() {
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">$</span>
                       <input
-                        type="number" min="0.01" step="0.10"
+                        type="number" min="0.01" step="0.01"
                         max={txSummary?.remainingBalance ?? remaining}
                         value={spendAmount}
                         onChange={e => setSpendAmount(e.target.value)}

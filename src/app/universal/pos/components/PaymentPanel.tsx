@@ -186,7 +186,7 @@ export function PaymentPanel({
               </span>
               <input
                 type="number"
-                step="0.10"
+                step="0.01"
                 min={totals.total}
                 value={cashAmount}
                 onChange={(e) => setCashAmount(e.target.value)}

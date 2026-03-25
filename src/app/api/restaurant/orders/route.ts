@@ -280,7 +280,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue } = await req.json()
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue, salespersonEmployeeId } = await req.json()
     const ecocashFeeAmount = paymentMethod === 'ECOCASH' && ecocashFeeType
       ? (ecocashFeeType === 'PERCENTAGE' ? total * ((ecocashFeeValue || 0) / 100) : (ecocashFeeValue || 0))
       : 0
@@ -341,20 +341,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Find employee record for the current user (if exists)
-    let employeeId = null
+    // Find employee record — use salespersonEmployeeId override when provided (shared terminal)
+    let employeeId = salespersonEmployeeId || null
     let employeeName = user.name || 'Unknown'
     try {
-      const employee = await prisma.employees.findFirst({
-        where: {
-          userId: user.id,
-          businessId: businessId,
-          isActive: true
+      if (salespersonEmployeeId) {
+        // Salesperson override: look up by employee ID directly
+        const employee = await prisma.employees.findFirst({
+          where: { id: salespersonEmployeeId, isActive: true }
+        })
+        if (employee) employeeName = employee.fullName || user.name || 'Unknown'
+      } else {
+        // Default: resolve from session user
+        const employee = await prisma.employees.findFirst({
+          where: {
+            userId: user.id,
+            businessId: businessId,
+            isActive: true
+          }
+        })
+        if (employee) {
+          employeeId = employee.id
+          employeeName = employee.fullName || user.name || 'Unknown'
         }
-      })
-      if (employee) {
-        employeeId = employee.id
-        employeeName = employee.fullName || user.name || 'Unknown'
       }
     } catch (err) {
       console.warn('Could not find employee record for user:', user.id)

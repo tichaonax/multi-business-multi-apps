@@ -24,22 +24,33 @@ export async function GET(request: NextRequest) {
       where.businessId = businessId
     }
 
-    // Get all products with category and business info
-    const products = await prisma.businessProducts.findMany({
-      where,
+    const categoryInclude = {
       include: {
-        businesses: {
-          select: { id: true, name: true, type: true }
-        },
-        business_categories: {
-          include: {
-            domain: {
-              select: { id: true, name: true, emoji: true }
-            }
-          }
-        }
+        domain: { select: { id: true, name: true, emoji: true } }
       }
-    })
+    }
+
+    // Get all products with category and business info (both tables)
+    const [products, barcodeItems] = await Promise.all([
+      prisma.businessProducts.findMany({
+        where,
+        include: {
+          businesses: { select: { id: true, name: true, type: true } },
+          business_categories: categoryInclude
+        }
+      }),
+      prisma.barcodeInventoryItems.findMany({
+        where: {
+          isActive: true,
+          business: { type: businessType },
+          ...(businessId ? { businessId } : {})
+        },
+        include: {
+          business: { select: { id: true, name: true, type: true } },
+          business_category: categoryInclude
+        }
+      })
+    ])
 
     // Get all active businesses of this type for the business selector
     const allBusinesses = await prisma.businesses.findMany({
@@ -72,15 +83,15 @@ export async function GET(request: NextRequest) {
     })
     const allDomains = Array.from(domainMap.values())
 
-    // Calculate statistics
+    // Calculate statistics (combined from both tables)
     const stats = {
-      total: products.length,
-      withPrices: products.filter(p => p.basePrice > 0).length,
-      withoutPrices: products.filter(p => p.basePrice === 0).length,
-      withBarcodes: products.filter(p => p.barcode).length,
-      withoutBarcodes: products.filter(p => !p.barcode).length,
-      available: products.filter(p => p.isAvailable).length,
-      unavailable: products.filter(p => !p.isAvailable).length,
+      total: products.length + barcodeItems.length,
+      withPrices: products.filter(p => p.basePrice > 0).length + barcodeItems.filter(p => p.sellingPrice && Number(p.sellingPrice) > 0).length,
+      withoutPrices: products.filter(p => p.basePrice === 0).length + barcodeItems.filter(p => !p.sellingPrice || Number(p.sellingPrice) === 0).length,
+      withBarcodes: products.filter(p => p.barcode).length + barcodeItems.filter(p => p.barcodeData).length,
+      withoutBarcodes: products.filter(p => !p.barcode).length + barcodeItems.filter(p => !p.barcodeData).length,
+      available: products.filter(p => p.isAvailable).length + barcodeItems.filter(p => p.isActive).length,
+      unavailable: products.filter(p => !p.isAvailable).length + barcodeItems.filter(p => !p.isActive).length,
 
       // Business breakdown
       byBusiness: {} as Record<string, {
@@ -183,10 +194,42 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Barcode items breakdown (same aggregation)
+    barcodeItems.forEach(item => {
+      const business = item.business as any
+      if (business) {
+        if (!stats.byBusiness[business.id]) {
+          stats.byBusiness[business.id] = { id: business.id, name: business.name, count: 0, withPrices: 0, withBarcodes: 0, available: 0 }
+        }
+        stats.byBusiness[business.id].count++
+        if (item.sellingPrice && Number(item.sellingPrice) > 0) stats.byBusiness[business.id].withPrices++
+        if (item.barcodeData) stats.byBusiness[business.id].withBarcodes++
+        if (item.isActive) stats.byBusiness[business.id].available++
+      }
+      const category = item.business_category as any
+      const domain = category?.domain
+      if (domain) {
+        if (!stats.byDepartment[domain.id]) {
+          stats.byDepartment[domain.id] = { name: domain.name, emoji: domain.emoji || '', count: 0, withPrices: 0, withBarcodes: 0, available: 0 }
+        }
+        stats.byDepartment[domain.id].count++
+        if (item.sellingPrice && Number(item.sellingPrice) > 0) stats.byDepartment[domain.id].withPrices++
+        if (item.barcodeData) stats.byDepartment[domain.id].withBarcodes++
+        if (item.isActive) stats.byDepartment[domain.id].available++
+      }
+      if (category) {
+        if (!stats.byCategory[category.id]) {
+          stats.byCategory[category.id] = { name: category.name, departmentName: domain?.name || '', count: 0 }
+        }
+        stats.byCategory[category.id].count++
+      }
+    })
+
     // Price statistics
-    const prices = products
-      .map(p => Number(p.basePrice))
-      .filter(price => price > 0)
+    const prices = [
+      ...products.map(p => Number(p.basePrice)),
+      ...barcodeItems.map(p => Number(p.sellingPrice || 0))
+    ].filter(price => price > 0)
 
     if (prices.length > 0) {
       stats.pricing.avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length

@@ -1034,7 +1034,7 @@ export function UniversalInventoryForm({
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Cost Price *</label>
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   value={formData.costPrice === 0 ? '' : formData.costPrice}
                   onChange={(e) => handleInputChange('costPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   className={`input-field ${errors.costPrice ? 'border-red-500 border-2' : ''}`}
@@ -1048,7 +1048,7 @@ export function UniversalInventoryForm({
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Sell Price</label>
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   value={formData.sellPrice === 0 ? '' : formData.sellPrice}
                   onChange={(e) => handleInputChange('sellPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   className={`input-field ${errors.sellPrice ? 'border-red-500 border-2' : ''}`}

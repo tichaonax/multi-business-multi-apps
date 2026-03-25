@@ -53,7 +53,7 @@ export default function AdminSettingsPage() {
 
   const loadIdFormatTemplates = async () => {
     try {
-      const response = await fetch('/api/id-format-templates?isActive=true')
+      const response = await fetch('/api/id-format-templates?isActive=true&type=national_id')
       if (response.ok) {
         const templates = await response.json()
         setIdFormatTemplates(templates)
@@ -236,7 +236,7 @@ export default function AdminSettingsPage() {
                 </label>
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   className="input-field max-w-xs"
                   value={settings?.maxPaymentWithoutId ?? 100}
                   onChange={(e) => {

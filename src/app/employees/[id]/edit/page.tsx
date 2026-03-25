@@ -700,11 +700,13 @@ export default function EmployeeEditPage() {
                       name="employmentStatus"
                       value={formData.employmentStatus}
                       onChange={handleChange}
-                      disabled={!currentContract?.employeeSignedAt}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                     >
                       {!currentContract?.employeeSignedAt ? (
-                        <option value="pending_contract">🟣 Pending Contract</option>
+                        <>
+                          <option value="pending_contract">🟣 Pending Contract</option>
+                          <option value="terminated">🔴 Terminated</option>
+                        </>
                       ) : (
                         <>
                           <option value="active">🟢 Active</option>
@@ -717,7 +719,7 @@ export default function EmployeeEditPage() {
                     <p className="text-xs text-secondary mt-1">
                       {!currentContract?.employeeSignedAt ? (
                         <span className="text-blue-600 dark:text-blue-400">
-                          Sign contract first to unlock additional employee status options
+                          Sign contract first to unlock all status options
                         </span>
                       ) : (
                         'Employee-level status (independent of contract)'

@@ -98,9 +98,7 @@ export class InitialLoadManager extends EventEmitter {
     getDbName('projectStages') || 'project_stages',
     getDbName('projectTransactions') || 'project_transactions',
     getDbName('persons') || 'persons',
-    getDbName('idFormatTemplates') || 'id_format_templates',
-    'phone_format_templates',
-    'date_format_templates'
+    getDbName('idFormatTemplates') || 'id_format_templates'
   ]
 
   constructor(prisma: PrismaClient, nodeId: string, registrationKey: string, private httpPort?: number) {

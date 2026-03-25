@@ -14,6 +14,7 @@ interface PreviewDay {
   date: string
   totalSales: number
   orderCount: number
+  ecocashTotal: number
 }
 
 interface RunResult {
@@ -163,6 +164,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
   }
 
   const totalSales = previewData.reduce((s, d) => s + d.totalSales, 0)
+  const expectedEcocashTotal = previewData.reduce((s, d) => s + d.ecocashTotal, 0)
   const cashNum = parseFloat(totalCashReceived) || 0
   const ecocashNum = parseFloat(totalEcocashReceived) || 0
 
@@ -270,6 +272,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Orders</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total Sales</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-teal-600 dark:text-teal-400 uppercase">EcoCash</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
@@ -284,6 +287,9 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
                     <td className="px-4 py-2.5 text-right font-mono font-semibold text-gray-900 dark:text-gray-100">
                       {d.totalSales > 0 ? `$${d.totalSales.toFixed(2)}` : <span className="text-gray-400 font-normal">$0.00 (no sales)</span>}
                     </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-teal-700 dark:text-teal-300">
+                      {d.ecocashTotal > 0 ? `$${d.ecocashTotal.toFixed(2)}` : <span className="text-gray-400">—</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -295,6 +301,9 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
                   </td>
                   <td className="px-4 py-2 text-right font-mono font-bold text-gray-900 dark:text-gray-100">
                     ${totalSales.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono font-bold text-teal-700 dark:text-teal-300">
+                    {expectedEcocashTotal > 0 ? `$${expectedEcocashTotal.toFixed(2)}` : '—'}
                   </td>
                 </tr>
               </tfoot>
@@ -357,7 +366,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-sm">$</span>
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   value={totalCashReceived}
                   onChange={e => setTotalCashReceived(e.target.value)}
@@ -387,7 +396,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-sm">$</span>
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   value={totalEcocashReceived}
                   onChange={e => setTotalEcocashReceived(e.target.value)}
@@ -399,6 +408,11 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Confirmed EcoCash transactions received to the business phone over the catch-up period.
+                {expectedEcocashTotal > 0 && (
+                  <span className="ml-1 text-teal-600 dark:text-teal-400 font-medium">
+                    System expects: ${expectedEcocashTotal.toFixed(2)}
+                  </span>
+                )}
               </p>
             </div>
 

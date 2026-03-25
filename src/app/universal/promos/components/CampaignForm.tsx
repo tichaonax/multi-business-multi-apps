@@ -217,7 +217,7 @@ export function CampaignForm({ campaign, businessId, onSave, onClose }: Campaign
               <input
                 type="number"
                 min="0.01"
-                step="0.10"
+                step="0.01"
                 value={form.spendThreshold}
                 onChange={e => setForm(f => ({ ...f, spendThreshold: e.target.value }))}
                 placeholder="50.00"
@@ -259,7 +259,7 @@ export function CampaignForm({ campaign, businessId, onSave, onClose }: Campaign
                     <input
                       type="number"
                       min="0.01"
-                      step="0.10"
+                      step="0.01"
                       value={form.creditAmount}
                       onChange={e => setForm(f => ({ ...f, creditAmount: e.target.value }))}
                       placeholder="5.00"

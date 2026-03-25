@@ -652,7 +652,7 @@ export function DepositForm({ accountId, accountType = 'GENERAL', onSuccess }: D
             <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400 text-sm">$</span>
             <input
               type="number"
-              step="0.10"
+              step="0.01"
               min="0"
               max="999999999.99"
               value={formData.amount}

@@ -49,23 +49,38 @@ export async function POST(request: NextRequest) {
         const dayStart = new Date(dateStr + 'T00:00:00Z')
         const dayEnd = new Date(dateStr + 'T23:59:59.999Z')
 
-        const salesResult = await prisma.businessOrders.aggregate({
-          where: {
-            businessId,
-            status: 'COMPLETED',
-            OR: [
-              { transactionDate: { gte: dayStart, lte: dayEnd } },
-              { transactionDate: null, createdAt: { gte: dayStart, lte: dayEnd } },
-            ],
-          },
-          _sum: { totalAmount: true },
-          _count: { id: true },
-        })
+        const [salesResult, ecocashResult] = await Promise.all([
+          prisma.businessOrders.aggregate({
+            where: {
+              businessId,
+              status: 'COMPLETED',
+              OR: [
+                { transactionDate: { gte: dayStart, lte: dayEnd } },
+                { transactionDate: null, createdAt: { gte: dayStart, lte: dayEnd } },
+              ],
+            },
+            _sum: { totalAmount: true },
+            _count: { id: true },
+          }),
+          prisma.businessOrders.aggregate({
+            where: {
+              businessId,
+              status: 'COMPLETED',
+              paymentMethod: 'ECOCASH',
+              OR: [
+                { transactionDate: { gte: dayStart, lte: dayEnd } },
+                { transactionDate: null, createdAt: { gte: dayStart, lte: dayEnd } },
+              ],
+            },
+            _sum: { totalAmount: true },
+          }),
+        ])
 
         return {
           date: dateStr,
           totalSales: Number(salesResult._sum.totalAmount ?? 0),
           orderCount: salesResult._count.id,
+          ecocashTotal: Number(ecocashResult._sum.totalAmount ?? 0),
         }
       })
     )

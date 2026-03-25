@@ -27,8 +27,8 @@ interface AddCustomerModalProps {
 export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [businesses, setBusinesses] = useState([])
-  const [idTemplates, setIdTemplates] = useState([])
 
   // Get current business from context
   const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
@@ -60,7 +60,6 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
 
   useEffect(() => {
     fetchBusinesses()
-    fetchIdTemplates()
   }, [])
 
   // Update businessId when current business changes
@@ -82,21 +81,11 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
     }
   }
 
-  const fetchIdTemplates = async () => {
-    try {
-      const response = await fetch('/api/id-format-templates')
-      if (response.ok) {
-        const data = await response.json()
-        setIdTemplates(data.templates || [])
-      }
-    } catch (error) {
-      console.error('Error fetching ID templates:', error)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setFieldErrors({})
 
     // Validate businessId is set
     if (!formData.businessId) {
@@ -123,9 +112,28 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
       const data = await response.json()
 
       if (response.ok) {
-        onCustomerCreated(data.data || data)
+        onCustomerCreated(data.customer || data.data || data)
       } else {
-        setError(data.error || 'Failed to create customer')
+        // Parse field-level validation errors from details array
+        if (data.details && Array.isArray(data.details)) {
+          const fields: Record<string, string> = {}
+          for (const detail of data.details) {
+            const field = detail.path?.[0]
+            if (field && !fields[field]) {
+              fields[field] = detail.message
+            }
+          }
+          if (Object.keys(fields).length > 0) {
+            setFieldErrors(fields)
+            // Only show generic top-level error if there are non-field errors too
+            const hasUnmappedErrors = data.details.some((d: any) => !d.path?.[0])
+            if (hasUnmappedErrors) setError(data.error || 'Failed to create customer')
+          } else {
+            setError(data.error || 'Failed to create customer')
+          }
+        } else {
+          setError(data.error || 'Failed to create customer')
+        }
       }
     } catch (error) {
       setError('An error occurred while creating customer')
@@ -229,8 +237,12 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
               <Input
                 type="email"
                 value={formData.primaryEmail}
-                onChange={(e) => setFormData({ ...formData, primaryEmail: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, primaryEmail: e.target.value }); setFieldErrors(p => ({ ...p, primaryEmail: '' })) }}
+                className={fieldErrors.primaryEmail ? 'border-red-400 dark:border-red-500' : ''}
               />
+              {fieldErrors.primaryEmail && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1">{fieldErrors.primaryEmail}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-primary mb-2">
@@ -238,26 +250,21 @@ export function AddCustomerModal({ onClose, onCustomerCreated }: AddCustomerModa
               </label>
               <PhoneNumberInput
                 value={formData.primaryPhone}
-                onChange={(value) => setFormData({ ...formData, primaryPhone: value })}
+                onChange={(value) => { setFormData({ ...formData, primaryPhone: value }); setFieldErrors(p => ({ ...p, primaryPhone: '' })) }}
+                error={fieldErrors.primaryPhone}
               />
             </div>
           </div>
 
           {/* National ID */}
-          {idTemplates.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-primary mb-2">
-                National ID
-              </label>
-              <NationalIdInput
-                value={formData.nationalId}
-                templateId={formData.nationalIdTemplateId}
-                templates={idTemplates}
-                onChange={(value) => setFormData({ ...formData, nationalId: value })}
-                onTemplateChange={(templateId) => setFormData({ ...formData, nationalIdTemplateId: templateId })}
-              />
-            </div>
-          )}
+          <div>
+            <NationalIdInput
+              value={formData.nationalId}
+              templateId={formData.nationalIdTemplateId}
+              onChange={(value, templateId) => setFormData({ ...formData, nationalId: value, nationalIdTemplateId: templateId || formData.nationalIdTemplateId })}
+              onTemplateChange={(templateId) => setFormData({ ...formData, nationalIdTemplateId: templateId })}
+            />
+          </div>
 
           {/* Address */}
           <div>

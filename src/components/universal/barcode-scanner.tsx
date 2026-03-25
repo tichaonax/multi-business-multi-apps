@@ -327,6 +327,14 @@ export function BarcodeScanner({
               clearLastScanned()
               return
             }
+            // Re-check: GlobalBarcodeModal may have handled this scan while we were fetching
+            const globalHandledNow = (window as any).__globalBarcodeHandled
+            if (globalHandledNow && globalHandledNow.barcode === toLookup && (Date.now() - globalHandledNow.ts) < 1500) {
+              setLastScannedBarcode(toLookup)
+              setBarcodeInput('')
+              clearLastScanned()
+              return
+            }
             // Mark as handled by BarcodeScanner so GlobalBarcodeModal skips cart dispatch
             ;(window as any).__barcodeScannerHandled = {
               productId: typedProduct.id,

@@ -36,6 +36,8 @@ interface BusinessInventory {
   sku?: string
   bogoActive?: boolean
   bogoRatio?: number
+  isTransferred?: boolean
+  sourceBusiness?: string | null
   // Inventory item-specific (BarcodeInventoryItems via Add Stock)
   isInventoryItem?: boolean
   inventoryItemId?: string
@@ -302,6 +304,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
             sku: biz.sku,
             bogoActive: biz.bogoActive,
             bogoRatio: biz.bogoRatio,
+            isTransferred: biz.isTransferred,
+            sourceBusiness: biz.sourceBusiness,
             isInventoryItem: biz.isInventoryItem,
             inventoryItemId: biz.inventoryItemId,
             isCustomBulk: biz.isCustomBulk,
@@ -337,6 +341,13 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
           b => b.businessId === currentBusinessId && b.hasAccess && b.productId
         )
         if (currentBizMatch) {
+          // Guard against repeat-fire from physical scanners: if this exact barcode
+          // was already handled within the last 2 seconds, close and bail out.
+          const prevHandled = (window as any).__globalBarcodeHandled
+          if (prevHandled?.barcode === barcodeToLookup && Date.now() - prevHandled.ts < 2000) {
+            onClose()
+            return
+          }
           // Mark this barcode as handled by the global modal so BarcodeScanner
           // skips its own independent lookup and avoids a duplicate cart add.
           ;(window as any).__globalBarcodeHandled = { barcode: barcodeToLookup, ts: Date.now() }
@@ -940,7 +951,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                       <span className="text-sm font-medium text-gray-900 dark:text-white block truncate">
                         {biz.productName}
                       </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
                         {biz.businessName}
                         <span className={`px-1.5 py-0.5 rounded text-xs ${
                           biz.businessType === 'clothing'     ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' :
@@ -949,6 +960,11 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                           biz.businessType === 'hardware'     ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' :
                           'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                         }`}>{biz.businessType}</span>
+                        {biz.isTransferred && (
+                          <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                            ↔ Transferred{biz.sourceBusiness ? ` from ${biz.sourceBusiness}` : ''}
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className="text-right ml-3 shrink-0">
@@ -1157,6 +1173,11 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                         {business.bogoActive && (
                           <span className="text-xs px-2 py-1 rounded font-semibold bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300">
                             🎁 BOGO {business.bogoRatio === 2 ? '1+2' : '1+1'}
+                          </span>
+                        )}
+                        {business.isTransferred && (
+                          <span className="text-xs px-2 py-1 rounded font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                            ↔ Transferred{business.sourceBusiness ? ` from ${business.sourceBusiness}` : ''}
                           </span>
                         )}
                         {business.isInformational && (

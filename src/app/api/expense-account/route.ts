@@ -48,7 +48,12 @@ export async function GET(request: NextRequest) {
       }
 
       if (filterBusinessId) {
-        whereClause = { businessId: filterBusinessId }
+        // Include accounts in the filtered business AND any explicitly granted accounts
+        const orClauses: any[] = [{ businessId: filterBusinessId }]
+        if (grantedAccountIds.length > 0) {
+          orClauses.push({ id: { in: grantedAccountIds } })
+        }
+        whereClause = orClauses.length === 1 ? orClauses[0] : { OR: orClauses }
       } else {
         const userBusinessIds = user.businessMemberships?.map((m: any) => m.businessId) || []
         const orClauses: any[] = []
@@ -390,6 +395,13 @@ export async function POST(request: NextRequest) {
           },
         },
       },
+    })
+
+    // Auto-grant FULL access to the creator so they can always see their own account
+    await prisma.expenseAccountGrants.upsert({
+      where: { expenseAccountId_userId: { expenseAccountId: account.id, userId: user.id } },
+      create: { expenseAccountId: account.id, userId: user.id, grantedBy: user.id, permissionLevel: 'FULL' },
+      update: {},
     })
 
     return NextResponse.json(

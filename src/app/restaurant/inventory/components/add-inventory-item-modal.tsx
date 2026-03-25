@@ -221,7 +221,7 @@ export function AddInventoryItemModal({ isOpen, onClose, businessId, onItemAdded
                 </label>
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   required
                   value={formData.basePrice}
@@ -237,7 +237,7 @@ export function AddInventoryItemModal({ isOpen, onClose, businessId, onItemAdded
                 </label>
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   value={formData.costPrice}
                   onChange={(e) => setFormData(prev => ({ ...prev, costPrice: e.target.value }))}

@@ -69,7 +69,8 @@ export async function PUT(
     const hasSuspendedContract = currentContract && currentContract.status === 'suspended';
 
     // If employee has suspended contract and trying to change status, block it
-    if (hasSuspendedContract && employmentStatus && employmentStatus !== 'pending_contract') {
+    // Exception: termination is always allowed regardless of contract state
+    if (hasSuspendedContract && employmentStatus && employmentStatus !== 'pending_contract' && employmentStatus !== 'terminated') {
       return NextResponse.json({
         error: 'Cannot change employment status while contract is suspended. Employee must remain in "pending_contract" status until a new contract is created.',
         currentContractStatus: currentContract.status,

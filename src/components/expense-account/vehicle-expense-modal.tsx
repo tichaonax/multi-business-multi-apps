@@ -758,7 +758,7 @@ export default function VehicleExpenseModal({
                         <input
                           type="number"
                           min="0.01"
-                          step="0.10"
+                          step="0.01"
                           placeholder="0.00"
                           value={line.amount}
                           onChange={e => updateLine(line.id, { amount: e.target.value })}
@@ -779,7 +779,7 @@ export default function VehicleExpenseModal({
                             Fuel Quantity (optional)
                           </label>
                           <input
-                            type="number" min="0" step="0.1" placeholder="Litres / Gallons"
+                            type="number" min="0" step="0.01" placeholder="Litres / Gallons"
                             value={line.fuelQuantity}
                             onChange={e => updateLine(line.id, { fuelQuantity: e.target.value })}
                             className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 bg-white dark:bg-gray-900 dark:text-gray-100"

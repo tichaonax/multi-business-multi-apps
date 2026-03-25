@@ -677,7 +677,7 @@ export function UniversalSupplierForm({
                   <input
                     type="number"
                     min="0"
-                    step="0.10"
+                    step="0.01"
                     value={formData.terms?.minimumOrder || 0}
                     onChange={(e) => handleInputChange('terms.minimumOrder', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
@@ -758,7 +758,7 @@ export function UniversalSupplierForm({
                     type="number"
                     min="0"
                     max="100"
-                    step="0.1"
+                    step="0.01"
                     value={formData.performance?.onTimeDeliveryPercent || 95}
                     onChange={(e) => handleInputChange('performance.onTimeDeliveryPercent', parseFloat(e.target.value) || 95)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
@@ -773,7 +773,7 @@ export function UniversalSupplierForm({
                     type="number"
                     min="1"
                     max="10"
-                    step="0.1"
+                    step="0.01"
                     value={formData.performance?.qualityScore || 8.5}
                     onChange={(e) => handleInputChange('performance.qualityScore', parseFloat(e.target.value) || 8.5)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
@@ -802,7 +802,7 @@ export function UniversalSupplierForm({
                   <input
                     type="number"
                     min="0"
-                    step="0.10"
+                    step="0.01"
                     value={formData.performance?.totalSpent || 0}
                     onChange={(e) => handleInputChange('performance.totalSpent', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"

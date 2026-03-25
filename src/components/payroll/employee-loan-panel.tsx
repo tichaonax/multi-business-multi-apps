@@ -860,7 +860,7 @@ function CreateEmployeeLoanModal({ onSuccess, onClose }: { onSuccess: () => void
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400">$</span>
                     <input
-                      type="number" step="0.10" min="0.01"
+                      type="number" step="0.01" min="0.01"
                       value={amount}
                       onChange={(e) => handleAmountChange(e.target.value)}
                       className="w-full pl-7 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
@@ -882,7 +882,7 @@ function CreateEmployeeLoanModal({ onSuccess, onClose }: { onSuccess: () => void
                     <div className="relative">
                       <span className="absolute left-3 top-2 text-gray-400 text-sm">$</span>
                       <input
-                        type="number" step="0.10" min="0.01"
+                        type="number" step="0.01" min="0.01"
                         value={monthlyInstallment}
                         onChange={(e) => handleInstallmentChange(e.target.value)}
                         className="w-full pl-7 pr-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"

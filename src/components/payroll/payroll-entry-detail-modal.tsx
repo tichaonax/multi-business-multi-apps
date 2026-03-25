@@ -102,7 +102,7 @@ function PendingOvertimeRow({ adj, entryId, onApproved }: { adj: any; entryId: s
         <input
           type="number"
           min="0"
-          step="0.10"
+          step="0.01"
           value={approveAmount}
           onChange={e => setApproveAmount(e.target.value)}
           className="w-20 px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -162,7 +162,7 @@ function PendingTardinessRow({ adj, entryId, onSaved }: { adj: any; entryId: str
             <input
               type="number"
               min="0"
-              step="0.10"
+              step="0.01"
               value={editAmount}
               onChange={e => setEditAmount(e.target.value)}
               className="w-20 px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -1963,7 +1963,7 @@ export function PayrollEntryDetailModal({
                   <label className="block text-sm font-medium text-secondary mb-1">Commission</label>
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     value={formData.commission}
                     onChange={(e) => setFormData({ ...formData, commission: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                     onBlur={() => flushAutosave()}
@@ -2222,7 +2222,7 @@ export function PayrollEntryDetailModal({
                   <div className="w-40">
                     <input
                       type="number"
-                      step="0.10"
+                      step="0.01"
                       value={typeof formData.miscDeductions === 'number' ? formData.miscDeductions : Number(entry.miscDeductions || 0)}
                       onChange={(e) => setFormData({ ...formData, miscDeductions: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                       onBlur={() => flushAutosave()}
@@ -2498,7 +2498,7 @@ export function PayrollEntryDetailModal({
                       <label className="block text-sm font-medium text-secondary mb-1">Amount</label>
                       <input
                         type="number"
-                        step="0.10"
+                        step="0.01"
                         value={adjustmentForm.amount}
                         onChange={(e) => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -2586,7 +2586,7 @@ export function PayrollEntryDetailModal({
                             <div className="flex items-center gap-2 mt-2">
                               <input
                                 type="number"
-                                step="0.10"
+                                step="0.01"
                                 min="0"
                                 placeholder="Override amount"
                                 value={overrideVal}
@@ -2744,7 +2744,7 @@ export function PayrollEntryDetailModal({
                       <label className="block text-sm font-medium text-secondary mb-1">Amount</label>
                       <input
                         type="number"
-                        step="0.10"
+                        step="0.01"
                         value={benefitForm.amount}
                         onChange={(e) => setBenefitForm({ ...benefitForm, amount: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         onKeyDown={(e) => {
@@ -3151,7 +3151,7 @@ export function PayrollEntryDetailModal({
                       </label>
                       <input
                         type="number"
-                        step="0.10"
+                        step="0.01"
                         value={editAdjustmentForm.amount}
                         onChange={(e) => setEditAdjustmentForm({ ...editAdjustmentForm, amount: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"

@@ -439,6 +439,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   const resetBaleForm = () => setBaleForm({ categoryId: '', batchNumber: '', itemCount: '', unitPrice: '', costPrice: '', barcode: '', notes: '', labelCount: '' })
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white dark:bg-gray-900 w-full sm:max-w-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -618,13 +619,13 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit Price ($) *</label>
-                  <input type="number" min="0.01" step="0.10" value={baleForm.unitPrice}
+                  <input type="number" min="0.01" step="0.01" value={baleForm.unitPrice}
                     onChange={e => setBaleForm(f => ({ ...f, unitPrice: e.target.value }))}
                     placeholder="e.g., 3.00" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bale Cost ($) *</label>
-                  <input type="number" min="0" step="0.10" value={baleForm.costPrice}
+                  <input type="number" min="0" step="0.01" value={baleForm.costPrice}
                     onChange={e => setBaleForm(f => ({ ...f, costPrice: e.target.value }))}
                     placeholder="Total acquisition cost" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
                 </div>
@@ -876,14 +877,14 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                       <span className="text-xs text-gray-500 dark:text-gray-400">Free Item</span>
                     </label>
                   </div>
-                  <input type="number" min="0" step="0.10" value={productForm.sellingPrice}
+                  <input type="number" min="0" step="0.01" value={productForm.sellingPrice}
                     disabled={isFreeItem}
                     onChange={e => setProductForm(f => ({ ...f, sellingPrice: e.target.value }))}
                     placeholder="e.g., 12.00" className={`w-full px-3 py-2 border rounded-lg text-sm ${isFreeItem ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-400 cursor-default' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'}`} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost Price ($) <span className="text-gray-400 font-normal">(optional)</span></label>
-                  <input type="number" min="0" step="0.10" value={productForm.costPrice}
+                  <input type="number" min="0" step="0.01" value={productForm.costPrice}
                     onChange={e => setProductForm(f => ({ ...f, costPrice: e.target.value }))}
                     placeholder="e.g., 5.00" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
                 </div>
@@ -926,7 +927,6 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       </div>
     </div>
 
-    {/* Category creation modal */}
     <InventoryCategoryEditor
       isOpen={showCategoryEditor}
       businessId={effectiveBusinessId}
@@ -935,5 +935,6 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       onSuccess={handleCategoryEditorSuccess}
       onCancel={() => setShowCategoryEditor(false)}
     />
+    </>
   )
 }

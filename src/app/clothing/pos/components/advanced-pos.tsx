@@ -19,6 +19,7 @@ import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
+import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 import type { ReceiptData } from '@/types/printing'
 import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 
@@ -112,6 +113,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       return saved ? JSON.parse(saved) : null
     } catch { return null }
   })
+  const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showSupervisorModal, setShowSupervisorModal] = useState(false)
@@ -1378,7 +1380,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       const orderData = {
         businessId: currentBusiness?.businessId,
         customerId: customerInfo?.id || null,
-        employeeId,
+        employeeId: selectedSalesperson?.employeeId ?? employeeId,
         orderType: mode === 'return' ? 'RETURN' : mode === 'exchange' ? 'EXCHANGE' : 'SALE',
         paymentMethod: selectedPaymentMethod,
         couponId: appliedCoupon?.id || null,
@@ -1468,8 +1470,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         businessEmail: actualBusiness?.email,
         transactionId: orderNumber,
         transactionDate: new Date(),
-        salespersonName: session?.user?.name || 'Staff',
-        salespersonId: session?.user?.id || employeeId || '',
+        salespersonName: selectedSalesperson?.name ?? session?.user?.name ?? 'Staff',
+        salespersonId: selectedSalesperson?.employeeId ?? session?.user?.id ?? employeeId ?? '',
         items: cart.map(item => {
           const freeQty = bogoFreeCount(item)
           const paidQty = item.quantity - freeQty
@@ -2102,6 +2104,19 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           />
         </div>
 
+        {/* Salesperson selector */}
+        <div className="mb-4">
+          <SalespersonSelector
+            businessId={businessId}
+            currentUserId={session?.user?.id || ''}
+            currentUserName={session?.user?.name || 'Staff'}
+            onSalespersonChange={(sp) => {
+              setSelectedSalesperson(sp)
+              sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
+            }}
+          />
+        </div>
+
         {/* Cart header */}
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-primary">Cart ({cart.length})</h3>
@@ -2282,20 +2297,32 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       </div>
 
       {/* Payment Modal — styled like restaurant POS */}
-      {showPaymentModal && (
+      {showPaymentModal && (() => {
+        const _feeType = (currentBusiness as any)?.ecocashFeeType
+        const _feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+        const _minFee = (currentBusiness as any)?.ecocashMinimumFee ?? 0
+        const _rawFee = _feeType === 'PERCENTAGE' ? calculateTotal() * (_feeValue / 100) : (_feeType === 'FIXED' ? _feeValue : 0)
+        const _ecocashFee = _feeType === 'PERCENTAGE' ? Math.max(_rawFee, _minFee) : _rawFee
+        const _ecocashTotal = calculateTotal() + _ecocashFee
+        const isEcocash = selectedPaymentMethod === 'ECOCASH'
+        const displayTotal = isEcocash ? _ecocashTotal : calculateTotal()
+        return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
             <h2 className="text-2xl font-bold text-primary mb-4">💳 Payment</h2>
 
             <div className="space-y-4">
               {/* Order Total — shown first like restaurant POS */}
-              <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
+              <div className={`p-4 rounded-lg ${isEcocash ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700' : 'bg-gray-100 dark:bg-gray-700'}`}>
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-medium text-primary">Total Amount:</span>
-                  <span className="text-2xl font-bold text-green-600">{formatCurrency(calculateTotal())}</span>
+                  <span className="text-2xl font-bold text-green-600">{formatCurrency(displayTotal)}</span>
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {cart.length} item{cart.length !== 1 ? 's' : ''}
+                  {isEcocash && _ecocashFee > 0 && (
+                    <span className="ml-2 text-yellow-600 dark:text-yellow-400">· incl. EcoCash fee ({formatCurrency(_ecocashFee)})</span>
+                  )}
                   {appliedCoupon && (
                     <span className="ml-2 text-green-600 dark:text-green-400">
                       · 🏷️ Coupon {appliedCoupon.code} (-{formatCurrency(appliedCoupon.discountAmount)})
@@ -2332,7 +2359,20 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   {(currentBusiness as any)?.ecocashEnabled && (
                     <button
                       type="button"
-                      onClick={() => { setSelectedPaymentMethod('ECOCASH'); setCashTendered('') }}
+                      onClick={() => {
+                        setSelectedPaymentMethod('ECOCASH'); setCashTendered('')
+                        const feeType = (currentBusiness as any)?.ecocashFeeType
+                        const feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+                        const minFee = (currentBusiness as any)?.ecocashMinimumFee ?? 0
+                        const rawFee = feeType === 'PERCENTAGE' ? calculateTotal() * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+                        const fee = feeType === 'PERCENTAGE' ? Math.max(rawFee, minFee) : rawFee
+                        sendToDisplay('PAYMENT_STARTED', {
+                          subtotal: calculateTotal(), tax: 0,
+                          total: calculateTotal() + fee,
+                          ecocashFee: fee,
+                          paymentMethod: 'ECOCASH'
+                        })
+                      }}
                       className={`py-3 px-4 rounded-lg font-medium transition-colors ${selectedPaymentMethod === 'ECOCASH' ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'}`}
                     >
                       <img src="/images/ecocash-logo.png" alt="" className="h-4 w-auto inline-block mr-1" />EcoCash
@@ -2347,7 +2387,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   <label className="block text-sm font-medium text-primary mb-2">Amount Received</label>
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     min="0"
                     placeholder="Enter amount received"
                     value={cashTendered}
@@ -2376,37 +2416,29 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               )}
 
               {/* EcoCash Transaction Code */}
-              {selectedPaymentMethod === 'ECOCASH' && (() => {
-                const feeType = (currentBusiness as any)?.ecocashFeeType
-                const feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
-                const minimumFee = (currentBusiness as any)?.ecocashMinimumFee ?? 0
-                const rawFee = feeType === 'PERCENTAGE' ? calculateTotal() * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
-                const fee = feeType === 'PERCENTAGE' ? Math.max(rawFee, minimumFee) : rawFee
-                const ecocashTotal = calculateTotal() + fee
-                return (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-sm font-medium text-primary mb-2">EcoCash Transaction Code</label>
-                      <input
-                        type="text"
-                        value={ecocashTxCode}
-                        onChange={(e) => setEcocashTxCode(e.target.value.toUpperCase())}
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
-                        placeholder="Enter EcoCash transaction code"
-                        autoComplete="off"
-                        autoFocus
-                      />
-                    </div>
-                    {fee > 0 && (
-                      <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
-                        <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(calculateTotal())}</span></div>
-                        <div className="flex justify-between"><span>EcoCash fee ({feeType === 'PERCENTAGE' ? `${feeValue}%` : 'fixed'}):</span><span>{formatCurrency(fee)}</span></div>
-                        <div className="flex justify-between font-bold"><span>Total to charge:</span><span>{formatCurrency(ecocashTotal)}</span></div>
-                      </div>
-                    )}
+              {isEcocash && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-sm font-medium text-primary mb-2">EcoCash Transaction Code</label>
+                    <input
+                      type="text"
+                      value={ecocashTxCode}
+                      onChange={(e) => setEcocashTxCode(e.target.value.toUpperCase())}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-lg font-semibold"
+                      placeholder="Enter EcoCash transaction code"
+                      autoComplete="off"
+                      autoFocus
+                    />
                   </div>
-                )
-              })()}
+                  {_ecocashFee > 0 && (
+                    <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
+                      <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(calculateTotal())}</span></div>
+                      <div className="flex justify-between"><span>EcoCash fee ({_feeType === 'PERCENTAGE' ? `${_feeValue}%` : 'fixed'}):</span><span>{formatCurrency(_ecocashFee)}</span></div>
+                      <div className="flex justify-between font-bold"><span>Total to charge:</span><span>{formatCurrency(_ecocashTotal)}</span></div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-3 mt-6">
@@ -2425,7 +2457,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 <button
                   type="button"
                   onClick={processPayment}
-                  disabled={loading || (selectedPaymentMethod === 'CASH' && calculateTotal() > 0 && (!cashTendered || parseFloat(cashTendered) < calculateTotal())) || (selectedPaymentMethod === 'ECOCASH' && !ecocashTxCode.trim())}
+                  disabled={loading || (selectedPaymentMethod === 'CASH' && calculateTotal() > 0 && (!cashTendered || parseFloat(cashTendered) < calculateTotal())) || (isEcocash && !ecocashTxCode.trim())}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Processing...' : 'Complete Order'}
@@ -2434,7 +2466,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Supervisor Override Modal */}
       {showSupervisorModal && supervisorOverride && (

@@ -396,7 +396,7 @@ export default function NewProjectPage() {
                 <Input
                   id="budget"
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   value={formData.budget}
                   onChange={(e) => handleInputChange('budget', e.target.value)}

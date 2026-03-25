@@ -22,6 +22,7 @@ import { usePrintPreferences } from '@/hooks/use-print-preferences'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
@@ -109,6 +110,7 @@ function GroceryPOSContent() {
   const [dailySales, setDailySales] = useState<any>(null)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [isAutoAdding, setIsAutoAdding] = useState(false)
+  const autoAddProductIdRef = useRef<string | null>(null)
   const [selectedCustomer, setSelectedCustomer] = useState<{
     id: string
     customerNumber: string
@@ -185,9 +187,10 @@ function GroceryPOSContent() {
   const toast = useToastContext()
 
   // Global cart context for mini cart sync
-  const { clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
+  const { cart: globalCart, clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
   // Only clear global cart when POS cart goes from non-empty → empty (order completed).
   const posHadItemsRef = useRef(false)
+  const syncingFromPOS = useRef(false)
 
   // Get or create terminal ID for this POS instance
   const [terminalId] = useState(() => {
@@ -309,6 +312,7 @@ function GroceryPOSContent() {
     if (!currentBusinessId || !cartLoaded) return
 
     try {
+      syncingFromPOS.current = true
       if (cart.length > 0) {
         posHadItemsRef.current = true
         const globalCartItems = cart.map(item => ({
@@ -328,8 +332,19 @@ function GroceryPOSContent() {
       // else: POS mounted with empty cart — leave mini cart untouched
     } catch (error) {
       console.error('❌ [Grocery POS] Failed to sync to global cart:', error)
+    } finally {
+      syncingFromPOS.current = false
     }
   }, [cart, currentBusinessId, cartLoaded, replaceGlobalCart])
+
+  // Reverse sync: if mini cart is cleared externally, clear the POS cart too
+  useEffect(() => {
+    if (!currentBusinessId || !cartLoaded || syncingFromPOS.current) return
+    if (globalCart.length === 0 && cart.length > 0) {
+      setCart([])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalCart, currentBusinessId, cartLoaded])
 
   // Broadcast cart state to customer display after cart is loaded
   useEffect(() => {
@@ -384,11 +399,34 @@ function GroceryPOSContent() {
     console.log('[Grocery POS] CART_STATE sent')
   }
 
+  // Broadcast EcoCash payment prompt to customer display when EcoCash is selected
+  useEffect(() => {
+    if (!currentBusinessId || cart.length === 0) return
+    const totals = calculateTotals()
+    if (paymentMethod === 'ecocash') {
+      const feeType = (currentBusiness as any)?.ecocashFeeType
+      const feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+      const fee = feeType === 'PERCENTAGE' ? totals.total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
+      sendToDisplay('PAYMENT_STARTED', {
+        subtotal: totals.total,
+        tax: 0,
+        total: totals.total + fee,
+        ecocashFee: fee,
+        paymentMethod: 'ECOCASH'
+      })
+    } else {
+      // Reset payment state on customer display when switching away from EcoCash
+      sendToDisplay('PAYMENT_CANCELLED', { subtotal: 0, tax: 0, total: 0 })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod, currentBusinessId])
+
   // Get user info
   const { data: session, status } = useSession()
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
   const isAdmin = sessionUser?.role === 'admin'
+  const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   // Check if current business is a grocery business
   const isGroceryBusiness = currentBusiness?.businessType === 'grocery'
 
@@ -1104,61 +1142,40 @@ function GroceryPOSContent() {
     return () => window.removeEventListener('pos:add-inventory-item-to-cart', handler)
   }, [addInventoryItemToCart])
 
-  // Detect if we should auto-add on page load
+  // Step 1: Capture addProduct from URL ONCE on mount.
+  // Use window.history.replaceState (synchronous) so React Strict Mode's second
+  // mount sees a clean URL and doesn't re-capture the same product twice.
   useEffect(() => {
-    const addProductId = searchParams?.get('addProduct')
-    const autoAdd = searchParams?.get('autoAdd')
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const addProductId = params.get('addProduct')
+    const autoAdd = params.get('autoAdd')
+    if (!addProductId || autoAdd !== 'true') return
+    autoAddProductIdRef.current = addProductId
+    window.history.replaceState({}, '', window.location.pathname + `?businessId=${currentBusinessId}`)
+  }, [])
 
-    if (addProductId && autoAdd === 'true') {
-      setIsAutoAdding(true)
+  // Step 2: Once products AND cart are loaded, add the captured product exactly once.
+  // Waits for cartLoaded so we can skip the auto-add if the item is already in the
+  // cart (restored from localStorage), preventing qty doubling on repeated test scans.
+  useEffect(() => {
+    if (!autoAddProductIdRef.current || products.length === 0 || productsLoading || !cartLoaded) return
+    const productId = autoAddProductIdRef.current
+    autoAddProductIdRef.current = null  // clear immediately — prevents any re-run
+
+    const product = products.find(p => p.id === productId)
+    if (!product) {
+      console.error('❌ Auto-add: product not found:', productId)
+      return
     }
-  }, [searchParams])
-
-  // Handle auto-add product from URL parameters
-  useEffect(() => {
-    const addProductId = searchParams?.get('addProduct')
-    const autoAdd = searchParams?.get('autoAdd')
-
-    console.log('Auto-add check:', {
-      addProductId,
-      autoAdd,
-      productsLength: products.length,
-      productsLoading,
-      isAutoAdding,
-      hasProducts: products.length > 0
+    // Skip if item is already in the cart (may have been restored from localStorage)
+    setCart(prev => {
+      if (prev.some(i => i.id === product.id)) return prev
+      const subtotal = product.price * 1
+      return [...prev, { ...product, quantity: 1, subtotal }]
     })
-
-    // Wait for products to be loaded and auto-add flag to be set
-    if (addProductId && autoAdd === 'true' && products.length > 0 && !productsLoading && isAutoAdding) {
-      console.log('Attempting auto-add for product:', addProductId)
-
-      // Find the product in the loaded products list
-      // The addProductId is an inventory item ID which maps to product.id or variant.id
-      const product = products.find(p => p.id === addProductId)
-
-      if (product) {
-        console.log('✅ Auto-adding product to cart:', product.name, product)
-        // Auto-add to cart with quantity 1
-        addToCart(product, 1)
-
-        // Clear URL parameters and loading state after adding
-        setTimeout(() => {
-          console.log('Cleaning up auto-add state')
-          router.replace(`/grocery/pos?businessId=${currentBusinessId}`, { scroll: false })
-          setIsAutoAdding(false)
-        }, 500)
-      } else {
-        console.error('❌ Product not found in POS products list:', addProductId)
-        console.log('Available products:', products.slice(0, 5).map(p => ({ id: p.id, name: p.name })))
-        console.log('Total products loaded:', products.length)
-        // Clear loading state even if product not found after a delay to show error
-        setTimeout(() => {
-          router.replace(`/grocery/pos?businessId=${currentBusinessId}`, { scroll: false })
-          setIsAutoAdding(false)
-        }, 1000)
-      }
-    }
-  }, [searchParams, products, productsLoading, currentBusinessId, router, isAutoAdding])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, productsLoading, cartLoaded])
 
   // Handle addBale URL param — navigated here from GlobalBarcodeModal "Add to Cart"
   useEffect(() => {
@@ -1370,6 +1387,7 @@ function GroceryPOSContent() {
       const orderData = {
         businessId: currentBusinessId,
         businessType: 'grocery',
+        employeeId: selectedSalesperson?.employeeId ?? employeeId,
         customerId: selectedCustomer?.id || null,
         orderType: 'SALE',
         paymentMethod: paymentMethod.toUpperCase(),
@@ -1528,8 +1546,8 @@ function GroceryPOSContent() {
       businessEmail: actualBusiness?.email || actualBusiness?.settings?.email,
       transactionId: order.orderNumber,
       transactionDate: new Date(),
-      salespersonName: sessionUser?.name || 'Staff',
-      salespersonId: sessionUser?.id || '',
+      salespersonName: selectedSalesperson?.name ?? sessionUser?.name ?? 'Staff',
+      salespersonId: selectedSalesperson?.employeeId ?? sessionUser?.id ?? '',
       items: order.items.map((item: any) => ({
         name: item.name,
         sku: item.sku, // Only grocery items have SKU, tokens don't
@@ -1646,7 +1664,7 @@ function GroceryPOSContent() {
                 <input
                   ref={cashTenderInputRef}
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   value={cashTendered}
                   onChange={(e) => setCashTendered(e.target.value)}
@@ -1964,9 +1982,25 @@ function GroceryPOSContent() {
       {showAddCustomerModal && (
         <AddCustomerModal
           onClose={() => setShowAddCustomerModal(false)}
-          onCustomerCreated={() => {
+          onCustomerCreated={(newCustomer) => {
             setShowAddCustomerModal(false)
-            customAlert({ title: 'Success', description: 'Customer created successfully! You can now search for them.' })
+            if (newCustomer?.id) {
+              const displayName =
+                newCustomer.fullName ||
+                newCustomer.name ||
+                `${newCustomer.firstName || ''} ${newCustomer.lastName || ''}`.trim() ||
+                'New Customer'
+              setSelectedCustomer({
+                id: newCustomer.id,
+                customerNumber: newCustomer.customerNumber || '',
+                name: displayName,
+                email: newCustomer.email,
+                phone: newCustomer.phone,
+                customerType: newCustomer.customerType || 'INDIVIDUAL',
+              })
+            } else {
+              customAlert({ title: 'Success', description: 'Customer created! You can now search for them.' })
+            }
           }}
         />
       )}
@@ -2548,6 +2582,21 @@ function GroceryPOSContent() {
               allowWalkIn={true}
             />
 
+            {/* Salesperson selector */}
+            {currentBusinessId && sessionUser?.id && (
+              <div className="mt-3">
+                <SalespersonSelector
+                  businessId={currentBusinessId}
+                  currentUserId={sessionUser.id}
+                  currentUserName={sessionUser.name || 'Staff'}
+                  onSalespersonChange={(sp) => {
+                    setSelectedSalesperson(sp)
+                    sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
+                  }}
+                />
+              </div>
+            )}
+
             {/* Applied Reward */}
             {appliedReward && (
               <div className="mt-2 space-y-1">
@@ -2673,10 +2722,20 @@ function GroceryPOSContent() {
                     </div>
                   )}
                   <div className="border-t pt-2">
-                    <div className="flex justify-between font-bold text-lg">
-                      <span>Total:</span>
-                      <span>{formatCurrency(totals.total)}</span>
-                    </div>
+                    {(() => {
+                      const _feeType = (currentBusiness as any)?.ecocashFeeType
+                      const _feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+                      const _fee = paymentMethod === 'ecocash'
+                        ? (_feeType === 'PERCENTAGE' ? totals.total * (_feeValue / 100) : (_feeType === 'FIXED' ? _feeValue : 0))
+                        : 0
+                      const _displayTotal = totals.total + _fee
+                      return (
+                        <div className={`flex justify-between font-bold text-lg ${paymentMethod === 'ecocash' ? 'text-green-700 dark:text-green-400' : ''}`}>
+                          <span>Total{paymentMethod === 'ecocash' && _fee > 0 ? ' (incl. EcoCash fee):' : ':'}</span>
+                          <span>{formatCurrency(_displayTotal)}</span>
+                        </div>
+                      )
+                    })()}
                   </div>
                   {customer && totals.loyaltyPoints > 0 && (
                     <div className="text-sm text-green-600">
@@ -2786,7 +2845,14 @@ function GroceryPOSContent() {
               disabled={cart.length === 0 || processingPayment || (paymentMethod === 'ecocash' && !ecocashTxCode.trim())}
               className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-base"
             >
-              {processingPayment ? 'Processing...' : `Process Payment - ${formatCurrency(totals.total)}`}
+              {processingPayment ? 'Processing...' : (() => {
+                const _feeType = (currentBusiness as any)?.ecocashFeeType
+                const _feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
+                const _fee = paymentMethod === 'ecocash'
+                  ? (_feeType === 'PERCENTAGE' ? totals.total * (_feeValue / 100) : (_feeType === 'FIXED' ? _feeValue : 0))
+                  : 0
+                return `Process Payment - ${formatCurrency(totals.total + _fee)}`
+              })()}
             </button>
           </div>
         </div>

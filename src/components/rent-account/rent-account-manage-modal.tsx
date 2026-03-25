@@ -246,7 +246,7 @@ export function RentAccountManageModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-secondary mb-1">Monthly Rent *</label>
-                    <input type="number" step="0.10" min="0.01" value={monthlyRent} onChange={e => setMonthlyRent(e.target.value)} className={inputCls} />
+                    <input type="number" step="0.01" min="0.01" value={monthlyRent} onChange={e => setMonthlyRent(e.target.value)} className={inputCls} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-secondary mb-1">Operating Days *</label>

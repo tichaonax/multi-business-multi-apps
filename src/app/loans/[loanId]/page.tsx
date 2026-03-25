@@ -769,7 +769,7 @@ export default function LoanDetailPage() {
                               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
                           </td>
                           <td className="pr-2 py-1">
-                            <input required type="number" min="0.01" step="0.10" placeholder="0.00" value={row.amount}
+                            <input required type="number" min="0.01" step="0.01" placeholder="0.00" value={row.amount}
                               onChange={e => setExpenseRows(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))}
                               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
                           </td>
@@ -896,7 +896,7 @@ export default function LoanDetailPage() {
                               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
                           </td>
                           <td className="pr-2 py-1">
-                            <input required type="number" min="0.01" step="0.10" placeholder="0.00" value={row.amount}
+                            <input required type="number" min="0.01" step="0.01" placeholder="0.00" value={row.amount}
                               onChange={e => setRepayRows(rows => rows.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))}
                               className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
                           </td>
@@ -1007,7 +1007,7 @@ export default function LoanDetailPage() {
                       type="number"
                       min="0.01"
                       max={summary.availableToWithdraw}
-                      step="0.10"
+                      step="0.01"
                       placeholder="0.00"
                       value={withdrawForm.requestedAmount}
                       onChange={e => setWithdrawForm(f => ({ ...f, requestedAmount: e.target.value }))}
@@ -1123,7 +1123,7 @@ export default function LoanDetailPage() {
               <input
                 type="number"
                 min="0.01"
-                step="0.10"
+                step="0.01"
                 value={approveAmount}
                 onChange={e => setApproveAmount(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"

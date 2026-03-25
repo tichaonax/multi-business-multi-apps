@@ -271,6 +271,9 @@ export async function GET(
           sku: bale.sku,
           bogoActive: bale.bogoActive,
           bogoRatio: bale.bogoRatio,
+          // notes format: "Transferred from {businessName} ({batchNumber})"
+          isTransferred: bale.notes?.startsWith('Transferred from') ?? false,
+          sourceBusiness: bale.notes?.match(/^Transferred from (.+?) \(/)?.[1] ?? null,
         })
       }
     }

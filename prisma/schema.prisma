@@ -1986,18 +1986,19 @@ model FundSources {
 }
 
 model IdFormatTemplates {
-  id          String      @id @default(uuid())
-  name        String
-  description String?
-  pattern     String
-  example     String
-  countryCode String?
-  createdAt   DateTime    @default(now())
-  isActive    Boolean     @default(true)
-  updatedAt   DateTime    @default(now())
-  format      String?
-  employees   Employees[]
-  persons     Persons[]
+  id           String      @id @default(uuid())
+  name         String
+  description  String?
+  pattern      String
+  example      String
+  countryCode  String?
+  createdAt    DateTime    @default(now())
+  isActive     Boolean     @default(true)
+  updatedAt    DateTime    @default(now())
+  format       String?
+  templateType String      @default("national_id")
+  employees    Employees[]
+  persons      Persons[]
 
   @@map("id_format_templates")
 }

@@ -148,7 +148,7 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
             <input
               id="basePrice"
               type="number"
-              step="0.10"
+              step="0.01"
               min="0"
               value={formData.basePrice}
               onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
@@ -171,7 +171,7 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
             <input
               id="costPrice"
               type="number"
-              step="0.10"
+              step="0.01"
               min="0"
               value={formData.costPrice}
               onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
@@ -194,7 +194,7 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
             <input
               id="originalPrice"
               type="number"
-              step="0.10"
+              step="0.01"
               min="0"
               value={formData.originalPrice}
               onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
@@ -216,7 +216,7 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
             <input
               id="discountPercent"
               type="number"
-              step="0.10"
+              step="0.01"
               min="0"
               max="100"
               value={formData.discountPercent}

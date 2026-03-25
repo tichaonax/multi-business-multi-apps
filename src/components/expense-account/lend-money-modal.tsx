@@ -210,7 +210,7 @@ export function LendMoneyModal({ accountId, accountName, accountBalance, current
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400 font-medium">$</span>
                     <input
-                      type="number" step="0.10" min="0.01"
+                      type="number" step="0.01" min="0.01"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       className={`w-full pl-7 pr-3 py-2.5 border rounded-lg focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${

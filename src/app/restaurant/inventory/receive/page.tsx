@@ -697,7 +697,7 @@ export default function ReceiveStockPage() {
                       type="number"
                       min="0"
                       max="100"
-                      step="0.1"
+                      step="0.01"
                       value={taxRate || ''}
                       onChange={(e) => setTaxRate(e.target.value === '' ? 0 : parseFloat(e.target.value))}
                       className="input-field w-32"
@@ -707,7 +707,7 @@ export default function ReceiveStockPage() {
                     <input
                       type="number"
                       min="0"
-                      step="0.10"
+                      step="0.01"
                       value={taxFixedValue || ''}
                       onChange={(e) => setTaxFixedValue(e.target.value === '' ? 0 : parseFloat(e.target.value))}
                       className="input-field w-32"
@@ -947,7 +947,7 @@ export default function ReceiveStockPage() {
                                 type="number"
                                 required={!item.bulkMode}
                                 min="0.01"
-                                step="0.10"
+                                step="0.01"
                                 value={item.quantity || ''}
                                 onChange={(e) => updateReceiveItem(item.id, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                                 className="input-field w-full"
@@ -961,7 +961,7 @@ export default function ReceiveStockPage() {
                               <input
                                 type="number"
                                 min="0"
-                                step="0.10"
+                                step="0.01"
                                 value={item.unitCost || ''}
                                 onChange={(e) => updateReceiveItem(item.id, 'unitCost', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                                 className="input-field w-full"
@@ -1060,7 +1060,7 @@ export default function ReceiveStockPage() {
                                   <input
                                     type="number"
                                     min="0"
-                                    step="0.10"
+                                    step="0.01"
                                     value={item.costAmount || ''}
                                     onChange={(e) => updateReceiveItem(item.id, 'costAmount', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                                     className="input-field w-full"

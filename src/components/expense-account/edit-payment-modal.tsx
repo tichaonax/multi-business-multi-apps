@@ -724,7 +724,7 @@ export function EditPaymentModal({
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
                     min="0.01"
-                    step="0.10"
+                    step="0.01"
                     className="w-full pl-7 pr-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

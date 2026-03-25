@@ -1716,7 +1716,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
       {/* Sell Price */}
       <td className="px-2 py-1.5">
-        <input type="number" min="0" step="0.10" value={row.sellingPrice} disabled={row.isFreeItem}
+        <input type="number" min="0" step="0.01" value={row.sellingPrice} disabled={row.isFreeItem}
           onChange={e => onChange({ sellingPrice: e.target.value })}
           className={`${row.isFreeItem ? roClass : inputClass} w-full text-center ${inv('sellingPrice') && !row.isFreeItem ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="price" />
       </td>
@@ -1730,7 +1730,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
       {/* Cost */}
       <td className="px-2 py-1.5">
-        <input type="number" min="0" step="0.10" value={row.costPrice} readOnly={row.isExistingItem}
+        <input type="number" min="0" step="0.01" value={row.costPrice} readOnly={row.isExistingItem}
           onChange={e => onChange({ costPrice: e.target.value })}
           className={`${row.isExistingItem ? roClass : inputClass} w-full text-center`} placeholder="cost" />
       </td>

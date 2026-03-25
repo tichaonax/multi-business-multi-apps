@@ -921,7 +921,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                   type="number"
                   min="0"
                   max={subtotal}
-                  step="0.10"
+                  step="0.01"
                   value={discountAmount}
                   onChange={(e) => setDiscountAmount(e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   className="w-20 px-1.5 py-0.5 text-right text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-transparent tabular-nums"
@@ -992,7 +992,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                   </label>
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     min="0"
                     placeholder="Enter amount received"
                     value={cashTendered}

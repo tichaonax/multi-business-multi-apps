@@ -227,7 +227,7 @@ export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
               name="amount"
               required
               min="0"
-              step="0.10"
+              step="0.01"
               value={formData.amount}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -308,7 +308,7 @@ export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
                 name="fuelQuantity"
                 required
                 min="0"
-                step="0.10"
+                step="0.01"
                 value={formData.fuelQuantity || ''}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

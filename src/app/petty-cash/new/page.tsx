@@ -94,7 +94,7 @@ export default function NewPettyCashRequestPage() {
                 <input
                   type="number"
                   min="0.01"
-                  step="0.10"
+                  step="0.01"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
                   placeholder="0.00"

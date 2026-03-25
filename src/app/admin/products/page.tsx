@@ -305,7 +305,7 @@ function UniversalProductsPageContent() {
                   )}
                   {selectedCategory && (
                     <span className="inline-flex items-center gap-2 rounded-md bg-blue-100 dark:bg-blue-900 px-3 py-1 text-sm font-medium text-blue-800 dark:text-blue-200">
-                      Category Filter
+                      Category: {stats?.byCategory?.[selectedCategory]?.name || 'Selected'}
                       <button
                         type="button"
                         onClick={() => setSelectedCategory('')}

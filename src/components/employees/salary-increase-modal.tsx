@@ -265,7 +265,7 @@ export function SalaryIncreaseModal({
               <div className="relative">
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   max="100"
                   required

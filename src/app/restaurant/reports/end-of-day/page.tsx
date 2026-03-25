@@ -52,7 +52,7 @@ export default function EndOfDayReport() {
   // EcoCash verification checklist
   const [ecocashTxns, setEcocashTxns] = useState<{ orderId: string; transactionCode: string | null; grossAmount: number; feeAmount: number; netAmount: number; createdAt: string }[]>([])
   const [checkedTxnIds, setCheckedTxnIds] = useState<Set<string>>(new Set())
-  const confirmedEcocashTotal = ecocashTxns.filter(t => checkedTxnIds.has(t.orderId)).reduce((s, t) => s + t.netAmount, 0)
+  const confirmedEcocashTotal = ecocashTxns.filter(t => checkedTxnIds.has(t.orderId)).reduce((s, t) => s + t.grossAmount, 0)
 
   const {
     currentBusiness,
@@ -911,7 +911,7 @@ export default function EndOfDayReport() {
                   <span className="text-lg text-gray-900 dark:text-gray-100 print:text-gray-900">$</span>
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     value={cashCounted}
                     onChange={(e) => setCashCounted(e.target.value)}
                     placeholder="0.00"
@@ -1084,7 +1084,7 @@ export default function EndOfDayReport() {
                   <span className="text-lg text-gray-700 dark:text-gray-300">$</span>
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     value={cashCounted}
                     onChange={(e) => setCashCounted(e.target.value)}
                     placeholder="0.00"
@@ -1139,7 +1139,7 @@ export default function EndOfDayReport() {
                           {new Date(txn.createdAt).toLocaleTimeString('en-ZW', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-20 text-right">
-                          {formatCurrency(txn.netAmount)}
+                          {formatCurrency(txn.grossAmount)}
                         </span>
                       </label>
                     ))}

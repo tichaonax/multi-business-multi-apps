@@ -101,7 +101,7 @@ export function EmployeePaymentRow({
                     <span className="absolute left-3 top-2 text-gray-500 dark:text-gray-400">$</span>
                     <input
                       type="number"
-                      step="0.10"
+                      step="0.01"
                       min="0"
                       value={amount}
                       onChange={(e) => handleAmountChange(e.target.value)}

@@ -145,7 +145,7 @@ export function BulkPriceModal({ isOpen, onClose, productIds, onSuccess }: BulkP
                 <input
                   id="fixedPrice"
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   value={fixedPrice}
                   onChange={(e) => setFixedPrice(e.target.value)}
@@ -165,7 +165,7 @@ export function BulkPriceModal({ isOpen, onClose, productIds, onSuccess }: BulkP
                 <input
                   id="costPrice"
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0"
                   value={costPrice}
                   onChange={(e) => setCostPrice(e.target.value)}
@@ -187,7 +187,7 @@ export function BulkPriceModal({ isOpen, onClose, productIds, onSuccess }: BulkP
               <input
                 id="markupPercent"
                 type="number"
-                step="0.10"
+                step="0.01"
                 min="0"
                 value={markupPercent}
                 onChange={(e) => setMarkupPercent(e.target.value)}

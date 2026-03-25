@@ -526,7 +526,7 @@ export function LoansTab({ accountId }: LoansTabProps) {
                 <input
                   type="number"
                   min="0"
-                  step="0.10"
+                  step="0.01"
                   value={payInterest}
                   onChange={e => setPayInterest(e.target.value)}
                   placeholder="0.00"
@@ -547,7 +547,7 @@ export function LoansTab({ accountId }: LoansTabProps) {
                 <input
                   type="number"
                   min="0.01"
-                  step="0.10"
+                  step="0.01"
                   value={payAmount}
                   onChange={e => setPayAmount(e.target.value)}
                   className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary text-sm"

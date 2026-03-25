@@ -118,7 +118,7 @@ export function RepayLoanModal({
                 <span className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400">$</span>
                 <input
                   type="number"
-                  step="0.10"
+                  step="0.01"
                   min="0.01"
                   max={remainingBalance}
                   value={amount}

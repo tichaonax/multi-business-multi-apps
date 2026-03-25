@@ -161,7 +161,7 @@ export function PaymentRecordModal({
               <Input
                 id="amount"
                 type="number"
-                step="0.10"
+                step="0.01"
                 min="0.01"
                 max={balanceRemaining}
                 value={formData.amount}

@@ -208,7 +208,7 @@ export default function PerDiemBatchEntryPage() {
                   <input
                     type="number"
                     min="0"
-                    step="0.10"
+                    step="0.01"
                     placeholder="0.00"
                     value={row.amount}
                     onChange={e => updateRow(row.id, 'amount', e.target.value)}

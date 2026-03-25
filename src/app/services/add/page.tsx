@@ -236,7 +236,7 @@ export default function AddServicePage() {
                         value={formData.sellingPrice}
                         onChange={handleChange}
                         required
-                        step="0.10"
+                        step="0.01"
                         min="0"
                         className="input w-full pl-8"
                         placeholder="0.00"
@@ -255,7 +255,7 @@ export default function AddServicePage() {
                         name="cost"
                         value={formData.cost}
                         onChange={handleChange}
-                        step="0.10"
+                        step="0.01"
                         min="0"
                         className="input w-full pl-8"
                         placeholder="0.00"

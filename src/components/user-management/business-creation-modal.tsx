@@ -343,7 +343,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                             <input
                               type="number"
                               min="0"
-                              step="0.10"
+                              step="0.01"
                               value={formData.ecocashFeeValue}
                               onChange={(e) => setFormData({ ...formData, ecocashFeeValue: e.target.value })}
                               placeholder="0.00"
@@ -358,7 +358,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                               <input
                                 type="number"
                                 min="0"
-                                step="0.10"
+                                step="0.01"
                                 value={formData.ecocashMinimumFee}
                                 onChange={(e) => setFormData({ ...formData, ecocashMinimumFee: e.target.value })}
                                 placeholder="0.00"
@@ -527,7 +527,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                           </label>
                           <input
                             type="number"
-                            step="0.10"
+                            step="0.01"
                             min="0"
                             max="100"
                             value={formData.taxRate}

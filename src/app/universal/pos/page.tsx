@@ -5,7 +5,9 @@
 export const dynamic = 'force-dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
@@ -30,7 +32,9 @@ import type { ReceiptData } from '@/types/printing'
  * construction, vehicles, consulting, retail, services, other
  */
 export default function UniversalPOS() {
+  const { data: session } = useSession()
   const { currentBusiness, currentBusinessId } = useBusinessPermissionsContext()
+  const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const searchParams = useSearchParams()
   const globalCart = useGlobalCart()
   const hasImportedGlobalCart = useRef(false)
@@ -512,6 +516,8 @@ export default function UniversalPOS() {
       notes: undefined,
       ecocashTransactionCode: ecocashData?.ecocashTransactionCode,
       ecocashFeeAmount: ecocashData?.ecocashFeeAmount,
+      salespersonEmployeeId: selectedSalesperson?.employeeId,
+      salespersonName: selectedSalesperson?.name,
       attributes: {
         ...(appliedCoupon ? {
           couponId: appliedCoupon.id,
@@ -534,6 +540,18 @@ export default function UniversalPOS() {
         title={`${config.displayName} POS`}
         description={`Point of Sale system for ${config.displayName.toLowerCase()}`}
       >
+        {/* Salesperson selector — persists across sales on shared terminals */}
+        {currentBusinessId && session?.user?.id && (
+          <div className="mb-3">
+            <SalespersonSelector
+              businessId={currentBusinessId}
+              currentUserId={session.user.id}
+              currentUserName={session.user.name || 'Staff'}
+              onSalespersonChange={(sp) => setSelectedSalesperson(sp)}
+            />
+          </div>
+        )}
+
         <UniversalPOSLayout
           products={products}
           productsLoading={productsLoading}

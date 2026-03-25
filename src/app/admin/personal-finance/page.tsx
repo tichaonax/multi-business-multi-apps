@@ -804,7 +804,7 @@ export default function AdminPersonalFinancePage() {
                   </label>
                   <input
                     type="number"
-                    step="0.10"
+                    step="0.01"
                     value={editForm.amount}
                     onChange={(e) => setEditForm({...editForm, amount: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"

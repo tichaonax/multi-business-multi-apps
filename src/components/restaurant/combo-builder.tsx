@@ -598,7 +598,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                           </label>
                           <Input
                             type="number"
-                            step="0.10"
+                            step="0.01"
                             min="0.01"
                             value={formData.totalPrice || ''}
                             onChange={(e) => setFormData(prev => ({ ...prev, totalPrice: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}

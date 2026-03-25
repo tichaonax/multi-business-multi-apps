@@ -137,6 +137,7 @@ function CustomerDisplayContent() {
     changeDue: number
     shortfall: number
     paymentMethod?: string
+    ecocashFee?: number
   }>({
     inProgress: false,
     amountTendered: 0,
@@ -311,9 +312,14 @@ function CustomerDisplayContent() {
           setEmployeeName(message.payload.employeeName)
           try { localStorage.setItem('cd_employeeName', message.payload.employeeName) } catch { /* ignore */ }
         }
-        if (message.payload.employeePhotoUrl) {
-          setEmployeePhotoUrl(message.payload.employeePhotoUrl)
-          try { localStorage.setItem('cd_employeePhotoUrl', message.payload.employeePhotoUrl) } catch { /* ignore */ }
+        // Update photo URL when explicitly provided (including null to clear photo on salesperson change)
+        if ('employeePhotoUrl' in message.payload) {
+          const photoUrl = message.payload.employeePhotoUrl as string | null
+          setEmployeePhotoUrl(photoUrl)
+          try {
+            if (photoUrl) localStorage.setItem('cd_employeePhotoUrl', photoUrl)
+            else localStorage.removeItem('cd_employeePhotoUrl')
+          } catch { /* ignore */ }
         }
         // Business data (name, phone, customMessage) is ONLY set from API, not from POS broadcast
         break
@@ -348,7 +354,8 @@ function CustomerDisplayContent() {
           amountTendered: 0,
           changeDue: 0,
           shortfall: message.payload.total,
-          paymentMethod: message.payload.paymentMethod
+          paymentMethod: message.payload.paymentMethod,
+          ecocashFee: message.payload.ecocashFee || 0
         })
         break
 
@@ -780,6 +787,7 @@ function CustomerDisplayContent() {
             changeDue={paymentState.changeDue}
             shortfall={paymentState.shortfall}
             paymentMethod={paymentState.paymentMethod}
+            ecocashFee={paymentState.ecocashFee}
           />
         </div>
       </div>

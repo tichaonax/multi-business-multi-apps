@@ -1054,7 +1054,7 @@ export function QuickPaymentModal({
                       errors.amount ? 'border-red-500' : 'border-border'
                     }`}
                     min="0"
-                    step="0.10"
+                    step="0.01"
                     placeholder="0.00"
                   />
                 </div>
