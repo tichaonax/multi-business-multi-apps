@@ -321,13 +321,13 @@ export async function GET(
     }))
 
     // Merge barcodeItems into filteredItems (apply domainId filter only to businessProducts)
-    // BarcodeInventoryItems filtered by category's parentId when domainId is specified
+    // BarcodeInventoryItems: clothing uses domainId on the category; other types use parentId
     let mergedBarcodeItems = barcodeItemsMapped
     if (domainId && domainId !== 'all') {
-      // domainId here filters by the parent BusinessCategory id
       mergedBarcodeItems = barcodeItemsMapped.filter(item => {
         const cat = barcodeItems.find(b => `inv_${b.id}` === item.id)
-        return (cat as any)?.business_category?.parentId === domainId
+        const bc = (cat as any)?.business_category
+        return bc?.domainId === domainId || bc?.parentId === domainId
       })
     }
     const allFilteredItems = [

@@ -8,7 +8,8 @@ interface InventoryCategoryEditorProps {
   category?: InventoryCategory | null; // null/undefined = create mode, otherwise edit mode
   businessId: string;
   businessType: string;
-  onSuccess: () => void;
+  initialDomainId?: string; // Pre-select a department when creating
+  onSuccess: (category?: InventoryCategory) => void;
   onCancel: () => void;
   isOpen: boolean;
 }
@@ -17,6 +18,7 @@ export function InventoryCategoryEditor({
   category,
   businessId,
   businessType,
+  initialDomainId,
   onSuccess,
   onCancel,
   isOpen,
@@ -68,9 +70,9 @@ export function InventoryCategoryEditor({
       setEmoji('📦');
       setColor('#3B82F6');
       setDescription('');
-      setSelectedDomainId('');
+      setSelectedDomainId(initialDomainId || '');
     }
-  }, [category, isEditMode]);
+  }, [category, isEditMode, initialDomainId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +120,8 @@ export function InventoryCategoryEditor({
         throw new Error(errorData.error || `Failed to ${isEditMode ? 'update' : 'create'} category`);
       }
 
-      onSuccess();
+      const responseData = await response.json();
+      onSuccess(responseData.category);
 
       // Reset form
       setName('');
@@ -148,7 +151,7 @@ export function InventoryCategoryEditor({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -160,142 +163,137 @@ export function InventoryCategoryEditor({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-6">
+        <form onSubmit={handleSubmit} className="px-6 py-4">
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4">
               <p className="text-sm">{error}</p>
             </div>
           )}
 
-          {/* Domain Selector (Optional) */}
-          <div>
-            <label htmlFor="category-domain" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Domain Template (Optional)
-            </label>
-            <select
-              id="category-domain"
-              value={selectedDomainId}
-              onChange={(e) => setSelectedDomainId(e.target.value)}
-              disabled={loading || loadingDomains}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-            >
-              <option value="">No template (custom category)</option>
-              {domains.map((domain) => (
-                <option key={domain.id} value={domain.id}>
-                  {domain.emoji} {domain.name}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Link to a domain template or create a custom category
-            </p>
-          </div>
-
-          {/* Category Name */}
-          <div>
-            <label htmlFor="category-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Category Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="category-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Power Tools, Fresh Produce"
-              required
-              disabled={loading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              This category will appear in your inventory navigation
-            </p>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label htmlFor="category-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Description (Optional)
-            </label>
-            <textarea
-              id="category-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Briefly describe this category..."
-              rows={2}
-              disabled={loading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-            />
-          </div>
-
-          {/* Emoji Picker */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select Emoji <span className="text-red-500">*</span>
-            </label>
-            <EmojiPickerEnhanced
-              onSelect={setEmoji}
-              selectedEmoji={emoji}
-              searchPlaceholder="Search for an appropriate emoji..."
-            />
-            {!emoji && (
-              <p className="mt-2 text-xs text-red-500">Emoji is required for all categories</p>
-            )}
-          </div>
-
-          {/* Color Picker */}
-          <div>
-            <label htmlFor="category-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Category Color
-            </label>
-            <div className="flex items-center gap-4">
-              <input
-                id="category-color"
-                type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                disabled={loading}
-                className="h-10 w-20 cursor-pointer rounded border border-gray-300 dark:border-gray-600"
-              />
-              <input
-                type="text"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                placeholder="#3B82F6"
-                disabled={loading}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-              />
-            </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Used for category badges and visual distinction
-            </p>
-          </div>
-
-          {/* Preview */}
-          {(name || emoji) && (
-            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-4">
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
-              <div className="flex items-center gap-3">
-                {emoji && <span className="text-2xl">{emoji}</span>}
-                <span
-                  className="px-3 py-1 rounded-full text-sm font-medium"
-                  style={{
-                    backgroundColor: color + '20',
-                    color: color,
-                    border: `1px solid ${color}40`
-                  }}
+          {/* Two-column layout */}
+          <div className="grid grid-cols-2 gap-6">
+            {/* Left column: text fields + color + preview */}
+            <div className="space-y-4">
+              {/* Domain Selector */}
+              <div>
+                <label htmlFor="category-domain" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Department (Optional)
+                </label>
+                <select
+                  id="category-domain"
+                  value={selectedDomainId}
+                  onChange={(e) => setSelectedDomainId(e.target.value)}
+                  disabled={loading || loadingDomains}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
                 >
-                  {name || 'Category name'}
-                </span>
+                  <option value="">No department (custom)</option>
+                  {domains.map((domain) => (
+                    <option key={domain.id} value={domain.id}>
+                      {domain.emoji} {domain.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {description && (
-                <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">{description}</p>
+
+              {/* Category Name */}
+              <div>
+                <label htmlFor="category-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Category Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="category-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Footwear, Outerwear"
+                  required
+                  disabled={loading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label htmlFor="category-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description (Optional)
+                </label>
+                <textarea
+                  id="category-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Briefly describe this category..."
+                  rows={3}
+                  disabled={loading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                />
+              </div>
+
+              {/* Color Picker */}
+              <div>
+                <label htmlFor="category-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Category Color
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="category-color"
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    disabled={loading}
+                    className="h-10 w-16 cursor-pointer rounded border border-gray-300 dark:border-gray-600"
+                  />
+                  <input
+                    type="text"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    placeholder="#3B82F6"
+                    disabled={loading}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                  />
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-3">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
+                <div className="flex items-center gap-3">
+                  {emoji && <span className="text-2xl">{emoji}</span>}
+                  <span
+                    className="px-3 py-1 rounded-full text-sm font-medium"
+                    style={{
+                      backgroundColor: color + '20',
+                      color: color,
+                      border: `1px solid ${color}40`
+                    }}
+                  >
+                    {name || 'Category name'}
+                  </span>
+                </div>
+                {description && (
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">{description}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Right column: Emoji Picker */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Select Emoji <span className="text-red-500">*</span>
+              </label>
+              <EmojiPickerEnhanced
+                onSelect={setEmoji}
+                selectedEmoji={emoji}
+                searchPlaceholder="Search for an appropriate emoji..."
+              />
+              {!emoji && (
+                <p className="mt-2 text-xs text-red-500">Emoji is required for all categories</p>
               )}
             </div>
-          )}
+          </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
               onClick={handleCancel}

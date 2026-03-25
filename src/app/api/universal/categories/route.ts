@@ -92,6 +92,7 @@ export async function GET(request: NextRequest) {
         _count: {
           select: {
             business_products: true,
+            barcode_inventory_items: true,
             inventory_subcategories: true
           }
         }

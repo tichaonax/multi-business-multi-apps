@@ -32,6 +32,19 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Also get barcodeInventoryItems (created via bulk stocking) with their categories
+    const barcodeItemsWhere: any = { isActive: true, categoryId: { not: null } }
+    if (businessId) barcodeItemsWhere.businessId = businessId
+    else barcodeItemsWhere.business = { type: 'clothing' }
+    const barcodeItems = await prisma.barcodeInventoryItems.findMany({
+      where: barcodeItemsWhere,
+      include: {
+        business_category: {
+          include: { domain: { select: { id: true, name: true, emoji: true } } }
+        }
+      }
+    })
+
     // Get all active clothing businesses for the business selector
     const allBusinesses = await prisma.businesses.findMany({
       where: { type: 'clothing', isActive: true },
@@ -169,6 +182,30 @@ export async function GET(request: NextRequest) {
         }
         stats.byCategory[category.id].count++
       }
+    })
+
+    // Aggregate barcodeInventoryItems into department/category counts
+    barcodeItems.forEach(item => {
+      const category = (item as any).business_category
+      if (!category) return
+      const domain = category.domain
+
+      // Department (domain) breakdown
+      if (domain) {
+        if (!stats.byDepartment[domain.id]) {
+          stats.byDepartment[domain.id] = { name: domain.name, emoji: domain.emoji || '', count: 0, withPrices: 0, withBarcodes: 0, available: 0 }
+        }
+        stats.byDepartment[domain.id].count++
+        if (Number(item.sellingPrice) > 0) stats.byDepartment[domain.id].withPrices++
+        if (item.barcodeData) stats.byDepartment[domain.id].withBarcodes++
+        stats.byDepartment[domain.id].available++
+      }
+
+      // Category breakdown
+      if (!stats.byCategory[category.id]) {
+        stats.byCategory[category.id] = { name: category.name, departmentName: domain?.name || '', count: 0 }
+      }
+      stats.byCategory[category.id].count++
     })
 
     // Price statistics

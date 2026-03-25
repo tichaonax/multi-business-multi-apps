@@ -334,7 +334,7 @@ function CategoryRow({ cat, domains, editing, editForm, saving, onEditFormChange
     <div className={`px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 ${!cat.isActive ? 'opacity-50' : ''}`}>
       <span className="text-lg w-7 text-center">{cat.emoji}</span>
       <span className="flex-1 text-sm">{cat.name}</span>
-      <span className="text-xs text-gray-400">{cat._count?.business_products ?? 0} products</span>
+      <span className="text-xs text-gray-400">{(cat._count?.business_products ?? 0) + (cat._count?.barcode_inventory_items ?? 0)} products</span>
       <span className={`text-xs px-2 py-0.5 rounded-full ${cat.businessId ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
         {cat.businessId ? 'business' : 'global'}
       </span>

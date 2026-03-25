@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ProductData } from '@/components/clothing/bulk-print-modal'
 import { SearchableCategorySelector } from '@/components/expense-account/searchable-category-selector'
+import { InventoryCategoryEditor } from '@/components/inventory/inventory-category-editor'
+import type { InventoryCategory } from '@/types/inventory-category'
 
 interface BaleCategory {
   id: string
@@ -116,8 +118,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   const supplierRef = useRef<HTMLDivElement>(null)
 
   // ── Quick-create state ──────────────────────────────────────────────────────
-  // 'category' = create under current dept, 'subcategory' = create under current category
-  const [newCatLevel, setNewCatLevel] = useState<'category' | 'subcategory'>('category')
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false)
   const [showNewCategoryForm, setShowNewCategoryForm] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newCategoryLoading, setNewCategoryLoading] = useState(false)
@@ -239,11 +240,11 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
     setFilteredSubCategories(catId ? allSubCategories.filter(c => c.parentId === catId) : allSubCategories)
   }
 
-  // ── Quick-create: category (level 2) or sub-category (level 3) ────────────
+  // ── Quick-create: sub-category (level 3) ────────────────────────────────
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return
     setNewCategoryLoading(true)
-    const parentId = newCatLevel === 'subcategory' ? productCategoryId : productDepartmentId
+    const parentId = productCategoryId
     try {
       const res = await fetch('/api/universal/categories', {
         method: 'POST',
@@ -264,19 +265,11 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
         color: data.color || data.data?.color || '#3B82F6',
         parentId: parentId || null,
       }
-      if (newCatLevel === 'subcategory') {
-        setAllSubCategories(prev => [...prev, newCat])
-        if (!productCategoryId || newCat.parentId === productCategoryId) {
-          setFilteredSubCategories(prev => [...prev, newCat])
-        }
-        setProductSubCategoryId(newCat.id)
-      } else {
-        setAllCategories(prev => [...prev, newCat])
-        if (!productDepartmentId || newCat.parentId === productDepartmentId) {
-          setFilteredCategories(prev => [...prev, newCat])
-        }
-        setProductCategoryId(newCat.id)
+      setAllSubCategories(prev => [...prev, newCat])
+      if (!productCategoryId || newCat.parentId === productCategoryId) {
+        setFilteredSubCategories(prev => [...prev, newCat])
       }
+      setProductSubCategoryId(newCat.id)
       setNewCategoryName('')
       setShowNewCategoryForm(false)
     } catch (e) {
@@ -284,6 +277,27 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
     } finally {
       setNewCategoryLoading(false)
     }
+  }
+
+  // ── Category editor success handler ─────────────────────────────────────────
+  const handleCategoryEditorSuccess = (newCat?: InventoryCategory) => {
+    if (newCat) {
+      const cat: BusinessCategory = {
+        id: newCat.id,
+        name: newCat.name,
+        emoji: newCat.emoji,
+        color: newCat.color,
+        parentId: newCat.parentId || null,
+        domainId: newCat.domainId || null,
+      }
+      setAllCats(prev => [...prev, cat])
+      setAllCategories(prev => [...prev, cat])
+      if (!productDepartmentId || cat.domainId === productDepartmentId || cat.parentId === productDepartmentId) {
+        setFilteredCategories(prev => [...prev, cat])
+      }
+      setProductCategoryId(cat.id)
+    }
+    setShowCategoryEditor(false)
   }
 
   // ── Quick-create: supplier ──────────────────────────────────────────────────
@@ -735,25 +749,12 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                   <button
                     type="button"
                     title="Add new category"
-                    onClick={() => { setNewCatLevel('category'); setShowNewCategoryForm(v => !v); setShowNewSupplierForm(false) }}
+                    onClick={() => { setShowCategoryEditor(true); setShowNewCategoryForm(false); setShowNewSupplierForm(false) }}
                     className="mt-0.5 w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-base font-bold hover:bg-indigo-100 flex items-center justify-center shrink-0"
                   >+</button>
                 </div>
                 {departments.length > 0 && !productDepartmentId && (
                   <p className="text-xs text-gray-400 mt-0.5">Select a department first</p>
-                )}
-                {showNewCategoryForm && newCatLevel === 'category' && (
-                  <div className="mt-2 flex gap-2 items-center">
-                    <input autoFocus type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
-                      placeholder={productDepartmentId ? `New category under "${departments.find(d => d.id === productDepartmentId)?.name}"` : 'New category name'}
-                      className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      onKeyDown={e => { if (e.key === 'Enter') handleCreateCategory() }} />
-                    <button type="button" onClick={handleCreateCategory} disabled={newCategoryLoading || !newCategoryName.trim()}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium disabled:opacity-50">
-                      {newCategoryLoading ? '...' : 'Add'}
-                    </button>
-                    <button type="button" onClick={() => setShowNewCategoryForm(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
-                  </div>
                 )}
               </div>
 
@@ -775,11 +776,11 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                     type="button"
                     title="Add new sub-category"
                     disabled={!productCategoryId}
-                    onClick={() => { setNewCatLevel('subcategory'); setShowNewCategoryForm(v => !v); setShowNewSupplierForm(false) }}
+                    onClick={() => { setShowNewCategoryForm(v => !v); setShowCategoryEditor(false); setShowNewSupplierForm(false) }}
                     className="mt-0.5 w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-base font-bold hover:bg-indigo-100 flex items-center justify-center shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                   >+</button>
                 </div>
-                {showNewCategoryForm && newCatLevel === 'subcategory' && (
+                {showNewCategoryForm && (
                   <div className="mt-2 flex gap-2 items-center">
                     <input autoFocus type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
                       placeholder={productCategoryId ? `New sub-category under "${allCategories.find(c => c.id === productCategoryId)?.name}"` : 'Select a category first'}
@@ -924,5 +925,15 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
         </div>
       </div>
     </div>
+
+    {/* Category creation modal */}
+    <InventoryCategoryEditor
+      isOpen={showCategoryEditor}
+      businessId={effectiveBusinessId}
+      businessType={effectiveBusinessType}
+      initialDomainId={productDepartmentId}
+      onSuccess={handleCategoryEditorSuccess}
+      onCancel={() => setShowCategoryEditor(false)}
+    />
   )
 }

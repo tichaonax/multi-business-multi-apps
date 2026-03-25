@@ -5,6 +5,7 @@ import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StockTakeReportPreview } from './stock-take-report-preview'
 import { CustomBulkModal } from './custom-bulk-modal'
+import { InventoryCategoryEditor } from './inventory-category-editor'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 
@@ -156,9 +157,12 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   // Per-row validation errors: rowId → set of field names
   const [rowFieldErrors, setRowFieldErrors] = useState<Record<string, Set<string>>>({})
 
-  // Quick-create state (categories only)
+  // Category editor modal (standard InventoryCategoryEditor for categories)
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false)
+  const [categoryEditorTargetRowId, setCategoryEditorTargetRowId] = useState<string | null>(null)
+  const [categoryEditorInitialDomainId, setCategoryEditorInitialDomainId] = useState<string | undefined>(undefined)
+  // Quick-create state (subcategories only — uses lightweight inline modal)
   const [quickCreateTargetRowId, setQuickCreateTargetRowId] = useState<string | null>(null)
-  const [quickCreateLevel, setQuickCreateLevel] = useState<'category' | 'subcategory'>('category')
   const [showQuickCreate, setShowQuickCreate] = useState(false)
   const [quickCreateName, setQuickCreateName] = useState('')
   const [quickCreateLoading, setQuickCreateLoading] = useState(false)
@@ -783,10 +787,36 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     focusScanInput()
   }
 
-  // Quick-create opener (categories only)
-  const openQuickCreate = (rowId: string, level: 'category' | 'subcategory') => {
+  // Open standard category editor modal for category-level creation
+  const openCategoryEditor = (rowId: string) => {
+    const row = rows.find(r => r.rowId === rowId)
+    setCategoryEditorTargetRowId(rowId)
+    setCategoryEditorInitialDomainId(row?.departmentId || undefined)
+    setShowCategoryEditor(true)
+  }
+
+  // Handle category editor success — add new category to state and select it for the row
+  const handleCategoryEditorSuccess = (newCat?: any) => {
+    setShowCategoryEditor(false)
+    setCategoryEditorTargetRowId(null)
+    if (newCat && categoryEditorTargetRowId) {
+      const cat: BusinessCategory = {
+        id: newCat.id,
+        name: newCat.name,
+        emoji: newCat.emoji || '📦',
+        color: newCat.color || '#3B82F6',
+        parentId: newCat.parentId || null,
+        domainId: newCat.domainId || null,
+      }
+      setAllCats(prev => [...prev, cat])
+      setAllCategories(prev => [...prev, cat])
+      updateRow(categoryEditorTargetRowId, { categoryId: cat.id, subCategoryId: '' })
+    }
+  }
+
+  // Quick-create opener (subcategories only — lightweight inline modal)
+  const openQuickCreate = (rowId: string) => {
     setQuickCreateTargetRowId(rowId)
-    setQuickCreateLevel(level)
     setQuickCreateName('')
     setShowQuickCreate(true)
   }
@@ -819,19 +849,13 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     }
   }
 
+  // Quick-create subcategory (lightweight inline modal — subcategories only)
   const handleQuickCreate = async () => {
     if (!quickCreateName.trim() || !quickCreateTargetRowId) return
     const targetRow = rows.find(r => r.rowId === quickCreateTargetRowId)
     setQuickCreateLoading(true)
     try {
-      // For domain-based businesses (clothing): top-level categories link via domainId, not parentId
-      const isDomainBased = domains.length > 0
-      const parentId = quickCreateLevel === 'subcategory'
-        ? targetRow?.categoryId
-        : (isDomainBased ? undefined : targetRow?.departmentId)
-      const domainId = quickCreateLevel !== 'subcategory' && isDomainBased
-        ? targetRow?.departmentId
-        : undefined
+      const parentId = targetRow?.categoryId
       const res = await fetch('/api/universal/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -840,7 +864,6 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           businessType,
           name: quickCreateName.trim(),
           ...(parentId ? { parentId } : {}),
-          ...(domainId ? { domainId } : {}),
         }),
       })
       const data = await res.json()
@@ -851,16 +874,11 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         emoji: data.emoji || data.data?.emoji || '📦',
         color: data.color || data.data?.color || '#3B82F6',
         parentId: parentId || null,
-        domainId: domainId || data.domainId || data.data?.domainId || null,
+        domainId: null,
       }
       setAllCats(prev => [...prev, newCat])
-      if (quickCreateLevel === 'subcategory') {
-        setAllSubCategories(prev => [...prev, newCat])
-        updateRow(quickCreateTargetRowId, { subCategoryId: newCat.id })
-      } else {
-        setAllCategories(prev => [...prev, newCat])
-        updateRow(quickCreateTargetRowId, { categoryId: newCat.id, subCategoryId: '' })
-      }
+      setAllSubCategories(prev => [...prev, newCat])
+      updateRow(quickCreateTargetRowId, { subCategoryId: newCat.id })
       setQuickCreateName('')
       setShowQuickCreate(false)
       setQuickCreateTargetRowId(null)
@@ -965,8 +983,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const countedCount = isStockTakeMode ? rows.filter(r => r.isExistingItem && r.physicalCount !== '').length : 0
   const totalCountable = isStockTakeMode ? rows.filter(r => r.isExistingItem).length : 0
 
-  // Label for quick-create form
-  const quickCreateLabel = quickCreateLevel === 'subcategory' ? 'New Sub-category' : 'New Category'
+  // Label for quick-create form (subcategories only)
+  const quickCreateLabel = 'New Sub-category'
 
   return (
     <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col pb-20">
@@ -1282,8 +1300,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                   invalidFields={rowFieldErrors[row.rowId] ?? new Set()}
                   onChange={patch => updateRow(row.rowId, patch)}
                   onRemove={() => removeRow(row.rowId)}
-                  onNewCategory={() => openQuickCreate(row.rowId, 'category')}
-                  onNewSubCategory={() => openQuickCreate(row.rowId, 'subcategory')}
+                  onNewCategory={() => openCategoryEditor(row.rowId)}
+                  onNewSubCategory={() => openQuickCreate(row.rowId)}
                   onNewSupplier={() => openSupplierForm(row.rowId)}
                   rowRef={(el: HTMLTableRowElement | null) => { rowRefs.current[row.rowId] = el }}
                   hasPhysicalCountCol={hasExistingItems}
@@ -1451,7 +1469,18 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         />
       )}
 
-      {/* Quick-create modal overlay (categories only) */}
+      {/* Standard category creation modal */}
+      <InventoryCategoryEditor
+        category={null}
+        businessId={businessId}
+        businessType={businessType}
+        initialDomainId={categoryEditorInitialDomainId}
+        isOpen={showCategoryEditor}
+        onSuccess={handleCategoryEditorSuccess}
+        onCancel={() => { setShowCategoryEditor(false); setCategoryEditorTargetRowId(null) }}
+      />
+
+      {/* Quick-create modal overlay (subcategories only) */}
       {showQuickCreate && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">

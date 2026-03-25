@@ -406,7 +406,7 @@ export default function InventoryCategoriesPage() {
                             }}
                             title="View products in this category"
                           >
-                            {category._count?.business_products || 0} products
+                            {(category._count?.business_products || 0) + (category._count?.barcode_inventory_items || 0)} products
                           </Link>
                           {category.inventory_subcategories && category.inventory_subcategories.length > 0 && (
                             <span className="text-sm text-gray-500 dark:text-gray-400">
