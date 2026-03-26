@@ -377,7 +377,9 @@ export async function POST(
       }
 
       // NONE payee type is not allowed — every payment must have a known payee
-      if (payment.payeeType === 'NONE') {
+      // Exception: classified payments (RENT, LOAN_REPAYMENT, TRANSFER_RETURN) may omit a payee
+      const isClassifiedForPayee = payment.paymentType === 'RENT_PAYMENT' || payment.paymentType === 'LOAN_REPAYMENT' || payment.paymentType === 'TRANSFER_RETURN'
+      if (payment.payeeType === 'NONE' && !isClassifiedForPayee) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: A payee is required — please select a supplier, employee, person, or user`, index: i },
           { status: 400 }

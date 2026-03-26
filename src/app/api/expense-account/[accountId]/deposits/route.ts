@@ -460,7 +460,48 @@ export async function POST(
         },
       })
 
-      // 4. If BUSINESS deposit from a different business, create transfer ledger record
+      // 4a. For non-BUSINESS source deposits (MANUAL, OTHER, LOAN): the cash is physical money
+      // being added to the box from outside the normal sales/EOD flow. Record it as a cash
+      // bucket INFLOW so the bucket balance stays accurate.
+      // BUSINESS source deposits come from the business account (already in the bucket via sales) — skip.
+      // EOD source types (EOD_AUTO_DEPOSIT, EOD_RENT_TRANSFER) are handled by EOD itself — skip.
+      const isCashInflow = !['BUSINESS', 'EOD_AUTO_DEPOSIT', 'EOD_RENT_TRANSFER'].includes(sourceType)
+      if (isCashInflow && account.businessId) {
+        const bucketNote = autoNote || manualNote?.trim() || `Deposit to ${account.accountName}`
+        // Record the physical cash arriving in the bucket
+        await tx.cashBucketEntry.create({
+          data: {
+            businessId: account.businessId,
+            entryType: 'DIRECT_DEPOSIT',
+            direction: 'INFLOW',
+            amount: Number(amount),
+            paymentChannel: 'CASH',
+            referenceType: 'EXPENSE_DEPOSIT',
+            referenceId: deposit.id,
+            notes: bucketNote,
+            entryDate: depDate,
+            createdBy: user.id,
+          },
+        })
+        // Immediately earmark it so it does not show as available cash for other requests.
+        // Mirrors what EOD CASH_ALLOCATION does for daily rent/auto-deposit transfers.
+        await tx.cashBucketEntry.create({
+          data: {
+            businessId: account.businessId,
+            entryType: 'CASH_ALLOCATION',
+            direction: 'OUTFLOW',
+            amount: Number(amount),
+            paymentChannel: 'CASH',
+            referenceType: 'EXPENSE_DEPOSIT',
+            referenceId: deposit.id,
+            notes: account.accountName,
+            entryDate: depDate,
+            createdBy: user.id,
+          },
+        })
+      }
+
+      // 4b. If BUSINESS deposit from a different business, create transfer ledger record
       if (sourceType === 'BUSINESS' && sourceBusinessId && sourceBusiness && sourceBusinessId !== account.businessId) {
         await tx.businessTransferLedger.create({
           data: {

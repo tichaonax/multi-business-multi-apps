@@ -30,7 +30,7 @@ export async function GET(
         payments: {
           where: { status: { in: ['PENDING_APPROVAL', 'APPROVED', 'QUEUED'] } },
           include: {
-            expenseAccount: { select: { id: true, accountName: true, accountNumber: true } },
+            expenseAccount: { select: { id: true, accountName: true, accountNumber: true, balance: true } },
             payeeUser: { select: { id: true, name: true } },
             payeeEmployee: { select: { id: true, fullName: true, employeeNumber: true, phone: true } },
             payeePerson: { select: { id: true, fullName: true, phone: true } },

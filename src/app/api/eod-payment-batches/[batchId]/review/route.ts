@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
-import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
+import { updateExpenseAccountBalanceTx, calculateExpenseAccountBalance } from '@/lib/expense-account-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 /**
@@ -96,7 +96,26 @@ export async function POST(
     const ecocashApproved = approvedPayments.filter((p) => (p as any).paymentChannel === 'ECOCASH')
     const totalCashApproved = cashApproved.reduce((s, p) => s + Number(p.amount), 0)
 
-    // Verify sufficient CASH bucket balance
+    // Determine which cash accounts are pre-funded via EOD (EOD_AUTO_DEPOSIT or EOD_RENT_TRANSFER).
+    // Pre-funded accounts: the expense account balance was built up daily via EOD deposits.
+    // All deposits (EOD and direct) are physically stored in the cash bucket.
+    // At approval: the cash bucket is debited for the full amount; the expense account is NOT
+    // given another BUSINESS deposit (it's already pre-funded — adding one would double-fund it).
+    const preFundedAccountIds = new Set<string>()
+    if (cashApproved.length > 0) {
+      const byCashAccountIds = [...new Set(cashApproved.map(p => p.expenseAccountId))]
+      for (const accountId of byCashAccountIds) {
+        const eodAgg = await prisma.expenseAccountDeposits.aggregate({
+          where: { expenseAccountId: accountId, sourceType: { in: ['EOD_AUTO_DEPOSIT', 'EOD_RENT_TRANSFER'] } },
+          _sum: { amount: true },
+        })
+        if (Number(eodAgg._sum.amount ?? 0) > 0) {
+          preFundedAccountIds.add(accountId)
+        }
+      }
+    }
+
+    // Verify sufficient CASH bucket balance (full payment amount — all funds are in the bucket)
     if (cashApproved.length > 0) {
       const bucketRows = await prisma.cashBucketEntry.groupBy({
         by: ['direction'],
@@ -114,41 +133,18 @@ export async function POST(
       }
     }
 
-    // Verify sufficient rent-specific CASH_ALLOCATION earmark in the cash bucket.
-    // Rent payments must come from the portion of cash that was daily-earmarked for rent,
-    // not just from the total cash bucket balance.
-    const rentPaymentsToApprove = cashApproved.filter((p) => (p as any).paymentType === 'RENT_PAYMENT')
-    if (rentPaymentsToApprove.length > 0) {
-      const startOfMonth = new Date()
-      startOfMonth.setDate(1)
-      startOfMonth.setHours(0, 0, 0, 0)
-
-      for (const rentPayment of rentPaymentsToApprove) {
-        const accountName = (rentPayment as any).expenseAccount?.accountName
-        if (!accountName) continue
-
-        const earmarkAgg = await prisma.cashBucketEntry.aggregate({
-          where: {
-            businessId: batch.businessId,
-            entryType: 'CASH_ALLOCATION',
-            direction: 'OUTFLOW',
-            notes: accountName,
-            entryDate: { gte: startOfMonth },
-            deletedAt: null,
-          },
-          _sum: { amount: true },
-        })
-        const earmarked = Number(earmarkAgg._sum.amount ?? 0)
-        const required = Number(rentPayment.amount)
-
-        if (earmarked < required) {
-          return NextResponse.json(
-            {
-              error: `Insufficient rent allocation for "${accountName}". Only $${earmarked.toFixed(2)} has been earmarked from daily EOD cash allocations this month, but $${required.toFixed(2)} is required. More daily EOD allocations are needed before this rent payment can be approved.`,
-            },
-            { status: 400 }
-          )
-        }
+    // Verify sufficient expense account balance for pre-funded accounts.
+    // The expense account balance is the bookkeeping record of how much was set aside.
+    for (const accountId of preFundedAccountIds) {
+      const balance = await calculateExpenseAccountBalance(accountId)
+      const accountPayments = cashApproved.filter(p => p.expenseAccountId === accountId)
+      const required = accountPayments.reduce((s, p) => s + Number(p.amount), 0)
+      const accountName = (accountPayments[0] as any)?.expenseAccount?.accountName ?? 'Account'
+      if (balance < required) {
+        return NextResponse.json(
+          { error: `Insufficient balance in "${accountName}". Available: $${balance.toFixed(2)}, required: $${required.toFixed(2)}. Add more deposits first.` },
+          { status: 400 }
+        )
       }
     }
 
@@ -206,22 +202,27 @@ export async function POST(
 
         for (const [accountId, accountPayments] of byCashAccount) {
           const accountTotal = accountPayments.reduce((s, p) => s + Number(p.amount), 0)
+          const isPreFunded = preFundedAccountIds.has(accountId)
 
-          // Create BUSINESS deposit for all accounts (including rent).
-          // Rent accounts are funded exactly once at approval — the daily EOD no longer
-          // deposits into the expense account; only the cash bucket earmark is set.
-          const deposit = await tx.expenseAccountDeposits.create({
-            data: {
-              expenseAccountId: accountId,
-              sourceType: 'BUSINESS',
-              sourceBusinessId: batch.businessId,
-              amount: accountTotal,
-              depositDate: now,
-              autoGeneratedNote: `EOD batch approval ${now.toISOString().split('T')[0]}`,
-              createdBy: user.id,
-            },
-          })
-          const depositId = deposit.id
+          // For non-pre-funded accounts: create a BUSINESS deposit (ad-hoc flow).
+          // For pre-funded accounts (EOD-funded): skip — balance was already built up via
+          // daily EOD deposits. Creating another deposit here would double-fund the account,
+          // causing the balance to not decrease after the payment is marked SUBMITTED.
+          let depositId: string | null = null
+          if (!isPreFunded) {
+            const deposit = await tx.expenseAccountDeposits.create({
+              data: {
+                expenseAccountId: accountId,
+                sourceType: 'BUSINESS',
+                sourceBusinessId: batch.businessId,
+                amount: accountTotal,
+                depositDate: now,
+                autoGeneratedNote: `EOD batch approval ${now.toISOString().split('T')[0]}`,
+                createdBy: user.id,
+              },
+            })
+            depositId = deposit.id
+          }
 
           const batchSub = await tx.paymentBatchSubmissions.create({
             data: {

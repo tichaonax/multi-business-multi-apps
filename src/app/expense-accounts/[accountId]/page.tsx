@@ -636,6 +636,9 @@ export default function ExpenseAccountDetailPage() {
   const canCreatePayees = canChangeCategory // Only owners, managers, and admins can create payees
   const canEditPayments = canChangeCategory // Same set of roles can edit payments
 
+  const confirm = useConfirm()
+  const alert = useAlert()
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/signin')
@@ -1125,7 +1128,12 @@ export default function ExpenseAccountDetailPage() {
                   {isSystemAdmin && (
                     <button
                       onClick={async () => {
-                        if (!confirm(account.isActive ? 'Deactivate this account? It will be hidden from non-admin users.' : 'Reactivate this account?')) return
+                        const confirmed = await confirm({
+                          title: account.isActive ? 'Deactivate Account' : 'Reactivate Account',
+                          description: account.isActive ? 'Deactivate this account? It will be hidden from non-admin users.' : 'Reactivate this account?',
+                          confirmText: account.isActive ? 'Deactivate' : 'Reactivate',
+                        })
+                        if (!confirmed) return
                         const res = await fetch(`/api/expense-account/${accountId}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },

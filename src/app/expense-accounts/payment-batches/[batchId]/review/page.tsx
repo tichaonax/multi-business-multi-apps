@@ -61,7 +61,7 @@ interface BatchPayment {
   status: string
   adHoc: boolean
   expenseAccountId: string
-  expenseAccount: { id: string; accountName: string; accountNumber: string } | null
+  expenseAccount: { id: string; accountName: string; accountNumber: string; balance: number } | null
   payeeType: string
   payeeUser?: { name: string } | null
   payeeEmployee?: { fullName: string; phone?: string | null } | null
@@ -187,17 +187,13 @@ export default function BatchReviewPage() {
   const totalEcocashApproved = approvedPayments.filter(p => p.paymentChannel === 'ECOCASH').reduce((s, p) => s + p.amount, 0)
   const allDecided = undecidedPayments.length === 0 && pendingPayments.length > 0
 
-  // For each RENT_PAYMENT, check if the CASH_ALLOCATION earmark covers the amount.
+  // For each RENT_PAYMENT, check if the expense account balance covers the amount.
   // Returns { earmarked, required, shortfall } if blocked, null if ok.
   function getRentBlock(p: BatchPayment): { earmarked: number; required: number; shortfall: number } | null {
     if (p.paymentType !== 'RENT_PAYMENT') return null
-    if (!bucketBreakdown) return null
-    const accountName = p.expenseAccount?.accountName
-    if (!accountName) return null
-    const earmark = bucketBreakdown.allocations.find(a => a.accountName === accountName)
-    const earmarked = earmark?.amount ?? 0
-    if (earmarked < p.amount) {
-      return { earmarked, required: p.amount, shortfall: p.amount - earmarked }
+    const balance = p.expenseAccount?.balance ?? 0
+    if (balance < p.amount) {
+      return { earmarked: balance, required: p.amount, shortfall: p.amount - balance }
     }
     return null
   }
@@ -549,10 +545,10 @@ export default function BatchReviewPage() {
                           )}
                           {rentBlock && (
                             <div className="text-[10px] px-1.5 py-1 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-right max-w-[210px] space-y-0.5">
-                              <div>⚡ Insufficient rent allocation</div>
+                              <div>⚡ Insufficient rent balance</div>
                               <div>
                                 <span className="text-amber-600 dark:text-amber-400 font-bold">{fmt(rentBlock.earmarked)}</span>
-                                <span> earmarked of </span>
+                                <span> available of </span>
                                 <span className="text-blue-600 dark:text-blue-400 font-bold">{fmt(rentBlock.required)}</span>
                               </div>
                               <div>
@@ -563,11 +559,11 @@ export default function BatchReviewPage() {
                           )}
                           <div className="flex gap-1">
                           <button
-                            onClick={() => !rentBlock && !bucketLoading && setApprove(p.id)}
-                            disabled={!!rentBlock || (isRentPayment && bucketLoading)}
-                            title={rentBlock ? `Shortfall: ${fmt(rentBlock.shortfall)}` : (isRentPayment && bucketLoading ? 'Checking rent allocation…' : undefined)}
+                            onClick={() => !rentBlock && setApprove(p.id)}
+                            disabled={!!rentBlock}
+                            title={rentBlock ? `Shortfall: ${fmt(rentBlock.shortfall)}` : undefined}
                             className={`px-2.5 py-1 text-xs font-semibold rounded border transition-colors ${
-                              rentBlock || (isRentPayment && bucketLoading)
+                              rentBlock
                                 ? 'border-gray-300 text-gray-400 dark:text-gray-600 bg-gray-100 dark:bg-gray-800 cursor-not-allowed'
                                 : isApprovedDecision
                                 ? 'bg-green-600 text-white border-green-600'
@@ -628,7 +624,7 @@ export default function BatchReviewPage() {
                 </button>
                 <button
                   onClick={handleSubmitReview}
-                  disabled={submitting || !allDecided || approvedPayments.length === 0 || (cashBoxBalance !== null && cashBoxBalance < totalCashApproved) || (ecocashBalance !== null && ecocashBalance < totalEcocashApproved)}
+                  disabled={submitting || !allDecided || (cashBoxBalance !== null && cashBoxBalance < totalCashApproved) || (ecocashBalance !== null && ecocashBalance < totalEcocashApproved)}
                   className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
                 >
                   {submitting ? 'Processing…' : `🖨 Process & Print Report — ${fmt(totalApproved)}`}
