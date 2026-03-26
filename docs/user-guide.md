@@ -18,9 +18,19 @@
 10. [Chicken Run Management](#10-chicken-run-management)
 11. [Construction & Projects](#11-construction--projects)
 12. [Driver & Vehicle Log](#12-driver--vehicle-log)
-13. [WiFi Token Sales (R710)](#13-wifi-token-sales-r710)
+13. [WiFi Token Sales — ESP32 and R710](#13-wifi-token-sales--esp32-and-r710)
 14. [Inventory & Barcode Labels](#14-inventory--barcode-labels)
-15. [Quick Reference Cards](#15-quick-reference-cards)
+    - [Custom Bulk Products](#custom-bulk-products--complete-guide)
+    - [Bulk Stocking Panel & Stock Take](#bulk-stocking-panel--receiving-and-counting-stock)
+    - [Used Clothing Bales](#used-clothing-bales--complete-guide)
+    - [Barcode Templates](#barcode-templates--creating-and-using-label-designs)
+15. [Restaurant Menu Management](#15-restaurant-menu-management)
+15a. [Services as Products](#15a-services-as-products--selling-services-via-barcode)
+16. [Quick Reference Cards](#16-quick-reference-cards)
+17. [Suppliers & Payees](#17-suppliers--payees)
+18. [Batch EOD Catch-Up — Manager and Cashier Roles](#18-batch-eod-catch-up--manager-and-cashier-roles)
+19. [Employee Termination Checklist](#employee-termination--full-checklist)
+20. [Team Chat](#20-team-chat)
 
 ---
 
@@ -126,13 +136,58 @@ Once items are in the cart:
 
 ### Step 3 — Selecting a Customer (Optional but Recommended)
 
-To link the sale to a customer (for loyalty rewards, purchase history, or layby):
+Linking a customer to an order enables purchase history tracking, loyalty reward qualification, layby accounts, and targeted campaigns. It takes only a few seconds at checkout.
+
+#### Searching for an Existing Customer
 
 1. Click **Select Customer** (above the cart).
-2. Search by name, phone number, or scan their loyalty card barcode.
-3. Click the customer's name to select them.
+2. A search box appears. Type at least 2 characters — the system searches by:
+   - Customer name
+   - Phone number
+   - Customer number (e.g., `RES-CUST-000012`)
+   - Email address
+3. Matching results appear as a dropdown. Click the customer's name to select them.
 
-Their name will appear at the top of the cart. All purchases will be recorded against their account.
+Their name appears at the top of the cart. The order will be recorded against their account.
+
+#### Scanning the Customer's Loyalty Card
+
+The fastest method — no typing required:
+
+1. Point the barcode scanner at the customer's loyalty card.
+2. The system recognises the customer number barcode (format `RES-CUST-000012`) and **instantly pre-selects the customer** in the POS.
+3. If the cashier is on a different business's POS than where the customer was registered, a prompt appears asking whether to switch to the correct POS.
+
+> Scanning a loyalty card works at any time — even if someone else is using the screen. A customer scan never interrupts an in-progress sale.
+
+#### Creating a New Customer at the POS (Inline)
+
+If the customer is not yet in the system, you can register them without leaving the POS:
+
+1. Click **Select Customer** → type their name → click **+ Add New Customer**.
+2. Fill in:
+   - **Full name** *(required)*
+   - **Phone number** *(required — minimum 9 digits)*
+   - Email, address, and other details are optional and can be added later
+3. Click **Save**.
+4. The system generates a customer number and immediately selects them for the current order.
+5. A **Print Loyalty Card** button appears — print the card and hand it to the customer before they leave.
+
+#### Why Associate a Customer with an Order?
+
+| Benefit | How it works |
+|---------|-------------|
+| **Purchase history** | Every sale is recorded — manager can see what they bought and when |
+| **Loyalty rewards** | Spending tracked against campaigns; eligible customers earn rewards automatically |
+| **Layby accounts** | Customer can pay off items over time (requires a customer account) |
+| **Targeted campaigns** | Customers who reach a spend threshold earn discount credits, free items, or WiFi passes |
+| **Customer activity report** | Manager can identify top spenders, at-risk customers, and lapsed customers |
+
+#### Continuing Without a Customer (Walk-In)
+
+If the customer does not want to share their details or you are too busy:
+- Simply leave the customer field blank and proceed.
+- The sale is recorded as a **Walk-In** order — it is complete and correct, but no purchase history is attached to an individual.
 
 ### Step 4 — Processing Payment
 
@@ -178,6 +233,9 @@ If your till has a second screen facing the customer, it will automatically show
 - Items currently in the cart.
 - The running total.
 - Promotions and advertisements when the till is idle.
+- The **salesperson's name and photo** — if a salesperson has been selected using the Salesperson Selector at the top of the POS, the display shows that person's name, not the logged-in user's name. This lets you correctly identify which staff member is serving the customer even if multiple people share the same login session.
+
+> **Note:** The customer display updates automatically when a salesperson is selected or changed. The display always reflects the salesperson currently active on the POS, not the account used to sign in.
 
 ---
 
@@ -219,20 +277,131 @@ When approved expenses need to be paid out:
 4. Give the cash to the person being paid and ask them to sign the voucher.
 5. Record the withdrawal in the Cash Bucket (if not already recorded by the system).
 
-### End-of-Day Reconciliation (EOD)
+### End-of-Day Close — Full Walkthrough
 
-The EOD process closes the day's books and confirms that cash on hand matches the system's records.
+The EOD process finalises the day's trading, transfers money into savings accounts, reconciles cash, and locks the records so they cannot be changed.
 
-**When your manager tells you to run EOD:**
+---
 
-1. Go to **Expense Accounts → Payment Batches** or the EOD section your manager uses.
-2. Confirm the date covers today's activity.
-3. Count your physical cash.
-4. Enter the physical cash count when prompted.
-5. The system will compare your count with the expected total and show any difference (shortage or overage).
-6. Submit the reconciliation. Your manager will review and approve it.
+#### Step 1 — Open the EOD Report Page
 
-> **If there is a difference:** Do not panic. Enter the actual count. Write a note explaining anything unusual (e.g., "Gave change for $50, received a counterfeit note"). The manager handles approval.
+Go to **[Your Business] → Reports → End of Day** (e.g. Restaurant → Reports → End of Day).
+
+The page loads today's trading summary:
+- Total sales and order count
+- Breakdown by payment method (Cash, Card, etc.)
+- Sales per employee
+- Sales by category
+
+Review these figures before proceeding. If numbers look wrong, investigate before closing.
+
+---
+
+#### Step 2 — Rent Transfer (if configured)
+
+If your business has a **Rent Account** configured with "Auto-transfer on EOD" turned on, a rent transfer section appears.
+
+**What it does:** Records the configured daily rent amount (e.g. $16.00) against the Rent Expense Account balance. This builds up the rent balance so that when rent is due the full amount is confirmed as set aside.
+
+- Click **Include Rent Transfer** (or it may run automatically).
+- The system checks whether a transfer was already done today (it will not double-transfer).
+- The rent account balance increases by the daily amount.
+- A transaction record is created with type `EOD_RENT_TRANSFER`.
+
+**Important — where the money physically lives:**
+The daily rent amount is tracked as part of the cash bucket (all physical cash is kept in the cash bucket). The rent account is a **bookkeeping record** that shows how much of the cash bucket is earmarked for rent. When rent is eventually paid out, the full rent amount is drawn from the cash bucket.
+
+> If rent transfer fails (e.g. insufficient business account balance), the EOD does not stop — a warning is shown and you can proceed.
+
+---
+
+#### Step 3 — Auto-Deposits (if configured)
+
+If auto-deposit rules are set up (e.g. "move $10/day into the Staff Welfare account"), a preview table appears listing every active auto-deposit:
+
+| Account | Daily Amount | Status |
+|---------|-------------|--------|
+| Staff Welfare Fund | $10.00 | ✅ Will process |
+| Building Maintenance | $5.00 | ⏭ Skipped (cap reached) |
+
+**What each status means:**
+- **Will process** — the deposit will run and money moves from the business account to that expense account.
+- **Cap reached** — the account has already accumulated its configured maximum; no deposit today.
+- **Insufficient funds** — the business account does not have enough for this deposit.
+- **Frozen / Inactive** — the expense account is not accepting deposits right now.
+- **Before start / After end date** — the auto-deposit schedule is outside its active window.
+
+Click **Process Auto-Deposits** to execute. The system processes each eligible deposit and shows a results summary.
+
+> Auto-deposits are idempotent — running EOD twice for the same date will not deposit twice.
+
+---
+
+#### Step 4 — Enter Manager Name and Cash Count
+
+Two fields appear at the bottom of the EOD page:
+
+1. **Manager Name** — type the name of the manager authorising the close. This is your electronic signature on the day's records.
+2. **Cash Counted** (optional) — count the physical notes and coins in the till and enter the total here.
+
+**What the system does with the cash count:**
+- Calculates **Expected Cash** = total cash sales from the POS for the day.
+- Calculates **Variance** = Cash Counted − Expected Cash.
+- A positive variance means more cash than expected (overage).
+- A negative variance means less cash than expected (shortage).
+
+The variance is saved in the report. Managers review it — small variances are normal (rounding, change errors); large variances need investigation.
+
+---
+
+#### Step 5 — Save and Lock the EOD Report
+
+Click **Save EOD Report** (or **Close Day**).
+
+**What happens:**
+- The report is saved as a **locked snapshot** — the figures cannot be changed after this point.
+- Status changes to **Locked**.
+- The cash allocation report (for the cashier's physical handover) is generated automatically.
+- A notification is sent to the approver.
+
+> Once locked, an EOD report can only be reviewed, not edited. Contact your system administrator if a correction is genuinely needed.
+
+---
+
+#### Step 6 — Cash Allocation Review (Cashier Follow-up)
+
+After the EOD is saved, a **Cash Allocation Report** is created automatically. This is the cashier's checklist for handing over the day's cash to the designated accounts.
+
+Go to **[Business] → Reports → Cash Allocation** to open it.
+
+The report lists every money movement from the EOD:
+- Rent transfer (with amount)
+- Each auto-deposit (with account name and amount)
+
+For each line item the cashier must:
+1. Count the physical cash matching that line item.
+2. Check the checkbox ✅ and confirm the amount.
+
+Once all items are checked and amounts match:
+- Click **Lock Allocation**.
+- The system records a **Cash Bucket OUTFLOW** for each line item (cash leaving the till).
+- The report status changes to **LOCKED** — the day's cash reconciliation is complete.
+
+> **If you do not have enough cash in the till** to cover all allocation items, the system will flag it but will not block you. It records the outflows it can and marks skipped items — the manager resolves the shortfall separately.
+
+---
+
+#### Catching Up Missed Days (Grouped EOD)
+
+If EOD was not run for one or more past days, use **Grouped EOD Catch-Up**:
+
+1. Go to **[Business] → Reports → EOD Catch-Up** (or the manager will open it from Cash Allocation).
+2. **Step 1 — Select days**: A list of unclosed dates appears (up to 60 days back). Tick the ones to close.
+3. **Step 2 — Preview**: See the sales totals and order counts for each selected day before committing.
+4. **Step 3 — Manager sign-off**: Enter the manager name and a single **total cash received** figure covering all selected days combined.
+5. **Step 4 — Run**: The system closes each day in order (oldest first), running rent transfers and auto-deposits for each. A single grouped cash allocation report is created covering all selected dates.
+
+The catch-up run is also idempotent — if it fails partway through and you run it again, already-processed days are skipped.
 
 ### Funding Payroll from the Cash Box
 
@@ -265,62 +434,357 @@ Click any item to review and approve or decline it.
 
 ---
 
-### Running Payroll
+### Payroll — Complete Workflow
 
-#### Step 1 — Create a Payroll Period
+Payroll involves several roles and a defined sequence of steps. No step can be skipped — the system enforces the order.
+
+---
+
+#### Who Does What
+
+| Role | Responsibilities |
+|------|----------------|
+| **Manager** | Creates the period, edits entries, syncs data, submits for approval, funds the account |
+| **Business Owner** | The only person who can **approve** payroll — no export is possible without owner approval |
+| **Cashier** | Pulls physical cash from the cash box when the manager prints a withdrawal voucher; distributes salary to employees and collects signatures |
+
+---
+
+#### Payroll Period Statuses
+
+A payroll period moves through these stages in order:
+
+```
+draft → in_progress → review → approved → exported → closed
+```
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | Period created, entries being built |
+| **In Progress** | Manager is actively editing entries |
+| **Review** | Manager has submitted — waiting for owner approval |
+| **Approved** | Owner has approved — ready to export |
+| **Exported** | Excel file generated and downloaded — period is locked |
+| **Closed** | All payments disbursed and reconciled |
+
+---
+
+#### Step 1 — Manager Creates the Period
 
 1. Go to **Payroll** in the top menu.
 2. Click **New Payroll Period**.
-3. Choose the business (or "All" for all businesses together).
-4. Set the start date and end date (e.g., 1 March – 31 March).
+3. Choose the business (or "All" for all businesses).
+4. Set the month and year (e.g. March 2026).
 5. Click **Create Period**.
 
-#### Step 2 — Review Entries
+The system automatically pulls in all active employees with their current salary, benefits, and allowances from their contracts. Status → **Draft**.
 
-The system automatically pulls in all active employees with their salary details. You will see a list showing:
-- Employee name
-- Basic salary
-- Benefits and allowances
-- Any advances
-- Net pay (the amount they take home)
+---
 
-**To make changes:**
-- Click any employee's row to edit their entry for this period.
-- You can adjust individual items (e.g., add a bonus, record an absence deduction).
+#### Step 2 — Manager Syncs Attendance and Absences
 
-At the top of the page, you will see the **total amount needed** to fund this payroll run.
+Before reviewing figures, run **Sync All** to pull in live data:
 
-#### Step 3 — Check the Payroll Account Balance
+1. On the payroll period page, click **⟳ Sync All**.
+2. The system processes every employee simultaneously:
+   - **Absence sync** — counts recorded absence days from the HR module and applies them as deductions.
+   - **Clock-in sync** — reviews all clock-in/clock-out records for the period and calculates:
+     - **Tardiness deductions** — if an employee clocked in late or left early, the shortfall is converted to a deduction at their hourly rate.
+     - **Overtime credits** — if they worked up to 30 minutes extra, a small credit is added.
+     - **Overtime pay** — if they worked more than 30 minutes beyond the shift, a 1.5× rate overtime amount is created as a pending adjustment.
 
-Below the total, you will see the current **Payroll Account Balance**. If the balance is lower than what is needed, a red warning bar will appear:
+3. A summary appears: "Synced 12 entries — absences: 4, clock-in adjustments: 7".
 
-> ⚠ **Payroll requires $X,XXX.XX — account balance is $X,XXX.XX (short by $XXX.XX). Please fund the account before approving.**
+> Run Sync All at least once before reviewing entries. You can run it multiple times — it recalculates without duplicating.
 
-To add funds:
-1. Click **Fund Payroll** (or go to **Payroll → Account → Deposits**).
-2. The system will show you which cash boxes to pull from and how much.
-3. Print the **Withdrawal Voucher** and give it to your cashier.
-4. Once the cashier confirms the cash, the account balance updates automatically.
+---
 
-#### Step 4 — Approve Payroll
+#### Step 3 — Manager Reviews and Edits Individual Entries
 
-Once the account has enough funds:
-1. Back on the payroll period page, click **Approve Payroll**.
-2. Confirm the total amount.
-3. The payroll period status changes to **Approved**.
+Click any employee row to open their **Entry Detail**. Here the manager can:
 
-#### Step 5 — Export for Payment
+**Edit basic figures:**
+- Work days for the month
+- Sick days and leave days taken
+- Commission amount (if applicable)
 
-1. Click **Export** to download the payroll file.
-2. Use this file to process bank transfers or hand payments to employees.
-3. Each employee should sign a payment confirmation.
+**Review and approve adjustments:**
+- Pending overtime credits appear with an **Approve** button — the manager sets the exact amount and approves each one.
+- Pending tardiness deductions appear — the manager can override the calculated amount if circumstances warrant.
 
-#### Step 6 — Reconcile
+**Edit deductions:**
+- Salary advance deductions for this period
+- Loan repayments (auto-calculated from active loans but can be overridden)
+- Miscellaneous deductions
 
-After all payments are made:
+**Review benefits:**
+- All active benefits (housing allowance, medical aid, transport) are listed.
+- Toggle benefits on or off for this period if needed.
+
+**Per diem:**
+- The total per diem entered separately (via Employees → Per Diem) is shown here as a read-only figure. It cannot be edited from this modal — edit it in the Per Diem module.
+
+The entry shows a running breakdown:
+```
+Basic Salary:       $500.00
+Commission:         $  0.00
+Overtime:           $ 12.50
+Per Diem:           $ 45.00
+Benefits:           $ 30.00
+──────────────────────────────
+Gross Pay:          $587.50
+Advances/Loans:   - $ 50.00
+──────────────────────────────
+Net Pay:            $537.50
+```
+
+---
+
+#### Step 4 — Manager Checks the Payroll Total and Funds the Account
+
+At the top of the period page the **total net pay** for all employees is shown. Compare this against the **Payroll Account Balance**.
+
+If the account is short:
+
+> ⚠ **Payroll requires $4,250.00 — account balance is $3,100.00 (short by $1,150.00). Please fund the account before approving.**
+
+**To fund:**
+1. Click **💵 Fund Payroll**.
+2. The system calculates how much to pull from each business's cash box.
+3. Print the **Withdrawal Voucher** and hand it to the cashier.
+4. The cashier counts the cash, signs the voucher, and confirms.
+5. The payroll account balance updates automatically.
+
+Repeat until the balance covers the total net pay.
+
+---
+
+#### Step 5 — Manager Submits for Owner Approval
+
+Once all entries look correct and the account is funded:
+
+1. Click **Submit for Review**.
+2. Status → **Review**.
+3. The business owner receives a notification that payroll is ready to approve.
+
+> **Only the business owner can approve.** Managers cannot approve their own payroll submission.
+
+---
+
+#### Step 6 — Owner Reviews and Approves
+
+The owner opens the payroll period (from the notification or from **Payroll** in the menu):
+
+1. Review the period summary — total employees, gross pay, deductions, net pay.
+2. Confirm the payroll account balance is sufficient (shown on screen).
+3. Click **Approve Payroll**.
+4. Status → **Approved**.
+
+**What happens automatically on approval:**
+- Approval timestamp and owner name are recorded.
+- Any loan deductions in the payroll entries are automatically reconciled — the loan balances decrease and repayment records are created.
+
+---
+
+#### Step 7 — Export the Payroll Spreadsheet
+
+With the period approved, the manager exports the file for the third-party payroll processor:
+
+1. Click **Export to Excel** (for the current month) or **Export YTD** (all months January to current).
+2. The system generates a `.xlsx` file.
+3. Status → **Exported**. The period is now **locked** — no further changes can be made.
+
+**Columns in the exported spreadsheet:**
+
+| Column | Source |
+|--------|--------|
+| ID Number | Employee national ID |
+| Date of Birth | Employee profile |
+| First Name | Employee profile |
+| Last Name | Employee profile |
+| Work Days | Entry (from sync or manual) |
+| Basic Salary | Employment contract |
+| Commission | Contract / manual override |
+| Living Allowance | Contract allowances |
+| Vehicle Reimbursement | Contract allowances |
+| Travel Allowance | Contract allowances |
+| Overtime | Approved overtime adjustments |
+| Per Diem | Per diem entries for the month |
+| Benefits | Total of all active benefits |
+| Advances | Salary advances deducted |
+| Loans | Loan repayments deducted |
+| Gross Pay | Sum of all earnings |
+| Deductions | Advances + loans |
+| Net Gross | Gross Pay − Deductions |
+
+The file is handed to the third-party payroll processor (e.g. an external payroll bureau or accountant) who applies PAYE, NSSA, and any other statutory deductions to produce the final payslips and tax returns.
+
+---
+
+#### Step 8 — Post-Export: Payslips, ZIMRA, and Statutory Returns
+
+After the third-party processor returns the completed payroll:
+
+**Capturing payslips:**
+1. Return to the exported period in **Payroll**.
+2. Click **📋 Capture Payslips**.
+3. Upload or confirm each employee's payslip has been distributed.
+4. The system records which payslips have been captured (status → `CAPTURED`).
+
+**ZIMRA P2 / P6 Returns:**
+- The third-party processor generates the PAYE return (P2 form) and NSSA contribution schedule from the exported spreadsheet.
+- Once filed with ZIMRA, note the filing reference on the period record.
+- Any tax or NSSA payment receipts should be filed with the payroll records for that month.
+
+**ZIMRA Year-to-Date (P14 / ITC):**
+- Use the **Export YTD** button to download all months January to December in a single multi-tab file.
+- The external processor uses this to prepare annual employee tax certificates (ITF16 / P14).
+
+> The system does **not** calculate PAYE or NSSA directly — it produces the gross pay figures that the third-party processor uses. All statutory calculations and filings happen outside the system.
+
+---
+
+#### Step 9 — Disbursing Payments to Employees
+
+After export:
+
+1. Click **💸 Process Payments** on the period page.
+2. A payment batch is created listing each employee and their net pay amount.
+3. The cashier receives a notification to disburse.
+4. For each employee:
+   - Count out the correct cash amount.
+   - The employee signs the payslip or a payment register.
+   - Mark the line item as **Paid** in the system.
+5. Once all employees are paid, click **Mark Batch Complete**.
+
+For employees paid by bank transfer, the transfer is initiated externally and the cashier marks the entry as paid once the transfer is confirmed.
+
+---
+
+#### Step 10 — Closing the Period
+
+After all payments are disbursed and payslips are captured:
+
 1. Return to the payroll period.
-2. Click **Reconcile** to mark all entries as paid.
-3. The period closes and is archived in reports.
+2. Click **Close Period**.
+3. Status → **Closed**.
+
+The period is archived. It remains visible under **Payroll → History** and is included in all historical reports.
+
+---
+
+### Setting Daily Sales Performance Targets
+
+The POS displays a live **performance bar** while cashiers are selling. It shows how close today's sales are to your target, using three colour bands. Managers set these thresholds per business.
+
+**Where to configure:**
+Go to **[Business] → Settings → POS Settings → Sales Performance Targets** (or **Universal → POS → Settings → Performance**).
+
+**The three thresholds:**
+
+| Field | What it means | Example |
+|-------|--------------|---------|
+| **Fair minimum ($)** | Sales below this amount show 🔴 Low — the day is off to a slow start | $100 |
+| **Good minimum ($)** | Sales at or above this amount show 🟢 Good — on track | $150 |
+| **Full bar amount ($)** | The progress bar fills to 100% at this amount — the target to hit | $200 |
+
+**Rules:**
+- Fair minimum must be at least $1.
+- Good minimum must be higher than Fair minimum.
+- Full bar amount must be at least as high as Good minimum.
+
+**How to set them:**
+1. Enter your three dollar amounts.
+2. The live preview below the form shows sample badges — e.g. "$80 = 🔴 Low", "$130 = 🟡 Fair", "$180 = 🟢 Good".
+3. Click **Save**. Changes take effect the next time the POS page loads.
+
+> **Tip:** Set the Full bar amount to your realistic daily target, not a stretch goal. Cashiers should be able to reach 🟢 Good on a normal trading day. Reserve the Full bar as a "great day" milestone.
+
+When sales exceed the Full bar amount, the badge shows ⭐ stars — one extra star for every 10% above the target, up to five stars.
+
+---
+
+### Payment Request Workflow — From Submission to Payment
+
+This describes the full lifecycle of an expense payment request, including the notification bells at each stage.
+
+#### Stage 1 — Employee Submits a Request
+
+An employee goes to **Expense Accounts → [Account Name] → New Payment Request** and fills in:
+- Amount
+- What it is for (description)
+- Reference number or receipt number (if available)
+
+They click **Submit for Approval**.
+
+**What happens:**
+- A payment request record is created with status **SUBMITTED**.
+- A 🔔 notification is sent to the manager(s) authorised to approve payments from that account.
+- The bell icon on the manager's screen shows an increased count.
+
+---
+
+#### Stage 2 — Manager Reviews and Approves
+
+The manager sees the bell 🔔 and clicks it (or goes to **Pending Actions**). The request appears with the submitter's name, amount, account, and description.
+
+**Manager actions:**
+
+| Action | What happens |
+|--------|-------------|
+| **Approve** | Request status → **APPROVED**. Employee receives a 🔔 notification that their request was approved. Request is queued for the next payment batch. |
+| **Decline** | Manager enters a reason. Request status → **DECLINED**. Employee receives a 🔔 notification with the reason. |
+
+> Approved requests are not paid immediately — they wait for a payment batch to be processed.
+
+---
+
+#### Stage 3 — Payment Batch (Grouping Approved Requests)
+
+When enough approved requests have accumulated, the manager creates a batch:
+
+1. Go to **Expense Accounts → Payment Batches → New Batch**.
+2. The system groups all **APPROVED** requests into a single batch.
+3. Review the batch — you see each payee, their amount, and the source account.
+4. On the review screen, **Approve** or **Reject** each individual payment:
+   - Approved items are paid out; rejected items are returned to the queue for the next cycle.
+   - You may reject all items (e.g. to defer the entire batch) — the batch can still be processed.
+5. Click **Process & Print Report** once every payment has a decision.
+6. Print the **Batch Payment Voucher** as a physical record.
+
+**What happens:**
+- Approved requests move to status **APPROVED** and cash is disbursed from the cash bucket.
+- Rejected requests return to **QUEUED** and will appear in the next EOD batch.
+- The cashier receives a 🔔 notification that a payment batch needs physical cash disbursement.
+- The batch appears in the Cash Office payment queue.
+
+---
+
+#### Stage 4 — Cash Disbursement (Cashier)
+
+The cashier opens the batch from their queue:
+
+1. Go to **Cash Office → Payment Batches** (or the notification link).
+2. The batch lists each payee and amount.
+3. For each payee: count out the cash, hand it to them, and mark the line item **Paid** (or the payee signs a slip).
+4. Once all items are disbursed, click **Mark Batch Complete**.
+
+**What happens:**
+- Each request moves to status **PAID**.
+- A Cash Bucket **OUTFLOW** entry is recorded for the total batch amount.
+- Each submitter receives a 🔔 notification: "Your payment request of $XX has been paid."
+
+---
+
+#### Notification Bell Summary
+
+| Event | Who gets notified |
+|-------|------------------|
+| Employee submits a request | Manager (🔔 +1 on bell) |
+| Manager approves | Employee (🔔 "Your request was approved") |
+| Manager declines | Employee (🔔 "Your request was declined: [reason]") |
+| Batch created / ready to pay | Cashier (🔔 "Payment batch ready for disbursement") |
+| Batch marked complete / paid | Each payee in the batch (🔔 "Your payment has been processed") |
 
 ---
 
@@ -343,8 +807,13 @@ When several approved payments have built up:
 2. Click **New Batch** to group the pending approved payments together.
 3. Review the batch — you will see each payee, the amount, and the source expense account.
 4. Click **Review Batch** to open the final review screen.
-5. Confirm details are correct, then click **Process Batch**.
-6. Print the **Batch Payment Voucher** as a record.
+5. For each payment, click **Approve** or **Reject**:
+   - **Approve** — the payment will be processed and cash disbursed.
+   - **Reject** — the payment is returned to the queue for the next EOD cycle (useful when funds are unavailable or timing is wrong). You can reject **all** payments in a batch — the batch can still be processed with zero approvals.
+6. Once every payment has a decision, click **Process & Print Report**.
+7. Print the **Batch Payment Voucher** as a record.
+
+> **Rejecting a rent payment:** If the rent payment is not ready to go out (e.g., landlord gave an extension), reject it in the batch review — it will reappear in the queue for the following EOD and can be approved then.
 
 ---
 
@@ -394,17 +863,68 @@ Click **Export CSV** or **Export PDF** to download the report for use in Excel o
 
 ---
 
-### Managing Salary Increases
+### Salary Increases and Contract Updates
 
-When an employee is due a raise:
+#### Requesting a Salary Increase
 
-1. Go to **Employees** and find the employee.
+When an employee is due a raise, the manager submits a salary increase request. The business owner must approve it before the new salary takes effect.
+
+1. Go to **Employees** and open the employee's profile.
 2. Click **Request Salary Increase**.
-3. Enter the new salary amount and effective date.
-4. Add a reason (e.g., "Annual review", "Promotion").
-5. Submit.
+3. Fill in:
+   - **New salary amount** — the proposed new monthly or hourly rate.
+   - **Effective date** — the date the new rate should start (can be future-dated).
+   - **Reason** — e.g. "Annual review", "Promotion to Senior Cashier", "Cost of living adjustment".
+4. Click **Submit**.
 
-A notification will go to the business owner for final approval.
+The business owner receives a 🔔 notification. They open the request, review the current vs proposed salary, and click **Approve** or **Decline with reason**.
+
+Once approved:
+- The employee's salary record updates to the new amount from the effective date.
+- The next payroll period created after the effective date will use the new salary automatically.
+- A salary history record is kept on the employee's profile showing the previous amount, the new amount, the date, and who approved it.
+
+---
+
+#### Creating a New Contract to Override the Current One
+
+When an employee's role, salary, or terms change significantly — such as a promotion, a role change, or a new fixed-term — you create a **new contract** rather than editing the existing one. The old contract is retained as a historical record; the new one becomes active.
+
+**When to create a new contract (rather than just updating a salary):**
+- Employee is promoted to a different role or department
+- Employment type changes (e.g. contract → permanent, or hourly → salaried)
+- Notice period or working hours change
+- A completely new set of duties applies
+- A fixed-term contract is being renewed with new terms
+
+**Steps:**
+1. Open the employee's profile → **Contracts** tab.
+2. The current active contract is shown. Do **not** edit it.
+3. Click **New Contract**.
+4. Fill in all the contract fields (see Employment Contracts section above for the full field list).
+5. Set the **start date** — this is when the new contract takes effect. This date should be the day after the old contract ends, or the agreed commencement date.
+6. If the previous contract was fixed-term and is being replaced, set its **end date** to the day before the new contract starts (if not already set).
+7. Add the new duties for the new role.
+8. Save as Draft → print → get signed → upload signed copy → Approve.
+
+Once active, the **new contract's salary and benefits** are used in all subsequent payroll runs. The old contract remains on record under the Contracts tab but is marked as Inactive or Superseded.
+
+---
+
+#### Contract Renewal (Fixed-Term Contracts)
+
+Fixed-term contracts have an end date. When the end date approaches, the system flags the contract as **Expiring Soon** on the HR dashboard.
+
+**To renew:**
+1. Open the employee's profile → **Contracts** tab.
+2. Find the expiring contract.
+3. Click **Renew** (or **New Contract** if the terms are changing).
+   - **Renew** extends the same terms for a new period — update the end date and re-sign.
+   - **New Contract** creates a fresh contract (use this if salary, duties, or type are changing).
+4. Set the new start and end dates.
+5. Print, sign, upload, and approve as normal.
+
+> **If a contract expires without renewal:** The employee's record shows a warning on the HR dashboard. They remain active in the system but the contract is shown as Expired. Payroll continues to run using the last known salary — but address the renewal as soon as possible to keep records compliant.
 
 ---
 
@@ -430,14 +950,130 @@ A notification will go to the business owner for final approval.
 
 The employee will receive a welcome email with login instructions if they need system access.
 
-### Uploading an Employment Contract
+### Employment Contracts — Full Workflow
+
+An employment contract documents the terms of employment agreed between the business and the employee. The system stores contracts digitally and tracks their status from draft through to signed.
+
+#### What Must Be Captured
+
+A complete contract record should include:
+
+| Field | Notes |
+|-------|-------|
+| **Employee name** | Auto-filled from their profile |
+| **Job title** | Their official title |
+| **Department** | Which department they belong to |
+| **Employment type** | Full-time, Part-time, or Contract |
+| **Start date** | When employment begins |
+| **End date** | Required for fixed-term contracts; leave blank for permanent |
+| **Probation period** | Duration in months (if applicable) |
+| **Salary** | Monthly or hourly rate, as agreed |
+| **Notice period** | How many days/weeks notice is required by either party |
+| **Employee duties** | The specific responsibilities for this role (see below) |
+| **Contract document** | Uploaded PDF of the signed contract |
+
+#### Adding Employee Duties
+
+Duties are the specific tasks and responsibilities for the employee's role. They appear on the printed contract.
 
 1. Open the employee's profile.
 2. Go to the **Contracts** tab.
-3. Click **Upload Contract**.
-4. Select the PDF file.
-5. Set the contract start date and (if applicable) end date.
-6. Click **Save**.
+3. Under the contract being created or edited, find the **Duties** section.
+4. Click **Add Duty**.
+5. Type the duty description (e.g., "Operate the cash register and process all sales transactions accurately").
+6. Add as many duties as needed — one per line.
+7. Duties can be reordered by dragging.
+
+> **Tip:** Keep duties specific and measurable. They become part of the performance review framework.
+
+#### Creating and Printing a Contract
+
+**To create a new contract:**
+1. Open the employee's profile.
+2. Go to the **Contracts** tab.
+3. Click **New Contract**.
+4. Fill in all the required fields (see table above).
+5. Add duties.
+6. Click **Save as Draft**.
+
+**To print the contract for signing:**
+1. With the contract open, click **Print Contract** (or **Preview & Print**).
+2. The system generates a formatted contract document with all the details and a signature block at the bottom.
+3. Print two copies — one for the employee, one for the file.
+4. Both the employee and the manager sign both copies.
+
+#### Uploading a Signed Contract
+
+After both parties have signed the printed copy:
+1. Scan or photograph the signed document.
+2. Open the employee's profile → **Contracts** tab.
+3. Click **Upload Signed Contract** (or click into the draft contract and choose **Upload**).
+4. Select the scanned PDF or image file.
+5. Click **Save** — contract status changes from **Draft → Active**.
+
+#### Approving a Contract
+
+If your business requires a senior manager or owner to approve contracts before they are active:
+1. After saving the contract as a draft, click **Submit for Approval**.
+2. The designated approver receives a 🔔 notification.
+3. They open the contract, review the terms and duties, and click **Approve**.
+4. Contract status → **Active**.
+
+---
+
+### Converting an Employee to a System User
+
+Employees who need to log into the system (e.g. a cashier who processes sales, or an HR officer who manages records) must be given a **user account** linked to their employee profile.
+
+#### Step 1 — Check if a User Account Already Exists
+
+1. Open the employee's profile.
+2. Look for a **System Access** or **User Account** section.
+3. If it shows "No system account", you can create one.
+
+#### Step 2 — Create the User Account
+
+1. Still on the employee's profile, click **Grant System Access** (or **Create User Account**).
+2. Confirm or set their **login email** (usually their work email address).
+3. A temporary password is generated — the employee will be prompted to change it on first login.
+4. Click **Create Account**.
+
+The employee is now both an employee record and a system user. Their clock-in card still works; they can also log in to the full system.
+
+#### Step 3 — Assign Permissions
+
+After creating the user account, assign the correct permissions for their role:
+
+1. Go to **Users** (or **Settings → Users → [Employee Name]**).
+2. Click **Manage Permissions**.
+3. Permissions are grouped by area. Tick what applies to their role:
+
+| Permission Group | Examples |
+|-----------------|---------|
+| **POS** | Process sales, apply discounts, void items |
+| **Inventory** | Add products, adjust stock, print labels |
+| **Expense Accounts** | Submit payment requests, view balances |
+| **Cash Office** | Record cash entries, run EOD, lock allocations |
+| **Payroll** | View payslips, submit per diem, manage payroll (manager) |
+| **Employees** | View employees, add employees, manage contracts |
+| **Reports** | View sales reports, export data |
+| **Cash Allocation** | Approve and lock cash allocation reports |
+| **Barcode** | Print labels, manage templates |
+
+4. Click **Save Permissions**.
+
+> Permissions take effect the next time the employee logs in. If they are already logged in, ask them to log out and back in.
+
+#### Typical Permission Sets by Role
+
+| Role | Suggested Permissions |
+|------|-----------------------|
+| Cashier | POS (process sales), view-only inventory |
+| Stock Manager | Inventory (full), barcode (print labels) |
+| Cash Office Clerk | Cash Office (EOD, bucket entries), expense accounts (view) |
+| HR Officer | Employees (full), payroll (view) |
+| Manager | All of the above + approvals, reports, payroll management |
+| Owner | Full access to everything |
 
 ### Employee Benefits
 
@@ -454,16 +1090,90 @@ Benefits are automatically included in the next payroll run.
 
 ### Tracking Absences
 
-When an employee is absent:
+Absences affect payroll and attendance records. Managers can record absences directly, or employees can submit leave requests that managers then approve.
+
+#### Absence Types
+
+| Type | Meaning | Payroll Impact |
+|------|---------|---------------|
+| **Sick Leave** | Employee is unwell | Paid if sick leave balance allows; unpaid if exhausted |
+| **Annual Leave** | Planned time off | Paid from leave balance |
+| **Unpaid Leave** | Approved absence, no pay | Deducted from salary |
+| **Absent Without Leave (AWOL)** | No notice, no approval | Deducted; may trigger disciplinary |
+| **Public Holiday** | National holiday | Paid (no leave balance consumed) |
+| **Maternity / Paternity** | Statutory leave | Follow statutory rules |
+
+---
+
+#### Recording an Absence (Manager)
 
 1. Go to **Employees → Absences**.
 2. Click **Record Absence**.
-3. Select the employee.
-4. Choose the absence type (Sick Leave, Annual Leave, Unpaid Leave, Other).
-5. Enter the date(s).
-6. Click **Save**.
+3. Select the employee from the dropdown.
+4. Choose the **absence type** from the list above.
+5. Enter the **start date** and **end date** (for a single day, both dates are the same).
+6. Optionally add a **note** (e.g. "Doctor's certificate submitted").
+7. Click **Save**.
 
-Absences appear in the employee's profile and are reflected in payroll deductions where applicable.
+The absence is immediately reflected in:
+- The employee's attendance record
+- The payroll period for those dates (deduction calculated at next payroll sync)
+- The manager's absence report
+
+> **Tip:** If an employee was absent but forgot to tell you, you can back-date the entry. The system allows absence dates in the past.
+
+---
+
+#### Employee Self-Reporting (Leave Request)
+
+Employees can submit their own leave requests before the absence happens:
+
+1. Employee goes to **My Profile → Leave Requests**.
+2. Clicks **Request Leave**.
+3. Selects leave type, dates, and adds an optional reason.
+4. Submits — manager receives a **🔔 notification** in the bell.
+
+Manager then:
+1. Opens the notification or goes to **Employees → [Employee] → Time Off**.
+2. Reviews the dates and the employee's remaining leave balance (shown on the same page).
+3. Clicks **Approve** or **Decline**.
+4. Employee is notified of the decision.
+
+---
+
+#### Viewing the Absence Report
+
+Go to **Employees → Absence Report** (or **Reports → Absences**) to see:
+
+- All absences across all employees for a selected period
+- Filtered by employee, absence type, or date range
+- Total days absent per employee
+- Summary of paid vs unpaid days
+
+Absence data is also visible inside each employee's individual profile under the **Attendance** tab.
+
+---
+
+#### How Absences Affect Payroll
+
+When you run payroll:
+- **Unpaid absence days** are automatically deducted from the gross salary (pro-rated by number of working days in the period).
+- **Paid leave** is counted as a working day — no deduction.
+- **AWOL days** are treated as unpaid.
+- The payroll entry detail modal shows the breakdown — you can see the number of absent days that were deducted.
+
+> If an absence is recorded *after* payroll has already been exported, you will need to manually adjust the next payroll period or handle it as a manual deduction.
+
+---
+
+#### Leave Balances
+
+Each employee's leave balance is tracked under their profile:
+- **Annual leave** accrues over time (configured per employment type).
+- When leave is approved, the balance decreases automatically.
+- Managers can manually adjust a balance (e.g. carry-over from previous year) in the **HR → Leave Balances** settings.
+
+---
 
 ### Managing Time Off Requests
 
@@ -477,6 +1187,148 @@ Employees can submit leave requests through the system. When they do:
 
 The employee will be notified of your decision.
 
+### Employee Scan Cards (ID / Clock-In Cards)
+
+Every employee has a personal barcode card used to clock in and out quickly. The card contains the employee's name, photo, and a unique barcode.
+
+**Issuing or reprinting a card:**
+1. Open the employee's profile (**Employees → [Employee Name]**).
+2. Go to the **ID Card** tab (or **Clock-In Card** tab).
+3. Click **Print Card**.
+4. The card opens as a printable page — **the front and back are laid out side by side on one sheet** so the card can be folded in half. Print the page, fold down the centre line (the two halves will face outward), trim to card size, laminate, and hand to the employee.
+
+```
+┌─────────────────┬─────────────────┐
+│   FRONT (face)  │   BACK (barcode)│
+│                 │                 │
+│  [Photo]        │  |||||||||||    │
+│  Employee Name  │  EMP-000012     │
+│  Job Title      │                 │
+└─────────────────┴─────────────────┘
+         ↑ fold here ↑
+```
+
+> Print on plain A4, fold in half along the centre line, trim the edges, and laminate. A standard credit-card-sized laminating pouch works perfectly.
+
+**Updating a card (e.g. name change or new photo):**
+1. Update the employee's details or profile photo on their profile.
+2. Return to the **ID Card** tab and reprint — the card automatically reflects the latest information.
+
+> Cards use the employee's unique number (e.g. `RES-EMP-000012`) as the barcode value. If a card is lost, simply reprint from the same screen — the barcode does not change.
+
+### How Barcode Scanning Works System-Wide — Full Priority Order
+
+The system has a **global barcode scanner** that is always active on every screen. Every scan — no matter what page is open — is passed through a fixed priority chain. The chain stops at the first match. Understanding this order explains why the same physical scanner serves multiple purposes without conflict.
+
+---
+
+#### The Priority Chain (Highest to Lowest)
+
+```
+Barcode scanned
+       │
+       ▼  PRIORITY 1 ── Is this an employee card?
+       │                Pattern: RES-EMP-000012 / GRO-EMP-000007 etc.
+       │                YES → Clock-in / clock-out popup
+       │                      Current user's screen is paused but preserved
+       │                      Employee confirms in/out → popup closes
+       │                      STOP — nothing else checked
+       │                NO  ↓
+       ▼  PRIORITY 2 ── Is this a customer loyalty card?
+       │                Pattern: RES-CUST-000012 / GRO-CUST-000007 etc.
+       │                YES → Customer pre-selected in POS
+       │                      (or navigates to correct POS if not already there)
+       │                      STOP — nothing else checked
+       │                NO  ↓
+       ▼  PRIORITY 3 ── Is this a product barcode / inventory item?
+                        Runs the full multi-step inventory lookup:
+                        3a. Check current business products
+                        3b. Check clothing bales (by barcode or SKU)
+                        3c. Check barcode templates
+                        3d. Check other businesses (cross-business global lookup)
+                        3e. Completely unknown → Quick Stock Add form
+```
+
+---
+
+#### Priority 1 — Employee Clock-In Card (Highest Priority)
+
+**Recognised by:** The barcode matches the format of an employee number (e.g., `RES-EMP-000012`).
+
+**What happens:**
+- A clock-in/clock-out popup immediately overlays whatever is on screen.
+- The current user's work is **not lost** — it is paused underneath.
+- The employee selects Clock In or Clock Out and the system captures their photo.
+- The popup closes and the previous user's screen resumes exactly as it was.
+
+**Why this has the highest priority:** An employee scan must always work — a cashier should never have to stop a sale, log out, let someone clock in, then log back in. The clock-in is a quick overlay that does not touch the active session.
+
+> If an employee's card is scanned but they have no pending clock action (e.g. they already clocked in and it is not yet time to clock out), the system may show a brief confirmation rather than a full prompt.
+
+---
+
+#### Priority 2 — Customer Loyalty Card
+
+**Recognised by:** The barcode matches the customer number pattern (e.g., `RES-CUST-000023`, `CLO-CUST-000007`).
+
+**What happens — three scenarios:**
+
+| Scenario | Result |
+|----------|--------|
+| Cashier is on the **correct business's POS** (e.g. scanning a restaurant customer card while on the restaurant POS) | Customer is instantly pre-selected in the POS cart. No navigation, no typing. |
+| Cashier is **not on any POS** (e.g. on a reports page) | System navigates to the correct POS for that customer's business with the customer pre-loaded. |
+| Cashier is on a **different business's POS** (e.g. on grocery POS, customer is from clothing store) | Confirmation prompt: "Switch to [Clothing] POS for this customer?" — cashier can accept or cancel. |
+
+**Why Priority 2 comes before inventory:** A customer card scan is always intentional — the cashier or customer is deliberately presenting the card to start a transaction. It should never be treated as a product lookup. The customer number format is distinct enough that false matches against product barcodes are not possible.
+
+---
+
+#### Priority 3 — Product / Inventory Barcode (Lowest Priority, Most Common)
+
+**Recognised by:** Anything that did not match employee or customer patterns.
+
+This triggers the full inventory lookup sequence described in the Inventory section:
+
+| Sub-step | Checks | Result on match |
+|----------|--------|----------------|
+| **3a** | Current business's product list | Add to cart / show in inventory |
+| **3b** | Clothing bales (barcode or SKU) | Add bale to cart at unit price |
+| **3c** | Barcode templates | Show template card → create product |
+| **3d** | All other businesses (global) | Show cross-business match → option to stock here |
+| **3e** | No match anywhere | Quick Stock Add form opens |
+
+See the **Adding Inventory by Scanning a Barcode** section in Section 14 for the full detail on each sub-step.
+
+---
+
+#### Why This Order Makes Sense
+
+| Priority | Reason it comes first |
+|----------|----------------------|
+| Employee clock-in | Must work at all times on any screen without any friction. An employee scan should never accidentally add a product to a cart or select a customer. |
+| Customer loyalty card | A card scan is always intentional and should immediately set up the POS for that customer. Checking inventory first could cause a customer card to be misidentified as a product barcode. |
+| Product / inventory | The most common scan type but also the most flexible — it has its own multi-step lookup and fallback logic, so it is safe to run only after the more specific checks have cleared. |
+
+---
+
+#### The 4-Character Minimum
+
+The global scanner ignores input shorter than 4 characters. This prevents stray keystrokes (e.g. a fast typist in a text field) from accidentally triggering a scan. Scanners typically send 8–13 characters in under 80 milliseconds — the system detects this rapid input rate and treats it as a scan rather than keyboard typing.
+
+---
+
+#### When Two Cards Could Conflict
+
+In practice, formats are designed to be distinct:
+
+| Card type | Format | Example |
+|-----------|--------|---------|
+| Employee card | `XXX-EMP-000000` | `RES-EMP-000012` |
+| Customer card | `XXX-CUST-000000` | `RES-CUST-000023` |
+| Product barcode | Any other format | `5000112637922`, `BALE-HXI-042`, custom codes |
+
+The `-EMP-` and `-CUST-` segments in the middle make employee and customer cards unambiguous regardless of what the business prefix or number is. A product barcode will never contain `-EMP-` or `-CUST-` unless someone deliberately assigned those strings, which the system will flag as a conflict at the time of barcode assignment.
+
 ### Clock-In Reports
 
 To see attendance records:
@@ -485,6 +1337,70 @@ To see attendance records:
 2. Choose the date range and (optionally) filter by employee.
 3. The report shows each day with clock-in time, clock-out time, and total hours.
 4. Click **Export** to download as CSV or PDF.
+
+---
+
+### Manually Managing Clock-In Records
+
+Managers can view, add, edit, and correct any clock-in record. This covers situations where an employee forgot to scan, clocked in but forgot to clock out, was clocked in by a colleague, or where the system missed a scan.
+
+#### Viewing an Employee's Attendance History
+
+1. Go to **Employees → [Employee Name] → Clock-In** (or **Employees → Clock-In → Records**).
+2. Select the date range.
+3. Each row shows: Date, Clock-In Time, Clock-Out Time, Total Hours, and whether a photo was captured.
+4. Rows with missing data (e.g. no clock-out) are highlighted so they are easy to spot.
+
+#### Adding a Missing Clock-In Entry
+
+If an employee was present but has no record for a day:
+
+1. Go to **Employees → Clock-In → Records**.
+2. Click **Add Entry** (or **New Manual Entry**).
+3. Select the employee.
+4. Enter the date.
+5. Enter the **clock-in time** (the time they arrived — use the actual time or your best estimate based on paper records or CCTV).
+6. Enter the **clock-out time** (the time they left) — or leave blank if they are still clocked in.
+7. Add a **note** explaining the manual entry (e.g., "Scanner offline — entry added from paper register").
+8. Click **Save**.
+
+The entry is saved with a flag indicating it was manually created by a manager.
+
+#### Editing an Existing Record
+
+To correct a wrong time or fill in a missing clock-out:
+
+1. Find the record in the attendance list.
+2. Click the row (or click **Edit** on the row).
+3. Update the clock-in time, clock-out time, or both.
+4. Add or update the note.
+5. Click **Save**.
+
+> The original scan time (if any) is preserved in the audit log. The edited values are what appear in reports and payroll calculations. The edit history shows who changed the record and when.
+
+#### Correcting a Missing Clock-Out
+
+The most common issue is an employee who clocked in but never clocked out (e.g. they left without scanning, or the shift ended past midnight).
+
+1. Find the open record — it will show a clock-in time but no clock-out.
+2. Click **Edit** → enter the correct clock-out time.
+3. Save with a note (e.g., "Clock-out added — employee left at shift end per manager records").
+
+If you do not know the exact time, enter the standard shift end time and note that it is an estimate.
+
+#### What "Missing Data" Looks Like in Reports
+
+Clock-in records that are incomplete or manually entered are flagged in the report view:
+
+| Indicator | Meaning |
+|-----------|---------|
+| ⚠ No clock-out | Employee clocked in but has no clock-out time — hours cannot be calculated |
+| ✏ Manual entry | Record was created or edited manually by a manager |
+| 📷 No photo | Clock-in happened without a camera capture (manual entry or scanner-only mode) |
+
+Hours for payroll are only calculated when both clock-in and clock-out are present. Records marked ⚠ must be resolved before the payroll period closes.
+
+---
 
 ### Printing Clock-In Sheets
 
@@ -496,24 +1412,127 @@ If your business uses paper sign-in sheets as a backup:
 
 ---
 
+### Employee Termination — Full Checklist
+
+When an employee leaves the business (resignation, dismissal, end of contract, or redundancy), a series of steps must be completed in the system to close out their records correctly and prevent continued system access.
+
+---
+
+#### Step 1 — Run Final Payroll
+
+Before terminating the employee record, ensure their final payroll is processed:
+
+1. Check whether they have outstanding clock-in records that need correction (see Manually Managing Clock-In Records).
+2. Ensure any remaining leave days owed are recorded — unpaid leave entitlements may need to be paid out as a terminal benefit.
+3. Include them in the current payroll period (or create a supplementary entry if payroll has already been exported).
+4. Note any final adjustments: notice pay owed, leave payout, or deductions for property not returned.
+5. Process and export payroll as normal. Mark them as paid once disbursed.
+
+---
+
+#### Step 2 — Issue Final Payslip and P45 / Certificate of Service
+
+After final payroll is exported:
+1. Generate their final payslip from the payroll period.
+2. Prepare a **Certificate of Service** (also called a reference letter or service letter) stating their employment dates, job title, and reason for leaving. This is a legal requirement in most jurisdictions and a common expectation.
+3. The third-party payroll processor should also provide the employee's **year-to-date tax figures** (for their ZIMRA P45 / ITC), which the employee needs to file with ZIMRA and for their next employer.
+
+---
+
+#### Step 3 — Revoke System Access (If the Employee Was a User)
+
+If the employee had a system login:
+
+1. Go to **Settings → Users** (or **Employees → [Employee Name] → System Access**).
+2. Click **Deactivate Account** (or **Revoke Access**).
+3. Confirm — the account is immediately disabled. Any active sessions are terminated.
+
+> Do this **on the last working day** or immediately on dismissal. A departing employee should not retain access to sales, cash, inventory, or any other business data after they leave.
+
+**Also check:**
+- Remove them from any shared logins or admin roles.
+- If they had a POS session open, ensure it is closed before deactivating.
+
+---
+
+#### Step 4 — Mark Employee as Terminated in the System
+
+1. Open the employee's profile.
+2. Click **Terminate Employee** (or **End Employment**).
+3. Fill in:
+   - **Termination date** — their last working day.
+   - **Reason** — Resignation, End of Contract, Dismissal, Redundancy, or Other.
+   - **Notice period served** — whether they worked out their notice or were paid in lieu.
+   - **Notes** — any relevant details for the record.
+4. Click **Confirm Termination**.
+
+**What happens:**
+- The employee's status changes to **Terminated / Inactive**.
+- They are removed from all active payroll period pulls (future payroll runs will not include them automatically).
+- Their clock-in card barcode is deactivated — scanning it will no longer trigger a clock-in prompt.
+- They disappear from active employee lists but their full history (payroll, attendance, contracts, per diem) remains permanently in the system for audit and reporting purposes.
+
+---
+
+#### Step 5 — Close Out Their Expense and Petty Cash Items
+
+Before finalising:
+1. Check for any open petty cash requests in their name — settle or cancel them.
+2. Check for any outstanding expense payment requests they submitted — ensure these are approved and paid out, or cancelled if no longer valid.
+3. Check for any loans in their name — record any final repayment from their terminal pay, or write off the balance per company policy.
+
+---
+
+#### Step 6 — Collect Business Property
+
+Ensure the following are returned and recorded:
+- [ ] Employee scan card / clock-in card (deactivate immediately)
+- [ ] Keys, access cards, uniforms
+- [ ] Company phone or equipment
+- [ ] Any cash float or petty cash they held
+
+Note the return of each item in the employee's profile under **Notes** or **Offboarding Checklist** if available.
+
+---
+
+#### Contract Expiry vs Termination
+
+| Situation | What to do |
+|-----------|-----------|
+| **Fixed-term contract ends, employee not continuing** | Set contract end date if not already set → Terminate employee record → follow checklist above |
+| **Fixed-term contract ends, employee continuing** | Create a new contract (see Contract Renewal above) — do NOT terminate the employee record |
+| **Permanent employee resigns** | Record resignation date as termination date → follow checklist above |
+| **Dismissal** | Terminate immediately → revoke system access first |
+
+> An expired contract without renewal does not automatically terminate the employee in the system. You must explicitly go through the termination process to deactivate their record and access.
+
+---
+
 ## 6. Employees — Clock-In, Leave & Per Diem
 
 > **Who reads this:** General employees who need to clock in, apply for leave, or request per diem.
 
 ### Clocking In and Out
 
-**Clock In:**
-1. Go to **Employees → Clock-In** (or ask your manager for the clock-in link).
-2. Find your name or scan your employee barcode.
-3. Take a photo if prompted.
-4. Click **Clock In**.
+#### Using Your Scan Card (Recommended)
 
-**Clock Out:**
-1. Return to the same clock-in screen.
-2. Find your record for today.
-3. Click **Clock Out**.
+Your manager will give you a personal barcode card with your name and photo. To clock in or out:
 
-> **If you forgot to clock in or out:** Tell your manager. They can correct the record.
+1. **Scan your card** at any terminal using the barcode scanner — you can do this at any time, even if someone else is using the screen. A clock-in prompt will pop up over whatever is on screen.
+2. The system will turn on the camera to **take your photo** automatically. Look at the camera briefly.
+3. Confirm whether you are **clocking in** or **clocking out** on the popup.
+4. The popup closes and the other user's screen continues uninterrupted.
+
+> **You do not need to log in to use your scan card.** Just scan and go.
+
+#### Without a Scan Card
+
+1. Go to **Employees → Clock-In** (or ask your manager for the link).
+2. Find your name in the list.
+3. The camera will take your photo.
+4. Click **Clock In** or **Clock Out**.
+
+> **If you forgot to clock in or out:** Tell your manager as soon as possible. They can open your attendance record and manually add or correct the time. Provide them with your actual arrival or departure time so the record is accurate.
 
 ### Applying for Leave
 
@@ -526,18 +1545,114 @@ If your business uses paper sign-in sheets as a backup:
 
 Your manager will receive a notification and approve or decline your request. You will be notified of the outcome.
 
-### Submitting a Per Diem Request
+### Per Diem — Complete Process
 
-Per diem is a daily allowance for travel or work away from your normal location.
+Per diem is a daily allowance paid to an employee for travel or work away from their normal location. It covers expenses like accommodation, meals, and incidentals that the employee incurs on behalf of the business.
 
-1. Go to **Employees → Per Diem → New Request**.
-2. Enter the travel dates.
-3. Enter the destination.
-4. Select the purpose/category.
-5. The amount will be calculated automatically based on your entitlement.
-6. Click **Submit**.
+---
 
-Your manager will approve it. Once approved, it is included in your next payslip or paid as a cash advance.
+#### Step 1 — Employee Requests a Per Diem Form (Paper)
+
+Before travel begins, the employee obtains a **Per Diem Request Form**. This is a printed document the employee fills in by hand to declare their travel details, which is then submitted to the manager or HR officer for authorisation.
+
+**To print a blank request form:**
+1. Go to **Employees → Per Diem → Request Form**.
+2. Select the employee's name (optional — leave blank for a generic form).
+3. Select the month and year the travel falls in.
+4. Click **Print Form** or **Download PDF**.
+
+The form contains:
+- Employee name and employee number
+- Job title and business
+- Month / year
+- A table with rows for each travel day: Date | Purpose | Amount | Notes
+- Signature lines for the Employee, the person entering the data, and the Approver
+
+The employee fills in the form by hand during or after the trip, noting each day they were away and what category the expense falls under.
+
+---
+
+#### Step 2 — Employee Submits the Completed Form
+
+The employee hands the completed, signed form to their manager or HR officer. The manager reviews and signs the **Approver** line to authorise the amounts.
+
+> The physical signed form is the authorisation record. Keep it on file. The system entry (Step 3) is based on what the manager has signed off.
+
+---
+
+#### Step 3 — Entering Per Diem into the System
+
+Once the form is signed and approved, the HR officer or authorised cashier enters the data into the system.
+
+1. Go to **Employees → Per Diem → New Entry**.
+2. Select the **employee** from the dropdown (all active employees are listed).
+3. Select the **month** and **year** the travel occurred in. This links the entries to the correct payroll period.
+4. The entry table appears. For each day on the form, click **Add Row** and fill in:
+
+| Field | What to enter |
+|-------|--------------|
+| **Date** | The exact date of that travel day (must fall within the selected month) |
+| **Amount** | The approved allowance amount for that day (as signed on the form) |
+| **Purpose** | Choose the category that best matches: **Lodging**, **Meals**, **Incidentals**, **Travel**, or **Other** |
+| **Notes** | Optional — add a brief description (e.g., "Harare overnight", "Fuel reimbursement") |
+
+5. Add as many rows as needed — one row per travel day (or per expense category per day if they differ).
+6. The **running total** at the bottom of the form updates as you add rows.
+7. When all days are entered, click **Save X Entries**.
+
+All rows are saved together in a single transaction. If any row has an error, none are saved — fix the error and try again.
+
+---
+
+#### Step 4 — Verify the Entry
+
+After saving, the entries appear in the per diem list grouped by employee:
+
+1. Go to **Employees → Per Diem**.
+2. Select the same month and year.
+3. Find the employee — their entries are listed with each date, purpose, and amount.
+4. Confirm the total matches what was on the signed form.
+
+To print the **Claim Form** (a filled-in summary for the file):
+1. Find the employee in the list.
+2. Click **Print Claim Form**.
+3. The system generates a PDF showing all entries for that period, with the total, and signature lines.
+4. Attach this to the original paper form and file it.
+
+---
+
+#### Step 5 — Per Diem Flows into Payroll Automatically
+
+Per diem entries do not need to be transferred or manually added to payroll. When the payroll export runs for the same month and year:
+
+- The system aggregates all per diem entries for each employee.
+- The total is added to a **"Per Diem"** column in the payroll spreadsheet.
+- It is included in the employee's **gross pay** for that period.
+- The payroll processor handles any applicable tax treatment on the per diem amount.
+
+> There is no separate payment or approval step for per diem — once entries are saved against the correct month/year, they are automatically included the next time payroll is exported.
+
+---
+
+#### Correcting or Deleting an Entry
+
+If a mistake was made in the entered amount or date:
+- Entries can only be deleted (not edited in place). Delete the incorrect row and re-enter it correctly.
+- **Delete requires admin access.** Contact your system administrator or a manager with admin rights to remove an incorrect entry.
+
+---
+
+#### Purposes Explained
+
+| Purpose | Use when |
+|---------|---------|
+| **Lodging** | Employee paid for overnight accommodation |
+| **Meals** | Daily meal allowance while away |
+| **Incidentals** | Miscellaneous small expenses (tips, internet, laundry) |
+| **Travel** | Fuel, bus fare, taxi, flight — transport costs |
+| **Other** | Anything that does not fit the above categories |
+
+Multiple purposes can be claimed for the same day by adding separate rows — e.g., one row for Lodging and one for Meals on the same date.
 
 ---
 
@@ -545,133 +1660,746 @@ Your manager will approve it. Once approved, it is included in your next payslip
 
 > **Who reads this:** Staff who manage or use expense accounts, and anyone who handles petty cash.
 
-### What Is an Expense Account?
+### Types of Expense Accounts
 
-An expense account is a pot of money set aside for specific spending purposes — for example, "Office Supplies Account" or "Travel Budget". Money is deposited into the account, and payments are made from it.
+The system has two distinct types of expense accounts. They look similar in the interface but serve different purposes.
 
-### Making an Expense Payment Request
+---
+
+#### Business Expense Accounts
+
+A **business expense account** is a pot of money set aside for a specific operational purpose — for example, "Office Supplies", "Vehicle Maintenance", "Staff Welfare Fund", or "Building Maintenance". Money is deposited in from the business account (manually or automatically at EOD), and payments are made from it by submitting payment requests.
+
+**Key characteristics:**
+- Belongs to a specific business (or can span all businesses).
+- Funded from the business's sales income — typically via EOD auto-deposits.
+- All payments require manager approval before the cash is released.
+- Payments go through a batch payment workflow (see Section 4 — Payment Request Workflow).
+- Balance and transaction history are visible in reports.
+
+**Common business expense accounts:**
+| Account | Purpose |
+|---------|---------|
+| Office Supplies | Stationery, printer ink, cleaning materials |
+| Vehicle Maintenance | Fuel, servicing, tyres |
+| Staff Welfare | Staff meals, medical emergencies, welfare events |
+| Building Maintenance | Repairs, plumbing, electrical |
+| Rent Account | Saves daily towards monthly rent (see Rent Account section) |
+| Payroll Account | Funded specifically to pay employee salaries |
+
+---
+
+#### Personal / Employee Expense Accounts
+
+A **personal expense account** is linked to a specific employee rather than a business. It is used to advance money to an individual or track what they owe back.
+
+**Key characteristics:**
+- Linked to an employee's record.
+- Funded by a deposit from the business (e.g., an advance or a loan to the employee).
+- The employee submits repayments or the amount is deducted from payroll.
+- Used for salary advances, staff loans, and individual reimbursement tracking.
+
+**When a personal account is used:**
+- An employee needs a salary advance before payday — money is deposited into their personal account and counted as a future payroll deduction.
+- An employee takes a loan from the business — recorded as a deposit to their account and tracked separately in the Loans module.
+
+---
+
+### Making an Expense Payment Request (Business Account)
 
 1. Go to **Expense Accounts**.
 2. Click the account you are spending from.
 3. Click **New Payment Request**.
 4. Enter:
-   - The amount
-   - What it is for (description)
-   - Any reference number or receipt number
+   - The **amount**
+   - **What it is for** (description — be specific, e.g. "Replacement printer cartridge HP 63XL")
+   - **Payee / supplier** — who is being paid (select from the supplier list or type a name)
+   - **Reference number** — invoice number, receipt number, or quote number if available
 5. Click **Submit for Approval**.
 
-Your manager will review it. You will receive a notification when it is approved or declined.
+Your manager will review it. You will receive a notification when it is approved or declined. Once approved, the payment is grouped into the next payment batch and the cashier disburses the cash.
+
+---
 
 ### Checking Your Account Balance
 
 1. Go to **Expense Accounts**.
 2. The balance for each account is shown on the main list.
-3. Click into an account to see the full history of deposits and payments.
+3. Click into an account to see the full history of deposits and payments, including who requested each payment and when it was approved.
 
-### Petty Cash Requests
+### Personal Expense Accounts — Private Expense Tracking
 
-Petty cash is for small, immediate purchases (e.g., stationery, a taxi fare, emergency supplies).
+A personal expense account lets an individual user track their own spending privately. Unlike business expense accounts (which are visible to managers and used for company spending), a personal account is **private to the account holder** — only the account holder and system administrators can see its contents.
 
-#### Submitting a Petty Cash Request
+#### What a Personal Account Is Used For
+
+- **Tracking personal business expenses** that you will later claim back — e.g. you paid for a business dinner out of your own pocket and want to record it before submitting a claim.
+- **Monitoring a salary advance** — if the business advanced you money, your personal account shows the balance you owe back and what has been deducted from payroll so far.
+- **Recording reimbursable costs** — fuel, accommodation, or supplies paid personally while travelling for work.
+
+#### How It Works
+
+1. **Viewing your personal account:**
+   Go to **Expense Accounts → My Account** (or **Profile → My Expense Account**). Your personal account balance and transaction history are shown.
+
+2. **Recording an expense you paid:**
+   - Click **New Entry** or **Add Expense**.
+   - Enter the amount, date, description, and category.
+   - Attach a receipt photo if available.
+   - Save — the entry is logged against your account.
+
+3. **Submitting a claim for reimbursement:**
+   - When you are ready to claim back money you spent, click **Submit for Reimbursement**.
+   - The request goes to your manager for approval (same workflow as a regular expense payment request, but drawn from your personal account).
+   - Once approved and paid out, the entry is marked as **Reimbursed**.
+
+4. **Tracking an advance or loan:**
+   - If the business deposited an advance into your account, it shows as a positive balance (you have been given money).
+   - As payroll runs, the advance amount is deducted — the balance reduces toward zero.
+   - When the balance reaches zero the advance is fully repaid.
+
+#### Privacy
+
+- Your personal expense account balance and entries are **not visible to other employees or managers** through normal screens.
+- Only the account holder and system administrators (owners/admins) can view the account contents.
+- Payment requests you submit from your personal account do go to a manager for approval — but the manager only sees the amount and description you provide, not your full account history.
+
+> Use your personal account as a running expense diary for any costs you incur on behalf of the business. Record expenses as they happen (not in a batch at month end) so you do not lose receipts and your records stay accurate.
+
+---
+
+### Petty Cash — Full Workflow
+
+Petty cash is for small, immediate purchases (e.g., stationery, a taxi fare, emergency supplies). Unlike a formal expense payment request (which goes through a batch payment), petty cash is for situations where you need cash in hand right now.
+
+#### Stage 1 — Employee Submits a Request
 
 1. Go to **Petty Cash → New Request**.
-2. Enter the amount you need.
-3. Describe what it is for.
-4. Click **Submit**.
+2. Fill in:
+   - **Amount** — how much you need
+   - **Reason** — what you are buying (e.g., "Printer cartridges", "Taxi to town")
+   - **Category** — choose the most relevant category
+3. Click **Submit**.
 
-Your manager will approve or decline it. If approved, collect the cash from the cashier.
+Status → **Pending Approval**. The manager receives a 🔔 notification.
 
-#### Settling a Petty Cash Request
+---
 
-After you spend the money:
-1. Keep all receipts.
-2. Go to **Petty Cash** and find your request.
-3. Click **Settle**.
-4. Submit the receipts (photographed or scanned).
-5. If you spent less than approved, the system will note the difference.
+#### Stage 2 — Manager Approves or Declines
 
-#### Tracking Your Petty Cash
+The manager sees the request in **Pending Actions** or under **Petty Cash → Requests**.
 
-Go to **Petty Cash** to see all your requests and their status:
-- **Pending** — waiting for approval
-- **Approved** — approved, cash not yet collected
-- **Settled** — cash received and accounted for
-- **Cancelled** — declined or withdrawn
+- **Approve** — clicks Approve. Status → **Approved**. The employee receives a 🔔 notification: "Your petty cash request of $XX was approved."
+- **Decline** — clicks Decline and enters a reason. Status → **Declined**. Employee is notified with the reason.
+
+---
+
+#### Stage 3 — Employee Collects the Cash
+
+Once approved, the employee goes to the cashier (or cash box) to collect the money.
+
+The cashier:
+1. Sees the approved request in the petty cash queue.
+2. Counts out the approved amount.
+3. Marks the request as **Disbursed** (or the system does this when cash is handed over).
+4. A Cash Bucket **OUTFLOW** entry is recorded automatically.
+
+The employee takes the cash and goes to make the purchase.
+
+---
+
+#### Stage 4 — Employee Settles (Accounts for the Money Spent)
+
+After spending the money, the employee must settle the request:
+
+1. Go to **Petty Cash** and find your approved request.
+2. Click **Settle**.
+3. Enter the **actual amount spent** (may be less than the approved amount).
+4. Attach proof — upload a photo of the receipt(s) or enter the receipt number.
+5. Click **Submit Settlement**.
+
+Status → **Settled**.
+
+> **If you spent less than approved:** Enter the actual amount. The system records the difference as an **unspent balance**. Return the unspent cash to the cashier — they will record a **Cash Bucket INFLOW** (returned funds) to balance the books.
+
+> **If you spent more than approved:** Enter the actual amount. The overage will appear as a variance for the manager to review. The manager may approve the additional amount separately or note it as out of policy.
+
+---
+
+#### Stage 5 — Manager Reviews Settlements
+
+The manager periodically reviews settled petty cash requests:
+
+1. Go to **Petty Cash → Settled Requests**.
+2. Review each settlement — check that the receipt matches the amount and reason.
+3. Mark as **Reviewed** if everything is correct.
+
+---
+
+#### Petty Cash Status Summary
+
+| Status | Meaning |
+|--------|---------|
+| **Pending** | Submitted, waiting for manager approval |
+| **Approved** | Approved, cash not yet collected |
+| **Disbursed** | Cash collected by employee, purchase in progress |
+| **Settled** | Employee submitted receipts and accounted for the money |
+| **Returned** | Unspent funds returned to the cash box |
+| **Declined** | Manager declined the request |
+
+---
+
+### Rent Account — Setup and Operation
+
+The Rent Account is a dedicated savings account within the system that accumulates money over the month so that rent can be paid in full when it is due. Instead of scrambling for a lump sum at the end of the month, a small amount is set aside every day the business trades.
+
+#### How It Works
+
+1. The manager sets a **monthly rent amount** and the number of **operating days** per month.
+2. The system calculates a **daily transfer amount** = Monthly Rent ÷ Operating Days (rounded up).
+3. Every day at EOD close, the daily amount is recorded as a deposit into the Rent Expense Account. The physical cash remains in the cash bucket — the rent account is a bookkeeping record showing how much of the bucket is earmarked for rent.
+4. By rent due day, the full monthly amount (or close to it) has accumulated in the rent account balance.
+5. On payment day, the manager requests the rent payment from the Rent Account. The cash is drawn from the cash bucket.
+
+**Example:** Monthly rent = $400, operating days = 25 → daily transfer = $16. After 25 trading days the account balance shows $400 — all of which is physically held in the cash bucket.
+
+#### Rent Account Accounting Principle
+
+The rent account is **bookkeeping only**. All physical cash is stored in the cash bucket:
+
+| Source | Rent Account | Cash Bucket |
+|--------|-------------|-------------|
+| Daily EOD transfer | +$16 balance | Cash already there (earmarked) |
+| Direct deposit (e.g. loan top-up) | +$50 balance | +$50 INFLOW recorded, immediately earmarked |
+| Rent payment to landlord | −$375 balance | −$375 OUTFLOW recorded |
+
+> The balance in the Rent Account is what determines whether rent can be paid — if the balance is less than the monthly rent, the payment will be blocked until more deposits accumulate.
+
+---
+
+#### Setting Up a Rent Account
+
+A manager or owner sets this up once:
+
+1. Go to **[Business] → Settings → Rent Account** (or **Expense Accounts → Rent Account → Configure**).
+2. Click **Set Up Rent Account**.
+3. Fill in:
+   - **Monthly Rent Amount** — what you pay each month
+   - **Operating Days per Month** — how many days a month the business trades (used to calculate daily transfer; typically 25–26 for Mon–Sat)
+   - **Rent Due Day** — which day of the month rent is due (e.g., 1 = 1st of each month); must be between 1 and 28
+   - **Landlord** — search for the landlord by name, or use **+ Add Landlord** to create a new one (name, phone, email are required for a new landlord)
+   - **Auto-transfer on EOD** — toggle ON to have the daily amount move automatically at each EOD close
+4. The system displays the calculated **Daily Transfer Amount** (read-only — it is computed from your inputs).
+5. Click **Save**.
+
+A dedicated rent expense account is created automatically with an account number in the format `RENT-XXXXX`.
+
+---
+
+#### The Rent Account Dashboard
+
+Go to **Expense Accounts** and click the Rent Account (or via **Settings → Rent Account → Manage**) to see:
+
+- **Current Balance** — how much has accumulated so far this month
+- **Monthly Rent Target** — the full amount needed
+- **Funding % bar** — visual indicator:
+  - 🔴 Red (< 75%) — still building up, rent day may be tight
+  - 🟠 Orange (75–99%) — good progress
+  - 🟢 Green (100%+) — fully funded, ready to pay
+- **Transactions tab** — full history of every daily deposit and any payments made
+
+---
+
+#### When Rent is Due — Paying the Landlord
+
+When rent is due, the money has been accumulating in the Rent Account. To request payment:
+
+1. Go to **Expense Accounts** and open the Rent Account.
+2. Click **🏠 Request Rent** — the button shows the configured monthly rent amount (e.g. "🏠 Request Rent $375.00").
+3. The system checks that the **Rent Account balance ≥ monthly rent amount**. If the balance is short, the request is blocked — you need to wait for more EOD transfers or add a direct deposit.
+4. If the balance is sufficient, a payment request is created and queued for the next EOD payment batch.
+5. A manager reviews and approves the batch. At that point the cash is drawn from the cash bucket and the rent account balance decreases.
+
+> If you need to cancel a submitted rent payment request — for example if the landlord gave an extension — open the EOD Payment Batch review, **Reject** the rent line item, and click **Process & Print Report**. The payment is returned to the queue for the next EOD cycle.
+
+#### Adding a Direct Deposit to the Rent Account
+
+If the regular EOD transfers are not enough to cover rent on time (e.g. a missed day, or a one-off top-up from a loan or cash injection):
+
+1. Go to the Rent Account.
+2. Click **Add Deposit**.
+3. Select the source type — e.g. **Manual**, **Loan**, or **Other** (not EOD).
+4. Enter the amount and a note.
+5. Click **Save**.
+
+**What happens:**
+- The rent account balance increases immediately.
+- A **Cash INFLOW** entry is recorded in the cash bucket (the physical cash is now accounted for).
+- An **earmark** (CASH_ALLOCATION) is recorded automatically so the deposited amount is not available for other expense requests.
+
+---
+
+#### Adjusting the Rent Configuration
+
+If the rent amount changes or you need to update the landlord:
+
+1. Go to **Settings → Rent Account → Manage**.
+2. Update the Monthly Rent, Operating Days, Due Day, or Landlord as needed.
+3. The new daily transfer amount is calculated immediately and applies from the next EOD onwards.
+
+To deactivate the rent account (e.g., if you move premises):
+- Go to **Manage → Deactivate Rent Account**.
+- Existing balance is preserved. Auto-transfers stop.
+
+---
+
+### Cash Allocation Report — Detailed Workflow
+
+The Cash Allocation Report is the cashier's formal record of how the day's physical cash was distributed. It is generated automatically after the EOD report is saved and must be completed before the till shift is considered closed.
+
+#### Why It Exists
+
+When the EOD close runs auto-deposits and a rent transfer, money moves between accounts in the system — but physical cash still needs to be physically counted, separated, and placed in the right envelopes or handed to the right people. The Cash Allocation Report bridges the system records with the physical cash handling.
+
+#### What It Contains
+
+Each line item in the report represents one money movement from the EOD:
+
+| Line Item | Source | What the cashier must do |
+|-----------|--------|--------------------------|
+| Rent Transfer | EOD_RENT_TRANSFER | Count out the daily rent amount, put in rent envelope |
+| Staff Welfare Fund deposit | EOD_AUTO_DEPOSIT | Count out that amount, set aside for that account |
+| Building Fund deposit | EOD_AUTO_DEPOSIT | Count out that amount, set aside for that account |
+| … (one row per auto-deposit) | | |
+
+#### Completing the Report
+
+1. Go to **[Business] → Reports → Cash Allocation** (the report opens automatically after EOD save, or find it under Reports).
+2. For each line item:
+   - Count out the physical cash matching the **Reported Amount**.
+   - Tick the checkbox ✅.
+   - Confirm the amount (type it in if there is a discrepancy).
+3. Once every line item is checked and amounts match, click **Lock Allocation**.
+
+#### What Locking Does
+
+- Status changes from **Draft → Locked** — the report cannot be changed.
+- For each line item, a **Cash Bucket OUTFLOW** entry is recorded (the cash physically leaving the till).
+- A single **Cash Bucket INFLOW** entry is recorded for the total cash counted in for the day.
+
+> **If the cash box does not have enough to cover all allocations:** The system will flag the shortfall but will not block you from locking. It will process what it can and mark the rest as skipped. The manager resolves the shortfall separately (e.g., by noting it in the variance).
+
+#### Grouped Cash Allocation (Catch-Up EOD)
+
+When the Grouped EOD Catch-Up closes multiple missed days, a single combined Cash Allocation Report is created covering all selected dates. The workflow is the same — one report, one set of line items for all dates combined — making it easier to handle the physical cash for catch-up closes without generating many separate reports.
 
 ---
 
 ## 8. Business Loans
 
-> **Who reads this:** Managers and business owners tracking loans taken by the business or on behalf of employees.
+> **Who reads this:** Managers and business owners tracking loans taken by the business or issued to employees.
 
-### Viewing Loans
+The system has **two separate loan systems** that serve different purposes:
 
-Go to **Loans** in the menu to see all loans. Each loan shows:
-- The lender's name
-- The original amount
-- How much has been repaid
-- The outstanding balance
-- The current status
-
-### Loan Statuses
-
-| Status | Meaning |
-|--------|---------|
-| **Recording** | Loan details are being entered (not yet locked) |
-| **Lock Requested** | Recording is complete, awaiting final confirmation |
-| **Locked** | Loan is confirmed and active, repayments are tracked |
-| **Settled** | Loan is fully paid off |
-
-### Recording a Loan Repayment
-
-1. Open the loan.
-2. Click **Record Repayment**.
-3. Enter the amount paid and the date.
-4. Add a reference number (bank reference or receipt number).
-5. Click **Save**.
-
-The outstanding balance updates automatically.
-
-### Linking a Loan to an Expense Account
-
-If repayments come from an expense account automatically:
-1. Open the loan.
-2. Click **Link to Expense Account**.
-3. Choose the expense account.
-4. Set the repayment schedule (monthly amount, due date).
-5. Save.
-
-The system will auto-deduct repayments from that expense account on the scheduled dates.
+| System | Direction | Example |
+|--------|-----------|---------|
+| **Business Loan** | External lender → Business | Bank loan, investor advance, supplier credit |
+| **Outgoing Employee Loan** | Business → Employee/Person | Staff salary advance, personal loan |
 
 ---
 
-## 9. Customers & Laybys
+### Part A — Business Loans (The Business Borrows)
+
+This tracks money the business has borrowed from an external source — a bank, investor, or supplier.
+
+#### Business Loan Statuses
+
+| Status | Meaning |
+|--------|---------|
+| **Recording** | Loan details are being entered; figures can still change |
+| **Lock Requested** | Manager has finished entering details and asked for it to be locked |
+| **Locked** | Loan is confirmed and active; repayments are now tracked against it |
+| **Settled** | Loan is fully paid off |
+
+> The status flow is strictly one-way: Recording → Lock Requested → Locked → Settled. You cannot go backwards.
+
+---
+
+#### Creating a Business Loan Record
+
+1. Go to **Finance → Business Loans** (or **Loans** in the menu).
+2. Click **New Loan**.
+3. Fill in:
+   - **Lender name** — who provided the money
+   - **Loan number / reference** — the lender's reference (optional)
+   - **Principal amount** — the total amount borrowed
+   - **Interest rate** — percentage (enter 0 if none)
+   - **Start date** and **due date**
+   - **Notes** — purpose of the loan, collateral, conditions
+4. Click **Save** — the loan is created in **Recording** status.
+
+While in *Recording* status you can edit any field freely.
+
+---
+
+#### Requesting a Lock
+
+When all details are confirmed and you want to start tracking repayments:
+1. Open the loan.
+2. Click **Request Lock**.
+3. A manager or owner reviews and clicks **Confirm Lock**.
+4. Status changes to **Locked** — the figures are now fixed.
+
+---
+
+#### Recording Loan Expenses (Pre-Lock)
+
+While the loan is in *Recording* status, you can link **expenses** to it — for example, legal fees, bank charges, or disbursement costs that were paid before the loan was active:
+1. Open the loan.
+2. Click **Add Expense**.
+3. Enter amount, date, and a description.
+4. These are tracked separately from repayments.
+
+---
+
+#### Withdrawal Requests
+
+For loans that are drawn down in tranches (e.g. a revolving credit facility), you raise a **Withdrawal Request** each time you need to draw funds:
+
+- **One withdrawal request per month** per loan.
+- Format: `WR-{LoanNumber}-{YYYYMM}` (e.g. `WR-LN-20260101-001-202601`).
+- Statuses: **Pending → Approved → Paid**
+
+**To create a withdrawal request:**
+1. Open the locked loan.
+2. Click **Request Withdrawal**.
+3. Enter the amount needed and the purpose.
+4. Click **Submit** — manager receives a notification.
+5. Manager reviews and clicks **Approve**.
+6. Once funds arrive, mark it as **Paid**.
+
+---
+
+#### Recording Loan Repayments
+
+Each repayment reduces the outstanding balance:
+1. Open the loan (must be in **Locked** status).
+2. Click **Record Repayment**.
+3. Enter:
+   - **Amount paid**
+   - **Date of payment**
+   - **Reference** (bank transaction ID, cheque number)
+4. Click **Save**.
+
+The outstanding balance updates automatically. When the balance reaches zero, click **Mark as Settled**.
+
+---
+
+#### Interest Handling
+
+The system does **not** calculate interest automatically. Interest is recorded manually:
+- Add an interest payment as a **Repayment** with a note indicating it is interest.
+- Or record it as a separate **Expense** line on the loan.
+
+---
+
+### Part B — Outgoing Employee Loans (The Business Lends)
+
+This tracks money the business has advanced to an employee, contractor, or another person — salary advances, personal loans, emergency funds.
+
+#### Employee Loan Statuses
+
+| Status | Meaning |
+|--------|---------|
+| **Pending Approval** | Loan application submitted, awaiting manager sign-off |
+| **Pending Contract** | Approved; waiting for signed loan agreement |
+| **Active** | Loan is disbursed and repayments are being tracked |
+| **Paid Off** | All repayments completed; loan is closed |
+| **Written Off** | Debt forgiven or uncollectable; closed with no further deductions |
+
+---
+
+#### Creating an Employee Loan
+
+1. Go to **Finance → Employee Loans** (or **Loans → Outgoing**).
+2. Click **New Loan**.
+3. Fill in:
+   - **Recipient** — select the employee or person
+   - **Loan amount**
+   - **Purpose** — reason for the advance
+   - **Repayment type** — see table below
+   - **Repayment amount** — monthly instalment
+   - **Start date**
+4. Click **Save** — loan enters **Pending Approval**.
+
+---
+
+#### Repayment Types
+
+| Type | How it works |
+|------|-------------|
+| **Payroll Deduction** | The repayment instalment is automatically deducted from the employee's salary each payroll period. No manual action needed — it appears as a line in the payroll entry. |
+| **Manual** | The employee pays back cash or bank transfer. Manager records each repayment manually. |
+
+> **Payroll Deduction** is the preferred method for employee loans — it prevents missed payments and keeps everything in one place.
+
+---
+
+#### Approving and Activating a Loan
+
+1. Manager opens the loan and reviews the details.
+2. Clicks **Approve** — status moves to **Pending Contract**.
+3. Print or prepare a loan agreement document.
+4. Once the signed agreement is received, click **Activate Loan** — status moves to **Active**.
+5. Disburse the funds (cash or bank transfer) and note the disbursement date.
+
+---
+
+#### Payroll Deduction (Automatic)
+
+If repayment type is **Payroll Deduction**:
+- Each payroll period, the system automatically includes the instalment as a deduction on the employee's payroll entry.
+- It appears in the entry detail modal as a line: *Loan Repayment — [Loan Ref]*.
+- The outstanding loan balance decreases after each payroll export.
+- When the balance reaches zero, the loan is automatically marked **Paid Off**.
+
+No manual recording is needed for payroll-deduction loans.
+
+---
+
+#### Manual Repayments
+
+If type is **Manual**:
+1. Employee brings the repayment (cash / transfer).
+2. Go to the loan record.
+3. Click **Record Repayment**.
+4. Enter amount, date, and payment reference.
+5. Click **Save**.
+
+Repeat each month until fully paid. Click **Mark Paid Off** when balance is zero.
+
+---
+
+#### Writing Off a Loan
+
+If the loan is uncollectable (employee left, debt forgiven):
+1. Open the loan.
+2. Click **Write Off**.
+3. Enter the reason.
+4. Confirm — status changes to **Written Off**. No further deductions occur.
+
+---
+
+### Viewing All Loans
+
+Go to **Finance → Loans** to see both business loans and employee loans in one list. Filter by:
+- Loan type (Business / Outgoing)
+- Status
+- Employee name
+- Date range
+
+Each row shows: loan reference number, recipient/lender, principal, amount repaid, outstanding balance, and status.
+
+---
+
+## 9. Customers, Loyalty Cards & Campaigns
 
 > **Who reads this:** POS cashiers, managers, and anyone who deals with customer accounts.
 
+### Customer Numbers
+
+Every customer gets a unique number generated automatically when they are registered. The format is:
+
+```
+{BUSINESS_TYPE}-CUST-{SEQUENCE}
+
+Examples:
+  Restaurant:  RES-CUST-000001
+  Grocery:     GRO-CUST-000023
+  Clothing:    CLO-CUST-000007
+  Hardware:    HAR-CUST-000015
+```
+
+This number is the barcode value on the customer's loyalty card. It is permanent — it does not change even if the customer's name or phone number is updated.
+
+---
+
 ### Adding a New Customer
 
+**From the Customers module:**
 1. Go to **Customers** in the menu.
 2. Click **Add Customer**.
-3. Enter their name, phone number, and (optionally) email and address.
+3. Fill in:
+   - **Full name** *(required)*
+   - **Phone number** *(required)*
+   - Email, address, date of birth, national ID *(all optional)*
 4. Click **Save**.
 
-A customer number is generated automatically (e.g., `GRO-CUST-000012`). This number is also their loyalty card barcode.
+**From the POS (inline, without leaving the till):**
+See Step 3 in the POS section — type a name, click **+ Add New Customer**, enter name and phone.
 
-### Printing a Loyalty Card
+---
 
-1. Open the customer's profile.
+### Printing a Customer Loyalty Card
+
+Every customer should be given a loyalty card so that future visits can be scanned in seconds rather than searching by name.
+
+**How to print:**
+1. Open the customer's profile (or the card prints automatically after inline POS registration).
 2. Click **Print Loyalty Card**.
-3. The card is formatted to fold in half and includes their barcode.
-4. Print and hand it to the customer.
+3. The print window opens — the card is laid out **twice side by side on one sheet** for a fold-in-half design.
 
-The customer can use this card at the POS to link sales to their account — the cashier scans it with the barcode scanner.
+**What is on the card:**
+
+```
+┌─────────────────────────────────────┐
+│  LOYALTY CARD          YOUR BUSINESS│
+│                                     │
+│  [🛍️ Avatar]   Customer Full Name  │
+│                RES-CUST-000012      │
+│                +263 77 123 4567     │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ ||| CODE128 BARCODE |||     │    │
+│  │ RES-CUST-000012             │    │
+│  └─────────────────────────────┘    │
+└─────────────────────────────────────┘
+         ↑ fold here ↑ (print 2 copies)
+```
+
+4. Print on plain paper, fold in half, trim, and laminate (optional).
+5. Hand the card to the customer.
+
+**When the customer scans their card at a future visit:**
+- The cashier scans it with the barcode scanner at any point.
+- The customer is instantly pre-selected in the POS — no typing needed.
+- Their name appears on the cart. All items added from that point forward are linked to their account.
+
+---
 
 ### Viewing a Customer's Purchase History
 
 1. Open the customer's profile.
 2. Click the **Purchases** or **History** tab.
-3. You will see all previous transactions, dates, amounts, and items bought.
+3. Every completed sale is shown — date, order number, items, total, and payment method.
+
+---
+
+### Customer Activity Report
+
+For a manager-level view of all customers across the business:
+
+1. Go to **Customers → Activity Report** (or **Reports → Customer Activity**).
+2. Choose a time period: Last 30 days, 90 days, 12 months, or All time.
+3. Sort by: Total Spend, Order Count, Most Recent Visit, or Average Order Value.
+
+Each customer row shows:
+- Total spend in the period
+- Number of visits
+- Average order value
+- Last visit date
+- Status indicator:
+  - 🟢 **Active** — visited within the last 30 days
+  - 🟡 **At Risk** — last visit 30–90 days ago
+  - 🔴 **Lapsed** — no visit in over 90 days
+
+**Use the report to:**
+- Identify your top-spending customers for VIP treatment
+- Find at-risk customers who may need a promotion to return
+- Measure the impact of campaigns on repeat visit rates
+
+---
+
+### Loyalty Campaigns — Setup and Workflow
+
+Campaigns automatically reward customers who spend above a threshold within a month. No manual tracking is needed — the system calculates eligibility and generates reward codes.
+
+#### Creating a Campaign
+
+1. Go to **Universal → Promotions** (or **Campaigns & Promos**).
+2. Click **New Campaign**.
+3. Fill in:
+
+| Field | What to enter |
+|-------|--------------|
+| **Campaign name** | e.g., "Monthly Loyal Customer Reward" |
+| **Description** | Optional note about the campaign |
+| **Spend threshold** | Minimum monthly spend to qualify (e.g., $100) |
+| **Reward type** | Choose one or more: **Store Credit**, **Free Product**, **Free WiFi Token** |
+| **Credit amount** | If credit: dollar value (e.g., $5 discount on next purchase) |
+| **Free product** | If free item: select a product from the menu/inventory |
+| **WiFi config** | If free WiFi: select which token package to award |
+| **Reward valid days** | How many days the reward is valid after issuing (default: 30) |
+
+4. Click **Save**. The campaign is now active.
+
+> Multiple reward types can be combined — e.g., a customer who spends $150+ gets both a $5 credit AND a free WiFi token.
+
+#### Generating Rewards (Monthly)
+
+Rewards are not issued automatically in real time. At the end of each month, a manager runs the reward generation:
+
+1. Go to **Universal → Promotions → Campaigns** tab.
+2. Click **Generate Rewards** (runs for the current month).
+3. The system:
+   - Looks at every customer's completed purchases for the month
+   - Compares their total spend against each active campaign's threshold
+   - Issues a **reward coupon code** (format: `RWD-xxxxxx`) to every qualifying customer
+   - Each reward has an expiry date (current date + reward valid days)
+4. A summary shows how many rewards were issued per campaign.
+
+> Rewards are **idempotent** — running the generator twice for the same month will not issue duplicate rewards.
+
+#### How Customers Redeem a Reward
+
+At the next POS visit:
+
+1. Customer provides their loyalty card (scan or name search) — they are selected in the POS.
+2. An **Available Rewards** panel appears on the POS showing any active reward codes:
+   - Reward type (credit / free item / WiFi)
+   - Amount or item name
+   - Expiry date
+3. Cashier clicks **Redeem** next to the reward.
+4. The discount or free item is applied to the current order automatically.
+5. Reward status changes to **Redeemed** — it cannot be used again.
+
+#### Reward Statuses
+
+| Status | Meaning |
+|--------|---------|
+| **Issued** | Generated, available for redemption |
+| **Redeemed** | Used at checkout — linked to the order |
+| **Expired** | Past expiry date without being used |
+| **Deactivated** | Manually cancelled by a manager |
+
+#### Tracking Rewards
+
+Go to **Universal → Promotions → Rewards** tab to see every reward ever issued:
+- Filter by status (Issued, Redeemed, Expired)
+- See which customers earned rewards and which have been used
+- Monitor campaign effectiveness — how many rewards issued vs redeemed
+
+---
+
+### Coupons (Manual Discount Codes)
+
+Coupons are different from campaign rewards — they are **created manually** by the manager and given to specific customers or used in promotions (printed on flyers, handed out, etc.).
+
+**Creating a coupon:**
+1. Go to **[Business] → Coupons → New Coupon**.
+2. Enter:
+   - **Code** — a word or number (e.g., `SUMMER20`, `WELCOME5`)
+   - **Discount amount** — fixed dollar amount off the order total
+   - **Description** — internal note about what the coupon is for
+   - **Requires approval** — if ticked, the cashier cannot apply it without manager override
+3. Save. The coupon is now active.
+
+**At the POS:**
+1. Click **Add Coupon** in the cart.
+2. Type or scan the coupon code.
+3. The discount is applied to the order total immediately.
+
+> Coupons can also have a barcode printed on them — the cashier scans the coupon like a product barcode and the discount is applied without any typing.
 
 ### Layby (Installment Purchases)
 
@@ -922,100 +2650,1065 @@ Go to **Driver → Trips** to see all logged trips. You can filter by date range
 
 ---
 
-## 13. WiFi Token Sales (R710)
+## 13. WiFi Token Sales — ESP32 and R710
 
-> **Who reads this:** Staff selling WiFi tokens to customers.
+> **Who reads this:** Staff selling WiFi access, managers configuring WiFi packages, and anyone setting up the integration.
 
-### Selling a WiFi Token at the POS
+---
 
-WiFi tokens can be sold directly through the POS as a product:
+### Two WiFi Systems — Understanding the Difference
+
+The system supports two separate WiFi hardware integrations. They work differently and are not interchangeable.
+
+| | ESP32 (Captive Portal) | R710 (Ruckus Access Point) |
+|---|---|---|
+| **Hardware** | ESP32 microcontroller with captive portal | Ruckus R710 or compatible access point |
+| **How it works** | Customer connects to WiFi → browser redirects to captive portal → enters token code | Customer gets a username and password → enters credentials on the WiFi login page |
+| **Token format** | Single **token code** (e.g., `AB12CD`) printed on receipt | **Username + Password** pair printed on receipt |
+| **Tokens generated** | On-demand at sale time | Pre-generated as AVAILABLE → marked SOLD at checkout |
+| **Duration control** | Token code controls time limit on the ESP32 device | Duration set by the token package (1hr, 24hr, weekly, etc.) |
+| **Best for** | Simpler setups, guest WiFi with captive portal redirect | Business-grade Ruckus deployments |
+| **Portal** | Configured via **ESP32 Integration settings** | Managed via **R710 Portal** |
+
+> Most businesses will use **only one** of these systems, not both. Check with your system administrator which type your hardware is.
+
+---
+
+### R710 System — Full Guide
+
+#### How R710 Tokens Are Created
+
+Tokens are **pre-generated** before any sale happens. A pool of AVAILABLE tokens is maintained per package. When a sale occurs at the POS, the next AVAILABLE token is marked as SOLD and printed on the receipt.
+
+This means:
+- There is no delay at checkout — the token is assigned instantly.
+- The pool must be topped up before it runs out.
+- The POS product card shows the current available count.
+
+#### Selling an R710 Token at the POS
 
 1. Open the POS.
-2. Search for the WiFi package (e.g., "1 Hour WiFi", "Daily Pass", "Weekly Pass").
-3. Add it to the cart.
-4. Process payment as normal.
-5. After payment, the receipt will include the customer's **WiFi username and password**.
-6. Give the customer their receipt — those credentials are what they use to connect.
+2. Search for the WiFi package by name (e.g., "1 Hour WiFi", "Daily Pass", "Weekly Pass").
+3. The product card shows **"X available"** — confirming tokens are in stock.
+4. Add it to the cart.
+5. Process payment as normal.
+6. After payment, the **receipt automatically includes the WiFi credentials**:
 
-> **Important:** Each token is single-use. Once printed on a receipt, it cannot be given to another customer.
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━
+       📶 WiFi Access
+━━━━━━━━━━━━━━━━━━━━━━━━━
+  Package:   Daily Pass
+  Username:  guest_4829
+  Password:  Kx7mP2qR
+━━━━━━━━━━━━━━━━━━━━━━━━━
+  Connect to: BusinessGuest
+  Valid for:  24 hours
+━━━━━━━━━━━━━━━━━━━━━━━━━
+```
 
-### Checking Token Availability
+7. Hand the receipt to the customer. These are their login credentials — they connect to the WiFi network and enter the username and password when prompted.
 
-On the product card in the POS, a small counter shows how many tokens are available for that package (e.g., "**12 available**"). If this number is low (under 5), a **"Request 5 More"** button will appear.
+> **Each token is single-use.** Once issued on a receipt, it cannot be reused or given to another customer.
 
-Click **Request 5 More** to automatically generate additional tokens. They will be ready within a few seconds.
+#### Checking and Restocking Token Availability
 
-### Direct Token Sale (Without POS)
+On the POS product card, the available count is displayed. When availability drops below 5:
+- A **"Request 5 More"** button appears on the product card.
+- Click it — 5 new tokens are generated in seconds and the count updates.
 
-1. Go to **R710 Portal → Sales**.
-2. Click **New Direct Sale**.
-3. Select the token package.
-4. Enter the customer's details.
-5. Process payment.
-6. Print or send the token credentials.
+To generate tokens in larger batches:
+1. Go to **R710 Portal → Token Management**.
+2. Select the package.
+3. Click **Generate Tokens** and enter the quantity.
 
-### Viewing Sales History
+#### WiFi as Part of a Combo (Bundle Deal)
 
-Go to **R710 Portal → Sales History** to see all token sales, the tokens issued, and whether they have been used.
+WiFi tokens can be included as part of a combo order — for example, a "Meal + WiFi" bundle where buying a meal includes a 1-hour WiFi token automatically.
+
+When the cashier adds the combo to the cart:
+- The food items appear as normal cart lines.
+- The WiFi token line is added automatically (marked with a 📶 icon).
+- At payment, the receipt shows both the food items AND the WiFi credentials in the same receipt.
+
+**Example receipt with combo:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━
+  Meal Deal + WiFi
+  Chicken & Chips        $5.00
+  Coke 500ml             $0.50
+  1hr WiFi Token         $0.00  (included)
+  ─────────────────────────────
+  TOTAL                  $5.50
+━━━━━━━━━━━━━━━━━━━━━━━━━
+       📶 WiFi Access
+━━━━━━━━━━━━━━━━━━━━━━━━━
+  Username:  guest_4831
+  Password:  Lm9nQ4wS
+  Valid for: 1 hour
+━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+#### WiFi as a Loyalty Campaign Reward
+
+Customers who reach a spend threshold can earn a free WiFi token as their reward (see Campaigns section in Section 9). When the cashier redeems the reward at checkout:
+- The WiFi token is added to the order at $0.00.
+- The receipt includes the credentials exactly as a normal purchase would.
+- The reward is marked as Redeemed.
+
+#### Direct Token Sale (Without POS)
+
+For situations where you need to issue a token without going through the full POS flow:
+
+1. Go to **R710 Portal → Sales → New Direct Sale**.
+2. Select the package.
+3. Enter customer details (optional).
+4. Process — the token is issued immediately.
+5. Print or display the credentials.
+
+#### Viewing Sales History
+
+Go to **R710 Portal → Sales History** to see:
+- All tokens sold (date, package, username/password)
+- Whether each token has been used or is still unused
+- Which tokens were sold via POS vs direct sale
+
+---
+
+### ESP32 System — Captive Portal Integration
+
+#### How ESP32 Tokens Work
+
+The ESP32 system uses a **captive portal** — when a customer connects to the WiFi network, their browser is automatically redirected to a login page hosted on the ESP32 device. The customer enters a **token code** to gain access.
+
+Token codes are generated by the system and sold through the POS in the same way as R710 tokens. The difference is what the customer receives: a single code (not a username/password pair).
+
+#### Selling an ESP32 Token
+
+The POS flow is identical to R710:
+1. Search for the WiFi package and add to cart.
+2. Process payment.
+3. The receipt prints the **token code**:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━
+       📶 WiFi Access
+━━━━━━━━━━━━━━━━━━━━━━━━━
+  Package:   1 Hour Pass
+  Token:     AB12CD
+━━━━━━━━━━━━━━━━━━━━━━━━━
+  Connect to: GuestWiFi
+  Go to any website to
+  enter your token code.
+━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+4. The customer connects to the guest WiFi network, opens any browser, and the captive portal page appears.
+5. They type in the token code and are granted access for the purchased duration.
+
+#### ESP32 Integration Setup (Manager / Admin)
+
+1. Go to **Settings → Integrations → ESP32 / Captive Portal**.
+2. Enter the connection details for the ESP32 device (IP address, port, API key).
+3. Test the connection.
+4. Configure the token packages (duration and price) — these sync with the ESP32 device.
+5. Save.
+
+> The ESP32 integration must be set up before any tokens can be sold through this system. If no integration exists, the system returns an empty token list and the WiFi products will not appear in the POS.
+
+---
+
+### WiFi Receipt Structure
+
+Regardless of which system is used, WiFi credentials always appear in a clearly separated block at the bottom of the receipt, after the payment summary. This keeps the financial details and the access details easy to read separately.
+
+**Full receipt structure when WiFi is included:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  YOUR BUSINESS NAME
+  123 Main Street
+  Tel: +263 77 000 0000
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Order #: ORD-000842
+  Date:    15 Mar 2026  14:32
+  Cashier: Tendai
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ITEMS
+  Burger & Chips         $4.50
+  Orange Juice           $0.80
+  WiFi — Daily Pass      $2.00
+  ──────────────────────────────
+  TOTAL                  $7.30
+  Cash received         $10.00
+  Change                 $2.70
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       📶 WiFi Credentials
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Network:   BusinessGuest
+  Username:  guest_5021
+  Password:  Rp8vN3tK
+  Valid for: 24 hours
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Thank you for your visit!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+If multiple WiFi tokens are purchased in the same order (e.g., two hourly passes), each token's credentials appear as a separate block on the receipt.
 
 ---
 
 ## 14. Inventory & Barcode Labels
 
-> **Who reads this:** Stock managers and anyone responsible for labelling products.
-
-### Adding a Product to Inventory
-
-Go to your business's **Inventory** section:
-- Restaurant: **Restaurant → Inventory → Add**
-- Grocery: **Grocery → Inventory → Add**
-- Clothing: **Clothing → Products → New**
-
-Fill in:
-- Product name
-- SKU / product code (or let the system generate one)
-- Price
-- Cost price (optional, for profit calculation)
-- Quantity in stock
-- Category
-
-Click **Save Product**.
-
-### Receiving Stock (Restocking)
-
-When a delivery arrives:
-1. Go to **Inventory → Receive Stock** (or **Receive Shipment**).
-2. Select the supplier.
-3. Enter the delivery date and invoice number.
-4. For each item received, enter the quantity and unit cost.
-5. Click **Confirm Receipt**.
-
-Stock levels are updated automatically.
-
-### Printing Barcode Labels
-
-1. Go to **Universal → Barcode Management → Print Jobs → New Print Job**.
-2. Select the products you want to label.
-3. Choose a label template (size and layout).
-4. Enter the number of labels per product.
-5. Click **Print**.
-
-The print job is sent to your label printer.
-
-### Creating a Label Template
-
-If no suitable template exists:
-1. Go to **Universal → Barcode Management → Templates → New Template**.
-2. Set the label dimensions (width and height in mm).
-3. Choose what to display: barcode, product name, price, SKU, business logo.
-4. Position and size each element.
-5. Save the template.
-
-Your template will now be available when creating print jobs.
+> **Who reads this:** Stock managers, clothing store managers, and anyone responsible for labelling products or receiving stock.
 
 ---
 
-## 15. Quick Reference Cards
+### Understanding the Two Inventory Workflows
+
+There are two distinct operations that both involve "adding inventory":
+
+| Workflow | When to use it | What it does |
+|----------|---------------|-------------|
+| **Create a new product** | Product does not exist in the system at all | Creates a new product record + assigns barcode + sets initial stock quantity |
+| **Receive stock (restock)** | Product already exists, you received more units | Adds quantity to an existing product — does not create a new record |
+
+Confusing these two is the most common inventory mistake. Always check whether the product already exists before creating a new one.
+
+---
+
+### Workflow 1 — Creating a New Product (Product Does Not Exist Yet)
+
+#### Step 1: Navigate to the Add Product screen
+
+| Business type | Path |
+|--------------|------|
+| Grocery | **Grocery → Inventory → Add Item** |
+| Clothing | **Clothing → Products → New Product** |
+| Restaurant | **Restaurant → Menu → Add Item** |
+| Universal / Hardware / Other | **[Business] → Products → New** |
+
+---
+
+#### Step 2: Fill in the product details
+
+**Core fields (all business types):**
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **Product Name** | Yes | What customers and staff will see |
+| **SKU** | Yes | Short internal code (e.g. `GRO-001`, `CLO-TRK-42`). Can be auto-generated — click the ⚙️ icon next to the SKU field. |
+| **Category** | Yes | Organise products into categories for reports and menus |
+| **Selling Price** | Yes | The price charged to customers |
+| **Cost Price** | No | What you paid for it — used for profit margin calculation |
+| **Initial Stock** | No | How many units you are putting into stock right now |
+| **Description** | No | Optional longer description |
+
+**Grocery-specific fields:**
+
+| Field | Notes |
+|-------|-------|
+| **Temperature Zone** | Room Temperature / Refrigerated / Frozen |
+| **Shelf Life (days)** | Auto-calculates expiry date when stock is received |
+| **PLU Code** | For produce items weighed at point of sale |
+| **Batch Number** | Supplier's batch reference |
+| **Organic Certified** | Tick if the product is certified organic |
+| **Low Stock Threshold** | Alert is triggered when stock drops below this number (default: 10) |
+
+**Clothing-specific fields:**
+
+| Field | Notes |
+|-------|-------|
+| **Product Type** | New / Used / Refurbished |
+| **Condition** | New / Like New / Good / Fair / Poor |
+| **Brand** | Select from the brand list or leave blank |
+
+---
+
+#### Step 3: Assign a barcode
+
+The barcode is the number a scanner reads. There are three ways to assign one:
+
+**Option A — Type or scan it directly into the form**
+- Look for the **Barcode / UPC** field on the product form.
+- If you have the physical product with a barcode label on it, hold the scanner over it — the code is entered automatically into the field.
+- If you typed it manually, double-check the number is correct.
+
+**Option B — Assign it after saving**
+- Save the product first without a barcode.
+- Open the product in the product list.
+- Click **Assign Barcode** (or the barcode icon).
+- Scan or type the barcode in the modal that appears.
+- Click **Save**.
+
+**Option C — Auto-generate (bulk, clothing stores)**
+- From the product list, select multiple products using the checkboxes.
+- Click **Bulk Actions → Assign Barcodes**.
+- Choose **Auto-generate sequential barcodes**.
+- Enter a **Barcode Prefix** (e.g. `CLO` produces `CLO000001`, `CLO000002`, etc.).
+- Click **Generate** — all selected products get sequential barcodes.
+
+> **SKU vs Barcode:** The SKU is a human-readable internal code (e.g. `TRK-BLK-L`). The barcode is what the scanner reads (e.g. `5901234123457`). Both can be the same value, but they serve different purposes. A product can have an SKU without a barcode, but a barcode must be assigned before the item can be scanned at the POS.
+
+---
+
+#### Step 4: Print the barcode label
+
+Once a barcode is assigned, print a label to stick on the product:
+
+1. Go to **Universal → Barcode Management → Templates**.
+2. Click **New Template**.
+3. Choose **From Existing Product** — search for your product.
+4. The template is pre-filled with the product name, price, SKU, and barcode.
+5. Adjust label size, font size, and paper format if needed.
+6. Go to **Universal → Barcode Management → Print Jobs → New Print Job**.
+7. Select your template, enter the quantity of labels to print, and click **Print**.
+
+> Labels print with: business name, product name, description, size, barcode, SKU, and price. Two fold lines are printed on the label for folding-tag style clothing labels.
+
+---
+
+### Workflow 2 — Receiving Stock for an Existing Product
+
+Use this when a product already exists in the system and you have received more units.
+
+#### Grocery — Receive Stock Page
+
+1. Go to **Grocery → Inventory → Receive Stock**.
+2. A grid shows all your existing products.
+3. For each item you received:
+   - Enter the **quantity received** in the "Receive Qty" column.
+   - Optionally update the **Cost/Unit** (if the supplier price changed).
+   - Optionally add a **Batch #** and **Expiration date**.
+4. Click **Submit Receipt** — the system increases the stock levels and records a stock-received movement.
+
+> You can update multiple products in a single session — fill in quantities for everything you received and submit once.
+
+#### Clothing / Hardware / Universal — Stock Adjustment
+
+1. Open the product's detail page (from the product list, click on the product name).
+2. Click **Add Stock** or **Adjust Stock**.
+3. Enter the quantity received and a reason (e.g. "Stock delivery").
+4. Click **Save** — the new units are added to the current stock count.
+
+#### What a stock receipt records
+
+Every time you receive stock, the system logs:
+- Date and time received
+- Quantity added
+- Unit cost (if provided)
+- Batch number and expiration date (if provided)
+- Who recorded it
+
+This history is visible under the product's **Stock History** tab and feeds into the inventory movement report.
+
+---
+
+### Workflow 3 — Scanning a Barcode to Add New Inventory
+
+This is the fastest method when you are physically holding items and want to add them one at a time by scanning. See the full lookup sequence below.
+
+---
+
+### Adding Inventory by Scanning a Barcode
+
+The fastest way to add a new product is to scan its barcode. Every scan triggers a **multi-step global lookup** — the system searches not just the current business but across all businesses you have access to, in a defined order.
+
+---
+
+#### The Full Lookup Sequence
+
+```
+Barcode scanned
+       │
+       ▼
+Step 1 ── Does this business already have this barcode?
+       │   YES → product found → add to cart / show in inventory
+       │   NO  ↓
+       ▼
+Step 1.5 ── Is this a clothing bale (by barcode or SKU)?
+       │   YES → bale found → add to cart with unit price
+       │   NO  ↓
+       ▼
+Step 2 ── Does a barcode template exist for this code?
+       │   YES → template found → open pre-filled product form
+       │   NO  ↓
+       ▼
+Step 3 ── Global cross-business lookup
+       │   FOUND in another business → show match details
+       │                               offer "Stock to this business"
+       │   NOT FOUND anywhere ↓
+       ▼
+Step 4 ── Barcode is completely unknown
+           → Open Quick Stock Add form
+           → User enters name, price, quantity
+           → Product created + barcode registered here
+```
+
+---
+
+#### Step 1 — Barcode Found in This Business
+
+Scan the barcode at the POS or inventory screen. The product is found immediately and added to the cart (POS) or shown in the inventory list. Nothing else is needed.
+
+---
+
+#### Step 1.5 — Clothing Bale Match
+
+If the barcode or SKU matches a bale record (e.g. `BALE-HXI-042`), the bale is found and can be added to the cart at the configured unit price. See the Clothing Bales section for full details.
+
+---
+
+#### Step 2 — Barcode Template Match
+
+If a label template was previously created with this barcode value, a template card appears showing the product name, default price, size, and colour from the template.
+
+1. Click **✨ Create Product from Template**.
+2. A product form opens with all fields pre-filled.
+3. Confirm or adjust and click **Save** — the product is created with the barcode attached.
+
+> This is the standard workflow for pre-labelled wholesale stock: templates are set up once per product line, and any staff member can add stock by scanning thereafter.
+
+---
+
+#### Step 3 — Global Cross-Business Lookup
+
+If the barcode is not found in the current business and no template matches, the system performs a **global search across all businesses** in the organisation that the current user has access to.
+
+**What this means in practice:**
+
+Suppose the grocery store scans a can of Coca-Cola with barcode `5000112637922`. That barcode is not in the grocery's product list yet. But the restaurant already stocks it as "Coke 500ml". The system finds the match in the restaurant and shows:
+
+```
+┌──────────────────────────────────────────────────┐
+│  📦 Barcode found in another business            │
+│                                                  │
+│  Barcode:   5000112637922                        │
+│  Product:   Coke 500ml                           │
+│  Found in:  Restaurant                           │
+│  Price:     $0.80                                │
+│  Stock:     48 units available there             │
+│                                                  │
+│  [ ➕ Stock this item in Grocery ]  [ Cancel ]   │
+└──────────────────────────────────────────────────┘
+```
+
+**Options:**
+
+| Button | What happens |
+|--------|-------------|
+| **➕ Stock this item in [current business]** | Opens the Quick Stock Add form pre-filled with the product name and price from the other business. You set the quantity and any adjustments, then save — the product is created in the current business with this barcode attached. |
+| **Cancel** | Dismisses without doing anything. |
+
+> The system is offering information — it found the same barcode somewhere else in your organisation. You are **not forced** to copy the other business's details. You can change the name or price when you fill in the form.
+
+---
+
+#### The Same Barcode Can Mean a Different Product in a Different Business
+
+This is an important concept: **a barcode is not globally unique across your businesses**. The same barcode number can be registered against completely different products in different stores, and this is perfectly normal and correct.
+
+**Example:**
+
+| Business | Barcode | Product registered against it |
+|----------|---------|-------------------------------|
+| Grocery | `4006381333931` | Nivea Cream 50ml |
+| Clothing | `4006381333931` | White Buttons Pack (10pcs) |
+
+Both are correct. The grocery received goods labelled with that barcode and it means Nivea Cream to them. The clothing store happened to receive different goods with the same printed barcode and registered it as button packs.
+
+When a cashier in the grocery scans `4006381333931`, they see Nivea Cream. When a cashier in the clothing store scans the same code, they see Button Packs. Neither store sees the other's product — the lookup is always **scoped to the current business first**.
+
+The global cross-business lookup (Step 3) only triggers when the barcode is **not found at all** in the current business. If the current business already has the barcode registered — even as something different from what another business has — the current business's product is used and the lookup stops there.
+
+> **Summary rule:** Each business owns its own mapping of barcodes to products. The same barcode can safely exist in multiple businesses pointing to different products. There is no conflict.
+
+---
+
+#### Step 4 — Barcode Completely Unknown (Quick Stock Add)
+
+If no match is found anywhere — not in the current business, no template, and no other business — the **Quick Stock Add** form opens automatically:
+
+1. The scanned barcode is pre-filled — do not change it.
+2. Enter:
+   - **Product name** — what this item is called in your store
+   - **Price** — the selling price
+   - **Quantity received** — how many units you are stocking
+   - **Size / Colour** *(optional, for clothing)*
+3. Click **Save Product**.
+
+The system creates the product in the current business, registers the barcode against it, and records a stock-received movement. You are taken to the full product edit page to add more details (category, cost price, image, etc.) if needed.
+
+> **Tip for clothing stores:** Use Quick Stock Add for one-off items. For items received in bulk batches, use the Bales system instead.
+
+---
+
+#### Summary: What Happens at Each Scan Stage
+
+| Situation | What the cashier / stock manager sees |
+|-----------|--------------------------------------|
+| Barcode in this business | Product found instantly — added to cart or shown in stock |
+| Bale SKU/barcode | Bale found — added to cart at unit price |
+| Barcode template exists | Template card shown — one click creates the product |
+| Barcode in another business | Cross-business match shown — option to stock here |
+| Barcode in multiple businesses | All matches shown — cashier chooses which to use |
+| Completely unknown | Quick Stock Add form opens — user creates the product now |
+
+---
+
+### Used Clothing Bales — Complete Guide
+
+A **bale** is a compressed bundle of second-hand clothing items purchased as a single lot. The bales system tracks each bale from purchase through to individual item sales, giving you stock levels, cost recovery, and BOGO (buy-one-get-one) promotions per bale.
+
+#### How Bales Work
+
+When you buy a bale you know:
+- How many items are in it (e.g. 200 pieces)
+- What you paid for the whole bale (cost price)
+- The selling price per item
+
+The system divides the cost across all items and tracks how many items remain unsold. When items from the bale are sold at the POS (by scanning the bale's barcode), the **remaining count decreases automatically**.
+
+#### Creating a Bale
+
+1. Go to **Clothing → Inventory → Bales → New Bale**.
+2. Fill in:
+   - **Batch number** — leave blank to auto-generate (format: `BALE-{SHOP}-{NUMBER}`)
+   - **Category** — e.g. "Ladies Tops", "Kids Mixed", "Winter Jackets"
+   - **Item count** — total number of pieces in the bale
+   - **Selling price per item** (unit price)
+   - **Cost price** — what you paid for the whole bale (used for cost-recovery reporting)
+   - **Barcode** — scan or type a barcode to attach to this bale (optional but recommended)
+   - **Employee** — the staff member receiving the bale
+   - **Notes** — supplier name, delivery date, anything useful
+
+3. Click **Save Bale**.
+
+The system assigns a SKU automatically (e.g. `BALE-HXI-00042`). The bale now appears in the bale inventory list.
+
+#### Printing Bale Labels
+
+After creating the bale, print its barcode label so shelf staff can scan items to the POS:
+
+1. From the bale record, click **Print Label**.
+2. Choose the label template (see "Creating a Label Template" below).
+3. The label will include:
+   - Business name
+   - Category / product name
+   - Selling price (large)
+   - Batch number and date
+   - **Barcode** (scannable by the POS)
+   - Size and colour if set
+4. Click **Print** — the job is sent to the label printer.
+
+Stick the label on the shelf edge or bin where the bale is displayed. Cashiers scan this label when ringing up items.
+
+#### Selling from a Bale at the POS
+
+Cashiers do not need to know which bale items came from. They simply:
+1. Scan the bale's barcode label (or type the SKU).
+2. The bale appears as a product in the cart with the unit price.
+3. Adjust the quantity to the number of pieces being purchased.
+4. Complete the sale normally.
+
+The bale's **remaining count** decreases by the quantity sold.
+
+#### BOGO Promotions on a Bale
+
+To run a "buy 2 get 1 free" or similar offer:
+
+1. Open the bale record.
+2. Enable **BOGO Active**.
+3. Set the **BOGO ratio** (e.g. 3 means "buy 2 pay, 1 free" → every 3rd item is free).
+4. Save.
+
+The POS will automatically apply the free item when the quantity meets the ratio. The bale report tracks how many free items have been given out.
+
+#### Bale Inventory Report
+
+Go to **Reports → Bale Inventory** to see:
+- Remaining item count per bale
+- Items sold vs total
+- Cost recovery percentage (how much of the purchase cost has been recovered so far)
+- Sales velocity (average items sold per day)
+- BOGO free items given out
+- Transfers between business locations
+
+#### Transferring a Bale Between Locations
+
+If items from one bale are moved to another shop:
+1. Go to **Inventory → Transfers → New Transfer**.
+2. Select the bale as the item being transferred.
+3. Enter the quantity moving.
+4. Select the destination business.
+5. Confirm — both locations' remaining counts update.
+
+---
+
+### Custom Bulk Products — Complete Guide
+
+A **Custom Bulk Product** is a container of identical items purchased in bulk and sold individually — for example, a box of 300 chocolates sold at $0.35 each, or a crate of 50 shampoo bottles sold at $1.20 each. The system tracks how many items remain in the container and automatically deactivates the product when stock runs out.
+
+> **Custom Bulk vs Bales:** Bales are used for used clothing where the exact item count is estimated. Custom Bulk is for packaged goods where the item count is exact and the per-item price is fixed.
+
+#### Accessing Custom Bulk Products
+
+Navigate to **Inventory → Custom Bulk Products** from the left sidebar. This page shows all active bulk products for your business with their remaining stock, unit price, and container cost.
+
+#### Registering a New Bulk Product
+
+1. From the **Bulk Stocking panel** (Inventory → Bulk Stocking), click the **📦 Bulk Product** button in the header.
+2. In the **Register New** tab, fill in:
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **Product Name** | Yes | e.g. "Chockolates", "Hand Sanitiser 500ml" |
+| **Barcode** | No | Scan an existing barcode on the container, or click **Generate** to auto-create one |
+| **Item Count** | Yes | Total number of individual units in the container |
+| **Container Cost** | No | What you paid for the whole container — used for profit margin |
+| **Unit Price** | Yes | Auto-calculated as Container Cost ÷ Item Count when both are filled in. You can also set it manually. |
+| **Category** | No | Select from the list. Click **+ New category** to create one on the spot. |
+| **Supplier** | No | Select from the list. Click **+ New supplier** to add one inline. |
+| **Notes** | No | Optional internal note |
+
+3. Click **Register Bulk Product**.
+4. The success screen shows:
+   - The assigned **batch number** and **barcode**.
+   - A **🖨 Print Barcode Label** button — click this to immediately print a scannable label for the container.
+
+> **Auto-generated barcode:** If you leave the Barcode field empty, the system generates a unique 8-character hex code (e.g. `a3f2b7c9`). This becomes the barcode scanned at the POS.
+
+#### Printing a Barcode Label
+
+Labels for custom bulk products use the same print system as bales:
+
+1. Click **🖨 Print Barcode Label** on the success screen after registering, **or**
+2. Go to **Inventory → Custom Bulk Products**, find the product row, and click **🖨 Print** in the Actions column, **or**
+3. In the Bulk Product modal, switch to the **📋 Manage Existing** tab, find the product, and click **🖨 Print**.
+
+The print modal lets you:
+- Select a **label template** (size, font, layout)
+- Set the **quantity** of labels to print
+- Send to a **receipt/label printer** or **save as PDF**
+
+Stick the printed label on the container or shelf edge. Cashiers scan this label at the POS.
+
+#### Selling a Custom Bulk Product at the POS
+
+1. **Scan the barcode** on the container label at any POS terminal.
+2. The product is added to the cart at the unit price (e.g. $0.35).
+3. Adjust the quantity to however many units the customer is buying.
+4. Complete the sale normally.
+
+The product's **remaining count decreases** by the quantity sold. When the remaining count reaches zero, the product is automatically deactivated and will no longer appear in barcode lookups.
+
+#### Managing Existing Bulk Products
+
+Go to **Inventory → Custom Bulk Products** (sidebar link). The page shows:
+
+| Column | What it means |
+|--------|---------------|
+| **Product** | Name and any notes |
+| **Batch / Barcode** | Auto-generated batch number and barcode value |
+| **Category** | Assigned category |
+| **Items Left** | Remaining count with a colour-coded progress bar |
+| **Unit Price** | Per-item selling price |
+| **Container Cost** | Original purchase cost of the full container |
+| **Added** | Date registered |
+| **Actions** | Edit · 🖨 Print · Deactivate |
+
+**Restock Candidates** are shown in an amber panel at the top — these are products with 5 or fewer items remaining or sold out.
+
+#### Editing a Bulk Product
+
+Click **Edit** on any row. You can update:
+- Product name
+- Unit price
+- Container cost
+- Notes
+
+> Item count cannot be changed after registration. To correct an item count error, deactivate the old product and register a new one.
+
+#### Deactivating a Bulk Product
+
+Click **Deactivate** to mark the product as inactive. It will no longer appear at the POS or in barcode scans. Sales history is preserved. Use this when:
+- The container is physically removed from sale before it is fully sold.
+- You registered it with incorrect details.
+
+#### Inline Category and Supplier Creation
+
+When registering a new bulk product, if the category or supplier you need does not exist:
+- Click **+ New category** under the Category dropdown — enter the name and save. The new category is immediately selected.
+- Click **+ New supplier** under the Supplier dropdown — fill in the supplier form and save. The new supplier is immediately selected.
+
+---
+
+### Bulk Stocking Panel — Receiving and Counting Stock
+
+The **Bulk Stocking Panel** is used by stock managers to receive incoming stock and to run **Stock Take** counts. It is accessed from **Inventory → Bulk Stocking**.
+
+The panel opens in one of two modes:
+
+| Mode | Purpose |
+|------|---------|
+| **Bulk Stocking** | Record new incoming stock deliveries — update quantities for multiple products at once |
+| **Stock Take** | Count what is physically on the shelves and compare to system records |
+
+#### Bulk Stocking Mode — Receiving Incoming Deliveries
+
+Use this mode when stock arrives from a supplier.
+
+1. Open the Bulk Stocking panel.
+2. Select **Bulk Stocking** mode.
+3. For each item received:
+   - **Scan the barcode** or type the SKU / product name into the scan bar.
+   - Enter the **quantity received**.
+   - Add any notes (optional).
+4. Items appear in the table with their system quantity and the quantity you are adding.
+5. When finished, click **Save Draft** to save your work and return later, or **Submit** to apply the stock changes immediately.
+
+**Search and filter:** Use the search bar above the table to filter by barcode, product name, or description. Click **Reset** to clear the filter.
+
+**Delete draft:** Click **🗑 Delete Draft** in the header to discard a draft without submitting. You will be asked to confirm.
+
+#### Stock Take Mode — Counting Physical Stock
+
+A **Stock Take** is a formal count of everything physically on the shelves. The result is compared to the system's recorded quantities to find shortfalls (missing stock) and new stock (items present but not yet in the system).
+
+**Who runs a stock take:**
+- The stock manager loads the stock take and enters physical counts.
+- Employees involved sign off on the report digitally.
+- A manager or owner gives the final sign-off.
+
+##### Running a Stock Take
+
+1. Open the Bulk Stocking panel and select **Stock Take** mode.
+2. The system loads **all active inventory** for your business — this includes:
+   - Regular products (with variants)
+   - Barcode inventory items (BCI)
+   - Custom bulk products
+   - Clothing bales
+3. Each item shows its **system quantity** (what the system expects).
+4. In the **Physical Count** column, enter what you actually counted on the shelf.
+5. Scan barcodes to jump directly to an item — the row is highlighted and ready for input.
+
+##### Item Type Badges
+
+Each row in the stock take table shows a small badge to identify the item type:
+
+| Badge | Colour | Meaning |
+|-------|--------|---------|
+| **Stk** | Blue | Regular tracked product (variant) |
+| **BCI** | Teal | Barcode Inventory Item |
+| **Bulk** | Purple | Custom Bulk Product |
+| **Bale** | Orange | Clothing Bale |
+
+##### Saving and Submitting
+
+- **Save Draft** — saves your progress. You can return to it later. Multiple drafts can be saved (e.g. one per section of the store).
+- **Submit** — locks the counts and creates a **Stock Take Report** for sign-off.
+
+Once submitted, the system calculates:
+- **Shortfall** — items where physical count is less than system quantity. These represent potential loss or theft.
+- **New stock** — items where physical count exceeds system quantity.
+
+##### Stock Take Reports
+
+Go to **Inventory → Bulk Stocking → 📋 Reports** to view submitted stock take reports.
+
+Each report shows:
+
+| Column | Meaning |
+|--------|---------|
+| **Date** | When the stock take was submitted |
+| **Employees** | Who signed off — green tick means signed |
+| **Status** | Pending Sign-off / Signed Off / Voided |
+| **Shortfall** | Total value of missing stock |
+| **New Stock** | Total value of stock counted above system levels |
+| **Submitted by** | User who submitted the report |
+
+**Signing off a report:**
+1. Click **View** on a report.
+2. Employees listed on the report can add their digital signature.
+3. Once all employees have signed, a manager gives final sign-off.
+4. Status changes to **Signed Off**.
+
+**Voiding a report:** Managers can click **Void** on any report with status **Pending Sign-off**. This marks it as voided — stock quantities that were already adjusted are not reversed. Use this if the count was done incorrectly and needs to be restarted.
+
+---
+
+### Barcode Templates — Creating and Using Label Designs
+
+A **barcode template** is a saved label design. It stores the visual layout (font size, paper size, what to print) AND default product data (name, price, size, colour). Once a template is set up, anyone can create a perfectly formatted product label just by scanning the barcode.
+
+#### When to Create a Template
+
+Create a template when:
+- You receive the same product line regularly and want to label items consistently.
+- You want to pre-define the price and name so staff cannot accidentally enter them wrong.
+- You want to scan a barcode to instantly create a product with all details pre-filled.
+
+#### Creating a Template
+
+1. Go to **Universal → Barcode Management → Templates → New Template**.
+2. Fill in the **Product details**:
+   - **Template name** — e.g. "Ladies T-Shirt $2.50"
+   - **Product name** — the name that will appear on the label
+   - **Barcode value** — the actual barcode number (scan it in or type it)
+   - **Default price** — the selling price pre-filled when creating a product from this template
+   - **Default size** — e.g. "M", "XL", "One Size"
+   - **Default colour** — e.g. "Assorted"
+   - **Batch ID** — optional grouping reference
+   - **Type** — choose the business type (clothing, grocery, hardware, etc.)
+
+3. Fill in the **Label layout**:
+   - **Paper size** — A4 (for laser/inkjet), Label 2×1 or Label 4×2 (for dedicated label printers), Receipt strip (for receipt printers)
+   - **Orientation** — Portrait or Landscape
+   - **Barcode symbology** — CODE128 is the most universal; EAN-13 for standard retail products
+   - **Width / Height** — label dimensions in millimetres
+   - **Display value** — tick this to print the barcode number below the bars (recommended)
+   - **Font size** — size of the human-readable text
+   - **Background colour / Line colour** — leave as white/black unless you have a specific need
+
+4. Click **Save Template**.
+
+#### How a Label Looks When Printed
+
+Labels generated from templates follow this layout (top to bottom):
+
+```
+┌────────────────────────────┐
+│  BUSINESS NAME             │  ← bold, centred
+│  Product Name              │  ← centred
+│  Description (if any)      │
+│  Size: XL                  │  ← large text
+│  Batch: BALE-HXI-042  Qty:5│
+│  ┌──────────────────────┐  │
+│  │ ||| BARCODE |||       │  │  ← scannable barcode
+│  │ 1234567890123         │  │  ← number below bars
+│  └──────────────────────┘  │
+│  SKU: BALE-HXI-042         │
+│  $2.50                     │  ← price, very large
+│  Colour: Assorted          │
+│  Template: Ladies T-Shirt  │  ← small footer
+├────────────────────────────┤  ← fold / cut line
+```
+
+> For thermal label printers (e.g. Zebra, HPRT), the print job uses ESC/POS commands and prints immediately. For laser or inkjet printers, the system produces a grid of labels on A4 (3 columns × 6 rows = 18 labels per page) with cut guides.
+
+#### Printing Labels from a Template
+
+1. Go to **Universal → Barcode Management → Print Jobs → New Print Job**.
+2. Select your template.
+3. Choose the item type:
+   - **Product** — prints a label for an existing product
+   - **Bale** — prints a label for a bale (pre-fills from bale record)
+   - **Custom** — manually enter the data for this print run
+4. Enter **quantity** (how many labels to print — up to 1,000).
+5. Select the printer.
+6. Click **Print**.
+
+The job is added to the print queue with status **Queued → Processing → Completed**. You can track it under **Barcode Management → Print Queue**.
+
+#### Editing or Deactivating a Template
+
+1. Go to **Universal → Barcode Management → Templates**.
+2. Find the template and click **Edit**.
+3. Make changes and save — existing labels already printed are not affected.
+4. To stop the template appearing in print job dropdowns, toggle **Active** to off.
+
+> The template list shows **usage count** and **last used date** so you can see which templates are actively in use.
+
+---
+
+## 15. Restaurant Menu Management
+
+> **Who reads this:** Restaurant managers and owners who maintain the menu.
+
+---
+
+### Menu Structure Overview
+
+The restaurant menu is organised into **categories** (e.g., Starters, Mains, Beverages, Desserts) and **items** within each category. Each item can optionally have **variants** for different sizes or options (e.g., Small / Large, Regular / Extra Spicy).
+
+---
+
+### Creating a Menu Category
+
+Before adding items, ensure the correct category exists:
+
+1. Go to **Restaurant → Menu**.
+2. Click **Add Category** (or use the category field in the item form — it includes a "Create New" option inline).
+3. Fill in:
+   - **Name** — e.g., "Grills", "Cold Drinks", "Sides"
+   - **Emoji** — choose an emoji to represent the category (e.g., 🥩 for Grills)
+   - **Colour** — pick a colour used for the category button in the POS
+   - **Display order** — lower number = appears first
+4. Save.
+
+The category appears immediately as a filter tab in the POS.
+
+---
+
+### Adding a Menu Item
+
+1. Go to **Restaurant → Menu → Add Menu Item**.
+2. Fill in the details:
+
+| Field | Notes |
+|-------|-------|
+| **Name** *(required)* | What appears on the POS and receipt (e.g., "Chicken Burger") |
+| **Category** *(required)* | Choose from existing categories or create one inline |
+| **Base Price** *(required)* | The standard selling price |
+| **Original Price** | The "was" price — shown with a strikethrough if set (for promotions) |
+| **Discount %** | Automatic percentage off the base price |
+| **Description** | Shown on the customer display screen |
+| **Preparation time** | Minutes — informational, for kitchen display |
+| **Spice level** | 1 (mild), 2 (medium), 3 (hot) |
+| **Calories** | Informational |
+| **Dietary flags** | Tick any that apply: Vegetarian, Vegan, Gluten Free, etc. |
+| **Allergens** | Tick any that apply: Nuts, Dairy, Eggs, Wheat, etc. |
+| **Available** | Toggle off to hide the item from the POS without deleting it |
+| **Barcode** | Optional — assign a barcode so the item can be scanned at the till |
+
+3. Click **Save Menu Item**.
+
+---
+
+### Adding Variants (Small / Large, Options)
+
+If the same dish is sold in different sizes or options at different prices, use variants instead of creating separate items.
+
+On the item form:
+1. Scroll to the **Variants** section.
+2. Click **Add Variant**.
+3. For each variant enter:
+   - **Variant name** — e.g., "Regular", "Large", "Boneless"
+   - **Price** — can differ from the base price
+   - **Available** — toggle off if a size is temporarily out
+4. Add as many variants as needed.
+5. Save.
+
+At the POS, when the cashier adds this item to the cart, a size/option picker appears for them to choose which variant.
+
+---
+
+### Cloning a Menu Item
+
+If you need a new item that is similar to an existing one (e.g., a variant without the size picker, or a seasonal special based on an existing dish):
+
+1. On the Menu page, hover over the item card.
+2. Click **Clone** (or the duplicate icon).
+3. The system copies all fields except the ID, barcode, and image.
+4. The name is pre-filled as **"[Original Name] (Copy)"** — rename it.
+5. Adjust the price, category, and any other details.
+6. Click **Save** — a new product is created.
+
+> Cloning is the fastest way to build out a menu when many items share similar settings (e.g., a range of burgers that differ only in name and price).
+
+---
+
+### Marking an Item as Unavailable
+
+If an ingredient runs out or a dish is temporarily off the menu:
+
+1. Find the item on the Menu page.
+2. Click the **availability toggle** (the on/off switch on the item card).
+3. The item is immediately hidden from the POS.
+4. Toggle it back on when it is available again.
+
+> Use "Unavailable" for temporary situations. Use **Delete** only if the item will never be sold again — deletion removes all historical data links.
+
+---
+
+### Menu Promotions
+
+To run a promotion on a specific item (e.g., "20% off all burgers on Tuesdays"):
+
+1. Open the item for editing.
+2. Set the **Original Price** to the current price.
+3. Set the **Discount %** to 20 (or the **Discounted Price** directly).
+4. The POS will show the strikethrough original price and the new lower price.
+5. Remove the original price and reset the discount when the promotion ends.
+
+For buy-one-get-one or min-order promotions, use **Restaurant → Promotions** (a separate promotions module that applies rules automatically at checkout).
+
+---
+
+## 15a. Services as Products — Selling Services via Barcode
+
+> **Who reads this:** Any business that sells services (labour, access, utilities) alongside physical products.
+
+A **service** is any non-physical item you charge for — examples include:
+
+- Cellphone charging (e.g., $0.50 per charge)
+- Shoe repair / alterations (clothing store)
+- Device repair assessment fee
+- Consultation fee
+- Parking fee
+- Access fee (e.g., pool, gym)
+
+Services are created exactly like products but with **no stock quantity** — they never run out.
+
+---
+
+### Creating a Service Item
+
+1. Go to your business's **Products / Inventory → Add Product** (or **Restaurant → Menu → Add Item**).
+2. Fill in:
+   - **Name** — e.g., "Phone Charging", "Trouser Hem", "Shoe Sole Repair"
+   - **Category** — create a "Services" category if one does not exist
+   - **Price** — the fee charged
+   - **Barcode** — assign a barcode (type one in or scan a sticker) so the cashier can add it by scanning
+   - **Stock tracking** — set to **None** or leave quantity blank — services do not deplete stock
+   - **Description** — optional, shown on the customer display
+3. Save.
+
+The service appears in the POS search and can be added to any order just like a physical product.
+
+---
+
+### Assigning a Barcode to a Service
+
+Assign a barcode so the cashier does not have to type the service name — they simply scan a sticker placed at the counter.
+
+**Option A — Assign during creation:**
+- In the product form, click the **Barcode** field and scan a barcode sticker (or type in a code).
+- Save.
+
+**Option B — Assign after creation:**
+1. Open the service item.
+2. Go to the **Barcodes** tab.
+3. Click **Add Barcode**.
+4. Scan a sticker or enter the code manually.
+5. Set as Primary.
+6. Save.
+
+Print a barcode sticker label (via **Barcode Management → Print Jobs**) and stick it at the service point. The cashier scans it to add the service to the cart instantly.
+
+---
+
+### Example: Cellphone Charging at a Clothing Store
+
+1. Create a product: Name = "Phone Charging", Category = "Services", Price = $0.50, Barcode = (scan a sticker), No stock tracking.
+2. Print a label and stick it next to the charging station.
+3. When a customer wants to charge their phone:
+   - Cashier scans the sticker.
+   - "Phone Charging $0.50" appears in the cart.
+   - Process payment.
+   - Receipt is printed as normal — the service appears as a line item.
+4. If the customer is a loyalty card holder, the $0.50 is added to their monthly spend total and counts toward campaign thresholds.
+
+---
+
+### Services in Combos
+
+A service can be bundled into a combo deal just like a physical product — e.g., "Meal + Phone Charge" for $6.00. See the Combos section in the menu/POS settings to set this up.
+
+---
+
+## 16. Quick Reference Cards
 
 ---
 
@@ -1036,6 +3729,11 @@ MAKING A SALE
 10. Print receipt
 ─────────────────────────────────────────────
 
+SCANNING BALES / BULK PRODUCTS / BARCODE ITEMS
+  Scan the container/shelf label barcode
+  Product appears in cart at its unit price
+  Adjust quantity to units being purchased
+
 PAYMENT METHODS
   Cash   → Enter received amount → change is shown
   Card   → Select Card → confirm
@@ -1047,6 +3745,54 @@ COUPONS
 CANCEL A SALE
   Click "Clear Cart" (before payment only)
   After payment → call manager
+```
+
+---
+
+### Quick Reference: Stock Take
+
+```
+RUNNING A STOCK TAKE
+─────────────────────────────────────────────
+1. Inventory → Bulk Stocking
+2. Select "Stock Take" mode
+3. System loads ALL active inventory
+4. Scan item barcode OR scroll to find row
+5. Enter physical count in "Physical Count" column
+6. Repeat for all items
+7. Click "Save Draft" to pause and resume later
+8. Click "Submit" when complete
+─────────────────────────────────────────────
+
+ITEM TYPE BADGES (in table)
+  Stk  (blue)   = Regular product
+  BCI  (teal)   = Barcode inventory item
+  Bulk (purple) = Custom bulk product
+  Bale (orange) = Clothing bale
+
+AFTER SUBMITTING
+  Report is created with status: Pending Sign-off
+  Employees listed → sign off digitally
+  Manager gives final sign-off → Signed Off
+
+VOIDING A REPORT (manager only)
+  Inventory → Bulk Stocking → Reports
+  Click View on the report → Void
+  Use only if the count was incorrect — stock
+  changes already applied are NOT reversed
+
+CUSTOM BULK PRODUCTS
+─────────────────────────────────────────────
+REGISTER:  Bulk Stocking → 📦 Bulk Product
+           Fill name, item count, unit price
+           Click Generate for auto barcode
+
+PRINT LABEL:
+  After register → 🖨 Print Barcode Label
+  OR: Inventory → Custom Bulk Products → 🖨 Print
+
+SELLING: Scan container label at POS
+         Remaining count decreases per item sold
 ```
 
 ---
@@ -1135,7 +3881,9 @@ CLOCK OUT
   Employees → Clock-In → Find your record
   → Click CLOCK OUT
 
-FORGOT? → Tell your manager
+FORGOT? → Tell your manager immediately
+  Manager can manually add or fix the entry:
+  Employees → Clock-In → Records → Edit/Add Entry
 
 ─────────────────────────────────────────────
 
@@ -1145,9 +3893,16 @@ LEAVE REQUEST
   → Submit
   (manager gets notified and approves/declines)
 
-PER DIEM REQUEST
-  Employees → Per Diem → New Request
-  → Enter dates & destination → Submit
+PER DIEM
+  1. Get blank form: Employees → Per Diem → Request Form → Print
+  2. Fill in dates, amounts, purpose (by hand)
+  3. Get manager to sign the Approver line
+  4. HR/cashier enters approved data:
+     Employees → Per Diem → New Entry
+     → Select employee + month/year
+     → Add one row per travel day (date, amount, purpose)
+     → Save
+  5. Per diem is automatically included in payroll export for that month
 ```
 
 ---
@@ -1228,6 +3983,315 @@ CHECK AVAILABILITY
 DIRECT SALE (not via POS)
   R710 Portal → Sales → New Direct Sale
 ```
+
+---
+
+---
+
+## 16. Suppliers & Payees
+
+> **Who reads this:** Managers and accounts staff who create and maintain the supplier list used in expense accounts, rent accounts, and purchase orders.
+
+### What Is a Supplier / Payee?
+
+A **supplier** (also called a payee) is any business or individual that your company pays money to. This includes:
+- Goods suppliers (wholesale grocers, clothing bale vendors, hardware merchants)
+- Service providers (cleaners, security firms, IT contractors)
+- Landlords (for rent payments)
+- Utilities (electricity, water, internet)
+- Any recurring or one-off payee
+
+Suppliers are recorded in the system so that payments can be linked to the correct payee, expense account reports show who was paid, and the manager can see spending patterns per supplier.
+
+---
+
+### Adding a Supplier
+
+1. Go to **Suppliers** in the menu (or **Expense Accounts → Suppliers → New Supplier**).
+2. Fill in the required fields:
+   - **Name** *(required)* — the trading name of the supplier or individual
+   - **Phone number** *(required)* — used for contact and verification
+3. Fill in the optional fields (recommended for a complete record):
+   - **Contact person** — the name of your point of contact at the supplier
+   - **Email address** — for sending purchase orders or payment remittances
+   - **Tax ID / VAT number** — the supplier's tax registration number (needed for VAT-registered businesses)
+   - **Physical address** — delivery or correspondence address
+   - **Supplier type** — choose the most appropriate type:
+     - **General** — for most suppliers
+     - **Landlord** — for property owners you pay rent to (these are shared across all your businesses)
+     - **Utility** — electricity, water, internet, etc.
+     - **Service** — labour contractors, cleaners, security, etc.
+
+4. Click **Save Supplier**.
+
+The supplier is now available in dropdown menus when creating expense payment requests, payment batches, and rent accounts.
+
+---
+
+### Suppliers vs Landlords — Key Differences
+
+Although landlords are a type of supplier, they behave differently in the system. Understanding the distinction prevents confusion when setting up rent accounts or expense payments.
+
+| | Regular Supplier | Landlord |
+|---|---|---|
+| **Purpose** | Goods, services, utilities — anything you buy or pay for | Property owner you pay rent to |
+| **Tied to a business?** | Yes — each business has its own supplier list | **No — landlords are global** and shared across all businesses |
+| **Where created** | Suppliers menu | Suppliers menu **or** directly from the Rent Account → Manage screen |
+| **Used in** | Expense payment requests, payment batches, purchase orders | Rent Account configuration only |
+| **Appears in expense dropdowns?** | Yes | No — landlords only appear in the Rent Account landlord picker |
+| **Can be linked to multiple businesses?** | No — supplier belongs to one business | Yes — one landlord record can be the landlord for multiple business locations |
+
+**Practical example:**
+
+> You have three shops — a grocery, a clothing store, and a restaurant — all renting from the same property company "Harare Properties Ltd". You create **one** landlord record for "Harare Properties Ltd". Each shop's rent account then links to that single landlord record. When you search for the landlord in any shop's rent account, it appears because landlords are global.
+
+> By contrast, your grocery's flour supplier "City Millers" only appears when you are in the grocery's expense accounts — it does not appear in the clothing store's supplier list.
+
+---
+
+### Landlord Suppliers — Setup Detail
+
+Landlords are handled separately from regular suppliers:
+
+- They are **global** — not tied to a specific business. A landlord you add can be linked to any business's rent account.
+- They are created either from the **Suppliers** menu (choose type = Landlord) or directly from the **Rent Account → Manage** screen using the **+ Add Landlord** quick-add form.
+- The quick-add form pre-fills the name from whatever you typed in the search box — so if you searched "Harare Properties" and found nothing, clicking **+ Add Landlord** opens a form with "Harare Properties" already filled in.
+- If a landlord name already exists in the system, the system will find it by search — you should link to the existing record rather than creating a duplicate.
+
+**Required for a landlord:**
+- Name
+- Phone number
+
+---
+
+### Editing or Deactivating a Supplier
+
+1. Go to **Suppliers** and find the supplier.
+2. Click **Edit**.
+3. Update any details and click **Save**.
+
+To deactivate a supplier (so they no longer appear in dropdown menus):
+1. Open the supplier record.
+2. Toggle **Active** to off.
+3. Save.
+
+Deactivated suppliers are hidden from new transactions but their historical payment records are preserved.
+
+---
+
+### Supplier Payment History
+
+To see all payments made to a specific supplier:
+1. Open the supplier record.
+2. Click the **Payments** tab.
+3. The full list of expense payments, batch payments, and rent payments linked to this supplier is shown, with dates and amounts.
+
+---
+
+## 17. Batch EOD Catch-Up — Manager and Cashier Roles
+
+This section explains who does what when multiple days of EOD have been missed and need to be caught up at once.
+
+---
+
+### When Is a Batch Catch-Up Needed?
+
+If the business traded for several days without running EOD (e.g. the manager was away, or there was a system outage), the system detects all unclosed trading days and offers a grouped catch-up. The system looks back up to **60 days** to find dates that:
+- Had actual sales orders, OR
+- Have an active rent or auto-deposit config (meaning money should have been set aside even on quiet days)
+
+---
+
+### Manager's Role in the Catch-Up
+
+The manager drives the catch-up process.
+
+**Step 1 — Open the Catch-Up Wizard**
+
+Go to **[Business] → Reports → EOD Catch-Up** (or from Cash Allocation → Catch-Up button).
+
+**Step 2 — Select the Days to Close**
+
+A list of unclosed dates appears, each showing the sales total for that day. The manager:
+- Ticks the days to include (can select all or just a subset).
+- Leaves out dates that genuinely had no activity if needed.
+
+Click **Next → Preview**.
+
+**Step 3 — Review the Preview**
+
+A table appears showing each selected date with:
+- Total sales
+- Number of orders
+- Estimated rent transfer (if configured)
+- Estimated auto-deposits (if configured)
+
+The manager reviews this to confirm the numbers look right before committing.
+
+Click **Next → Sign-Off**.
+
+**Step 4 — Manager Sign-Off**
+
+The manager enters:
+- **Manager name** — this is the electronic authorisation signature for all the selected days.
+- **Total cash received** — a single lump-sum figure representing all cash taken across all the selected days combined. This is the physical cash the cashier or manager is handing over to reconcile.
+- **Notes** (optional) — e.g. "Closed 5 days, manager was on leave".
+
+Click **Run Catch-Up**.
+
+**What the system does automatically:**
+1. Processes each selected date in order from oldest to newest.
+2. For each date: runs rent transfer (if configured), runs auto-deposits (if configured).
+3. Creates a locked EOD report for each date.
+4. Creates a **single combined Cash Allocation Report** covering all selected dates.
+5. Returns a summary showing total days closed, total sales, total rent transferred, total auto-deposits processed.
+
+---
+
+### Cashier's Role in the Catch-Up
+
+After the manager completes the catch-up run, the cashier has one task: **complete the Cash Allocation Report**.
+
+**Step 1 — Open the Report**
+
+The cashier receives a 🔔 notification: "Batch EOD catch-up complete — cash allocation report ready for review."
+
+Go to **[Business] → Reports → Cash Allocation** (or follow the notification link). The report shows as a grouped allocation report covering all the catch-up dates.
+
+**Step 2 — Review Line Items**
+
+The report lists every money movement across all closed dates:
+- All rent transfers (one per trading day)
+- All auto-deposits (one per config per trading day)
+
+The cashier counts out the physical cash matching the **total reported amount** for all line items combined.
+
+**Step 3 — Check and Confirm Each Line**
+
+For each line item, the cashier:
+1. Confirms the amount looks correct.
+2. Ticks ✅ the checkbox.
+
+**Step 4 — Lock**
+
+Click **Lock Allocation**. The report is locked, Cash Bucket INFLOW and OUTFLOW entries are recorded, and the catch-up is fully complete.
+
+> **Key difference from a single-day EOD:** In a catch-up, the cashier is reconciling cash for multiple days at once. The **Total Cash Received** entered by the manager in Step 4 is the total physical cash for all days — the cashier's job is simply to confirm the breakdown adds up and sign it off.
+
+---
+
+### Summary of Roles
+
+| Step | Who Does It | What They Do |
+|------|------------|-------------|
+| Select days | **Manager** | Chooses which unclosed days to catch up |
+| Preview | **Manager** | Checks sales totals before committing |
+| Sign-off | **Manager** | Enters name + total cash received, runs the batch |
+| Cash allocation review | **Cashier** | Ticks off each line item, confirms amounts |
+| Lock allocation | **Cashier** | Locks the report — catch-up complete |
+
+---
+
+## 20. Team Chat
+
+> **Who reads this:** All users — employees, managers, cashiers, and owners. Chat is available to everyone with a system account.
+
+### What is Team Chat?
+
+Team Chat is a built-in **company-wide messaging tool** that lets all staff communicate in real time — no need for WhatsApp groups or external apps. It is always available from any screen in the system.
+
+There is one shared room: **General**. All users with a system account can see and send messages here.
+
+---
+
+### Opening the Chat Panel
+
+The chat lives in a **floating panel** that you can open without leaving whatever page you are on:
+
+- **Sidebar:** Click the **💬 Chat** button in the left navigation bar.
+- **Mobile:** Tap the chat icon in the mobile menu.
+- **Dashboard:** Click the chat shortcut button on the dashboard.
+
+The panel opens as a draggable window — you can move it to any corner of the screen so it does not cover your work.
+
+---
+
+### Sending a Message
+
+1. Open the chat panel.
+2. Type your message in the input field at the bottom.
+3. Press **Enter** or click **Send**.
+
+Your message appears immediately for all connected users.
+
+---
+
+### Real-Time Updates
+
+Messages are delivered using **WebSockets** — they appear instantly without needing to refresh the page. If the connection drops temporarily, the system falls back to polling automatically and reconnects.
+
+---
+
+### Unread Message Badge
+
+When the chat panel is closed and a new message arrives:
+- A **red badge** appears on the chat button showing the number of unread messages.
+- The badge shows `9+` if there are more than nine unread messages.
+- The count clears as soon as you open the panel.
+
+You also receive a **🔔 bell notification** in the notification panel for each message sent while you were inactive.
+
+---
+
+### Message History
+
+When you open chat, the last **100 messages** are loaded automatically. Messages are grouped by date:
+
+```
+── Monday, 10 March 2026 ──────────────────────
+  09:14  Alice      Good morning everyone
+  09:16  Bob        Morning! Till 3 is open
+  09:45  Manager    All staff meeting at 14:00
+── Tuesday, 11 March 2026 ─────────────────────
+  08:55  Alice      Running 5 mins late
+```
+
+> Messages older than **7 days** are automatically deleted. Chat is intended for day-to-day communication — it is not a permanent record store.
+
+---
+
+### Deleting a Message
+
+You can delete your **own** messages:
+1. Hover over the message.
+2. Click the **Delete** button that appears.
+3. The message is replaced with: *🚫 This message was deleted.*
+
+The placeholder is visible to everyone — deleted messages are not hidden from the chat history, only their content is removed.
+
+> Only the message author can delete a message. You cannot delete other people's messages.
+
+---
+
+### What Chat Does Not Support
+
+| Feature | Available? |
+|---------|-----------|
+| File or image attachments | Not yet |
+| Direct messages (person to person) | Not yet — all messages go to General |
+| Per-business or per-team channels | Not yet — one shared room for all users |
+| Read receipts | Not yet |
+| Typing indicators | Not yet |
+| Message search | Not yet |
+| Message editing | Not yet — delete and re-send |
+
+---
+
+### Chat Tips
+
+- **Tag people by name** in your message so they know it is for them (e.g. *"@Alice, please check till 2 float"*). The system does not parse mentions automatically, but other users will see the name and know.
+- **Keep sensitive information out of chat** — chat messages are visible to all users and auto-delete after 7 days. Use Expense Account notes or payroll records for financial records.
+- **Use it for quick coordination** — shift handovers, quick questions, daily briefings, closing reminders.
 
 ---
 
