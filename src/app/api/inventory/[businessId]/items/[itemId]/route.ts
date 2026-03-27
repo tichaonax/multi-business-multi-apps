@@ -22,7 +22,10 @@ export async function GET(
         where: { id: rawId, businessId },
         include: {
           business_category: true,
-          business_supplier: true
+          business_supplier: true,
+          inventory_subcategory: true,
+          business_location: true,
+          business: { select: { type: true } },
         }
       })
       if (!item) {
@@ -33,24 +36,24 @@ export async function GET(
         data: {
           id: itemId,
           businessId: item.businessId,
-          businessType: 'clothing',
+          businessType: (item as any).business?.type || 'grocery',
           name: item.name,
           sku: item.sku || '',
-          description: '',
+          description: item.customLabel || '',
           category: (item as any).business_category?.name || item.category || 'Uncategorized',
           categoryId: item.categoryId || null,
           categoryEmoji: (item as any).business_category?.emoji || '📦',
-          subcategory: null,
-          subcategoryId: null,
-          subcategoryEmoji: null,
+          subcategory: (item as any).inventory_subcategory?.name || null,
+          subcategoryId: (item as any).subcategoryId || null,
+          subcategoryEmoji: (item as any).inventory_subcategory?.emoji || null,
           currentStock: item.stockQuantity,
           unit: 'units',
           costPrice: parseFloat(item.costPrice?.toString() || '0'),
           sellPrice: parseFloat(item.sellingPrice?.toString() || '0'),
           supplier: (item as any).business_supplier?.name || '',
           supplierId: item.supplierId || null,
-          location: item.location || '',
-          locationId: null,
+          location: (item as any).business_location?.name || '',
+          locationId: (item as any).locationId || null,
           isActive: item.isActive,
           createdAt: item.createdAt.toISOString(),
           updatedAt: item.updatedAt.toISOString(),
@@ -169,7 +172,8 @@ export async function PUT(
     if (itemId.startsWith('inv_')) {
       const rawId = itemId.replace(/^inv_/, '')
       const existing = await prisma.barcodeInventoryItems.findFirst({
-        where: { id: rawId, businessId }
+        where: { id: rawId, businessId },
+        include: { business: { select: { type: true } } }
       })
       if (!existing) {
         return NextResponse.json({ error: 'Product not found' }, { status: 404 })
@@ -177,8 +181,11 @@ export async function PUT(
 
       const updateData: any = { updatedAt: new Date() }
       if (body.name) updateData.name = body.name
+      if (body.description !== undefined) updateData.customLabel = body.description  // stored in customLabel
       if (body.categoryId !== undefined) updateData.categoryId = body.categoryId || null
+      if (body.subcategoryId !== undefined) updateData.subcategoryId = body.subcategoryId || null
       if (body.supplierId !== undefined) updateData.supplierId = body.supplierId || null
+      if (body.locationId !== undefined) updateData.locationId = body.locationId || null
       if (body.sellPrice !== undefined) updateData.sellingPrice = parseFloat(body.sellPrice)
       if (body.basePrice !== undefined) updateData.sellingPrice = parseFloat(body.basePrice)
       if (body.costPrice !== undefined) updateData.costPrice = body.costPrice ? parseFloat(body.costPrice) : null
@@ -191,7 +198,10 @@ export async function PUT(
         data: updateData,
         include: {
           business_category: true,
-          business_supplier: true
+          business_supplier: true,
+          inventory_subcategory: true,
+          business_location: true,
+          business: { select: { type: true } },
         }
       })
 
@@ -200,24 +210,24 @@ export async function PUT(
         item: {
           id: itemId,
           businessId: updated.businessId,
-          businessType: 'clothing',
+          businessType: (updated as any).business?.type || 'grocery',
           name: updated.name,
           sku: updated.sku || '',
-          description: '',
+          description: updated.customLabel || '',
           category: (updated as any).business_category?.name || updated.category || 'Uncategorized',
           categoryId: updated.categoryId || null,
           categoryEmoji: (updated as any).business_category?.emoji || '📦',
-          subcategory: null,
-          subcategoryId: null,
-          subcategoryEmoji: null,
+          subcategory: (updated as any).inventory_subcategory?.name || null,
+          subcategoryId: (updated as any).subcategoryId || null,
+          subcategoryEmoji: (updated as any).inventory_subcategory?.emoji || null,
           currentStock: updated.stockQuantity,
           unit: 'units',
           costPrice: parseFloat(updated.costPrice?.toString() || '0'),
           sellPrice: parseFloat(updated.sellingPrice?.toString() || '0'),
           supplier: (updated as any).business_supplier?.name || '',
           supplierId: updated.supplierId || null,
-          location: updated.location || '',
-          locationId: null,
+          location: (updated as any).business_location?.name || '',
+          locationId: (updated as any).locationId || null,
           isActive: updated.isActive,
           createdAt: updated.createdAt.toISOString(),
           updatedAt: updated.updatedAt.toISOString(),
@@ -264,15 +274,9 @@ export async function PUT(
           { status: 400 }
         )
       }
-
-      // Verify subcategory belongs to the category
-      const categoryId = body.categoryId || existingProduct.categoryId
-      if (subcategory.categoryId !== categoryId) {
-        return NextResponse.json(
-          { error: 'Subcategory does not belong to the selected category' },
-          { status: 400 }
-        )
-      }
+      // Note: categoryId mismatch check removed — categories are shared by businessType
+      // so the same category name can have different IDs across businesses. The dropdown
+      // already enforces the valid subcategory for the selected category.
     }
 
     // Validate supplier if provided (check by businessType for shared suppliers)
@@ -317,7 +321,7 @@ export async function PUT(
     if (body.sku) updateData.sku = body.sku
     if (body.barcode) updateData.barcode = body.barcode
     if (body.categoryId) updateData.categoryId = body.categoryId
-    if (body.subcategoryId !== undefined) updateData.subcategoryId = body.subcategoryId
+    if (body.subcategoryId !== undefined) updateData.subcategoryId = body.subcategoryId || null
     if (body.supplierId !== undefined) updateData.supplierId = body.supplierId || null
     if (body.locationId !== undefined) updateData.locationId = body.locationId || null
     if (body.basePrice) updateData.basePrice = parseFloat(body.basePrice)

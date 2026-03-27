@@ -9,6 +9,7 @@ interface SKUGeneratorProps {
   departmentName?: string;
   value: string;
   onChange: (sku: string) => void;
+  onModeChange?: (isManual: boolean) => void;
   disabled?: boolean;
 }
 
@@ -18,6 +19,7 @@ export default function SKUGenerator({
   departmentName,
   value,
   onChange,
+  onModeChange,
   disabled = false,
 }: SKUGeneratorProps) {
   const [isManual, setIsManual] = useState(false);
@@ -92,12 +94,14 @@ export default function SKUGenerator({
     if (isManual) {
       // Switching back to auto-generated
       setIsManual(false);
+      onModeChange?.(false);
       if (previewSku) {
         onChange(previewSku);
       }
     } else {
       // Switching to manual
       setIsManual(true);
+      onModeChange?.(true);
       setManualValue(value);
     }
   };

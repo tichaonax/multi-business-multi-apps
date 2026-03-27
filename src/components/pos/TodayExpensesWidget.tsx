@@ -2,6 +2,20 @@
 
 import { useEffect, useState } from 'react'
 
+function ComparisonLine({ label, current, prior }: { label: string; current: number; prior: number }) {
+  if (prior === 0) {
+    return <div className="text-xs text-gray-400 dark:text-gray-500">— vs {label} $0.00</div>
+  }
+  const diff = current - prior
+  const pct = Math.abs(Math.round((diff / prior) * 100))
+  const up = diff >= 0
+  return (
+    <div className={`text-xs ${up ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+      {up ? '↑' : '↓'} vs {label} ${prior.toFixed(2)} ({pct}%)
+    </div>
+  )
+}
+
 interface ExpenseItem {
   id: string
   amount: number
@@ -17,7 +31,7 @@ interface Props {
 }
 
 export function TodayExpensesWidget({ businessId, refreshKey }: Props) {
-  const [expenses, setExpenses] = useState<{ total: number; count: number; items: ExpenseItem[] } | null>(null)
+  const [expenses, setExpenses] = useState<{ total: number; count: number; items: ExpenseItem[]; yesterdayTotal: number; twoDaysAgoTotal: number } | null>(null)
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
@@ -43,6 +57,12 @@ export function TodayExpensesWidget({ businessId, refreshKey }: Props) {
           <div className="text-xs text-gray-500 dark:text-gray-400">
             {expenses.count} payment{expenses.count !== 1 ? 's' : ''}
           </div>
+          {expenses.yesterdayTotal > 0 || expenses.total > 0 ? (
+            <ComparisonLine label="yesterday" current={expenses.total} prior={expenses.yesterdayTotal} />
+          ) : null}
+          {expenses.twoDaysAgoTotal > 0 || expenses.total > 0 ? (
+            <ComparisonLine label="2 days ago" current={expenses.total} prior={expenses.twoDaysAgoTotal} />
+          ) : null}
         </div>
         {expenses.count > 0 && (
           <button

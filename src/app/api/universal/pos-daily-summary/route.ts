@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 
-function getTodayBounds(timezone: string): { start: Date; end: Date } {
+function getDayBounds(timezone: string, daysAgo = 0): { start: Date; end: Date } {
   const now = new Date()
   const dateStr = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -25,7 +25,7 @@ function getTodayBounds(timezone: string): { start: Date; end: Date } {
   const [year, month, day] = dateStr.split('-').map(Number)
 
   // Compute offset between UTC and the given timezone at midnight
-  const midnightUtcMs = Date.UTC(year, month - 1, day)
+  const midnightUtcMs = Date.UTC(year, month - 1, day) - daysAgo * 24 * 60 * 60 * 1000
   const utcStr = new Date(midnightUtcMs).toLocaleString('en-US', { timeZone: 'UTC' })
   const tzStr = new Date(midnightUtcMs).toLocaleString('en-US', { timeZone: timezone })
   const offsetMs = new Date(tzStr).getTime() - new Date(utcStr).getTime()
@@ -53,7 +53,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { start, end } = getTodayBounds(timezone)
+    const { start, end } = getDayBounds(timezone, 0)
+    const { start: yStart, end: yEnd } = getDayBounds(timezone, 1)
+    const { start: d2Start, end: d2End } = getDayBounds(timezone, 2)
 
     // Today's completed orders for this business
     const orders = await prisma.businessOrders.findMany({
@@ -135,6 +137,24 @@ export async function GET(request: NextRequest) {
 
     const totalExpenses = expenseItems.reduce((sum, e) => sum + e.amount, 0)
 
+    // Expense totals for yesterday and 2 days ago (for comparison)
+    let yesterdayExpenses = 0
+    let twoDaysAgoExpenses = 0
+    if (accountIds.length > 0) {
+      const [yPayments, d2Payments] = await Promise.all([
+        prisma.expenseAccountPayments.findMany({
+          where: { expenseAccountId: { in: accountIds }, paymentDate: { gte: yStart, lt: yEnd }, status: { not: 'CANCELLED' } },
+          select: { amount: true },
+        }),
+        prisma.expenseAccountPayments.findMany({
+          where: { expenseAccountId: { in: accountIds }, paymentDate: { gte: d2Start, lt: d2End }, status: { not: 'CANCELLED' } },
+          select: { amount: true },
+        }),
+      ])
+      yesterdayExpenses = yPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+      twoDaysAgoExpenses = d2Payments.reduce((sum, p) => sum + Number(p.amount), 0)
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -148,6 +168,8 @@ export async function GET(request: NextRequest) {
           total: totalExpenses,
           count: expenseItems.length,
           items: expenseItems,
+          yesterdayTotal: yesterdayExpenses,
+          twoDaysAgoTotal: twoDaysAgoExpenses,
         },
       },
     })

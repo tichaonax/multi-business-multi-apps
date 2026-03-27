@@ -287,12 +287,15 @@ export async function GET(
       include: {
         business_category: true,
         business_supplier: true,
+        inventory_subcategory: true,
+        business_location: true,
+        business: { select: { type: true } },
       },
     })
     const barcodeItemsMapped = barcodeItems.map(item => ({
       id: `inv_${item.id}`,
       businessId: item.businessId,
-      businessType: 'clothing',
+      businessType: (item as any).business?.type || businessType || 'grocery',
       name: item.name,
       sku: item.sku || '',
       description: item.customLabel || '',
@@ -300,17 +303,17 @@ export async function GET(
       categoryId: item.categoryId || null,
       categoryEmoji: (item as any).business_category?.emoji || '📦',
       domainId: (item as any).business_category?.domainId || (item as any).domainId || null,
-      subcategory: null,
-      subcategoryId: null,
-      subcategoryEmoji: null,
+      subcategory: (item as any).inventory_subcategory?.name || null,
+      subcategoryId: (item as any).subcategoryId || null,
+      subcategoryEmoji: (item as any).inventory_subcategory?.emoji || null,
       currentStock: item.stockQuantity,
       unit: 'units',
       costPrice: parseFloat(item.costPrice?.toString() || '0'),
       sellPrice: parseFloat(item.sellingPrice?.toString() || '0'),
       supplier: (item as any).business_supplier?.name || '',
       supplierId: item.supplierId || null,
-      location: '',
-      locationId: null,
+      location: (item as any).business_location?.name || '',
+      locationId: (item as any).locationId || null,
       condition: 'NEW',
       isActive: item.isActive,
       isProductTemplate: false,
@@ -537,20 +540,23 @@ export async function POST(
       }
     }
 
-    // Auto-generate SKU if not provided
-    let sku = body.sku || null
-    if (!sku && body.name) {
+    // Generate SKU: always call generate_next_sku() in auto mode to properly increment the sequence
+    let sku: string | null = null
+    if (body.skuMode === 'manual' && body.sku) {
+      sku = body.sku
+    } else {
       try {
-        sku = await generateSKU(prisma, {
-          productName: body.name,
-          category: body.category,
-          businessId,
-          businessType: business.type
-        })
+        const categoryName = categoryId
+          ? (await prisma.businessCategories.findUnique({ where: { id: categoryId }, select: { name: true } }))?.name ?? null
+          : null
+        const result = await prisma.$queryRaw<Array<{ generate_next_sku: string }>>`
+          SELECT generate_next_sku(${businessId}::TEXT, ${categoryName}::VARCHAR, NULL::VARCHAR)
+        `
+        sku = result[0]?.generate_next_sku ?? null
         console.log(`[SKU Auto-generated] ${sku} for product "${body.name}"`)
       } catch (error) {
-        console.error('Failed to auto-generate SKU:', error)
-        // Continue without SKU - user can add it later
+        console.error('Failed to auto-generate SKU, falling back to provided value:', error)
+        sku = body.sku || null
       }
     }
 

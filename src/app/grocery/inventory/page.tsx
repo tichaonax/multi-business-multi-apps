@@ -90,6 +90,7 @@ function GroceryInventoryContent() {
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [formReady, setFormReady] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
@@ -261,6 +262,7 @@ function GroceryInventoryContent() {
 
   const handleItemEdit = (item: any) => {
     setSelectedItem(item)
+    setFormReady(false)  // reset until form signals categories are loaded
     setShowAddForm(true)
   }
 
@@ -297,23 +299,12 @@ function GroceryInventoryContent() {
 
       const method = selectedItem ? 'PUT' : 'POST'
 
-      // Transform form data to include grocery-specific attributes
+      // Transform form data — grocery-specific attributes are already in formData.attributes
+      // (set via handleAttributeChange in UniversalInventoryForm). Just pass through as-is.
       const groceryFormData = {
         ...formData,
         businessId,
         businessType: 'grocery',
-        attributes: {
-          ...formData.attributes,
-          // Grocery-specific attributes
-          pluCode: formData.pluCode,
-          department: formData.department || 'General',
-          temperatureZone: formData.temperatureZone || 'ambient',
-          organicCertified: formData.organicCertified || false,
-          allergens: formData.allergens || [],
-          expirationDays: formData.expirationDays,
-          batchTracking: formData.batchTracking || false,
-          weightBased: formData.unitType === 'weight'
-        }
       }
 
       const response = await fetch(url, {
@@ -330,10 +321,10 @@ function GroceryInventoryContent() {
         setRefreshKey(prev => prev + 1)
       } else {
         const error = await response.json()
-        await customAlert({ title: 'Save failed', description: error.message || 'Failed to save item' })
+        await customAlert({ title: 'Save failed', description: error.error || error.message || 'Failed to save item' })
       }
     } catch (error) {
-      await customAlert({ title: 'Save failed', description: 'Error saving item' })
+      await customAlert({ title: 'Save failed', description: 'Network error — could not save item' })
       console.error('Save error:', error)
     }
   }
@@ -511,6 +502,7 @@ function GroceryInventoryContent() {
                           <button
                             onClick={() => {
                               setSelectedItem(null)
+                              setFormReady(false)
                               setShowAddForm(true)
                             }}
                             className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
@@ -741,21 +733,33 @@ function GroceryInventoryContent() {
           {/* Add/Edit Item Form Modal */}
           {showAddForm && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-              <div className="card rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="card rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="p-4 sm:p-6">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                     <h3 className="text-lg font-semibold text-primary break-words">
                       {selectedItem ? 'Edit' : 'Add'} Grocery Item
                     </h3>
-                    <button
-                      onClick={() => {
-                        setShowAddForm(false)
-                        setSelectedItem(null)
-                      }}
-                      className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400 flex-shrink-0 ml-4"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+                      {selectedItem?.id && (
+                        <a
+                          href={formReady ? `/grocery/pos?businessId=${businessId}&addProduct=${selectedItem.id}&autoAdd=true` : '#'}
+                          onClick={(e) => { if (!formReady) e.preventDefault() }}
+                          aria-disabled={!formReady}
+                          className={`px-3 py-1.5 text-white text-sm rounded-md flex items-center gap-1.5 ${formReady ? 'bg-green-600 hover:bg-green-700' : 'bg-green-300 cursor-not-allowed'}`}
+                        >
+                          🛒 Sell
+                        </a>
+                      )}
+                      <button
+                        onClick={() => {
+                          setShowAddForm(false)
+                          setSelectedItem(null)
+                        }}
+                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
 
                   <UniversalInventoryForm
@@ -767,6 +771,7 @@ function GroceryInventoryContent() {
                       setShowAddForm(false)
                       setSelectedItem(null)
                     }}
+                    onCategoriesLoaded={() => setFormReady(true)}
                     renderMode="inline"
                     mode={selectedItem ? 'edit' : 'create'}
                     customFields={[

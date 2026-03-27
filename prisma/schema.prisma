@@ -372,10 +372,11 @@ model BusinessLocations {
   attributes        Json?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime
-  businesses        Businesses          @relation(fields: [businessId], references: [id])
-  parent_location   BusinessLocations?  @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  child_locations   BusinessLocations[] @relation("LocationHierarchy")
-  business_products BusinessProducts[]  @relation("ProductLocation")
+  businesses              Businesses              @relation(fields: [businessId], references: [id])
+  parent_location         BusinessLocations?      @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  child_locations         BusinessLocations[]     @relation("LocationHierarchy")
+  business_products       BusinessProducts[]      @relation("ProductLocation")
+  barcode_inventory_items BarcodeInventoryItems[]
 
   @@unique([businessId, locationCode])
   @@map("business_locations")
@@ -1948,19 +1949,20 @@ model InventoryDomains {
 }
 
 model InventorySubcategories {
-  id                String             @id @default(uuid())
-  categoryId        String
-  name              String
-  emoji             String?
-  description       String?
-  isDefault         Boolean            @default(false)
-  isUserCreated     Boolean            @default(false)
-  displayOrder      Int                @default(0)
-  createdAt         DateTime           @default(now())
-  createdBy         String?
-  business_products BusinessProducts[]
-  category          BusinessCategories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  users             Users?             @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
+  id                     String                  @id @default(uuid())
+  categoryId             String
+  name                   String
+  emoji                  String?
+  description            String?
+  isDefault              Boolean                 @default(false)
+  isUserCreated          Boolean                 @default(false)
+  displayOrder           Int                     @default(0)
+  createdAt              DateTime                @default(now())
+  createdBy              String?
+  business_products      BusinessProducts[]
+  barcode_inventory_items BarcodeInventoryItems[]
+  category               BusinessCategories      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users                  Users?                  @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
 
   @@unique([categoryId, name])
   @@map("inventory_subcategories")
@@ -4258,11 +4260,15 @@ model BarcodeInventoryItems {
   categoryId        String?
   supplierId        String?
   domainId          String?  @map("domain_id")
+  subcategoryId     String?
+  locationId        String?
   barcodeTemplate   BarcodeTemplates?   @relation(fields: [barcodeTemplateId], references: [id])
   business          Businesses          @relation(fields: [businessId], references: [id])
   createdBy         Users               @relation(fields: [createdById], references: [id])
   business_category BusinessCategories? @relation(fields: [categoryId], references: [id])
   business_supplier BusinessSuppliers?  @relation("InventoryItemSupplier", fields: [supplierId], references: [id])
+  inventory_subcategory InventorySubcategories? @relation(fields: [subcategoryId], references: [id])
+  business_location BusinessLocations?  @relation(fields: [locationId], references: [id])
   printJobs         BarcodePrintJobs[]
 
   @@map("barcode_inventory_items")

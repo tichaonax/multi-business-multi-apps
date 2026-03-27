@@ -60,6 +60,8 @@ interface UniversalInventoryFormProps {
   // renderMode controls whether the component renders its built-in modal wrapper
   // or only the inner form panel so a parent can supply a modal wrapper.
   renderMode?: 'modal' | 'inline'
+  // Called when categories finish loading — lets the parent disable action buttons until ready
+  onCategoriesLoaded?: () => void
 }
 
 export function UniversalInventoryForm({
@@ -71,8 +73,9 @@ export function UniversalInventoryForm({
   onCancel,
   isOpen = true,
   customFields = [],
-  mode = 'create'
-  , renderMode = 'modal'
+  mode = 'create',
+  renderMode = 'modal',
+  onCategoriesLoaded,
 }: UniversalInventoryFormProps) {
   const [formData, setFormData] = useState<UniversalInventoryItem>({
     businessId,
@@ -104,6 +107,7 @@ export function UniversalInventoryForm({
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [availableSubcategories, setAvailableSubcategories] = useState<InventorySubcategory[]>([])
   const [loading, setLoading] = useState(false)
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false)
   const [isNavigatingToPOS, setIsNavigatingToPOS] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
@@ -111,6 +115,7 @@ export function UniversalInventoryForm({
   const [showLabelPreview, setShowLabelPreview] = useState(false)
   const [savedItemForLabel, setSavedItemForLabel] = useState<UniversalInventoryItem | null>(null)
   const [barcodes, setBarcodes] = useState<ProductBarcode[]>([])
+  const [isManualSku, setIsManualSku] = useState(false)
 
   const { data: session } = useSession()
 
@@ -185,23 +190,27 @@ export function UniversalInventoryForm({
         })) || []
         
         setCategories(fetchedCategories)
-        
-        // Re-populate available subcategories if a category is selected
-        if (selectedCategory) {
-          const category = fetchedCategories.find((c: any) => c.id === selectedCategory)
-          if (category?.subcategories) {
-            setAvailableSubcategories(category.subcategories)
+
+        // Pre-populate subcategories immediately using item?.categoryId (from closure)
+        // or selectedCategory. item is preferred because selectedCategory may be stale.
+        const catId = item?.categoryId || selectedCategory
+        if (catId) {
+          const cat = fetchedCategories.find((c: any) => c.id === catId)
+          if (cat?.subcategories) {
+            setAvailableSubcategories(cat.subcategories)
           }
         }
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error)
+    } finally {
+      setCategoriesLoaded(true)
+      onCategoriesLoaded?.()
     }
   }
 
   useEffect(() => {
-    fetchCategories()
-
+    setCategoriesLoaded(false)
     if (businessId) {
       fetchCategories()
     }
@@ -240,7 +249,7 @@ export function UniversalInventoryForm({
     setFormData(prev => ({
       ...prev,
       categoryId,
-      subcategoryId: '' // Reset subcategory when category changes
+      subcategoryId: prev.categoryId !== categoryId ? '' : prev.subcategoryId // Only reset subcategory when category actually changes
     }))
 
     // Update selected category and available subcategories
@@ -319,7 +328,7 @@ export function UniversalInventoryForm({
 
     try {
       // Merge barcodes into formData before submission
-      const submissionData = { ...formData, barcodes }
+      const submissionData = { ...formData, barcodes, skuMode: isManualSku ? 'manual' : 'auto' }
 
       // If onSubmit is provided, let the parent handle the submission
       if (onSubmit) {
@@ -792,7 +801,9 @@ export function UniversalInventoryForm({
 
   // support rendering either as a modal (default) or inline panel
   const panel = (
-    <div className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full text-gray-900 dark:text-gray-100${renderMode === 'modal' ? ' max-h-[90vh] overflow-auto' : ''}`}>
+    <div className={`relative text-gray-900 dark:text-gray-100${renderMode === 'modal' ? ' bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-auto' : ''}`}>
+      {/* Header — only shown in modal mode; inline mode parent provides its own header */}
+      {renderMode === 'modal' && (
       <div className="p-5 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
@@ -825,7 +836,7 @@ export function UniversalInventoryForm({
                   window.location.href = url
                 }
               }}
-              disabled={isNavigatingToPOS}
+              disabled={isNavigatingToPOS || !categoriesLoaded}
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 whitespace-nowrap flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isNavigatingToPOS ? (
@@ -855,8 +866,9 @@ export function UniversalInventoryForm({
           </div>
         </div>
       </div>
+      )}
 
-      <form onSubmit={handleSubmit} className="p-4">
+      <form onSubmit={handleSubmit} className={renderMode === 'modal' ? 'p-4' : ''}>
         {errors.general && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
             <div className="text-red-600 text-sm">{errors.general}</div>
@@ -883,53 +895,56 @@ export function UniversalInventoryForm({
                 {errors.name && <p className="text-red-600 text-xs mt-1 font-medium">{errors.name}</p>}
               </div>
 
-              {/* Category */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
-                <SearchableSelect
-                  options={categories.map(cat => ({
-                    id: cat.id,
-                    name: cat.name,
-                    emoji: cat.emoji,
-                    color: cat.color
-                  }))}
-                  value={formData.categoryId || ''}
-                  onChange={handleCategoryChange}
-                  placeholder="Select category..."
-                  searchPlaceholder="Search categories..."
-                  error={errors.categoryId}
-                />
-              </div>
-
-              {/* Subcategory */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Subcategory</label>
-                  {selectedCategory && session?.user && hasUserPermission(session.user, 'canCreateInventorySubcategories') && (
-                    <button
-                      type="button"
-                      onClick={() => setShowSubcategoryEditor(true)}
-                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                    >
-                      + New
-                    </button>
-                  )}
+              {/* Category + Subcategory — equal width, side by side */}
+              <div className="col-span-2 xl:col-span-3 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                  <SearchableSelect
+                    options={categories.map(cat => ({
+                      id: cat.id,
+                      name: cat.name,
+                      emoji: cat.emoji,
+                      color: cat.color
+                    }))}
+                    value={formData.categoryId || ''}
+                    onChange={handleCategoryChange}
+                    placeholder="Select category..."
+                    searchPlaceholder="Search categories..."
+                    loading={!categoriesLoaded}
+                    error={errors.categoryId}
+                  />
                 </div>
-                <SearchableSelect
-                  options={availableSubcategories.map(sub => ({
-                    id: sub.id,
-                    name: sub.name,
-                    emoji: sub.emoji
-                  }))}
-                  value={formData.subcategoryId || ''}
-                  onChange={(id) => handleInputChange('subcategoryId', id || '')}
-                  placeholder="No subcategory"
-                  searchPlaceholder="Search subcategories..."
-                  disabled={!selectedCategory}
-                  emptyMessage={selectedCategory && availableSubcategories.length === 0
-                    ? 'No subcategories. Click "+ New" to add one.'
-                    : 'Select a category first'}
-                />
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Subcategory</label>
+                    {selectedCategory && session?.user && hasUserPermission(session.user, 'canCreateInventorySubcategories') && (
+                      <button
+                        type="button"
+                        onClick={() => setShowSubcategoryEditor(true)}
+                        className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                      >
+                        + New
+                      </button>
+                    )}
+                  </div>
+                  <SearchableSelect
+                    options={availableSubcategories.map(sub => ({
+                      id: sub.id,
+                      name: sub.name,
+                      emoji: sub.emoji
+                    }))}
+                    value={formData.subcategoryId || ''}
+                    onChange={(id) => handleInputChange('subcategoryId', id || null)}
+                    placeholder="No subcategory"
+                    searchPlaceholder="Search subcategories..."
+                    disabled={!selectedCategory}
+                    loading={!categoriesLoaded}
+                    emptyMessage={selectedCategory && availableSubcategories.length === 0
+                      ? 'No subcategories. Click "+ New" to add one.'
+                      : 'Select a category first'}
+                  />
+                </div>
               </div>
 
               {/* Unit */}
@@ -952,6 +967,7 @@ export function UniversalInventoryForm({
                   categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
                   value={formData.sku}
                   onChange={(sku) => handleInputChange('sku', sku)}
+                  onModeChange={(manual) => setIsManualSku(manual)}
                   disabled={loading}
                 />
                 {errors.sku && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sku}</p>}
@@ -1057,34 +1073,30 @@ export function UniversalInventoryForm({
                 {errors.sellPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sellPrice}</p>}
               </div>
 
-              {/* Supplier — full width */}
-              <div className="col-span-2 xl:col-span-3">
+              {/* Supplier + Location — side by side */}
+              <div className="col-span-2 xl:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <SupplierSelector
                   businessId={businessId}
                   value={formData.supplierId || null}
-                  onChange={(supplierId) => handleInputChange('supplierId', supplierId || undefined)}
+                  onChange={(supplierId) => handleInputChange('supplierId', supplierId ?? null)}
                   canCreate={true}
                 />
-              </div>
-
-              {/* Location — full width */}
-              <div className="col-span-2 xl:col-span-3">
                 <LocationSelector
                   businessId={businessId}
                   value={formData.locationId || null}
-                  onChange={(locationId) => handleInputChange('locationId', locationId || undefined)}
+                  onChange={(locationId) => handleInputChange('locationId', locationId ?? null)}
                   canCreate={true}
                 />
               </div>
 
-              {/* Description — full width */}
+              {/* Description — full width, compact */}
               <div className="col-span-2 xl:col-span-3">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                <textarea
-                  value={formData.description}
+                <input
+                  type="text"
+                  value={formData.description || ''}
                   onChange={(e) => handleInputChange('description', e.target.value)}
-                  className="input-field resize-none"
-                  rows={2}
+                  className="input-field"
                   placeholder="Optional description…"
                 />
               </div>
@@ -1165,7 +1177,7 @@ export function UniversalInventoryForm({
                     window.location.href = url
                   }
                 }}
-                disabled={isNavigatingToPOS}
+                disabled={isNavigatingToPOS || !categoriesLoaded}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isNavigatingToPOS ? (
@@ -1182,10 +1194,10 @@ export function UniversalInventoryForm({
             )}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !categoriesLoaded}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
+              {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
             </button>
           </div>
         </div>
