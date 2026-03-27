@@ -27,6 +27,7 @@ import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
+import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
 import { useToastContext } from '@/components/ui/toast'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
@@ -108,6 +109,7 @@ function GroceryPOSContent() {
   const [processingPayment, setProcessingPayment] = useState(false)
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
+  const [financialRefreshKey, setFinancialRefreshKey] = useState(0)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [isAutoAdding, setIsAutoAdding] = useState(false)
   const autoAddProductIdRef = useRef<string | null>(null)
@@ -1515,6 +1517,7 @@ function GroceryPOSContent() {
         setTimeout(() => {
           loadDailySales()
           fetchProducts() // Refresh WiFi token availability badges
+          setFinancialRefreshKey(k => k + 1)
         }, 500)
       } else {
         throw new Error(result.error || 'Failed to process order')
@@ -2016,17 +2019,25 @@ function GroceryPOSContent() {
         { label: 'Point of Sale', isActive: true }
       ]}
     >
-      {/* Daily Sales Widget */}
-      <div className="mb-6">
-        <DailySalesWidget
-          dailySales={dailySales}
-          businessType="grocery"
-          onRefresh={loadDailySales}
-          businessId={currentBusinessId || undefined}
-          canCloseBooks={isAdmin || hasPermission('canCloseBooks')}
-          managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
-        />
-      </div>
+      {/* Financial Summary — only for users with canAccessFinancialData */}
+      {(isAdmin || hasPermission('canAccessFinancialData')) && (
+        <div className="mb-6 space-y-3">
+          <DailySalesWidget
+            dailySales={dailySales}
+            businessType="grocery"
+            onRefresh={loadDailySales}
+            businessId={currentBusinessId || undefined}
+            canCloseBooks={isAdmin || hasPermission('canCloseBooks')}
+            managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
+          />
+          {currentBusinessId && (
+            <TodayExpensesWidget
+              businessId={currentBusinessId}
+              refreshKey={financialRefreshKey}
+            />
+          )}
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="mb-4 flex gap-3">

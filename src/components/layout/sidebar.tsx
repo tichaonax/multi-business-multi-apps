@@ -1692,6 +1692,33 @@ export function Sidebar() {
           </Link>
         )}
 
+        {/* Individuals Management - Payee individuals (cross-business) */}
+        {(isSystemAdmin(currentUser) ||
+          hasPermission('canViewPayees') ||
+          hasPermission('canCreatePayees') ||
+          hasPermission('canEditPayees')) && (
+          <Link
+            href="/payees"
+            className={getLinkClasses('/payees')}
+          >
+            <span className="text-lg">🧑</span>
+            <span>Individuals</span>
+          </Link>
+        )}
+
+        {/* Contractors Management */}
+        {(isSystemAdmin(currentUser) ||
+          hasPermission('canManagePersonalContractors') ||
+          hasUserPermission(currentUser, 'canManagePersonalContractors')) && (
+          <Link
+            href="/contractors"
+            className={getLinkClasses('/contractors')}
+          >
+            <span className="text-lg">👷</span>
+            <span>Contractors</span>
+          </Link>
+        )}
+
         {/* Location Management - Business-specific location management */}
         {(hasPermission('canViewLocations') ||
           hasPermission('canCreateLocations') ||

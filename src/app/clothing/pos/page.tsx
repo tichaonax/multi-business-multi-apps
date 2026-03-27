@@ -14,6 +14,7 @@ import {
 } from '@/components/universal'
 import { ClothingAdvancedPOS } from './components/advanced-pos'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
+import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -165,6 +166,8 @@ export default function ClothingPOSPage() {
   // Get user info
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
+  const isAdmin = sessionUser?.role === 'admin'
+  const [financialRefreshKey, setFinancialRefreshKey] = useState(0)
   // Check if current business is a clothing business
   const isClothingBusiness = currentBusiness?.businessType === 'clothing'
 
@@ -454,7 +457,10 @@ export default function ClothingPOSPage() {
   const handleOrderComplete = (orderId: string) => {
     // Could redirect to receipt or show success message
     // Reload daily sales after order completion
-    setTimeout(() => loadDailySales(), 500)
+    setTimeout(() => {
+      loadDailySales()
+      setFinancialRefreshKey(k => k + 1)
+    }, 500)
   }
 
   // ─── Advanced POS Full-Screen Mode (like restaurant POS) ─────────────────────
@@ -494,6 +500,24 @@ export default function ClothingPOSPage() {
                 </button>
               </div>
             </div>
+            {/* Financial Summary — only for users with canAccessFinancialData */}
+            {(isAdmin || hasPermission('canAccessFinancialData')) && (
+              <div className="px-3 sm:px-4 lg:px-6 py-2 border-b border-gray-200 dark:border-gray-700 space-y-2">
+                <DailySalesWidget
+                  dailySales={dailySales}
+                  businessType="clothing"
+                  onRefresh={loadDailySales}
+                  businessId={businessId}
+                  canCloseBooks={hasPermission('canCloseBooks')}
+                  managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
+                />
+                <TodayExpensesWidget
+                  businessId={businessId}
+                  refreshKey={financialRefreshKey}
+                />
+              </div>
+            )}
+
             {/* Advanced POS grid — no ContentLayout for proper sticky behaviour */}
             <ClothingAdvancedPOS
               businessId={businessId}
@@ -566,6 +590,24 @@ export default function ClothingPOSPage() {
                 )}
               </div>
             </div>
+
+            {/* Financial Summary — only for users with canAccessFinancialData */}
+            {(isAdmin || hasPermission('canAccessFinancialData')) && currentBusinessId && (
+              <div className="space-y-3">
+                <DailySalesWidget
+                  dailySales={dailySales}
+                  businessType="clothing"
+                  onRefresh={loadDailySales}
+                  businessId={currentBusinessId}
+                  canCloseBooks={hasPermission('canCloseBooks')}
+                  managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
+                />
+                <TodayExpensesWidget
+                  businessId={currentBusinessId}
+                  refreshKey={financialRefreshKey}
+                />
+              </div>
+            )}
 
             {/* Live / Manual Entry Mode Toggle */}
             {hasPermission('canEnterManualOrders') && (
@@ -737,16 +779,6 @@ export default function ClothingPOSPage() {
                 📊 View Sales Reports & Analytics
               </Link>
             </div>
-
-            {/* Daily Sales Widget */}
-            <DailySalesWidget
-              dailySales={dailySales}
-              businessType="clothing"
-              onRefresh={loadDailySales}
-              businessId={currentBusinessId || undefined}
-              canCloseBooks={hasPermission('canCloseBooks')}
-              managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
-            />
 
             {/* Features Showcase */}
             <div className={`border border-gray-200 dark:border-gray-700 rounded-lg p-6 ${

@@ -54,6 +54,7 @@ interface UniversalInventoryGridProps {
   onItemView?: (item: UniversalInventoryItem) => void
   onItemDelete?: (item: UniversalInventoryItem) => void
   onItemAddToCart?: (item: UniversalInventoryItem) => void  // Add to cart callback
+  onItemZeroOut?: (item: UniversalInventoryItem) => void   // Special: zero-out / edit price+qty (canZeroOutInventory)
   onResetExternalFilters?: () => void  // Callback to reset parent filters
   onTotalChange?: (count: number) => void  // Fires with total filtered item count after each load
   refreshTrigger?: number  // Change this value to force a refresh
@@ -81,6 +82,7 @@ export function UniversalInventoryGrid({
   onItemView,
   onItemDelete,
   onItemAddToCart,
+  onItemZeroOut,
   onResetExternalFilters,  // Callback to reset parent filters
   onTotalChange,
   refreshTrigger,  // Force refresh when this value changes
@@ -863,6 +865,18 @@ export function UniversalInventoryGrid({
                           >
                             ✏️
                           </button>
+                          {onItemZeroOut && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onItemZeroOut(item)
+                              }}
+                              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs w-8 h-8 flex items-center justify-center rounded"
+                              title="Edit price / qty (audited)"
+                            >
+                              🔢
+                            </button>
+                          )}
                           {canPrintInventoryLabels && (
                             <button
                               onClick={(e) => {
@@ -1021,6 +1035,18 @@ export function UniversalInventoryGrid({
                         >
                           View
                         </button>
+                        {onItemZeroOut && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onItemZeroOut(item)
+                            }}
+                            className="px-3 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                            title="Edit price / qty (audited)"
+                          >
+                            🔢 Edit Values
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation()

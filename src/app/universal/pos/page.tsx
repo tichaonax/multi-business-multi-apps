@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { POSFinancialPanel } from '@/components/pos/POSFinancialPanel'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -33,8 +34,9 @@ import type { ReceiptData } from '@/types/printing'
  */
 export default function UniversalPOS() {
   const { data: session } = useSession()
-  const { currentBusiness, currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusiness, currentBusinessId, hasPermission } = useBusinessPermissionsContext()
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
+  const [financialRefreshKey, setFinancialRefreshKey] = useState(0)
   const searchParams = useSearchParams()
   const globalCart = useGlobalCart()
   const hasImportedGlobalCart = useRef(false)
@@ -277,6 +279,7 @@ export default function UniversalPOS() {
         globalCart.clearCart()
         removeCoupon()
         reloadProducts()
+        setFinancialRefreshKey(k => k + 1)
 
         // Reset customer reward state
         setAppliedReward(null)
@@ -550,6 +553,14 @@ export default function UniversalPOS() {
               onSalespersonChange={(sp) => setSelectedSalesperson(sp)}
             />
           </div>
+        )}
+
+        {/* Financial summary panel — only for users with canAccessFinancialData */}
+        {currentBusinessId && hasPermission('canAccessFinancialData') && (
+          <POSFinancialPanel
+            businessId={currentBusinessId}
+            refreshKey={financialRefreshKey}
+          />
         )}
 
         <UniversalPOSLayout

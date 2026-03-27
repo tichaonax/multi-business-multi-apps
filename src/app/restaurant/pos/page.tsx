@@ -45,6 +45,7 @@ import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { useCoupon } from '@/app/universal/pos/hooks/useCoupon'
 import { SalesPerfBadge, DEFAULT_SALES_PERF_THRESHOLDS } from '@/components/pos/SalesPerfBadge'
+import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
 import type { SalesPerfThresholds } from '@/components/pos/SalesPerfBadge'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 
@@ -164,6 +165,7 @@ export default function RestaurantPOS() {
   const [printerId, setPrinterId] = useState<string | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
+  const [financialRefreshKey, setFinancialRefreshKey] = useState(0)
   const [yesterdaySales, setYesterdaySales] = useState<any>(null)
   const [dayBeforeYesterdaySales, setDayBeforeYesterdaySales] = useState<any>(null)
   const [showDailySales, setShowDailySales] = useState(false)
@@ -1681,6 +1683,7 @@ export default function RestaurantPOS() {
         loadDailySales()
         loadMenuItems() // Refresh WiFi token availability badges
         loadRecentTransactions()
+        setFinancialRefreshKey(k => k + 1)
 
         // Desktop only: scroll so menu items align with the top of the sticky Order Summary panel
         if (typeof window !== 'undefined' && window.innerWidth >= 1024 && menuSectionRef.current) {
@@ -2907,6 +2910,14 @@ export default function RestaurantPOS() {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Today's Expenses Widget — same permission gate as daily sales */}
+            {currentBusinessId && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (
+              <TodayExpensesWidget
+                businessId={currentBusinessId}
+                refreshKey={financialRefreshKey}
+              />
             )}
 
             {/* POS Performance Indicator — minimal badge for POS-role users */}

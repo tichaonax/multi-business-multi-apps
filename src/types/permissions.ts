@@ -87,6 +87,7 @@ export interface UserLevelPermissions {
 
   // Inventory Management (User-level - cross-business capability)
   canManageInventory: boolean;        // Add/edit/delete inventory items and bulk stock operations
+  canZeroOutInventory: boolean;       // Special: zero out or directly edit price/qty on any inventory item (audited)
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -263,6 +264,7 @@ export interface CoreBusinessPermissions {
 
   // Inventory Management
   canManageInventory: boolean;             // Add/edit/delete inventory items and bulk stock operations
+  canZeroOutInventory: boolean;            // Special: zero out or directly edit price/qty on any inventory item (audited)
 
   // Chicken Run Management
   canManageChickenRun: boolean;
@@ -756,6 +758,7 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
       permissions: [
         { key: 'canViewInventory', label: 'View Inventory' },
         { key: 'canManageInventory', label: 'Manage Inventory' },
+        { key: 'canZeroOutInventory', label: 'Zero Out / Edit Stock Values (Audited)' },
         { key: 'canManageSizeVariants', label: 'Manage Size Variants' },
         { key: 'canManageColorVariants', label: 'Manage Color Variants' },
         { key: 'canViewStockLevels', label: 'View Stock Levels' },
@@ -879,6 +882,7 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
       permissions: [
         { key: 'canViewInventory', label: 'View Inventory' },
         { key: 'canManageInventory', label: 'Manage Inventory' },
+        { key: 'canZeroOutInventory', label: 'Zero Out / Edit Stock Values (Audited)' },
         { key: 'canManagePerishableItems', label: 'Manage Perishables' },
         { key: 'canManageExpirationDates', label: 'Manage Expiration Dates' },
         { key: 'canViewStockAlerts', label: 'View Stock Alerts' },
@@ -902,6 +906,7 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
       permissions: [
         { key: 'canViewInventory', label: 'View Inventory' },
         { key: 'canManageInventory', label: 'Manage Inventory' },
+        { key: 'canZeroOutInventory', label: 'Zero Out / Edit Stock Values (Audited)' },
         { key: 'canViewStockLevels', label: 'View Stock Levels' },
         { key: 'canReceiveStock', label: 'Receive Stock' },
         { key: 'canTransferStock', label: 'Transfer Stock' },
@@ -987,6 +992,7 @@ export const USER_LEVEL_PERMISSIONS = {
     description: 'Add, edit, and delete inventory items and perform bulk stock operations',
     permissions: [
       { key: 'canManageInventory', label: 'Manage Inventory' },
+      { key: 'canZeroOutInventory', label: 'Zero Out / Edit Stock Values (Audited)' },
     ]
   },
   inventoryCategories: {
@@ -1199,6 +1205,7 @@ export const CORE_PERMISSIONS = {
   ],
   inventoryManagement: [
     { key: 'canManageInventory', label: 'Manage Inventory' },
+    { key: 'canZeroOutInventory', label: 'Zero Out / Edit Stock Values (Audited)' },
   ],
   inventoryCategories: [
     { key: 'canCreateInventoryCategories', label: 'Create Inventory Categories' },
@@ -1412,6 +1419,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteCashBucketEntry: true,
   canReversePaymentsToPettyCash: true,
   canManageInventory: true,
+  canZeroOutInventory: false,
   canManageChickenRun: true,
 };
 
@@ -1566,6 +1574,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
   canManageInventory: true,
+  canZeroOutInventory: false,
   canManageChickenRun: true,
 };
 
@@ -1720,6 +1729,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
   canManageInventory: false,
+  canZeroOutInventory: false,
   canManageChickenRun: false,
 };
 
@@ -1872,6 +1882,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
   canManageInventory: false,
+  canZeroOutInventory: false,
   canManageChickenRun: false,
 };
 
@@ -2027,6 +2038,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
   canManageInventory: false,
+  canZeroOutInventory: false,
   canManageChickenRun: false,
 };
 
@@ -2182,6 +2194,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteCashBucketEntry: false,
   canReversePaymentsToPettyCash: false,
   canManageInventory: false,
+  canZeroOutInventory: false,
   canManageChickenRun: false,
 };
 
@@ -2334,6 +2347,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canDeleteCashBucketEntry: true,
   canReversePaymentsToPettyCash: true,
   canManageInventory: true,
+  canZeroOutInventory: true,
   canManageChickenRun: true,
 };
 
@@ -2424,6 +2438,7 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Inventory Management - No access by default
   canManageInventory: false,
+  canZeroOutInventory: false,
 };
 
 export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
@@ -2520,6 +2535,7 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Inventory Management - Full access for admins
   canManageInventory: true,
+  canZeroOutInventory: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
@@ -2609,6 +2625,7 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
 
   // Inventory Management - No access for drivers
   canManageInventory: false,
+  canZeroOutInventory: false,
 };
 
 // Restaurant Associate Permission Preset - Minimal permissions with receipt printing for POS operations
@@ -2698,6 +2715,7 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Inventory Management - No access
   canManageInventory: false,
+  canZeroOutInventory: false,
 };
 
 // Permission presets for easy management

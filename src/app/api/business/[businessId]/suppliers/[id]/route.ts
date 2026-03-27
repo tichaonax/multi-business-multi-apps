@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin} from '@/lib/permission-utils'
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
 export async function GET(
@@ -42,13 +42,10 @@ export async function GET(
       )
     }
 
-    // Get supplier with product count
-    // Query by businessType for shared suppliers
+    // Admin/manager can view suppliers across business types
+    const isManager = isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers', businessId)
     const supplier = await prisma.businessSuppliers.findFirst({
-      where: {
-        id,
-        businessType: business.type
-      },
+      where: isManager ? { id } : { id, businessType: business.type },
       include: {
         _count: {
           select: {
@@ -142,12 +139,12 @@ export async function PUT(
       )
     }
 
-    // Check if supplier exists and belongs to this business type
+    // Admin and managers can update suppliers across business types
+    const isManager = isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers', businessId)
     const existingSupplier = await prisma.businessSuppliers.findFirst({
-      where: {
-        id,
-        businessType: business.type
-      }
+      where: isManager
+        ? { id }
+        : { id, businessType: business.type }
     })
 
     if (!existingSupplier) {
@@ -276,12 +273,10 @@ export async function DELETE(
       )
     }
 
-    // Check if supplier exists and belongs to this business type
+    // Admin/manager can delete suppliers across business types
+    const isManagerDel = isSystemAdmin(user) || hasPermission(user, 'canManageBusinessUsers', businessId)
     const supplier = await prisma.businessSuppliers.findFirst({
-      where: {
-        id,
-        businessType: business.type
-      },
+      where: isManagerDel ? { id } : { id, businessType: business.type },
       include: {
         _count: {
           select: {

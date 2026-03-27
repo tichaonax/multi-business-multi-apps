@@ -15,6 +15,7 @@ import {
   UniversalInventoryStats
 } from '@/components/universal/inventory'
 import { useSession } from 'next-auth/react'
+import { hasUserPermission } from '@/lib/permission-utils'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useGlobalCart } from '@/contexts/global-cart-context'
@@ -23,6 +24,7 @@ import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
 import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
+import { ZeroOutInventoryModal } from '@/components/inventory/zero-out-inventory-modal'
 
 // ── Transfer History Panel ──────────────────────────────────────────────────
 
@@ -155,6 +157,8 @@ function ClothingInventoryContent() {
     hasPermission,
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const canZeroOut = isSystemAdmin || hasPermission('canZeroOutInventory') || hasUserPermission(session?.user as any, 'canZeroOutInventory')
+  const [zeroOutItem, setZeroOutItem] = useState<any>(null)
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
@@ -1304,6 +1308,7 @@ function ClothingInventoryContent() {
                       onItemAddToCart={handleItemAddToCart}
                       onResetExternalFilters={handleResetExternalFilters}
                       onTotalChange={selectedDepartment ? setFilterCount : undefined}
+                      onItemZeroOut={canZeroOut ? (item) => setZeroOutItem(item) : undefined}
                       refreshTrigger={refreshKey}
                       showActions={true}
                       layout="table"
@@ -1850,6 +1855,23 @@ function ClothingInventoryContent() {
               </div>
             </div>
           </div>
+
+          {/* Zero-Out / Edit Values Modal */}
+          {zeroOutItem && (
+            <ZeroOutInventoryModal
+              item={{
+                id: zeroOutItem.id,
+                name: zeroOutItem.name,
+                sku: zeroOutItem.sku,
+                sellPrice: zeroOutItem.sellPrice ?? 0,
+                currentStock: zeroOutItem.currentStock ?? 0,
+                businessId: businessId,
+                category: zeroOutItem.category,
+              }}
+              onClose={() => setZeroOutItem(null)}
+              onSuccess={() => setRefreshKey(k => k + 1)}
+            />
+          )}
 
           {/* Domain/Category Edit Modal for BarcodeInventoryItems */}
           {invEditItem && (
