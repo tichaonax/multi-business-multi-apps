@@ -299,6 +299,7 @@ export async function GET(
       category: (item as any).business_category?.name || 'Uncategorized',
       categoryId: item.categoryId || null,
       categoryEmoji: (item as any).business_category?.emoji || '📦',
+      domainId: (item as any).business_category?.domainId || (item as any).domainId || null,
       subcategory: null,
       subcategoryId: null,
       subcategoryEmoji: null,
