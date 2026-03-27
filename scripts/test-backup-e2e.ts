@@ -25,6 +25,7 @@ const NEW_TABLE_KEYS = [
   'paymentReversalLogs',
   'stockTakeDrafts', 'stockTakeDraftItems', 'stockTakeReports', 'stockTakeReportEmployees',
   'customBulkProducts',
+  'paymentNotes',
 ]
 
 async function main() {

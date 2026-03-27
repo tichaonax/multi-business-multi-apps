@@ -84,7 +84,8 @@ export async function GET(request: NextRequest) {
       isDomainCategory: true, // Flag: business-type-specific domain (Restaurant, Grocery, etc.)
     }));
 
-    const allCategories = [...globalCategories, ...domainCategories];
+    // Domains first so the dedup in clients keeps the domain version (which has subcategories) over any global duplicate with the same name
+    const allCategories = [...domainCategories, ...globalCategories];
 
     // Return all categories
     return NextResponse.json({

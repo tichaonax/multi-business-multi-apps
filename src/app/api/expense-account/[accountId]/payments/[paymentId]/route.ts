@@ -72,6 +72,9 @@ export async function GET(
         payeeBusiness: {
           select: { id: true, name: true, type: true, description: true },
         },
+        payeeSupplier: {
+          select: { id: true, name: true },
+        },
         category: {
           select: { id: true, name: true, emoji: true, color: true, domainId: true },
         },
@@ -123,6 +126,7 @@ export async function GET(
           payeeEmployee: payment.payeeEmployee,
           payeePerson: payment.payeePerson,
           payeeBusiness: payment.payeeBusiness,
+          payeeSupplier: payment.payeeSupplier,
           category: payment.category,
           subcategory: payment.subcategory,
           amount: Number(payment.amount),

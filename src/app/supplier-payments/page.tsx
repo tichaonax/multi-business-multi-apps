@@ -180,6 +180,11 @@ export default function SupplierPaymentQueuePage() {
     }
   }
 
+  // Approve override modal (approve with adjusted amount)
+  const [approveOverrideTarget, setApproveOverrideTarget] = useState<{ request: PaymentRequest; itemIds: string[]; amount: number } | null>(null)
+  const [approveNote, setApproveNote] = useState('')
+  const [approveOverrideSubmitting, setApproveOverrideSubmitting] = useState(false)
+
   // Deny modal
   const [denyTarget, setDenyTarget] = useState<{ request: PaymentRequest; itemIds?: string[] } | null>(null)
   const [denialNote, setDenialNote] = useState('')

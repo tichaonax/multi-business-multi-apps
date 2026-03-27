@@ -117,8 +117,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
               quantity: newStock,
               sellingPrice,
               ...(item.costPrice !== null ? { costPrice: Number(item.costPrice) } : {}),
+              // Apply category/domain/supplier changes if the user edited them in the row
+              ...(item.categoryId ? { categoryId: item.categoryId } : {}),
+              ...(item.domainId ? { domainId: item.domainId } : {}),
+              ...(item.supplierId ? { supplierId: item.supplierId } : {}),
             },
           })
+
+          // Fix category's domainId if it's null and we now know the correct domain
+          if (item.domainId && item.categoryId) {
+            await prisma.businessCategories.updateMany({
+              where: { id: item.categoryId, domainId: null },
+              data: { domainId: item.domainId },
+            })
+          }
 
           totalShortfallQty += shortfall
           totalShortfallValue += shortfallValue
@@ -244,10 +256,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
             costPrice: item.costPrice !== null ? Number(item.costPrice) : null,
             sellingPrice,
             categoryId: item.categoryId || null,
+            domainId: item.domainId || null,
             supplierId: item.supplierId || null,
             createdById: user.id,
           },
         })
+
+        // Fix category's domainId if it's null and we know the correct domain
+        if (item.domainId && item.categoryId) {
+          await prisma.businessCategories.updateMany({
+            where: { id: item.categoryId, domainId: null },
+            data: { domainId: item.domainId },
+          })
+        }
 
         totalNewStockValue += newQty * sellingPrice
         totalStockValueAfter += newQty * sellingPrice

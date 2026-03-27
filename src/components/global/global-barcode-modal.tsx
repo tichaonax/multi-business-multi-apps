@@ -541,18 +541,17 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
   }
 
   const handleViewProduct = (business: BusinessInventory) => {
-    // Get current business from localStorage
     const currentBusinessId = localStorage.getItem('currentBusinessId')
-    
-    // Use the item ID (which is the inventory item ID) for navigation
-    const itemId = business.productId // This is actually the item ID from the lookup
-    const url = `/${business.businessType}/inventory${itemId ? `?productId=${itemId}` : ''}`
-    
-    // If different business, show confirmation
+
+    // BarcodeInventoryItems: navigate to inventory page (no per-item URL exists)
+    // Regular products: navigate with productId to open the product detail
+    const url = business.isInventoryItem
+      ? `/${business.businessType}/inventory?businessId=${business.businessId}`
+      : `/${business.businessType}/inventory?businessId=${business.businessId}${business.productId ? `&productId=${business.productId}` : ''}`
+
     if (currentBusinessId && currentBusinessId !== business.businessId) {
       setPendingNavigation({ url, business })
     } else {
-      // Same business or no current business, navigate directly
       switchBusinessAndNavigate(business.businessId, url)
     }
   }
@@ -821,7 +820,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
               <div className="mt-3">
                 <button
                   onClick={handleSellItem}
-                  disabled={isSwitching}
+                  disabled={isSwitching || !businesses.some(biz => biz.hasAccess && biz.stockQuantity > 0)}
+                  title={!businesses.some(biz => biz.hasAccess && biz.stockQuantity > 0) ? 'Out of stock' : undefined}
                   className="w-full px-4 py-3 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   🛒 Sell this Item
@@ -1211,6 +1211,11 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
 
                       <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
                         <span>Stock: {business.stockQuantity}</span>
+                        {business.stockQuantity === 0 && (
+                          <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded text-xs font-medium">
+                            Out of Stock
+                          </span>
+                        )}
                         <span>Price: ${business.price.toFixed(2)}</span>
                       </div>
                     </div>
@@ -1226,7 +1231,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                       >
                         View
                       </button>
-                      {/* Add to Cart - only for businesses with full access */}
+                      {/* Add to Cart - only for businesses with full access and in-stock items */}
                       {!business.isInformational && (
                         <button
                           onClick={(e) => {
@@ -1246,7 +1251,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                               switchBusinessAndNavigate(business.businessId, url)
                             }
                           }}
-                          disabled={isSwitching}
+                          disabled={isSwitching || business.stockQuantity === 0}
+                          title={business.stockQuantity === 0 ? 'Out of stock' : undefined}
                           className="px-3 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Add to Cart

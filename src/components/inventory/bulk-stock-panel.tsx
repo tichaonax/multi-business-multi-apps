@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StockTakeReportPreview } from './stock-take-report-preview'
@@ -27,6 +28,7 @@ interface BulkStockRow {
   sku: string
   isFreeItem: boolean
   isExistingItem: boolean
+  isEditing: boolean            // true = unlock dept/category/supplier for an existing item
   itemType?: string             // 'product' | 'barcode' | 'bulk' | 'bale' — set for stock-take loaded rows
   currentStock: number | null   // systemQuantity from DB at time of scan/sync
   physicalCount: string         // actual physical shelf count entered by user
@@ -100,6 +102,7 @@ function makeRow(overrides: Partial<BulkStockRow> = {}): BulkStockRow {
     sku: '',
     isFreeItem: false,
     isExistingItem: false,
+    isEditing: false,
     itemType: undefined,
     currentStock: null,
     physicalCount: '',
@@ -129,6 +132,8 @@ function resolveHierarchy(categoryId: string, allCats: BusinessCategory[]) {
   if (!cat.parentId) return { departmentId: '', categoryId: cat.id, subCategoryId: '' }
   const parent = allCats.find(c => c.id === cat.parentId)
   if (!parent) return { departmentId: '', categoryId: cat.id, subCategoryId: '' }
+  // Domain-based sub-category: parent is a domain-level category (has domainId)
+  if (parent.domainId) return { departmentId: parent.domainId, categoryId: parent.id, subCategoryId: cat.id }
   if (!parent.parentId) return { departmentId: parent.id, categoryId: cat.id, subCategoryId: '' }
   const grandparent = allCats.find(c => c.id === parent.parentId)
   return { departmentId: grandparent?.id || '', categoryId: parent.id, subCategoryId: cat.id }
@@ -137,6 +142,8 @@ function resolveHierarchy(categoryId: string, allCats: BusinessCategory[]) {
 export function BulkStockPanel({ businessId, businessName, businessType, onClose, initialMode }: BulkStockPanelProps) {
   const confirm = useConfirm()
   const { push: toast, error: toastError } = useToastContext()
+  const { data: session } = useSession()
+  const isDevAdmin = process.env.NODE_ENV === 'development' && session?.user?.role === 'admin'
 
   const [rows, setRows] = useState<BulkStockRow[]>([])
   const [scanInput, setScanInput] = useState('')
@@ -166,6 +173,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [showQuickCreate, setShowQuickCreate] = useState(false)
   const [quickCreateName, setQuickCreateName] = useState('')
   const [quickCreateLoading, setQuickCreateLoading] = useState(false)
+  const [quickCreateError, setQuickCreateError] = useState('')
 
   // Full supplier form modal
   const [showSupplierFormModal, setShowSupplierFormModal] = useState(false)
@@ -206,6 +214,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const tableEndRef = useRef<HTMLDivElement>(null)
   const tableTopRef = useRef<HTMLDivElement>(null)
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  const errorNavIdxRef = useRef(0)
 
   // Suppress global barcode modal while panel is open
   useEffect(() => {
@@ -276,7 +285,9 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       if (domainList.length > 0) {
         setDepartments(domainList.map(d => ({ id: d.id, name: d.name, emoji: d.emoji || '📦', color: '#6366f1', parentId: null })))
         setAllCategories(list)
-        setAllSubCategories([])
+        // Sub-categories for domain-based businesses: categories whose parentId points to a domain-level category (one that has domainId set)
+        const domainCatIds = new Set(list.filter(c => !!c.domainId).map(c => c.id))
+        setAllSubCategories(list.filter(c => c.parentId != null && domainCatIds.has(c.parentId!)))
       } else {
         const level1 = list.filter(c => !c.parentId)
         const level1Ids = new Set(level1.map(c => c.id))
@@ -342,9 +353,13 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       const loadedRows: BulkStockRow[] = []
       for (let i = 0; i < data.items.length; i++) {
         const item = data.items[i]
-        const hierarchyPatch = item.categoryId && allCats.length > 0
+        const resolved = item.categoryId && allCats.length > 0
           ? resolveHierarchy(item.categoryId, allCats)
           : { departmentId: '', categoryId: item.categoryId || '', subCategoryId: '' }
+        const hierarchyPatch = {
+          ...resolved,
+          departmentId: resolved.departmentId || item.domainId || '',
+        }
 
         loadedRows.push(makeRow({
           barcode: item.barcode || '',
@@ -421,7 +436,13 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         )
         let hierarchyPatch: Partial<BulkStockRow> = {}
         if (match?.categoryId && allCats.length > 0) {
-          hierarchyPatch = resolveHierarchy(match.categoryId, allCats)
+          const resolved = resolveHierarchy(match.categoryId, allCats)
+          hierarchyPatch = {
+            ...resolved,
+            departmentId: resolved.departmentId || match.domainId || '',
+          }
+        } else if (match?.domainId) {
+          hierarchyPatch = { departmentId: match.domainId }
         }
         const newRow = makeRow({
           barcode: trimmed,
@@ -467,7 +488,13 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         (b: any) => b.businessId === businessId && b.isInventoryItem
       )
       if (match?.categoryId && allCats.length > 0) {
-        hierarchyPatch = resolveHierarchy(match.categoryId, allCats)
+        const resolved = resolveHierarchy(match.categoryId, allCats)
+        hierarchyPatch = {
+          ...resolved,
+          departmentId: resolved.departmentId || match.domainId || '',
+        }
+      } else if (match?.domainId) {
+        hierarchyPatch = { departmentId: match.domainId }
       }
     } catch {
       // Lookup failed — still add a blank row with the scanned barcode
@@ -540,6 +567,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         barcode: r.barcode,
         name: r.name,
         categoryId: r.subCategoryId || r.categoryId || undefined,
+        domainId: r.departmentId || undefined,
         supplierId: r.supplierId || undefined,
         description: r.description || undefined,
         newQuantity: r.quantity ? Number(r.quantity) : 0,
@@ -627,9 +655,15 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         return (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
       })
       const restoredRows: BulkStockRow[] = sortedItems.map((item: any) => {
-        const hierarchyPatch = item.categoryId && allCats.length > 0
+        const resolved = item.categoryId && allCats.length > 0
           ? resolveHierarchy(item.categoryId, allCats)
           : { departmentId: '', categoryId: item.categoryId || '', subCategoryId: '' }
+        // If resolveHierarchy couldn't recover the department (null-domainId category),
+        // fall back to the domainId saved directly on the draft item.
+        const hierarchyPatch = {
+          ...resolved,
+          departmentId: resolved.departmentId || item.domainId || '',
+        }
         // Infer itemType from name suffix when not stored (legacy drafts)
         const inferredType = item.itemType
           ?? (item.name?.endsWith('[Bale]') ? 'bale'
@@ -818,6 +852,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const openQuickCreate = (rowId: string) => {
     setQuickCreateTargetRowId(rowId)
     setQuickCreateName('')
+    setQuickCreateError('')
     setShowQuickCreate(true)
   }
 
@@ -867,7 +902,10 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         }),
       })
       const data = await res.json()
-      if (!data.success && !data.id) return
+      if (!data.success && !data.id) {
+        setQuickCreateError(data.error || 'Failed to create sub-category')
+        return
+      }
       const newCat: BusinessCategory = {
         id: data.id || data.data?.id,
         name: quickCreateName.trim(),
@@ -1153,8 +1191,31 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               + Add Row
             </button>
           )}
+          {isStockTakeMode && isDevAdmin && (
+            <button
+              onClick={() => {
+                setRows(prev => prev.map(r => ({
+                  ...r,
+                  physicalCount: r.currentStock != null ? String(r.currentStock) : r.physicalCount,
+                })))
+                setDraftUnsaved(true)
+              }}
+              className="px-3 py-1.5 text-xs border border-amber-400 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 font-medium"
+              title="DEV ONLY — set all physical counts to match system stock"
+            >
+              🧪 Match All Counts
+            </button>
+          )}
           <button
-            onClick={() => { if (validateRows()) setShowReviewModal(true) }}
+            onClick={async () => {
+              if (!validateRows()) return
+              // Always flush the latest in-memory row data to the draft before opening the
+              // review modal — the submit API reads from the saved draft, not in-memory state,
+              // so stale draft data (e.g. auto-saved before quantity was typed) would cause
+              // items to be created with newQuantity=0.
+              await saveDraft()
+              setShowReviewModal(true)
+            }}
             disabled={rows.length === 0 || syncRequired}
             title={syncRequired ? 'Sync required before submitting' : undefined}
             className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium">
@@ -1210,6 +1271,18 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         <div className="mx-4 mt-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
           <span className="font-medium">⚠ {Object.keys(rowFieldErrors).length} row{Object.keys(rowFieldErrors).length !== 1 ? 's' : ''} need attention</span>
           <span className="text-xs text-red-500">— highlighted below</span>
+          <button
+            onClick={() => {
+              const errorRowIds = rows.filter(r => rowFieldErrors[r.rowId]).map(r => r.rowId)
+              if (errorRowIds.length === 0) return
+              const idx = errorNavIdxRef.current % errorRowIds.length
+              rowRefs.current[errorRowIds[idx]]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              errorNavIdxRef.current = idx + 1
+            }}
+            className="ml-auto px-2.5 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md font-medium shrink-0"
+          >
+            Next Error →
+          </button>
         </div>
       )}
       {submitError && (
@@ -1300,6 +1373,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                   invalidFields={rowFieldErrors[row.rowId] ?? new Set()}
                   onChange={patch => updateRow(row.rowId, patch)}
                   onRemove={() => removeRow(row.rowId)}
+                  onToggleEdit={() => updateRow(row.rowId, { isEditing: !row.isEditing })}
                   onNewCategory={() => openCategoryEditor(row.rowId)}
                   onNewSubCategory={() => openQuickCreate(row.rowId)}
                   onNewSupplier={() => openSupplierForm(row.rowId)}
@@ -1481,32 +1555,42 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       />
 
       {/* Quick-create modal overlay (subcategories only) */}
-      {showQuickCreate && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">{quickCreateLabel}</h3>
-            <input
-              autoFocus
-              type="text"
-              placeholder="Name"
-              value={quickCreateName}
-              onChange={e => setQuickCreateName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleQuickCreate() }}
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 mb-4"
-            />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => { setShowQuickCreate(false); setQuickCreateTargetRowId(null) }}
-                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
-                Cancel
-              </button>
-              <button onClick={handleQuickCreate} disabled={quickCreateLoading || !quickCreateName.trim()}
-                className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
-                {quickCreateLoading ? 'Saving…' : 'Save'}
-              </button>
+      {showQuickCreate && (() => {
+        const qcRow = rows.find(r => r.rowId === quickCreateTargetRowId)
+        const parentCatName = qcRow?.categoryId ? (allCats.find(c => c.id === qcRow.categoryId)?.name || '') : ''
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">{quickCreateLabel}</h3>
+              {parentCatName && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Under category: <span className="font-medium text-indigo-600 dark:text-indigo-400">{parentCatName}</span></p>
+              )}
+              <input
+                autoFocus
+                type="text"
+                placeholder="Name"
+                value={quickCreateName}
+                onChange={e => { setQuickCreateName(e.target.value); setQuickCreateError('') }}
+                onKeyDown={e => { if (e.key === 'Enter') handleQuickCreate() }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 mb-2"
+              />
+              {quickCreateError && (
+                <p className="text-xs text-red-600 dark:text-red-400 mb-3">{quickCreateError}</p>
+              )}
+              <div className="flex justify-end gap-2 mt-2">
+                <button onClick={() => { setShowQuickCreate(false); setQuickCreateTargetRowId(null) }}
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                  Cancel
+                </button>
+                <button onClick={handleQuickCreate} disabled={quickCreateLoading || !quickCreateName.trim()}
+                  className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
+                  {quickCreateLoading ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
@@ -1530,6 +1614,7 @@ interface BulkRowEditorProps {
   invalidFields: Set<string>
   onChange: (patch: Partial<BulkStockRow>) => void
   onRemove: () => void
+  onToggleEdit: () => void
   onNewCategory: () => void
   onNewSubCategory: () => void
   onNewSupplier: () => void
@@ -1540,10 +1625,15 @@ interface BulkRowEditorProps {
   needsReview?: boolean
 }
 
-function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onNewCategory, onNewSubCategory, onNewSupplier, rowRef, isStockTakeMode, isHighlighted, needsReview }: BulkRowEditorProps) {
+function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onToggleEdit, onNewCategory, onNewSubCategory, onNewSupplier, rowRef, isStockTakeMode, isHighlighted, needsReview }: BulkRowEditorProps) {
+  // Existing BarcodeInventoryItems can be temporarily unlocked for category/domain editing
+  const canEdit = row.isExistingItem && row.itemType !== 'bale' && row.itemType !== 'bulk' && row.itemType !== 'product'
   const inv = (field: string) => invalidFields.has(field)
   // Hierarchy-filtered lists (SearchableSelect handles text search internally)
+  // Always include the row's current categoryId even if its domainId is null (e.g. legacy item
+  // whose category hasn't been fixed yet) so the selection is visible when editing.
   const filteredCats = allCategories.filter(c => {
+    if (c.id === row.categoryId) return true   // always show the currently selected category
     if (!row.departmentId) return true
     if (domains.length > 0) return c.domainId === row.departmentId
     return !c.parentId || c.parentId === row.departmentId
@@ -1584,6 +1674,15 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
         {row.itemType === 'barcode' && <div className="text-[9px] font-bold text-teal-600 leading-none mt-0.5">BCI</div>}
         {row.isExistingItem && !row.itemType && <div className="text-[9px] font-medium text-blue-500 leading-none mt-0.5">Stk</div>}
         {needsReview && <div className="text-[9px] font-bold text-amber-600 leading-none mt-0.5">⚠ Review</div>}
+        {canEdit && (
+          <button
+            onClick={onToggleEdit}
+            title={row.isEditing ? 'Lock row' : 'Edit category / department'}
+            className={`mt-0.5 text-sm leading-none ${row.isEditing ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}
+          >
+            {row.isEditing ? '🔓' : '✏️'}
+          </button>
+        )}
       </td>
 
       {/* Barcode */}
@@ -1609,7 +1708,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             onChange={id => onChange({ departmentId: id, categoryId: '', subCategoryId: '' })}
             placeholder="Select dept…"
             allLabel="— none —"
-            disabled={row.isExistingItem}
+            disabled={row.isExistingItem && !row.isEditing}
           />
         </td>
       )}
@@ -1624,11 +1723,11 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             onChange={id => onChange({ categoryId: id, subCategoryId: '' })}
             placeholder={departments.length > 0 && !row.departmentId ? 'Select dept first' : 'Select category…'}
             allLabel="— none —"
-            disabled={row.isExistingItem || (departments.length > 0 && !row.departmentId)}
+            disabled={(row.isExistingItem && !row.isEditing) || (departments.length > 0 && !row.departmentId && !row.isEditing)}
             required
             error={inv('categoryId') ? ' ' : undefined}
           />
-          {!row.isExistingItem && <button type="button" title="New category" onClick={onNewCategory} className={plusBtnClass}>+</button>}
+          {(!row.isExistingItem || row.isEditing) && <button type="button" title="New category" onClick={onNewCategory} className={plusBtnClass}>+</button>}
         </div>
       </td>
 
@@ -1643,9 +1742,9 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
               onChange={id => onChange({ subCategoryId: id })}
               placeholder={!row.categoryId ? 'Select category first' : 'Select sub-cat…'}
               allLabel="— none —"
-              disabled={row.isExistingItem || !row.categoryId}
+              disabled={(row.isExistingItem && !row.isEditing) || !row.categoryId}
             />
-            {!row.isExistingItem && (
+            {(!row.isExistingItem || row.isEditing) && (
               <button type="button" title={!row.categoryId ? 'Select a category first' : 'New sub-category'}
                 onClick={onNewSubCategory} disabled={!row.categoryId}
                 className={`${plusBtnClass} disabled:opacity-30 disabled:cursor-not-allowed`}>+</button>
@@ -1664,9 +1763,9 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             onChange={id => onChange({ supplierId: id })}
             placeholder="Select supplier…"
             allLabel="— none —"
-            disabled={row.isExistingItem}
+            disabled={row.isExistingItem && !row.isEditing}
           />
-          {!row.isExistingItem && <button type="button" title="New supplier" onClick={onNewSupplier} className={plusBtnClass}>+</button>}
+          {(!row.isExistingItem || row.isEditing) && <button type="button" title="New supplier" onClick={onNewSupplier} className={plusBtnClass}>+</button>}
         </div>
       </td>
 

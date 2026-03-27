@@ -55,6 +55,7 @@ interface UniversalInventoryGridProps {
   onItemDelete?: (item: UniversalInventoryItem) => void
   onItemAddToCart?: (item: UniversalInventoryItem) => void  // Add to cart callback
   onResetExternalFilters?: () => void  // Callback to reset parent filters
+  onTotalChange?: (count: number) => void  // Fires with total filtered item count after each load
   refreshTrigger?: number  // Change this value to force a refresh
   showActions?: boolean
   headerActions?: React.ReactNode
@@ -81,6 +82,7 @@ export function UniversalInventoryGrid({
   onItemDelete,
   onItemAddToCart,
   onResetExternalFilters,  // Callback to reset parent filters
+  onTotalChange,
   refreshTrigger,  // Force refresh when this value changes
   showActions = true,
   headerActions,
@@ -163,6 +165,7 @@ export function UniversalInventoryGrid({
   // Cast items to expected shape; backend may return unknown
   const fetchedItems = (data.items || []) as unknown as UniversalInventoryItem[]
   setItems(fetchedItems)
+  onTotalChange?.(fetchedItems.length)
 
   // Extract categories for filtering
   const uniqueCategories = [...new Set(fetchedItems.map((item) => item.category || '').filter(Boolean))] as string[]

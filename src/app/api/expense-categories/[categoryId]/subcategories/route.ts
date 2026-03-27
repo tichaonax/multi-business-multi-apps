@@ -73,6 +73,7 @@ export async function GET(
       if (subcategories.length === 0) {
         const GLOBAL_CATEGORY_DOMAIN_MAP: Record<string, string> = {
           'category-business-expenses': 'domain-business',
+          'category-clothing': 'domain-clothing',
         }
         const mappedDomainId = GLOBAL_CATEGORY_DOMAIN_MAP[categoryId]
         if (mappedDomainId) {

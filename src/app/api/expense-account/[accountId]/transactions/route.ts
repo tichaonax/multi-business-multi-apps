@@ -299,7 +299,7 @@ export async function GET(
         id: payment.id,
         type: 'PAYMENT',
         amount: -Number(payment.amount), // Negative for payments (debit)
-        date: (payment as any).paidAt || (payment as any).submittedAt || payment.paymentDate, // Use paidAt, fall back to submittedAt
+        date: (payment as any).paidAt || payment.paymentDate, // PAID: use actual paid date; others: use user-entered payment date
         description,
         payeeType: payment.payeeType,
         payeeUser: payment.payeeUser,

@@ -58,7 +58,9 @@ export function InventoryCategoryEditor({
   }, [isOpen, businessType]);
 
   // Initialize form with category data (edit mode) or defaults (create mode)
+  // Must depend on isOpen so re-opening with the same initialDomainId still reinitializes
   useEffect(() => {
+    if (!isOpen) return;
     if (isEditMode && category) {
       setName(category.name);
       setEmoji(category.emoji);
@@ -72,7 +74,7 @@ export function InventoryCategoryEditor({
       setDescription('');
       setSelectedDomainId(initialDomainId || '');
     }
-  }, [category, isEditMode, initialDomainId]);
+  }, [category, isEditMode, initialDomainId, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

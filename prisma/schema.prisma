@@ -1985,6 +1985,20 @@ model FundSources {
   @@map("fund_sources")
 }
 
+model PaymentNotes {
+  id         String   @id @default(uuid())
+  note       String
+  usageCount Int      @default(0)
+  isActive   Boolean  @default(true)
+  userId     String?
+  createdAt  DateTime @default(now())
+
+  users Users? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("payment_notes")
+}
+
 model IdFormatTemplates {
   id           String      @id @default(uuid())
   name         String
@@ -3180,6 +3194,7 @@ model Users {
   expense_categories                                              ExpenseCategories[]
   expense_subcategories                                           ExpenseSubcategories[]
   fund_sources                                                    FundSources[]
+  payment_notes                                                   PaymentNotes[]
   inter_business_loans_inter_business_loans_createdByTousers      InterBusinessLoans[]             @relation("inter_business_loans_createdByTousers")
   inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]             @relation("inter_business_loans_lenderUserIdTousers")
   inventory_subcategories                                         InventorySubcategories[]         @relation("SubcategoryCreatedBy")
@@ -4242,6 +4257,7 @@ model BarcodeInventoryItems {
   updatedAt         DateTime            @updatedAt
   categoryId        String?
   supplierId        String?
+  domainId          String?  @map("domain_id")
   barcodeTemplate   BarcodeTemplates?   @relation(fields: [barcodeTemplateId], references: [id])
   business          Businesses          @relation(fields: [businessId], references: [id])
   createdBy         Users               @relation(fields: [createdById], references: [id])
@@ -5788,6 +5804,7 @@ model StockTakeDraftItems {
   barcode        String?
   name           String
   categoryId     String?
+  domainId       String?  @map("domain_id")
   supplierId     String?
   description    String?
   newQuantity    Int

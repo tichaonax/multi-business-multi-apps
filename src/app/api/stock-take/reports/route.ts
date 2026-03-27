@@ -58,9 +58,15 @@ export async function GET(request: NextRequest) {
       prisma.stockTakeReports.count({ where }),
     ])
 
+    const mapped = reports.map(r => ({
+      ...r,
+      itemCount: (r.reportData as any)?.items?.length ?? 0,
+      reportData: undefined, // omit large JSON from list response
+    }))
+
     return NextResponse.json({
       success: true,
-      data: reports,
+      data: mapped,
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
     })
   } catch (error) {

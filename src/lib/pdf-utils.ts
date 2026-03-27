@@ -1237,6 +1237,139 @@ export const generatePaymentBatchVoucher = (
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Petty Cash Approval Voucher
+// Toner-friendly — no background fills, borders only.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PettyCashVoucherData {
+  requestId: string
+  businessName: string
+  requesterName: string
+  approverName: string
+  purpose: string
+  requestedAmount: number
+  approvedAmount: number
+  expenseAccount: string
+  paymentChannel: 'CASH' | 'ECOCASH'
+  approvedAt: string   // ISO string
+  notes?: string | null
+}
+
+export const generatePettyCashVoucher = (
+  data: PettyCashVoucherData,
+  action: 'save' | 'print' = 'save',
+): void => {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 15
+  const contentWidth = pageWidth - 2 * margin
+  let y = margin
+
+  const fmt = (n: number) => `$${n.toFixed(2)}`
+  const drawLine = (yPos: number, light = false) => {
+    pdf.setDrawColor(light ? 150 : 0, light ? 150 : 0, light ? 150 : 0)
+    pdf.line(margin, yPos, pageWidth - margin, yPos)
+  }
+
+  const approvedDate = new Date(data.approvedAt)
+
+  // ── Header ───────────────────────────────────────────────────────────────
+  pdf.setFontSize(15)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(0, 0, 0)
+  pdf.text('PETTY CASH APPROVAL VOUCHER', pageWidth / 2, y, { align: 'center' })
+  y += 7
+
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'normal')
+  pdf.text(stripEmoji(data.businessName), pageWidth / 2, y, { align: 'center' })
+  y += 5
+
+  pdf.setFontSize(9)
+  pdf.text(
+    `Date: ${fmtDate(approvedDate)}  |  Time: ${fmtTime(approvedDate)}  |  Approved by: ${stripEmoji(data.approverName)}`,
+    pageWidth / 2, y, { align: 'center' }
+  )
+  y += 4
+
+  pdf.setFontSize(8)
+  pdf.setTextColor(100, 100, 100)
+  pdf.text(`Request ID: ${data.requestId}`, pageWidth / 2, y, { align: 'center' })
+  pdf.setTextColor(0, 0, 0)
+  y += 5
+  drawLine(y)
+  y += 6
+
+  // ── Detail rows ──────────────────────────────────────────────────────────
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('PETTY CASH DETAILS', margin, y)
+  y += 5
+
+  const rows: { label: string; value: string }[] = [
+    { label: 'Requester',       value: stripEmoji(data.requesterName) },
+    { label: 'Purpose',         value: stripEmoji(data.purpose) },
+    { label: 'Expense Account', value: stripEmoji(data.expenseAccount) },
+    { label: 'Payment Channel', value: data.paymentChannel },
+    { label: 'Requested Amount',value: fmt(data.requestedAmount) },
+    { label: 'Approved Amount', value: fmt(data.approvedAmount) },
+  ]
+  if (data.notes) rows.push({ label: 'Notes', value: stripEmoji(data.notes) })
+
+  pdf.setFont('helvetica', 'normal')
+  const labelX = margin + 2
+  const valueX = margin + 55
+  for (const row of rows) {
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(row.label, labelX, y)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(row.value, valueX, y)
+    y += 6
+  }
+
+  y += 2
+  drawLine(y)
+  y += 8
+
+  // ── Total row ─────────────────────────────────────────────────────────────
+  pdf.setFontSize(12)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('APPROVED AMOUNT', margin, y)
+  pdf.text(fmt(data.approvedAmount), pageWidth - margin, y, { align: 'right' })
+  y += 10
+
+  drawLine(y)
+  y += 8
+
+  // ── Signature Lines ───────────────────────────────────────────────────────
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  const sigY = y + 10
+  pdf.line(margin, sigY, margin + 60, sigY)
+  pdf.line(pageWidth - margin - 60, sigY, pageWidth - margin, sigY)
+  y = sigY + 4
+  pdf.setFontSize(8)
+  pdf.text('Cashier / Approver', margin, y)
+  pdf.text('Recipient / Requester', pageWidth - margin - 60, y)
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  y += 12
+  pdf.setFontSize(7)
+  pdf.setTextColor(150, 150, 150)
+  const now = new Date()
+  pdf.text(`Printed ${fmtDate(now)} ${fmtTime(now)}`, pageWidth / 2, y, { align: 'center' })
+
+  const fileName = `petty-cash-${data.requestId.slice(-8)}-${approvedDate.toISOString().split('T')[0]}.pdf`
+
+  if (action === 'print') {
+    pdf.autoPrint()
+    window.open(pdf.output('bloburl'), '_blank')
+  } else {
+    pdf.save(fileName)
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Payroll Cash Box Withdrawal Voucher
 // Toner-friendly — no background fills, borders only.
 // ─────────────────────────────────────────────────────────────────────────────

@@ -158,6 +158,15 @@ function ClothingInventoryContent() {
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
+  const [repairingDomains, setRepairingDomains] = useState(false)
+  const [filterCount, setFilterCount] = useState<number | null>(null)
+  // Domain/category edit for BarcodeInventoryItems (inv_ items)
+  const [invEditItem, setInvEditItem] = useState<any>(null)
+  const [invEditDomainId, setInvEditDomainId] = useState('')
+  const [invEditCategoryId, setInvEditCategoryId] = useState('')
+  const [invEditDomains, setInvEditDomains] = useState<any[]>([])
+  const [invEditCategories, setInvEditCategories] = useState<any[]>([])
+  const [invEditSaving, setInvEditSaving] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/seed-categories?businessType=clothing')
@@ -601,6 +610,13 @@ function ClothingInventoryContent() {
     checkSeedingStatus()
   }, [currentBusinessId])
 
+  // Refresh inventory when stock-take sign-off completes
+  useEffect(() => {
+    const handler = () => { fetchStats(); fetchBales() }
+    window.addEventListener('inventory:refresh', handler)
+    return () => window.removeEventListener('inventory:refresh', handler)
+  }, [currentBusinessId])
+
   // Save active tab whenever it changes
   useEffect(() => {
     sessionStorage.setItem('clothing-inventory-active-tab', activeTab)
@@ -663,6 +679,24 @@ function ClothingInventoryContent() {
   ]
 
   const handleItemEdit = (item: any) => {
+    // BarcodeInventoryItems (id starts with inv_) need a domain-aware edit form
+    if (item.id?.startsWith('inv_')) {
+      setInvEditItem(item)
+      setInvEditDomainId(item.domainId || '')
+      setInvEditCategoryId(item.categoryId || '')
+      // Load domains + categories if not already loaded
+      if (invEditDomains.length === 0) {
+        fetch('/api/inventory/domains?businessType=clothing')
+          .then(r => r.json())
+          .then(d => setInvEditDomains(d.domains ?? []))
+          .catch(() => {})
+      }
+      fetch(`/api/universal/categories?businessId=${businessId}&businessType=clothing`)
+        .then(r => r.json())
+        .then(d => setInvEditCategories(Array.isArray(d) ? d : (d.data ?? d.categories ?? [])))
+        .catch(() => {})
+      return
+    }
     setSelectedItem(item)
     setShowAddForm(true)
   }
@@ -764,6 +798,64 @@ function ClothingInventoryContent() {
   const handleResetExternalFilters = () => {
     setSelectedDepartment('')
     setSelectedCondition('all')
+    setFilterCount(null)
+  }
+
+  const handleInvEditSave = async () => {
+    if (!invEditItem) return
+    const rawId = invEditItem.id.replace(/^inv_/, '')
+    setInvEditSaving(true)
+    try {
+      const res = await fetch(`/api/inventory/barcode-items/${rawId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domainId: invEditDomainId || null, categoryId: invEditCategoryId || null }),
+      })
+      const d = await res.json()
+      if (!d.success) throw new Error(d.error || 'Save failed')
+      setInvEditItem(null)
+      setRefreshKey(k => k + 1)
+      fetchStats()
+    } catch (e: any) {
+      await customAlert({ title: 'Save Failed', description: e.message })
+    } finally {
+      setInvEditSaving(false)
+    }
+  }
+
+  const handleRepairDomains = async () => {
+    if (!currentBusinessId) return
+    const confirmed = await confirm({
+      title: 'Repair Domain Assignments',
+      description: (
+        <div>
+          <p className="mb-2">This will automatically fix all categories and inventory items that are missing domain/department assignments.</p>
+          <p className="mb-2 text-sm text-secondary">It matches categories whose <code>parentId</code> points to a domain (the old hierarchy structure) and propagates that domain down to all items in those categories.</p>
+          <p className="text-xs text-gray-500">Safe to run multiple times — only touches rows with null domain.</p>
+        </div>
+      ),
+      confirmText: 'Repair Domains',
+      cancelText: 'Cancel'
+    })
+    if (!confirmed) return
+    try {
+      setRepairingDomains(true)
+      const res = await fetch(`/api/admin/clothing/repair-domains?businessId=${currentBusinessId}`, { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        await customAlert({
+          title: 'Domain Repair Complete',
+          description: `Fixed ${data.categoriesFixed} categories and ${data.itemsFixed} inventory items.\n\nDomain breakdown:\n${(data.domains || []).map((d: any) => `• ${d.name}: ${d.categoriesFixed} categories`).join('\n') || 'None'}`
+        })
+        fetchStats()
+      } else {
+        await customAlert({ title: 'Repair Failed', description: data.error || 'Unknown error' })
+      }
+    } catch (e: any) {
+      await customAlert({ title: 'Repair Failed', description: e.message })
+    } finally {
+      setRepairingDomains(false)
+    }
   }
 
   const handleSeedProducts = async () => {
@@ -1103,6 +1195,16 @@ function ClothingInventoryContent() {
                             📋 Stock Take Reports
                           </button>
                         )}
+                        {isSystemAdmin && (
+                          <button
+                            onClick={handleRepairDomains}
+                            disabled={repairingDomains}
+                            className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-md text-sm font-medium transition-colors"
+                            title="Fix categories and items missing domain assignments"
+                          >
+                            {repairingDomains ? '🔧 Repairing…' : '🔧 Repair Domains'}
+                          </button>
+                        )}
                         {selectedCondition === 'USED' && (
                           <button
                             onClick={() => router.push('/clothing/inventory/transfer')}
@@ -1147,6 +1249,9 @@ function ClothingInventoryContent() {
                         <span className="text-sm text-secondary">Active filter:</span>
                         <span className="inline-flex items-center gap-2 rounded-md bg-green-100 dark:bg-green-900 px-3 py-1 text-sm font-medium text-green-800 dark:text-green-200">
                           Department: {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
+                          {filterCount !== null && (
+                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-green-200 dark:bg-green-800 text-xs font-semibold">{filterCount}</span>
+                          )}
                           <button
                             type="button"
                             onClick={() => setSelectedDepartment('')}
@@ -1174,7 +1279,7 @@ function ClothingInventoryContent() {
                             .map(([id, dept]: [string, any]) => (
                             <button
                               key={id}
-                              onClick={() => setSelectedDepartment(id)}
+                              onClick={() => { setSelectedDepartment(id); setFilterCount(null) }}
                               className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 hover:border-purple-500 dark:hover:border-purple-400 transition-all text-center group"
                             >
                               <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{dept.emoji}</span>
@@ -1198,6 +1303,7 @@ function ClothingInventoryContent() {
                       onItemDelete={handleItemDelete}
                       onItemAddToCart={handleItemAddToCart}
                       onResetExternalFilters={handleResetExternalFilters}
+                      onTotalChange={selectedDepartment ? setFilterCount : undefined}
                       refreshTrigger={refreshKey}
                       showActions={true}
                       layout="table"
@@ -1745,6 +1851,64 @@ function ClothingInventoryContent() {
             </div>
           </div>
 
+          {/* Domain/Category Edit Modal for BarcodeInventoryItems */}
+          {invEditItem && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Edit Item: {invEditItem.name}</h3>
+                  <button onClick={() => setInvEditItem(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Department</label>
+                    <select
+                      value={invEditDomainId}
+                      onChange={e => { setInvEditDomainId(e.target.value); setInvEditCategoryId('') }}
+                      className="w-full border rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:border-gray-600"
+                    >
+                      <option value="">— none —</option>
+                      {invEditDomains.map((d: any) => (
+                        <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Category</label>
+                    <select
+                      value={invEditCategoryId}
+                      onChange={e => setInvEditCategoryId(e.target.value)}
+                      className="w-full border rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:border-gray-600"
+                    >
+                      <option value="">— none —</option>
+                      {invEditCategories
+                        .filter((c: any) => !invEditDomainId || c.domainId === invEditDomainId || c.id === invEditItem.categoryId)
+                        .map((c: any) => (
+                          <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
+                        ))}
+                    </select>
+                    {invEditDomainId && invEditCategoryId && invEditCategories.find((c: any) => c.id === invEditCategoryId)?.domainId !== invEditDomainId && (
+                      <p className="text-xs text-amber-600 mt-1">This category will also be linked to the selected department.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button onClick={() => setInvEditItem(null)} className="px-4 py-2 text-sm border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+                  <button
+                    onClick={handleInvEditSave}
+                    disabled={invEditSaving}
+                    className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-md font-medium"
+                  >
+                    {invEditSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Add/Edit Item Form Modal */}
           <UniversalInventoryForm
             businessId={businessId}
@@ -2019,7 +2183,7 @@ function ClothingInventoryContent() {
         businessId={businessId}
         businessName={currentBusiness.businessName}
         businessType={currentBusiness.businessType}
-        onClose={() => setShowBulkStockPanel(false)}
+        onClose={() => { setShowBulkStockPanel(false); setRefreshKey(k => k + 1); fetchStats() }}
         initialMode={bulkStockInitialMode}
       />
     )}
@@ -2030,7 +2194,7 @@ function ClothingInventoryContent() {
         businessId={businessId}
         businessName={currentBusiness.businessName}
         canManage={canAccessFinancialData}
-        onClose={() => setShowStockTakeReports(false)}
+        onClose={() => { setShowStockTakeReports(false); setRefreshKey(k => k + 1); fetchStats() }}
       />
     )}
 

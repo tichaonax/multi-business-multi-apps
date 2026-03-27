@@ -9,6 +9,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { PayeeSelector } from './payee-selector'
 import { SearchableCategorySelector } from './searchable-category-selector'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
+import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { getTodayLocalDateString } from '@/lib/date-utils'
 
@@ -187,6 +188,7 @@ interface ExpenseCategory {
   emoji: string
   color: string
   requiresSubcategory?: boolean
+  isDomainCategory?: boolean
   subcategories?: ExpenseSubcategory[]
 }
 
@@ -283,6 +285,7 @@ export function QuickPaymentModal({
   const [rentDueLoading, setRentDueLoading] = useState(false)
   const [showIndividualModal, setShowIndividualModal] = useState(false)
   const [showSupplierModal, setShowSupplierModal] = useState(false)
+  const [showContractorModal, setShowContractorModal] = useState(false)
   const [payeeSearchQuery, setPayeeSearchQuery] = useState('')
   const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)
   const [showCreateSubcategory, setShowCreateSubcategory] = useState(false)
@@ -295,6 +298,11 @@ export function QuickPaymentModal({
   const [supplierForEdit, setSupplierForEdit] = useState<any | null>(null)
   const [showEditSupplierModal, setShowEditSupplierModal] = useState(false)
   const toast = useToastContext()
+
+  // Saved payment notes
+  const [savedNotes, setSavedNotes] = useState<{ id: string; note: string; usageCount: number }[]>([])
+  const [noteMode, setNoteMode] = useState<'none' | 'saved' | 'type'>('none')
+  const [saveNote, setSaveNote] = useState(false)
   const customAlert = useAlert()
   const customConfirm = useConfirm()
 
@@ -321,10 +329,18 @@ export function QuickPaymentModal({
     paymentDate: '',
   })
 
+  const fetchSavedNotes = () => {
+    fetch('/api/expense-account/payment-notes', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setSavedNotes(d.data || []))
+      .catch(() => {})
+  }
+
   useEffect(() => {
     if (isOpen) {
       loadCategories()
       fetchLiveBalance()
+      fetchSavedNotes()
       if (isRentAccount && businessId) {
         fetchRentDueInfo()
         // Preset the locked category chain (no clearing effects will fire because of guards below)
@@ -429,22 +445,25 @@ export function QuickPaymentModal({
 
         // When a business type is known, only show that domain + global (non-domain) categories.
         // This prevents restaurant users from seeing Business/Personal/Clothing/etc. domain entries.
+        // Universal domains (Home, Business General) always show regardless of business type.
         const targetDomainName = defaultCategoryBusinessType
           ? getDefaultDomainName(defaultCategoryBusinessType)
           : null
+        const UNIVERSAL_DOMAINS = new Set(['Home', 'Business (General)'])
 
         if (data.domains && Array.isArray(data.domains)) {
           data.domains.forEach((domain: any) => {
             if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
               domain.expense_categories.forEach((cat: any) => {
-                // Skip other domain entries when a target domain is known
-                if (targetDomainName && cat.isDomainCategory && cat.name !== targetDomainName) return
+                // Skip other domain entries when a target domain is known (but always keep universal domains)
+                if (targetDomainName && cat.isDomainCategory && cat.name !== targetDomainName && !UNIVERSAL_DOMAINS.has(cat.name)) return
                 flattenedCategories.push({
                   id: cat.id,
                   name: cat.name,
                   emoji: cat.emoji,
                   color: cat.color || '#000000',
                   requiresSubcategory: cat.requiresSubcategory ?? false,
+                  isDomainCategory: cat.isDomainCategory ?? false,
                 })
               })
             }
@@ -598,10 +617,24 @@ export function QuickPaymentModal({
     }
 
     try {
+      // Save note if requested (type mode + save checkbox)
+      if (noteMode === 'type' && formData.notes.trim() && saveNote) {
+        fetch('/api/expense-account/payment-notes', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ note: formData.notes.trim() }),
+        }).then(() => fetchSavedNotes()).catch(() => {})
+      }
+
       // Construct the payment payload with correct field names based on payee type
-      const selectedCat = formData.subcategoryId
-        ? subcategories.find(s => s.id === formData.subcategoryId)
-        : categories.find(c => c.id === formData.categoryId)
+      const topCat = categories.find(c => c.id === formData.categoryId)
+      const isDomain = topCat?.isDomainCategory ?? false
+      // Domain hierarchy:  categoryId=domain → subcategoryId=ExpenseCategory → subSubcategoryId=ExpenseSubcategory
+      // Global hierarchy:  categoryId=ExpenseCategory → subcategoryId=ExpenseSubcategory (no level 3)
+      const resolvedCategoryId  = isDomain ? (formData.subcategoryId || formData.categoryId) : formData.categoryId
+      const resolvedSubcategoryId = isDomain ? (formData.subSubcategoryId || null) : (formData.subcategoryId || null)
+      const selectedCat = isDomain
+        ? (formData.subcategoryId ? subcategories.find(s => s.id === formData.subcategoryId) : topCat)
+        : topCat
       const payment = {
         payeeType: formData.payee!.type,
         payeeName: formData.payee!.name,
@@ -610,10 +643,9 @@ export function QuickPaymentModal({
         payeePersonId: formData.payee?.type === 'PERSON' ? formData.payee.id : undefined,
         payeeBusinessId: formData.payee?.type === 'BUSINESS' ? formData.payee.id : undefined,
         payeeSupplierId: formData.payee?.type === 'SUPPLIER' ? formData.payee.id : undefined,
-        // Form "category" = domain, "subcategory" = actual category, "sub-subcategory" = subcategory
-        categoryId: formData.subcategoryId || formData.categoryId,
+        categoryId: resolvedCategoryId,
         categoryName: selectedCat?.name || undefined,
-        subcategoryId: formData.subSubcategoryId || null,
+        subcategoryId: resolvedSubcategoryId,
         amount: parseFloat(formData.amount),
         paymentDate: formData.paymentDate,
         notes: formData.notes || null,
@@ -685,6 +717,8 @@ export function QuickPaymentModal({
     setSupplierForEdit(null)
     setSubcategories([])
     setSubSubcategories([])
+    setNoteMode('none')
+    setSaveNote(false)
   }
 
   const handleCancel = async () => {
@@ -724,6 +758,18 @@ export function QuickPaymentModal({
   const handleCreateSupplierSuccess = (createdSupplierId?: string) => {
     setPayeeRefreshTrigger(prev => prev + 1)
     setShowSupplierModal(false)
+  }
+
+  const handleCreateContractorSuccess = (payload: any) => {
+    if (payload.payee) {
+      setFormData({
+        ...formData,
+        payee: { type: payload.payee.type, id: payload.payee.id, name: payload.payee.name },
+      })
+      setErrors({ ...errors, payee: '' })
+      setPayeeRefreshTrigger(prev => prev + 1)
+    }
+    setShowContractorModal(false)
   }
 
   const handleEditPayeeClick = async () => {
@@ -893,7 +939,8 @@ export function QuickPaymentModal({
                   setPayeeErrorMessage(null)
                 }}
                 onCreateIndividual={canCreatePayees ? (query) => { setPayeeSearchQuery(query || ''); setShowIndividualModal(true) } : undefined}
-                onCreateSupplier={canCreatePayees && businessId ? (query) => { setPayeeSearchQuery(query || ''); setShowSupplierModal(true) } : undefined}
+                onCreateSupplier={canCreatePayees ? (query) => { setPayeeSearchQuery(query || ''); setShowSupplierModal(true) } : undefined}
+                onCreateContractor={canCreatePayees ? (query) => { setPayeeSearchQuery(query || ''); setShowContractorModal(true) } : undefined}
                 error={errors.payee}
                 refreshTrigger={payeeRefreshTrigger}
               />
@@ -1020,7 +1067,7 @@ export function QuickPaymentModal({
                       </div>
                       <SearchableSelect
                         value={formData.subSubcategoryId}
-                        options={subSubcategories.map(s => ({ value: s.id, label: `${s.emoji} ${s.name}` }))}
+                        options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
                         onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
                         placeholder="Select a sub-subcategory..."
                         disabled={!formData.subcategoryId}
@@ -1128,6 +1175,7 @@ export function QuickPaymentModal({
                     setFormData({ ...formData, paymentDate: value })
                     setErrors({ ...errors, paymentDate: '' })
                   }}
+                  label=""
                   error={errors.paymentDate}
                   max={getTodayLocalDateString()}
                 />
@@ -1135,17 +1183,73 @@ export function QuickPaymentModal({
 
               {/* Notes */}
               <div>
-                <label className="block text-sm font-medium text-secondary mb-1">
-                  Notes (Optional)
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={3}
-                  placeholder="Add any additional notes..."
-                  maxLength={500}
-                />
+                <label className="block text-sm font-medium text-secondary mb-1">Notes (Optional)</label>
+                {/* Mode toggle */}
+                <div className="flex gap-2 mb-2">
+                  {(['none', 'saved', 'type'] as const).map(mode => (
+                    <button key={mode} type="button"
+                      onClick={() => { setNoteMode(mode); setFormData({ ...formData, notes: '' }); setSaveNote(false) }}
+                      className={`px-3 py-1.5 text-xs rounded border transition-colors ${noteMode === mode
+                        ? (mode === 'none' ? 'border-gray-500 bg-gray-100 dark:bg-gray-700 font-semibold' : 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 font-semibold')
+                        : 'border-border hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                    >
+                      {mode === 'none' ? 'No note' : mode === 'saved' ? 'Saved phrases' : 'Type a note'}
+                    </button>
+                  ))}
+                </div>
+
+                {noteMode === 'saved' && (
+                  <select
+                    value={formData.notes}
+                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a saved phrase...</option>
+                    {savedNotes.map(n => (
+                      <option key={n.id} value={n.note}>{n.note}</option>
+                    ))}
+                    {savedNotes.length === 0 && <option disabled>No saved phrases yet — use "Type a note" to add one</option>}
+                  </select>
+                )}
+
+                {noteMode === 'type' && (() => {
+                  const q = formData.notes.trim().toLowerCase()
+                  const matches = q.length >= 2 ? savedNotes.filter(n => n.note.toLowerCase().includes(q)) : []
+                  const exactMatch = savedNotes.find(n => n.note.toLowerCase() === q)
+                  return (
+                    <div className="space-y-1.5">
+                      <textarea
+                        value={formData.notes}
+                        onChange={e => { setFormData({ ...formData, notes: e.target.value }); setSaveNote(false) }}
+                        className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                        rows={2}
+                        placeholder="e.g. School fees Term 1 — Chisamba Primary"
+                        maxLength={500}
+                        autoFocus
+                      />
+                      {matches.length > 0 && (
+                        <div className="border border-border rounded bg-background shadow-sm overflow-hidden">
+                          <p className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-b border-border">Matching saved phrases — click to use:</p>
+                          {matches.map(n => (
+                            <button key={n.id} type="button"
+                              onClick={() => { setFormData({ ...formData, notes: n.note }); setNoteMode('saved') }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left">
+                              <span className="text-primary flex-1">{n.note}</span>
+                              <span className="ml-auto text-xs text-blue-600 dark:text-blue-400">Use this</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {formData.notes.trim() && !exactMatch && (
+                        <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                          <input type="checkbox" checked={saveNote} onChange={e => setSaveNote(e.target.checked)} className="rounded" />
+                          Save "{formData.notes.trim().slice(0, 40)}{formData.notes.trim().length > 40 ? '…' : ''}" for future payments
+                        </label>
+                      )}
+                      {exactMatch && <p className="text-xs text-amber-600 dark:text-amber-400">This phrase is already saved.</p>}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           </div>
@@ -1178,6 +1282,14 @@ export function QuickPaymentModal({
         onSuccess={handleCreateIndividualSuccess}
         onError={(error) => console.error('Create individual error:', error)}
         initialName={payeeSearchQuery}
+      />
+
+      {/* Create Contractor Payee Modal */}
+      <CreateContractorPayeeModal
+        isOpen={showContractorModal}
+        onClose={() => setShowContractorModal(false)}
+        onSuccess={handleCreateContractorSuccess}
+        onError={(error) => console.error('Create contractor error:', error)}
       />
 
       {/* Create Supplier Modal */}

@@ -1297,6 +1297,7 @@ export default function ExpenseAccountDetailPage() {
                   initialStartDate={urlStartDate || undefined}
                   initialEndDate={urlEndDate || undefined}
                   defaultType={(urlType === 'PAYMENT' || urlType === 'DEPOSIT') ? urlType : ''}
+                  onDataChanged={() => { refreshBalanceSilent(); setPaymentRefreshKey(k => k + 1) }}
                 />
               </div>
             )}

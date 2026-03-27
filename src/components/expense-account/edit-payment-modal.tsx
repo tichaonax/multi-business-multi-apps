@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useToastContext } from '@/components/ui/toast'
+import { DateInput } from '@/components/ui/date-input'
 import { PayeeSelector } from './payee-selector'
 import { CreateCategoryModal } from './create-category-modal'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
@@ -233,11 +234,6 @@ interface EditPaymentModalProps {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function toDateInput(iso: string) {
   return iso.slice(0, 10)
-}
-
-function getTodayString() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function isWithin7Days(createdAt: string) {
@@ -635,11 +631,12 @@ export function EditPaymentModal({
   if (!isOpen) return null
 
   const withinWindow = payment ? (isAdmin || isWithin7Days(payment.createdAt)) : true
+  const isHydrating = loadingMid || loadingSub
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl min-w-0 shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-primary">Edit Payment</h2>
             <button
@@ -670,7 +667,7 @@ export function EditPaymentModal({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
 
               {/* ── Payee — full width, always visible ───────────────────── */}
               <div className="md:col-span-2">
@@ -725,7 +722,8 @@ export function EditPaymentModal({
                     onChange={e => setAmount(e.target.value)}
                     min="0.01"
                     step="0.01"
-                    className="w-full pl-7 pr-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                    disabled={isHydrating}
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -735,12 +733,13 @@ export function EditPaymentModal({
                 <label className="text-sm font-medium text-secondary">
                   Payment Date <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="date"
+                <DateInput
                   value={paymentDate}
-                  max={getTodayString()}
-                  onChange={e => setPaymentDate(e.target.value)}
-                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                  onChange={(isoDate) => setPaymentDate(isoDate)}
+                  label=""
+                  compact={true}
+                  disabled={isHydrating}
+                  className="mt-1"
                 />
               </div>
 
@@ -761,6 +760,7 @@ export function EditPaymentModal({
                   options={topOptions}
                   onChange={handleTopChange}
                   placeholder="Select category..."
+                  disabled={isHydrating}
                 />
               </div>
 
@@ -822,7 +822,8 @@ export function EditPaymentModal({
                   value={receiptNumber}
                   onChange={e => setReceiptNumber(e.target.value)}
                   placeholder="Optional"
-                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                  disabled={isHydrating}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -834,7 +835,8 @@ export function EditPaymentModal({
                   value={receiptServiceProvider}
                   onChange={e => setReceiptServiceProvider(e.target.value)}
                   placeholder="e.g., M-Pesa, Bank, Cash"
-                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                  disabled={isHydrating}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -846,7 +848,8 @@ export function EditPaymentModal({
                   value={receiptReason}
                   onChange={e => setReceiptReason(e.target.value)}
                   placeholder="Optional"
-                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                  disabled={isHydrating}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -858,7 +861,8 @@ export function EditPaymentModal({
                   onChange={e => setNotes(e.target.value)}
                   rows={2}
                   placeholder="Optional"
-                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                  disabled={isHydrating}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -873,10 +877,10 @@ export function EditPaymentModal({
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || loading || loadingMid || loadingSub}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {saving ? 'Saving...' : 'Save Changes'}
+                  {saving ? 'Saving...' : loading ? 'Loading...' : 'Save Changes'}
                 </button>
               </div>
             </div>

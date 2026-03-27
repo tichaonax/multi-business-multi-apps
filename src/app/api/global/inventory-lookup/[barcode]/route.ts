@@ -284,7 +284,6 @@ export async function GET(
         where: {
           barcodeData: { equals: barcode, mode: 'insensitive' },
           isActive: true,
-          stockQuantity: { gt: 0 },
         },
         include: {
           business: { select: { id: true, name: true, type: true } },
@@ -317,6 +316,7 @@ const isInformational = access.canViewAcrossBusinesses && !hasAccess
           sku: item.sku || undefined,
           categoryId: item.categoryId || null,
           supplierId: item.supplierId || null,
+          domainId: (item as any).domainId || null,
         })
       }
     }

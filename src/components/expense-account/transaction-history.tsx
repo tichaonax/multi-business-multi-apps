@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { DateInput } from '@/components/ui/date-input'
 import { EditPaymentModal } from './edit-payment-modal'
+import { EditDepositModal } from './edit-deposit-modal'
 
 interface Transaction {
   id: string
@@ -47,6 +48,7 @@ interface TransactionHistoryProps {
   initialStartDate?: string
   initialEndDate?: string
   refreshKey?: number
+  onDataChanged?: () => void
 }
 
 function localDateStr(d: Date): string {
@@ -88,7 +90,7 @@ function shortDescription(transaction: Transaction): string {
   return desc
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState(() => {
@@ -107,6 +109,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [hasMore, setHasMore] = useState(true)
   const limit = pageLimit
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
+  const [editDepositId, setEditDepositId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   async function handlePrintVoucher(batchId: string) {
@@ -246,7 +249,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
+      timeZone: 'UTC'
     })
   }
 
@@ -270,6 +274,13 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     setSearch('')
     setDebouncedSearch('')
     setActiveQuickFilter('30 Days')
+    setPage(0)
+  }
+
+  const applyAllTime = () => {
+    setStartDate('')
+    setEndDate('')
+    setActiveQuickFilter('All Time')
     setPage(0)
   }
 
@@ -299,6 +310,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     { label: '7 Days',   action: () => applyQuickFilter(7, '7 Days') },
     { label: '30 Days',  action: () => applyQuickFilter(30, '30 Days') },
     { label: '90 Days',  action: () => applyQuickFilter(90, '90 Days') },
+    { label: 'All Time', action: () => applyAllTime() },
   ]
 
   return (
@@ -605,6 +617,15 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             Edit
                           </button>
                         )}
+                        {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditDepositId(transaction.id) }}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
+                            title="Edit deposit"
+                          >
+                            Edit
+                          </button>
+                        )}
                         {isDeposit && transaction.batchSubmissionId && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handlePrintVoucher(transaction.batchSubmissionId!) }}
@@ -659,7 +680,19 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           accountId={accountId}
           paymentId={editPaymentId}
           isAdmin={isAdmin}
-          onSuccess={() => { setEditPaymentId(null); loadTransactions() }}
+          onSuccess={() => { setEditPaymentId(null); loadTransactions(); onDataChanged?.() }}
+        />
+      )}
+
+      {/* Edit Deposit Modal */}
+      {editDepositId && (
+        <EditDepositModal
+          isOpen={true}
+          onClose={() => setEditDepositId(null)}
+          accountId={accountId}
+          depositId={editDepositId}
+          isAdmin={isAdmin}
+          onSuccess={() => { setEditDepositId(null); loadTransactions(); onDataChanged?.() }}
         />
       )}
     </>

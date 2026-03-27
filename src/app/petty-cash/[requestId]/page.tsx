@@ -12,6 +12,7 @@ import { CreateIndividualPayeeModal } from '@/components/expense-account/create-
 import { CreateContractorPayeeModal } from '@/components/expense-account/create-contractor-payee-modal'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { formatDateTimeZim } from '@/lib/date-utils'
+import { generatePettyCashVoucher } from '@/lib/pdf-utils'
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING:   'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
@@ -623,9 +624,53 @@ export default function PettyCashDetailPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{req.purpose}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{req.business?.name}</p>
           </div>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
-            {req.status}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+              {req.status}
+            </span>
+            {(req.status === 'APPROVED' || req.status === 'SETTLED') && req.approver && (
+              <>
+                <button
+                  onClick={() => generatePettyCashVoucher({
+                    requestId: req.id,
+                    businessName: req.business?.name ?? '',
+                    requesterName: req.requester?.name ?? '',
+                    approverName: req.approver.name,
+                    purpose: req.purpose,
+                    requestedAmount: Number(req.requestedAmount),
+                    approvedAmount: Number(req.approvedAmount),
+                    expenseAccount: req.expenseAccount ? `${req.expenseAccount.accountName} (${req.expenseAccount.accountNumber})` : '',
+                    paymentChannel: (req as any).paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
+                    approvedAt: req.approvedAt,
+                    notes: req.notes ?? null,
+                  }, 'print')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                  title="Print voucher"
+                >
+                  🖨️ Print
+                </button>
+                <button
+                  onClick={() => generatePettyCashVoucher({
+                    requestId: req.id,
+                    businessName: req.business?.name ?? '',
+                    requesterName: req.requester?.name ?? '',
+                    approverName: req.approver.name,
+                    purpose: req.purpose,
+                    requestedAmount: Number(req.requestedAmount),
+                    approvedAmount: Number(req.approvedAmount),
+                    expenseAccount: req.expenseAccount ? `${req.expenseAccount.accountName} (${req.expenseAccount.accountNumber})` : '',
+                    paymentChannel: (req as any).paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
+                    approvedAt: req.approvedAt,
+                    notes: req.notes ?? null,
+                  }, 'save')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                  title="Save as PDF"
+                >
+                  📄 PDF
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Balance card — shown while APPROVED */}

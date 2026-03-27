@@ -100,6 +100,7 @@ export function StockTakeReportDetail({ reportId, businessName, canManage, onBac
       const d = await res.json()
       if (!d.success) { setSignError(d.error || 'Sign-off failed'); return }
       fetchReport()
+      window.dispatchEvent(new CustomEvent('inventory:refresh'))
     } catch (e: any) {
       setSignError(e.message || 'Sign-off failed')
     } finally {
@@ -158,11 +159,11 @@ export function StockTakeReportDetail({ reportId, businessName, canManage, onBac
     <div className="fixed inset-0 z-[55] bg-white dark:bg-gray-900 flex flex-col overflow-hidden pb-20">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
-        <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+        <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 shrink-0">
           ← Reports
         </button>
-        <div>
-          <h1 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">
+        <div className="flex-1 min-w-0">
+          <h1 className="font-bold text-gray-900 dark:text-white text-sm leading-tight truncate">
             Stock Take Report — {businessName} — {new Date(report.createdAt).toLocaleDateString()}
           </h1>
           <div className="flex items-center gap-2 mt-0.5">
@@ -172,13 +173,50 @@ export function StockTakeReportDetail({ reportId, businessName, canManage, onBac
             )}
           </div>
         </div>
-        {canManage && canStillSignOff && (
-          <button onClick={() => setShowVoidConfirm(true)}
-            className="ml-auto text-xs text-gray-400 hover:text-red-500 border border-gray-200 dark:border-gray-700 px-2.5 py-1 rounded-lg">
-            Void Report
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={onClose}
+            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 rounded-lg">
+            📦 Inventory
           </button>
-        )}
+          {canManage && canStillSignOff && (
+            <button onClick={() => setShowVoidConfirm(true)}
+              className="text-xs text-gray-400 hover:text-red-500 border border-gray-200 dark:border-gray-700 px-2.5 py-1 rounded-lg">
+              Void Report
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Quick sign-off bar — shown at top when sign-off is still pending */}
+      {canStillSignOff && (
+        <div className="shrink-0 px-4 py-2 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200 dark:border-amber-800 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">Sign-off:</span>
+          {report.employees.map(empRow => (
+            empRow.signedAt ? (
+              <span key={empRow.id} className="text-xs text-green-600 dark:text-green-400 font-medium">✅ {empRow.employee.fullName.split(' ')[0]}</span>
+            ) : (
+              <button key={empRow.id}
+                onClick={() => handleSignOff('employee', empRow.employeeId)}
+                disabled={signingAs === 'employee'}
+                className="px-2.5 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
+                {signingAs === 'employee' ? 'Signing…' : `Sign — ${empRow.employee.fullName.split(' ')[0]}`}
+              </button>
+            )
+          ))}
+          {report.managerSignedAt ? (
+            <span className="text-xs text-green-600 dark:text-green-400 font-medium">✅ Manager</span>
+          ) : canManage ? (
+            <button
+              onClick={() => handleSignOff('manager')}
+              disabled={signingAs === 'manager'}
+              className="px-2.5 py-1 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-medium">
+              {signingAs === 'manager' ? 'Signing…' : 'Sign as Manager'}
+            </button>
+          ) : (
+            <span className="text-xs text-amber-600 dark:text-amber-400">Awaiting manager</span>
+          )}
+        </div>
+      )}
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">

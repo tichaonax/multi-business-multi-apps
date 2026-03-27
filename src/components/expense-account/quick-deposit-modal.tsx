@@ -7,12 +7,21 @@ import { useToastContext } from '@/components/ui/toast'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { DateInput } from '@/components/ui/date-input'
 import { getTodayLocalDateString } from '@/lib/date-utils'
+import { FundSourceManager } from './fund-source-manager'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface Business {
   id: string
   name: string
   type: string
   balance: number
+}
+
+interface FundSource {
+  id: string
+  name: string
+  emoji: string
+  description?: string | null
 }
 
 interface QuickDepositModalProps {
@@ -43,12 +52,23 @@ export function QuickDepositModal({
   const customConfirm = useConfirm()
 
   const [businesses, setBusinesses] = useState<Business[]>([])
+  const [fundSources, setFundSources] = useState<FundSource[]>([])
+  const [showFundSourceManager, setShowFundSourceManager] = useState(false)
+  const [saveSenderNote, setSaveSenderNote] = useState(false)
+  const [saveCourierNote, setSaveCourierNote] = useState(false)
+
   const [formData, setFormData] = useState({
     sourceType: 'MANUAL' as 'BUSINESS' | 'MANUAL' | 'OTHER',
     sourceBusinessId: '',
     amount: '',
     depositDate: getTodayLocalDateString(),
     manualNote: '',
+    fundSourceMode: 'none' as 'none' | 'saved' | 'note',
+    fundSourceId: '',
+    fundSourceNote: '',
+    subSourceMode: 'none' as 'none' | 'saved' | 'note',
+    subSourceId: '',
+    subSourceNote: '',
   })
 
   const [errors, setErrors] = useState({
@@ -58,10 +78,21 @@ export function QuickDepositModal({
   })
 
   useEffect(() => {
+    if (isOpen) fetchFundSources()
+  }, [isOpen])
+
+  useEffect(() => {
     if (formData.sourceType === 'BUSINESS' && businesses.length === 0) {
       fetchBusinesses()
     }
   }, [formData.sourceType])
+
+  const fetchFundSources = () => {
+    fetch('/api/expense-account/fund-sources', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setFundSources(d.data || []))
+      .catch(() => {})
+  }
 
   const fetchBusinesses = async () => {
     try {
@@ -154,6 +185,27 @@ export function QuickDepositModal({
     setLoading(true)
 
     try {
+      // Resolve fund source — if "save for future" checked, create first then use the ID
+      let resolvedFundSourceId = formData.fundSourceMode === 'saved' ? formData.fundSourceId : undefined
+      let resolvedSubSourceId = formData.subSourceMode === 'saved' ? formData.subSourceId : undefined
+      let resolvedFundSourceNote = formData.fundSourceMode === 'note' && formData.fundSourceNote.trim() ? formData.fundSourceNote.trim() : undefined
+      let resolvedSubSourceNote = formData.subSourceMode === 'note' && formData.subSourceNote.trim() ? formData.subSourceNote.trim() : undefined
+
+      if (formData.fundSourceMode === 'note' && formData.fundSourceNote.trim() && saveSenderNote) {
+        const res = await fetch('/api/expense-account/fund-sources', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ name: formData.fundSourceNote.trim() }),
+        })
+        if (res.ok) { const saved = await res.json(); resolvedFundSourceId = saved.data.id; resolvedFundSourceNote = undefined; fetchFundSources() }
+      }
+      if (formData.subSourceMode === 'note' && formData.subSourceNote.trim() && saveCourierNote) {
+        const res = await fetch('/api/expense-account/fund-sources', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ name: formData.subSourceNote.trim() }),
+        })
+        if (res.ok) { const saved = await res.json(); resolvedSubSourceId = saved.data.id; resolvedSubSourceNote = undefined; fetchFundSources() }
+      }
+
       const result = await fetchWithValidation(`/api/expense-account/${accountId}/deposits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -164,6 +216,10 @@ export function QuickDepositModal({
           depositDate: formData.depositDate,
           transactionType: 'DEPOSIT',
           notes: formData.manualNote.trim() || generateAutoNote(),
+          fundSourceId: resolvedFundSourceId,
+          subSourceId: resolvedSubSourceId,
+          fundSourceNote: resolvedFundSourceNote,
+          subSourceNote: resolvedSubSourceNote,
         })
       })
 
@@ -200,7 +256,16 @@ export function QuickDepositModal({
       amount: '',
       depositDate: getTodayLocalDateString(),
       manualNote: '',
+      fundSourceMode: 'none',
+      fundSourceId: '',
+      fundSourceNote: '',
+      subSourceMode: 'none',
+      subSourceId: '',
+      subSourceNote: '',
     })
+    setSaveSenderNote(false)
+    setSaveCourierNote(false)
+    setShowFundSourceManager(false)
     setErrors({
       sourceBusinessId: '',
       amount: '',
@@ -212,7 +277,11 @@ export function QuickDepositModal({
     // Check if form has unsaved changes
     const hasChanges = formData.amount !== '' ||
                        formData.manualNote !== '' ||
-                       formData.sourceBusinessId !== ''
+                       formData.sourceBusinessId !== '' ||
+                       formData.fundSourceId !== '' ||
+                       formData.fundSourceNote !== '' ||
+                       formData.subSourceId !== '' ||
+                       formData.subSourceNote !== ''
 
     if (hasChanges) {
       const confirmed = await customConfirm(
@@ -352,6 +421,140 @@ export function QuickDepositModal({
               max={getTodayLocalDateString()}
             />
           </div>
+
+          {/* Fund source section — MANUAL / OTHER only */}
+          {(formData.sourceType === 'MANUAL' || formData.sourceType === 'OTHER') && (
+            <div className="space-y-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">Sender & Courier</span>
+                <button type="button" onClick={() => setShowFundSourceManager(v => !v)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                  {showFundSourceManager ? 'Hide' : 'Manage saved sources'}
+                </button>
+              </div>
+
+              {showFundSourceManager && (
+                <div className="border border-blue-100 dark:border-blue-900 rounded-lg p-3 bg-blue-50 dark:bg-blue-900/10">
+                  <FundSourceManager onUpdated={fetchFundSources} />
+                </div>
+              )}
+
+              {/* Who sent this money */}
+              <div>
+                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Who sent this money? <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <div className="flex gap-2 mb-2">
+                  {(['none', 'saved', 'note'] as const).map(mode => (
+                    <button key={mode} type="button"
+                      onClick={() => setFormData({ ...formData, fundSourceMode: mode, fundSourceId: '', fundSourceNote: '' })}
+                      className={`px-3 py-1.5 text-xs rounded border transition-colors ${formData.fundSourceMode === mode ? (mode === 'none' ? 'border-gray-500 bg-gray-100 dark:bg-gray-700 font-semibold' : 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 font-semibold') : 'border-border hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                    >{mode === 'none' ? 'Not specified' : mode === 'saved' ? 'Select from list' : 'Type a name'}</button>
+                  ))}
+                </div>
+                {formData.fundSourceMode === 'saved' && (
+                  <SearchableSelect
+                    options={fundSources.map(s => ({ id: s.id, name: s.description ? `${s.name} — ${s.description}` : s.name, emoji: s.emoji }))}
+                    value={formData.fundSourceId}
+                    onChange={id => setFormData({ ...formData, fundSourceId: id })}
+                    placeholder="Select sender..." searchPlaceholder="Search senders..."
+                    emptyMessage="No saved sources. Add one via 'Manage saved sources'."
+                  />
+                )}
+                {formData.fundSourceMode === 'note' && (() => {
+                  const q = formData.fundSourceNote.trim().toLowerCase()
+                  const matches = q ? fundSources.filter(s => s.name.toLowerCase().includes(q)) : []
+                  const exactMatch = fundSources.find(s => s.name.toLowerCase() === q)
+                  return (
+                    <div className="space-y-1.5">
+                      <input type="text" value={formData.fundSourceNote}
+                        onChange={e => { setFormData({ ...formData, fundSourceNote: e.target.value }); setSaveSenderNote(false) }}
+                        placeholder="e.g. Ticha" className="w-full px-3 py-2 border border-border rounded text-sm bg-background text-primary"
+                        maxLength={200} autoComplete="off"
+                      />
+                      {matches.length > 0 && (
+                        <div className="border border-border rounded bg-background shadow-sm overflow-hidden">
+                          <p className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-b border-border">Matches in your saved list — click to use:</p>
+                          {matches.map(s => (
+                            <button key={s.id} type="button" onClick={() => setFormData({ ...formData, fundSourceMode: 'saved', fundSourceId: s.id, fundSourceNote: '' })}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left">
+                              <span>{s.emoji}</span><span className="font-medium text-primary">{s.name}</span>
+                              {s.description && <span className="text-xs text-gray-400 dark:text-gray-500">— {s.description}</span>}
+                              <span className="ml-auto text-xs text-blue-600 dark:text-blue-400">Use this</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {formData.fundSourceNote.trim() && !exactMatch && (
+                        <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                          <input type="checkbox" checked={saveSenderNote} onChange={e => setSaveSenderNote(e.target.checked)} className="rounded" />
+                          Save "{formData.fundSourceNote.trim()}" to my list for future deposits
+                        </label>
+                      )}
+                      {exactMatch && <p className="text-xs text-amber-600 dark:text-amber-400">"{exactMatch.name}" already exists — click it above to use the saved version.</p>}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Via / courier */}
+              <div className="border-t border-border pt-3">
+                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Delivered via? <span className="font-normal text-gray-400">(optional courier / intermediary)</span>
+                </label>
+                <div className="flex gap-2 mb-2">
+                  {(['none', 'saved', 'note'] as const).map(mode => (
+                    <button key={mode} type="button"
+                      onClick={() => setFormData({ ...formData, subSourceMode: mode, subSourceId: '', subSourceNote: '' })}
+                      className={`px-3 py-1.5 text-xs rounded border transition-colors ${formData.subSourceMode === mode ? (mode === 'none' ? 'border-gray-500 bg-gray-100 dark:bg-gray-700 font-semibold' : 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 font-semibold') : 'border-border hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                    >{mode === 'none' ? 'No courier' : mode === 'saved' ? 'Select from list' : 'Type a name'}</button>
+                  ))}
+                </div>
+                {formData.subSourceMode === 'saved' && (
+                  <SearchableSelect
+                    options={fundSources.filter(s => s.id !== formData.fundSourceId).map(s => ({ id: s.id, name: s.description ? `${s.name} — ${s.description}` : s.name, emoji: s.emoji }))}
+                    value={formData.subSourceId}
+                    onChange={id => setFormData({ ...formData, subSourceId: id })}
+                    placeholder="Select courier..." searchPlaceholder="Search couriers..."
+                    emptyMessage="No saved sources. Add one via 'Manage saved sources'."
+                  />
+                )}
+                {formData.subSourceMode === 'note' && (() => {
+                  const q = formData.subSourceNote.trim().toLowerCase()
+                  const matches = q ? fundSources.filter(s => s.id !== formData.fundSourceId && s.name.toLowerCase().includes(q)) : []
+                  const exactMatch = fundSources.find(s => s.name.toLowerCase() === q)
+                  return (
+                    <div className="space-y-1.5">
+                      <input type="text" value={formData.subSourceNote}
+                        onChange={e => { setFormData({ ...formData, subSourceNote: e.target.value }); setSaveCourierNote(false) }}
+                        placeholder="e.g. Kurauone" className="w-full px-3 py-2 border border-border rounded text-sm bg-background text-primary"
+                        maxLength={200} autoComplete="off"
+                      />
+                      {matches.length > 0 && (
+                        <div className="border border-border rounded bg-background shadow-sm overflow-hidden">
+                          <p className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-b border-border">Matches in your saved list — click to use:</p>
+                          {matches.map(s => (
+                            <button key={s.id} type="button" onClick={() => setFormData({ ...formData, subSourceMode: 'saved', subSourceId: s.id, subSourceNote: '' })}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left">
+                              <span>{s.emoji}</span><span className="font-medium text-primary">{s.name}</span>
+                              {s.description && <span className="text-xs text-gray-400 dark:text-gray-500">— {s.description}</span>}
+                              <span className="ml-auto text-xs text-blue-600 dark:text-blue-400">Use this</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {formData.subSourceNote.trim() && !exactMatch && (
+                        <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                          <input type="checkbox" checked={saveCourierNote} onChange={e => setSaveCourierNote(e.target.checked)} className="rounded" />
+                          Save "{formData.subSourceNote.trim()}" to my list for future deposits
+                        </label>
+                      )}
+                      {exactMatch && <p className="text-xs text-amber-600 dark:text-amber-400">"{exactMatch.name}" already exists — click it above to use the saved version.</p>}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
 
           {/* Notes */}
           <div>

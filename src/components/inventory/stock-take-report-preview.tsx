@@ -147,12 +147,23 @@ export function StockTakeReportPreview({
     <div className="fixed inset-0 z-[60] bg-white dark:bg-gray-900 flex flex-col overflow-hidden pb-20">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
-        <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
+        <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 shrink-0">
           ← Back to Edit
         </button>
-        <h1 className="font-bold text-gray-900 dark:text-white text-base">
+        <h1 className="font-bold text-gray-900 dark:text-white text-base flex-1 min-w-0 truncate">
           Stock Take Report — {businessName} — {new Date().toLocaleDateString()}
         </h1>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={onBack} disabled={submitting}
+            className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+            Back to Edit
+          </button>
+          <button onClick={handleConfirmSubmit} disabled={submitting || !draftId || selectedEmployeeIds.length === 0}
+            className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium"
+            title={selectedEmployeeIds.length === 0 ? 'Select responsible employees below first' : undefined}>
+            {submitting ? 'Submitting…' : 'Confirm & Submit'}
+          </button>
+        </div>
       </div>
 
       {/* Scrollable body */}

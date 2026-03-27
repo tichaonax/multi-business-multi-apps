@@ -269,11 +269,12 @@ export async function GET(
 
     // Also fetch BarcodeInventoryItems that have a categoryId (individually stocked items)
     // These are merged into the results so they appear alongside BusinessProducts
+    // Include items with a category OR a direct domainId assignment
+    // (allows items whose category has null domainId to still surface via item.domainId)
     const barcodeItemsWhere: any = {
       businessId,
-      categoryId: { not: null },
       isActive: true,
-      stockQuantity: { gt: 0 },
+      OR: [{ categoryId: { not: null } }, { domainId: { not: null } }],
     }
     if (search) {
       barcodeItemsWhere.OR = [
@@ -322,12 +323,18 @@ export async function GET(
 
     // Merge barcodeItems into filteredItems (apply domainId filter only to businessProducts)
     // BarcodeInventoryItems: clothing uses domainId on the category; other types use parentId
+    // Also check item.domainId directly (set when stocked via bulk stocking with a department)
     let mergedBarcodeItems = barcodeItemsMapped
     if (domainId && domainId !== 'all') {
       mergedBarcodeItems = barcodeItemsMapped.filter(item => {
-        const cat = barcodeItems.find(b => `inv_${b.id}` === item.id)
-        const bc = (cat as any)?.business_category
-        return bc?.domainId === domainId || bc?.parentId === domainId
+        const rawItem = barcodeItems.find(b => `inv_${b.id}` === item.id)
+        const bc = (rawItem as any)?.business_category
+        // Check item's direct domainId first, then the category's domainId FK.
+        // NOTE: do NOT check bc?.parentId here — parentId is for category hierarchy,
+        // not domain assignment, and would incorrectly match all sub-categories that
+        // share a parent whose UUID happens to equal the domain ID.
+        return (rawItem as any)?.domainId === domainId
+          || bc?.domainId === domainId
       })
     }
     const allFilteredItems = [

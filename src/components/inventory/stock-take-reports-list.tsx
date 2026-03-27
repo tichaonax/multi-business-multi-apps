@@ -22,6 +22,7 @@ interface Report {
   totalShortfallValue: string | number
   totalNewStockValue: string | number
   employeeCount: number
+  itemCount: number
   submittedBy: { id: string; name: string } | null
   managerSignedBy: { id: string; name: string } | null
   managerSignedAt: string | null
@@ -208,6 +209,7 @@ export function StockTakeReportsList({ businessId, businessName, canManage, onCl
                   <th className="px-3 py-2 text-left">Date</th>
                   <th className="px-3 py-2 text-left min-w-[180px]">Employees</th>
                   <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-right">Items</th>
                   <th className="px-3 py-2 text-right">Shortfall</th>
                   <th className="px-3 py-2 text-right">New Stock</th>
                   <th className="px-3 py-2 text-left">Submitted by</th>
@@ -240,6 +242,9 @@ export function StockTakeReportsList({ businessId, businessName, canManage, onCl
                         {r.fullySignedOffAt && (
                           <div className="text-xs text-gray-400 mt-0.5">{new Date(r.fullySignedOffAt).toLocaleDateString()}</div>
                         )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300 font-medium">
+                        {r.itemCount > 0 ? r.itemCount : <span className="text-gray-400">—</span>}
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         {Number(r.totalShortfallQty) > 0 ? (

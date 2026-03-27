@@ -103,6 +103,7 @@ const RESTORE_ORDER = [
   'userPermissions',  // Depends on users and permissions
   'permissionTemplates',  // Depends on users via createdBy FK
   'seedDataTemplates',  // Depends on users via createdBy FK
+  'paymentNotes',       // Depends on users (userId FK, optional)
 
   // Businesses (core entity)
   'businesses',

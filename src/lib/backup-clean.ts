@@ -1168,6 +1168,11 @@ export async function createCleanBackup(
     where: { userId: { in: userIds } }
   })
 
+  // 45. Payment Notes (user-scoped reusable note phrases)
+  businessData.paymentNotes = await prisma.paymentNotes.findMany({
+    where: { userId: { in: userIds } }
+  })
+
   // 46. Chicken Run Management
   businessData.chickenRunSettings = await prisma.chickenRunSettings.findMany({
     where: { businessId: { in: businessIds } }
