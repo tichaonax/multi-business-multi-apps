@@ -9,16 +9,28 @@ export async function GET(request: NextRequest) {
     const where: any = { businessType: 'grocery' }
     if (businessId) where.businessId = businessId
 
-    const products = await prisma.businessProducts.findMany({
-      where,
-      include: {
-        business_categories: {
-          include: {
-            domain: { select: { id: true, name: true, emoji: true } }
+    const [products, barcodeItems] = await Promise.all([
+      prisma.businessProducts.findMany({
+        where,
+        include: {
+          business_categories: {
+            include: {
+              domain: { select: { id: true, name: true, emoji: true } }
+            }
           }
         }
-      }
-    })
+      }),
+      prisma.barcodeInventoryItems.findMany({
+        where: businessId ? { businessId } : {},
+        include: {
+          business_category: {
+            include: {
+              domain: { select: { id: true, name: true, emoji: true } }
+            }
+          }
+        }
+      })
+    ])
 
     // Fetch all grocery domains for navigation (shows departments even with 0 products)
     const [directDomains, categoryDomains] = await Promise.all([
@@ -56,7 +68,18 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ success: true, data: { total: products.length, byDepartment } })
+    barcodeItems.forEach(item => {
+      const domain = (item as any).business_category?.domain
+      if (domain) {
+        if (!byDepartment[domain.id]) {
+          byDepartment[domain.id] = { name: domain.name, emoji: domain.emoji || '', count: 0 }
+        }
+        byDepartment[domain.id].count++
+      }
+    })
+
+    const total = products.length + barcodeItems.length
+    return NextResponse.json({ success: true, data: { total, byDepartment } })
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }

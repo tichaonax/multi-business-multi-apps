@@ -125,6 +125,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   const [showNewSupplierForm, setShowNewSupplierForm] = useState(false)
   const [newSupplierName, setNewSupplierName] = useState('')
   const [newSupplierLoading, setNewSupplierLoading] = useState(false)
+  const [newSupplierError, setNewSupplierError] = useState<string | null>(null)
 
   // Fetch accessible clothing businesses when business selector is shown
   useEffect(() => {
@@ -304,6 +305,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   const handleCreateSupplier = async () => {
     if (!newSupplierName.trim()) return
     setNewSupplierLoading(true)
+    setNewSupplierError(null)
     try {
       const res = await fetch(`/api/business/${effectiveBusinessId}/suppliers`, {
         method: 'POST',
@@ -311,7 +313,10 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
         body: JSON.stringify({ name: newSupplierName.trim() }),
       })
       const data = await res.json()
-      if (!res.ok) { return }
+      if (!res.ok) {
+        setNewSupplierError(data.message || 'Failed to create supplier')
+        return
+      }
       const newSup: Supplier = { id: data.supplier?.id || data.id || data.data?.id, name: newSupplierName.trim() }
       setSuppliers(prev => [...prev, newSup])
       setProductSupplierId(newSup.id)
@@ -319,7 +324,7 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       setNewSupplierName('')
       setShowNewSupplierForm(false)
     } catch (e) {
-      // silent
+      setNewSupplierError('An unexpected error occurred. Please try again.')
     } finally {
       setNewSupplierLoading(false)
     }
@@ -832,21 +837,26 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
                   <button
                     type="button"
                     title="Add new supplier"
-                    onClick={() => { setShowNewSupplierForm(v => !v); setShowNewCategoryForm(false) }}
+                    onClick={() => { setShowNewSupplierForm(v => !v); setShowNewCategoryForm(false); setNewSupplierError(null) }}
                     className="mt-0.5 w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-base font-bold hover:bg-indigo-100 flex items-center justify-center shrink-0"
                   >+</button>
                 </div>
                 {showNewSupplierForm && (
-                  <div className="mt-2 flex gap-2 items-center">
-                    <input autoFocus type="text" value={newSupplierName} onChange={e => setNewSupplierName(e.target.value)}
-                      placeholder="Supplier name"
-                      className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      onKeyDown={e => { if (e.key === 'Enter') handleCreateSupplier() }} />
-                    <button type="button" onClick={handleCreateSupplier} disabled={newSupplierLoading || !newSupplierName.trim()}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium disabled:opacity-50">
-                      {newSupplierLoading ? '...' : 'Add'}
-                    </button>
-                    <button type="button" onClick={() => setShowNewSupplierForm(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                  <div className="mt-2">
+                    <div className="flex gap-2 items-center">
+                      <input autoFocus type="text" value={newSupplierName} onChange={e => { setNewSupplierName(e.target.value); setNewSupplierError(null) }}
+                        placeholder="Supplier name"
+                        className={`flex-1 px-3 py-1.5 border rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${newSupplierError ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                        onKeyDown={e => { if (e.key === 'Enter') handleCreateSupplier() }} />
+                      <button type="button" onClick={handleCreateSupplier} disabled={newSupplierLoading || !newSupplierName.trim()}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium disabled:opacity-50">
+                        {newSupplierLoading ? '...' : 'Add'}
+                      </button>
+                      <button type="button" onClick={() => { setShowNewSupplierForm(false); setNewSupplierError(null) }} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                    </div>
+                    {newSupplierError && (
+                      <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{newSupplierError}</p>
+                    )}
                   </div>
                 )}
               </div>

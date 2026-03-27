@@ -316,7 +316,9 @@ export async function GET(
       isProductTemplate: false,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
-      barcodes: [],
+      barcodes: item.barcodeData
+        ? [{ id: `barcode-${item.id}`, code: item.barcodeData, type: 'EAN-13', label: 'Product Barcode', isPrimary: true, isUniversal: false, isActive: true, notes: null }]
+        : [],
       attributes: { isInventoryItem: true },
       isInventoryTracked: true,
       barcodeData: item.barcodeData,

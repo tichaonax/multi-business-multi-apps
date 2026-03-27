@@ -15,6 +15,56 @@ export async function GET(
 
     const { businessId, itemId } = await params
 
+    // Handle barcodeInventoryItems (inv_ prefix)
+    if (itemId.startsWith('inv_')) {
+      const rawId = itemId.replace(/^inv_/, '')
+      const item = await prisma.barcodeInventoryItems.findFirst({
+        where: { id: rawId, businessId },
+        include: {
+          business_category: true,
+          business_supplier: true
+        }
+      })
+      if (!item) {
+        return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 })
+      }
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: itemId,
+          businessId: item.businessId,
+          businessType: 'clothing',
+          name: item.name,
+          sku: item.sku || '',
+          description: '',
+          category: (item as any).business_category?.name || item.category || 'Uncategorized',
+          categoryId: item.categoryId || null,
+          categoryEmoji: (item as any).business_category?.emoji || '📦',
+          subcategory: null,
+          subcategoryId: null,
+          subcategoryEmoji: null,
+          currentStock: item.stockQuantity,
+          unit: 'units',
+          costPrice: parseFloat(item.costPrice?.toString() || '0'),
+          sellPrice: parseFloat(item.sellingPrice?.toString() || '0'),
+          supplier: (item as any).business_supplier?.name || '',
+          supplierId: item.supplierId || null,
+          location: item.location || '',
+          locationId: null,
+          isActive: item.isActive,
+          createdAt: item.createdAt.toISOString(),
+          updatedAt: item.updatedAt.toISOString(),
+          attributes: { isInventoryItem: true },
+          barcodes: item.barcodeData
+            ? [{ id: `barcode-${rawId}`, code: item.barcodeData, type: 'EAN-13', label: 'Product Barcode', isPrimary: true, isUniversal: false, isActive: true, notes: null }]
+            : [],
+          isInventoryTracked: true,
+          reorderLevel: 0,
+          barcodeData: item.barcodeData,
+        }
+      })
+    }
+
     // Find the specific product
     const product = await prisma.businessProducts.findFirst({
       where: {
@@ -114,6 +164,73 @@ export async function PUT(
 
     const { businessId, itemId } = await params
     const body = await request.json()
+
+    // Handle barcodeInventoryItems (inv_ prefix)
+    if (itemId.startsWith('inv_')) {
+      const rawId = itemId.replace(/^inv_/, '')
+      const existing = await prisma.barcodeInventoryItems.findFirst({
+        where: { id: rawId, businessId }
+      })
+      if (!existing) {
+        return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+      }
+
+      const updateData: any = { updatedAt: new Date() }
+      if (body.name) updateData.name = body.name
+      if (body.categoryId !== undefined) updateData.categoryId = body.categoryId || null
+      if (body.supplierId !== undefined) updateData.supplierId = body.supplierId || null
+      if (body.sellPrice !== undefined) updateData.sellingPrice = parseFloat(body.sellPrice)
+      if (body.basePrice !== undefined) updateData.sellingPrice = parseFloat(body.basePrice)
+      if (body.costPrice !== undefined) updateData.costPrice = body.costPrice ? parseFloat(body.costPrice) : null
+      if (body.isActive !== undefined) updateData.isActive = body.isActive
+      if (body.barcodeData !== undefined) updateData.barcodeData = body.barcodeData || null
+      if (body.sku !== undefined) updateData.sku = body.sku || null
+
+      const updated = await prisma.barcodeInventoryItems.update({
+        where: { id: rawId },
+        data: updateData,
+        include: {
+          business_category: true,
+          business_supplier: true
+        }
+      })
+
+      return NextResponse.json({
+        message: 'Product updated successfully',
+        item: {
+          id: itemId,
+          businessId: updated.businessId,
+          businessType: 'clothing',
+          name: updated.name,
+          sku: updated.sku || '',
+          description: '',
+          category: (updated as any).business_category?.name || updated.category || 'Uncategorized',
+          categoryId: updated.categoryId || null,
+          categoryEmoji: (updated as any).business_category?.emoji || '📦',
+          subcategory: null,
+          subcategoryId: null,
+          subcategoryEmoji: null,
+          currentStock: updated.stockQuantity,
+          unit: 'units',
+          costPrice: parseFloat(updated.costPrice?.toString() || '0'),
+          sellPrice: parseFloat(updated.sellingPrice?.toString() || '0'),
+          supplier: (updated as any).business_supplier?.name || '',
+          supplierId: updated.supplierId || null,
+          location: updated.location || '',
+          locationId: null,
+          isActive: updated.isActive,
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+          attributes: { isInventoryItem: true },
+          barcodes: updated.barcodeData
+            ? [{ id: `barcode-${rawId}`, code: updated.barcodeData, type: 'EAN-13', label: 'Product Barcode', isPrimary: true, isUniversal: false, isActive: true, notes: null }]
+            : [],
+          isInventoryTracked: true,
+          reorderLevel: 0,
+          barcodeData: updated.barcodeData,
+        }
+      })
+    }
 
     // Verify product exists and belongs to business
     const existingProduct = await prisma.businessProducts.findFirst({
