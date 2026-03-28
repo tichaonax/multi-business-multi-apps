@@ -269,9 +269,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
   // Load categories and suppliers once
   useEffect(() => {
-    const fetchDomains = businessType === 'clothing'
-      ? fetch(`/api/inventory/domains?businessType=clothing`).then(r => r.json())
-      : Promise.resolve({ domains: [] })
+    const fetchDomains = fetch(`/api/inventory/domains?businessType=${businessType}`).then(r => r.json())
 
     Promise.all([
       fetch(`/api/universal/categories?businessId=${businessId}&businessType=${businessType}`).then(r => r.json()),
@@ -1337,7 +1335,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                 <th className="px-2 py-2 text-center w-8">#</th>
                 <th className="px-2 py-2 text-left min-w-[110px]">Barcode</th>
                 <th className="px-2 py-2 text-left min-w-[180px]">Name *</th>
-                {hasDeptCol && <th className="px-2 py-2 text-left min-w-[150px]">Department</th>}
+                {hasDeptCol && <th className="px-2 py-2 text-left min-w-[150px]">Domain</th>}
                 <th className="px-2 py-2 text-left min-w-[160px]">Category *</th>
                 {hasSubCatCol && <th className="px-2 py-2 text-left min-w-[160px]">Sub-category</th>}
                 <th className="px-2 py-2 text-left min-w-[160px]">Supplier</th>
@@ -1699,14 +1697,14 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
           className={`${row.nameReadOnly ? roClass : inputClass} ${inv('name') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="Product name" />
       </td>
 
-      {/* Department */}
+      {/* Domain */}
       {hasDeptCol && (
         <td className="px-2 py-1.5">
           <SearchableSelect
             options={departments}
             value={row.departmentId}
             onChange={id => onChange({ departmentId: id, categoryId: '', subCategoryId: '' })}
-            placeholder="Select dept…"
+            placeholder="Select domain…"
             allLabel="— none —"
             disabled={row.isExistingItem && !row.isEditing}
           />

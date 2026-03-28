@@ -1936,7 +1936,7 @@ model Images {
 
 model InventoryDomains {
   id                  String               @id @default(uuid())
-  name                String               @unique
+  name                String
   emoji               String
   description         String?
   businessType        String
@@ -1945,6 +1945,7 @@ model InventoryDomains {
   createdAt           DateTime             @default(now())
   business_categories BusinessCategories[]
 
+  @@unique([name, businessType])
   @@map("inventory_domains")
 }
 

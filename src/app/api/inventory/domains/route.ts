@@ -24,11 +24,13 @@ export async function GET(request: NextRequest) {
     const businessType = searchParams.get('businessType');
     const includeCategories = searchParams.get('includeCategories') === 'true';
 
-    // Fetch all domains
+    // Fetch all domains — include universal domains alongside any requested businessType
     const domains = await prisma.inventoryDomains.findMany({
       where: {
         isActive: true,
-        ...(businessType ? { businessType } : {}),
+        ...(businessType
+          ? { OR: [{ businessType }, { businessType: 'universal' }] }
+          : {}),
       },
       include: includeCategories ? {
         business_categories: {

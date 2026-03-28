@@ -321,8 +321,8 @@ function UniversalProductsPageContent() {
             </form>
           </div>
 
-          {/* Department Quick Navigation - Show for Clothing */}
-          {businessType === 'clothing' && stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
+          {/* Department Quick Navigation - Show for all business types */}
+          {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
             <div className="rounded-lg border bg-card p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Browse by Department</h3>

@@ -50,23 +50,36 @@ export async function GET(request: NextRequest) {
 
     if (domainId) where.domainId = domainId;
     if (parentId) where.parentId = parentId;
-    if (businessType) where.businessType = businessType;
+
+    // Build AND conditions so businessType filter and businessId isolation don't clobber each other
+    const andConditions: any[] = [];
+
+    // Include universal categories alongside any requested businessType
+    if (businessType) {
+      andConditions.push({ OR: [{ businessType }, { businessType: 'universal' }] });
+    }
 
     // Apply ONE-WAY isolation filter if businessId provided
     if (businessId && requestingBusiness) {
-      where.OR = [
-        { businessId: null }, // Type-based categories always visible
-        { businessId: businessId }, // Own categories
-        ...(requestingBusiness.isDemo
-          ? [{ businessId: { not: null } }] // Demo sees all categories
-          : [
-              { businesses: { isDemo: false } }, // Real only sees real business categories
-              { businesses: null } // Include categories with no business link
-            ]
-        )
-      ];
+      andConditions.push({
+        OR: [
+          { businessId: null }, // Type-based categories always visible
+          { businessId: businessId }, // Own categories
+          ...(requestingBusiness.isDemo
+            ? [{ businessId: { not: null } }] // Demo sees all categories
+            : [
+                { businesses: { isDemo: false } }, // Real only sees real business categories
+                { businesses: null } // Include categories with no business link
+              ]
+          )
+        ]
+      });
     } else if (businessId) {
       where.businessId = businessId;
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     // Fetch categories
