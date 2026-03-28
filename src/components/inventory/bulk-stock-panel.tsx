@@ -283,9 +283,32 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       if (domainList.length > 0) {
         setDepartments(domainList.map(d => ({ id: d.id, name: d.name, emoji: d.emoji || '📦', color: '#6366f1', parentId: null })))
         setAllCategories(list)
-        // Sub-categories for domain-based businesses: categories whose parentId points to a domain-level category (one that has domainId set)
+        // Sub-categories from business_categories (user-created, parentId-based)
         const domainCatIds = new Set(list.filter(c => !!c.domainId).map(c => c.id))
-        setAllSubCategories(list.filter(c => c.parentId != null && domainCatIds.has(c.parentId!)))
+        const parentBased = list.filter(c => c.parentId != null && domainCatIds.has(c.parentId!))
+        // Also load taxonomy subcategories from inventory_subcategories for all domain-level categories
+        const catIds = [...domainCatIds].join(',')
+        if (catIds) {
+          fetch(`/api/inventory/subcategories?categoryIds=${catIds}`)
+            .then(r => r.json())
+            .then((d: any) => {
+              const invSubs: BusinessCategory[] = (d.subcategories ?? []).map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                emoji: s.emoji || '📦',
+                color: '#6366f1',
+                parentId: s.categoryId,   // map categoryId → parentId so filter works
+                domainId: null,
+              }))
+              // Merge: inventory subcategories first, then any user-created ones not already present
+              const existingIds = new Set(invSubs.map(s => s.id))
+              const merged = [...invSubs, ...parentBased.filter(s => !existingIds.has(s.id))]
+              setAllSubCategories(merged)
+            })
+            .catch(() => setAllSubCategories(parentBased))
+        } else {
+          setAllSubCategories(parentBased)
+        }
       } else {
         const level1 = list.filter(c => !c.parentId)
         const level1Ids = new Set(level1.map(c => c.id))

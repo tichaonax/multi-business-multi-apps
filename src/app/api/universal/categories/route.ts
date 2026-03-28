@@ -40,9 +40,11 @@ export async function GET(request: NextRequest) {
 
     if (businessId && businessType) {
       // Return global/seed categories for this business type (businessId=null)
+      // PLUS universal categories (shared across all business types)
       // PLUS any business-specific categories added by this business
       where.OR = [
         { businessId: null, businessType: businessType },
+        { businessId: null, businessType: 'universal' },
         { businessId: businessId },
       ]
     } else if (businessId) {

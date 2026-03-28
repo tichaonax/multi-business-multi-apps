@@ -7,6 +7,32 @@ import { hasUserPermission } from '@/lib/permission-utils';
 import { getServerUser } from '@/lib/get-server-user'
 
 /**
+ * GET /api/inventory/subcategories?categoryIds=id1,id2,...
+ * Fetch inventory subcategories for one or more categories (batch)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getServerUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const categoryIds = request.nextUrl.searchParams.get('categoryIds')?.split(',').filter(Boolean) ?? [];
+    if (categoryIds.length === 0) {
+      return NextResponse.json({ subcategories: [] });
+    }
+
+    const subcategories = await prisma.inventorySubcategories.findMany({
+      where: { categoryId: { in: categoryIds } },
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    return NextResponse.json({ subcategories });
+  } catch (error) {
+    console.error('Error fetching subcategories:', error);
+    return NextResponse.json({ error: 'Failed to fetch subcategories' }, { status: 500 });
+  }
+}
+
+/**
  * POST /api/inventory/subcategories
  * Create a new inventory subcategory
  *
