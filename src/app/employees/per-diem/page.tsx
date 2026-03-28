@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
@@ -30,9 +30,16 @@ export default function PerDiemListPage() {
   const confirm = useConfirm()
   const { currentBusinessId, currentBusiness, isAuthenticated } = useBusinessPermissionsContext()
 
+  const searchParams = useSearchParams()
   const now = new Date()
-  const [month, setMonth] = useState(now.getMonth() + 1)
-  const [year, setYear] = useState(now.getFullYear())
+  const [month, setMonth] = useState(() => {
+    const p = searchParams.get('payrollMonth')
+    return p ? parseInt(p) : now.getMonth() + 1
+  })
+  const [year, setYear] = useState(() => {
+    const p = searchParams.get('payrollYear')
+    return p ? parseInt(p) : now.getFullYear()
+  })
   const [entries, setEntries] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -45,10 +52,12 @@ export default function PerDiemListPage() {
   }, [session, status, router])
 
   const fetchEntries = useCallback(async () => {
-    if (!currentBusinessId) return
+    const urlBusinessId = searchParams.get('businessId')
+    const effectiveBusinessId = urlBusinessId || currentBusinessId
+    if (!effectiveBusinessId) return
     setLoading(true)
     try {
-      const params = new URLSearchParams({ businessId: currentBusinessId, payrollMonth: String(month), payrollYear: String(year) })
+      const params = new URLSearchParams({ businessId: effectiveBusinessId, payrollMonth: String(month), payrollYear: String(year) })
       const res = await fetch(`/api/per-diem/entries?${params}`, { credentials: 'include' })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load')
@@ -58,7 +67,7 @@ export default function PerDiemListPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, month, year, toast])
+  }, [currentBusinessId, month, year, toast, searchParams])
 
   useEffect(() => { fetchEntries() }, [fetchEntries])
 

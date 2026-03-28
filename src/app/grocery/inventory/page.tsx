@@ -352,8 +352,8 @@ function GroceryInventoryContent() {
         >
           <div className="space-y-6">
             {/* Tab Navigation */}
-            <div className="card overflow-hidden">
-              <div className="border-b border-gray-200 dark:border-gray-700">
+            <div className="card">
+              <div className="overflow-hidden rounded-t-xl border-b border-gray-200 dark:border-gray-700">
                 <nav className="overflow-x-auto" aria-label="Tabs">
                   <div className="flex min-w-max px-2 py-2">
                     {tabs.map((tab) => (

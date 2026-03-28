@@ -260,36 +260,85 @@ export async function DELETE(req: NextRequest) {
 
 // helper to recalc entry and period totals
 async function recalcEntryAndPeriod(tx: any, entryId: string) {
-  const entry = await tx.payrollEntries.findUnique({ where: { id: entryId }, include: { payroll_entry_benefits: true, payroll_adjustments: true, payroll_periods: true } })
+  const entry = await tx.payrollEntries.findUnique({
+    where: { id: entryId },
+    include: {
+      payroll_entry_benefits: true,
+      payroll_adjustments: true,
+      payroll_periods: true,
+      employees: { select: { scheduledStartTime: true, scheduledEndTime: true, scheduledDaysPerWeek: true } },
+    }
+  })
   if (!entry) return
 
-  const benefitsTotal = (entry.payroll_entry_benefits || []).filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)
-  // payrollAdjustments.amount is stored as signed (positive for additions, negative for deductions)
+  const benefitsTotal = (entry.payroll_entry_benefits || [])
+    .filter((b: any) => b.isActive)
+    .reduce((s: number, b: any) => s + Number(b.amount), 0)
+
+  // Split adjustments: pending clock-in additions excluded from gross; clock-in deductions are pre-tax; others are post-tax
   let additionsTotal = 0
-  let adjustmentsAsDeductions = 0
+  let clockInDeductionTotal = 0
+  let otherDeductionsTotal = 0
   for (const a of (entry.payroll_adjustments || [])) {
     const amt = Number(a.amount || 0)
     if (amt >= 0) {
       const isPendingClockIn = (a as any).isClockInAdjustment && (a as any).status === 'pending'
       if (!isPendingClockIn) additionsTotal += amt
+    } else if ((a as any).isClockInAdjustment) {
+      clockInDeductionTotal += Math.abs(amt)
+    } else {
+      otherDeductionsTotal += Math.abs(amt)
     }
-    else adjustmentsAsDeductions += Math.abs(amt)
   }
+
+  // Absence deduction using employee schedule
+  const emp = (entry as any).employees
+  const parseHHMM = (str: string | null | undefined) => {
+    if (!str) return null
+    const [h, m] = str.split(':').map(Number)
+    if (isNaN(h) || isNaN(m)) return null
+    return { h, m }
+  }
+  const schedStart = parseHHMM(emp?.scheduledStartTime)
+  const schedEnd = parseHHMM(emp?.scheduledEndTime)
+  let dailyHours = 9
+  if (schedStart && schedEnd) {
+    dailyHours = ((schedEnd.h * 60 + schedEnd.m) - (schedStart.h * 60 + schedStart.m)) / 60
+  }
+  const daysPerWeek = (emp?.scheduledDaysPerWeek as number | null) ?? 6.5
+  const hoursPerYear = Math.max(1, dailyHours * daysPerWeek * 52)
+  const annualSalary = Number(entry.baseSalary || 0) * 12
+  const hourlyRate = annualSalary / hoursPerYear
+  const absenceDays = Number(entry.absenceDays || 0) + Number((entry as any).absenceFraction || 0)
+  const absenceDeduction = Math.round(absenceDays * dailyHours * hourlyRate * 100) / 100
 
   const baseSalary = Number(entry.baseSalary || 0)
   const commission = Number(entry.commission || 0)
   const overtimePay = Number(entry.overtimePay || 0)
+  // grossPay = base + commissions + benefits + approved additions - absence deduction - clock-in tardiness
+  const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal - absenceDeduction - clockInDeductionTotal
+  // totalDeductions = post-tax only (advances, loans, misc, other non-clock-in adjustments)
+  const totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + otherDeductionsTotal
+  const netPay = grossPay - totalDeductions
 
-  // Add positive adjustments to gross; negative adjustments counted as additional deductions
-  const grossPay = baseSalary + commission + overtimePay + benefitsTotal + additionsTotal
-  const currentStoredDeductions = Number(entry.totalDeductions || 0)
-  const newTotalDeductions = currentStoredDeductions + adjustmentsAsDeductions
-  const netPay = grossPay - newTotalDeductions
+  await tx.payrollEntries.update({
+    where: { id: entryId },
+    data: { benefitsTotal, adjustmentsTotal: additionsTotal, grossPay, netPay, totalDeductions, updatedAt: new Date() }
+  })
 
-  await tx.payrollEntries.update({ where: { id: entryId }, data: { benefitsTotal, adjustmentsTotal: additionsTotal, grossPay, netPay, totalDeductions: newTotalDeductions, updatedAt: new Date() } })
-
-  const allEntries = await tx.payrollEntries.findMany({ where: { payrollPeriodId: entry.payrollPeriodId } })
-  const periodTotals = allEntries.reduce((acc: any, e: any) => ({ totalGrossPay: acc.totalGrossPay + Number(e.grossPay), totalDeductions: acc.totalDeductions + Number(e.totalDeductions), totalNetPay: acc.totalNetPay + Number(e.netPay) }), { totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 })
-
-  await tx.payrollPeriods.update({ where: { id: entry.payrollPeriodId }, data: { totalGrossPay: periodTotals.totalGrossPay, totalDeductions: periodTotals.totalDeductions, totalNetPay: periodTotals.totalNetPay, updatedAt: new Date() } })
+  if (entry.payrollPeriodId) {
+    const allEntries = await tx.payrollEntries.findMany({ where: { payrollPeriodId: entry.payrollPeriodId } })
+    const pt = allEntries.reduce(
+      (acc: any, e: any) => ({
+        totalGrossPay: acc.totalGrossPay + Number(e.grossPay),
+        totalDeductions: acc.totalDeductions + Number(e.totalDeductions),
+        totalNetPay: acc.totalNetPay + Number(e.netPay),
+      }),
+      { totalGrossPay: 0, totalDeductions: 0, totalNetPay: 0 }
+    )
+    await tx.payrollPeriods.update({
+      where: { id: entry.payrollPeriodId },
+      data: { totalGrossPay: pt.totalGrossPay, totalDeductions: pt.totalDeductions, totalNetPay: pt.totalNetPay, updatedAt: new Date() }
+    })
+  }
 }

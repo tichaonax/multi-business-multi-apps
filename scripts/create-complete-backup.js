@@ -73,7 +73,7 @@ const allTables = [
   'inventoryTransfers', 'inventoryTransferItems',
 
   // Clothing bales
-  'clothingBaleCategories', 'clothingBales',
+  'clothingBaleCategories', 'clothingBales', 'clothingBaleBogoHistory', 'clothingLabelPrintHistory',
 
   // Customer layby
   'customerLayby', 'customerLaybyPayment',
@@ -92,6 +92,50 @@ const allTables = [
 
   // Saved reports
   'savedReports',
+
+  // Petty cash reversal audit trail
+  'paymentReversalLog',
+
+  // Cash allocation reports
+  'cashAllocationReport', 'cashAllocationLineItem',
+
+  // Petty cash
+  'pettyCashRequests', 'pettyCashTransaction',
+
+  // Business loans
+  'businessLoan', 'businessLoanExpense', 'businessLoanPreLockRepayment',
+  'businessLoanManager', 'loanWithdrawalRequest',
+
+  // Per diem
+  'perDiemEntries',
+
+  // EOD payment workflow
+  'expenseAccountAutoDeposit', 'paymentBatchSubmissions', 'eODPaymentBatch',
+  'cashBucketEntry', 'groupedEODRun', 'groupedEODRunDate',
+
+  // Employee absences
+  'employeeAbsences',
+
+  // Rent
+  'businessRentConfig',
+
+  // Notifications
+  'appNotification',
+
+  // Chicken run management
+  'chickenBatch', 'chickenMortality', 'chickenFeedLog', 'chickenMedicationLog',
+  'chickenWeightLog', 'chickenVaccinationSchedule', 'chickenVaccinationLog',
+  'chickenCulling', 'chickenInventory', 'chickenBirdWeight', 'chickenInventoryMovement',
+  'chickenUtilityCost', 'chickenLaborLog', 'chickenRunSettings',
+
+  // Stock take workflow
+  'stockTakeDrafts', 'stockTakeDraftItems', 'stockTakeReports', 'stockTakeReportEmployees',
+
+  // Custom bulk products
+  'customBulkProducts',
+
+  // Payroll extras
+  'payrollSlips', 'payrollZimraRemittances', 'payrollPaymentVouchers',
 ]
 
 async function createCompleteBackup() {

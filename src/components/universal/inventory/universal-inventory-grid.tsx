@@ -542,9 +542,9 @@ export function UniversalInventoryGrid({
         </div>
       )}
 
-      {/* Search and Filters */}
+      {/* Search and Filters — sticky so it locks at top when scrolling the inventory list */}
       {(allowSearch || allowFiltering) && (
-        <div className="space-y-4">
+        <div className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             {allowSearch && (
               <div className="flex-1 w-full sm:w-auto">

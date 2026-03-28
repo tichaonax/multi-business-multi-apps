@@ -346,6 +346,17 @@ export async function POST(req: NextRequest) {
 
     const monthRequiredWorkDays = getWorkingDaysInMonth(period.year, period.month)
 
+    // Fetch approved per diem for this period, grouped by employee
+    const perDiemRows = await prisma.perDiemEntries.groupBy({
+      by: ['employeeId'],
+      where: { payrollYear: period.year, payrollMonth: period.month, approvalStatus: 'approved' },
+      _sum: { amount: true }
+    })
+    const perDiemByEmployee: Record<string, number> = {}
+    for (const row of perDiemRows) {
+      if (row.employeeId) perDiemByEmployee[row.employeeId] = Number(row._sum.amount ?? 0)
+    }
+
     // Compute cumulative totals (sick/leave/absence) from prior payroll entries for each employee
     let priorPeriodIds: string[] = []
     if (period.periodStart) {
@@ -383,11 +394,33 @@ export async function POST(req: NextRequest) {
 
       // derive workDays similar to period route
       const timeTracking = empId ? timeTrackingByEmployee[empId] : null
-      const derivedWorkDays = (entry.workDays && entry.workDays > 0)
-        ? entry.workDays
-        : (timeTracking
-          ? ((timeTracking.workDays && timeTracking.workDays > 0) ? timeTracking.workDays : monthRequiredWorkDays)
-          : monthRequiredWorkDays)
+      // Resolve effective termination date: prefer payroll entry field, fall back to employee record
+      const employeeTermDate = (entry as any).employees?.terminationDate
+      const entryTermDate = (entry as any).terminationDate ?? employeeTermDate ?? null
+      const periodStart = new Date(period.year, period.month - 1, 1)
+      const periodEnd = new Date(period.year, period.month, 0, 23, 59, 59)
+
+      // Prorate workDays when employee was terminated mid-period and no manual workDays set
+      let derivedWorkDays: number
+      if (!entry.workDays && entryTermDate) {
+        const termDate = new Date(entryTermDate)
+        if (termDate >= periodStart && termDate <= periodEnd) {
+          // Count Mon-Sat working days from period start through termination date
+          let count = 0
+          for (let d = new Date(periodStart); d <= termDate; d.setDate(d.getDate() + 1)) {
+            if (d.getDay() !== 0) count++
+          }
+          derivedWorkDays = count
+        } else {
+          derivedWorkDays = entry.workDays > 0 ? entry.workDays : monthRequiredWorkDays
+        }
+      } else {
+        derivedWorkDays = (entry.workDays && entry.workDays > 0)
+          ? entry.workDays
+          : (timeTracking
+            ? ((timeTracking.workDays && timeTracking.workDays > 0) ? timeTracking.workDays : monthRequiredWorkDays)
+            : monthRequiredWorkDays)
+      }
 
       const cumulative = empId ? (cumulativeByEmployee[empId] || { cumulativeSickDays: 0, cumulativeLeaveDays: 0, cumulativeAbsenceDays: 0 }) : { cumulativeSickDays: 0, cumulativeLeaveDays: 0, cumulativeAbsenceDays: 0 }
 
@@ -452,7 +485,11 @@ export async function POST(req: NextRequest) {
         employeeHireDate: (entry as any).hireDate,
         primaryBusiness: _pb ? { ..._pb, shortName: _pb.shortName } : null,
         // Attach job title from employee or contract fallback for generator
-        jobTitle: (entry as any).employee?.job_titles?.title || contract?.pdfGenerationData?.jobTitle || (entry as any).jobTitle || (entry as any).employeeJobTitle || ''
+        jobTitle: (entry as any).employee?.job_titles?.title || contract?.pdfGenerationData?.jobTitle || (entry as any).jobTitle || (entry as any).employeeJobTitle || '',
+        // Per diem: approved amount for this employee in this period
+        perDiem: empId ? (perDiemByEmployee[empId] || 0) : 0,
+        // Effective termination date: payroll entry field or employee record
+        terminationDate: entryTermDate
       })
     }
 
@@ -483,6 +520,7 @@ export async function POST(req: NextRequest) {
       vehicleAllowance: parseFloat(((entry as any).vehicleAllowance || 0).toString()),
       travelAllowance: parseFloat(((entry as any).travelAllowance || 0).toString()),
       overtimePay: parseFloat(entry.overtimePay.toString()),
+      perDiem: Number((entry as any).perDiem || 0),
       advanceDeductions: parseFloat(entry.advanceDeductions.toString()),
       loanDeductions: parseFloat(entry.loanDeductions.toString()),
       miscDeductions: parseFloat(entry.miscDeductions.toString()),

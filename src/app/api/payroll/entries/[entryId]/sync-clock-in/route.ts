@@ -16,7 +16,7 @@ import { nanoid } from 'nanoid'
 //   { lateCount, earlyCount, totalLateMinutes, totalEarlyMinutes,
 //     deductionAmount, hourlyRate, adjustmentId | null, summary }
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ entryId: string }> }
 ) {
   const user = await getServerUser()
@@ -24,6 +24,9 @@ export async function POST(
   if (!hasPermission(user, 'canEditPayrollEntry')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
+
+  const { searchParams } = new URL(req.url)
+  const force = searchParams.get('force') === 'true'
 
   const { entryId } = await params
 
@@ -90,6 +93,7 @@ export async function POST(
     const endMin   = schedEnd.h   * 60 + schedEnd.m
     dailyHours = (endMin - startMin) / 60
   }
+  const shiftDurationMinutes = Math.round(dailyHours * 60)
   const daysPerWeek = (employee?.scheduledDaysPerWeek as number | null) ?? 6.5
   const hoursPerYear = dailyHours * daysPerWeek * 52
   const hourlyRate = hoursPerYear > 0 ? annualSalary / hoursPerYear : 0
@@ -121,54 +125,75 @@ export async function POST(
   for (const att of attendanceRows) {
     const checkIn  = att.checkIn  as Date | null
     const checkOut = att.checkOut as Date | null
-    // Use checkIn as base date for scheduled comparisons — more reliable than att.date
-    // which can have timezone-shifted timestamps
-    const baseDate = checkIn ? new Date(checkIn) : att.date as Date
+    // Use att.date as the authoritative work day for schedule comparisons.
+    // checkIn may be on the previous calendar day (overnight workers clocking in before midnight).
+    const baseDate = att.date as Date
     let lateMinutesForDay = 0
     let earlyMinutesForDay = 0
     let overtimeCreditForDay = 0
     let overtimeForDay = 0
 
-    // Auto clock-out: if no checkOut, treat as clocked out at scheduled end time
-    let effectiveCheckOut = checkOut
-    if (!effectiveCheckOut && schedEnd && checkIn) {
-      const autoOut = new Date(baseDate)
-      autoOut.setHours(schedEnd.h, schedEnd.m, 0, 0)
-      // Only apply auto clock-out if it's after check-in
-      if (autoOut > checkIn) effectiveCheckOut = autoOut
+    // Build scheduled start/end anchored to the attendance date
+    const scheduledStartOnDay = schedStart ? (() => {
+      const d = new Date(baseDate); d.setHours(schedStart.h, schedStart.m, 0, 0); return d
+    })() : null
+    const scheduledEndOnDay = schedEnd ? (() => {
+      const d = new Date(baseDate); d.setHours(schedEnd.h, schedEnd.m, 0, 0); return d
+    })() : null
+
+    // Payroll rule: early clock-in is treated as on-time.
+    // Effective check-in = max(actualCheckIn, scheduledStart) — no benefit from arriving early.
+    let effectiveCheckIn: Date | null = checkIn
+    if (checkIn && scheduledStartOnDay && checkIn < scheduledStartOnDay) {
+      effectiveCheckIn = scheduledStartOnDay
     }
 
-    // Late arrival: clocked in after scheduled start
-    if (checkIn && schedStart) {
-      const scheduled = new Date(baseDate)
-      scheduled.setHours(schedStart.h, schedStart.m, 0, 0)
-      const diffMs = checkIn.getTime() - scheduled.getTime()
-      if (diffMs > 0) {
-        lateCount++
-        lateMinutesForDay = Math.round(diffMs / 60000)
-        totalLateMinutes += lateMinutesForDay
+    // Determine if this day is an absence: late arrival >= full shift duration
+    let isAbsent = false
+    if (effectiveCheckIn && scheduledStartOnDay) {
+      const lateMs = effectiveCheckIn.getTime() - scheduledStartOnDay.getTime()
+      if (lateMs > 0) {
+        const rawLate = Math.round(lateMs / 60000)
+        if (rawLate >= shiftDurationMinutes) {
+          // Too late to count as tardy — treat as absent, skip all calculations for this day
+          isAbsent = true
+        } else {
+          lateCount++
+          lateMinutesForDay = rawLate
+          totalLateMinutes += lateMinutesForDay
+        }
       }
     }
 
-    // Early departure OR overtime: compare effectiveCheckOut to scheduled end
-    if (effectiveCheckOut && schedEnd) {
-      const scheduled = new Date(baseDate)
-      scheduled.setHours(schedEnd.h, schedEnd.m, 0, 0)
-      const diffMs = effectiveCheckOut.getTime() - scheduled.getTime()
-      if (diffMs < 0) {
-        // Clocked out BEFORE scheduled end → early departure (deduction)
-        earlyCount++
-        earlyMinutesForDay = Math.round(Math.abs(diffMs) / 60000)
-        totalEarlyMinutes += earlyMinutesForDay
-      } else if (diffMs > 0 && checkOut) {
-        // Only count overtime if it was a real clock-out (not auto)
-        const extraMin = Math.round(diffMs / 60000)
-        if (extraMin <= 30) {
-          overtimeCreditForDay = extraMin
-          totalOvertimeCreditMinutes += overtimeCreditForDay
-        } else {
-          overtimeForDay = extraMin
-          totalOvertimeMinutes += overtimeForDay
+    if (!isAbsent) {
+      // Auto clock-out: if no checkOut, treat as clocked out at scheduled end
+      let effectiveCheckOut = checkOut
+      if (!effectiveCheckOut && scheduledEndOnDay && effectiveCheckIn) {
+        if (scheduledEndOnDay > effectiveCheckIn) effectiveCheckOut = scheduledEndOnDay
+      }
+
+      // Early departure OR overtime: compare effectiveCheckOut to scheduled end.
+      // Overtime measured as actual minutes worked past scheduled end (not raw timestamp diff),
+      // so cross-midnight checkouts are handled correctly via duration rather than timestamp subtraction.
+      if (effectiveCheckOut && scheduledEndOnDay && effectiveCheckIn) {
+        const workedMs = effectiveCheckOut.getTime() - effectiveCheckIn.getTime()
+        const workedMin = Math.round(workedMs / 60000)
+        const extraMin = workedMin - shiftDurationMinutes + lateMinutesForDay
+        // extraMin > 0 means they worked past their scheduled end (overtime)
+        // extraMin < 0 means they left before scheduled end (early departure)
+        if (extraMin < 0) {
+          earlyCount++
+          earlyMinutesForDay = Math.abs(extraMin)
+          totalEarlyMinutes += earlyMinutesForDay
+        } else if (extraMin > 0 && checkOut) {
+          // Only count overtime from a real clock-out (not auto)
+          if (extraMin <= 30) {
+            overtimeCreditForDay = extraMin
+            totalOvertimeCreditMinutes += overtimeCreditForDay
+          } else {
+            overtimeForDay = extraMin
+            totalOvertimeMinutes += overtimeForDay
+          }
         }
       }
     }
@@ -177,7 +202,7 @@ export async function POST(
       records.push({
         date: (baseDate as Date).toISOString().split('T')[0],
         checkIn:  checkIn  ? formatTime(checkIn)  : null,
-        checkOut: effectiveCheckOut ? formatTime(effectiveCheckOut) : null,
+        checkOut: checkOut ? formatTime(checkOut) : null,
         scheduledStart: employee?.scheduledStartTime ?? null,
         scheduledEnd:   employee?.scheduledEndTime   ?? null,
         lateMinutes:          lateMinutesForDay,
@@ -221,7 +246,14 @@ export async function POST(
   }
   const existingApprovedDeduction = allApprovedDeductions.length > 0 ? allApprovedDeductions[0] : null
 
-  if (deductionAmount > 0 && !existingApprovedDeduction) {
+  // Only replace an approved (locked) deduction when explicitly forced (manual re-sync).
+  // Auto-sync on modal open must NOT reset a locked tardiness adjustment.
+  if (force && existingApprovedDeduction) {
+    await prisma.payrollAdjustments.delete({ where: { id: existingApprovedDeduction.id } })
+  }
+  // If there's still an approved deduction (not replaced), skip creating a new pending one
+  const stillHasApproved = !force && existingApprovedDeduction != null
+  if (!stillHasApproved && deductionAmount > 0) {
     const newId = `PA-${nanoid(12)}`
     await prisma.payrollAdjustments.create({
       data: {
@@ -294,6 +326,7 @@ export async function POST(
     dailyRate:  round2(dailyRate),
     hoursPerYear: round2(hoursPerYear),
     adjustmentId,
+    preservedApprovedDeduction: stillHasApproved,
     summary,
     records,
   })

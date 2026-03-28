@@ -513,6 +513,32 @@ export async function restoreCleanBackup(
 }> {
   const { onProgress, onError, batchSize = 100 } = options
 
+  /**
+   * Retry any DB operation that fails with "Unknown argument `field`".
+   * Backup data may contain fields added after the Prisma client was generated,
+   * or fields removed in later migrations. Auto-strip and retry up to 15 times.
+   */
+  async function withUnknownFieldRetry<T>(
+    record: Record<string, any>,
+    fn: (r: Record<string, any>) => Promise<T>
+  ): Promise<T> {
+    const current = { ...record }
+    for (let attempt = 0; attempt < 15; attempt++) {
+      try {
+        return await fn(current)
+      } catch (err: any) {
+        const msg: string = err?.message || ''
+        const match = msg.match(/Unknown argument `([^`]+)`/)
+        if (match) {
+          delete current[match[1]]
+          continue
+        }
+        throw err
+      }
+    }
+    throw new Error('withUnknownFieldRetry: too many unknown fields stripped — aborting record')
+  }
+
   let totalProcessed = 0
   let totalErrors = 0
   let totalSkipped = 0
@@ -863,29 +889,18 @@ export async function restoreCleanBackup(
             if (tableName === 'emojiLookup') {
               // EmojiLookup has unique constraint on [emoji, description]
               // This table has no child references, so simple upsert is fine
-              await model.upsert({
-                where: {
-                  emoji_description: {
-                    emoji: record.emoji,
-                    description: record.description
-                  }
-                },
-                create: recordToInsert,
-                update: recordToInsert
-              })
+              await withUnknownFieldRetry(recordToInsert, r => model.upsert({
+                where: { emoji_description: { emoji: record.emoji, description: record.description } },
+                create: r,
+                update: r
+              }))
             } else if (tableName === 'receiptSequences') {
               // ReceiptSequences has composite PK (businessId, date) — no id field
-              // Use Prisma composite where: { businessId_date: { businessId, date } }
-              await model.upsert({
-                where: {
-                  businessId_date: {
-                    businessId: recordToInsert.businessId,
-                    date: recordToInsert.date
-                  }
-                },
-                create: recordToInsert,
-                update: { lastSequence: recordToInsert.lastSequence, updatedAt: recordToInsert.updatedAt }
-              })
+              await withUnknownFieldRetry(recordToInsert, r => model.upsert({
+                where: { businessId_date: { businessId: r.businessId, date: r.date } },
+                create: r,
+                update: { lastSequence: r.lastSequence, updatedAt: r.updatedAt }
+              }))
             } else if (tableName === 'r710Wlans') {
               // R710Wlans has unique constraint on [deviceRegistryId, wlanId]
               // CRITICAL: r710TokenConfigs references r710Wlans.id, so we must preserve backup ID
@@ -897,187 +912,124 @@ export async function restoreCleanBackup(
               })
 
               if (existing && existing.id !== record.id) {
-                // Different ID - delete existing and create with backup ID
                 if (VERBOSE_LOGGING) console.log(`[restore-clean] r710Wlans: Replacing existing record (${existing.id}) with backup record (${record.id})`)
                 await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               } else if (existing) {
-                // Same ID - just update
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
               } else {
-                // Doesn't exist - create
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (tableName === 'r710BusinessIntegrations') {
-              // R710BusinessIntegrations has unique constraint on [businessId, deviceRegistryId]
               const existing = await model.findFirst({
-                where: {
-                  businessId: recordToInsert.businessId,
-                  deviceRegistryId: recordToInsert.deviceRegistryId
-                }
+                where: { businessId: recordToInsert.businessId, deviceRegistryId: recordToInsert.deviceRegistryId }
               })
-
               if (existing && existing.id !== record.id) {
                 if (VERBOSE_LOGGING) console.log(`[restore-clean] r710BusinessIntegrations: Replacing existing record (${existing.id}) with backup record (${record.id})`)
                 await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               } else if (existing) {
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
               } else {
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (tableName === 'r710BusinessTokenMenuItems') {
-              // R710BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigId]
               const existing = await model.findFirst({
-                where: {
-                  businessId: recordToInsert.businessId,
-                  tokenConfigId: recordToInsert.tokenConfigId
-                }
+                where: { businessId: recordToInsert.businessId, tokenConfigId: recordToInsert.tokenConfigId }
               })
-
               if (existing && existing.id !== recordId) {
                 if (VERBOSE_LOGGING) console.log(`[restore-clean] r710BusinessTokenMenuItems: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               } else if (existing) {
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
               } else {
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (tableName === 'businessTokenMenuItems') {
-              // ESP32 BusinessTokenMenuItems has unique constraint on [businessId, tokenConfigurationId]
               const existing = await model.findFirst({
-                where: {
-                  businessId: recordToInsert.businessId,
-                  tokenConfigurationId: recordToInsert.tokenConfigurationId
-                }
+                where: { businessId: recordToInsert.businessId, tokenConfigurationId: recordToInsert.tokenConfigurationId }
               })
-
               if (existing && existing.id !== recordId) {
                 if (VERBOSE_LOGGING) console.log(`[restore-clean] businessTokenMenuItems: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               } else if (existing) {
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
               } else {
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (tableName === 'employeeBusinessAssignments') {
-              // EmployeeBusinessAssignments has unique constraint on [employeeId, businessId]
               const existing = await model.findFirst({
-                where: {
-                  employeeId: recordToInsert.employeeId,
-                  businessId: recordToInsert.businessId
-                }
+                where: { employeeId: recordToInsert.employeeId, businessId: recordToInsert.businessId }
               })
-
               if (existing && existing.id !== recordId) {
                 if (VERBOSE_LOGGING) console.log(`[restore-clean] employeeBusinessAssignments: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               } else if (existing) {
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
               } else {
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (tableName === 'businessMemberships') {
-              // BusinessMemberships has unique constraint on [userId, businessId]
               const existing = await model.findFirst({
-                where: {
-                  userId: recordToInsert.userId,
-                  businessId: recordToInsert.businessId
-                }
+                where: { userId: recordToInsert.userId, businessId: recordToInsert.businessId }
               })
-
               if (existing && existing.id !== recordId) {
                 if (VERBOSE_LOGGING) console.log(`[restore-clean] businessMemberships: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               } else if (existing) {
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
               } else {
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (tableName === 'userPermissions') {
-              // UserPermissions has unique constraint on [userId, permissionId]
               const existing = await model.findFirst({
-                where: {
-                  userId: recordToInsert.userId,
-                  permissionId: recordToInsert.permissionId
-                }
+                where: { userId: recordToInsert.userId, permissionId: recordToInsert.permissionId }
               })
-
               if (existing && existing.id !== recordId) {
                 if (VERBOSE_LOGGING) console.log(`[restore-clean] userPermissions: Replacing existing record (${existing.id}) with backup record (${recordId})`)
                 await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               } else if (existing) {
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
               } else {
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (tableName === 'r710Tokens') {
-              // R710Tokens has unique constraint on [username, password] (new schema)
-              // But older databases may have unique on just [username]
-              // Check both to handle migration differences between source/target databases
-
-              // First, check if record with same ID exists
               const existingById = await model.findUnique({ where: { id: record.id } })
-
               if (existingById) {
-                // Record with same ID exists - update it
-                await model.update({ where: { id: record.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: record.id }, data: r }))
               } else {
-                // Check for conflict by username (handles old unique constraint on just username)
-                const existingByUsername = await model.findFirst({
-                  where: { username: recordToInsert.username }
-                })
-
+                const existingByUsername = await model.findFirst({ where: { username: recordToInsert.username } })
                 if (existingByUsername) {
-                  // Delete existing record with same username to avoid constraint violation
                   if (VERBOSE_LOGGING) console.log(`[restore-clean] r710Tokens: Deleting existing record with username=${record.username} (${existingByUsername.id}) to restore backup record (${record.id})`)
                   await model.delete({ where: { id: existingByUsername.id } })
                 }
-
-                // Create the new record
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (tableName === 'wifiTokens') {
-              // WifiTokens (ESP32) has unique constraint on [token] field
-              const existing = await model.findFirst({
-                where: { token: recordToInsert.token }
-              })
-
+              const existing = await model.findFirst({ where: { token: recordToInsert.token } })
               if (existing && existing.id !== record.id) {
                 if (VERBOSE_LOGGING) console.log(`[restore-clean] wifiTokens: Replacing existing record (${existing.id}) with backup record (${record.id})`)
                 await model.delete({ where: { id: existing.id } })
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               } else if (existing) {
-                await model.update({ where: { id: existing.id }, data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
               } else {
-                await model.create({ data: recordToInsert })
+                await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
             } else if (uniqueConstraint) {
-              // Handle tables with unique constraints on non-ID fields
               if (typeof uniqueConstraint === 'string' && record[uniqueConstraint]) {
-                // Single-field unique constraint — find by unique field, then upsert
-                const existing = await model.findFirst({
-                  where: { [uniqueConstraint]: record[uniqueConstraint] }
-                })
-
+                const existing = await model.findFirst({ where: { [uniqueConstraint]: record[uniqueConstraint] } })
                 if (existing) {
-                  // Update existing record (ID remapping already applied to recordToInsert)
-                  await model.update({
-                    where: { id: existing.id },
-                    data: recordToInsert
-                  })
+                  await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
                 } else {
-                  await model.create({
-                    data: recordToInsert
-                  })
+                  await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
                 }
               } else if (typeof uniqueConstraint === 'object' && uniqueConstraint.fields) {
-                // Composite unique constraint (e.g. businessOrders: [businessId, orderNumber])
                 const whereClause: Record<string, any> = {}
                 let hasAllFields = true
                 for (const field of uniqueConstraint.fields) {
@@ -1088,44 +1040,22 @@ export async function restoreCleanBackup(
                     break
                   }
                 }
-
                 if (hasAllFields) {
                   const existing = await model.findFirst({ where: whereClause })
-
                   if (existing) {
-                    // Update existing record (ID remapping already applied)
-                    await model.update({
-                      where: { id: existing.id },
-                      data: recordToInsert
-                    })
+                    await withUnknownFieldRetry(recordToInsert, r => model.update({ where: { id: existing.id }, data: r }))
                   } else {
-                    await model.create({
-                      data: recordToInsert
-                    })
+                    await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
                   }
                 } else {
-                  // Missing composite fields, fallback to upsert by id
-                  await model.upsert({
-                    where: { id: recordId },
-                    create: recordToInsert,
-                    update: recordToInsert
-                  })
+                  await withUnknownFieldRetry(recordToInsert, r => model.upsert({ where: { id: recordId }, create: r, update: r }))
                 }
               } else {
-                // Fallback to standard upsert by id
-                await model.upsert({
-                  where: { id: recordId },
-                  create: recordToInsert,
-                  update: recordToInsert
-                })
+                await withUnknownFieldRetry(recordToInsert, r => model.upsert({ where: { id: recordId }, create: r, update: r }))
               }
             } else {
               // Default: use id for upsert
-              await model.upsert({
-                where: { id: recordId },
-                create: recordToInsert,
-                update: recordToInsert
-              })
+              await withUnknownFieldRetry(recordToInsert, r => model.upsert({ where: { id: recordId }, create: r, update: r }))
             }
 
             totalProcessed++

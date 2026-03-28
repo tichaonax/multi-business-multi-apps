@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
+import { PerDiemApprovalModal } from './perdiem-approval-modal'
 import type { OnSuccessArg } from '@/types/ui'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { usePrompt } from '@/components/ui/input-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
-import { generatePayrollEntryPDF, generatePayrollEntryFileName, PayrollEntryData } from '@/lib/pdf-utils'
+import { generatePayrollEntryFileName, PayrollEntryData } from '@/lib/pdf-utils'
+import { PayrollSlipPreviewModal } from './payroll-slip-preview-modal'
 import { calculateTotalOvertimePay, deriveHourlyRateFromMonthlySalary } from '@/lib/payroll/overtime-utils'
 
 interface PayrollEntryBenefit {
@@ -62,6 +64,8 @@ interface PayrollEntryDetailModalProps {
   onClose: () => void
   entryId: string
   perDiemTotal?: number
+  perDiemBusinessId?: string | null
+  onPerDiemProcessed?: () => void
   onSuccess: (payload: OnSuccessArg) => void
   onError: (msg: string) => void
 }
@@ -187,6 +191,8 @@ export function PayrollEntryDetailModal({
   onClose,
   entryId,
   perDiemTotal = 0,
+  perDiemBusinessId,
+  onPerDiemProcessed,
   onSuccess,
   onError
 }: PayrollEntryDetailModalProps) {
@@ -278,6 +284,11 @@ export function PayrollEntryDetailModal({
     }>
   } | null>(null)
   const [showClockInDetails, setShowClockInDetails] = useState(false)
+  const [showPerDiemModal, setShowPerDiemModal] = useState(false)
+  const [slipPreview, setSlipPreview] = useState<{ data: PayrollEntryData; fileName: string } | null>(null)
+  const [perDiemApprovedCount, setPerDiemApprovedCount] = useState<number | null>(null)
+  const [perDiemTotalCount, setPerDiemTotalCount] = useState<number | null>(null)
+  const [processedPerDiemAmount, setProcessedPerDiemAmount] = useState<number | null>(null)
 
   const [benefitForm, setBenefitForm] = useState({
     benefitTypeId: '',
@@ -290,19 +301,63 @@ export function PayrollEntryDetailModal({
   const confirm = useConfirm()
 
   useEffect(() => {
+    if (!isOpen) {
+      setShowPerDiemModal(false)
+      setPerDiemApprovedCount(null)
+      setPerDiemTotalCount(null)
+      setProcessedPerDiemAmount(null)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
     if (isOpen && entryId) {
+      setPerDiemApprovedCount(null)
+      setPerDiemTotalCount(null)
+      setProcessedPerDiemAmount(null)
       const init = async () => {
-        await loadEntry()
+        const loadedEntry = await loadEntry()
         loadBenefitTypes()
+        // Load per diem approval status from DB so the badge reflects actual state on re-open
+        if (loadedEntry) {
+          const empId = loadedEntry.employeeId
+          const year = loadedEntry.payroll_periods?.year
+          const month = loadedEntry.payroll_periods?.month
+          if (empId && year && month) {
+            try {
+              const params = new URLSearchParams({ employeeId: empId, payrollYear: String(year), payrollMonth: String(month) })
+              if (perDiemBusinessId) params.set('businessId', perDiemBusinessId)
+              const pdRes = await fetch(`/api/per-diem/entries?${params}`, { credentials: 'include' })
+              if (pdRes.ok) {
+                const pdData = await pdRes.json()
+                const entries: any[] = pdData?.data?.entries ?? []
+                if (entries.length > 0) {
+                  const approved = entries.filter((e: any) => e.approvalStatus === 'approved')
+                  const pending = entries.filter((e: any) => e.approvalStatus === 'pending')
+                  setPerDiemApprovedCount(approved.length)
+                  setPerDiemTotalCount(entries.length)
+                  if (pending.length === 0 && approved.length > 0) {
+                    // All resolved — pre-populate processed amount so "✓ Processed" shows immediately
+                    setProcessedPerDiemAmount(approved.reduce((s: number, e: any) => s + Number(e.amount), 0))
+                  }
+                }
+              }
+            } catch { /* non-critical */ }
+          }
+        }
         // Auto-sync clock-in on open so deduction info is always fresh
-        // The API returns 400 silently if period is locked, so no client-side guard needed
+        // Does NOT override an already-locked (approved) adjustment — force=false by default
         try {
           setSyncingClockIn(true)
           const res = await fetch(`/api/payroll/entries/${entryId}/sync-clock-in`, { method: 'POST' })
           if (res.ok) {
             const data = await res.json()
             setClockInAnalysis(data)
-            await loadEntry()
+            // Only reload the entry if the sync actually created/changed something.
+            // If an approved (locked) adjustment was preserved, skip the reload so we
+            // don't race against any Override & Lock the user just performed.
+            if (!data.preservedApprovedDeduction) {
+              await loadEntry()
+            }
           }
         } catch { /* best-effort — ignore failures */ } finally {
           setSyncingClockIn(false)
@@ -639,15 +694,11 @@ export function PayrollEntryDetailModal({
 
       const persistedOvertimePay = Number(en.overtimePay ?? 0)
 
-      // If no form data but persisted pay exists, return persisted
-      if ((formData.standardOvertimeHours === undefined || formData.standardOvertimeHours === null) &&
-          (formData.doubleTimeOvertimeHours === undefined || formData.doubleTimeOvertimeHours === null) &&
-          persistedOvertimePay && persistedOvertimePay > 0) {
-        return persistedOvertimePay
+      // If no overtime hours are set, fall back to the server-persisted overtime pay
+      // (covers legacy overtimeHours entries and cases where overtimePay was set server-side)
+      if (!standardHours && !doubleTimeHours) {
+        return persistedOvertimePay > 0 ? persistedOvertimePay : 0
       }
-
-      // If no overtime hours, return 0
-      if (!standardHours && !doubleTimeHours) return 0
 
       // Derive hourly rate using existing fallback logic
       let hourlyRate = Number(en.hourlyRate ?? 0)
@@ -672,7 +723,8 @@ export function PayrollEntryDetailModal({
         hourlyRate = deriveHourlyRateFromMonthlySalary(baseSalary)
       }
 
-      if (!hourlyRate || hourlyRate === 0) return 0
+      // When hourly rate can't be derived, fall back to server-computed value
+      if (!hourlyRate || hourlyRate === 0) return persistedOvertimePay > 0 ? persistedOvertimePay : 0
 
       // Calculate total overtime pay using utility function
       return calculateTotalOvertimePay(standardHours, doubleTimeHours, hourlyRate)
@@ -727,7 +779,8 @@ export function PayrollEntryDetailModal({
 
     const baseSalary = Number(entry.baseSalary || 0)
     // Prefer the live form value for commission so changes are reflected immediately
-    const commission = typeof formData.commission === 'number' ? Number(formData.commission) : Number(entry.commission || 0)
+    // Use Number() directly — handles string, Decimal, and number from either formData or entry
+    const commission = Number(formData.commission ?? entry.commission ?? 0)
     // Use the top-level computeOvertimeForModal so UI reflects live formData changes.
     // ...existing code relies on the outer computeOvertimeForModal which reads `formData`.
 
@@ -1311,6 +1364,7 @@ export function PayrollEntryDetailModal({
         baseSalary: Number(entry.baseSalary || 0),
         commission: Number(entry.commission || 0),
         overtimePay: Number(totals.overtimePay || 0),
+        perDiem: (processedPerDiemAmount ?? perDiemTotal) > 0 ? (processedPerDiemAmount ?? perDiemTotal) : undefined,
         standardOvertimeHours: Number(formData.standardOvertimeHours ?? entry.standardOvertimeHours ?? 0) || undefined,
         doubleTimeOvertimeHours: Number(formData.doubleTimeOvertimeHours ?? entry.doubleTimeOvertimeHours ?? 0) || undefined,
         benefits: benefitsData,
@@ -1337,10 +1391,8 @@ export function PayrollEntryDetailModal({
 
       const fileName = generatePayrollEntryFileName(employeeName, employeeNumber, year, month)
 
-      // Generate and download PDF
-      await generatePayrollEntryPDF(pdfData, fileName)
-
-      onSuccess({ message: 'PDF generated successfully', refresh: false, updatedEntry: null })
+      // Open preview modal instead of direct download
+      setSlipPreview({ data: pdfData, fileName })
     } catch (error) {
       console.error('PDF generation error:', error)
       onError('Failed to generate PDF')
@@ -1503,7 +1555,7 @@ export function PayrollEntryDetailModal({
   const handleSyncClockIn = async () => {
     setSyncingClockIn(true)
     try {
-      const res = await fetch(`/api/payroll/entries/${entryId}/sync-clock-in`, { method: 'POST' })
+      const res = await fetch(`/api/payroll/entries/${entryId}/sync-clock-in?force=true`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) { onError(data.error || 'Clock-in sync failed'); return }
       setClockInAnalysis(data)
@@ -1788,12 +1840,12 @@ export function PayrollEntryDetailModal({
   const isLocked = periodStatus === 'approved' || periodStatus === 'closed' || periodStatus === 'exported'
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto p-4">
       <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-6xl xl:max-w-7xl max-h-[95vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-primary">Payroll Entry Details</h2>
-            {/* Autosave status indicator (subtle) */}
             <div className="text-sm text-secondary">
               {autosaveInProgress ? (
                 <span className="text-xs inline-flex items-center gap-2">Saving...</span>
@@ -1802,11 +1854,47 @@ export function PayrollEntryDetailModal({
               ) : null}
             </div>
           </div>
-          <button type="button" onClick={handleClose} className="text-secondary hover:text-primary transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-3">
+            {entry && (() => {
+              const t = computeEntryTotalsLocal(entry, entry.payrollAdjustments || [], benefits)
+              return (
+                <div className="hidden sm:flex items-center gap-2">
+                  <span className="text-sm font-semibold text-primary">Net Gross (taxable base):</span>
+                  <span className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(t.gross)}</span>
+                </div>
+              )
+            })()}
+            {entry && hasPermission('canPrintPayrollEntryDetails') && (
+              <button
+                type="button"
+                onClick={handlePrintPDF}
+                className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 inline-flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print PDF
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-3 py-1.5 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted transition-colors"
+            >
+              Close
+            </button>
+            {entry && (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || isLocked}
+                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isLocked ? 'Cannot edit approved, closed, or exported payroll period' : ''}
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -2011,40 +2099,26 @@ export function PayrollEntryDetailModal({
                   </div>
                 )}
                 {/* Show persisted overtimePay when present, otherwise show computed overtime line */}
-                {(entry.overtimePay > 0) ? (
-                  <div className="flex justify-between">
-                    <span className="text-secondary">Overtime Pay:</span>
-                    <span className="text-primary">
-                      {formatCurrency(entry.overtimePay)}
-                      {((formData.standardOvertimeHours > 0 || formData.doubleTimeOvertimeHours > 0)) && (
-                        <span className="text-sm text-secondary ml-2">
-                          ({formData.standardOvertimeHours > 0 && `${formData.standardOvertimeHours}h @1.5×`}
-                          {formData.standardOvertimeHours > 0 && formData.doubleTimeOvertimeHours > 0 && ', '}
-                          {formData.doubleTimeOvertimeHours > 0 && `${formData.doubleTimeOvertimeHours}h @2.0×`})
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                ) : (
-                  (() => {
-                    const computed = computeOvertimeForModal(entry)
-                    return computed > 0 ? (
-                      <div className="flex justify-between">
-                        <span className="text-secondary">Overtime Pay (computed):</span>
-                        <span className="text-primary">
-                          {formatCurrency(computed)}
-                          {((formData.standardOvertimeHours > 0 || formData.doubleTimeOvertimeHours > 0)) && (
-                            <span className="text-sm text-secondary ml-2">
-                              ({formData.standardOvertimeHours > 0 && `${formData.standardOvertimeHours}h @1.5×`}
-                              {formData.standardOvertimeHours > 0 && formData.doubleTimeOvertimeHours > 0 && ', '}
-                              {formData.doubleTimeOvertimeHours > 0 && `${formData.doubleTimeOvertimeHours}h @2.0×`})
-                            </span>
-                          )}
-                        </span>
+                {(() => {
+                  const otPay = entry.overtimePay > 0 ? entry.overtimePay : computeOvertimeForModal(entry)
+                  if (!(otPay > 0)) return null
+                  const hasHours = formData.standardOvertimeHours > 0 || formData.doubleTimeOvertimeHours > 0
+                  return (
+                    <div className="flex justify-between">
+                      <span className="text-secondary">Overtime Pay:</span>
+                      <div className="text-right">
+                        <span className="text-primary font-medium">{formatCurrency(otPay)}</span>
+                        {hasHours && (
+                          <div className="text-xs text-secondary">
+                            {formData.standardOvertimeHours > 0 && `${formData.standardOvertimeHours}h @1.5×`}
+                            {formData.standardOvertimeHours > 0 && formData.doubleTimeOvertimeHours > 0 && ', '}
+                            {formData.doubleTimeOvertimeHours > 0 && `${formData.doubleTimeOvertimeHours}h @2.0×`}
+                          </div>
+                        )}
                       </div>
-                    ) : null
-                  })()
-                )}
+                    </div>
+                  )
+                })()}
                 {benefits.length > 0 ? (
                   <div>
                     <div className="font-medium text-secondary mb-1">Benefits:</div>
@@ -2121,8 +2195,21 @@ export function PayrollEntryDetailModal({
                 )}
                 {perDiemTotal > 0 && (
                   <div className="flex justify-between ml-4 text-xs">
-                    <span className="text-blue-600 dark:text-blue-400 font-medium">Per Diem:</span>
-                    <span className="text-blue-600 dark:text-blue-400 font-medium">+{formatCurrency(perDiemTotal)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPerDiemModal(true)}
+                      className="text-blue-600 dark:text-blue-400 font-medium underline decoration-dotted hover:opacity-75 text-left"
+                    >
+                      Per Diem:
+                      {processedPerDiemAmount !== null ? (
+                        <span className="ml-1 text-green-600 dark:text-green-400 font-semibold no-underline">✓ Processed</span>
+                      ) : (
+                        <span className="ml-1 text-orange-500">⚠ Pending review</span>
+                      )}
+                    </button>
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">
+                      +{formatCurrency(processedPerDiemAmount ?? perDiemTotal)}
+                    </span>
                   </div>
                 )}
                 {(() => {
@@ -2214,12 +2301,12 @@ export function PayrollEntryDetailModal({
                     </div>
                   </div>
                 )}
-                <div className="flex justify-between items-center">
-                  <div>
+                <div className="flex justify-between items-center gap-4">
+                  <div className="pl-1">
                     <label className="block text-sm font-medium text-secondary">Misc Deductions</label>
                     <div className="text-xs text-secondary">One-off/manual deductions (keeps an audit trail via adjustments).</div>
                   </div>
-                  <div className="w-40">
+                  <div className="w-24 shrink-0">
                     <input
                       type="number"
                       step="0.01"
@@ -3266,5 +3353,33 @@ export function PayrollEntryDetailModal({
         )}
       </div>
     </div>
+
+    {slipPreview && (
+      <PayrollSlipPreviewModal
+        isOpen={!!slipPreview}
+        onClose={() => setSlipPreview(null)}
+        data={slipPreview.data}
+        fileName={slipPreview.fileName}
+      />
+    )}
+
+    {showPerDiemModal && entry && (
+      <PerDiemApprovalModal
+        isOpen={showPerDiemModal}
+        onClose={(approvedAmount, approvedCount, totalCount) => {
+          setShowPerDiemModal(false)
+          setPerDiemApprovedCount(approvedCount)
+          setPerDiemTotalCount(totalCount)
+          setProcessedPerDiemAmount(approvedAmount)
+          onPerDiemProcessed?.()
+        }}
+        employeeId={entry.employeeId}
+        employeeName={entry.employeeName || ''}
+        payrollYear={entry.payroll_periods?.year}
+        payrollMonth={entry.payroll_periods?.month}
+        businessId={perDiemBusinessId}
+      />
+    )}
+    </>
   )
 }

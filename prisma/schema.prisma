@@ -5264,18 +5264,21 @@ model PettyCashTransaction {
 // ============================================================
 
 model PerDiemEntries {
-  id           String   @id @default(cuid())
-  employeeId   String
-  businessId   String
-  enteredBy    String
-  date         DateTime
-  amount       Decimal  @db.Decimal(12, 2)
-  purpose      String // Lodging | Meals | Incidentals | Travel | Other
-  notes        String?
-  payrollMonth Int
-  payrollYear  Int
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(cuid())
+  employeeId     String
+  businessId     String
+  enteredBy      String
+  date           DateTime
+  amount         Decimal  @db.Decimal(12, 2)
+  purpose        String // Lodging | Meals | Incidentals | Travel | Other
+  notes          String?
+  payrollMonth   Int
+  payrollYear    Int
+  approvalStatus String   @default("pending") // pending | approved | rejected
+  approvedBy     String?
+  approvedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   employee Employees  @relation("PerDiemEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
   business Businesses @relation("PerDiemBusiness", fields: [businessId], references: [id])

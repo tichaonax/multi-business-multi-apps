@@ -5,10 +5,12 @@ import { useSession } from 'next-auth/react'
 import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StockTakeReportPreview } from './stock-take-report-preview'
+import { StockTakePrintModal } from './stock-take-print-modal'
 import { CustomBulkModal } from './custom-bulk-modal'
 import { InventoryCategoryEditor } from './inventory-category-editor'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface BulkStockRow {
   rowId: string
@@ -143,7 +145,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const confirm = useConfirm()
   const { push: toast, error: toastError } = useToastContext()
   const { data: session } = useSession()
-  const isDevAdmin = process.env.NODE_ENV === 'development' && session?.user?.role === 'admin'
+  const { isSystemAdmin, hasPermission } = useBusinessPermissionsContext()
+  const canMatchAllCounts = isSystemAdmin || hasPermission('canManageInventory')
 
   const [rows, setRows] = useState<BulkStockRow[]>([])
   const [scanInput, setScanInput] = useState('')
@@ -208,6 +211,9 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null)
   const [syncResetNotice, setSyncResetNotice] = useState(false)
   const [showCustomBulkModal, setShowCustomBulkModal] = useState(false)
+  const [printModalRows, setPrintModalRows] = useState<{ barcode: string; name: string; sku?: string; isExistingItem: boolean; currentStock: number | null; physicalCount: string; sellingPrice: string; costPrice?: string; isFreeItem: boolean }[] | null>(null)
+  const [printModalTitle, setPrintModalTitle] = useState('')
+  const [printingDraftId, setPrintingDraftId] = useState<string | null>(null)
   const [showModeSelector, setShowModeSelector] = useState(false)
 
   const scanInputRef = useRef<HTMLInputElement>(null)
@@ -788,6 +794,33 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
 
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
 
+  const handlePrintDraft = async (e: React.MouseEvent, id: string, title: string | null) => {
+    e.stopPropagation()
+    setPrintingDraftId(id)
+    try {
+      const res = await fetch(`/api/stock-take/drafts/${id}`)
+      const d = await res.json()
+      if (!d.success || !d.draft) { toastError('Could not load draft'); return }
+      const mapped = (d.draft.items ?? []).map((item: any) => ({
+        barcode: item.barcode || '',
+        name: item.name || '',
+        sku: item.sku || '',
+        isExistingItem: item.isExistingItem,
+        currentStock: item.systemQuantity ?? null,
+        physicalCount: item.physicalCount != null ? String(item.physicalCount) : '',
+        sellingPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
+        costPrice: item.costPrice != null ? String(item.costPrice) : '',
+        isFreeItem: item.isFreeItem ?? false,
+      }))
+      setPrintModalTitle(title || '')
+      setPrintModalRows(mapped)
+    } catch {
+      toastError('Failed to load draft for printing')
+    } finally {
+      setPrintingDraftId(null)
+    }
+  }
+
   const handleDeleteDraftFromList = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     const ok = await confirm({ title: 'Delete draft', description: 'This draft will be permanently deleted. This cannot be undone.', confirmText: 'Delete', cancelText: 'Cancel' })
@@ -1212,7 +1245,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               + Add Row
             </button>
           )}
-          {isStockTakeMode && isDevAdmin && (
+          {isStockTakeMode && canMatchAllCounts && (
             <button
               onClick={() => {
                 setRows(prev => prev.map(r => ({
@@ -1222,9 +1255,18 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                 setDraftUnsaved(true)
               }}
               className="px-3 py-1.5 text-xs border border-amber-400 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 font-medium"
-              title="DEV ONLY — set all physical counts to match system stock"
+              title="Set all physical counts to match system stock"
             >
               🧪 Match All Counts
+            </button>
+          )}
+          {isStockTakeMode && rows.length > 0 && (
+            <button
+              onClick={() => { setPrintModalTitle(draftTitle || ''); setPrintModalRows(rows) }}
+              className="px-3 py-1.5 text-xs border border-gray-400 dark:border-gray-500 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
+              title="Print or save stock take report as PDF"
+            >
+              🖨 Print Report
             </button>
           )}
           <button
@@ -1444,6 +1486,11 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                       {d.itemCount} item{d.itemCount !== 1 ? 's' : ''} · Last saved {new Date(d.updatedAt).toLocaleString()}
                     </p>
                   </button>
+                  <button onClick={e => handlePrintDraft(e, d.id, d.title)} disabled={draftLoading || printingDraftId === d.id}
+                    className="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 disabled:opacity-40 shrink-0 px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 hover:border-gray-500"
+                    title="Print or save as PDF">
+                    {printingDraftId === d.id ? '…' : '🖨'}
+                  </button>
                   <button onClick={e => handleDeleteDraftFromList(e, d.id)} disabled={draftLoading || deletingDraftId === d.id}
                     className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40 shrink-0 px-2 py-0.5 rounded border border-red-200 hover:border-red-400"
                     title="Delete this draft">
@@ -1553,6 +1600,15 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           </div>
         </div>
       )}
+
+      {/* Stock Take Print / Save PDF modal */}
+      <StockTakePrintModal
+        isOpen={printModalRows !== null}
+        onClose={() => setPrintModalRows(null)}
+        businessName={businessName}
+        draftTitle={printModalTitle || null}
+        rows={printModalRows ?? []}
+      />
 
       {/* Custom Bulk Product registration modal */}
       {showCustomBulkModal && (

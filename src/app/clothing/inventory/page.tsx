@@ -1022,7 +1022,7 @@ function ClothingInventoryContent() {
             </button>
           ) : undefined}
         >
-          <div className="space-y-4 sm:space-y-6 min-w-0 overflow-hidden">
+          <div className="space-y-4 sm:space-y-6 min-w-0">
             {/* Tab Navigation */}
             <div className="card">
               <div className="border-b border-gray-200 dark:border-gray-700">

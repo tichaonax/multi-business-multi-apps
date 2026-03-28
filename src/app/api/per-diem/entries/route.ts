@@ -59,6 +59,8 @@ export async function GET(request: NextRequest) {
       notes: e.notes,
       payrollMonth: e.payrollMonth,
       payrollYear: e.payrollYear,
+      approvalStatus: e.approvalStatus ?? 'pending',
+      approvedAt: e.approvedAt ? e.approvedAt.toISOString() : null,
       createdAt: e.createdAt.toISOString(),
       employee: {
         id: e.employee.id,

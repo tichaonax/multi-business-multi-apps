@@ -383,6 +383,7 @@ async function seedPhoneNumberTemplates(options = {}) {
       example: '77 123 4567',
       description: 'Zimbabwe mobile format: CC NNN NNNN',
       validationRegex: '^\\d{2}\\s\\d{3}\\s\\d{4}$',
+      templateType: 'phone',
       isActive: true
     },
     {
@@ -394,6 +395,7 @@ async function seedPhoneNumberTemplates(options = {}) {
       example: '82 123 4567',
       description: 'South Africa mobile format: CC NNN NNNN',
       validationRegex: '^\\d{2}\\s\\d{3}\\s\\d{4}$',
+      templateType: 'phone',
       isActive: true
     },
     {
@@ -405,6 +407,7 @@ async function seedPhoneNumberTemplates(options = {}) {
       example: '77 123 456',
       description: 'Botswana mobile format: CC NNN NNN',
       validationRegex: '^\\d{2}\\s\\d{3}\\s\\d{3}$',
+      templateType: 'phone',
       isActive: true
     },
     {
@@ -416,6 +419,7 @@ async function seedPhoneNumberTemplates(options = {}) {
       example: '712 345 678',
       description: 'Kenya mobile format: CCC NNN NNN',
       validationRegex: '^\\d{3}\\s\\d{3}\\s\\d{3}$',
+      templateType: 'phone',
       isActive: true
     },
     {
@@ -427,6 +431,7 @@ async function seedPhoneNumberTemplates(options = {}) {
       example: '97 123 4567',
       description: 'Zambia mobile format: CC NNN NNNN',
       validationRegex: '^\\d{2}\\s\\d{3}\\s\\d{4}$',
+      templateType: 'phone',
       isActive: true
     },
     {
@@ -438,6 +443,7 @@ async function seedPhoneNumberTemplates(options = {}) {
       example: '7712 345 678',
       description: 'UK mobile format: CCCC NNN NNN',
       validationRegex: '^\\d{4}\\s\\d{3}\\s\\d{3}$',
+      templateType: 'phone',
       isActive: true
     },
     {
@@ -449,6 +455,7 @@ async function seedPhoneNumberTemplates(options = {}) {
       example: '(555) 123-4567',
       description: 'US phone format: (AAA) NNN-NNNN',
       validationRegex: '^\\(\\d{3}\\)\\s\\d{3}-\\d{4}$',
+      templateType: 'phone',
       isActive: true
     }
   ]
@@ -474,6 +481,7 @@ async function seedDateFormatTemplates(options = {}) {
       example: '25/12/2024',
       description: 'European date format (Zimbabwe, UK, Australia)',
       countries: ['ZW', 'GB', 'AU'],
+      templateType: 'date',
       isActive: true
     },
     {
@@ -483,6 +491,7 @@ async function seedDateFormatTemplates(options = {}) {
       example: '12/25/2024',
       description: 'US date format',
       countries: ['US'],
+      templateType: 'date',
       isActive: true
     },
     {
@@ -492,6 +501,7 @@ async function seedDateFormatTemplates(options = {}) {
       example: '2024-12-25',
       description: 'ISO 8601 standard format',
       countries: ['ISO'],
+      templateType: 'date',
       isActive: true
     },
     {
@@ -501,6 +511,7 @@ async function seedDateFormatTemplates(options = {}) {
       example: '25-12-2024',
       description: 'European format with dashes (South Africa)',
       countries: ['ZA'],
+      templateType: 'date',
       isActive: true
     },
     {
@@ -510,6 +521,7 @@ async function seedDateFormatTemplates(options = {}) {
       example: '25.12.2024',
       description: 'European format with dots (Germany, Netherlands)',
       countries: ['DE', 'NL'],
+      templateType: 'date',
       isActive: true
     }
   ]

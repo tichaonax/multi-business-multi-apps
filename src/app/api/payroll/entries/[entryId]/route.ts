@@ -35,6 +35,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             hireDate: true,
             email: true,
             employmentStatus: true,
+            terminationDate: true,
             scheduledStartTime: true,
             scheduledEndTime: true,
             scheduledDaysPerWeek: true,
@@ -102,11 +103,32 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       })
     }
 
-    const derivedWorkDays = (mappedEntry.workDays && mappedEntry.workDays > 0)
-      ? mappedEntry.workDays
-      : (timeTracking
-        ? ((timeTracking.workDays && timeTracking.workDays > 0) ? timeTracking.workDays : monthRequiredWorkDaysSafe)
-        : monthRequiredWorkDaysSafe)
+    // Resolve effective termination date from employee record (payroll entry field may be null)
+    const employeeTermDate = (mappedEntry as any).employees?.terminationDate ?? null
+    const effectiveTermDate = (mappedEntry as any).terminationDate ?? employeeTermDate
+
+    // Prorate workDays when employee terminated mid-period (only when no manual workDays set)
+    let derivedWorkDays: number
+    if (!mappedEntry.workDays && effectiveTermDate && payrollYear && payrollMonth) {
+      const termDate = new Date(effectiveTermDate)
+      const pStart = new Date(payrollYear, payrollMonth - 1, 1)
+      const pEnd = new Date(payrollYear, payrollMonth, 0, 23, 59, 59)
+      if (termDate >= pStart && termDate <= pEnd) {
+        let count = 0
+        for (let d = new Date(pStart); d <= termDate; d.setDate(d.getDate() + 1)) {
+          if (d.getDay() !== 0) count++ // Mon–Sat
+        }
+        derivedWorkDays = count
+      } else {
+        derivedWorkDays = monthRequiredWorkDaysSafe
+      }
+    } else {
+      derivedWorkDays = (mappedEntry.workDays && mappedEntry.workDays > 0)
+        ? mappedEntry.workDays
+        : (timeTracking
+          ? ((timeTracking.workDays && timeTracking.workDays > 0) ? timeTracking.workDays : monthRequiredWorkDaysSafe)
+          : monthRequiredWorkDaysSafe)
+    }
 
     // Get persisted/manual/override benefits via helper
     const mergedPersisted = await helper.computeCombinedBenefitsForEntry(mappedEntry)
@@ -250,6 +272,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       adjustmentsTotal: totals.additionsTotal ?? 0,
       adjustmentsAsDeductions: totals.adjustmentsAsDeductions ?? 0,
       clockInDeductionAmount: totals.clockInDeductionAmount ?? 0,
+      // Always expose recalculated overtimePay so client-side gross is accurate
+      overtimePay: totals.overtimePay ?? 0,
+      // Populate terminationDate from employee record if not already on the entry
+      terminationDate: effectiveTermDate ?? null,
       // Normalize payroll adjustments for display (isAddition + absolute amount)
       payrollAdjustments: (mappedEntry.payroll_adjustments || []).map((a: any) => ({
         ...a,

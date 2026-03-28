@@ -34,9 +34,10 @@ interface PayrollPeriod {
 interface PayrollPeriodsListProps {
   businessId?: string
   onSelectPeriod?: (period: PayrollPeriod) => void
+  refreshKey?: number
 }
 
-export function PayrollPeriodsList({ businessId, onSelectPeriod }: PayrollPeriodsListProps) {
+export function PayrollPeriodsList({ businessId, onSelectPeriod, refreshKey }: PayrollPeriodsListProps) {
   const router = useRouter()
   const [periods, setPeriods] = useState<PayrollPeriod[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,7 +46,7 @@ export function PayrollPeriodsList({ businessId, onSelectPeriod }: PayrollPeriod
 
   useEffect(() => {
     loadPeriods()
-  }, [businessId, filterYear, filterStatus])
+  }, [businessId, filterYear, filterStatus, refreshKey])
 
   const loadPeriods = async () => {
     try {

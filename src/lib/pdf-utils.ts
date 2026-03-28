@@ -15,6 +15,7 @@ export interface PayrollEntryData {
   baseSalary: number
   commission: number
   overtimePay: number
+  perDiem?: number
   standardOvertimeHours?: number
   doubleTimeOvertimeHours?: number
   benefits: Array<{ name: string; amount: number }>

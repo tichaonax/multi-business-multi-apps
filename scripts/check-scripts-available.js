@@ -16,8 +16,6 @@ const knownScripts = [
   'seed-dev-data.js',
   'seed-migration-data.js',
   'seed-reference-data.js',
-  'restore-from-backup',
-  'restore-from-backup.js',
   'backup-data.js',
   'pre_migration_backup.sql'
 ]

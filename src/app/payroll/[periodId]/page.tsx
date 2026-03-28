@@ -122,6 +122,7 @@ export default function PayrollPeriodDetailPage() {
   const [loanSyncNeeded, setLoanSyncNeeded] = useState(false)
   const [syncingLoans, setSyncingLoans] = useState(false)
   const [perDiemMap, setPerDiemMap] = useState<Record<string, number>>({})
+  const [perDiemPendingMap, setPerDiemPendingMap] = useState<Record<string, number>>({})
 
   const [addingAllEmployees, setAddingAllEmployees] = useState(false)
   const [availableEmployeesCount, setAvailableEmployeesCount] = useState<number | null>(null)
@@ -237,10 +238,15 @@ export default function PayrollPeriodDetailPage() {
       const data = await res.json()
       const entries: any[] = data?.data?.entries ?? []
       const map: Record<string, number> = {}
+      const pendingMap: Record<string, number> = {}
       entries.forEach(e => {
         map[e.employeeId] = (map[e.employeeId] ?? 0) + Number(e.amount)
+        if (e.approvalStatus === 'pending') {
+          pendingMap[e.employeeId] = (pendingMap[e.employeeId] ?? 0) + 1
+        }
       })
       setPerDiemMap(map)
+      setPerDiemPendingMap(pendingMap)
     } catch {
       // non-critical
     }
@@ -883,7 +889,7 @@ export default function PayrollPeriodDetailPage() {
                     onClick={async () => {
                       setSyncingAll(true)
                       try {
-                        const res = await fetch(`/api/payroll/periods/${period.id}/sync-all`, { method: 'POST' })
+                        const res = await fetch(`/api/payroll/periods/${period.id}/sync-all?force=true`, { method: 'POST' })
                         const data = await res.json()
                         if (res.ok) {
                           showNotification('success', data.message || 'Sync complete')
@@ -1335,7 +1341,9 @@ export default function PayrollPeriodDetailPage() {
                   const hasPendingTardiness = adjs.some((a: any) =>
                     a.isClockInAdjustment && a.status === 'pending' && (a.adjustmentType || a.type) === 'clock_in_deduction'
                   )
-                  const needsAction = hasPendingOT || hasPendingTardiness
+                  const empId = (entry as any).employeeId || ''
+                  const hasPendingPerDiem = (perDiemPendingMap[empId] ?? 0) > 0
+                  const needsAction = hasPendingOT || hasPendingTardiness || hasPendingPerDiem
                   // Complete: has at least one adjustment (was reviewed/synced) and nothing is pending
                   const isComplete = adjs.length > 0 && !needsAction
                   const rowClass = needsAction
@@ -1457,10 +1465,22 @@ export default function PayrollPeriodDetailPage() {
                       const absenceAmt = resolveAbsenceDeduction(entry) + Number((entry as any).clockInDeductionAmount || 0)
                       const empId = (entry as any).employeeId || ''
                       const perDiemTotal = perDiemMap[empId] ?? 0
+                      const perDiemPending = perDiemPendingMap[empId] ?? 0
                       return (
                         <>
-                          <td className="px-3 py-2 text-sm text-right text-blue-600 dark:text-blue-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
-                            {perDiemTotal > 0 ? formatCurrency(perDiemTotal) : <span className="text-border">–</span>}
+                          <td className="px-3 py-2 text-sm text-right cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                            {perDiemTotal > 0 ? (
+                              <div className="inline-flex flex-col items-end gap-0.5">
+                                <span className="text-blue-600 dark:text-blue-400">{formatCurrency(perDiemTotal)}</span>
+                                {perDiemPending > 0 ? (
+                                  <span className="px-1 py-0.5 rounded text-[10px] bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 font-semibold">⚠ Pending</span>
+                                ) : (
+                                  <span className="px-1 py-0.5 rounded text-[10px] bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-semibold">✓ Approved</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-border">–</span>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{absenceAmt && absenceAmt !== 0 ? `-${formatCurrency(Math.abs(absenceAmt))}` : formatCurrency(0)}</td>
                           <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.totalDeductions)}</td>
@@ -1511,6 +1531,13 @@ export default function PayrollPeriodDetailPage() {
             const empId = (entry as any)?.employeeId || ''
             return perDiemMap[empId] ?? 0
           })() : 0}
+          perDiemBusinessId={(() => {
+            const isUmbrella = period.businesses?.type === 'umbrella' || period.businesses?.type === 'settings'
+            return isUmbrella ? null : (period.businesses?.id ?? null)
+          })()}
+          onPerDiemProcessed={() => {
+            if (period) loadPerDiem(period.year, period.month)
+          }}
           onSuccess={(payload) => {
             const p: any = payload
             const message = typeof p === 'string' ? p : (p && p.message) || ''

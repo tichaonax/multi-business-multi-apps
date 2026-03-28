@@ -28,6 +28,7 @@ export default function PayrollPage() {
   const [umbrellaBusinessId, setUmbrellaBusinessId] = useState<string | null>(null)
   const [createForAllEmployees, setCreateForAllEmployees] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [periodsRefreshKey, setPeriodsRefreshKey] = useState(0)
   const [notification, setNotification] = useState<{
     type: 'success' | 'error'
     message: string
@@ -214,6 +215,7 @@ export default function PayrollPage() {
       <PayrollPeriodsList
         businessId={selectedBusinessId || undefined}
         onSelectPeriod={(period) => router.push(`/payroll/${period.id}`)}
+        refreshKey={periodsRefreshKey}
       />
 
       {/* Create Period Modal */}
@@ -227,13 +229,10 @@ export default function PayrollPage() {
           onSuccess={(payload) => {
             const message = typeof payload === 'string' ? payload : (payload?.message || 'Payroll period created')
             showNotification('success', message)
+            setPeriodsRefreshKey(k => k + 1)
             const periodId = payload && typeof payload === 'object' ? payload.id : undefined
-            // Navigate to the newly created period
             if (periodId) {
               router.push(`/payroll/${periodId}`)
-            } else {
-              // Fallback: reload the periods list
-              window.location.reload()
             }
           }}
           onError={(error) => showNotification('error', error)}

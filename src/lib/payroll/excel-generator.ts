@@ -22,6 +22,7 @@ interface PayrollEntry {
   vehicleAllowance: number
   travelAllowance: number
   overtimePay: number
+  perDiem?: number
   advanceDeductions: number
   loanDeductions: number
   miscDeductions: number
@@ -115,6 +116,7 @@ export async function generatePayrollExcel(
     'Basic Salary',
     'Commission',
     'Overtime',
+    'Per Diem',
     'Adjustments'
   ]
   const benefitHeaders = uniqueBenefits.map(b => b.benefitName)
@@ -189,6 +191,7 @@ export async function generatePayrollExcel(
       case 'Basic Salary': columnWidths.push(15); break
       case 'Commission': columnWidths.push(15); break
       case 'Overtime': columnWidths.push(15); break
+      case 'Per Diem': columnWidths.push(12); break
       default:
         // benefit or end columns
         columnWidths.push(15)
@@ -449,6 +452,7 @@ export async function generatePayrollExcel(
       Number(entry.baseSalary || 0),
       Number(entry.commission || 0),
       Number(entry.overtimePay || 0),
+      Number((entry as any).perDiem || 0),
       Number((entry as any).adjustmentsTotal || 0)
     ]
 
@@ -488,7 +492,7 @@ export async function generatePayrollExcel(
     const adjAsDeductions = Math.max(0, storedAdjAs - storedAbsenceDeduction)
     // Compute gross/net/totalDeductions aligned with preview logic
     const absenceDeductionResolved = resolveAbsenceDeduction(period)
-    const computedGross = Number(entry.baseSalary || 0) + Number(entry.commission || 0) + Number(entry.overtimePay || 0) + benefitsSum + additions - (absenceDeductionResolved || 0)
+    const computedGross = Number(entry.baseSalary || 0) + Number(entry.commission || 0) + Number(entry.overtimePay || 0) + Number((entry as any).perDiem || 0) + benefitsSum + additions - (absenceDeductionResolved || 0)
     const grossInclBenefits = Number.isFinite(storedGross as number) ? (storedGross as number) : computedGross
 
     // Derived total deductions excludes explicit 'absence' so it aligns with the preview

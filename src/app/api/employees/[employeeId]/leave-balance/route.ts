@@ -23,7 +23,7 @@ export async function GET(
     const year = parseInt(url.searchParams.get('year') || new Date().getFullYear().toString())
 
     // Check if user has permission to view employee leave balance
-    if (!await hasPermission(user, 'canViewEmployeeLeave', employeeId)) {
+    if (!hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -106,7 +106,7 @@ export async function PUT(
     const { employeeId } = await params
 
     // Check if user has permission to manage employee leave balance
-    if (!await hasPermission(user, 'canManageEmployeeLeave', employeeId)) {
+    if (!hasPermission(user, 'canManageEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
