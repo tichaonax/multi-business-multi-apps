@@ -268,8 +268,8 @@ export function Sidebar() {
 
   // Helper function to group businesses by type - DYNAMIC with "Other" category
   const groupBusinessesByType = (businessList: Business[]) => {
-    // Define which types have full feature sets (dedicated pages)
-    const primaryTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']
+    // Define which types get their own labeled group in the sidebar
+    const primaryTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services', 'retail', 'consulting']
 
     // Get all unique business types from actual businesses
     const uniqueTypes = Array.from(new Set(businessList.map((b: Business) => b.type)))

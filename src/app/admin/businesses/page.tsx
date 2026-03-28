@@ -472,8 +472,10 @@ export default function AdminBusinessesPage() {
                     <option value="construction">Construction</option>
                     <option value="clothing">Clothing</option>
                     <option value="grocery">Grocery</option>
-                    <option value="technology">Technology</option>
+                    <option value="hardware">Hardware</option>
+                    <option value="consulting">Consulting</option>
                     <option value="services">Services</option>
+                    <option value="technology">Technology</option>
                     <option value="manufacturing">Manufacturing</option>
                     <option value="healthcare">Healthcare</option>
                     <option value="education">Education</option>
@@ -715,8 +717,10 @@ export default function AdminBusinessesPage() {
                         <option value="construction">Construction</option>
                         <option value="clothing">Clothing</option>
                         <option value="grocery">Grocery</option>
-                        <option value="technology">Technology</option>
+                        <option value="hardware">Hardware</option>
+                        <option value="consulting">Consulting</option>
                         <option value="services">Services</option>
+                        <option value="technology">Technology</option>
                         <option value="manufacturing">Manufacturing</option>
                         <option value="healthcare">Healthcare</option>
                         <option value="education">Education</option>
@@ -1033,8 +1037,10 @@ export default function AdminBusinessesPage() {
                       <option value="construction">Construction</option>
                       <option value="clothing">Clothing</option>
                       <option value="grocery">Grocery</option>
-                      <option value="technology">Technology</option>
+                      <option value="hardware">Hardware</option>
+                      <option value="consulting">Consulting</option>
                       <option value="services">Services</option>
+                      <option value="technology">Technology</option>
                       <option value="manufacturing">Manufacturing</option>
                       <option value="healthcare">Healthcare</option>
                       <option value="education">Education</option>
