@@ -193,6 +193,19 @@ export async function PUT(
       if (body.barcodeData !== undefined) updateData.barcodeData = body.barcodeData || null
       if (body.sku !== undefined) updateData.sku = body.sku || null
 
+      // Enforce SKU uniqueness within the business for barcodeInventoryItems
+      if (updateData.sku && updateData.sku !== existing.sku) {
+        const skuConflict = await prisma.barcodeInventoryItems.findFirst({
+          where: { businessId, sku: updateData.sku, NOT: { id: rawId } }
+        })
+        if (skuConflict) {
+          return NextResponse.json(
+            { error: `SKU "${updateData.sku}" is already used by another item in this business` },
+            { status: 400 }
+          )
+        }
+      }
+
       const updated = await prisma.barcodeInventoryItems.update({
         where: { id: rawId },
         data: updateData,

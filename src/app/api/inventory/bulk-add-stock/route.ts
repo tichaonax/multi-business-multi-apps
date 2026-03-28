@@ -21,6 +21,16 @@ export async function POST(request: NextRequest) {
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     if (!Array.isArray(items) || items.length === 0) return NextResponse.json({ error: 'items array is required' }, { status: 400 })
 
+    // Resolve business type + current max INV sequence for auto-SKU generation
+    const business = await prisma.businesses.findFirst({ where: { id: businessId }, select: { type: true } })
+    const invPrefix = (business?.type?.substring(0, 3) || 'INV').toUpperCase()
+    const seqResult = await prisma.$queryRaw<{ max_seq: number }[]>`
+      SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(sku, '^[A-Z]+-INV-', '') AS INTEGER)), 0) AS max_seq
+      FROM barcode_inventory_items
+      WHERE "businessId" = ${businessId} AND sku ~ '^[A-Z]+-INV-[0-9]+$'
+    `
+    let invSeq = Number(seqResult[0]?.max_seq || 0)
+
     let created = 0
     let updated = 0
     const results: { success: boolean; itemId?: string; action?: 'created' | 'updated'; error?: string }[] = []
@@ -65,10 +75,11 @@ export async function POST(request: NextRequest) {
         } else {
           // New item — create
           const inventoryItemId = randomBytes(8).toString('hex')
+          const resolvedSku = sku?.trim() || (() => { invSeq++; return `${invPrefix}-INV-${String(invSeq).padStart(5, '0')}` })()
           const record = await prisma.barcodeInventoryItems.create({
             data: {
               name: name.trim(),
-              sku: sku?.trim() || undefined,
+              sku: resolvedSku,
               businessId,
               inventoryItemId,
               barcodeData,

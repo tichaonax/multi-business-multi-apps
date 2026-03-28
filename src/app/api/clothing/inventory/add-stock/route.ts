@@ -27,10 +27,24 @@ export async function POST(request: NextRequest) {
     const inventoryItemId = randomBytes(8).toString('hex')
     const barcodeData = barcode?.trim() || randomBytes(4).toString('hex')
 
+    // Auto-generate SKU if not provided
+    let resolvedSku = sku?.trim() || null
+    if (!resolvedSku) {
+      const biz = await prisma.businesses.findFirst({ where: { id: businessId }, select: { type: true } })
+      const prefix = (biz?.type?.substring(0, 3) || 'INV').toUpperCase()
+      const seqResult = await prisma.$queryRaw<{ max_seq: number }[]>`
+        SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(sku, '^[A-Z]+-INV-', '') AS INTEGER)), 0) AS max_seq
+        FROM barcode_inventory_items
+        WHERE "businessId" = ${businessId} AND sku ~ '^[A-Z]+-INV-[0-9]+$'
+      `
+      const nextSeq = Number(seqResult[0]?.max_seq || 0) + 1
+      resolvedSku = `${prefix}-INV-${String(nextSeq).padStart(5, '0')}`
+    }
+
     const item = await prisma.barcodeInventoryItems.create({
       data: {
         name: name.trim(),
-        sku: sku?.trim() || undefined,
+        sku: resolvedSku,
         barcodeTemplateId: templateId || null,
         businessId,
         inventoryItemId,

@@ -822,7 +822,7 @@ export function UniversalInventoryForm({
                 setIsNavigatingToPOS(true)
 
                 // Check if unit is "each" or similar single-unit types
-                const isSingleUnit = ['each', 'ea', 'piece', 'pc', 'pcs', 'unit', 'item'].includes(
+                const isSingleUnit = ['each', 'ea', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'item', 'items'].includes(
                   (formData.unit || item.unit || '').toLowerCase().trim()
                 )
 
@@ -1163,7 +1163,7 @@ export function UniversalInventoryForm({
                   setIsNavigatingToPOS(true)
 
                   // Check if unit is "each" or similar single-unit types
-                  const isSingleUnit = ['each', 'ea', 'piece', 'pc', 'pcs', 'unit', 'item'].includes(
+                  const isSingleUnit = ['each', 'ea', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'item', 'items'].includes(
                     (formData.unit || item.unit || '').toLowerCase().trim()
                   )
 

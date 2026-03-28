@@ -1160,13 +1160,52 @@ function GroceryPOSContent() {
     window.history.replaceState({}, '', window.location.pathname + `?businessId=${currentBusinessId}`)
   }, [])
 
-  // Step 2: Once products AND cart are loaded, add the captured product exactly once.
-  // Waits for cartLoaded so we can skip the auto-add if the item is already in the
-  // cart (restored from localStorage), preventing qty doubling on repeated test scans.
+  // Step 2: Once cart is loaded, add the captured product exactly once.
+  // For inv_ items (barcodeInventoryItems) fetch directly — they are not in the products list.
+  // For regular products, wait for products list to load then find by ID.
   useEffect(() => {
-    if (!autoAddProductIdRef.current || products.length === 0 || productsLoading || !cartLoaded) return
+    if (!autoAddProductIdRef.current || !cartLoaded) return
     const productId = autoAddProductIdRef.current
-    autoAddProductIdRef.current = null  // clear immediately — prevents any re-run
+
+    // inv_ items live in barcodeInventoryItems, not in the universal products list.
+    // Fetch directly from the inventory API and add to cart.
+    if (productId.startsWith('inv_')) {
+      autoAddProductIdRef.current = null
+      ;(async () => {
+        try {
+          const res = await fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
+          if (!res.ok) return
+          const data = await res.json()
+          const item = data.data
+          if (!item) return
+          const price = item.sellPrice || 0
+          if (price <= 0) return
+          setCart(prev => {
+            if (prev.some(i => i.id === productId)) return prev
+            return [...prev, {
+              id: productId,
+              name: item.name,
+              barcode: item.barcodeData || undefined,
+              category: item.category || 'General',
+              unitType: 'each',
+              price,
+              unit: item.unit || 'units',
+              taxable: false,
+              weightRequired: false,
+              quantity: 1,
+              subtotal: price,
+            }]
+          })
+        } catch (e) {
+          console.error('❌ Auto-add inv_ item failed:', e)
+        }
+      })()
+      return
+    }
+
+    // Regular BusinessProducts — wait for products list to load
+    if (products.length === 0 || productsLoading) return
+    autoAddProductIdRef.current = null
 
     const product = products.find(p => p.id === productId)
     if (!product) {

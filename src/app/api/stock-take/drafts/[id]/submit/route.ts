@@ -69,6 +69,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'One or more employees not found or inactive' }, { status: 400 })
     }
 
+    // Resolve business type + current max INV sequence for auto-SKU generation on new items
+    const stockBusiness = await prisma.businesses.findFirst({ where: { id: draft.businessId }, select: { type: true } })
+    const stockInvPrefix = (stockBusiness?.type?.substring(0, 3) || 'INV').toUpperCase()
+    const stockSeqResult = await prisma.$queryRaw<{ max_seq: number }[]>`
+      SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(sku, '^[A-Z]+-INV-', '') AS INTEGER)), 0) AS max_seq
+      FROM barcode_inventory_items
+      WHERE "businessId" = ${draft.businessId} AND sku ~ '^[A-Z]+-INV-[0-9]+$'
+    `
+    let stockInvSeq = Number(stockSeqResult[0]?.max_seq || 0)
+
     // ── Process each item ─────────────────────────────────────────────────────
 
     type ReportItem = {
@@ -243,10 +253,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         const inventoryItemId = randomBytes(8).toString('hex')
         const barcodeData = item.barcode?.trim() || randomBytes(4).toString('hex')
 
+        const resolvedStockSku = item.sku?.trim() || (() => { stockInvSeq++; return `${stockInvPrefix}-INV-${String(stockInvSeq).padStart(5, '0')}` })()
         await prisma.barcodeInventoryItems.create({
           data: {
             name: item.name.trim(),
-            sku: item.sku?.trim() || undefined,
+            sku: resolvedStockSku,
             businessId: draft.businessId,
             inventoryItemId,
             barcodeData,
