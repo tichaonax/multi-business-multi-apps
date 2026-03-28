@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 async function hasPettyCashApprove(userId: string): Promise<boolean> {
   const record = await prisma.userPermissions.findFirst({
@@ -134,6 +135,29 @@ export async function POST(
     const approvedAmt = Number(result.updated.approvedAmount)
     const retAmt = Number(result.updated.returnAmount ?? 0)
     const netSpend = approvedAmt - retAmt
+
+    // Notify admins + managers when unused funds are returned
+    if (retAmt > 0) {
+      try {
+        const managers = await prisma.users.findMany({
+          where: { isActive: true, OR: [{ role: 'admin' }, { role: 'manager' }] },
+          select: { id: true },
+        })
+        const managerIds = managers.map((m) => m.id)
+        if (managerIds.length > 0) {
+          const settlerName = result.updated.settler?.name ?? 'Unknown'
+          await emitNotification({
+            userIds: managerIds,
+            type: 'PAYMENT_SUBMITTED',
+            title: '💵 Unused Petty Cash Returned',
+            message: `${settlerName} confirmed receipt of $${retAmt.toFixed(2)} unused funds from "${pcRequest.purpose}" — credited to cash bucket`,
+            linkUrl: `/petty-cash/${requestId}`,
+          })
+        }
+      } catch {
+        // Non-critical — don't fail the request if notification fails
+      }
+    }
 
     return NextResponse.json({
       success: true,

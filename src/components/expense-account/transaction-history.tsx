@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { DateInput } from '@/components/ui/date-input'
 import { EditPaymentModal } from './edit-payment-modal'
 import { EditDepositModal } from './edit-deposit-modal'
+import { ExpensePaymentVoucherModal, PaymentSummary } from './expense-payment-voucher-modal'
+import { generatePaymentVoucherPdf } from './payment-voucher-pdf'
 
 interface Transaction {
   id: string
@@ -49,6 +52,9 @@ interface TransactionHistoryProps {
   initialEndDate?: string
   refreshKey?: number
   onDataChanged?: () => void
+  // Payment voucher support — if businessId/businessName provided, voucher icon appears
+  businessId?: string
+  businessName?: string
 }
 
 function localDateStr(d: Date): string {
@@ -90,9 +96,17 @@ function shortDescription(transaction: Transaction): string {
   return desc
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName }: TransactionHistoryProps) {
+  const { data: session } = useSession()
+  const currentUserId = (session?.user as any)?.id as string | undefined
+  const currentUserName = session?.user?.name ?? 'Staff'
+
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Voucher state
+  const [voucherModal, setVoucherModal] = useState<{ payment: PaymentSummary; existing: any | null } | null>(null)
+  const [voucherMap, setVoucherMap] = useState<Record<string, any>>({}) // paymentId → voucher or false
   const [startDate, setStartDate] = useState(() => {
     if (initialStartDate) return initialStartDate
     const d = new Date(); d.setDate(d.getDate() - 29)
@@ -111,6 +125,33 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
   const [editDepositId, setEditDepositId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+
+  async function openVoucherModal(transaction: Transaction) {
+    if (!businessId) return
+    const paymentId = transaction.id
+    // Fetch existing voucher (or null)
+    const res = await fetch(`/api/payment-vouchers?paymentId=${paymentId}`)
+    const json = await res.json()
+    const existing = json.data ?? null
+
+    const payeeName = transaction.payeeEmployee?.fullName
+      ?? transaction.payeeUser?.name
+      ?? transaction.payeeBusiness?.name
+      ?? transaction.payeePerson?.fullName
+      ?? 'Unknown'
+
+    const payment: PaymentSummary = {
+      id: paymentId,
+      amount: Math.abs(transaction.amount),
+      paymentDate: transaction.date,
+      payeeName,
+      payeeType: transaction.payeeType ?? 'GENERAL',
+      purpose: transaction.description ?? '',
+      businessId,
+      businessName: businessName ?? '',
+    }
+    setVoucherModal({ payment, existing })
+  }
 
   async function handlePrintVoucher(batchId: string) {
     try {
@@ -635,6 +676,20 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             PDF
                           </button>
                         )}
+                        {/* Payment Voucher icon — appears on all PAYMENT rows when businessId is provided */}
+                        {!isDeposit && !transaction.isAutoTransfer && businessId && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openVoucherModal(transaction) }}
+                            className={`ml-1 text-sm px-1 py-0.5 rounded transition-colors ${
+                              voucherMap[transaction.id]
+                                ? 'text-teal-600 dark:text-teal-400'
+                                : 'text-gray-300 dark:text-gray-600 hover:text-teal-500 dark:hover:text-teal-400'
+                            }`}
+                            title={voucherMap[transaction.id] ? 'View / regenerate voucher' : 'Generate payment voucher'}
+                          >
+                            📄
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )
@@ -693,6 +748,21 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           depositId={editDepositId}
           isAdmin={isAdmin}
           onSuccess={() => { setEditDepositId(null); loadTransactions(); onDataChanged?.() }}
+        />
+      )}
+
+      {/* Payment Voucher Modal */}
+      {voucherModal && currentUserId && (
+        <ExpensePaymentVoucherModal
+          payment={voucherModal.payment}
+          existingVoucher={voucherModal.existing}
+          userId={currentUserId}
+          creatorName={currentUserName}
+          onClose={() => setVoucherModal(null)}
+          onSaved={(saved) => {
+            setVoucherMap(prev => ({ ...prev, [voucherModal.payment.id]: saved }))
+            setVoucherModal(null)
+          }}
         />
       )}
     </>

@@ -159,6 +159,7 @@ export default function PettyCashDetailPage() {
   const [returnAmount, setReturnAmount] = useState('')
   const [settleNotes, setSettleNotes] = useState('')
   const [settling, setSettling] = useState(false)
+  const [showReturnConfirm, setShowReturnConfirm] = useState(false)
 
   // EcoCash Mark as Sent state
   const [showMarkSent, setShowMarkSent] = useState(false)
@@ -513,6 +514,15 @@ export default function PettyCashDetailPage() {
     e.preventDefault()
     const ret = Number(returnAmount) || 0
     if (ret < 0) { toast.error('Return amount cannot be negative'); return }
+    // If there are unused funds, require explicit confirmation before settling
+    if (ret > 0) {
+      setShowReturnConfirm(true)
+      return
+    }
+    await doSettle(ret)
+  }
+
+  async function doSettle(ret: number) {
     setSettling(true)
     try {
       const res = await fetch(`/api/petty-cash/requests/${requestId}/settle`, {
@@ -525,6 +535,7 @@ export default function PettyCashDetailPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to settle')
       toast.push('Request settled', { type: 'success' })
       setShowSettle(false)
+      setShowReturnConfirm(false)
       fetchDetail()
       window.dispatchEvent(new Event('pending-actions:refresh'))
     } catch (e: any) {
@@ -1225,6 +1236,44 @@ export default function PettyCashDetailPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Unused funds return confirmation modal */}
+        {showReturnConfirm && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6">
+              <div className="flex flex-col items-center text-center mb-4">
+                <div className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-3">
+                  <span className="text-2xl">💵</span>
+                </div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Unused Funds</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  There is <span className="font-bold text-amber-600 dark:text-amber-400">{fmt(Number(returnAmount))}</span> in un-used funds.
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                  Confirm you have physically received these funds back. They will be credited to the cash bucket.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowReturnConfirm(false)}
+                  disabled={settling}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => doSettle(Number(returnAmount))}
+                  disabled={settling}
+                  className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  {settling ? 'Settling...' : 'Confirm Receipt & Settle'}
+                </button>
+              </div>
             </div>
           </div>
         )}

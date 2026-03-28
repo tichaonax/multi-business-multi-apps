@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Create default expense account
+      // Create default expense account linked to the new business
       const accountNumber = await generateAccountNumber();
       await tx.expenseAccounts.create({
         data: {
@@ -180,6 +180,7 @@ export async function POST(req: NextRequest) {
           balance: 0,
           lowBalanceThreshold: 500,
           isActive: true,
+          businessId: business.id,
           createdBy: creatorId,
         },
       });

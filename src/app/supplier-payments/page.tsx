@@ -34,6 +34,7 @@ const ITEM_STATUS_STYLES: Record<string, string> = {
 interface PaymentRequest {
   id: string
   businessId: string
+  business?: { id: string; name: string } | null
   supplier: { id: string; name: string; emoji?: string | null }
   expenseAccount: { id: string; accountName: string }
   submitter: { id: string; name: string }
@@ -209,17 +210,18 @@ export default function SupplierPaymentQueuePage() {
       router.push('/')
       return
     }
-    setSelectedBusinessId(currentBusinessId)
-  }, [businessLoading, currentBusinessId, canViewQueue])
+    // Cross-business users default to "All"; regular users default to their business
+    if (!canCrossBusinessReports) {
+      setSelectedBusinessId(currentBusinessId)
+    }
+  }, [businessLoading, currentBusinessId, canViewQueue, canCrossBusinessReports])
 
   useEffect(() => {
-    if (!selectedBusinessId) return
     loadData()
   }, [selectedBusinessId, statusFilter, datePreset, startDate, endDate])
 
   useEffect(() => {
-    if (!selectedBusinessId) return
-    loadAccounts()
+    if (selectedBusinessId) loadAccounts()
   }, [selectedBusinessId])
 
   // When accounts refresh while the pay modal is open, if the stored payAccountId
@@ -235,7 +237,8 @@ export default function SupplierPaymentQueuePage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ businessId: selectedBusinessId })
+      const params = new URLSearchParams()
+      if (selectedBusinessId) params.set('businessId', selectedBusinessId)
       if (statusFilter) params.set('status', statusFilter)
       if (datePreset && datePreset !== 'custom') {
         const now = new Date()
@@ -540,7 +543,8 @@ export default function SupplierPaymentQueuePage() {
               onChange={e => setSelectedBusinessId(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {activeBusinesses.map(b => (
+              <option value="">All</option>
+              {activeBusinesses.filter(b => !b.isUmbrellaBusiness).map(b => (
                 <option key={b.businessId} value={b.businessId}>{b.businessName}</option>
               ))}
             </select>
@@ -682,6 +686,11 @@ export default function SupplierPaymentQueuePage() {
                             {overdue && (
                               <span className="inline-block text-xs bg-red-100 text-red-700 rounded px-1.5 py-0.5 mt-0.5">
                                 {days}d overdue
+                              </span>
+                            )}
+                            {!selectedBusinessId && r.business && (
+                              <span className="inline-block text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded px-1.5 py-0.5 mt-0.5 ml-0.5">
+                                {r.business.name}
                               </span>
                             )}
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">

@@ -296,21 +296,26 @@ export async function GET() {
       })
     }
 
-    // Pending meal program payments — QUEUED MEAL_PROGRAM payments awaiting cashier approval
+    // Pending meal program batch payments — QUEUED MEAL_BATCH payments awaiting cashier approval
+    // Each is a consolidated EOD batch (one per expense account per day)
     let pendingMealPrograms: object[] = []
     if (sysAdmin || permissions.canSubmitPaymentBatch) {
-      const mealGrouped = await prisma.expenseAccountPayments.groupBy({
-        by: ['expenseAccountId'],
+      const mealBatches = await prisma.expenseAccountPayments.findMany({
         where: {
           status: 'QUEUED',
-          paymentType: 'MEAL_PROGRAM',
-          createdBy: { not: user.id },
+          paymentType: 'MEAL_BATCH',
         },
-        _count: { id: true },
-        _sum: { amount: true },
+        select: {
+          id: true,
+          amount: true,
+          paymentDate: true,
+          notes: true,
+          expenseAccountId: true,
+        },
+        orderBy: { paymentDate: 'asc' },
       })
-      if (mealGrouped.length > 0) {
-        const mealAccountIds = mealGrouped.map((g) => g.expenseAccountId)
+      if (mealBatches.length > 0) {
+        const mealAccountIds = [...new Set(mealBatches.map((b) => b.expenseAccountId))]
         const mealAccounts = await prisma.expenseAccounts.findMany({
           where: { id: { in: mealAccountIds } },
           select: {
@@ -320,12 +325,15 @@ export async function GET() {
             business: { select: { id: true, name: true } },
           },
         })
-        pendingMealPrograms = mealAccounts.map((acct) => {
-          const row = mealGrouped.find((g) => g.expenseAccountId === acct.id)
+        pendingMealPrograms = mealBatches.map((batch) => {
+          const acct = mealAccounts.find((a) => a.id === batch.expenseAccountId)
           return {
             ...acct,
-            paymentCount: row?._count.id ?? 0,
-            totalAmount: Number(row?._sum.amount ?? 0),
+            batchPaymentId: batch.id,
+            paymentCount: 1,
+            totalAmount: Number(batch.amount),
+            paymentDate: batch.paymentDate,
+            notes: batch.notes,
           }
         })
       }

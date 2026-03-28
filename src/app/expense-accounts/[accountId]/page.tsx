@@ -23,6 +23,7 @@ import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-pay
 import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-modal'
 import { AutoDepositAdminPanel } from '@/components/expense-account/auto-deposit-admin-panel'
 import { PaymentBatchModal } from '@/components/expense-account/payment-batch-modal'
+import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
@@ -237,13 +238,20 @@ function MyQueuePanel({
   accountId,
   refreshKey,
   onActionDone,
+  businessId,
+  businessName,
 }: {
   accountId: string
   refreshKey: number
   onActionDone: () => void
+  businessId?: string
+  businessName?: string
 }) {
   const confirm = useConfirm()
   const alert = useAlert()
+  const { data: session } = useSession()
+  const queueUserId = (session?.user as any)?.id as string | undefined
+  const queueUserName = session?.user?.name ?? 'Staff'
   const [queued, setQueued] = useState<QueuedPayment[]>([])
   const [pendingApproval, setPendingApproval] = useState<QueuedPayment[]>([])
   const [approved, setApproved] = useState<QueuedPayment[]>([])
@@ -258,6 +266,25 @@ function MyQueuePanel({
   const [saving, setSaving] = useState(false)
   const [ecocashSubmitting, setEcocashSubmitting] = useState(false)
   const ecocashSubmittingRef = useRef(false)
+  const [queueVoucherModal, setQueueVoucherModal] = useState<{ payment: PaymentSummary; existing: any | null } | null>(null)
+
+  const openQueueVoucher = async (p: QueuedPayment) => {
+    if (!businessId) return
+    const res = await fetch(`/api/payment-vouchers?paymentId=${p.id}`)
+    const json = await res.json()
+    const pName = payeeName(p)
+    const payment: PaymentSummary = {
+      id: p.id,
+      amount: p.amount,
+      paymentDate: new Date().toISOString(),
+      payeeName: pName,
+      payeeType: p.payeeType ?? 'GENERAL',
+      purpose: p.description ?? p.category?.name ?? '',
+      businessId: businessId!,
+      businessName: businessName ?? '',
+    }
+    setQueueVoucherModal({ payment, existing: json.data ?? null })
+  }
 
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -446,6 +473,15 @@ function MyQueuePanel({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
+              {businessId && (
+                <button
+                  onClick={() => openQueueVoucher(p)}
+                  className="text-sm text-gray-300 dark:text-gray-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+                  title="Generate payment voucher"
+                >
+                  📄
+                </button>
+              )}
               {p.paymentChannel === 'ECOCASH' ? (
                 <button
                   onClick={() => { setEcocashModal({ paymentId: p.id, amount: p.amount }); setEcocashTxCode('') }}
@@ -581,6 +617,18 @@ function MyQueuePanel({
           </div>
         </div>
       </div>
+    )}
+
+    {/* Payment Voucher Modal — queue panel */}
+    {queueVoucherModal && queueUserId && (
+      <ExpensePaymentVoucherModal
+        payment={queueVoucherModal.payment}
+        existingVoucher={queueVoucherModal.existing}
+        userId={queueUserId}
+        creatorName={queueUserName}
+        onClose={() => setQueueVoucherModal(null)}
+        onSaved={() => setQueueVoucherModal(null)}
+      />
     )}
     </>
   )
@@ -1210,13 +1258,15 @@ export default function ExpenseAccountDetailPage() {
                 <MyQueuePanel
                   accountId={accountId}
                   refreshKey={paymentRefreshKey}
+                  businessId={account.businessId || currentBusiness?.businessId}
+                  businessName={currentBusiness?.businessName ?? ''}
                   onActionDone={() => {
                     refreshBalanceSilent()
                     setPaymentRefreshKey(k => k + 1)
                   }}
                 />
 
-                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} />
+                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} />
               </div>
             )}
 
@@ -1298,6 +1348,8 @@ export default function ExpenseAccountDetailPage() {
                   initialEndDate={urlEndDate || undefined}
                   defaultType={(urlType === 'PAYMENT' || urlType === 'DEPOSIT') ? urlType : ''}
                   onDataChanged={() => { refreshBalanceSilent(); setPaymentRefreshKey(k => k + 1) }}
+                  businessId={account.businessId || currentBusiness?.businessId}
+                  businessName={currentBusiness?.businessName ?? ''}
                 />
               </div>
             )}

@@ -18,12 +18,14 @@ export async function createEODPaymentBatches(
 ): Promise<{ batchId: string | null; paymentCount: number }> {
   // Find all pending payments (QUEUED, REQUEST, or SUBMITTED) whose expense account belongs to this business.
   // SUBMITTED covers payments created directly via QuickPaymentModal.
-  // Exclude PETTY_CASH_SPEND and PETTY_CASH_RETURN — those are handled outside the batch flow.
+  // Exclude PETTY_CASH_SPEND, PETTY_CASH_RETURN — handled outside the batch flow.
+  // Exclude MEAL_PROGRAM — handled separately via createEODMealBatch().
+  // Exclude MEAL_BATCH — approved via the dedicated meal-program/approve endpoint.
   const queuedPayments = await prisma.expenseAccountPayments.findMany({
     where: {
       status: { in: ['QUEUED', 'REQUEST', 'SUBMITTED'] },
       expenseAccount: { businessId },
-      paymentType: { notIn: ['PETTY_CASH_SPEND', 'PETTY_CASH_RETURN'] },
+      paymentType: { notIn: ['PETTY_CASH_SPEND', 'PETTY_CASH_RETURN', 'MEAL_PROGRAM', 'MEAL_BATCH'] },
     },
     select: { id: true },
   })
@@ -60,4 +62,76 @@ export async function createEODPaymentBatches(
   })
 
   return { batchId, paymentCount: paymentIds.length }
+}
+
+/**
+ * createEODMealBatch
+ *
+ * Called at EOD save time alongside createEODPaymentBatches.
+ * Consolidates all unbatched QUEUED MEAL_PROGRAM payments for a business into
+ * a single MEAL_BATCH payment request per expense account per day.
+ *
+ * - Idempotent: already-batched meals (eodMealBatchId IS NOT NULL) are skipped.
+ * - Returns { batchCount, totalAmount } for logging.
+ */
+export async function createEODMealBatch(
+  businessId: string,
+  reportDate: Date
+): Promise<{ batchCount: number; totalAmount: number }> {
+  // Find all unbatched QUEUED MEAL_PROGRAM payments for this business
+  const unbatched = await prisma.expenseAccountPayments.findMany({
+    where: {
+      status: 'QUEUED',
+      paymentType: 'MEAL_PROGRAM',
+      eodMealBatchId: null,
+      expenseAccount: { businessId },
+    },
+    select: { id: true, amount: true, expenseAccountId: true, createdBy: true, paymentDate: true },
+  })
+
+  if (unbatched.length === 0) return { batchCount: 0, totalAmount: 0 }
+
+  // Group by expenseAccountId (each account gets its own batch)
+  const byAccount = new Map<string, typeof unbatched>()
+  for (const p of unbatched) {
+    const list = byAccount.get(p.expenseAccountId) ?? []
+    list.push(p)
+    byAccount.set(p.expenseAccountId, list)
+  }
+
+  const dateLabel = reportDate.toISOString().split('T')[0]
+  let totalAmount = 0
+  let batchCount = 0
+
+  for (const [expenseAccountId, items] of byAccount.entries()) {
+    const batchTotal = items.reduce((s, p) => s + Number(p.amount), 0)
+    const createdBy = items[0].createdBy
+
+    // Create the single consolidated batch payment request
+    const batch = await prisma.expenseAccountPayments.create({
+      data: {
+        expenseAccountId,
+        payeeType: 'NONE',
+        amount: batchTotal,
+        paymentDate: reportDate,
+        notes: `Employee meal program EOD batch — ${items.length} meal${items.length !== 1 ? 's' : ''} — ${dateLabel}`,
+        status: 'QUEUED',
+        paymentType: 'MEAL_BATCH',
+        isFullPayment: true,
+        createdBy,
+      },
+      select: { id: true },
+    })
+
+    // Link individual meal payments to the batch
+    await prisma.expenseAccountPayments.updateMany({
+      where: { id: { in: items.map((p) => p.id) } },
+      data: { eodMealBatchId: batch.id },
+    })
+
+    totalAmount += batchTotal
+    batchCount++
+  }
+
+  return { batchCount, totalAmount }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { createEODPaymentBatches } from '@/lib/eod-payment-batch-utils'
+import { createEODPaymentBatches, createEODMealBatch } from '@/lib/eod-payment-batch-utils'
 
 /**
  * POST /api/reports/save
@@ -188,6 +188,8 @@ export async function POST(req: NextRequest) {
         if (batchResult.batchId) {
           eodPaymentBatch = { batchId: batchResult.batchId, paymentCount: batchResult.paymentCount }
         }
+        // Consolidate individual MEAL_PROGRAM payments into one MEAL_BATCH request
+        await createEODMealBatch(businessId, new Date(reportDate))
       } catch (batchError) {
         // Non-fatal — log but don't fail the EOD save
         console.error('createEODPaymentBatches error (non-fatal):', batchError)

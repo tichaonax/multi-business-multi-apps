@@ -83,10 +83,12 @@ interface PendingPaymentRequest {
 
 interface PendingMealProgram {
   id: string
+  batchPaymentId: string
   accountName: string
   accountNumber: string
   paymentCount: number
   totalAmount: number
+  paymentDate?: string
   business: { id: string; name: string } | null
 }
 
@@ -175,13 +177,13 @@ export default function PendingActionsPage() {
       confirmText: 'Approve All',
     })) return
 
-    setApprovingMealId(item.id)
+    setApprovingMealId(item.batchPaymentId)
     try {
       const res = await fetch('/api/restaurant/meal-program/approve', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expenseAccountId: item.id }),
+        body: JSON.stringify({ batchPaymentId: item.batchPaymentId }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to approve')
@@ -624,7 +626,7 @@ export default function PendingActionsPage() {
                 </h2>
                 <div className="space-y-3">
                   {pendingMealPrograms.map(item => (
-                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-teal-300 dark:border-teal-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div key={item.batchPaymentId} className="bg-white dark:bg-gray-800 border border-teal-300 dark:border-teal-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-900 dark:text-white">{item.business?.name ?? item.accountName}</span>
@@ -639,10 +641,10 @@ export default function PendingActionsPage() {
                       </div>
                       <button
                         onClick={() => handleApproveMeals(item)}
-                        disabled={approvingMealId === item.id}
+                        disabled={approvingMealId === item.batchPaymentId}
                         className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-sm font-medium rounded transition-colors shrink-0"
                       >
-                        {approvingMealId === item.id ? 'Approving…' : 'Approve All'}
+                        {approvingMealId === item.batchPaymentId ? 'Approving…' : 'Approve All'}
                       </button>
                     </div>
                   ))}

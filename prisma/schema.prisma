@@ -476,6 +476,7 @@ model Businesses {
   expense_accounts                                                         ExpenseAccounts[]             @relation("BusinessExpenseAccounts")
   expense_account_deposits                                                 ExpenseAccountDeposits[]      @relation("ExpenseAccountDepositSource")
   expense_account_payments_as_payee                                        ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeBusiness")
+  expense_payment_vouchers                                                 ExpensePaymentVouchers[]
   inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
   inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
   mac_acl_entries                                                          MacAclEntry[]
@@ -1284,6 +1285,7 @@ model Employees {
   other_employees                                                           Employees[]                   @relation("employeesToemployees")
   users                                                                     Users?                        @relation(fields: [userId], references: [id])
   expense_account_payments_as_payee                                         ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeEmployee")
+  expense_payment_vouchers                                                  ExpensePaymentVouchers[]
   payroll_account_payments                                                  PayrollAccountPayments[]
   payroll_entries                                                           PayrollEntries[]
   coupons_created                                                           Coupons[]                     @relation("CouponCreatedBy")
@@ -1538,6 +1540,8 @@ model ExpenseAccountPayments {
   batchSubmission           PaymentBatchSubmissions?         @relation(fields: [batchSubmissionId], references: [id])
   eodBatchId                String?                          @map("eod_batch_id")
   eodBatch                  EODPaymentBatch?                 @relation("EODPaymentBatchItems", fields: [eodBatchId], references: [id])
+  eodMealBatchId            String?                          @map("eod_meal_batch_id")
+  // ID of the consolidated MEAL_BATCH payment this individual MEAL_PROGRAM record belongs to
   adHoc                     Boolean                          @default(false) @map("ad_hoc")
   cancelledAt               DateTime?                        @map("cancelled_at")
   paymentChannel            String                           @default("CASH") @map("payment_channel")
@@ -1550,6 +1554,7 @@ model ExpenseAccountPayments {
   reversedBy                String?                          @map("reversed_by")
   reversalNote              String?                          @map("reversal_note")
   reversalPettyCashId       String?                          @map("reversal_petty_cash_id")
+  payment_voucher           ExpensePaymentVouchers?
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -5889,4 +5894,32 @@ enum StockTakeReportStatus {
   PENDING_SIGNOFF
   SIGNED_OFF
   VOIDED
+}
+
+// MBM-165 — Expense Payment Vouchers
+model ExpensePaymentVouchers {
+  id             String   @id @default(uuid())
+  paymentId      String   @unique @map("payment_id")
+  businessId     String   @map("business_id")
+  voucherNumber  String   @map("voucher_number")  // e.g. VCH-2026-0001, unique per business
+
+  // Collector — who physically collected the money
+  collectorName      String   @map("collector_name")
+  collectorPhone     String?  @map("collector_phone")
+  collectorIdNumber  String?  @map("collector_id_number")
+  collectorDlNumber  String?  @map("collector_dl_number")
+  collectorSignature String?  @db.Text @map("collector_signature")  // base64 PNG
+
+  notes        String?
+  createdById  String   @map("created_by_id")  // employee who created the voucher
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  payment   ExpenseAccountPayments @relation(fields: [paymentId], references: [id])
+  business  Businesses             @relation(fields: [businessId], references: [id])
+  creator   Employees              @relation(fields: [createdById], references: [id])
+
+  @@unique([businessId, voucherNumber])
+  @@index([businessId])
+  @@map("expense_payment_vouchers")
 }

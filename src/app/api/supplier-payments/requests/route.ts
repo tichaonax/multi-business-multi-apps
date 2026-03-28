@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
 
 // POST /api/supplier-payments/requests — POS submits a new payment request
 export async function POST(request: NextRequest) {
@@ -166,25 +166,43 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
 
-    if (!businessId) {
-      return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
+    // businessId is optional — omitting it means "all businesses" (admin/cross-business only)
+    const allBusinesses = !businessId
+
+    // Resolve permissions: for "all" mode use admin check; for single business use normal permissions
+    const sysAdmin = isSystemAdmin(user)
+    let canViewQueue: boolean
+    let canSubmit: boolean
+
+    if (allBusinesses) {
+      const crossPerms = getEffectivePermissions(user)
+      if (!sysAdmin && !crossPerms.canViewCrossBusinessReports) {
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+      }
+      canViewQueue = true
+      canSubmit = true
+    } else {
+      const permissions = getEffectivePermissions(user, businessId!)
+      canViewQueue = permissions.canViewSupplierPaymentQueue
+      canSubmit = permissions.canSubmitSupplierPaymentRequests
+      if (!canViewQueue && !canSubmit) {
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+      }
     }
 
-    const permissions = getEffectivePermissions(user, businessId)
-    const canViewQueue = permissions.canViewSupplierPaymentQueue
-    const canSubmit = permissions.canSubmitSupplierPaymentRequests
+    const where: any = {}
 
-    if (!canViewQueue && !canSubmit) {
-      return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+    if (allBusinesses) {
+      // Restrict to all active non-umbrella businesses
+      where.business = { isActive: true, type: { not: 'umbrella' } }
+    } else {
+      where.businessId = businessId
     }
-
-    const where: any = { businessId }
 
     // POS users see only their own requests
     if (!canViewQueue) {
       where.submittedBy = user.id
     } else {
-      // Managers can filter by submitter
       if (submittedBy) where.submittedBy = submittedBy
     }
 
@@ -205,6 +223,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           supplier: { select: { id: true, name: true, emoji: true } },
+          business: { select: { id: true, name: true } },
           expenseAccount: { select: { id: true, accountName: true } },
           submitter: { select: { id: true, name: true } },
           approver: { select: { id: true, name: true } },
