@@ -260,6 +260,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         const inventoryItemId = randomBytes(8).toString('hex')
         const barcodeData = item.barcode?.trim() || randomBytes(4).toString('hex')
 
+        // Validate categoryId exists before using it (may be stale if category was deleted)
+        let newItemCategoryId: string | null = null
+        if (item.categoryId) {
+          const cat = await prisma.businessCategories.findUnique({ where: { id: item.categoryId }, select: { id: true } })
+          if (cat) newItemCategoryId = cat.id
+        }
+
         const resolvedStockSku = item.sku?.trim() || (() => { stockInvSeq++; return `${stockInvPrefix}-INV-${String(stockInvSeq).padStart(5, '0')}` })()
         await prisma.barcodeInventoryItems.create({
           data: {
@@ -273,7 +280,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             customLabel: item.description?.trim() || undefined,
             costPrice: item.costPrice !== null ? Number(item.costPrice) : null,
             sellingPrice,
-            categoryId: item.categoryId || null,
+            categoryId: newItemCategoryId,
             domainId: item.domainId || null,
             supplierId: item.supplierId || null,
             createdById: user.id,
@@ -281,9 +288,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         })
 
         // Fix category's domainId if it's null and we know the correct domain
-        if (item.domainId && item.categoryId) {
+        if (item.domainId && newItemCategoryId) {
           await prisma.businessCategories.updateMany({
-            where: { id: item.categoryId, domainId: null },
+            where: { id: newItemCategoryId, domainId: null },
             data: { domainId: item.domainId },
           })
         }
