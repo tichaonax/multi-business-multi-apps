@@ -1059,7 +1059,7 @@ function GroceryInventoryContent() {
           businessId={currentBusinessId}
           businessName={currentBusiness.businessName}
           businessType={currentBusiness.businessType}
-          onClose={() => setShowBulkStockPanel(false)}
+          onClose={() => { setShowBulkStockPanel(false); setRefreshKey(prev => prev + 1) }}
           initialMode={bulkStockInitialMode}
         />
       )}

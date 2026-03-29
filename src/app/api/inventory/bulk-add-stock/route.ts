@@ -44,14 +44,12 @@ export async function POST(request: NextRequest) {
         if (sellingPrice === undefined || sellingPrice === null || sellingPrice === '') throw new Error('Selling price is required')
         if (Number(sellingPrice) < 0) throw new Error('Selling price cannot be negative')
 
-        const barcodeData = barcode?.trim() || randomBytes(4).toString('hex')
+        const barcodeData = barcode?.trim() || null
 
-        // Check if this barcode already exists for this business
+        // Deduplicate: by barcode if provided, otherwise by name within this business
         const existing = barcodeData
-          ? await prisma.barcodeInventoryItems.findFirst({
-              where: { businessId, barcodeData },
-            })
-          : null
+          ? await prisma.barcodeInventoryItems.findFirst({ where: { businessId, barcodeData } })
+          : await prisma.barcodeInventoryItems.findFirst({ where: { businessId, name: name.trim() } })
 
         if (existing) {
           // Existing item — if physicalCount provided (stock take), set stock = physical + new quantity
@@ -76,13 +74,15 @@ export async function POST(request: NextRequest) {
           // New item — create
           const inventoryItemId = randomBytes(8).toString('hex')
           const resolvedSku = sku?.trim() || (() => { invSeq++; return `${invPrefix}-INV-${String(invSeq).padStart(5, '0')}` })()
+          // When no barcode was scanned, generate a stable internal one at create time only
+          const resolvedBarcodeData = barcodeData || randomBytes(4).toString('hex')
           const record = await prisma.barcodeInventoryItems.create({
             data: {
               name: name.trim(),
               sku: resolvedSku,
               businessId,
               inventoryItemId,
-              barcodeData,
+              barcodeData: resolvedBarcodeData,
               quantity: Number(quantity),
               stockQuantity: Number(quantity),
               customLabel: description?.trim() || undefined,

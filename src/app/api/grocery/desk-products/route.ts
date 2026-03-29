@@ -5,10 +5,10 @@ import { getServerUser } from '@/lib/get-server-user'
 /**
  * GET /api/grocery/desk-products?businessId=
  *
- * Returns BarcodeInventoryItems (active, in-stock) for the grocery desk mode grid.
- * Items are keyed by inv_{inventoryItemId} to match the POS cart format.
- * Categories are derived from BusinessCategories linked via categoryId,
- * sorted by total stockQuantity descending, limited to top 10 tabs.
+ * Returns ALL active, priced BarcodeInventoryItems for the grocery desk mode grid.
+ * ALL categories are returned with their stockTotal so the client can score them
+ * using sales data (productStatsMap) and decide which to show vs hide.
+ * Items are NOT filtered by category — "All" shows everything.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' }
     })
 
-    // Build category totals
+    // Build category totals (ALL categories, no limit)
     const catMap = new Map<string, { key: string; label: string; emoji: string; stockTotal: number }>()
 
     for (const item of rawItems) {
@@ -44,19 +44,12 @@ export async function GET(request: NextRequest) {
       catMap.get(catKey)!.stockTotal += item.stockQuantity
     }
 
-    // Top 10 categories by stockTotal
+    // Return ALL categories sorted by stockTotal descending — client applies sales weighting
     const categories = Array.from(catMap.values())
       .sort((a, b) => b.stockTotal - a.stockTotal)
-      .slice(0, 10)
 
-    const topCatKeys = new Set(categories.map(c => c.key))
-
-    // Map items in top categories to POSItem-compatible format
+    // Return ALL items with a price (no category filter)
     const items = rawItems
-      .filter(item => {
-        const catKey = item.categoryId ?? '__uncategorized__'
-        return topCatKeys.has(catKey)
-      })
       .map(item => ({
         id: `inv_${item.id}`,
         name: item.name,

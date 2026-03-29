@@ -104,6 +104,9 @@ function GroceryPOSContent() {
   const [deskProducts, setDeskProducts] = useState<POSItem[]>([])
   const [deskCategories, setDeskCategories] = useState<{ key: string; label: string; emoji: string; stockTotal: number }[]>([])
   const [deskProductsLoading, setDeskProductsLoading] = useState(true)
+  const [pinnedCategoryKeys, setPinnedCategoryKeys] = useState<Set<string>>(new Set())
+  const [showMoreCategories, setShowMoreCategories] = useState(false)
+  const VISIBLE_CATEGORY_LIMIT = 10
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [showScanner, setShowScanner] = useState(false)
   const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
@@ -139,6 +142,17 @@ function GroceryPOSContent() {
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
   const [skipRewardThisTime, setSkipRewardThisTime] = useState(false)
   const autoAppliedForRef = useRef<string | null>(null)
+
+  // Close "more categories" dropdown on click outside
+  useEffect(() => {
+    if (!showMoreCategories) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-more-categories]')) setShowMoreCategories(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMoreCategories])
 
   // Pre-select customer from URL params (barcode scan navigation) or pos:select-customer event
   useEffect(() => {
@@ -341,6 +355,22 @@ function GroceryPOSContent() {
       console.error('Failed to save cart to localStorage:', error)
     }
   }, [cart, currentBusinessId, cartLoaded])
+
+  // Restore + persist pinned categories per business
+  useEffect(() => {
+    if (!currentBusinessId) return
+    try {
+      const stored = localStorage.getItem(`grocery-pos-pinned-cats-${currentBusinessId}`)
+      if (stored) setPinnedCategoryKeys(new Set(JSON.parse(stored)))
+    } catch { /* non-critical */ }
+  }, [currentBusinessId])
+
+  useEffect(() => {
+    if (!currentBusinessId) return
+    try {
+      localStorage.setItem(`grocery-pos-pinned-cats-${currentBusinessId}`, JSON.stringify([...pinnedCategoryKeys]))
+    } catch { /* non-critical */ }
+  }, [pinnedCategoryKeys, currentBusinessId])
 
   // Restore + persist scaleVisible preference per business
   useEffect(() => {
@@ -2365,7 +2395,7 @@ function GroceryPOSContent() {
     </ContentLayout>
 
     {/* Grids rendered outside ContentLayout so sticky right panel works (matches restaurant/clothing POS pattern) */}
-    <div className="px-2 sm:px-0 lg:px-6 xl:px-8 pb-6">
+    <div className="px-2 sm:px-0 pb-6">
 
       {/* Manual Entry Mode */}
       {posMode === 'manual' && currentBusinessId && (
@@ -2590,36 +2620,107 @@ function GroceryPOSContent() {
 
             {/* Desk mode: sticky category tabs + search — edge-to-edge with product grid */}
             {deskMode && (() => {
-              const allTabs: { key: string; label: string }[] = [
+              // Score categories: stock weight + sales weight (higher sales bumps category up even if low stock)
+              const scoredCategories = deskCategories.map(cat => {
+                let salesScore = 0
+                for (const [productId, stats] of productStatsMap.entries()) {
+                  const p = deskProducts.find(dp => dp.id === productId)
+                  if (p?.categoryId === cat.key) {
+                    salesScore += (stats.soldToday * 3) + (stats.soldYesterday * 1) + (stats.soldDayBefore * 0.5)
+                  }
+                }
+                return { ...cat, score: cat.stockTotal + salesScore }
+              }).sort((a, b) => b.score - a.score)
+
+              // Pinned first, then remaining top categories up to VISIBLE_CATEGORY_LIMIT
+              const pinned = scoredCategories.filter(c => pinnedCategoryKeys.has(c.key))
+              const unpinned = scoredCategories.filter(c => !pinnedCategoryKeys.has(c.key))
+              const slotsLeft = Math.max(0, VISIBLE_CATEGORY_LIMIT - pinned.length)
+              const visibleCategories = [...pinned, ...unpinned.slice(0, slotsLeft)]
+              const hiddenCategories = unpinned.slice(slotsLeft)
+
+              const visibleTabs: { key: string; label: string; pinned?: boolean }[] = [
                 { key: '__all__', label: 'All' },
-                ...deskCategories.map(c => ({ key: c.key, label: `${c.emoji} ${c.label}` })),
+                ...visibleCategories.map(c => ({ key: c.key, label: `${c.emoji} ${c.label}`, pinned: pinnedCategoryKeys.has(c.key) })),
                 ...(esp32IntegrationEnabled || r710IntegrationEnabled ? [{ key: '__wifi__', label: '📶 WiFi' }] : []),
               ]
               const activeTab = selectedCategory ?? '__all__'
+
               return (
                 <div className="sticky top-20 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
-                  {/* Category tabs — restaurant POS style */}
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 mb-2">
-                    {allTabs.map(tab => (
-                      <button
-                        key={tab.key}
-                        onClick={() => { setSelectedCategory(tab.key === '__all__' ? null : tab.key); setDeskSearchTerm('') }}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          activeTab === tab.key
-                            ? 'bg-blue-600 text-white'
-                            : 'card text-primary dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
+                  {/* Category tabs + More button */}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {visibleTabs.map(tab => (
+                      <div key={tab.key} className="relative flex-shrink-0">
+                        <button
+                          onClick={() => { setSelectedCategory(tab.key === '__all__' ? null : tab.key); setDeskSearchTerm(''); setShowMoreCategories(false) }}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            activeTab === tab.key
+                              ? 'bg-blue-600 text-white'
+                              : 'card text-primary dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                        {/* Unpin button for pinned categories */}
+                        {tab.pinned && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setPinnedCategoryKeys(prev => { const s = new Set(prev); s.delete(tab.key); return s }) }}
+                            className="absolute -top-1 -right-1 w-4 h-4 bg-gray-500 hover:bg-red-500 text-white rounded-full text-xs flex items-center justify-center leading-none"
+                            title="Unpin"
+                          >×</button>
+                        )}
+                      </div>
                     ))}
+
+                    {/* More button — shows hidden categories */}
+                    {hiddenCategories.length > 0 && (
+                      <div className="relative flex-shrink-0" data-more-categories="true">
+                        <button
+                          onClick={() => setShowMoreCategories(v => !v)}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border-2 border-dashed ${
+                            showMoreCategories
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                              : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500'
+                          }`}
+                          title={`${hiddenCategories.length} more categories`}
+                        >
+                          + {hiddenCategories.length} more
+                        </button>
+
+                        {/* Hidden categories dropdown */}
+                        {showMoreCategories && (
+                          <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 min-w-[220px] max-h-72 overflow-y-auto">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Click to pin & filter</p>
+                            <div className="space-y-1">
+                              {hiddenCategories.map(cat => (
+                                <button
+                                  key={cat.key}
+                                  onClick={() => {
+                                    setPinnedCategoryKeys(prev => new Set([...prev, cat.key]))
+                                    setSelectedCategory(cat.key)
+                                    setDeskSearchTerm('')
+                                    setShowMoreCategories(false)
+                                  }}
+                                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left transition-colors"
+                                >
+                                  <span className="font-medium">{cat.emoji} {cat.label}</span>
+                                  <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{cat.stockTotal} in stock</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+
                   {/* Search */}
                   <div className="relative">
                     <input
                       type="text"
                       value={deskSearchTerm}
-                      onChange={e => setDeskSearchTerm(e.target.value)}
+                      onChange={e => { setDeskSearchTerm(e.target.value); setShowMoreCategories(false) }}
                       placeholder="Search products..."
                       className="w-full border rounded-lg px-3 py-2 pl-8 text-sm focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
                     />

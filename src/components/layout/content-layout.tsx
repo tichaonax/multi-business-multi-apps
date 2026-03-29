@@ -24,7 +24,7 @@ export function ContentLayout({
   subtitle,
   breadcrumb,
   headerActions,
-  maxWidth = '7xl',
+  maxWidth = 'full',
   showBackButton = true
 }: ContentLayoutProps) {
   const router = useRouter()

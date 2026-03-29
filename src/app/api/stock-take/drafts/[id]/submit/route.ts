@@ -256,9 +256,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
           }
         }
       } else {
-        // New item — create
-        const inventoryItemId = randomBytes(8).toString('hex')
-        const barcodeData = item.barcode?.trim() || randomBytes(4).toString('hex')
+        // New item — but first check for an existing record (deduplication)
+        const resolvedBarcode = item.barcode?.trim() || null
+        const existingByBarcode = resolvedBarcode
+          ? await prisma.barcodeInventoryItems.findFirst({ where: { businessId: draft.businessId, barcodeData: resolvedBarcode } })
+          : await prisma.barcodeInventoryItems.findFirst({ where: { businessId: draft.businessId, name: item.name.trim() } })
 
         // Validate categoryId exists before using it (may be stale if category was deleted)
         let newItemCategoryId: string | null = null
@@ -267,25 +269,45 @@ export async function POST(request: NextRequest, context: RouteContext) {
           if (cat) newItemCategoryId = cat.id
         }
 
-        const resolvedStockSku = item.sku?.trim() || (() => { stockInvSeq++; return `${stockInvPrefix}-INV-${String(stockInvSeq).padStart(5, '0')}` })()
-        await prisma.barcodeInventoryItems.create({
-          data: {
-            name: item.name.trim(),
-            sku: resolvedStockSku,
-            businessId: draft.businessId,
-            inventoryItemId,
-            barcodeData,
-            quantity: newQty,
-            stockQuantity: newQty,
-            customLabel: item.description?.trim() || undefined,
-            costPrice: item.costPrice !== null ? Number(item.costPrice) : null,
-            sellingPrice,
-            categoryId: newItemCategoryId,
-            domainId: item.domainId || null,
-            supplierId: item.supplierId || null,
-            createdById: user.id,
-          },
-        })
+        if (existingByBarcode) {
+          // Item already exists — increment stock (treat as restock)
+          const newStock = existingByBarcode.stockQuantity + newQty
+          await prisma.barcodeInventoryItems.update({
+            where: { id: existingByBarcode.id },
+            data: {
+              stockQuantity: newStock,
+              quantity: newStock,
+              sellingPrice,
+              ...(item.costPrice !== null ? { costPrice: Number(item.costPrice) } : {}),
+              ...(newItemCategoryId ? { categoryId: newItemCategoryId } : {}),
+              ...(item.domainId ? { domainId: item.domainId } : {}),
+              ...(item.supplierId ? { supplierId: item.supplierId } : {}),
+            },
+          })
+        } else {
+          // Truly new — create
+          const inventoryItemId = randomBytes(8).toString('hex')
+          const barcodeData = resolvedBarcode || randomBytes(4).toString('hex')
+          const resolvedStockSku = item.sku?.trim() || (() => { stockInvSeq++; return `${stockInvPrefix}-INV-${String(stockInvSeq).padStart(5, '0')}` })()
+          await prisma.barcodeInventoryItems.create({
+            data: {
+              name: item.name.trim(),
+              sku: resolvedStockSku,
+              businessId: draft.businessId,
+              inventoryItemId,
+              barcodeData,
+              quantity: newQty,
+              stockQuantity: newQty,
+              customLabel: item.description?.trim() || undefined,
+              costPrice: item.costPrice !== null ? Number(item.costPrice) : null,
+              sellingPrice,
+              categoryId: newItemCategoryId,
+              domainId: item.domainId || null,
+              supplierId: item.supplierId || null,
+              createdById: user.id,
+            },
+          })
+        }
 
         // Fix category's domainId if it's null and we know the correct domain
         if (item.domainId && newItemCategoryId) {
