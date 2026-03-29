@@ -120,6 +120,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
           const shortfallValue = shortfall * sellingPrice
           const newStock = hasPhysicalCount ? physCount! + newQty : sysQty + newQty
 
+          // Validate categoryId exists before using it (may be stale if category was deleted)
+          let validCategoryId: string | null = null
+          if (item.categoryId) {
+            const cat = await prisma.businessCategories.findUnique({ where: { id: item.categoryId }, select: { id: true } })
+            if (cat) validCategoryId = cat.id
+          }
+
           await prisma.barcodeInventoryItems.update({
             where: { id: existing.id },
             data: {
@@ -128,16 +135,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
               sellingPrice,
               ...(item.costPrice !== null ? { costPrice: Number(item.costPrice) } : {}),
               // Apply category/domain/supplier changes if the user edited them in the row
-              ...(item.categoryId ? { categoryId: item.categoryId } : {}),
+              ...(validCategoryId ? { categoryId: validCategoryId } : {}),
               ...(item.domainId ? { domainId: item.domainId } : {}),
               ...(item.supplierId ? { supplierId: item.supplierId } : {}),
             },
           })
 
           // Fix category's domainId if it's null and we now know the correct domain
-          if (item.domainId && item.categoryId) {
+          if (item.domainId && validCategoryId) {
             await prisma.businessCategories.updateMany({
-              where: { id: item.categoryId, domainId: null },
+              where: { id: validCategoryId, domainId: null },
               data: { domainId: item.domainId },
             })
           }
