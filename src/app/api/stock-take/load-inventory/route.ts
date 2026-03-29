@@ -74,6 +74,8 @@ export async function GET(request: NextRequest) {
       costPrice: number | null
       systemQuantity: number
       itemType: string
+      description?: string | null
+      domainId?: string | null
     }> = []
 
     for (const product of products) {
@@ -128,6 +130,8 @@ export async function GET(request: NextRequest) {
         categoryId: true,
         supplierId: true,
         stockQuantity: true,
+        customLabel: true,
+        domainId: true,
       },
       orderBy: { name: 'asc' },
     })
@@ -145,6 +149,8 @@ export async function GET(request: NextRequest) {
         costPrice: bi.costPrice != null ? Number(bi.costPrice) : null,
         systemQuantity: bi.stockQuantity,
         itemType: 'barcode',
+        description: bi.customLabel || null,
+        domainId: (bi as any).domainId || null,
       })
     }
 

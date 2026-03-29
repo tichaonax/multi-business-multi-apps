@@ -848,6 +848,9 @@ export function QuickPaymentModal({
   }
 
   const selectedCategory = categories.find(c => c.id === formData.categoryId)
+  const domainOptions = categories.filter(c => c.isDomainCategory)
+  const globalCategories = categories.filter(c => !c.isDomainCategory)
+  const selectedIsDomain = selectedCategory?.isDomainCategory ?? false
 
   if (!isOpen) return null
 
@@ -1003,27 +1006,58 @@ export function QuickPaymentModal({
                 })()
               ) : (
                 <>
-                  {/* Category — hidden for Personal accounts */}
+                  {/* Domain + Category — hidden for Personal accounts */}
                   {!isPersonalAccount && (
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">
-                        Category <span className="text-red-500">*</span>
-                      </label>
-                      {loadingCategories ? (
-                        <div className="text-sm text-secondary">Loading categories...</div>
-                      ) : (
-                        <SearchableCategorySelector
-                          categories={categories}
-                          value={formData.categoryId}
-                          onChange={(categoryId) => {
-                            setFormData({ ...formData, categoryId })
-                            setErrors({ ...errors, categoryId: '' })
-                          }}
-                          error={errors.categoryId}
-                          disabled={!canChangeCategory}
-                        />
+                    <>
+                      {/* Domain picker */}
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">
+                          Domain
+                        </label>
+                        {loadingCategories ? (
+                          <div className="text-sm text-secondary">Loading...</div>
+                        ) : (
+                          <select
+                            value={selectedIsDomain ? formData.categoryId : ''}
+                            onChange={(e) => {
+                              const domainId = e.target.value
+                              setFormData({ ...formData, categoryId: domainId, subcategoryId: '', subSubcategoryId: '' })
+                              setErrors({ ...errors, categoryId: '' })
+                            }}
+                            disabled={!canChangeCategory}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">— Select domain —</option>
+                            {domainOptions.map(d => (
+                              <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Global Category picker — only shown when no domain selected */}
+                      {!selectedIsDomain && (
+                        <div>
+                          <label className="block text-sm font-medium text-secondary mb-1">
+                            Category <span className="text-red-500">*</span>
+                          </label>
+                          {loadingCategories ? (
+                            <div className="text-sm text-secondary">Loading categories...</div>
+                          ) : (
+                            <SearchableCategorySelector
+                              categories={globalCategories}
+                              value={formData.categoryId}
+                              onChange={(categoryId) => {
+                                setFormData({ ...formData, categoryId })
+                                setErrors({ ...errors, categoryId: '' })
+                              }}
+                              error={errors.categoryId}
+                              disabled={!canChangeCategory}
+                            />
+                          )}
+                        </div>
                       )}
-                    </div>
+                    </>
                   )}
 
                   {/* Subcategory */}

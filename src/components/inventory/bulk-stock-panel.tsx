@@ -400,6 +400,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           costPrice: item.costPrice != null ? String(item.costPrice) : '',
           sku: item.sku || '',
           supplierId: item.supplierId || '',
+          description: (item as any).description || '',
           ...hierarchyPatch,
         }))
 
@@ -482,6 +483,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             sellingPrice: String(match.price || ''),
             sku: match.sku || '',
             supplierId: match.supplierId || '',
+            description: match.description || '',
             ...hierarchyPatch,
           } : {}),
         })
@@ -538,6 +540,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         sellingPrice: String(match.price || ''),
         sku: match.sku || '',
         supplierId: match.supplierId || '',
+        description: match.description || '',
         ...hierarchyPatch,
       } : {}),
     })
@@ -1260,6 +1263,23 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               🧪 Match All Counts
             </button>
           )}
+          {isStockTakeMode && canMatchAllCounts && (
+            <button
+              onClick={() => {
+                const editableRows = rows.filter(r => r.isExistingItem && r.itemType !== 'bale' && r.itemType !== 'bulk' && r.itemType !== 'product')
+                const anyUnlocked = editableRows.some(r => r.isEditing)
+                setRows(prev => prev.map(r => {
+                  if (!r.isExistingItem || r.itemType === 'bale' || r.itemType === 'bulk' || r.itemType === 'product') return r
+                  return { ...r, isEditing: !anyUnlocked }
+                }))
+                setDraftUnsaved(true)
+              }}
+              className="px-3 py-1.5 text-xs border border-indigo-400 text-indigo-700 dark:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 font-medium"
+              title="Toggle editing on all rows — click to unlock all, click again to lock all"
+            >
+              ✏️ Mark All Editable
+            </button>
+          )}
           {isStockTakeMode && rows.length > 0 && (
             <button
               onClick={() => { setPrintModalTitle(draftTitle || ''); setPrintModalRows(rows) }}
@@ -1771,9 +1791,9 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
       {/* Name */}
       <td className="px-2 py-1.5">
-        <input type="text" value={row.name} readOnly={row.nameReadOnly}
+        <input type="text" value={row.name} readOnly={row.nameReadOnly && !row.isEditing}
           onChange={e => onChange({ name: e.target.value })}
-          className={`${row.nameReadOnly ? roClass : inputClass} ${inv('name') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="Product name" />
+          className={`${row.nameReadOnly && !row.isEditing ? roClass : inputClass} ${inv('name') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="Product name" />
       </td>
 
       {/* Domain */}
@@ -1848,9 +1868,9 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
       {/* Description */}
       <td className="px-2 py-1.5">
-        <input type="text" value={row.description} readOnly={row.isExistingItem}
+        <input type="text" value={row.description} readOnly={row.isExistingItem && !row.isEditing}
           onChange={e => onChange({ description: e.target.value })}
-          className={row.isExistingItem ? roClass : inputClass} placeholder="optional" />
+          className={row.isExistingItem && !row.isEditing ? roClass : inputClass} placeholder="optional" />
       </td>
 
       {/* System Quantity */}
@@ -1912,10 +1932,10 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
       </td>
 
       {/* SKU */}
-      <td className="px-2 py-1.5">
+      <td className="px-2 py-1.5 min-w-[9rem]">
         <input type="text" value={row.sku} readOnly={row.isExistingItem}
           onChange={e => onChange({ sku: e.target.value })}
-          className={row.isExistingItem ? roClass : inputClass} placeholder="Auto" />
+          className={`${row.isExistingItem ? roClass : inputClass} min-w-[8rem]`} placeholder="Auto" />
       </td>
 
       {/* Remove */}

@@ -1207,8 +1207,6 @@ export function UniversalInventoryForm({
             >
               Cancel
             </button>
-          </div>
-          <div className="flex gap-3">
             {mode === 'edit' && item?.id && (
               <button
                 type="button"
@@ -1246,6 +1244,8 @@ export function UniversalInventoryForm({
                 )}
               </button>
             )}
+          </div>
+          <div>
             <button
               type="submit"
               disabled={loading || !categoriesLoaded}

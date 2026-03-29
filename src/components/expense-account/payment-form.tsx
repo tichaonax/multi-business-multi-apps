@@ -17,6 +17,7 @@ interface ExpenseCategory {
   emoji: string
   color: string
   requiresSubcategory?: boolean  // If false, subcategories are optional
+  isDomainCategory?: boolean
   subcategories?: ExpenseSubcategory[]
 }
 
@@ -493,6 +494,7 @@ export function PaymentForm({
                     emoji: cat.emoji,
                     color: cat.color || '#000000',
                     requiresSubcategory: cat.requiresSubcategory ?? false,
+                    isDomainCategory: cat.isDomainCategory ?? false,
                   })
                 })
               }
@@ -1227,43 +1229,71 @@ export function PaymentForm({
               </div>
             </div>
           ) : (
-            /* General account: standard category → subcategory → sub-subcategory */
+            /* General account: domain → category → subcategory → sub-subcategory */
             (() => {
               const selectedCategory = categories.find(c => c.id === formData.categoryId)
+              const selectedIsDomain = selectedCategory?.isDomainCategory ?? false
               const showSubcategories = selectedCategory?.requiresSubcategory !== false
+              const domainOptions = categories.filter(c => c.isDomainCategory)
+              const globalCategories = categories.filter(c => !c.isDomainCategory)
 
               return (
                 <div className={`grid ${showSubcategories ? 'grid-cols-3' : 'grid-cols-1'} gap-4`}>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Category <span className="text-red-500">*</span>
+                  <div className="space-y-3">
+                    {/* Domain picker */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Domain
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowCategoryModal(true)}
-                        className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                      <select
+                        value={selectedIsDomain ? formData.categoryId : ''}
+                        onChange={(e) => {
+                          setFormData({ ...formData, categoryId: e.target.value, subcategoryId: '', subSubcategoryId: '' })
+                          setErrors({ ...errors, categoryId: '' })
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
-                        + Create New
-                      </button>
+                        <option value="">— Select domain —</option>
+                        {domainOptions.map(d => (
+                          <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
+                        ))}
+                      </select>
                     </div>
-                    <SearchableSelect
-                      value={formData.categoryId}
-                      options={categories.map(c => ({ id: c.id, label: `${c.emoji} ${c.name}` }))}
-                      onChange={(val) => {
-                        setFormData({ ...formData, categoryId: val, subcategoryId: '', subSubcategoryId: '' })
-                        setErrors({ ...errors, categoryId: '' })
-                      }}
-                      placeholder="Select category..."
-                      error={!!errors.categoryId}
-                    />
-                    {errors.categoryId && (
-                      <p className="mt-1 text-sm text-red-500">{errors.categoryId}</p>
-                    )}
-                    {selectedCategory && !selectedCategory.requiresSubcategory && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        ✓ This category doesn't require subcategories
-                      </p>
+
+                    {/* Global Category picker — only shown when no domain selected */}
+                    {!selectedIsDomain && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Category <span className="text-red-500">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowCategoryModal(true)}
+                            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                          >
+                            + Create New
+                          </button>
+                        </div>
+                        <SearchableSelect
+                          value={formData.categoryId}
+                          options={globalCategories.map(c => ({ id: c.id, label: `${c.emoji} ${c.name}` }))}
+                          onChange={(val) => {
+                            setFormData({ ...formData, categoryId: val, subcategoryId: '', subSubcategoryId: '' })
+                            setErrors({ ...errors, categoryId: '' })
+                          }}
+                          placeholder="Select category..."
+                          error={!!errors.categoryId}
+                        />
+                        {errors.categoryId && (
+                          <p className="mt-1 text-sm text-red-500">{errors.categoryId}</p>
+                        )}
+                        {selectedCategory && !selectedCategory.requiresSubcategory && (
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            ✓ This category doesn't require subcategories
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
 

@@ -134,7 +134,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
               quantity: newStock,
               sellingPrice,
               ...(item.costPrice !== null ? { costPrice: Number(item.costPrice) } : {}),
-              // Apply category/domain/supplier changes if the user edited them in the row
+              // Apply name/description/category/domain/supplier changes if edited in the row
+              ...(item.name?.trim() ? { name: item.name.trim() } : {}),
+              customLabel: item.description?.trim() || null,
               ...(validCategoryId ? { categoryId: validCategoryId } : {}),
               ...(item.domainId ? { domainId: item.domainId } : {}),
               ...(item.supplierId ? { supplierId: item.supplierId } : {}),

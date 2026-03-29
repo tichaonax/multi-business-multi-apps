@@ -1669,6 +1669,7 @@ function GroceryPOSContent() {
           ecocashFeeAmount: computedEcocashFee,
         } : {}),
         attributes: {
+          posOrder: true,
           paymentMethod: paymentMethod,
           loyaltyPointsEarned: totals.loyaltyPoints,
           snapEligibleAmount: totals.snapEligibleAmount,
