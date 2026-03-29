@@ -595,6 +595,14 @@ export async function POST(
       }
     })
 
+    // If a domainId was submitted and the category has no domain yet, assign it now
+    if (body.domainId && categoryId) {
+      await prisma.businessCategories.updateMany({
+        where: { id: categoryId, domainId: null },
+        data: { domainId: body.domainId }
+      })
+    }
+
     // Create or update default variant (handle partial updates)
     const existingVariant = await prisma.productVariants.findFirst({
       where: { productId: product.id, name: 'Default' }

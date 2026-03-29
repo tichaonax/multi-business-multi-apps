@@ -41,8 +41,14 @@ async function findOrCreateTargetProduct(
   }
 
   if (!targetProduct) {
+    // Look up the "Received Stock" domain for the target business type
+    const receivedStockDomain = await tx.inventoryDomains.findFirst({
+      where: { name: 'Received Stock', businessType: targetBusiness.type }
+    })
+
+    // Find or create the "Transferred Items" category in the target business
     let targetCategory = await tx.businessCategories.findFirst({
-      where: { businessId: targetBusinessId, isActive: true }
+      where: { businessId: targetBusinessId, name: 'Transferred Items' }
     })
 
     if (!targetCategory) {
@@ -56,8 +62,15 @@ async function findOrCreateTargetProduct(
           emoji: '📦',
           displayOrder: 999,
           isActive: true,
+          domainId: receivedStockDomain?.id || null,
           updatedAt: new Date()
         }
+      })
+    } else if (!targetCategory.domainId && receivedStockDomain) {
+      // Backfill domain on existing category if missing
+      await tx.businessCategories.update({
+        where: { id: targetCategory.id },
+        data: { domainId: receivedStockDomain.id }
       })
     }
 

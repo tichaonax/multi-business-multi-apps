@@ -274,27 +274,28 @@ function GroceryInventoryContent() {
         // BusinessProduct path — use variant data
         const variant = (product.variants || []).find((v: any) => parseFloat(v.price) > 0)
         if (!variant) { showToast('No sellable price set for this item', { type: 'error' }); return }
+        // Use variant.id as productId so POS cart item.id = variant.id (needed for productVariantId in orders)
         addToCart({
-          productId: product.id,
+          productId: variant.id,
           variantId: variant.id,
           name: product.name,
           sku: variant.sku || item.sku || '',
           price: parseFloat(variant.price),
           quantity: 1,
-          attributes: { unit: item.unit || 'each' },
+          attributes: { unit: item.unit || 'each', category: item.category || 'General' },
         })
       } else {
-        // BarcodeInventoryItem path — use item data directly with inv_ prefix
+        // BarcodeInventoryItem path — item.id already has 'inv_' prefix from the inventory API
         if (item.sellPrice <= 0) { showToast('No sellable price set for this item', { type: 'error' }); return }
         addToCart({
-          productId: `inv_${item.id}`,
-          variantId: `inv_${item.id}`,
+          productId: item.id,
+          variantId: item.id,
           name: item.name,
           sku: item.sku || '',
           price: item.sellPrice,
           quantity: 1,
           stock: item.currentStock,
-          attributes: { unit: item.unit || 'each' },
+          attributes: { unit: item.unit || 'each', category: item.category || 'General' },
         })
       }
       showToast(`${item.name} added to cart`, { type: 'success' })

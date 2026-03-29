@@ -208,6 +208,8 @@ function GroceryPOSContent() {
   // Only clear global cart when POS cart goes from non-empty → empty (order completed).
   const posHadItemsRef = useRef(false)
   const syncingFromPOS = useRef(false)
+  // Capture globalCart at mount so load effect can read in-memory items (avoids localStorage race condition)
+  const globalCartAtMountRef = useRef(globalCart)
 
   // Get or create terminal ID for this POS instance
   const [terminalId] = useState(() => {
@@ -264,46 +266,61 @@ function GroceryPOSContent() {
   const [cartLoaded, setCartLoaded] = useState(false)
 
   // Load cart from localStorage on mount (per-business persistence)
+  // Always merges global-cart items added from inventory so they aren't lost
+  // when the POS → global sync fires on load.
   useEffect(() => {
     if (!currentBusinessId) return
 
     try {
       const savedCart = localStorage.getItem(`cart-${currentBusinessId}`)
-      const parsedCart = savedCart ? JSON.parse(savedCart) : []
+      const parsedCart: CartItem[] = savedCart ? JSON.parse(savedCart) : []
+
+      // Use in-memory global cart (from context) — more reliable than localStorage which may lag behind
+      // due to async save effects not having flushed yet at navigation time.
+      const globalItems: any[] = globalCartAtMountRef.current
+
+      const toCartItem = (g: any): CartItem => ({
+        id: g.productId,
+        name: g.name,
+        price: Number(g.price) || 0,
+        quantity: g.quantity || 1,
+        subtotal: (Number(g.price) || 0) * (g.quantity || 1),
+        pluCode: g.sku || undefined,
+        barcode: g.sku || undefined,
+        sku: g.sku || undefined,
+        category: g.attributes?.category || 'General',
+        unitType: 'each' as const,
+        unit: g.attributes?.unit || 'each',
+        taxable: false,
+        weightRequired: false,
+      } as CartItem)
 
       if (parsedCart.length > 0) {
-        // Rehydrate subtotal from price × quantity in case it was lost or is stale
+        // Rehydrate POS cart
         const rehydrated = parsedCart.map((item: CartItem) => ({
           ...item,
           price: Number(item.price) || 0,
           subtotal: (Number(item.price) || 0) * (item.quantity || 1),
         }))
-        setCart(rehydrated)
-        console.log('✅ Cart restored from localStorage:', rehydrated.length, 'items')
-      } else {
-        // POS cart is empty — check if mini cart has items added from inventory
-        try {
-          const globalCartRaw = localStorage.getItem(`global-cart-${currentBusinessId}`)
-          const globalItems = globalCartRaw ? JSON.parse(globalCartRaw) : []
-          if (globalItems.length > 0) {
-            const imported = globalItems.map((g: any) => ({
-              id: g.productId,
-              name: g.name,
-              price: Number(g.price) || 0,
-              quantity: g.quantity || 1,
-              subtotal: (Number(g.price) || 0) * (g.quantity || 1),
-              unit: g.attributes?.unit || 'each',
-              barcode: undefined,
-              pluCode: g.sku || undefined,
-            }))
-            setCart(imported)
-            console.log('✅ Cart imported from mini cart:', imported.length, 'items')
-          } else {
-            setCart([])
-          }
-        } catch {
-          setCart([])
+
+        // Find global-cart items that aren't in the POS cart (added from inventory)
+        const posIds = new Set(rehydrated.map((item: CartItem) => item.id))
+        const inventoryOnly = globalItems.filter((g: any) => !posIds.has(g.productId))
+
+        if (inventoryOnly.length > 0) {
+          setCart([...rehydrated, ...inventoryOnly.map(toCartItem)])
+          console.log(`✅ Cart merged: ${rehydrated.length} POS + ${inventoryOnly.length} inventory items`)
+        } else {
+          setCart(rehydrated)
+          console.log('✅ Cart restored from localStorage:', rehydrated.length, 'items')
         }
+      } else if (globalItems.length > 0) {
+        // POS cart empty — import everything from global cart
+        setCart(globalItems.map(toCartItem))
+        console.log('✅ Cart imported from mini cart:', globalItems.length, 'items')
+      } else {
+        setCart([])
+        console.log('🔄 No saved cart for this business')
       }
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
@@ -3087,7 +3104,14 @@ function GroceryPOSContent() {
 
           {/* Order Summary */}
           <div className="card p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Order Summary</h3>
+              {cart.length > 0 && (
+                <span className="text-sm font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)} item{cart.reduce((sum, item) => sum + item.quantity, 0) !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
 
             {cart.length === 0 ? (
               <div className="text-secondary text-center py-8 text-sm">

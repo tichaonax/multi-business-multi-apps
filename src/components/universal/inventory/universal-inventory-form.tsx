@@ -97,11 +97,15 @@ export function UniversalInventoryForm({
     attributes: {}
   })
 
+  const [domains, setDomains] = useState<Array<{ id: string; name: string; emoji: string }>>([])
+  const [selectedDomainId, setSelectedDomainId] = useState<string>('')
+  const [domainsLoaded, setDomainsLoaded] = useState(false)
   const [categories, setCategories] = useState<Array<{
     id: string
     name: string
     emoji?: string
     color?: string
+    domainId?: string | null
     subcategories?: InventorySubcategory[]
   }>>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -175,6 +179,21 @@ export function UniversalInventoryForm({
     }
   }, [item, categories, formData.categoryId])
 
+  // Fetch domains for this business type
+  const fetchDomains = async () => {
+    try {
+      const res = await fetch(`/api/inventory/domains?businessType=${businessType}`)
+      if (res.ok) {
+        const data = await res.json()
+        setDomains(data.domains || [])
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setDomainsLoaded(true)
+    }
+  }
+
   // Fetch categories with subcategories
   const fetchCategories = async () => {
     try {
@@ -186,9 +205,10 @@ export function UniversalInventoryForm({
           name: cat.name,
           emoji: cat.emoji || cat.icon || '📦',
           color: cat.color || 'gray',
+          domainId: cat.domainId || null,
           subcategories: cat.subcategories || []
         })) || []
-        
+
         setCategories(fetchedCategories)
 
         // Pre-populate subcategories immediately using item?.categoryId (from closure)
@@ -196,6 +216,10 @@ export function UniversalInventoryForm({
         const catId = item?.categoryId || selectedCategory
         if (catId) {
           const cat = fetchedCategories.find((c: any) => c.id === catId)
+          // Pre-select domain from the item's category
+          if (cat?.domainId && !selectedDomainId) {
+            setSelectedDomainId(cat.domainId)
+          }
           if (cat?.subcategories) {
             setAvailableSubcategories(cat.subcategories)
           }
@@ -211,7 +235,9 @@ export function UniversalInventoryForm({
 
   useEffect(() => {
     setCategoriesLoaded(false)
+    setDomainsLoaded(false)
     if (businessId) {
+      fetchDomains()
       fetchCategories()
     }
   }, [businessId])
@@ -286,6 +312,7 @@ export function UniversalInventoryForm({
     const newErrors: Record<string, string> = {}
 
     if (!formData.name.trim()) newErrors.name = 'Name is required'
+    if (!selectedDomainId) newErrors.domainId = 'Domain is required'
     // SKU is optional - backend will auto-generate if not provided
     // if (!formData.sku.trim()) newErrors.sku = 'SKU is required'
     if (!formData.categoryId?.trim()) newErrors.categoryId = 'Category is required'
@@ -328,7 +355,7 @@ export function UniversalInventoryForm({
 
     try {
       // Merge barcodes into formData before submission
-      const submissionData = { ...formData, barcodes, skuMode: isManualSku ? 'manual' : 'auto' }
+      const submissionData = { ...formData, barcodes, skuMode: isManualSku ? 'manual' : 'auto', domainId: selectedDomainId || undefined }
 
       // If onSubmit is provided, let the parent handle the submission
       if (onSubmit) {
@@ -895,20 +922,47 @@ export function UniversalInventoryForm({
                 {errors.name && <p className="text-red-600 text-xs mt-1 font-medium">{errors.name}</p>}
               </div>
 
+              {/* Domain — full width, required */}
+              <div className="col-span-2 xl:col-span-3">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Domain *</label>
+                <select
+                  value={selectedDomainId}
+                  onChange={(e) => {
+                    setSelectedDomainId(e.target.value)
+                    // Reset category if it doesn't belong to the new domain
+                    const cat = categories.find(c => c.id === formData.categoryId)
+                    if (cat && cat.domainId && cat.domainId !== e.target.value) {
+                      handleCategoryChange('')
+                    }
+                    if (errors.domainId) setErrors(prev => ({ ...prev, domainId: '' }))
+                  }}
+                  className={`input-field w-full ${errors.domainId ? 'border-red-500 border-2' : ''}`}
+                  disabled={!domainsLoaded}
+                >
+                  <option value="">Select domain...</option>
+                  {domains.map(d => (
+                    <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
+                  ))}
+                </select>
+                {errors.domainId && <p className="text-red-600 text-xs mt-1 font-medium">{errors.domainId}</p>}
+              </div>
+
               {/* Category + Subcategory — equal width, side by side */}
               <div className="col-span-2 xl:col-span-3 grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
                   <SearchableSelect
-                    options={categories.map(cat => ({
-                      id: cat.id,
-                      name: cat.name,
-                      emoji: cat.emoji,
-                      color: cat.color
-                    }))}
+                    options={categories
+                      .filter(cat => !selectedDomainId || !cat.domainId || cat.domainId === selectedDomainId)
+                      .map(cat => ({
+                        id: cat.id,
+                        name: cat.name,
+                        emoji: cat.emoji,
+                        color: cat.color
+                      }))}
                     value={formData.categoryId || ''}
                     onChange={handleCategoryChange}
-                    placeholder="Select category..."
+                    placeholder={selectedDomainId ? 'Select category...' : 'Select a domain first...'}
                     searchPlaceholder="Search categories..."
                     loading={!categoriesLoaded}
                     error={errors.categoryId}

@@ -225,13 +225,13 @@ function HardwareInventoryContent() {
       const variant = (product.variants || []).find((v: any) => parseFloat(v.price) > 0)
       if (!variant) { showToast('No sellable price set for this item', { type: 'error' }); return }
       addToCart({
-        productId: product.id,
+        productId: variant.id,
         variantId: variant.id,
         name: product.name,
         sku: variant.sku || item.sku || '',
         price: parseFloat(variant.price),
         quantity: 1,
-        attributes: { unit: item.unit || 'each' },
+        attributes: { unit: item.unit || 'each', category: item.category || 'General' },
       })
       showToast(`${item.name} added to cart`, { type: 'success' })
     } catch {

@@ -109,6 +109,7 @@ export async function GET(
       emoji: cat.emoji || '📦', // Use database emoji, fallback to default
       icon: cat.emoji || '📦', // Legacy field for backward compatibility
       color: cat.color || 'gray', // Use database color, fallback to default
+      domainId: cat.domainId || null,
       sortOrder: 1, // Could be added to database schema
       isActive: cat.isActive,
       itemCount: cat._count.business_products,
