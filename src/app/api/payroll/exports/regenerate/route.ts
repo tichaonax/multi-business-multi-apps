@@ -68,6 +68,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Fetch per diem for this period, grouped by employee
+    const perDiemRows = await prisma.perDiemEntries.groupBy({
+      by: ['employeeId'],
+      where: {
+        payrollYear: period.year,
+        payrollMonth: period.month,
+        approvalStatus: { in: ['approved', 'pending'] },
+        ...(employeeIds.length > 0 ? { employeeId: { in: employeeIds as string[] } } : {}),
+      },
+      _sum: { amount: true }
+    })
+    const perDiemByEmployee: Record<string, number> = {}
+    for (const row of perDiemRows) {
+      if (row.employeeId) perDiemByEmployee[row.employeeId] = Number(row._sum.amount ?? 0)
+    }
+
     for (const entry of period.payroll_entries) {
       // attach the employee's latest contract if available
       const contract = entry.employeeId ? latestContractByEmployee[entry.employeeId] : null
@@ -113,7 +129,8 @@ export async function POST(req: NextRequest) {
   netPay: Number(totals.netPay ?? netComputed),
         // attach resolved contract and employee objects for generator to use
         contract: contract || null,
-        employee: entry.employee || null
+        employee: entry.employee || null,
+        perDiem: entry.employeeId ? (perDiemByEmployee[entry.employeeId] || 0) : 0
       })
     }
 
@@ -192,6 +209,7 @@ export async function POST(req: NextRequest) {
       baseSalary: Number(entry.baseSalary || 0),
       commission: Number(entry.commission || 0),
       overtimePay: Number(entry.overtimePay || 0),
+      perDiem: Number(entry.perDiem || 0),
       advanceDeductions: Number(entry.advanceDeductions || 0),
       loanDeductions: Number(entry.loanDeductions || 0),
       miscDeductions: Number(entry.miscDeductions || 0),
