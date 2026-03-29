@@ -20,6 +20,8 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { useGlobalCart } from '@/contexts/global-cart-context'
+import { useToastContext } from '@/components/ui/toast'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 
@@ -38,6 +40,8 @@ function HardwareInventoryContent() {
   const router = useRouter()
   const customAlert = useAlert()
   const confirm = useConfirm()
+  const { addToCart } = useGlobalCart()
+  const { push: showToast } = useToastContext()
 
   // Use the business permissions context for proper business management
   const {
@@ -211,6 +215,29 @@ function HardwareInventoryContent() {
     { id: 'alerts', label: 'Alerts & Reorders', icon: '⚠️' },
     { id: 'reports', label: 'Analytics', icon: '📈' }
   ]
+
+  const handleItemAddToCart = async (item: any) => {
+    try {
+      const res = await fetch(`/api/universal/products?businessId=${businessId}&productId=${item.id}&includeVariants=true`)
+      const result = await res.json()
+      const product = result.data?.[0]
+      if (!product) { showToast('Product not found', { type: 'error' }); return }
+      const variant = (product.variants || []).find((v: any) => parseFloat(v.price) > 0)
+      if (!variant) { showToast('No sellable price set for this item', { type: 'error' }); return }
+      addToCart({
+        productId: product.id,
+        variantId: variant.id,
+        name: product.name,
+        sku: variant.sku || item.sku || '',
+        price: parseFloat(variant.price),
+        quantity: 1,
+        attributes: { unit: item.unit || 'each' },
+      })
+      showToast(`${item.name} added to cart`, { type: 'success' })
+    } catch {
+      showToast('Failed to add item to cart', { type: 'error' })
+    }
+  }
 
   const handleItemEdit = (item: any) => {
     setSelectedItem(item)
@@ -479,6 +506,7 @@ function HardwareInventoryContent() {
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
+                      onItemAddToCart={handleItemAddToCart}
                       refreshTrigger={refreshKey}
                       showActions={true}
                       layout="table"

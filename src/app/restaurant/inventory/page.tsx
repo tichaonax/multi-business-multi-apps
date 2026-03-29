@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
+import { useGlobalCart } from '@/contexts/global-cart-context'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 
@@ -61,6 +62,7 @@ function RestaurantInventoryContent() {
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
 
   const toast = useToastContext()
+  const { addToCart } = useGlobalCart()
 
   useEffect(() => {
     fetch('/api/admin/seed-categories?businessType=restaurant')
@@ -631,6 +633,28 @@ function RestaurantInventoryContent() {
                     onItemEdit={(item) => {
                       setSelectedItem(item)
                       setShowAddForm(true)
+                    }}
+                    onItemAddToCart={async (item) => {
+                      try {
+                        const res = await fetch(`/api/universal/products?businessId=${businessId}&productId=${item.id}&includeVariants=true`)
+                        const result = await res.json()
+                        const product = result.data?.[0]
+                        if (!product) { toast.push('Product not found', { type: 'error' }); return }
+                        const variant = (product.variants || []).find((v: any) => parseFloat(v.price) > 0)
+                        if (!variant) { toast.push('No sellable price set for this item', { type: 'error' }); return }
+                        addToCart({
+                          productId: product.id,
+                          variantId: variant.id,
+                          name: product.name,
+                          sku: variant.sku || item.sku || '',
+                          price: parseFloat(variant.price),
+                          quantity: 1,
+                          attributes: { unit: item.unit || 'each' },
+                        })
+                        toast.push(`${item.name} added to cart`, { type: 'success' })
+                      } catch {
+                        toast.push('Failed to add item to cart', { type: 'error' })
+                      }
                     }}
                   />
                 </div>

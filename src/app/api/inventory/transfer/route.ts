@@ -258,7 +258,10 @@ export async function POST(request: NextRequest) {
               bogoActive: false,
               bogoRatio: 1,
               isActive: true,
-              notes: `Transferred from ${sourceBusiness.name} (${bale.batchNumber})`,
+              // Preserve original bale description; append transfer info
+              notes: bale.notes
+                ? `${bale.notes} [from ${sourceBusiness.name}]`
+                : `Transferred from ${sourceBusiness.name} (${bale.batchNumber})`,
             }
           })
 

@@ -18,6 +18,8 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { useGlobalCart } from '@/contexts/global-cart-context'
+import { useToastContext } from '@/components/ui/toast'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
@@ -107,6 +109,8 @@ function GroceryInventoryContent() {
   const router = useRouter()
   const customAlert = useAlert()
   const confirm = useConfirm()
+  const { addToCart } = useGlobalCart()
+  const { push: showToast } = useToastContext()
 
   const {
     currentBusiness,
@@ -259,6 +263,45 @@ function GroceryInventoryContent() {
     { id: 'reports', label: 'Analytics', icon: '📈' },
     { id: 'transfers', label: 'Transfer History', icon: '🔀' }
   ]
+
+  const handleItemAddToCart = async (item: any) => {
+    try {
+      const res = await fetch(`/api/universal/products?businessId=${currentBusinessId}&productId=${item.id}&includeVariants=true`)
+      const result = await res.json()
+      const product = result.data?.[0]
+
+      if (product) {
+        // BusinessProduct path — use variant data
+        const variant = (product.variants || []).find((v: any) => parseFloat(v.price) > 0)
+        if (!variant) { showToast('No sellable price set for this item', { type: 'error' }); return }
+        addToCart({
+          productId: product.id,
+          variantId: variant.id,
+          name: product.name,
+          sku: variant.sku || item.sku || '',
+          price: parseFloat(variant.price),
+          quantity: 1,
+          attributes: { unit: item.unit || 'each' },
+        })
+      } else {
+        // BarcodeInventoryItem path — use item data directly with inv_ prefix
+        if (item.sellPrice <= 0) { showToast('No sellable price set for this item', { type: 'error' }); return }
+        addToCart({
+          productId: `inv_${item.id}`,
+          variantId: `inv_${item.id}`,
+          name: item.name,
+          sku: item.sku || '',
+          price: item.sellPrice,
+          quantity: 1,
+          stock: item.currentStock,
+          attributes: { unit: item.unit || 'each' },
+        })
+      }
+      showToast(`${item.name} added to cart`, { type: 'success' })
+    } catch {
+      showToast('Failed to add item to cart', { type: 'error' })
+    }
+  }
 
   const handleItemEdit = (item: any) => {
     setSelectedItem(item)
@@ -476,6 +519,7 @@ function GroceryInventoryContent() {
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
+                      onItemAddToCart={handleItemAddToCart}
                       refreshTrigger={refreshKey}
                       headerActions={(
                         <div className="flex items-center gap-2">

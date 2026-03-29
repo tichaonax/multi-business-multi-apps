@@ -44,7 +44,9 @@ interface POSItem {
   name: string
   barcode?: string
   pluCode?: string
+  sku?: string
   category: string
+  categoryId?: string  // for desk mode category filtering
   unitType: 'each' | 'weight' | 'volume'
   price: number
   unit: string
@@ -56,6 +58,7 @@ interface POSItem {
   loyaltyPoints?: number
   imageUrl?: string  // Product image for customer display
   baleId?: string   // set for bale items transferred from clothing
+  stockQuantity?: number  // from desk-products API
 }
 
 interface CartItem extends POSItem {
@@ -93,6 +96,14 @@ function GroceryPOSContent() {
   const [currentWeight, setCurrentWeight] = useState(0)
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
+  const [scaleVisible, setScaleVisible] = useState(false)
+  const [deskMode, setDeskMode] = useState(true)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [productStatsMap, setProductStatsMap] = useState<Map<string, { soldToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>>(new Map())
+  const [deskSearchTerm, setDeskSearchTerm] = useState('')
+  const [deskProducts, setDeskProducts] = useState<POSItem[]>([])
+  const [deskCategories, setDeskCategories] = useState<{ key: string; label: string; emoji: string; stockTotal: number }[]>([])
+  const [deskProductsLoading, setDeskProductsLoading] = useState(true)
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [showScanner, setShowScanner] = useState(false)
   const [quickStockBarcode, setQuickStockBarcode] = useState<string | null>(null)
@@ -109,6 +120,10 @@ function GroceryPOSContent() {
   const [processingPayment, setProcessingPayment] = useState(false)
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [dailySales, setDailySales] = useState<any>(null)
+  const [yesterdaySales, setYesterdaySales] = useState<any>(null)
+  const [dayBeforeYesterdaySales, setDayBeforeYesterdaySales] = useState<any>(null)
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([])
+  const [loadingRecent, setLoadingRecent] = useState(false)
   const [financialRefreshKey, setFinancialRefreshKey] = useState(0)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [isAutoAdding, setIsAutoAdding] = useState(false)
@@ -254,8 +269,9 @@ function GroceryPOSContent() {
 
     try {
       const savedCart = localStorage.getItem(`cart-${currentBusinessId}`)
-      if (savedCart) {
-        const parsedCart = JSON.parse(savedCart)
+      const parsedCart = savedCart ? JSON.parse(savedCart) : []
+
+      if (parsedCart.length > 0) {
         // Rehydrate subtotal from price × quantity in case it was lost or is stale
         const rehydrated = parsedCart.map((item: CartItem) => ({
           ...item,
@@ -265,13 +281,33 @@ function GroceryPOSContent() {
         setCart(rehydrated)
         console.log('✅ Cart restored from localStorage:', rehydrated.length, 'items')
       } else {
-        // CRITICAL: Clear cart when switching to a business with no saved cart
-        setCart([])
-        console.log('🔄 Switched to business with no saved cart - cart cleared')
+        // POS cart is empty — check if mini cart has items added from inventory
+        try {
+          const globalCartRaw = localStorage.getItem(`global-cart-${currentBusinessId}`)
+          const globalItems = globalCartRaw ? JSON.parse(globalCartRaw) : []
+          if (globalItems.length > 0) {
+            const imported = globalItems.map((g: any) => ({
+              id: g.productId,
+              name: g.name,
+              price: Number(g.price) || 0,
+              quantity: g.quantity || 1,
+              subtotal: (Number(g.price) || 0) * (g.quantity || 1),
+              unit: g.attributes?.unit || 'each',
+              barcode: undefined,
+              pluCode: g.sku || undefined,
+            }))
+            setCart(imported)
+            console.log('✅ Cart imported from mini cart:', imported.length, 'items')
+          } else {
+            setCart([])
+          }
+        } catch {
+          setCart([])
+        }
       }
     } catch (error) {
       console.error('Failed to load cart from localStorage:', error)
-      setCart([]) // Clear cart on error
+      setCart([])
     } finally {
       setCartLoaded(true)
     }
@@ -288,6 +324,30 @@ function GroceryPOSContent() {
       console.error('Failed to save cart to localStorage:', error)
     }
   }, [cart, currentBusinessId, cartLoaded])
+
+  // Restore + persist scaleVisible preference per business
+  useEffect(() => {
+    if (!currentBusinessId) return
+    const stored = localStorage.getItem(`grocery-pos-scale-${currentBusinessId}`)
+    if (stored !== null) setScaleVisible(stored === 'true')
+  }, [currentBusinessId])
+
+  useEffect(() => {
+    if (!currentBusinessId) return
+    localStorage.setItem(`grocery-pos-scale-${currentBusinessId}`, String(scaleVisible))
+  }, [scaleVisible, currentBusinessId])
+
+  // Restore + persist deskMode preference per business (defaults to true)
+  useEffect(() => {
+    if (!currentBusinessId) return
+    const stored = localStorage.getItem(`grocery-pos-deskmode-${currentBusinessId}`)
+    setDeskMode(stored !== null ? stored === 'true' : true)
+  }, [currentBusinessId])
+
+  useEffect(() => {
+    if (!currentBusinessId) return
+    localStorage.setItem(`grocery-pos-deskmode-${currentBusinessId}`, String(deskMode))
+  }, [deskMode, currentBusinessId])
 
   // Notify customer display when selected customer changes
   useEffect(() => {
@@ -308,6 +368,11 @@ function GroceryPOSContent() {
     toast.push(`Reward applied: ${customerRewards[0].couponCode}`, { type: 'success' })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerRewards])
+
+  // Clear EcoCash transaction code whenever cart empties (payment complete, void, or mini-cart clear)
+  useEffect(() => {
+    if (cart.length === 0) setEcocashTxCode('')
+  }, [cart.length])
 
   // Sync POS cart to global cart to keep mini cart in sync
   useEffect(() => {
@@ -339,11 +404,31 @@ function GroceryPOSContent() {
     }
   }, [cart, currentBusinessId, cartLoaded, replaceGlobalCart])
 
-  // Reverse sync: if mini cart is cleared externally, clear the POS cart too
+  // Reverse sync: reflect mini cart quantity changes (and clears) back to POS cart
   useEffect(() => {
     if (!currentBusinessId || !cartLoaded || syncingFromPOS.current) return
     if (globalCart.length === 0 && cart.length > 0) {
+      // Mini cart cleared externally — clear POS cart too
       setCart([])
+      return
+    }
+    if (globalCart.length > 0 && cart.length > 0) {
+      // Sync quantity changes made in the mini cart back to the POS cart
+      let changed = false
+      const updatedCart = cart.map(item => {
+        const globalItem = globalCart.find(g => g.productId === item.id)
+        if (globalItem && globalItem.quantity !== item.quantity) {
+          changed = true
+          return { ...item, quantity: globalItem.quantity, subtotal: item.price * globalItem.quantity }
+        }
+        return item
+      }).filter(item => {
+        // Remove items deleted from mini cart
+        const stillInGlobal = globalCart.some(g => g.productId === item.id)
+        if (!stillInGlobal) changed = true
+        return stillInGlobal
+      })
+      if (changed) setCart(updatedCart)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalCart, currentBusinessId, cartLoaded])
@@ -788,6 +873,52 @@ function GroceryPOSContent() {
     fetchProducts()
   }, [currentBusinessId, fetchProducts])
 
+  // Fetch per-product stats for desk mode performance bars
+  const fetchProductStats = useCallback(async () => {
+    if (!currentBusinessId) return
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const res = await fetch(`/api/grocery/product-stats?businessId=${currentBusinessId}&timezone=${encodeURIComponent(tz)}`)
+      if (!res.ok) return
+      const result = await res.json()
+      if (result.success && Array.isArray(result.data)) {
+        const map = new Map<string, { soldToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>()
+        result.data.forEach((s: any) => map.set(s.productId, s))
+        setProductStatsMap(map)
+      }
+    } catch (e) {
+      console.error('[grocery-pos] fetchProductStats error:', e)
+    }
+  }, [currentBusinessId])
+
+  // Fetch desk products (BarcodeInventoryItems) for desk mode grid
+  const fetchDeskProducts = useCallback(async () => {
+    if (!currentBusinessId) return
+    setDeskProductsLoading(true)
+    try {
+      const res = await fetch(`/api/grocery/desk-products?businessId=${currentBusinessId}`)
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.success) {
+        setDeskProducts(data.items)
+        setDeskCategories(data.categories)
+      }
+    } catch (e) {
+      console.error('[grocery-pos] fetchDeskProducts error:', e)
+    } finally {
+      setDeskProductsLoading(false)
+    }
+  }, [currentBusinessId])
+
+  // Fetch stats + desk products when desk mode activates
+  useEffect(() => {
+    if (deskMode && currentBusinessId) {
+      fetchProductStats()
+      fetchDeskProducts()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deskMode, currentBusinessId])
+
   // Manual cart helpers
   const addToManualCart = (item: ManualCartItem) => {
     setManualCart(prev => {
@@ -969,25 +1100,71 @@ function GroceryPOSContent() {
     return () => clearInterval(interval)
   }, [isScaleConnected])
 
-  // Load daily sales
+  // Load daily sales (today + yesterday + day before for comparison)
   const loadDailySales = async () => {
     if (!currentBusinessId) return
 
     try {
-      const response = await fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=grocery&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
-      if (response.ok) {
-        const data = await response.json()
+      const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const yStr = yesterday.toISOString().split('T')[0]
+      const dayBefore = new Date()
+      dayBefore.setDate(dayBefore.getDate() - 2)
+      const dbStr = dayBefore.toISOString().split('T')[0]
+
+      const [todayRes, yRes, dbRes] = await Promise.allSettled([
+        fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=grocery&timezone=${tz}`),
+        fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=grocery&timezone=${tz}&date=${yStr}`),
+        fetch(`/api/universal/daily-sales?businessId=${currentBusinessId}&businessType=grocery&timezone=${tz}&date=${dbStr}`)
+      ])
+      if (todayRes.status === 'fulfilled' && todayRes.value.ok) {
+        const data = await todayRes.value.json()
         setDailySales(data.data)
+      }
+      if (yRes.status === 'fulfilled' && yRes.value.ok) {
+        const yData = await yRes.value.json()
+        setYesterdaySales(yData.data)
+      }
+      if (dbRes.status === 'fulfilled' && dbRes.value.ok) {
+        const dbData = await dbRes.value.json()
+        setDayBeforeYesterdaySales(dbData.data)
       }
     } catch (error) {
       console.error('Failed to load daily sales:', error)
     }
   }
 
-  // Load daily sales on mount
+  // Load last 5 transactions for today
+  const loadRecentTransactions = async () => {
+    if (!currentBusinessId) return
+    setLoadingRecent(true)
+    try {
+      const params = new URLSearchParams({
+        businessId: currentBusinessId,
+        includeItems: 'true',
+        limit: '5',
+        page: '1',
+        dateRange: 'today',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      })
+      const response = await fetch(`/api/universal/orders?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) setRecentTransactions(data.data || [])
+      }
+    } catch (error) {
+      console.error('Failed to load recent transactions:', error)
+    } finally {
+      setLoadingRecent(false)
+    }
+  }
+
+  // Load daily sales and recent transactions on mount
   useEffect(() => {
     if (currentBusinessId) {
       loadDailySales()
+      loadRecentTransactions()
     }
   }, [currentBusinessId])
 
@@ -1552,11 +1729,13 @@ function GroceryPOSContent() {
 
         // Show receipt modal
         setShowReceiptModal(true)
-        // Reload daily sales and products (to update WiFi token counts) after order completion
+        // Reload daily sales, recent transactions, and products after order completion
         setTimeout(() => {
           loadDailySales()
+          loadRecentTransactions()
           fetchProducts() // Refresh WiFi token availability badges
           setFinancialRefreshKey(k => k + 1)
+          if (deskMode) { fetchProductStats(); fetchDeskProducts() } // Refresh desk mode performance bars + stock counts
         }, 500)
       } else {
         throw new Error(result.error || 'Failed to process order')
@@ -2063,8 +2242,12 @@ function GroceryPOSContent() {
         <div className="mb-6 space-y-3">
           <DailySalesWidget
             dailySales={dailySales}
+            yesterdaySales={yesterdaySales}
+            dayBeforeYesterdaySales={dayBeforeYesterdaySales}
+            recentTransactions={recentTransactions}
+            loadingRecent={loadingRecent}
             businessType="grocery"
-            onRefresh={loadDailySales}
+            onRefresh={() => { loadDailySales(); loadRecentTransactions() }}
             businessId={currentBusinessId || undefined}
             canCloseBooks={isAdmin || hasPermission('canCloseBooks')}
             managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
@@ -2103,31 +2286,65 @@ function GroceryPOSContent() {
         )}
       </div>
 
-      {/* Live / Manual Entry Mode Toggle */}
-      {(isAdmin || hasPermission('canEnterManualOrders')) && (
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit mb-4">
-          <button
-            onClick={() => setPosMode('live')}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              posMode === 'live'
-                ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            Live POS
-          </button>
-          <button
-            onClick={() => setPosMode('manual')}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              posMode === 'manual'
-                ? 'bg-white dark:bg-gray-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            Manual Entry
-          </button>
-        </div>
-      )}
+      {/* Toolbar — mode toggle | view toggles */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {/* POS mode toggle (Live / Manual) */}
+        {(isAdmin || hasPermission('canEnterManualOrders')) && (
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
+            <button
+              onClick={() => setPosMode('live')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                posMode === 'live'
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              Live POS
+            </button>
+            <button
+              onClick={() => setPosMode('manual')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                posMode === 'manual'
+                  ? 'bg-white dark:bg-gray-700 text-orange-600 dark:text-orange-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              Manual Entry
+            </button>
+          </div>
+        )}
+
+        {/* Divider */}
+        {(isAdmin || hasPermission('canEnterManualOrders')) && (
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
+        )}
+
+        {/* Scale toggle */}
+        <button
+          onClick={() => setScaleVisible(v => !v)}
+          title={scaleVisible ? 'Hide digital scale' : 'Show digital scale'}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+            scaleVisible
+              ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
+              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+          }`}
+        >
+          ⚖️ Scale
+        </button>
+
+        {/* Desk mode toggle */}
+        <button
+          onClick={() => setDeskMode(v => !v)}
+          title={deskMode ? 'Switch to scan mode' : 'Switch to desk mode (product badges)'}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+            deskMode
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+          }`}
+        >
+          🖥️ {deskMode ? 'Desk Mode ON' : 'Desk Mode'}
+        </button>
+      </div>
     </ContentLayout>
 
     {/* Grids rendered outside ContentLayout so sticky right panel works (matches restaurant/clothing POS pattern) */}
@@ -2162,10 +2379,11 @@ function GroceryPOSContent() {
         {/* Main POS Area */}
         <div className="lg:col-span-2 space-y-4">
           {/* Product Entry */}
-          <div className="card p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-4">Product Entry</h3>
+          <div className={`card ${deskMode ? 'pt-0 px-4 sm:px-6 pb-4' : 'p-4 sm:p-6'}`}>
+            {!deskMode && <h3 className="text-lg font-semibold mb-4">Product Entry</h3>}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* Barcode + PLU entry — hidden in desk mode (use search + product badges instead) */}
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 ${deskMode ? 'hidden' : ''}`}>
               {/* Barcode Scanner */}
               <div>
                 <label className="block text-sm font-medium text-secondary mb-2">
@@ -2292,37 +2510,39 @@ function GroceryPOSContent() {
               </div>
             </div>
 
-            {/* Scale Display */}
-            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">⚖️</span>
-                  <span className="font-medium">Digital Scale</span>
-                  <span className={`inline-block w-2 h-2 rounded-full ${isScaleConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+            {/* Scale Display — shown only when toggled on and not in desk mode */}
+            {!deskMode && scaleVisible && (
+              <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⚖️</span>
+                    <span className="font-medium">Digital Scale</span>
+                    <span className={`inline-block w-2 h-2 rounded-full ${isScaleConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  </div>
+                  <div className="text-2xl font-mono font-bold min-w-[80px] text-right">
+                    {currentWeight.toFixed(2)} lbs
+                  </div>
                 </div>
-                <div className="text-2xl font-mono font-bold min-w-[80px] text-right">
-                  {currentWeight.toFixed(2)} lbs
+                <div className="mt-2 flex flex-col xs:flex-row gap-2">
+                  <button
+                    onClick={() => setCurrentWeight(0)}
+                    className="w-full xs:w-auto px-3 py-2 bg-gray-600 text-white rounded text-sm"
+                  >
+                    Tare
+                  </button>
+                  <button
+                    onClick={() => setCurrentWeight(Math.random() * 5 + 0.1)}
+                    className="w-full xs:w-auto px-3 py-2 bg-blue-600 text-white rounded text-sm"
+                  >
+                    Simulate Weight
+                  </button>
                 </div>
               </div>
-              <div className="mt-2 flex flex-col xs:flex-row gap-2">
-                <button
-                  onClick={() => setCurrentWeight(0)}
-                  className="w-full xs:w-auto px-3 py-2 bg-gray-600 text-white rounded text-sm"
-                >
-                  Tare
-                </button>
-                <button
-                  onClick={() => setCurrentWeight(Math.random() * 5 + 0.1)}
-                  className="w-full xs:w-auto px-3 py-2 bg-blue-600 text-white rounded text-sm"
-                >
-                  Simulate Weight
-                </button>
-              </div>
-            </div>
+            )}
 
             {/* Quick Add Buttons for Common Items */}
-            {/* WiFi Token Tabs - Only show if at least one integration is enabled */}
-            {(esp32IntegrationEnabled || r710IntegrationEnabled) && (
+            {/* WiFi Token Tabs - Only show in normal (non-desk) mode when integration is enabled */}
+            {!deskMode && (esp32IntegrationEnabled || r710IntegrationEnabled) && (
               <div className="mb-3 flex gap-2 border-b border-gray-200 dark:border-gray-700">
                 {esp32IntegrationEnabled && (
                   <button
@@ -2351,58 +2571,240 @@ function GroceryPOSContent() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {productsLoading ? (
+            {/* Desk mode: sticky category tabs + search — edge-to-edge with product grid */}
+            {deskMode && (() => {
+              const allTabs: { key: string; label: string }[] = [
+                { key: '__all__', label: 'All' },
+                ...deskCategories.map(c => ({ key: c.key, label: `${c.emoji} ${c.label}` })),
+                ...(esp32IntegrationEnabled || r710IntegrationEnabled ? [{ key: '__wifi__', label: '📶 WiFi' }] : []),
+              ]
+              const activeTab = selectedCategory ?? '__all__'
+              return (
+                <div className="sticky top-20 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
+                  {/* Category tabs — restaurant POS style */}
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 mb-2">
+                    {allTabs.map(tab => (
+                      <button
+                        key={tab.key}
+                        onClick={() => { setSelectedCategory(tab.key === '__all__' ? null : tab.key); setDeskSearchTerm('') }}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          activeTab === tab.key
+                            ? 'bg-blue-600 text-white'
+                            : 'card text-primary dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Search */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={deskSearchTerm}
+                      onChange={e => setDeskSearchTerm(e.target.value)}
+                      placeholder="Search products..."
+                      className="w-full border rounded-lg px-3 py-2 pl-8 text-sm focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                    />
+                    <span className="absolute left-2.5 top-2.5 text-gray-400 text-sm">🔍</span>
+                    {deskSearchTerm && (
+                      <button onClick={() => setDeskSearchTerm('')} className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
+            <div className={deskMode ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3' : 'grid grid-cols-2 sm:grid-cols-4 gap-2'}>
+              {deskMode && deskProductsLoading ? (
                 <div className="col-span-full text-center py-4 text-secondary">
                   Loading products...
                 </div>
-              ) : products.length === 0 ? (
+              ) : !deskMode && productsLoading ? (
+                <div className="col-span-full text-center py-4 text-secondary">
+                  Loading products...
+                </div>
+              ) : deskMode && deskProducts.length === 0 ? (
+                <div className="col-span-full text-center py-4 text-secondary">
+                  No products available
+                </div>
+              ) : !deskMode && products.length === 0 ? (
                 <div className="col-span-full text-center py-4 text-secondary">
                   No products available
                 </div>
               ) : (
                 (() => {
-                  // Filter products based on active WiFi tab
-                  let filteredProducts = products
+                  // Desk mode: use BarcodeInventoryItems; normal mode: use BusinessProducts
+                  let filteredProducts: POSItem[] = deskMode ? [...deskProducts] : [...products]
 
-                  // If WiFi integration is enabled, filter by active tab
-                  if (esp32IntegrationEnabled || r710IntegrationEnabled) {
+                  // Normal mode: if WiFi integration is enabled, filter by active tab only
+                  if (!deskMode && (esp32IntegrationEnabled || r710IntegrationEnabled)) {
                     filteredProducts = products.filter((product) => {
                       const isESP32Token = (product as any).wifiToken === true
                       const isR710Token = (product as any).r710Token === true
-
-                      // Show WiFi tokens matching the active tab
-                      if (activeWiFiTab === 'esp32') {
-                        return isESP32Token
-                      } else if (activeWiFiTab === 'r710') {
-                        return isR710Token
-                      }
-
+                      if (activeWiFiTab === 'esp32') return isESP32Token
+                      else if (activeWiFiTab === 'r710') return isR710Token
                       return false
                     })
                   }
 
-                  // Display first 4 filtered products
-                  return filteredProducts.slice(0, 4).map((product) => (
+                  // Desk mode: filter by category tab or search
+                  if (deskMode) {
+                    if (selectedCategory === '__wifi__') {
+                      // WiFi tab: show WiFi products from the regular products list
+                      filteredProducts = products.filter(p => (p as any).wifiToken || (p as any).r710Token)
+                    } else if (selectedCategory) {
+                      // Specific inventory category
+                      filteredProducts = filteredProducts.filter(p => p.categoryId === selectedCategory)
+                    }
+                    // Apply search
+                    if (deskSearchTerm.trim()) {
+                      const term = deskSearchTerm.toLowerCase()
+                      filteredProducts = filteredProducts.filter(p =>
+                        p.name.toLowerCase().includes(term) ||
+                        (p.barcode && p.barcode.toLowerCase().includes(term)) ||
+                        (p.sku && p.sku.toLowerCase().includes(term)) ||
+                        (p.pluCode && p.pluCode.toLowerCase().includes(term))
+                      )
+                    }
+                  }
+
+                  // Desk mode: sort by performance (soldToday desc, then firstSoldTodayAt asc, then unsold)
+                  if (deskMode && productStatsMap.size > 0) {
+                    filteredProducts = [...filteredProducts].sort((a, b) => {
+                      const sa = productStatsMap.get(a.id)
+                      const sb = productStatsMap.get(b.id)
+                      const aToday = sa?.soldToday ?? 0
+                      const bToday = sb?.soldToday ?? 0
+                      if (aToday > 0 && bToday === 0) return -1
+                      if (bToday > 0 && aToday === 0) return 1
+                      if (aToday > 0 && bToday > 0) {
+                        const aFirst = sa?.firstSoldTodayAt ? new Date(sa.firstSoldTodayAt).getTime() : Infinity
+                        const bFirst = sb?.firstSoldTodayAt ? new Date(sb.firstSoldTodayAt).getTime() : Infinity
+                        return aFirst - bFirst
+                      }
+                      return 0
+                    })
+                  }
+
+                  // Normal mode: show first 4; desk mode: show all
+                  const displayProducts = deskMode ? filteredProducts : filteredProducts.slice(0, 4)
+
+                  return displayProducts.map((product) => {
+                    const cartQty = cart.filter(c => c.id === product.id).reduce((s, c) => s + c.quantity, 0)
+                    return (
                   <div
                     key={product.id}
                     onClick={() => product.weightRequired ?
                       (currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })) :
                       addToCart(product)
                     }
-                    className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm text-primary min-w-0 cursor-pointer"
+                    className={`relative bg-gray-100 dark:bg-gray-700 border rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm text-primary min-w-0 cursor-pointer select-none ${
+                      deskMode
+                        ? `p-4 border-2 ${cartQty > 0 ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600'}`
+                        : 'p-3 border-gray-200 dark:border-gray-600'
+                    }`}
                   >
-                    <div className="font-medium">{product.name}</div>
-                    {/* Only show PLU/Barcode for non-WiFi products */}
-                    {!(product as any).wifiToken && !(product as any).r710Token && (
+                    {/* Cart quantity badge (desk mode only) */}
+                    {deskMode && cartQty > 0 && (
+                      <span className="absolute top-1.5 right-1.5 min-w-[1.25rem] h-5 flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full px-1">
+                        {cartQty}
+                      </span>
+                    )}
+                    <div className={`font-medium ${deskMode ? 'text-base leading-snug mb-1' : ''}`}>
+                      {(product.name === 'Default' || product.name === 'default' || !product.name)
+                        ? (product.barcode && !product.barcode.startsWith('inv_') ? product.barcode : product.pluCode || product.barcode || 'Item')
+                        : product.name}
+                    </div>
+                    {/* Only show PLU/Barcode for non-WiFi products (compact mode only) */}
+                    {!deskMode && !(product as any).wifiToken && !(product as any).r710Token && (
                       <div className="text-secondary">
                         {product.pluCode && `PLU: ${product.pluCode}`}
                         {product.barcode && !product.pluCode && `Barcode`}
                       </div>
                     )}
-                    <div className="font-semibold text-green-600">
-                      {formatCurrency(product.price)}/{product.unit}
-                    </div>
+
+                    {/* Desk mode: price row + sold count badge + revenue */}
+                    {deskMode && !((product as any).wifiToken) && !((product as any).r710Token) && (() => {
+                      const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+                      const stats = productStatsMap.get(product.id)
+                      const soldToday = stats?.soldToday ?? 0
+                      const soldYesterday = stats?.soldYesterday ?? 0
+                      const soldDayBefore = stats?.soldDayBefore ?? 0
+                      const showBar = soldToday > 0
+
+                      let barColorClass = 'bg-red-500'
+                      let barTextColorClass = 'text-red-500 dark:text-red-400'
+                      let barFill = 0
+                      let barLabel = 'Low'
+
+                      if (showBar) {
+                        if (soldYesterday > 0) {
+                          const ratio = soldToday / soldYesterday
+                          if (ratio >= 1.0) {
+                            barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-600 dark:text-green-400'
+                            barFill = 100; barLabel = 'Good'
+                          } else if (ratio >= 0.5) {
+                            barColorClass = 'bg-amber-400'; barTextColorClass = 'text-amber-600 dark:text-amber-400'
+                            barFill = ratio * 100; barLabel = 'Fair'
+                          } else {
+                            barColorClass = 'bg-red-500'; barTextColorClass = 'text-red-500 dark:text-red-400'
+                            barFill = ratio * 100; barLabel = 'Low'
+                          }
+                        } else {
+                          barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-600 dark:text-green-400'
+                          barFill = 60; barLabel = 'New'
+                        }
+                      }
+
+                      return (
+                        <div className="mt-1 space-y-1">
+                          {/* Price + sold badge + revenue */}
+                          <div className="flex items-center justify-between gap-1 flex-wrap">
+                            <span className="font-semibold text-green-600 text-sm">{formatCurrency(product.price)}/{product.unit}</span>
+                            {showBar && (
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300`}>
+                                  {soldToday} sold
+                                </span>
+                                {canSeeFinancials && (
+                                  <span className={`text-xs font-semibold ${barTextColorClass}`}>
+                                    {formatCurrency(product.price * soldToday)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {/* Performance bar */}
+                          {showBar && (
+                            <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${barColorClass}`}
+                                style={{ width: `${Math.max(barFill, 4)}%` }}
+                              />
+                            </div>
+                          )}
+                          {/* Yesterday context + stock count */}
+                          <div className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500">
+                            {showBar && soldYesterday > 0 ? (
+                              <span>yesterday: {soldYesterday}{soldDayBefore > 0 ? ` · 2d: ${soldDayBefore}` : ''}</span>
+                            ) : <span />}
+                            {product.stockQuantity !== undefined && (
+                              <span className={product.stockQuantity < 5 ? 'text-orange-500 font-medium' : ''}>
+                                {product.stockQuantity} in stock
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Compact mode price — also shown for WiFi tokens in desk mode (they skip the stats block) */}
+                    {(!deskMode || (product as any).wifiToken || (product as any).r710Token) && (
+                      <div className="font-semibold text-green-600">
+                        {formatCurrency(product.price)}/{product.unit}
+                      </div>
+                    )}
                     {/* WiFi token details - Duration and Bandwidth (ESP32 only) */}
                     {(product as any).wifiToken && (product as any).tokenConfig && (
                       <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 space-y-0.5">
@@ -2572,50 +2974,13 @@ function GroceryPOSContent() {
                       </div>
                     )}
                   </div>
-                  ))
+                  )
+                  })
                 })()
               )}
             </div>
           </div>
 
-          {/* Shopping Cart */}
-          <div className="card p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-4">Shopping Cart</h3>
-
-            {cart.length === 0 ? (
-              <div className="text-secondary text-center py-8">
-                Cart is empty. Scan or enter items to begin.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {cart.map((item, index) => (
-                  <div key={`${item.id}-${index}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg gap-2">
-                    <div className="flex-1">
-                      <div className="font-medium">{item.name}</div>
-                      {(item.barcode && !item.barcode.startsWith('inv_')) && (
-                        <div className="text-xs text-secondary font-mono">{item.barcode}</div>
-                      )}
-                      <div className="text-sm text-secondary flex gap-4">
-                        <span>{item.quantity.toFixed(item.weightRequired ? 2 : 0)} {item.unit}</span>
-                        <span>{formatCurrency(item.price)}/{item.unit}</span>
-                        {item.organicCertified && <span className="text-green-600">🌱 Organic</span>}
-                        {item.snapEligible && <span className="text-blue-600">SNAP ✓</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                      <div className="font-semibold">{formatCurrency(item.subtotal)}</div>
-                      <button
-                        onClick={() => removeFromCart(item.id)}
-                        className="p-1 text-red-600 hover:bg-red-100 rounded"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Sidebar - Customer & Payment */}
@@ -2733,24 +3098,43 @@ function GroceryPOSContent() {
                 {/* Cart Items */}
                 <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
                   {cart.map((item, index) => (
-                    <div key={`summary-${item.id}-${index}`} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                    <div key={`summary-${item.id}-${index}`} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{item.name}</div>
-                        {(item.barcode && !item.barcode.startsWith('inv_')) && (
-                          <div className="text-xs text-secondary font-mono">{item.barcode}</div>
-                        )}
+                        <div className="text-sm font-medium truncate">
+                          {(item.name === 'Default' || item.name === 'default' || !item.name)
+                            ? ((item.barcode && !item.barcode.startsWith('inv_')) ? item.barcode : item.id)
+                            : item.name}
+                        </div>
                         <div className="text-xs text-secondary">
-                          {item.quantity.toFixed(item.weightRequired ? 2 : 0)} × {formatCurrency(item.price)}
+                          {(item as any).sku ? `${(item as any).sku} · ` : ''}{formatCurrency(item.price)}/{item.unit}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        <span className="font-semibold text-sm whitespace-nowrap">
-                          {formatCurrency(item.subtotal)}
-                        </span>
+                      <div className="flex items-center gap-1">
+                        {!item.weightRequired && (
+                          <>
+                            <button
+                              onClick={() => item.quantity <= 1 ? removeFromCart(item.id) : updateQuantity(item.id, item.quantity - 1)}
+                              className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-600 hover:bg-red-100 dark:hover:bg-red-900/40 text-xs font-bold"
+                            >
+                              −
+                            </button>
+                            <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-600 hover:bg-green-100 dark:hover:bg-green-900/40 text-xs font-bold"
+                            >
+                              +
+                            </button>
+                          </>
+                        )}
+                        {item.weightRequired && (
+                          <span className="text-xs text-secondary">{item.quantity.toFixed(2)} {item.unit}</span>
+                        )}
+                        <span className="font-semibold text-sm whitespace-nowrap w-14 text-right">{formatCurrency(item.subtotal)}</span>
                         <button
                           onClick={() => removeFromCart(item.id)}
-                          className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-xs"
-                          title="Remove item"
+                          className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-xs"
+                          title="Remove"
                         >
                           ✕
                         </button>
