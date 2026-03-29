@@ -24,6 +24,7 @@ interface PayrollEntry {
   baseSalary: number
   commission: number
   overtimePay: number
+  perDiem?: number
   advanceDeductions: number
   loanDeductions: number
   miscDeductions: number
@@ -218,8 +219,9 @@ export function PayrollExportPreviewModal({
     const commission = Number(entry.commission || 0)
     const overtime = Number(entry.overtimePay || 0)
     const adjustments = Number((entry as any).adjustmentsTotal || 0)
+    const perDiem = Number((entry as any).perDiem || 0)
 
-    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + adjustments
+    const grossInclBenefits = baseSalary + commission + overtime + perDiem + benefitsTotal + adjustments
 
     // Prefer stored totalDeductions if present, otherwise compute from deduction fields
     let totalDeductions = Number(entry.totalDeductions || 0)
@@ -276,7 +278,8 @@ export function PayrollExportPreviewModal({
     const absenceDeduction = resolveAbsenceDeduction(entry)
 
   // ALWAYS recalculate gross/net - ignore stored values which may use old formula
-  const gross = baseSalary + commission + overtime + benefitsTotal + additions - (absenceDeduction || 0)
+  const perDiemAmt = Number((entry as any).perDiem || 0)
+  const gross = baseSalary + commission + overtime + perDiemAmt + benefitsTotal + additions - (absenceDeduction || 0)
   const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
   const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
   const totalDeductions = serverTotalDeductions !== derivedTotalDeductions ? derivedTotalDeductions : serverTotalDeductions
@@ -381,6 +384,7 @@ export function PayrollExportPreviewModal({
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Basic Salary</th>
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Commission</th>
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Overtime</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Per Diem</th>
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Adjustments</th>
                       {getUniqueBenefits().map(benefit => (
                         <th key={benefit.benefitTypeId} className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">
@@ -443,6 +447,7 @@ export function PayrollExportPreviewModal({
                             acc.base += Number(e.baseSalary || 0)
                             acc.comm += Number(e.commission || 0)
                             acc.ot += Number(e.overtimePay || 0)
+                            acc.pd += Number((e as any).perDiem || 0)
                             acc.adj += Number((e as any).adjustmentsTotal || 0)
                             acc.abs += resolveAbsenceDeduction(e as any) || 0
                             acc.deds += computeEntryTotalsAligned(e as any).totalDeductions
@@ -450,13 +455,14 @@ export function PayrollExportPreviewModal({
                             acc.gross += computeEntryTotalsAligned(e as any).gross
                             acc.net += computeEntryTotalsAligned(e as any).net
                             return acc
-                          }, { base: 0, comm: 0, ot: 0, adj: 0, abs: 0, deds: 0, bens: 0, gross: 0, net: 0 })
+                          }, { base: 0, comm: 0, ot: 0, pd: 0, adj: 0, abs: 0, deds: 0, bens: 0, gross: 0, net: 0 })
                           return (
                             <tr key={`s-${idx}`} className="bg-gray-100 dark:bg-gray-800 font-semibold">
                               <td className="px-3 py-2 text-sm text-right" colSpan={13}>Group Totals:</td>
                               <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.base)}</td>
                               <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.comm)}</td>
                               <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.ot)}</td>
+                              <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.pd)}</td>
                               <td className="px-3 py-2 text-sm text-right">{formatCurrency(totals.adj)}</td>
                               {getUniqueBenefits().map((b, i) => (
                                 <td key={`g-${i}`} className="px-3 py-2 text-sm text-right">{formatCurrency(0)}</td>
@@ -499,6 +505,7 @@ export function PayrollExportPreviewModal({
                             <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.baseSalary || 0))}</td>
                             <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.commission || 0))}</td>
                             <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number(entry.overtimePay || 0))}</td>
+                            <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number((entry as any).perDiem || 0))}</td>
                             <td className="px-3 py-2 text-sm text-right text-primary">{formatCurrency(Number((entry as any).adjustmentsTotal || 0))}</td>
                             {getUniqueBenefits().map(uniqueBenefit => {
                               const merged = entry.mergedBenefits?.find((mb: any) => {
@@ -539,7 +546,7 @@ export function PayrollExportPreviewModal({
                       <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.baseSalary), 0))}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.commission), 0))}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number(e.overtimePay), 0))}</td>
-                      {/* Add Adjustments total (this column existed in the header but was missing from totals) */}
+                      <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number((e as any).perDiem || 0), 0))}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-primary">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number((e as any).adjustmentsTotal || 0), 0))}</td>
                       {getUniqueBenefits().map(uniqueBenefit => {
                         const total = period.payrollEntries.reduce((sum, entry) => {

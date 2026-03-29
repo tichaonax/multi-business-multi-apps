@@ -808,6 +808,25 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
       const visibleBenefitColumns = Array.from(visibleMap.values()).sort((a, b) => (a.benefitName || '').localeCompare(b.benefitName || ''))
 
+      // Merge approved per diem into each entry so the preview and list both show correct amounts
+      try {
+        const perDiemRows = await prisma.perDiemEntries.groupBy({
+          by: ['employeeId'],
+          where: { payrollYear: period.year, payrollMonth: period.month, approvalStatus: 'approved' },
+          _sum: { amount: true },
+        })
+        const perDiemByEmployee: Record<string, number> = {}
+        for (const row of perDiemRows) {
+          if (row.employeeId) perDiemByEmployee[row.employeeId] = Number(row._sum.amount ?? 0)
+        }
+        enrichedEntries = enrichedEntries.map((e: any) => ({
+          ...e,
+          perDiem: e.employeeId ? (perDiemByEmployee[e.employeeId] || 0) : 0,
+        }))
+      } catch {
+        // non-fatal — per diem stays as 0
+      }
+
       // Recompute period-level aggregates from the enriched entries to avoid
       // returning stale or entry-specific totals that may have been stored on
       // the period row. This ensures the list/summary view reflects the same
