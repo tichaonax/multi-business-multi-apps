@@ -196,9 +196,34 @@ export async function POST(req: NextRequest) {
         allMonths.push(p.month)
 
         // Regenerate entries for past periods, use current data for current period
-        const entries = isCurrentPeriod
+        let entries = isCurrentPeriod
           ? period.payroll_entries // Current period uses already-loaded data
           : await regeneratePeriodEntries(p.id) // Past periods use regeneration
+
+        // Attach per diem amounts to entries for this period
+        try {
+          const tabEmployeeIds = entries.map((e: any) => e.employeeId).filter(Boolean) as string[]
+          if (tabEmployeeIds.length > 0) {
+            const tabPerDiemRows = await prisma.perDiemEntries.groupBy({
+              by: ['employeeId'],
+              where: {
+                payrollYear: p.year,
+                payrollMonth: p.month,
+                approvalStatus: { in: ['approved', 'pending'] },
+                employeeId: { in: tabEmployeeIds },
+              },
+              _sum: { amount: true }
+            })
+            const tabPerDiemMap: Record<string, number> = {}
+            for (const row of tabPerDiemRows) {
+              if (row.employeeId) tabPerDiemMap[row.employeeId] = Number(row._sum.amount ?? 0)
+            }
+            entries = entries.map((e: any) => ({
+              ...e,
+              perDiem: e.employeeId ? (tabPerDiemMap[e.employeeId] || 0) : 0
+            }))
+          }
+        } catch { /* non-fatal */ }
 
         tabs.push({
           period: p,
@@ -346,13 +371,19 @@ export async function POST(req: NextRequest) {
 
     const monthRequiredWorkDays = getWorkingDaysInMonth(period.year, period.month)
 
-    // Fetch approved per diem for this period, grouped by employee
+    // Fetch per diem for this period, grouped by employee
+    // Include approved AND pending (pending at export time should still count for accuracy)
     const perDiemRows = await prisma.perDiemEntries.groupBy({
       by: ['employeeId'],
-      where: { payrollYear: period.year, payrollMonth: period.month, approvalStatus: 'approved' },
+      where: {
+        payrollYear: period.year,
+        payrollMonth: period.month,
+        approvalStatus: { in: ['approved', 'pending'] },
+        ...(employeeIds.length > 0 ? { employeeId: { in: employeeIds as string[] } } : {}),
+      },
       _sum: { amount: true }
     })
-    const perDiemByEmployee: Record<string, number> = {}
+const perDiemByEmployee: Record<string, number> = {}
     for (const row of perDiemRows) {
       if (row.employeeId) perDiemByEmployee[row.employeeId] = Number(row._sum.amount ?? 0)
     }

@@ -85,7 +85,7 @@ async function populateWorksheet(
   const monthName = monthNames[period.month - 1]
 
   // Title rows
-  worksheet.mergeCells('A1:P1')
+  worksheet.mergeCells('A1:Q1')
   const titleCell = worksheet.getCell('A1')
   titleCell.value = businessName
   titleCell.font = { name: 'Calibri', size: 16, bold: true }
@@ -93,7 +93,7 @@ async function populateWorksheet(
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
   worksheet.getRow(1).height = 30
 
-  worksheet.mergeCells('A2:P2')
+  worksheet.mergeCells('A2:Q2')
   const subtitleCell = worksheet.getCell('A2')
   subtitleCell.value = `Payroll Report - ${monthName} ${period.year}${isRegenerated ? ' (Regenerated)' : ''}`
   subtitleCell.font = { name: 'Calibri', size: 12, bold: true }
@@ -108,7 +108,7 @@ async function populateWorksheet(
 
   // Add regeneration notice if applicable
   if (isRegenerated) {
-    worksheet.mergeCells('A4:P4')
+    worksheet.mergeCells('A4:Q4')
     const noticeCell = worksheet.getCell('A4')
     noticeCell.value = 'NOTE: This is a regenerated historical payroll using contract snapshots from the original period creation date.'
     noticeCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF808080' } }
@@ -127,6 +127,7 @@ async function populateWorksheet(
     { key: 'benefits', header: 'Benefits', width: 12 },
     { key: 'commission', header: 'Commission', width: 12 },
     { key: 'overtime', header: 'Overtime', width: 12 },
+    { key: 'perDiem', header: 'Per Diem', width: 12 },
     { key: 'adjustments', header: 'Adjustments', width: 12 },
     { key: 'grossPay', header: 'Gross Pay', width: 12 },
     { key: 'advances', header: 'Advances', width: 12 },
@@ -172,6 +173,7 @@ async function populateWorksheet(
     const benefits = Number(entry.totalBenefitsAmount || 0)
     const commission = Number(entry.commission || 0)
     const overtime = Number(entry.overtimePay || 0)
+    const perDiem = Number(entry.perDiem || 0)
     const adjustments = Number(entry.adjustmentsTotal || 0)
     const grossPay = Number(entry.grossPay || 0)
     const advances = Number(entry.advanceDeductions || 0)
@@ -197,23 +199,25 @@ async function populateWorksheet(
     row.getCell(8).numFmt = '#,##0.00'
     row.getCell(9).value = overtime
     row.getCell(9).numFmt = '#,##0.00'
-    row.getCell(10).value = adjustments
+    row.getCell(10).value = perDiem
     row.getCell(10).numFmt = '#,##0.00'
-    row.getCell(11).value = grossPay
+    row.getCell(11).value = adjustments
     row.getCell(11).numFmt = '#,##0.00'
-    row.getCell(12).value = advances
+    row.getCell(12).value = grossPay
     row.getCell(12).numFmt = '#,##0.00'
-    row.getCell(13).value = loans
+    row.getCell(13).value = advances
     row.getCell(13).numFmt = '#,##0.00'
-    row.getCell(14).value = misc
+    row.getCell(14).value = loans
     row.getCell(14).numFmt = '#,##0.00'
-    row.getCell(15).value = deductions
+    row.getCell(15).value = misc
     row.getCell(15).numFmt = '#,##0.00'
-    row.getCell(16).value = netPay
+    row.getCell(16).value = deductions
     row.getCell(16).numFmt = '#,##0.00'
+    row.getCell(17).value = netPay
+    row.getCell(17).numFmt = '#,##0.00'
 
     // Add borders
-    for (let i = 1; i <= 16; i++) {
+    for (let i = 1; i <= 17; i++) {
       row.getCell(i).border = {
         top: { style: 'thin' },
         left: { style: 'thin' },
@@ -229,18 +233,18 @@ async function populateWorksheet(
   const totalsRow = worksheet.getRow(rowIndex)
   totalsRow.getCell(1).value = 'TOTALS'
   totalsRow.getCell(1).font = { bold: true }
-  totalsRow.getCell(11).value = totalGross
-  totalsRow.getCell(11).numFmt = '#,##0.00'
-  totalsRow.getCell(11).font = { bold: true }
-  totalsRow.getCell(15).value = totalDeductions
-  totalsRow.getCell(15).numFmt = '#,##0.00'
-  totalsRow.getCell(15).font = { bold: true }
-  totalsRow.getCell(16).value = totalNet
+  totalsRow.getCell(12).value = totalGross
+  totalsRow.getCell(12).numFmt = '#,##0.00'
+  totalsRow.getCell(12).font = { bold: true }
+  totalsRow.getCell(16).value = totalDeductions
   totalsRow.getCell(16).numFmt = '#,##0.00'
   totalsRow.getCell(16).font = { bold: true }
+  totalsRow.getCell(17).value = totalNet
+  totalsRow.getCell(17).numFmt = '#,##0.00'
+  totalsRow.getCell(17).font = { bold: true }
 
   // Add borders to totals row
-  for (let i = 1; i <= 16; i++) {
+  for (let i = 1; i <= 17; i++) {
     totalsRow.getCell(i).border = {
       top: { style: 'double' },
       left: { style: 'thin' },

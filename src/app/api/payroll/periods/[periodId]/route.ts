@@ -810,9 +810,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
       // Merge approved per diem into each entry so the preview and list both show correct amounts
       try {
+        const periodEmployeeIds = enrichedEntries.map((e: any) => e.employeeId).filter(Boolean) as string[]
         const perDiemRows = await prisma.perDiemEntries.groupBy({
           by: ['employeeId'],
-          where: { payrollYear: period.year, payrollMonth: period.month, approvalStatus: 'approved' },
+          where: {
+            payrollYear: period.year,
+            payrollMonth: period.month,
+            approvalStatus: { in: ['approved', 'pending'] },
+            ...(periodEmployeeIds.length > 0 ? { employeeId: { in: periodEmployeeIds } } : {}),
+          },
           _sum: { amount: true },
         })
         const perDiemByEmployee: Record<string, number> = {}
