@@ -20,10 +20,13 @@
 12. [Driver & Vehicle Log](#12-driver--vehicle-log)
 13. [WiFi Token Sales — ESP32 and R710](#13-wifi-token-sales--esp32-and-r710)
 14. [Inventory & Barcode Labels](#14-inventory--barcode-labels)
+    - [Predefined Domains & Category Taxonomy](#predefined-domains-categories--sub-categories--all-business-types)
     - [Custom Bulk Products](#custom-bulk-products--complete-guide)
     - [Bulk Stocking Panel & Stock Take](#bulk-stocking-panel--receiving-and-counting-stock)
     - [Used Clothing Bales](#used-clothing-bales--complete-guide)
     - [Barcode Templates](#barcode-templates--creating-and-using-label-designs)
+    - [Adding Inventory Items Directly to Cart](#adding-inventory-items-directly-to-cart)
+    - [Admin — Blocking Stock Take Drafts](#admin--blocking-stock-take-drafts)
 15. [Restaurant Menu Management](#15-restaurant-menu-management)
 15a. [Services as Products](#15a-services-as-products--selling-services-via-barcode)
 16. [Quick Reference Cards](#16-quick-reference-cards)
@@ -31,6 +34,8 @@
 18. [Batch EOD Catch-Up — Manager and Cashier Roles](#18-batch-eod-catch-up--manager-and-cashier-roles)
 19. [Employee Termination Checklist](#employee-termination--full-checklist)
 20. [Team Chat](#20-team-chat)
+21. [Grocery POS — Desk Mode](#21-grocery-pos--desk-mode)
+22. [Expense Account — Quick Payment & My Payment Queue](#22-expense-account--quick-payment--my-payment-queue)
 
 ---
 
@@ -483,8 +488,9 @@ The system automatically pulls in all active employees with their current salary
 
 #### Step 2 — Manager Syncs Attendance and Absences
 
-Before reviewing figures, run **Sync All** to pull in live data:
+Before reviewing figures, run the sync buttons to pull in live data:
 
+**⟳ Sync All** (blue button)
 1. On the payroll period page, click **⟳ Sync All**.
 2. The system processes every employee simultaneously:
    - **Absence sync** — counts recorded absence days from the HR module and applies them as deductions.
@@ -496,6 +502,21 @@ Before reviewing figures, run **Sync All** to pull in live data:
 3. A summary appears: "Synced 12 entries — absences: 4, clock-in adjustments: 7".
 
 > Run Sync All at least once before reviewing entries. You can run it multiple times — it recalculates without duplicating.
+
+**📋 Sync Stock Shortfall** (orange button)
+
+If your business runs stock takes, click this button to pull in any stock shortfall deductions for the period:
+
+1. Click **📋 Sync Stock Shortfall**.
+2. The system finds all fully signed-off stock take reports where the final sign-off date falls within this payroll period.
+3. For each responsible employee on those reports, it calculates their share of the shortfall (total shortfall value ÷ number of responsible employees) and adds it as a deduction.
+4. The deduction appears as **"Stock Shortfall Deductions (N report/s)"** in each affected employee's entry.
+
+> If no signed-off stock take reports fall in this period, clicking the button has no effect and no deduction is applied.
+
+**Per Diem column**
+
+The payroll table includes a **Per Diem** column showing the total per diem approved for each employee in the period. This is fetched live from the Per Diem module and is read-only in the payroll table — to add or correct per diem entries, go to **Employees → Per Diem**.
 
 ---
 
@@ -526,17 +547,20 @@ Click any employee row to open their **Entry Detail**. Here the manager can:
 
 The entry shows a running breakdown:
 ```
-Basic Salary:       $500.00
-Commission:         $  0.00
-Overtime:           $ 12.50
-Per Diem:           $ 45.00
-Benefits:           $ 30.00
-──────────────────────────────
-Gross Pay:          $587.50
-Advances/Loans:   - $ 50.00
-──────────────────────────────
-Net Pay:            $537.50
+Basic Salary:                  $500.00
+Commission:                    $  0.00
+Overtime:                      $ 12.50
+Per Diem:                      $ 45.00
+Benefits:                      $ 30.00
+──────────────────────────────────────
+Gross Pay:                     $587.50
+Advances/Loans:              - $ 50.00
+Stock Shortfall Deductions:  - $  8.25
+──────────────────────────────────────
+Net Pay:                       $529.25
 ```
+
+> **Stock Shortfall Deductions** appear only if the employee was listed as a responsible party on one or more signed-off stock take reports in this period. The amount is calculated automatically when the manager clicks **Sync Stock Shortfall**.
 
 ---
 
@@ -609,13 +633,15 @@ With the period approved, the manager exports the file for the third-party payro
 | Vehicle Reimbursement | Contract allowances |
 | Travel Allowance | Contract allowances |
 | Overtime | Approved overtime adjustments |
-| Per Diem | Per diem entries for the month |
+| **Per Diem** | Per diem entries for the month (from PerDiem module — approved + pending) |
 | Benefits | Total of all active benefits |
 | Advances | Salary advances deducted |
 | Loans | Loan repayments deducted |
 | Gross Pay | Sum of all earnings |
 | Deductions | Advances + loans |
 | Net Gross | Gross Pay − Deductions |
+
+> **Per Diem in the export:** Per diem values are sourced directly from the Per Diem module (approved and pending entries for the month). They are included in both the **single-month export** and the **Year-to-Date multi-tab export**. Use the **Regenerate Export** button to re-download an already-exported period — the per diem values are included in regenerated files too.
 
 The file is handed to the third-party payroll processor (e.g. an external payroll bureau or accountant) who applies PAYE, NSSA, and any other statutory deductions to produce the final payslips and tax returns.
 
@@ -2985,12 +3011,31 @@ Use this when a product already exists in the system and you have received more 
 
 > You can update multiple products in a single session — fill in quantities for everything you received and submit once.
 
-#### Clothing / Hardware / Universal — Stock Adjustment
+#### Clothing / Hardware / Universal — Single-Item Add Stock Form
 
-1. Open the product's detail page (from the product list, click on the product name).
-2. Click **Add Stock** or **Adjust Stock**.
-3. Enter the quantity received and a reason (e.g. "Stock delivery").
-4. Click **Save** — the new units are added to the current stock count.
+For a new barcode inventory item (not yet in the system), use the **Add Stock** form:
+
+1. Go to **Inventory → Add Stock** (or click the **+ Add Stock** button in the Bulk Stocking panel for individual entry).
+2. Fill in the form:
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **Barcode** | Auto-filled if from scan | Read-only if pre-filled from a scan |
+| **Product Name** | Yes | What this item is called |
+| **Domain** | No | Top-level classification (e.g. "🥦 Fresh Produce"). Available for all business types. |
+| **Category** | Yes | Filtered by the selected domain. Create inline with **+ New category**. |
+| **Supplier** | No | Searchable dropdown. Create inline with **+ New supplier**. |
+| **Description** | No | Optional note (replaces the old "Notes" field) |
+| **Sell Price** | Yes | Tick **Free Item** to set price to $0 and disable the input |
+| **Cost Price** | No | What you paid — used for margin reporting |
+| **Quantity** | Yes | Number of units you are adding |
+| **SKU** | No | Leave blank to auto-generate (e.g. `GRO-INV-00042`) |
+
+3. Click **Add to Stock & Print** to save and immediately print a barcode label, or **Save** to save without printing.
+
+**Domain → Category cascade:** When you select a domain, the category dropdown is automatically filtered to show only categories within that domain. Selecting a new domain clears the category field.
+
+> **For existing products (updating stock or price):** Open the product's detail page (from the product list, click on the product name), then click **Adjust Stock**. Enter the quantity and reason. The new units are added to the current stock count.
 
 #### What a stock receipt records
 
@@ -3154,6 +3199,84 @@ The system creates the product in the current business, registers the barcode ag
 | Barcode in another business | Cross-business match shown — option to stock here |
 | Barcode in multiple businesses | All matches shown — cashier chooses which to use |
 | Completely unknown | Quick Stock Add form opens — user creates the product now |
+
+---
+
+### Predefined Domains, Categories & Sub-Categories — All Business Types
+
+When stocking products in the Bulk Stocking Panel or the single-item Add Stock form, you can classify each item using a three-level hierarchy:
+
+```
+Domain (top level)  →  Category  →  Sub-Category
+e.g. 🥦 Fresh Produce  →  Vegetables  →  Leafy Greens
+e.g. 🔧 Power Tools    →  Drills      →  Hammer Drills
+```
+
+The system ships with a predefined taxonomy for every business type. You do not need to create these — they are already available in the dropdowns when you open the panel.
+
+#### Grocery Store Domains
+
+| Domain | Example Categories |
+|--------|--------------------|
+| 🥦 Fresh Produce | Vegetables, Fruits |
+| 🥛 Dairy & Eggs | Milk & Cream, Cheese, Eggs & Butter, Yogurt |
+| 🥩 Meat & Poultry | Beef, Chicken, Pork |
+| 🐟 Fish & Seafood | Fresh Fish, Dried & Salted Fish |
+| 🍞 Bakery & Bread | Bread, Pastries |
+| 🥤 Beverages | Soft Drinks, Water, Alcohol, Hot Drinks |
+| 🍫 Snacks & Confectionery | Crisps & Chips, Chocolates & Sweets, Nuts & Dried Fruit |
+| 🍚 Pantry & Dry Goods | Grains & Cereals, Pasta, Cooking Oils, Sauces, Canned Goods, Sugar & Spices |
+| 🧹 Household & Cleaning | Laundry, Dishwashing, Surface Cleaners, Air Fresheners |
+| 🧴 Personal Care | Body Care, Hair Care, Oral Care, Feminine Care, Baby & Kids |
+| 🖊️ Office & Stationery | Writing Instruments, Paper Products, Desk Accessories |
+| 🐾 Pet Care | Pet Food, Pet Accessories |
+
+#### Hardware Store Domains
+
+| Domain | Example Categories |
+|--------|--------------------|
+| 🔧 Power Tools | Drills & Drivers, Saws, Sanders & Grinders |
+| 🔩 Hand Tools | Striking Tools, Measuring & Marking, Wrenches & Spanners |
+| 🧱 Building Materials | Cement & Aggregates, Bricks & Blocks, Roofing, Timber |
+| 🚿 Plumbing | Pipes & Fittings, Taps & Valves, Water Tanks |
+| ⚡ Electrical | Cables & Wiring, Switches & Sockets, Lighting, Distribution |
+| 🎨 Paint & Finishes | Interior Paint, Exterior Paint, Primers |
+| 🌿 Garden & Outdoor | Irrigation, Lawn & Garden, Outdoor Furniture |
+| 🔒 Safety & Security | Personal Protective Equipment, Locks & Access |
+| 🔩 Fasteners | Bolts & Nuts, Screws & Nails, Anchors & Adhesives |
+| 🛁 Bathroom Fittings | Sanitaryware, Shower Systems |
+
+#### Restaurant Domains
+
+| Domain | Example Categories |
+|--------|--------------------|
+| 🍽️ Food Menu | Starters & Appetizers, Main Courses, Sides, Desserts, Breakfast |
+| 🥤 Beverages | Soft Drinks, Hot Drinks, Alcohol, Mocktails & Smoothies |
+| ⭐ Specials | Daily Specials, Combo Meals |
+| 🍕 By Cuisine | Grills & BBQ, Seafood, Vegetarian & Vegan |
+
+#### Retail Store Domains
+
+| Domain | Example Categories |
+|--------|--------------------|
+| 📱 Electronics | Phones & Accessories, Audio & Visual, Computing |
+| 🏠 Home & Living | Kitchenware, Bedding, Décor |
+| 👟 Clothing & Footwear | Men's, Women's, Kids |
+| 💄 Health & Beauty | Skincare, Makeup, Fragrances |
+| 🎮 Toys & Games | Toys, Games |
+| 🖊️ Office & Stationery | Writing Instruments, Paper & Books |
+
+#### Services / Consulting Domains
+
+| Domain | Example Categories |
+|--------|--------------------|
+| 🛠️ Professional Services | Consulting, Technical Services |
+| 💼 Administrative | Office Services, Communications |
+| 📋 Subscriptions | Software, Memberships |
+
+> **Creating your own:** If the predefined taxonomy does not cover your product, use **+ New category** inline in the panel to create a custom category. Custom categories are saved permanently for your business.
+
+> **Clothing stores** have always had their own taxonomy (Men's, Women's, Kids, Footwear, Accessories). It works the same way — just select the domain in the Department column when stocking.
 
 ---
 
@@ -3346,56 +3469,196 @@ When registering a new bulk product, if the category or supplier you need does n
 
 ### Bulk Stocking Panel — Receiving and Counting Stock
 
-The **Bulk Stocking Panel** is used by stock managers to receive incoming stock and to run **Stock Take** counts. It is accessed from **Inventory → Bulk Stocking**.
+The **Bulk Stocking Panel** is a full-screen workspace used by stock managers to receive incoming deliveries and run formal stock takes. It is accessed from:
 
-The panel opens in one of two modes:
+- **Clothing → Inventory → 📦 Bulk Stock**
+- **Restaurant → POS → 📦 Bulk Stock** (admin only)
+- **Grocery → POS → 📦 Bulk Stock**
 
-| Mode | Purpose |
-|------|---------|
-| **Bulk Stocking** | Record new incoming stock deliveries — update quantities for multiple products at once |
-| **Stock Take** | Count what is physically on the shelves and compare to system records |
+The panel supports scanning many items in a single session, saving work in progress as named drafts, and submitting a full report with employee sign-off.
 
-#### Bulk Stocking Mode — Receiving Incoming Deliveries
+---
 
-Use this mode when stock arrives from a supplier.
+#### Opening the Panel — Draft Selection
 
-1. Open the Bulk Stocking panel.
-2. Select **Bulk Stocking** mode.
-3. For each item received:
-   - **Scan the barcode** or type the SKU / product name into the scan bar.
-   - Enter the **quantity received**.
-   - Add any notes (optional).
-4. Items appear in the table with their system quantity and the quantity you are adding.
-5. When finished, click **Save Draft** to save your work and return later, or **Submit** to apply the stock changes immediately.
+When you open the Bulk Stocking panel, the system first checks for existing saved drafts:
 
-**Search and filter:** Use the search bar above the table to filter by barcode, product name, or description. Click **Reset** to clear the filter.
+- **Spinner shown** — "Looking for drafts…" and the scan input is disabled until the check completes.
+- **No drafts found** — a prompt asks you to enter a name for a new draft (required), then the panel opens ready to scan.
+- **One or more drafts found** — a **Draft Selection screen** appears showing all your saved drafts for this business:
+  - Draft name (e.g. "March Delivery" or "Full Store Count")
+  - Number of items in the draft
+  - Date and time last saved
 
-**Delete draft:** Click **🗑 Delete Draft** in the header to discard a draft without submitting. You will be asked to confirm.
+From here:
+- Click a draft to **Resume** it — all previously entered rows are restored.
+- Click **+ Start New Draft** to enter a name and begin fresh (your previous drafts remain saved).
 
-#### Stock Take Mode — Counting Physical Stock
+> You can have multiple named drafts open at the same time (e.g. one for each supplier delivery or one per section of the store). Use **Switch Draft** in the panel header to save the current draft and pick a different one.
 
-A **Stock Take** is a formal count of everything physically on the shelves. The result is compared to the system's recorded quantities to find shortfalls (missing stock) and new stock (items present but not yet in the system).
+---
 
-**Who runs a stock take:**
-- The stock manager loads the stock take and enters physical counts.
-- Employees involved sign off on the report digitally.
-- A manager or owner gives the final sign-off.
+#### The Panel Layout
 
-##### Running a Stock Take
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ← Back   Bulk Stocking — Mvimvi Groceries     [Draft: "March Stock"] │
+│           💾 Saved 2 min ago  [Save Draft]  [Sync]  [Switch Draft]    │
+│                                                                        │
+│  Barcode: [____________________]  [📋 Stock Take]  [+ Add Row]        │
+│  Counted: 14 / 120  (Stock Take Mode only)                            │
+├────────────────────────────────────────────────────────────────────────┤
+│  # │ Barcode │ Name    │ Domain     │ Category   │ Supplier │ Curr Stk │
+│    │         │         │            │            │          │ Qty Add  │
+│    │         │         │            │            │          │ Phys Cnt │
+│    │         │         │            │            │          │ Variance │
+│    │         │         │            │            │          │ Price    │
+│    │         │         │            │            │          │ Cost     │
+│    │         │         │            │            │          │ SKU │ ✕  │
+└────────────────────────────────────────────────────────────────────────┘
+         [Review & Submit ({n} items)]
+```
 
-1. Open the Bulk Stocking panel and select **Stock Take** mode.
-2. The system loads **all active inventory** for your business — this includes:
-   - Regular products (with variants)
-   - Barcode inventory items (BCI)
-   - Custom bulk products
-   - Clothing bales
-3. Each item shows its **system quantity** (what the system expects).
-4. In the **Physical Count** column, enter what you actually counted on the shelf.
-5. Scan barcodes to jump directly to an item — the row is highlighted and ready for input.
+---
 
-##### Item Type Badges
+#### Adding Items — Scanning or Manual Entry
 
-Each row in the stock take table shows a small badge to identify the item type:
+**Scan a barcode:**
+- Point your scanner at any product barcode or type the barcode value and press **Enter**.
+- If the barcode **matches an existing product** in your inventory, a new row is added with the name, SKU, and current stock quantity pre-filled (read-only).
+- If the barcode **is not found**, a blank row is added with the barcode pre-filled — fill in all details manually.
+
+**Duplicate detection:**
+- If the same barcode is already in the current batch, an alert appears: "Already in batch (row #N). Update that row or skip?" — click **Go to Row** to scroll to it, or **Skip** to dismiss.
+
+**Manual row:** Click **+ Add Row** to add a blank row without scanning.
+
+---
+
+#### Table Columns
+
+| Column | Editable | Notes |
+|--------|----------|-------|
+| **Barcode** | Read-only if from scan | Editable if manually added |
+| **Product Name** | Read-only if existing match | Editable for new items |
+| **Domain** | Yes | Top-level grouping (e.g. "🥦 Fresh Produce"). Optional. Available for all business types — see predefined taxonomy below. |
+| **Category** | Yes | Sub-group within a domain (e.g. "Vegetables"). Required. Filtered by the selected domain. |
+| **Supplier** | Yes | Searchable dropdown. Optional. |
+| **Description** | Yes | Free text note. Optional. |
+| **Current Stock** | Read-only | Only shown for existing products |
+| **Qty to Add** | Yes | How many new units you are receiving |
+| **Physical Count** | Yes | What you counted on the shelf (for Stock Take mode — see below) |
+| **Variance** | Read-only | Physical Count − System Quantity. Red = shortfall, green = surplus. Only calculated when Physical Count is entered. |
+| **Sell Price** | Yes | Selling price per unit. Tick **Free** for $0 items. |
+| **Cost Price** | Yes | Optional purchase cost |
+| **SKU** | Yes | Leave blank to auto-generate |
+| **✕** | — | Remove the row from the batch |
+
+**Auto-classify from name:** After typing a product name, a **💡** icon appears in the row number column. Click it to get domain/category/sub-category suggestions based on the product name. See [Bulk Stocking Panel — Auto-Classification](#bulk-stocking-panel--auto-classification-suggest-feature) for details.
+
+**Inline creation:** If the domain, category, or supplier you need does not exist yet:
+- Click **+ New category** below the Category dropdown — enter a name and save. It is immediately available in all rows and saved for future sessions.
+- Click **+ New supplier** below the Supplier dropdown — same pattern.
+
+---
+
+#### Drafts — Saving and Managing
+
+| Action | How |
+|--------|-----|
+| **Save now** | Click **Save Draft** in the header |
+| **Auto-save** | The panel saves automatically every 60 seconds when rows are present |
+| **Draft status** | Shown as a pill: "💾 Saved 3 min ago" or "● Unsaved changes" |
+| **Rename draft** | Click the draft name in the header to edit it inline — saves on blur |
+| **Switch drafts** | Click **Switch Draft** — saves current work then shows the draft selection screen |
+| **Delete draft** | Use the delete option in the draft selection screen |
+
+---
+
+#### Submitting a Batch — Review & Submit
+
+When all items are entered, click **Review & Submit**. This opens the **Stock Take Report Preview** — a full-screen summary before anything is committed:
+
+**Existing items section:**
+| Column | What it shows |
+|--------|--------------|
+| Barcode | Product barcode |
+| Name | Product name |
+| System Qty | Quantity recorded in the system at last sync |
+| Physical Count | What you entered |
+| Variance | Shortfall (red) or surplus (green) |
+| New Stock Added | Qty to Add you entered |
+| Sell Price | Per unit price |
+| Shortfall Value | \|Variance\| × Sell Price (shown for shortfall rows) |
+
+**New items section** — products not previously in the system, with name, quantity, price, and new stock value.
+
+**Totals panel:**
+- Total shortfall quantity and value
+- Total new stock value
+- Estimated total inventory value after submit
+
+**Responsible employees (required):**
+- Select at least one employee from the dropdown.
+- The system shows each employee's share of the shortfall (total shortfall value ÷ number of employees).
+- Employees will receive a digital sign-off request after submission.
+
+Click **Go Back** to return and make corrections. Click **Confirm & Submit** to apply all stock changes and create the report.
+
+> **What happens on submit:** Stock quantities are updated immediately. The report enters **Pending Sign-off** status. Responsible employees must sign off digitally. A manager gives the final sign-off. Once all sign-offs are complete, the report is marked **Signed Off** and any shortfall deductions are available for payroll sync.
+
+---
+
+#### Stock Take Mode — Full Store Count
+
+**Stock Take Mode** is a specialised version of the Bulk Stocking Panel designed for a complete physical inventory count.
+
+**Activating Stock Take Mode:**
+1. Open the Bulk Stocking panel (creating or resuming a draft).
+2. Click the **📋 Stock Take** button in the scan bar.
+3. If you already have rows in the current draft, a confirmation appears: "This will start a new Stock Take draft. Your current work will be saved first. Continue?" — confirm to proceed.
+4. Once activated, the mode is **locked for the lifetime of this draft** — the button changes to "📋 Stock Take Mode — Active" (greyed out, cannot be toggled off).
+
+**Loading inventory:**
+- The system immediately loads **all active inventory** for your business into the table. This includes all tracked products and variants.
+- A loading overlay shows progress: "Loading inventory… 87 / 120 products".
+- All rows are pre-filled with system quantities and are read-only for name/barcode. You only need to fill in the **Physical Count** column.
+
+**Counting items:**
+- In the **Physical Count** column, type what you counted on the shelf for each item.
+- **Rows turn green** as soon as a physical count is entered — this gives you a clear visual of what has and hasn't been counted yet.
+- A **"Counted: X / Y"** badge in the scan bar updates in real time.
+
+**Scanning a barcode during stock take:**
+- Scan any product barcode — if it is already in the list, the row **moves to the top of the table** and is highlighted so you can immediately enter its count. No duplicate warning appears — scanning an existing product is normal behaviour.
+- If the barcode is not in the list (a new product), a new row is added at the top.
+
+**Resuming a Stock Take draft:**
+- When you resume a draft that was created in Stock Take Mode, the system automatically runs a sync to refresh all system quantities.
+- After the sync, **all physical counts are reset to blank** so you start counting fresh with up-to-date system figures.
+- A notice is shown: "Physical counts have been reset — synced stock levels are up to date."
+
+---
+
+#### Sales During a Stock Take — Sync & Submit Guard
+
+Sales are **never blocked** while a stock take is in progress. The system tracks the impact automatically:
+
+- When a sale occurs for a product that is in your active stock take draft, the draft is marked as having sales activity.
+- Affected rows show an **amber highlight** with a "⚠ Review" badge and are sorted to the top of the table.
+- A **warning banner** appears at the top of the panel:
+
+> ⚠ Sales occurred since your last sync. Stock quantities may have changed. **[Sync Now]** | **[View Affected Rows]**
+
+**Syncing:** Click **Sync Now** (or the **Sync** button in the header) to re-fetch the current system quantities for all affected rows. The affected row highlights are cleared after sync.
+
+**Submitting after sales:** If sales occurred since your last sync, the **Review & Submit** button is disabled with a tooltip: "Sync required before submitting." You must sync first to ensure the report reflects accurate system quantities.
+
+---
+
+#### Item Type Badges (Stock Take Mode)
+
+Each row shows a small badge to identify the item type:
 
 | Badge | Colour | Meaning |
 |-------|--------|---------|
@@ -3404,37 +3667,44 @@ Each row in the stock take table shows a small badge to identify the item type:
 | **Bulk** | Purple | Custom Bulk Product |
 | **Bale** | Orange | Clothing Bale |
 
-##### Saving and Submitting
+---
 
-- **Save Draft** — saves your progress. You can return to it later. Multiple drafts can be saved (e.g. one per section of the store).
-- **Submit** — locks the counts and creates a **Stock Take Report** for sign-off.
+#### Sold Out / Restock Candidates (Stock Take Report Preview)
 
-Once submitted, the system calculates:
-- **Shortfall** — items where physical count is less than system quantity. These represent potential loss or theft.
-- **New stock** — items where physical count exceeds system quantity.
+In the **Review & Submit** screen, when submitting in Stock Take Mode:
 
-##### Stock Take Reports
+- A dedicated **"Sold Out / Zero Stock — Restock Candidates"** section appears in orange.
+- It lists all items where your physical count is zero OR the system quantity is zero.
+- This is informational only — it does not affect the stock update. Use it as a procurement checklist.
 
-Go to **Inventory → Bulk Stocking → 📋 Reports** to view submitted stock take reports.
+---
+
+#### Stock Take Reports
+
+Go to **Inventory → 📋 Stock Take Reports** (button in the inventory page header — visible to users with financial data access).
 
 Each report shows:
 
 | Column | Meaning |
 |--------|---------|
 | **Date** | When the stock take was submitted |
-| **Employees** | Who signed off — green tick means signed |
+| **Employees** | Responsible employees — green tick = signed, grey = pending |
 | **Status** | Pending Sign-off / Signed Off / Voided |
 | **Shortfall** | Total value of missing stock |
-| **New Stock** | Total value of stock counted above system levels |
-| **Submitted by** | User who submitted the report |
+| **New Stock Value** | Total value of stock received |
+| **Submitted by** | User who submitted |
 
 **Signing off a report:**
 1. Click **View** on a report.
-2. Employees listed on the report can add their digital signature.
-3. Once all employees have signed, a manager gives final sign-off.
-4. Status changes to **Signed Off**.
+2. Each responsible employee can click **Sign Off** against their own name (only visible to that employee or a manager acting on their behalf).
+3. Once all employees have signed, the manager signs off using **Sign Off as Manager**.
+4. Status changes to **Signed Off** with a timestamp.
 
-**Voiding a report:** Managers can click **Void** on any report with status **Pending Sign-off**. This marks it as voided — stock quantities that were already adjusted are not reversed. Use this if the count was done incorrectly and needs to be restarted.
+**After sign-off:** Shortfall deductions are now available to pull into payroll — the manager clicks **Sync Stock Shortfall** on the payroll period page.
+
+**Voiding a report:** Managers can click **Void** on any report with **Pending Sign-off** status. This marks it as voided — stock quantities that were already applied are **not** reversed. Use this if the count was done incorrectly and needs to be restarted.
+
+> **Admin note:** If a stock take draft with Stock Take Mode enabled is blocking sales for a business (e.g. the count was abandoned and the cashier cannot process transactions), a system administrator can force-delete it from **Admin → Blocking Stock Take Drafts**. See [Admin — Blocking Stock Take Drafts](#admin--blocking-stock-take-drafts).
 
 ---
 
@@ -3752,17 +4022,48 @@ CANCEL A SALE
 ### Quick Reference: Stock Take
 
 ```
-RUNNING A STOCK TAKE
+BULK STOCKING — RECEIVING A DELIVERY
 ─────────────────────────────────────────────
-1. Inventory → Bulk Stocking
-2. Select "Stock Take" mode
-3. System loads ALL active inventory
-4. Scan item barcode OR scroll to find row
-5. Enter physical count in "Physical Count" column
-6. Repeat for all items
-7. Click "Save Draft" to pause and resume later
-8. Click "Submit" when complete
+1. Inventory → 📦 Bulk Stock
+2. Name your draft (e.g. "March Delivery") → Open
+3. Scan each item barcode
+   → Existing item: name/price pre-filled, enter Qty
+   → New item: fill in all details
+4. Set Domain, Category, Supplier per row (optional)
+5. Click Save Draft to pause / auto-saves every 60s
+6. Click Review & Submit when done
+7. Select responsible employees → Confirm & Submit
 ─────────────────────────────────────────────
+
+RUNNING A STOCK TAKE (full count)
+─────────────────────────────────────────────
+1. Inventory → 📦 Bulk Stock → click 📋 Stock Take
+2. Confirm to start new Stock Take draft
+3. System loads ALL active inventory automatically
+4. Enter Physical Count for each item on the shelf
+5. Scan barcode → row moves to top for fast entry
+6. Rows turn GREEN when counted
+   "Counted: X / Y" shows progress
+7. Click Review & Submit → select employees → Confirm
+─────────────────────────────────────────────
+
+IF SALES OCCUR DURING A STOCK TAKE
+  Amber rows with ⚠ Review badge appear
+  Warning banner shows at top of panel
+  Click "Sync Now" to refresh quantities
+  Submit button blocked until synced
+
+MULTIPLE DRAFTS
+  Can have multiple named drafts at once
+  Switch Draft button saves current, shows list
+  Resume any draft from the draft selection screen
+
+AFTER SUBMITTING
+  Stock updated immediately
+  Report: Pending Sign-off
+  Each responsible employee signs digitally
+  Manager gives final sign-off → Signed Off
+  Shortfall available for Payroll → Sync Stock Shortfall
 
 ITEM TYPE BADGES (in table)
   Stk  (blue)   = Regular product
@@ -3770,16 +4071,9 @@ ITEM TYPE BADGES (in table)
   Bulk (purple) = Custom bulk product
   Bale (orange) = Clothing bale
 
-AFTER SUBMITTING
-  Report is created with status: Pending Sign-off
-  Employees listed → sign off digitally
-  Manager gives final sign-off → Signed Off
-
 VOIDING A REPORT (manager only)
-  Inventory → Bulk Stocking → Reports
-  Click View on the report → Void
-  Use only if the count was incorrect — stock
-  changes already applied are NOT reversed
+  Inventory → 📋 Stock Take Reports → View → Void
+  Stock changes already applied are NOT reversed
 
 CUSTOM BULK PRODUCTS
 ─────────────────────────────────────────────
@@ -3827,14 +4121,23 @@ PAYROLL CASH WITHDRAWAL
 PAYROLL CHECKLIST
 ─────────────────────────────────────────────
 □ Payroll → New Period → set dates → Create
+□ Click ⟳ Sync All (absences + clock-in)
+□ Click 📋 Sync Stock Shortfall (if stock takes
+  were signed off this period)
 □ Review all employee entries
+  - Per Diem column visible in table (read-only)
+  - Stock shortfall deductions shown in entry detail
 □ Check total needed vs. account balance
 □ If short → Fund Payroll → print voucher
-□ Approve Payroll
-□ Export file for payments
+□ Submit for Owner Approval
+□ Owner Approves → Export to Excel
 □ Make all payments
-□ Reconcile period
+□ Reconcile and Close period
 ─────────────────────────────────────────────
+
+EXPORT INCLUDES
+  Basic, Commission, Overtime, Per Diem,
+  Benefits, Advances, Loans, Gross, Net
 
 APPROVING EXPENSE REQUESTS
   Bell icon → Pending Actions → Open item
@@ -4292,6 +4595,336 @@ The placeholder is visible to everyone — deleted messages are not hidden from 
 - **Tag people by name** in your message so they know it is for them (e.g. *"@Alice, please check till 2 float"*). The system does not parse mentions automatically, but other users will see the name and know.
 - **Keep sensitive information out of chat** — chat messages are visible to all users and auto-delete after 7 days. Use Expense Account notes or payroll records for financial records.
 - **Use it for quick coordination** — shift handovers, quick questions, daily briefings, closing reminders.
+
+---
+
+---
+
+## 21. Grocery POS — Desk Mode
+
+> **Who reads this:** Grocery cashiers and floor staff who use the product-badge layout instead of a barcode scanner.
+
+### What is Desk Mode?
+
+The Grocery POS has two operating modes:
+
+| Mode | How you add items | Best for |
+|------|------------------|----------|
+| **Scan Mode** (default) | Scan a barcode or type a PLU code | Cashier with a physical scanner |
+| **Desk Mode** | Tap product badges on screen | Counter service, shared till, or stock managers browsing |
+
+Toggle between modes using the **🖥️ Desk Mode** button in the top bar of the POS:
+- When **off**, the button is grey with text "🖥️ Desk Mode".
+- When **on**, the button turns blue with text "🖥️ Desk Mode ON".
+
+The barcode entry field and PLU entry field are **hidden** in Desk Mode. Products are added by tapping their card on screen.
+
+---
+
+### Stock Badges on Product Cards (Desk Mode)
+
+In Desk Mode, every product card shows a **stock count badge** in the bottom-right corner of the card:
+
+| Badge colour | Meaning |
+|-------------|---------|
+| **Grey pill** — "42 left" | Normal stock level |
+| **Orange pill** — "3 left" | Low stock (fewer than 5 units) |
+| **Red pill** — "Out of stock" | Zero units in system |
+
+These badges refresh when you open the POS and when you complete a sale. Use them as a quick at-a-glance guide — if a badge shows "Out of stock", the product cannot be sold until restocked.
+
+---
+
+### Performance Bars (Desk Mode)
+
+Each product card also shows a **performance bar** — a thin coloured bar below the price showing how well this item is selling today relative to its best recent day:
+
+- **Green bar** — strong sales day
+- **Yellow bar** — moderate sales
+- **Blue bar** — low sales today compared to recent history
+
+Below the bar you will see:
+- **"X sold"** badge — units sold today
+- **Revenue figure** — today's revenue for this item (visible to users with financial access)
+- **"yesterday: Y"** — yesterday's unit count for quick context
+
+---
+
+### Category Sidebar Stock Totals
+
+The left-hand category sidebar (when Desk Mode is on) shows each category with a total stock count beside it, e.g. **"Fresh Produce · 142 in stock"**. This helps you quickly identify which departments need restocking.
+
+---
+
+### Bulk Stock from Desk Mode
+
+The **📦 Bulk Stock** button is always visible in the POS, regardless of mode. Click it to open the full Bulk Stocking Panel (see Section 14) without leaving the POS screen. This lets a stock manager receive deliveries on the same till used for sales.
+
+---
+
+### Cart in Desk Mode
+
+Adding items to the cart in Desk Mode works identically to Scan Mode — click a product card to add one unit. A **blue quantity badge** appears on the card showing how many of that item are in the cart. Click again to add more.
+
+---
+
+## 22. Expense Account — Quick Payment & My Payment Queue
+
+> **Who reads this:** Managers and cashiers who process expense payments. Covers the Quick Payment modal and the My Payment Queue panel on the account detail page.
+
+---
+
+### Quick Payment Modal
+
+The **Quick Payment** button appears on any expense account detail page. It opens a focused payment form directly on the account, without navigating away. This is the fastest way to record a payment from an account.
+
+#### Opening Quick Payment
+
+1. Go to **Expense Accounts** and open the account you want to pay from (e.g. "Fashions HXI Expense Account — Balance: $329.43").
+2. Click the **+ Payment** button in the account header.
+3. The Quick Payment modal opens.
+
+---
+
+#### Business / Domain Selector
+
+If your login covers more than one business, a **Business** field appears at the top of the modal. This is a **searchable dropdown** — type to filter by business name or domain name.
+
+The dropdown contains two types of entries:
+
+| Entry type | Example | What it does |
+|-----------|---------|-------------|
+| **Business name** | "HXI Fashions" | Switches to that business's primary expense account and loads its default category set |
+| **Business Domain** | "Services Business Domains" | Overrides the category picker to show categories from that specific domain (e.g. Services expenses) |
+
+Use a **Business Domain** entry when you are recording a payment that belongs to a specific spending category that doesn't match your business's default domain — for example, paying a services supplier from a retail business account.
+
+> **Tip:** Selecting a domain does not change which account the payment is drawn from. It only changes which categories are available in the Category picker below.
+
+---
+
+#### Category Picker — Domain → Category → Sub-category
+
+Payments can be classified using a three-level hierarchy:
+
+```
+Domain  ▶  Category  ▶  Sub-category
+e.g. 🛒 Grocery  ▶  Fresh Produce  ▶  Vegetables
+```
+
+1. **Domain** — auto-selected based on the current business type or your Business/Domain dropdown selection.
+2. **Category** — filtered to categories within the selected domain. Required.
+3. **Sub-category** — optional, further classifies the payment.
+
+Changing the **Business** or **Domain** clears the Category and Sub-category fields.
+
+---
+
+#### Payee Field
+
+The **Payee** field lets you specify who is being paid. Start typing a name to search:
+- Employees
+- Suppliers
+- Other contacts
+
+If no payee applies (e.g. a miscellaneous cash expense), leave it as **General**.
+
+---
+
+#### What is this payment for? (Notes) — with Suggest Classification
+
+The **"What is this payment for?"** field is where you describe the payment. As you type, two modes are available:
+
+- **Saved phrases** — pick from a list of previously used payment descriptions (faster for recurring payments).
+- **Type a note** — free-text description (e.g. "Replacement printer cartridge HP 63XL").
+
+Once you have typed at least 3 characters, a **💡 Suggest Classification** button appears next to the field label.
+
+---
+
+#### 💡 Suggest Classification — Quick Category Assignment
+
+Instead of manually stepping through Domain → Category → Sub-category dropdowns, you can let the system suggest the right classification based on what you typed in the notes field.
+
+**How to use it:**
+
+1. Type a description in the **"What is this payment for?"** field (at least 3 characters).
+2. Click **💡 Suggest Classification** (button next to the field label).
+3. A **Suggested Classifications** modal opens, showing up to 5 best matches:
+
+```
+💡 Suggested Classifications
+Based on: "office printer ink"
+
+🏢 Business (General) › 🖨️ Office Supplies
+   🖨️ Printer & Ink Supplies
+
+📋 Consulting › 🏢 Business and Office Services
+   🖥️ Office Equipment & Supplies
+```
+
+4. Click any suggestion to **instantly fill** the Domain, Category, and Sub-category fields — no manual selection required.
+5. While the fields are being filled, a pulsing "💡 Applying suggestion…" indicator appears. The fields are ready when it disappears.
+
+If no matches are found, the message "No matches found — please select manually." is shown — use the dropdowns to select manually.
+
+> **Tip:** The more specific your description, the better the suggestions. "fuel pump repair" will match Vehicle Maintenance sub-categories more precisely than just "fuel".
+
+---
+
+#### Amount and Notes
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **Amount** | Yes | Enter the payment amount in dollars |
+| **Payment Channel** | Yes | Cash, EcoCash, Bank Transfer, etc. |
+| **Notes / Reference** | No | Invoice number, receipt number, or free text description |
+
+Click **Submit Payment** to record the payment. The account balance is updated immediately and the payment appears in the account's transaction history.
+
+---
+
+### My Payment Queue Panel
+
+The **My Payment Queue** panel appears on any expense account detail page. It shows all payments associated with your account that are awaiting action — submitted but not yet disbursed.
+
+#### Panel Header
+
+```
+My Payment Queue   [12]   ▼
+```
+
+- The **count badge** (blue pill) shows the total number of items across all statuses.
+- Click the header to **collapse or expand** the panel. It defaults to open.
+
+#### Search
+
+When the panel is open, a **search box** appears below the header. Type any part of a payee name, category name, or payment description to filter the list in real time.
+
+#### Payment Statuses
+
+Payments in the queue are grouped by status, each with a colour-coded badge:
+
+| Badge | Colour | Meaning |
+|-------|--------|---------|
+| **AWAITING CASHIER** | Blue | Submitted to the cash office — cashier is reviewing |
+| **APPROVED** | Green | Approved and ready to be physically disbursed |
+| **IN QUEUE** | Amber | Queued, awaiting manager approval |
+
+#### Actions per Status
+
+**APPROVED payments** — payments that have been approved but not yet physically handed over:
+- **📄 Voucher** — generate a payment voucher document for record-keeping.
+- **✓ Mark as Paid** — confirm physical handover. The item disappears from the queue immediately. Balance is updated silently.
+- **📱 Mark as Sent** (EcoCash only) — enter the EcoCash transaction code to confirm mobile transfer.
+
+**IN QUEUE payments** — payments you submitted that are waiting for approval:
+- **✎ Edit** — change the amount or notes before the manager reviews it.
+- **✕ Cancel** — withdraw the payment request entirely.
+
+> **Note:** Clicking "Mark as Paid" removes the item from the list immediately without reloading the whole page. If you mark multiple payments in quick succession, each one is removed as you go.
+
+---
+
+### Admin — Blocking Stock Take Drafts
+
+> **Who reads this:** System administrators only.
+
+Go to **Admin → Blocking Stock Take Drafts** to see a list of all active stock take drafts that have **Stock Take Mode** enabled. These drafts block sales for their respective businesses until the draft is deleted or submitted.
+
+#### The Drafts Table
+
+| Column | What it shows |
+|--------|--------------|
+| **Business** | Which business is currently blocked |
+| **Draft Title** | Name given to the draft (e.g. "March Full Count") |
+| **Created By** | Employee name and email who started the draft |
+| **Created At** | Date and time the draft was created |
+| **Action** | Delete button to forcibly remove the draft and unblock sales |
+
+#### Warning Banner
+
+If any blocking drafts exist, a banner appears at the top of the page:
+
+> ⚠️ **2 business(es) currently blocked from processing sales**
+
+This means those businesses' cashiers cannot complete sales until the draft is resolved.
+
+#### Deleting a Blocking Draft
+
+1. Find the draft in the table.
+2. Click **Delete**.
+3. Confirm the dialog: "This will delete the stock take draft '[title]' for [business name]. Sales will be unblocked immediately."
+4. Click **Delete Draft** (red button).
+5. A toast notification confirms: "Draft deleted — [business name] sales unblocked".
+
+> **Warning:** Deleting a draft discards all counted data in it. The responsible employee will need to start a fresh stock take. Only delete a draft if the count was abandoned or if a technical error is blocking operations.
+
+---
+
+### Adding Inventory Items Directly to Cart
+
+> **Who reads this:** Stock managers and cashiers who use the Inventory page to add stocked items to the POS cart.
+
+From any **Inventory** page (Clothing, Hardware, Restaurant, Grocery), each item row has a **🛒** (cart) button. Clicking it adds the item directly to the active POS cart — no need to navigate to the POS first.
+
+#### How It Works
+
+1. Go to **[Business] → Inventory**.
+2. Find the item you want to add (use search, domain filter, or scroll).
+3. Click the **🛒** button on the item's row.
+4. A toast appears: "Added [Item Name] to cart".
+5. Navigate to the POS (or click **Proceed to Checkout** in the mini-cart) to complete the sale.
+
+#### Product Types
+
+The inventory page shows two types of items, both cartable:
+
+| Type | How to recognise | Notes |
+|------|-----------------|-------|
+| **Tracked product** | UUID-style ID, linked to a product variant | Has variants — if multiple variants exist, you are redirected to the POS to select the variant |
+| **Barcode inventory item** | Shown with a "📦 POS tracked" badge | Single unit, adds directly — no variant selection |
+
+#### Stock and Price Checks
+
+Before adding to cart, the system checks:
+- **Selling price must be set** — if the item has no selling price, an error toast appears: "Product has no selling price set".
+- **Stock must be available** — if stock is zero, an error toast appears: "Product is out of stock".
+
+If a product has only one variant with a valid price and stock, it is added to the cart directly. If it has multiple variants, you are redirected to the POS product selection screen.
+
+---
+
+### Bulk Stocking Panel — Auto-Classification (Suggest Feature)
+
+When entering product names in the Bulk Stocking Panel, the system can **suggest a domain, category, and sub-category** based on the product name.
+
+#### Using the Suggest Feature
+
+1. Type a product name in the **Name** column of any row (at least 2 characters).
+2. A **💡 lightbulb icon** appears in the row number column.
+3. Click the 💡 icon to open the **Suggested Classification** popover.
+4. The popover shows up to 5 best-matching classifications, scored by how well the product name matches known category names:
+
+```
+💡 Suggested Classification
+Based on: "ladies underwear"
+
+🛍 Retail › 👙 Intimates and Sleepwear
+   👙 Bras & Bralettes
+
+👗 Clothing › 👙 Intimates and Sleepwear
+   🩲 Underwear & Briefs
+
+→ No matches found — select manually.
+```
+
+5. Click any suggestion to **auto-fill** the Domain, Category, and Sub-category fields for that row.
+6. The popover closes and the fields are filled — you can adjust them manually if needed.
+
+> **How scoring works:** Sub-category name matches score highest (3 points), followed by category matches (2 points) and domain matches (1 point). The top 5 unique sub-category matches are shown.
+
+If no matches are found, the message "No matches found — select manually." is shown. Select the domain and category manually using the dropdowns.
 
 ---
 
