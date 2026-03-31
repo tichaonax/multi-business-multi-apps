@@ -2914,7 +2914,7 @@ function GroceryPOSContent() {
                                   ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
                                   : product.stockQuantity < 5
                                   ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400'
-                                  : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                                  : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
                               }`}>
                                 {product.stockQuantity === 0 ? 'Out of stock' : `${product.stockQuantity} left`}
                               </span>

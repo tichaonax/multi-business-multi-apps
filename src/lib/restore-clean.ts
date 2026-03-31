@@ -95,6 +95,7 @@ const RESTORE_ORDER = [
   'expenseDomains',
   'expenseCategories',
   'expenseSubcategories',
+  'expenseSubSubcategories',      // Depends on expenseSubcategories
 
   // Users and authentication
   'users',
@@ -199,6 +200,7 @@ const RESTORE_ORDER = [
   'eodPaymentBatches',          // depends on businesses — MUST come before paymentBatchSubmissions
   'paymentBatchSubmissions',    // depends on eodPaymentBatches + expenseAccounts + expenseAccountDeposits
   'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger + paymentBatchSubmissions + eodPaymentBatches
+  'expensePaymentVouchers',     // depends on expenseAccountPayments + businesses + employees
   'supplierPaymentRequests',    // Depends on businesses, businessSuppliers, expenseAccounts, users
   'supplierPaymentRequestItems', // Depends on supplierPaymentRequests, expenseCategories, expenseSubcategories
   'supplierPaymentRequestPartials', // Depends on supplierPaymentRequests, expenseAccountPayments, users
@@ -376,6 +378,7 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'compensationTypes': 'name',
   'expenseDomains': 'name',
   'inventoryDomains': 'name',
+  'expensePaymentVouchers': 'paymentId',
   'permissions': 'name',
   'jobTitles': 'title',
 
@@ -641,6 +644,7 @@ export async function restoreCleanBackup(
       'expenseCategories': ['name'],                    // domainId excluded — may be remapped
       'inventorySubcategories': ['name'],               // categoryId excluded — may be remapped
       'expenseSubcategories': ['name'],                 // categoryId excluded — may be remapped
+      'expenseSubSubcategories': ['name'],              // subcategoryId excluded — may be remapped
       // Meal program — participants and eligible items can be re-created with different IDs
       'mealProgramParticipants': ['businessId', 'employeeId'],  // @@unique([businessId, employeeId])
       'mealProgramEligibleItems': ['businessId', 'productId'],  // @@unique([businessId, productId])
@@ -648,7 +652,7 @@ export async function restoreCleanBackup(
 
     // Process in dependency order so parent remaps are available for children
     const REMAP_ORDER = [
-      'businessCategories', 'expenseCategories', 'inventorySubcategories', 'expenseSubcategories',
+      'businessCategories', 'expenseCategories', 'inventorySubcategories', 'expenseSubcategories', 'expenseSubSubcategories',
       'mealProgramParticipants', 'mealProgramEligibleItems',
     ]
 
@@ -692,6 +696,9 @@ export async function restoreCleanBackup(
         }
         if (tableName === 'expenseSubcategories' && record.categoryId) {
           whereClause.categoryId = idRemap.get(record.categoryId) || record.categoryId
+        }
+        if (tableName === 'expenseSubSubcategories' && record.subcategoryId) {
+          whereClause.subcategoryId = idRemap.get(record.subcategoryId) || record.subcategoryId
         }
         // mealProgramParticipants and mealProgramEligibleItems use their own fields directly
         // (businessId and employeeId/productId are top-level IDs that should match)
