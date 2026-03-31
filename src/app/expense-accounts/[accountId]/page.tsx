@@ -19,12 +19,12 @@ import { ReturnTransferModal } from '@/components/expense-account/return-transfe
 import { LendMoneyModal } from '@/components/expense-account/lend-money-modal'
 import { FundPayrollModal } from '@/components/expense-account/fund-payroll-modal'
 import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-panel'
-import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-payment-modal'
 import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-modal'
 import { AutoDepositAdminPanel } from '@/components/expense-account/auto-deposit-admin-panel'
 import { PaymentBatchModal } from '@/components/expense-account/payment-batch-modal'
 import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 
@@ -238,12 +238,14 @@ function MyQueuePanel({
   accountId,
   refreshKey,
   onActionDone,
+  onBalanceRefresh,
   businessId,
   businessName,
 }: {
   accountId: string
   refreshKey: number
   onActionDone: () => void
+  onBalanceRefresh?: () => void
   businessId?: string
   businessName?: string
 }) {
@@ -266,7 +268,10 @@ function MyQueuePanel({
   const [saving, setSaving] = useState(false)
   const [ecocashSubmitting, setEcocashSubmitting] = useState(false)
   const ecocashSubmittingRef = useRef(false)
+  const dismissedIdsRef = useRef<Set<string>>(new Set())
   const [queueVoucherModal, setQueueVoucherModal] = useState<{ payment: PaymentSummary; existing: any | null } | null>(null)
+  const [queueOpen, setQueueOpen] = useState(true)
+  const [queueSearch, setQueueSearch] = useState('')
 
   const openQueueVoucher = async (p: QueuedPayment) => {
     if (!businessId) return
@@ -299,7 +304,7 @@ function MyQueuePanel({
     setQueued(q)
     setPendingApproval(pa)
     pendingApprovalRef.current = pa
-    setApproved(a)
+    setApproved(a.filter((p: QueuedPayment) => !dismissedIdsRef.current.has(p.id)))
     if (!silent) setLoading(false)
   }, [accountId])
 
@@ -394,8 +399,9 @@ function MyQueuePanel({
         credentials: 'include',
       })
       if (res.ok) {
+        dismissedIdsRef.current.add(paymentId)
         setApproved(prev => prev.filter(p => p.id !== paymentId))
-        onActionDone()
+        onBalanceRefresh?.()
       } else {
         const d = await res.json()
         await alert({ title: 'Error', description: d.error ?? 'Failed to mark payment as paid' })
@@ -419,10 +425,11 @@ function MyQueuePanel({
         body: JSON.stringify({ action: 'markPaid', ecocashTransactionCode: ecocashTxCode.trim() }),
       })
       if (res.ok) {
+        dismissedIdsRef.current.add(ecocashModal.paymentId)
         setApproved(prev => prev.filter(p => p.id !== ecocashModal.paymentId))
         setEcocashModal(null)
         setEcocashTxCode('')
-        onActionDone()
+        onBalanceRefresh?.()
       } else {
         const d = await res.json()
         await alert({ title: 'Error', description: d.error ?? 'Failed to mark EcoCash payment as sent' })
@@ -436,14 +443,48 @@ function MyQueuePanel({
   if (loading) return null
   if (queued.length === 0 && pendingApproval.length === 0 && approved.length === 0) return null
 
+  const totalCount = queued.length + pendingApproval.length + approved.length
+  const searchLower = queueSearch.toLowerCase()
+  const matchesSearch = (p: QueuedPayment) =>
+    !queueSearch ||
+    payeeName(p).toLowerCase().includes(searchLower) ||
+    (p.category?.name ?? '').toLowerCase().includes(searchLower) ||
+    (p.description ?? '').toLowerCase().includes(searchLower)
+
   return (
     <>
     <div className="border border-border rounded-lg overflow-hidden">
-      <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border">
-        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">My Payment Queue</span>
-      </div>
-      <div className="divide-y divide-border">
-        {pendingApproval.map(p => (
+      <button
+        type="button"
+        onClick={() => setQueueOpen(o => !o)}
+        className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">My Payment Queue</span>
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+            {totalCount}
+          </span>
+        </div>
+        <svg
+          className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${queueOpen ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {queueOpen && (
+        <div className="px-3 py-2 border-b border-border bg-white dark:bg-gray-800">
+          <input
+            type="text"
+            value={queueSearch}
+            onChange={e => setQueueSearch(e.target.value)}
+            placeholder="Search payee, category..."
+            className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      )}
+      {queueOpen && <div className="divide-y divide-border">
+        {pendingApproval.filter(matchesSearch).map(p => (
           <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
@@ -458,7 +499,7 @@ function MyQueuePanel({
             </div>
           </div>
         ))}
-        {approved.map(p => (
+        {approved.filter(matchesSearch).map(p => (
           <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-green-50/50 dark:bg-green-900/10">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
@@ -502,7 +543,7 @@ function MyQueuePanel({
             </div>
           </div>
         ))}
-        {queued.map(p => (
+        {queued.filter(matchesSearch).map(p => (
           <div key={p.id} className="px-3 py-2">
             {editingId === p.id ? (
               <div className="space-y-2">
@@ -579,7 +620,7 @@ function MyQueuePanel({
             )}
           </div>
         ))}
-      </div>
+      </div>}
     </div>
 
     {/* EcoCash txCode modal */}
@@ -637,6 +678,7 @@ function MyQueuePanel({
 
 export default function ExpenseAccountDetailPage() {
   const { data: session, status } = useSession()
+  const toast = useToastContext()
   const router = useRouter()
   const params = useParams()
   const accountId = params.accountId as string
@@ -658,7 +700,7 @@ export default function ExpenseAccountDetailPage() {
   const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
   const [showLendMoneyModal, setShowLendMoneyModal] = useState(false)
   const [showFundPayrollModal, setShowFundPayrollModal] = useState(false)
-  const [showSmartQuickPayModal, setShowSmartQuickPayModal] = useState(false)
+
   const [showVehicleExpenseModal, setShowVehicleExpenseModal] = useState(false)
   const [showBatchModal, setShowBatchModal] = useState(false)
   const [loansRefreshKey, setLoansRefreshKey] = useState(0)
@@ -985,7 +1027,7 @@ export default function ExpenseAccountDetailPage() {
             ) : null}
             {canMakeExpensePayments && account.accountType !== 'RENT' && (
               <button
-                onClick={() => setShowSmartQuickPayModal(true)}
+                onClick={() => setShowQuickPaymentModal(true)}
                 className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
               >
                 ⚡ Daily
@@ -1264,6 +1306,7 @@ export default function ExpenseAccountDetailPage() {
                     refreshBalanceSilent()
                     setPaymentRefreshKey(k => k + 1)
                   }}
+                  onBalanceRefresh={refreshBalanceSilent}
                 />
 
                 <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} />
@@ -1425,14 +1468,18 @@ export default function ExpenseAccountDetailPage() {
           currentBalance={Number(account.balance)}
           onSuccess={() => {
             loadAccount()
+            fetchCounts()
+            setPaymentRefreshKey(k => k + 1)
+            setActiveTab('payments')
             setShowQuickPaymentModal(false)
           }}
-          onError={(error) => console.error('Quick payment error:', error)}
+          onError={(error) => toast.error(error)}
           canCreatePayees={canCreatePayees}
           canChangeCategory={canChangeCategory}
           accountType={account.accountType}
           defaultCategoryBusinessType={currentBusiness?.businessType}
           businessId={account.businessId || currentBusiness?.id}
+          businesses={businesses}
           presetPayee={
             account.accountType === 'RENT' && account.landlordSupplierId && account.landlordSupplierName
               ? { type: 'SUPPLIER', id: account.landlordSupplierId, name: account.landlordSupplierName }
@@ -1477,22 +1524,6 @@ export default function ExpenseAccountDetailPage() {
             setShowFundPayrollModal(false)
           }}
           onClose={() => setShowFundPayrollModal(false)}
-        />
-      )}
-
-      {/* Smart Daily Expenses Modal — adds to queue, switches to Payments tab */}
-      {account && (
-        <SmartQuickPaymentModal
-          isOpen={showSmartQuickPayModal}
-          onClose={() => setShowSmartQuickPayModal(false)}
-          accountId={accountId}
-          accountBalance={Number(account.balance)}
-          defaultCategoryBusinessType={currentBusiness?.businessType}
-          businessId={account.businessId || currentBusiness?.id}
-          onSuccess={() => {
-            setShowSmartQuickPayModal(false)
-            setActiveTab('payments')
-          }}
         />
       )}
 

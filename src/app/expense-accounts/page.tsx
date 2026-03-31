@@ -13,7 +13,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 export default function ExpenseAccountsPage() {
   const { status } = useSession()
   const router = useRouter()
-  const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
+  const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness, businesses } = useBusinessPermissionsContext()
 
   const canAccessExpenseAccount = hasPermission('canAccessExpenseAccount')
   const canCreateAccount = hasPermission('canCreateExpenseAccount')
@@ -72,6 +72,7 @@ export default function ExpenseAccountsPage() {
           canChangeCategory={canChangeCategory}
           businessType={currentBusiness?.businessType}
           currentBusinessId={isSystemAdmin ? undefined : currentBusiness?.businessId}
+          businesses={businesses}
           isAdmin={isSystemAdmin}
         />
       </div>

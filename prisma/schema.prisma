@@ -1343,23 +1343,37 @@ model ExpenseCategories {
 }
 
 model ExpenseSubcategories {
-  id                       String                        @id @default(uuid())
-  categoryId               String
-  name                     String
-  emoji                    String?
-  description              String?
-  isDefault                Boolean                       @default(false)
-  isUserCreated            Boolean                       @default(false)
-  createdAt                DateTime                      @default(now())
-  createdBy                String?
-  expense_account_payments ExpenseAccountPayments[]      @relation("ExpensePaymentSubcategory")
-  category                 ExpenseCategories             @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  users                    Users?                        @relation(fields: [createdBy], references: [id])
-  personal_expenses        PersonalExpenses[]
-  supplier_payment_items   SupplierPaymentRequestItems[] @relation("SupplierPaymentItemSubcategory")
+  id                        String                        @id @default(uuid())
+  categoryId                String
+  name                      String
+  emoji                     String?
+  description               String?
+  isDefault                 Boolean                       @default(false)
+  isUserCreated             Boolean                       @default(false)
+  createdAt                 DateTime                      @default(now())
+  createdBy                 String?
+  expense_account_payments  ExpenseAccountPayments[]      @relation("ExpensePaymentSubcategory")
+  category                  ExpenseCategories             @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users                     Users?                        @relation(fields: [createdBy], references: [id])
+  personal_expenses         PersonalExpenses[]
+  supplier_payment_items    SupplierPaymentRequestItems[] @relation("SupplierPaymentItemSubcategory")
+  expense_sub_subcategories ExpenseSubSubcategories[]
 
   @@unique([categoryId, name])
   @@map("expense_subcategories")
+}
+
+model ExpenseSubSubcategories {
+  id            String               @id @default(uuid())
+  subcategoryId String
+  name          String
+  emoji         String?
+  isUserCreated Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  subcategory   ExpenseSubcategories @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+
+  @@unique([subcategoryId, name])
+  @@map("expense_sub_subcategories")
 }
 
 model ExpenseAccounts {

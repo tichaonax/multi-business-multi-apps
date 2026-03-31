@@ -1726,6 +1726,113 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
   // Existing BarcodeInventoryItems can be temporarily unlocked for category/domain editing
   const canEdit = row.isExistingItem && row.itemType !== 'bale' && row.itemType !== 'bulk' && row.itemType !== 'product'
   const inv = (field: string) => invalidFields.has(field)
+
+  // ── Suggest Classification ──────────────────────────────────────────────────
+  type SuggestItem = {
+    domainId: string; domainName: string; domainEmoji: string
+    categoryId: string; categoryName: string; categoryEmoji: string
+    subCategoryId: string; subCategoryName: string; subCategoryEmoji: string
+    score: number
+  }
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestions, setSuggestions] = useState<SuggestItem[]>([])
+  const [isApplying, setIsApplying] = useState(false)
+  const suggestBtnRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 })
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (!suggestOpen) return
+    function onMouseDown(e: MouseEvent) {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        suggestBtnRef.current && !suggestBtnRef.current.contains(e.target as Node)
+      ) setSuggestOpen(false)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [suggestOpen])
+
+  function handleSuggest() {
+    const q = row.name.trim()
+    if (q.length < 2) return
+
+    // Position popover below/near the button
+    if (suggestBtnRef.current) {
+      const rect = suggestBtnRef.current.getBoundingClientRect()
+      setPopoverPos({ top: rect.bottom + 4, left: Math.max(8, rect.left - 120) })
+    }
+
+    // Client-side keyword search — all data is already in memory, scoped to this business
+    const tokens = q.toLowerCase().split(/[\s,./\\-]+/).filter(t => t.length >= 2)
+    function countMatches(text: string): number {
+      const lower = text.toLowerCase()
+      return tokens.filter(t => lower.includes(t)).length
+    }
+
+    const scored: SuggestItem[] = []
+    for (const sub of allSubCategories) {
+      const cat = allCategories.find(c => c.id === sub.parentId)
+      if (!cat) continue
+      const domain = departments.find(d => d.id === (cat.domainId ?? cat.parentId))
+
+      const subScore = countMatches(sub.name) * 3
+      const catScore = countMatches(cat.name) * 2
+      const domScore = domain ? countMatches(domain.name) * 1 : 0
+      const total = subScore + catScore + domScore
+      if (total === 0) continue
+
+      scored.push({
+        domainId: domain?.id ?? '',
+        domainName: domain?.name ?? '',
+        domainEmoji: domain?.emoji ?? '',
+        categoryId: cat.id,
+        categoryName: cat.name,
+        categoryEmoji: cat.emoji ?? '',
+        subCategoryId: sub.id,
+        subCategoryName: sub.name,
+        subCategoryEmoji: sub.emoji ?? '',
+        score: total,
+      })
+    }
+
+    scored.sort((a, b) => b.score - a.score || a.subCategoryName.localeCompare(b.subCategoryName))
+    const seen = new Set<string>()
+    const top = scored.filter(s => {
+      if (seen.has(s.subCategoryId)) return false
+      seen.add(s.subCategoryId)
+      return true
+    }).slice(0, 5)
+
+    setSuggestions(top)
+    setSuggestOpen(true)
+  }
+
+  async function applySuggestion(s: SuggestItem) {
+    setSuggestOpen(false)
+    setIsApplying(true)
+    try {
+      // Auto-unlock existing items so dropdowns become editable before applying
+      if (row.isExistingItem && !row.isEditing) {
+        onToggleEdit()
+        await new Promise(r => setTimeout(r, 100))
+      }
+      // Step 1: set Domain (clears Category + Sub-category)
+      onChange({ departmentId: s.domainId, categoryId: '', subCategoryId: '' })
+      await new Promise(r => setTimeout(r, 60))
+      // Step 2: set Category (clears Sub-category)
+      onChange({ categoryId: s.categoryId, subCategoryId: '' })
+      await new Promise(r => setTimeout(r, 60))
+      // Step 3: set Sub-category
+      onChange({ subCategoryId: s.subCategoryId })
+    } finally {
+      setIsApplying(false)
+    }
+  }
+
+  // Show suggest for any row with a name — auto-unlocks on apply if needed
+  const canSuggest = row.name.trim().length >= 2
   // Hierarchy-filtered lists (SearchableSelect handles text search internally)
   // Always include the row's current categoryId even if its domainId is null (e.g. legacy item
   // whose category hasn't been fixed yet) so the selection is visible when editing.
@@ -1780,6 +1887,57 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             {row.isEditing ? '🔓' : '✏️'}
           </button>
         )}
+        {canSuggest && (
+          <button
+            ref={suggestBtnRef}
+            type="button"
+            onClick={handleSuggest}
+            title="Suggest domain / category from name"
+            className="mt-0.5 text-sm leading-none text-amber-400 hover:text-amber-500"
+          >
+            💡
+          </button>
+        )}
+        {isApplying && <div className="text-[9px] text-blue-500 animate-pulse leading-none mt-0.5">filling…</div>}
+
+        {/* Suggest classification popover — fixed position to escape table overflow clipping */}
+        {suggestOpen && (
+          <div
+            ref={popoverRef}
+            style={{ position: 'fixed', top: popoverPos.top, left: popoverPos.left, zIndex: 9999 }}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-72"
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">💡 Suggested Classification</span>
+              <button type="button" onClick={() => setSuggestOpen(false)} className="text-gray-400 hover:text-gray-600 text-base leading-none">×</button>
+            </div>
+            <div className="p-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Based on: <span className="font-medium text-gray-700 dark:text-gray-200">"{row.name.trim()}"</span></p>
+              {suggestions.length === 0 ? (
+                <p className="text-xs text-gray-500 py-2 text-center">No matches found — select manually.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {suggestions.map((s, i) => (
+                    <li key={`${s.subCategoryId}-${i}`}>
+                      <button
+                        type="button"
+                        onClick={() => applySuggestion(s)}
+                        className="w-full text-left px-2 py-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                      >
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                          {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {s.subCategoryEmoji} {s.subCategoryName}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
       </td>
 
       {/* Barcode */}
@@ -1805,7 +1963,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             onChange={id => onChange({ departmentId: id, categoryId: '', subCategoryId: '' })}
             placeholder="Select domain…"
             allLabel="— none —"
-            disabled={row.isExistingItem && !row.isEditing}
+            disabled={isApplying || (row.isExistingItem && !row.isEditing)}
           />
         </td>
       )}
@@ -1820,7 +1978,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
             onChange={id => onChange({ categoryId: id, subCategoryId: '' })}
             placeholder={departments.length > 0 && !row.departmentId ? 'Select dept first' : 'Select category…'}
             allLabel="— none —"
-            disabled={(row.isExistingItem && !row.isEditing) || (departments.length > 0 && !row.departmentId && !row.isEditing)}
+            disabled={isApplying || (row.isExistingItem && !row.isEditing) || (departments.length > 0 && !row.departmentId && !row.isEditing)}
             required
             error={inv('categoryId') ? ' ' : undefined}
           />
@@ -1839,7 +1997,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
               onChange={id => onChange({ subCategoryId: id })}
               placeholder={!row.categoryId ? 'Select category first' : 'Select sub-cat…'}
               allLabel="— none —"
-              disabled={(row.isExistingItem && !row.isEditing) || !row.categoryId}
+              disabled={isApplying || (row.isExistingItem && !row.isEditing) || !row.categoryId}
             />
             {(!row.isExistingItem || row.isEditing) && (
               <button type="button" title={!row.categoryId ? 'Select a category first' : 'New sub-category'}

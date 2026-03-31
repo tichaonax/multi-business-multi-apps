@@ -439,9 +439,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             .filter(item => {
               const isInvItem = item.productId?.startsWith('inv_') || !!item.attributes?.isInventoryItem
               if (isInvItem) {
-                return existingCart.some(
+                // Allow if it belongs to the current business, or is already in the local cart
+                const belongsToThisBusiness = item.attributes?.businessId === businessId
+                const inExistingCart = existingCart.some(
                   local => local.productId === item.productId || local.variantId === item.variantId
                 )
+                return belongsToThisBusiness || inExistingCart
               }
               return true
             })

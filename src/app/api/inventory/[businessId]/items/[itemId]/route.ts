@@ -333,7 +333,7 @@ export async function PUT(
     if (body.description !== undefined) updateData.description = body.description
     if (body.sku) updateData.sku = body.sku
     if (body.barcode) updateData.barcode = body.barcode
-    if (body.categoryId) updateData.categoryId = body.categoryId
+    if (body.categoryId !== undefined) updateData.categoryId = body.categoryId || null
     if (body.subcategoryId !== undefined) updateData.subcategoryId = body.subcategoryId || null
     if (body.supplierId !== undefined) updateData.supplierId = body.supplierId || null
     if (body.locationId !== undefined) updateData.locationId = body.locationId || null

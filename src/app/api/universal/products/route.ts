@@ -124,8 +124,10 @@ export async function GET(request: NextRequest) {
       where.isAvailable = isAvailable === 'true'
     }
 
-    // Always exclude zero-price products from browse results
-    where.basePrice = { gt: 0 }
+    // Exclude zero-price products from browse results (skip for direct product lookups)
+    if (!productId) {
+      where.basePrice = { gt: 0 }
+    }
 
     if (categoryId) where.categoryId = categoryId
     if (brandId) where.brandId = brandId

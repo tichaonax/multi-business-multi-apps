@@ -712,7 +712,32 @@ function ClothingInventoryContent() {
 
   const handleItemAddToCart = async (item: any) => {
     try {
-      // Fetch product with variants
+      // BarcodeInventoryItems (inv_ prefix) already have all cart data — no product lookup needed
+      if (item.id?.startsWith('inv_')) {
+        const price = item.sellPrice || 0
+        if (price <= 0) {
+          showToast('Product has no selling price set', { type: 'error' })
+          return
+        }
+        if ((item.currentStock || 0) <= 0) {
+          showToast('Product is out of stock', { type: 'error' })
+          return
+        }
+        addToCart({
+          productId: item.id,
+          variantId: item.id,
+          name: item.name,
+          sku: item.sku || '',
+          price,
+          stock: item.currentStock,
+          imageUrl: null,
+          attributes: { isInventoryItem: true, businessId: currentBusinessId },
+        })
+        showToast(`Added ${item.name} to cart`, { type: 'success' })
+        return
+      }
+
+      // BusinessProducts — fetch with variants for selection
       const response = await fetch(`/api/universal/products?businessId=${currentBusinessId}&productId=${item.id}&includeVariants=true&includeImages=true`)
 
       if (!response.ok) {
@@ -747,7 +772,6 @@ function ClothingInventoryContent() {
         const variant = validVariants[0]
         const stock = variant.stockQuantity || 0
 
-        // Check if item has stock
         if (stock <= 0) {
           showToast('Product is out of stock', { type: 'error' })
           return

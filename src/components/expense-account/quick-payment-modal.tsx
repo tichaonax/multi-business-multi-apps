@@ -12,6 +12,7 @@ import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { getTodayLocalDateString } from '@/lib/date-utils'
+import type { BusinessMembership } from '@/types/permissions'
 
 // Searchable select dropdown (same pattern as payment-form)
 function SearchableSelect({
@@ -213,6 +214,9 @@ function getDefaultDomainName(businessType: string): string {
     hardware: 'Hardware',
     construction: 'Construction',
     vehicles: 'Vehicle',
+    services: 'Services',
+    retail: 'Retail',
+    consulting: 'Consulting',
   }
   return map[businessType] || 'Business'
 }
@@ -253,6 +257,8 @@ interface QuickPaymentModalProps {
   accountType?: string
   defaultCategoryBusinessType?: string
   businessId?: string
+  /** All businesses the user can access — enables the Business selector dropdown */
+  businesses?: BusinessMembership[]
   /** When set, the payee is locked to this value and shown as read-only (e.g. rent account → landlord) */
   presetPayee?: { type: string; id: string; name: string } | null
 }
@@ -270,10 +276,28 @@ export function QuickPaymentModal({
   accountType = 'GENERAL',
   defaultCategoryBusinessType,
   businessId,
+  businesses,
   presetPayee = null,
 }: QuickPaymentModalProps) {
   const isPersonalAccount = accountType === 'PERSONAL'
   const isRentAccount = accountType === 'RENT'
+
+  // Active account — may be overridden when user switches business via the Business selector
+  const [activeAccountId, setActiveAccountId] = useState(accountId)
+  const [activeAccountName, setActiveAccountName] = useState(accountName)
+  const [activeBalance, setActiveBalance] = useState(currentBalance)
+  const [activeBusinessType, setActiveBusinessType] = useState(defaultCategoryBusinessType)
+  const [selectedBusinessId, setSelectedBusinessId] = useState(businessId || '')
+  const [selectedDropdownValue, setSelectedDropdownValue] = useState(businessId || '')
+  const [activeDomainOverride, setActiveDomainOverride] = useState<string | null>(null)
+  const [activeDomainOverrideId, setActiveDomainOverrideId] = useState<string | null>(null)
+  const [domainOverrideItems, setDomainOverrideItems] = useState<ExpenseCategory[]>([])
+  const [loadingDomainOverrideItems, setLoadingDomainOverrideItems] = useState(false)
+  // Sub-items = expense_sub_subcategories loaded when category selected in domain-override mode
+  const [domainOverrideSubItems, setDomainOverrideSubItems] = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [loadingDomainOverrideSubItems, setLoadingDomainOverrideSubItems] = useState(false)
+  const [loadingBusinessSwitch, setLoadingBusinessSwitch] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [liveBalance, setLiveBalance] = useState<number | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
@@ -301,8 +325,22 @@ export function QuickPaymentModal({
 
   // Saved payment notes
   const [savedNotes, setSavedNotes] = useState<{ id: string; note: string; usageCount: number }[]>([])
-  const [noteMode, setNoteMode] = useState<'none' | 'saved' | 'type'>('none')
+  const [noteMode, setNoteMode] = useState<'saved' | 'type'>('type')
   const [saveNote, setSaveNote] = useState(false)
+
+  // Classification suggestion
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const [isApplyingSuggestion, setIsApplyingSuggestion] = useState(false)
+  const [suggestions, setSuggestions] = useState<{
+    domainId: string; domainName: string; domainEmoji: string | null
+    categoryId: string; categoryName: string; categoryEmoji: string | null
+    subcategoryId: string; subcategoryName: string; subcategoryEmoji: string | null
+    score: number
+  }[]>([])
+
+  // Skip cascade effects when applying a suggestion (prevents clearing fields mid-apply)
+  const skipCascadeRef = useRef(false)
   const customAlert = useAlert()
   const customConfirm = useConfirm()
 
@@ -327,6 +365,7 @@ export function QuickPaymentModal({
     categoryId: '',
     amount: '',
     paymentDate: '',
+    notes: '',
   })
 
   const fetchSavedNotes = () => {
@@ -361,7 +400,7 @@ export function QuickPaymentModal({
   const fetchLiveBalance = async () => {
     setBalanceLoading(true)
     try {
-      const res = await fetch(`/api/expense-account/${accountId}/balance`, { credentials: 'include' })
+      const res = await fetch(`/api/expense-account/${activeAccountId}/balance`, { credentials: 'include' })
       if (res.ok) {
         const data = await res.json()
         // Use calculatedBalance (SUM-based) which is always authoritative
@@ -397,19 +436,52 @@ export function QuickPaymentModal({
     }
   }
 
-  // Auto-select category matching business type when categories load
+  // Switch business: fetch that business's primary GENERAL account, update active account + domain
+  const handleBusinessSwitch = async (biz: BusinessMembership) => {
+    if (biz.businessId === selectedBusinessId) return
+    setLoadingBusinessSwitch(true)
+    try {
+      const res = await fetch(`/api/expense-account?businessId=${biz.businessId}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        const accounts: any[] = data?.data?.accounts ?? []
+        const primary = accounts.find((a: any) => a.accountType === 'GENERAL') ?? accounts[0]
+        if (primary) {
+          setActiveAccountId(primary.id)
+          setActiveAccountName(primary.accountName)
+          setActiveBalance(primary.balance)
+          setLiveBalance(null)
+        }
+      }
+    } catch {}
+    setSelectedBusinessId(biz.businessId)
+    setSelectedDropdownValue(biz.businessId)
+    setActiveDomainOverride(null)
+    setActiveDomainOverrideId(null)
+    setDomainOverrideItems([])
+    setDomainOverrideSubItems([])
+    setActiveBusinessType(biz.businessType)
+    setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+    setSubcategories([])
+    setSubSubcategories([])
+    setLoadingBusinessSwitch(false)
+  }
+
+  // Auto-select domain matching business type when categories load (skip in domain-override mode)
   useEffect(() => {
-    if (categories.length > 0 && defaultCategoryBusinessType && !formData.categoryId) {
-      const domainName = getDefaultDomainName(defaultCategoryBusinessType)
+    if (categories.length > 0 && !formData.categoryId && !activeDomainOverride && activeBusinessType) {
+      const domainName = getDefaultDomainName(activeBusinessType)
       const match = categories.find(c => c.name === domainName)
       if (match) {
         setFormData(prev => ({ ...prev, categoryId: match.id }))
       }
     }
-  }, [categories, defaultCategoryBusinessType])
+  }, [categories, activeBusinessType, activeDomainOverride])
 
-  // Load subcategories when category changes (skip for RENT — chain is preset and locked)
+  // Load subcategories when category changes (skip for RENT and domain-override mode — those handle loading directly)
   useEffect(() => {
+    if (skipCascadeRef.current) return
+    if (activeDomainOverride) return
     if (formData.categoryId) {
       if (isRentAccount) return
       loadSubcategories(formData.categoryId)
@@ -419,10 +491,15 @@ export function QuickPaymentModal({
       setSubcategories([])
       setSubSubcategories([])
     }
-  }, [formData.categoryId])
+  }, [formData.categoryId, activeDomainOverride])
 
-  // Load sub-subcategories when subcategory changes (skip for RENT — chain is preset and locked)
+  // Load sub-subcategories when subcategory changes (normal mode only — domain-override handles this in onChange directly)
+  const activeDomainOverrideRef = useRef(activeDomainOverride)
+  useEffect(() => { activeDomainOverrideRef.current = activeDomainOverride }, [activeDomainOverride])
+
   useEffect(() => {
+    if (skipCascadeRef.current) return
+    if (activeDomainOverrideRef.current) return
     if (formData.subcategoryId) {
       if (isRentAccount) return
       loadSubSubcategories(formData.subcategoryId)
@@ -443,20 +520,10 @@ export function QuickPaymentModal({
         const data = await response.json()
         const flattenedCategories: ExpenseCategory[] = []
 
-        // When a business type is known, only show that domain + global (non-domain) categories.
-        // This prevents restaurant users from seeing Business/Personal/Clothing/etc. domain entries.
-        // Universal domains (Home, Business General) always show regardless of business type.
-        const targetDomainName = defaultCategoryBusinessType
-          ? getDefaultDomainName(defaultCategoryBusinessType)
-          : null
-        const UNIVERSAL_DOMAINS = new Set(['Home', 'Business (General)'])
-
         if (data.domains && Array.isArray(data.domains)) {
           data.domains.forEach((domain: any) => {
             if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
               domain.expense_categories.forEach((cat: any) => {
-                // Skip other domain entries when a target domain is known (but always keep universal domains)
-                if (targetDomainName && cat.isDomainCategory && cat.name !== targetDomainName && !UNIVERSAL_DOMAINS.has(cat.name)) return
                 flattenedCategories.push({
                   id: cat.id,
                   name: cat.name,
@@ -530,7 +597,8 @@ export function QuickPaymentModal({
       payee: '',
       categoryId: '',
       amount: '',
-      paymentDate: ''
+      paymentDate: '',
+      notes: '',
     }
 
     if (!formData.payee) {
@@ -601,8 +669,12 @@ export function QuickPaymentModal({
       }
     }
 
+    if (!formData.notes.trim()) {
+      newErrors.notes = 'Please describe what this payment is for'
+    }
+
     setErrors(newErrors)
-    return !newErrors.payee && !newErrors.categoryId && !newErrors.amount && !newErrors.paymentDate
+    return !newErrors.payee && !newErrors.categoryId && !newErrors.amount && !newErrors.paymentDate && !newErrors.notes
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -655,7 +727,7 @@ export function QuickPaymentModal({
         status: 'SUBMITTED'
       }
 
-      const result = await fetchWithValidation(`/api/expense-account/${accountId}/payments`, {
+      const result = await fetchWithValidation(`/api/expense-account/${activeAccountId}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payments: [payment] })
@@ -712,13 +784,95 @@ export function QuickPaymentModal({
       categoryId: '',
       amount: '',
       paymentDate: '',
+      notes: '',
     })
     setPayeeErrorMessage(null)
     setSupplierForEdit(null)
     setSubcategories([])
     setSubSubcategories([])
-    setNoteMode('none')
+    setNoteMode('type')
     setSaveNote(false)
+    setIsApplyingSuggestion(false)
+    setSuggestions([])
+    setSuggestOpen(false)
+  }
+
+  const handleSuggest = async () => {
+    const q = formData.notes.trim()
+    if (q.length < 2) return
+    setSuggestLoading(true)
+    setSuggestions([])
+    setSuggestOpen(true)
+    try {
+      // In domain-override mode, restrict suggestions to the selected domain for relevance
+      const domainParam = activeDomainOverrideId ? `&domainId=${encodeURIComponent(activeDomainOverrideId)}` : ''
+      const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}${domainParam}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setSuggestions(data.suggestions ?? [])
+      }
+    } catch {
+      // Silently fail — user can still pick manually
+    } finally {
+      setSuggestLoading(false)
+    }
+  }
+
+  const applySuggestion = async (s: typeof suggestions[0]) => {
+    setSuggestOpen(false)
+    // Block cascade effects from clearing fields while we apply each level
+    skipCascadeRef.current = true
+    setIsApplyingSuggestion(true)
+    try {
+      if (activeDomainOverride) {
+        // ── Domain-override mode ────────────────────────────────────────────────
+        // formData.categoryId = ExpenseCategory.id (s.categoryId)
+        // formData.subcategoryId = ExpenseSubcategory.id (s.subcategoryId)
+        // formData.subSubcategoryId = ExpenseSubSubcategory.id (optional, 4th level)
+
+        // Step 1: pick the Category (load its Subcategories first so the dropdown is ready)
+        const res1 = await fetch(`/api/expense-categories/${s.categoryId}/subcategories`, { credentials: 'include' })
+        if (res1.ok) {
+          const d = await res1.json()
+          setSubcategories(d.subcategories ?? [])
+        }
+        setFormData(prev => ({ ...prev, categoryId: s.categoryId, subcategoryId: '', subSubcategoryId: '' }))
+
+        // Step 2: pick the Subcategory (load its Sub-items from domain-override API)
+        const res2 = await fetch(`/api/expense-categories/sub-subcategories/${s.subcategoryId}/items`, { credentials: 'include' })
+        if (res2.ok) {
+          const d = await res2.json()
+          setDomainOverrideSubItems(d.items ?? [])
+        }
+        setFormData(prev => ({ ...prev, subcategoryId: s.subcategoryId, subSubcategoryId: '' }))
+
+      } else {
+        // ── Normal mode (domain selected in Domain picker) ──────────────────────
+        // formData.categoryId = ExpenseDomain.id (s.domainId)
+        // formData.subcategoryId = ExpenseCategory.id (s.categoryId)
+        // formData.subSubcategoryId = ExpenseSubcategory.id (s.subcategoryId)
+
+        // Step 1: pick the Domain — load its Categories (ExpenseCategories for the domain)
+        const res1 = await fetch(`/api/expense-categories/${s.domainId}/subcategories`, { credentials: 'include' })
+        if (res1.ok) {
+          const d = await res1.json()
+          setSubcategories(d.subcategories ?? [])
+        }
+        setFormData(prev => ({ ...prev, categoryId: s.domainId, subcategoryId: '', subSubcategoryId: '' }))
+
+        // Step 2: pick the Category — load its Subcategories (ExpenseSubcategories for the category)
+        // Uses the same API with an ExpenseCategory.id which falls back to the subcategory path
+        const res2 = await fetch(`/api/expense-categories/${s.categoryId}/subcategories`, { credentials: 'include' })
+        if (res2.ok) {
+          const d = await res2.json()
+          setSubSubcategories(d.subcategories ?? [])
+        }
+        setFormData(prev => ({ ...prev, subcategoryId: s.categoryId, subSubcategoryId: s.subcategoryId }))
+      }
+    } finally {
+      setIsApplyingSuggestion(false)
+      requestAnimationFrame(() => { skipCascadeRef.current = false })
+    }
   }
 
   const handleCancel = async () => {
@@ -849,6 +1003,10 @@ export function QuickPaymentModal({
 
   const selectedCategory = categories.find(c => c.id === formData.categoryId)
   const domainOptions = categories.filter(c => c.isDomainCategory)
+  // When a domain group is selected from the Business dropdown, restrict the Domain picker to that domain only
+  const visibleDomainOptions = activeDomainOverride
+    ? domainOptions.filter(d => d.name === activeDomainOverride)
+    : domainOptions
   const globalCategories = categories.filter(c => !c.isDomainCategory)
   const selectedIsDomain = selectedCategory?.isDomainCategory ?? false
 
@@ -861,12 +1019,12 @@ export function QuickPaymentModal({
         <div className="mb-4">
           <h2 className="text-xl font-bold text-primary">Quick Payment</h2>
           <p className="text-sm text-secondary">
-            from {accountName} (Balance:{' '}
-            {balanceLoading ? (
+            from {activeAccountName} (Balance:{' '}
+            {balanceLoading || loadingBusinessSwitch ? (
               <span className="text-secondary font-semibold">Loading...</span>
             ) : (
-              <span className={`font-semibold ${(liveBalance ?? currentBalance) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                ${(liveBalance ?? currentBalance).toFixed(2)}
+              <span className={`font-semibold ${(liveBalance ?? activeBalance) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                ${(liveBalance ?? activeBalance).toFixed(2)}
               </span>
             )})
           </p>
@@ -921,6 +1079,54 @@ export function QuickPaymentModal({
 
         <form onSubmit={handleSubmit}>
           {/* ── Payee — full width ───────────────────────────────────── */}
+          {/* Business selector — shown when multiple businesses available */}
+          {businesses && businesses.length > 1 && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-secondary mb-1">Business</label>
+              <SearchableSelect
+                value={selectedDropdownValue}
+                disabled={loadingBusinessSwitch}
+                loading={loadingBusinessSwitch}
+                placeholder="Select business or domain..."
+                options={[
+                  ...businesses.filter(b => !b.isUmbrellaBusiness).map(b => ({
+                    id: b.businessId,
+                    label: b.businessName,
+                  })),
+                  ...domainOptions.map(d => ({
+                    id: `domain:${d.id}`,
+                    label: `${d.name} Business Domains`,
+                  })),
+                ]}
+                onChange={(val) => {
+                  setSelectedDropdownValue(val)
+                  if (val.startsWith('domain:')) {
+                    const domainId = val.replace('domain:', '')
+                    const cat = domainOptions.find(c => c.id === domainId)
+                    if (cat) {
+                      setActiveDomainOverride(cat.name)
+                      setActiveDomainOverrideId(domainId)
+                      setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+                      setSubcategories([])
+                      setSubSubcategories([])
+                      setDomainOverrideItems([])
+                      setLoadingDomainOverrideItems(true)
+                      fetch(`/api/expense-categories/${domainId}/subcategories`, { credentials: 'include' })
+                        .then(r => r.json())
+                        .then(d => setDomainOverrideItems(d.subcategories || []))
+                        .catch(() => {})
+                        .finally(() => setLoadingDomainOverrideItems(false))
+                    }
+                  } else {
+                    setActiveDomainOverride(null)
+                    const biz = businesses.find(b => b.businessId === val)
+                    if (biz) handleBusinessSwitch(biz)
+                  }
+                }}
+              />
+            </div>
+          )}
+
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-secondary">
@@ -1008,105 +1214,196 @@ export function QuickPaymentModal({
                 <>
                   {/* Domain + Category — hidden for Personal accounts */}
                   {!isPersonalAccount && (
-                    <>
-                      {/* Domain picker */}
-                      <div>
-                        <label className="block text-sm font-medium text-secondary mb-1">
-                          Domain
-                        </label>
-                        {loadingCategories ? (
-                          <div className="text-sm text-secondary">Loading...</div>
-                        ) : (
-                          <select
-                            value={selectedIsDomain ? formData.categoryId : ''}
-                            onChange={(e) => {
-                              const domainId = e.target.value
-                              setFormData({ ...formData, categoryId: domainId, subcategoryId: '', subSubcategoryId: '' })
-                              setErrors({ ...errors, categoryId: '' })
-                            }}
-                            disabled={!canChangeCategory}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          >
-                            <option value="">— Select domain —</option>
-                            {domainOptions.map(d => (
-                              <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
-                            ))}
-                          </select>
+                    activeDomainOverride ? (
+                      // ── Business-domain mode ──────────────────────────────────
+                      // domainOverrideItems = expense_categories (General Construction, Structural Work…)
+                      // subcategories = expense_subcategories under selected expense_category (Masonry, Steel…)
+                      // subSubcategories = expense_sub_subcategories (Brickwork, Blockwork…)
+                      <>
+                        {isApplyingSuggestion && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 animate-pulse">💡 Applying suggestion…</p>
                         )}
-                      </div>
-
-                      {/* Global Category picker — only shown when no domain selected */}
-                      {!selectedIsDomain && (
+                        {/* Domain picker — expense_categories of the selected business domain */}
                         <div>
                           <label className="block text-sm font-medium text-secondary mb-1">
-                            Category <span className="text-red-500">*</span>
+                            Domain
+                          </label>
+                          <SearchableSelect
+                            value={formData.categoryId}
+                            options={domainOverrideItems.map(s => ({ id: s.id, label: `${s.emoji || ''} ${s.name}`.trim() }))}
+                            onChange={(val) => {
+                              console.log('[DomainOverride] Domain picked, categoryId=', val)
+                              setFormData(prev => ({ ...prev, categoryId: val, subcategoryId: '', subSubcategoryId: '' }))
+                              setErrors(prev => ({ ...prev, categoryId: '' }))
+                              setSubcategories([])
+                              setSubSubcategories([])
+                              setDomainOverrideSubItems([])
+                              if (val) {
+                                setLoadingSubcategories(true)
+                                fetch(`/api/expense-categories/${val}/subcategories`, { credentials: 'include' })
+                                  .then(r => { console.log('[DomainOverride] subcategories status=', r.status); return r.json() })
+                                  .then(d => { console.log('[DomainOverride] subcategories data=', d); setSubcategories(d.subcategories || []) })
+                                  .catch(e => console.error('[DomainOverride] subcategories error=', e))
+                                  .finally(() => setLoadingSubcategories(false))
+                              }
+                            }}
+                            placeholder={loadingDomainOverrideItems ? 'Loading…' : 'Select a domain…'}
+                            loading={loadingDomainOverrideItems}
+                            disabled={isApplyingSuggestion || loadingDomainOverrideItems}
+                          />
+                        </div>
+
+                        {/* Category picker — expense_subcategories under selected expense_category */}
+                        {formData.categoryId && (
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">
+                              Category
+                            </label>
+                            <SearchableSelect
+                              value={formData.subcategoryId}
+                              options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                              onChange={(val) => {
+                                console.log('[DomainOverride] Category picked, subcategoryId=', val)
+                                setFormData(prev => ({ ...prev, subcategoryId: val, subSubcategoryId: '' }))
+                                setDomainOverrideSubItems([])
+                                if (val) {
+                                  setLoadingDomainOverrideSubItems(true)
+                                  fetch(`/api/expense-categories/sub-subcategories/${val}/items`, { credentials: 'include' })
+                                    .then(r => { console.log('[DomainOverride] sub-items status=', r.status); return r.json() })
+                                    .then(d => { console.log('[DomainOverride] sub-items data=', d); setDomainOverrideSubItems(d.items || []) })
+                                    .catch(e => console.error('[DomainOverride] sub-items error=', e))
+                                    .finally(() => setLoadingDomainOverrideSubItems(false))
+                                }
+                              }}
+                              placeholder={loadingSubcategories ? 'Loading…' : 'Select a category…'}
+                              loading={loadingSubcategories}
+                              disabled={isApplyingSuggestion || !formData.categoryId}
+                            />
+                          </div>
+                        )}
+
+                        {/* Sub-Category picker — expense_sub_subcategories */}
+                        {formData.subcategoryId && (
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">
+                              Sub-Category
+                            </label>
+                            <SearchableSelect
+                              value={formData.subSubcategoryId}
+                              options={domainOverrideSubItems.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                              onChange={(val) => setFormData(prev => ({ ...prev, subSubcategoryId: val }))}
+                              placeholder={loadingDomainOverrideSubItems ? 'Loading…' : 'Select a sub-category…'}
+                              loading={loadingDomainOverrideSubItems}
+                              disabled={isApplyingSuggestion || !formData.subcategoryId || loadingDomainOverrideSubItems}
+                            />
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      // ── Normal mode ───────────────────────────────────────────
+                      <>
+                        {isApplyingSuggestion && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 animate-pulse">💡 Applying suggestion…</p>
+                        )}
+                        {/* Domain picker */}
+                        <div>
+                          <label className="block text-sm font-medium text-secondary mb-1">
+                            Domain
                           </label>
                           {loadingCategories ? (
-                            <div className="text-sm text-secondary">Loading categories...</div>
+                            <div className="text-sm text-secondary">Loading...</div>
                           ) : (
-                            <SearchableCategorySelector
-                              categories={globalCategories}
-                              value={formData.categoryId}
-                              onChange={(categoryId) => {
-                                setFormData({ ...formData, categoryId })
+                            <select
+                              value={selectedIsDomain ? formData.categoryId : ''}
+                              onChange={(e) => {
+                                const domainId = e.target.value
+                                setFormData({ ...formData, categoryId: domainId, subcategoryId: '', subSubcategoryId: '' })
                                 setErrors({ ...errors, categoryId: '' })
                               }}
-                              error={errors.categoryId}
-                              disabled={!canChangeCategory}
-                            />
+                              disabled={isApplyingSuggestion || !canChangeCategory}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="">— Select domain —</option>
+                              {visibleDomainOptions.map(d => (
+                                <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
+                              ))}
+                            </select>
                           )}
                         </div>
-                      )}
-                    </>
-                  )}
 
-                  {/* Subcategory */}
-                  {(subcategories.length > 0 || formData.categoryId) && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium text-secondary">
-                          Subcategory {selectedCategory?.requiresSubcategory && <span className="text-red-500">*</span>}
-                        </label>
-                        {formData.categoryId && (
-                          <button type="button" onClick={() => setShowCreateSubcategory(true)}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
-                            + Create New
-                          </button>
+                        {/* Global Category picker — only shown when no domain selected */}
+                        {!selectedIsDomain && (
+                          <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">
+                              Category <span className="text-red-500">*</span>
+                            </label>
+                            {loadingCategories ? (
+                              <div className="text-sm text-secondary">Loading categories...</div>
+                            ) : (
+                              <SearchableCategorySelector
+                                categories={globalCategories}
+                                value={formData.categoryId}
+                                onChange={(categoryId) => {
+                                  setFormData({ ...formData, categoryId })
+                                  setErrors({ ...errors, categoryId: '' })
+                                }}
+                                error={errors.categoryId}
+                                disabled={!canChangeCategory}
+                              />
+                            )}
+                          </div>
                         )}
-                      </div>
-                      <SearchableSelect
-                        value={formData.subcategoryId}
-                        options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
-                        onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
-                        placeholder="Select a subcategory..."
-                        loading={loadingSubcategories}
-                        disabled={!formData.categoryId}
-                      />
-                    </div>
-                  )}
 
-                  {/* Sub-Subcategory */}
-                  {(subSubcategories.length > 0 || formData.subcategoryId) && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium text-secondary">
-                          Sub-Subcategory
-                        </label>
-                        {formData.subcategoryId && (
-                          <button type="button" onClick={() => setShowCreateSubSubcategory(true)}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
-                            + Create New
-                          </button>
+                        {/* Subcategory */}
+                        {(subcategories.length > 0 || formData.categoryId) && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-sm font-medium text-secondary">
+                                Subcategory {selectedCategory?.requiresSubcategory && <span className="text-red-500">*</span>}
+                              </label>
+                              {formData.categoryId && (
+                                <button type="button" onClick={() => setShowCreateSubcategory(true)}
+                                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                                  + Create New
+                                </button>
+                              )}
+                            </div>
+                            <SearchableSelect
+                              value={formData.subcategoryId}
+                              options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                              onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
+                              placeholder="Select a subcategory..."
+                              loading={loadingSubcategories}
+                              disabled={isApplyingSuggestion || !formData.categoryId}
+                            />
+                          </div>
                         )}
-                      </div>
-                      <SearchableSelect
-                        value={formData.subSubcategoryId}
-                        options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
-                        onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
-                        placeholder="Select a sub-subcategory..."
-                        disabled={!formData.subcategoryId}
-                      />
-                    </div>
+
+                        {/* Sub-Subcategory */}
+                        {(subSubcategories.length > 0 || formData.subcategoryId) && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-sm font-medium text-secondary">
+                                Sub-Subcategory
+                              </label>
+                              {formData.subcategoryId && (
+                                <button type="button" onClick={() => setShowCreateSubSubcategory(true)}
+                                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                                  + Create New
+                                </button>
+                              )}
+                            </div>
+                            <SearchableSelect
+                              value={formData.subSubcategoryId}
+                              options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
+                              onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
+                              placeholder="Select a sub-subcategory..."
+                              disabled={isApplyingSuggestion || !formData.subcategoryId}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )
                   )}
                 </>
               )}
@@ -1142,9 +1439,9 @@ export function QuickPaymentModal({
                 {errors.amount && (
                   <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
                 )}
-                {!errors.amount && formData.amount && parseFloat(formData.amount) > (liveBalance ?? currentBalance) && (
+                {!errors.amount && formData.amount && parseFloat(formData.amount) > (liveBalance ?? activeBalance) && (
                   <p className="text-xs text-yellow-500 mt-1">
-                    Warning: Insufficient funds. Available balance: ${(liveBalance ?? currentBalance).toFixed(2)}. The check will be done on approval.
+                    Warning: Insufficient funds. Available balance: ${(liveBalance ?? activeBalance).toFixed(2)}. The check will be done on approval.
                   </p>
                 )}
               </div>
@@ -1217,20 +1514,36 @@ export function QuickPaymentModal({
 
               {/* Notes */}
               <div>
-                <label className="block text-sm font-medium text-secondary mb-1">Notes (Optional)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-secondary">
+                    What is this payment for? <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={formData.notes.trim().length < 3}
+                    onClick={handleSuggest}
+                    className="text-xs px-2 py-1 rounded border border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    title="Get domain/category suggestions based on your description"
+                  >
+                    💡 Suggest Classification
+                  </button>
+                </div>
                 {/* Mode toggle */}
                 <div className="flex gap-2 mb-2">
-                  {(['none', 'saved', 'type'] as const).map(mode => (
+                  {(['saved', 'type'] as const).map(mode => (
                     <button key={mode} type="button"
                       onClick={() => { setNoteMode(mode); setFormData({ ...formData, notes: '' }); setSaveNote(false) }}
                       className={`px-3 py-1.5 text-xs rounded border transition-colors ${noteMode === mode
-                        ? (mode === 'none' ? 'border-gray-500 bg-gray-100 dark:bg-gray-700 font-semibold' : 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 font-semibold')
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 font-semibold'
                         : 'border-border hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                     >
-                      {mode === 'none' ? 'No note' : mode === 'saved' ? 'Saved phrases' : 'Type a note'}
+                      {mode === 'saved' ? 'Saved phrases' : 'Type a note'}
                     </button>
                   ))}
                 </div>
+                {errors.notes && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mb-1">{errors.notes}</p>
+                )}
 
                 {noteMode === 'saved' && (
                   <select
@@ -1254,8 +1567,8 @@ export function QuickPaymentModal({
                     <div className="space-y-1.5">
                       <textarea
                         value={formData.notes}
-                        onChange={e => { setFormData({ ...formData, notes: e.target.value }); setSaveNote(false) }}
-                        className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                        onChange={e => { setFormData({ ...formData, notes: e.target.value }); setSaveNote(false); setErrors(prev => ({ ...prev, notes: '' })) }}
+                        className={`w-full px-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 ${errors.notes ? 'border-red-400' : 'border-border'}`}
                         rows={2}
                         placeholder="e.g. School fees Term 1 — Chisamba Primary"
                         maxLength={500}
@@ -1364,6 +1677,50 @@ export function QuickPaymentModal({
         onSubmit={handleCreateSubSubcategory}
         loading={creatingSubItem}
       />
+
+      {/* Classification Suggestion Modal */}
+      {suggestOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-base font-semibold text-primary">💡 Suggested Classifications</h3>
+              <button type="button" onClick={() => setSuggestOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+            </div>
+            <div className="p-4">
+              <p className="text-xs text-secondary mb-3">
+                Based on: <span className="font-medium text-primary">"{formData.notes.trim()}"</span>
+              </p>
+              {suggestLoading && (
+                <p className="text-sm text-secondary py-4 text-center">Searching taxonomy…</p>
+              )}
+              {!suggestLoading && suggestions.length === 0 && (
+                <p className="text-sm text-secondary py-4 text-center">No matches found — please select manually.</p>
+              )}
+              {!suggestLoading && suggestions.length > 0 && (
+                <ul className="space-y-2">
+                  {suggestions.map((s, i) => (
+                    <li key={`${s.subcategoryId}-${i}`}>
+                      <button
+                        type="button"
+                        onClick={() => applySuggestion(s)}
+                        className="w-full text-left px-3 py-2.5 rounded-md border border-border hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                      >
+                        <div className="text-xs text-secondary mb-0.5">
+                          {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
+                        </div>
+                        <div className="text-sm font-medium text-primary">
+                          {s.subcategoryEmoji} {s.subcategoryName}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

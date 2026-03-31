@@ -62,6 +62,7 @@ interface AccountListProps {
   canChangeCategory?: boolean
   businessType?: string
   currentBusinessId?: string
+  businesses?: import('@/types/permissions').BusinessMembership[]
   isAdmin?: boolean
 }
 
@@ -76,6 +77,7 @@ export function AccountList({
   canChangeCategory = true,
   businessType,
   currentBusinessId,
+  businesses,
   isAdmin = false
 }: AccountListProps) {
   const router = useRouter()
@@ -656,6 +658,7 @@ export function AccountList({
           canChangeCategory={canChangeCategory}
           defaultCategoryBusinessType={businessType}
           businessId={currentBusinessId}
+          businesses={businesses}
           accountType={selectedAccount.accountType}
           presetPayee={
             selectedAccount.accountType === 'RENT' && selectedAccount.landlordSupplierId && selectedAccount.landlordSupplierName

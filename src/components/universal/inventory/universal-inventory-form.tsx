@@ -168,7 +168,7 @@ export function UniversalInventoryForm({
 
   // Set selected category and subcategories when categories are loaded and item has a category
   useEffect(() => {
-    const categoryId = item?.categoryId || formData.categoryId
+    const categoryId = formData.categoryId
     if (categoryId && categories.length > 0) {
       setSelectedCategory(categoryId)
       // Find and set subcategories for the selected category
@@ -177,7 +177,7 @@ export function UniversalInventoryForm({
         setAvailableSubcategories(category.subcategories)
       }
     }
-  }, [item, categories, formData.categoryId])
+  }, [categories, formData.categoryId])
 
   // Fetch domains for this business type
   const fetchDomains = async () => {
@@ -879,8 +879,8 @@ export function UniversalInventoryForm({
             </button>
           )}
 
-          {/* Close button — separated clearly from action buttons */}
-          <div className="pl-3 ml-1 border-l border-gray-200 dark:border-gray-600 flex-shrink-0">
+          {/* Close button — clearly separated from Sell button to prevent mis-clicks */}
+          <div className="pl-4 ml-3 border-l border-gray-200 dark:border-gray-600 flex-shrink-0">
             <button
               type="button"
               onClick={onCancel}
@@ -1197,63 +1197,59 @@ export function UniversalInventoryForm({
 
         </div>
 
-        <div className="flex justify-between gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex gap-3">
+        <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isNavigatingToPOS}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+          {mode === 'edit' && item?.id && (
             <button
               type="button"
-              onClick={onCancel}
-              disabled={isNavigatingToPOS}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            {mode === 'edit' && item?.id && (
-              <button
-                type="button"
-                onClick={() => {
-                  // Set loading state immediately
-                  setIsNavigatingToPOS(true)
+              onClick={() => {
+                // Set loading state immediately
+                setIsNavigatingToPOS(true)
 
-                  // Check if unit is "each" or similar single-unit types
-                  const isSingleUnit = ['each', 'ea', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'item', 'items'].includes(
-                    (formData.unit || item.unit || '').toLowerCase().trim()
-                  )
+                // Check if unit is "each" or similar single-unit types
+                const isSingleUnit = ['each', 'ea', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'item', 'items'].includes(
+                  (formData.unit || item.unit || '').toLowerCase().trim()
+                )
 
-                  if (isSingleUnit) {
-                    // Auto-add to cart with quantity 1 for single-unit items
-                    const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}&autoAdd=true`
-                    window.location.href = url
-                  } else {
-                    // Just navigate to POS for weight-based or other unit types
-                    const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}`
-                    window.location.href = url
-                  }
-                }}
-                disabled={isNavigatingToPOS || !categoriesLoaded}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isNavigatingToPOS ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Loading...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>🛒</span> Sell this Item
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-          <div>
-            <button
-              type="submit"
-              disabled={loading || !categoriesLoaded}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                if (isSingleUnit) {
+                  // Auto-add to cart with quantity 1 for single-unit items
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}&autoAdd=true`
+                  window.location.href = url
+                } else {
+                  // Just navigate to POS for weight-based or other unit types
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}`
+                  window.location.href = url
+                }
+              }}
+              disabled={isNavigatingToPOS || !categoriesLoaded}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
+              {isNavigatingToPOS ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <span>🛒</span> Sell this Item
+                </>
+              )}
             </button>
-          </div>
+          )}
+          <button
+            type="submit"
+            disabled={loading || !categoriesLoaded}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
+          </button>
         </div>
       </form>
 

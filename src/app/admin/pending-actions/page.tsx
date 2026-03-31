@@ -92,6 +92,19 @@ interface PendingMealProgram {
   business: { id: string; name: string } | null
 }
 
+interface StandalonePaymentDetail {
+  id: string
+  amount: string
+  paymentDate: string
+  notes: string | null
+  paymentChannel: string
+  payeeName: string | null
+  categoryName: string | null
+  subcategoryName: string | null
+  subSubcategoryName: string | null
+  creatorName: string | null
+}
+
 export default function PendingActionsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -113,6 +126,14 @@ export default function PendingActionsPage() {
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [batchingId, setBatchingId] = useState<string | null>(null)
   const [approvingMealId, setApprovingMealId] = useState<string | null>(null)
+  const [standaloneReview, setStandaloneReview] = useState<{
+    accountId: string
+    accountName: string
+    payments: StandalonePaymentDetail[]
+    approved: Set<string>
+    rejected: Set<string>
+    submitting: boolean
+  } | null>(null)
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -150,7 +171,33 @@ export default function PendingActionsPage() {
   async function handleQuickBatch(item: PendingPaymentRequest) {
     const businessId = item.business?.id
     if (!businessId) {
-      toast.error('Cannot create batch — no business linked to this account')
+      // Standalone account — fetch payment details and show review modal
+      setBatchingId(item.id)
+      try {
+        const res = await fetch(`/api/expense-account/${item.id}/payments?status=all&limit=100`, { credentials: 'include' })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'Failed to load payments')
+        const pendingStatuses = ['QUEUED', 'REQUEST', 'SUBMITTED']
+        const payments: StandalonePaymentDetail[] = (json.data?.payments ?? [])
+          .filter((p: any) => pendingStatuses.includes(p.status))
+          .map((p: any) => ({
+            id: p.id,
+            amount: p.amount,
+            paymentDate: p.paymentDate,
+            notes: p.notes,
+            paymentChannel: p.paymentChannel || 'CASH',
+            payeeName: p.payeeEmployee?.fullName ?? p.payeeUser?.name ?? p.payeePerson?.fullName ?? p.payeeBusiness?.name ?? p.payeeSupplier?.name ?? null,
+            categoryName: p.category ? `${p.category.emoji} ${p.category.name}` : null,
+            subcategoryName: p.subcategory ? `${p.subcategory.emoji} ${p.subcategory.name}` : null,
+            subSubcategoryName: p.subSubcategoryName ?? null,
+            creatorName: p.creator?.name ?? null,
+          }))
+        setStandaloneReview({ accountId: item.id, accountName: item.accountName, payments, approved: new Set(), rejected: new Set(), submitting: false })
+      } catch (e: any) {
+        toast.error(e.message)
+      } finally {
+        setBatchingId(null)
+      }
       return
     }
     setBatchingId(item.id)
@@ -167,6 +214,33 @@ export default function PendingActionsPage() {
     } catch (e: any) {
       toast.error(e.message)
       setBatchingId(null)
+    }
+  }
+
+  async function handleApproveStandalone() {
+    if (!standaloneReview) return
+    setStandaloneReview(prev => prev ? { ...prev, submitting: true } : null)
+    try {
+      const res = await fetch(`/api/expense-account/${standaloneReview.accountId}/payments/direct-approve`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          approvedPaymentIds: Array.from(standaloneReview.approved),
+          rejectedPaymentIds: Array.from(standaloneReview.rejected),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to process decisions')
+      const parts = []
+      if (json.approvedCount > 0) parts.push(`${json.approvedCount} approved`)
+      if (json.rejectedCount > 0) parts.push(`${json.rejectedCount} returned to queue`)
+      toast.success(parts.join(', '))
+      setStandaloneReview(null)
+      fetchItems()
+    } catch (e: any) {
+      toast.error(e.message)
+      setStandaloneReview(prev => prev ? { ...prev, submitting: false } : null)
     }
   }
 
@@ -218,6 +292,7 @@ export default function PendingActionsPage() {
   }
 
   return (
+    <>
     <ContentLayout title="Pending Actions">
       <div className="max-w-3xl mx-auto py-6 px-4">
         <div className="flex items-center justify-between mb-6">
@@ -693,5 +768,116 @@ export default function PendingActionsPage() {
         )}
       </div>
     </ContentLayout>
+
+    {/* Standalone account payment review modal */}
+    {standaloneReview && (() => {
+      const undecided = standaloneReview.payments.filter(p => !standaloneReview.approved.has(p.id) && !standaloneReview.rejected.has(p.id))
+      const setApprove = (id: string) => setStandaloneReview(prev => {
+        if (!prev) return prev
+        const approved = new Set([...prev.approved, id])
+        const rejected = new Set(prev.rejected); rejected.delete(id)
+        return { ...prev, approved, rejected }
+      })
+      const setReject = (id: string) => setStandaloneReview(prev => {
+        if (!prev) return prev
+        const rejected = new Set([...prev.rejected, id])
+        const approved = new Set(prev.approved); approved.delete(id)
+        return { ...prev, approved, rejected }
+      })
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+            <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Review Payments — {standaloneReview.accountName}</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                {standaloneReview.payments.length} request{standaloneReview.payments.length !== 1 ? 's' : ''} · {undecided.length > 0 ? <span className="text-amber-600 dark:text-amber-400">{undecided.length} undecided</span> : <span className="text-green-600 dark:text-green-400">All decided</span>}
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {standaloneReview.payments.map(p => {
+                const isApproved = standaloneReview.approved.has(p.id)
+                const isRejected = standaloneReview.rejected.has(p.id)
+                return (
+                  <div key={p.id} className={`border rounded-lg p-3 transition-colors ${isApproved ? 'border-green-400 bg-green-50 dark:bg-green-900/20 dark:border-green-700' : isRejected ? 'border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-700' : 'border-gray-200 dark:border-gray-700'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-gray-900 dark:text-white">${Number(p.amount).toFixed(2)}</span>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${p.paymentChannel === 'ECOCASH' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'}`}>
+                            {p.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'}
+                          </span>
+                          {isApproved && <span className="text-xs font-semibold text-green-700 dark:text-green-400">✓ Approved</span>}
+                          {isRejected && <span className="text-xs font-semibold text-red-600 dark:text-red-400">✕ Returned to Queue</span>}
+                        </div>
+                        {p.payeeName && (
+                          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                            <span className="text-gray-500 dark:text-gray-400">Payee: </span>
+                            <span className="font-medium">{p.payeeName}</span>
+                          </p>
+                        )}
+                        {p.notes && (
+                          <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">
+                            <span className="text-gray-500 dark:text-gray-400">Purpose: </span>{p.notes}
+                          </p>
+                        )}
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                          {p.categoryName && <span>Category: <span className="font-medium text-gray-700 dark:text-gray-300">{p.categoryName}</span></span>}
+                          {p.subcategoryName && <span>Subcategory: <span className="font-medium text-gray-700 dark:text-gray-300">{p.subcategoryName}</span></span>}
+                          {p.subSubcategoryName && <span>Sub-category: <span className="font-medium text-gray-700 dark:text-gray-300">{p.subSubcategoryName}</span></span>}
+                          <span>Date: <span className="font-medium text-gray-700 dark:text-gray-300">{new Date(p.paymentDate).toLocaleDateString()}</span></span>
+                          {p.creatorName && <span>Requested by: <span className="font-medium text-gray-700 dark:text-gray-300">{p.creatorName}</span></span>}
+                        </div>
+                      </div>
+                      {/* Per-payment Approve / Reject buttons */}
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        <button
+                          onClick={() => setApprove(p.id)}
+                          disabled={standaloneReview.submitting}
+                          className={`px-3 py-1 text-xs font-medium rounded transition-colors ${isApproved ? 'bg-green-600 text-white' : 'border border-green-500 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30'}`}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => setReject(p.id)}
+                          disabled={standaloneReview.submitting}
+                          className={`px-3 py-1 text-xs font-medium rounded transition-colors ${isRejected ? 'bg-red-500 text-white' : 'border border-red-400 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30'}`}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {standaloneReview.payments.length === 0 && (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-6">No pending payments found.</p>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {undecided.length > 0 ? `${undecided.length} payment${undecided.length !== 1 ? 's' : ''} still need a decision` : `${standaloneReview.approved.size} approved · ${standaloneReview.rejected.size} returned to queue`}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStandaloneReview(null)}
+                  disabled={standaloneReview.submitting}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleApproveStandalone}
+                  disabled={standaloneReview.submitting || undecided.length > 0 || standaloneReview.payments.length === 0}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-md"
+                >
+                  {standaloneReview.submitting ? 'Submitting…' : 'Submit Decisions'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    })()}
+  </>
   )
 }

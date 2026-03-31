@@ -27,6 +27,7 @@ export default function QuickPaymentPage() {
     hasPermission,
     isSystemAdmin,
     isBusinessOwner,
+    businesses,
     loading: bizLoading,
   } = useBusinessPermissionsContext()
 
@@ -92,6 +93,7 @@ export default function QuickPaymentPage() {
       accountType={account.accountType}
       businessId={account.businessId}
       defaultCategoryBusinessType={currentBusiness?.businessType}
+      businesses={businesses}
       canCreatePayees={canCreatePayees}
       canChangeCategory={canChangeCategory}
       presetPayee={

@@ -123,6 +123,7 @@ function GroceryInventoryContent() {
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
+  const [filterCount, setFilterCount] = useState<number | null>(null)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
 
@@ -472,9 +473,12 @@ function GroceryInventoryContent() {
                         <span className="text-sm text-secondary">Active filter:</span>
                         <span className="inline-flex items-center gap-2 rounded-md bg-green-100 dark:bg-green-900 px-3 py-1 text-sm font-medium text-green-800 dark:text-green-200">
                           Department: {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
+                          {filterCount !== null && (
+                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-green-200 dark:bg-green-800 text-xs font-semibold">{filterCount} item{filterCount !== 1 ? 's' : ''}</span>
+                          )}
                           <button
                             type="button"
-                            onClick={() => setSelectedDepartment('')}
+                            onClick={() => { setSelectedDepartment(''); setFilterCount(null) }}
                             className="hover:text-green-600 dark:hover:text-green-400"
                             title="Clear department filter"
                           >
@@ -521,6 +525,7 @@ function GroceryInventoryContent() {
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
                       onItemAddToCart={handleItemAddToCart}
+                      onTotalChange={selectedDepartment ? setFilterCount : undefined}
                       refreshTrigger={refreshKey}
                       headerActions={(
                         <div className="flex items-center gap-2">
@@ -790,20 +795,22 @@ function GroceryInventoryContent() {
                           href={formReady ? `/grocery/pos?businessId=${businessId}&addProduct=${selectedItem.id}&autoAdd=true` : '#'}
                           onClick={(e) => { if (!formReady) e.preventDefault() }}
                           aria-disabled={!formReady}
-                          className={`px-3 py-1.5 text-white text-sm rounded-md flex items-center gap-1.5 ${formReady ? 'bg-green-600 hover:bg-green-700' : 'bg-green-300 cursor-not-allowed'}`}
+                          className={`px-3 py-1.5 text-white text-sm rounded-md flex items-center gap-1.5 whitespace-nowrap ${formReady ? 'bg-green-600 hover:bg-green-700' : 'bg-green-300 cursor-not-allowed'}`}
                         >
-                          🛒 Sell
+                          🛒 Sell this Item
                         </a>
                       )}
-                      <button
-                        onClick={() => {
-                          setShowAddForm(false)
-                          setSelectedItem(null)
-                        }}
-                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
-                      >
-                        ✕
-                      </button>
+                      <div className="pl-3 ml-2 border-l border-gray-200 dark:border-gray-600">
+                        <button
+                          onClick={() => {
+                            setShowAddForm(false)
+                            setSelectedItem(null)
+                          }}
+                          className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors text-xl leading-none"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   </div>
 

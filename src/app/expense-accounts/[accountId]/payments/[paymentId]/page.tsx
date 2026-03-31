@@ -21,6 +21,7 @@ export default function ExpensePaymentDetailPage() {
   const [editFormData, setEditFormData] = useState<any>({})
   const [editErrors, setEditErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [actionState, setActionState] = useState<'idle' | 'approving' | 'rejecting'>('idle')
 
   useEffect(() => {
     if (!accountId || !paymentId) return
@@ -95,7 +96,27 @@ export default function ExpensePaymentDetailPage() {
     payment.payeeEmployee?.fullName ||
     payment.payeePerson?.fullName ||
     payment.payeeBusiness?.name ||
+    payment.payeeSupplier?.name ||
     'Unknown'
+
+  const payeePhone =
+    payment.payeeEmployee?.phone ||
+    payment.payeePerson?.phone ||
+    payment.payeeSupplier?.phone ||
+    null
+
+  const payeeEmail =
+    payment.payeeUser?.email ||
+    payment.payeePerson?.email ||
+    payment.payeeSupplier?.email ||
+    null
+
+  const payeeSecondaryLabel =
+    payment.payeeEmployee?.employeeNumber
+      ? `Emp# ${payment.payeeEmployee.employeeNumber}`
+      : payment.payeeSupplier?.contactPerson
+      ? `Contact: ${payment.payeeSupplier.contactPerson}`
+      : null
 
   const getCategoryLabel = (): string => {
     if (payment.category) {
@@ -115,6 +136,7 @@ export default function ExpensePaymentDetailPage() {
     if (payment.payeeBusiness) return `/business/suppliers/${payment.payeeBusiness.id}`
     if (payment.payeeUser) return `/admin/users/${payment.payeeUser.id}`
     if (payment.payeePerson) return `/customers/${payment.payeePerson.id}`
+    if (payment.payeeSupplier) return `/suppliers/${payment.payeeSupplier.id}`
     return null
   }
 
@@ -123,7 +145,68 @@ export default function ExpensePaymentDetailPage() {
     if (payment.payeeBusiness) return hasPermission('canViewSuppliers')
     if (payment.payeeUser) return hasPermission('canViewUsers')
     if (payment.payeePerson) return hasPermission('canViewCustomers')
+    if (payment.payeeSupplier) return hasPermission('canViewSuppliers')
     return false
+  }
+
+  // Render notes with human-readable formatting.
+  // Handles old "Reversed from payments: uuid1, uuid2, ..." pattern by converting
+  // UUIDs to clickable Payment links. Otherwise preserves newlines.
+  const renderNotes = (notes: string | null) => {
+    if (!notes) return <span className="text-secondary italic">No notes provided</span>
+
+    const reversedMatch = notes.match(/^Reversed from payments:\s*(.+)/i)
+    if (reversedMatch) {
+      const ids = reversedMatch[1].split(',').map((s: string) => s.trim()).filter(Boolean)
+      return (
+        <span>
+          Reversed from {ids.length} payment{ids.length !== 1 ? 's' : ''}:{' '}
+          {ids.map((id: string, i: number) => (
+            <span key={id}>
+              {i > 0 && ', '}
+              <button
+                onClick={() => router.push(`/expense-accounts/${accountId}/payments/${id}`)}
+                className="text-blue-600 hover:underline text-sm"
+                title={`Go to payment ${id}`}
+              >
+                Payment {i + 1}
+              </button>
+            </span>
+          ))}
+        </span>
+      )
+    }
+
+    return <span className="whitespace-pre-wrap">{notes}</span>
+  }
+
+  const handleDecision = async (decision: 'approve' | 'reject') => {
+    setActionState(decision === 'approve' ? 'approving' : 'rejecting')
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/payments/direct-approve`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          decision === 'approve'
+            ? { approvedPaymentIds: [paymentId], rejectedPaymentIds: [] }
+            : { approvedPaymentIds: [], rejectedPaymentIds: [paymentId] }
+        ),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        alert(err.error || 'Action failed')
+        return
+      }
+      // Reload to show updated status
+      const reloaded = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}`, { credentials: 'include' })
+      if (reloaded.ok) {
+        const data = await reloaded.json()
+        setPayment(data.data.payment)
+      }
+    } finally {
+      setActionState('idle')
+    }
   }
 
   const handleEdit = () => {
@@ -152,6 +235,13 @@ export default function ExpensePaymentDetailPage() {
 
   const handleSaveEdit = async () => {
     setEditErrors({})
+
+    // Notes are mandatory when modifying a submitted (non-DRAFT) payment
+    if (payment.status !== 'DRAFT' && !editFormData.notes?.trim()) {
+      setEditErrors({ notes: 'Notes are required when modifying a submitted payment — explain the reason for the change.' })
+      return
+    }
+
     setSaving(true)
 
     try {
@@ -229,14 +319,23 @@ export default function ExpensePaymentDetailPage() {
                 ) : (
                   <div className="font-medium">{payeeName}</div>
                 )}
+                {payeeSecondaryLabel && (
+                  <div className="text-xs text-secondary mt-0.5">{payeeSecondaryLabel}</div>
+                )}
+                {payeePhone && (
+                  <div className="text-xs text-secondary mt-0.5">📞 {payeePhone}</div>
+                )}
+                {payeeEmail && (
+                  <div className="text-xs text-secondary mt-0.5">✉️ {payeeEmail}</div>
+                )}
                 {payment.payeePerson?.nationalId && (
-                  <div className="text-xs text-secondary mt-1">
+                  <div className="text-xs text-secondary mt-0.5">
                     ID: {payment.payeePerson.nationalId}
                   </div>
                 )}
-                {payment.payeePerson && !payment.payeePerson.nationalId && (
-                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                    No national ID on file
+                {payment.payeeEmployee?.nationalId && (
+                  <div className="text-xs text-secondary mt-0.5">
+                    ID: {payment.payeeEmployee.nationalId}
                   </div>
                 )}
               </div>
@@ -270,7 +369,7 @@ export default function ExpensePaymentDetailPage() {
 
             <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
               <div><strong>Notes:</strong></div>
-              <div className="mt-2">{payment.notes || 'No notes provided'}</div>
+              <div className="mt-2">{renderNotes(payment.notes)}</div>
             </div>
 
             <div className="mt-4 text-sm text-gray-700 dark:text-gray-300 space-y-1">
@@ -308,8 +407,58 @@ export default function ExpensePaymentDetailPage() {
               </div>
             )}
 
+            {/* Approve / Reject — for reviewers on pending payments */}
+            {['QUEUED', 'REQUEST', 'SUBMITTED'].includes(payment.status) && hasPermission('canSubmitPaymentBatch') && (
+              payment.expenseAccount?.businessId === null ? (
+                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-3">⏳ Awaiting Review</p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => handleDecision('approve')}
+                      disabled={actionState !== 'idle'}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+                    >
+                      {actionState === 'approving' ? 'Approving…' : '✓ Approve'}
+                    </button>
+                    <button
+                      onClick={() => handleDecision('reject')}
+                      disabled={actionState !== 'idle'}
+                      className="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+                    >
+                      {actionState === 'rejecting' ? 'Rejecting…' : '✕ Reject'}
+                    </button>
+                    {hasPermission('canEditExpenseTransactions') && (
+                      <button
+                        onClick={handleEdit}
+                        disabled={actionState !== 'idle'}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+                      >
+                        ✏️ Edit / Adjust Request
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">Rejected payments return to queue and will appear for review again. Use "Edit / Adjust" to modify the amount or details before approving.</p>
+                </div>
+              ) : (
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span>ℹ️ This payment will be reviewed as part of an EOD payment batch.</span>
+                    <a href="/admin/pending-actions" className="underline hover:no-underline">Go to Pending Actions</a>
+                    {hasPermission('canEditExpenseTransactions') && (
+                      <button
+                        onClick={handleEdit}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                      >
+                        ✏️ Edit / Adjust Request
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            )}
+
             <div className="mt-4 flex gap-2">
-              {hasPermission('canEditExpenseTransactions') && payment.paymentType !== 'TRANSFER_OUT' && (
+              {hasPermission('canEditExpenseTransactions') && payment.paymentType !== 'TRANSFER_OUT' && !['APPROVED', 'PAID', 'REVERSED'].includes(payment.status) && !(['QUEUED', 'REQUEST', 'SUBMITTED'].includes(payment.status) && hasPermission('canSubmitPaymentBatch')) && (
                 <button
                   onClick={handleEdit}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
@@ -320,6 +469,11 @@ export default function ExpensePaymentDetailPage() {
               {payment.paymentType === 'TRANSFER_OUT' && (
                 <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded text-sm">
                   🔒 Auto-transfer — not editable
+                </div>
+              )}
+              {['APPROVED', 'PAID', 'REVERSED'].includes(payment.status) && payment.paymentType !== 'TRANSFER_OUT' && (
+                <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded text-sm">
+                  🔒 {payment.status === 'APPROVED' ? 'Approved' : payment.status === 'PAID' ? 'Paid' : 'Reversed'} — not editable
                 </div>
               )}
               <button
@@ -395,14 +549,20 @@ export default function ExpensePaymentDetailPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Notes</label>
+                <label className="block text-sm font-medium mb-1">
+                  Notes {payment.status !== 'DRAFT' && <span className="text-red-500">*</span>}
+                </label>
+                {payment.status !== 'DRAFT' && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">Required — explain the reason for any changes to this request (e.g. "Reduced amount — supplier quoted lower price").</p>
+                )}
                 <textarea
                   value={editFormData.notes}
                   onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  placeholder="Add any additional notes..."
+                  className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${editErrors.notes ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                  placeholder={payment.status !== 'DRAFT' ? 'Reason for change (required)…' : 'Add any additional notes…'}
                 />
+                {editErrors.notes && <div className="text-sm text-red-600 mt-1">{editErrors.notes}</div>}
               </div>
 
               <div className="flex items-center gap-2">

@@ -934,7 +934,9 @@ export async function POST(
           type: 'PAYMENT_SUBMITTED',
           title: hasUrgent ? '🚨 Urgent Payment Request' : 'New Payment Request',
           message: `${urgentPrefix}${user.name} → ${account.accountName}: ${detailStr}`,
-          linkUrl: '/admin/pending-actions',
+          linkUrl: isBatch
+            ? `/expense-accounts/${accountId}`
+            : `/expense-accounts/${accountId}/payments/${result.payments[0].id}`,
         })
       }
       // Notify the submitter — confirmation their payment entered the queue

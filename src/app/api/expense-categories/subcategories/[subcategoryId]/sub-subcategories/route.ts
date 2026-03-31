@@ -6,11 +6,11 @@ import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/expense-categories/subcategories/[subcategoryId]/sub-subcategories
- * Fetch subcategories for a specific category (subcategoryId is actually categoryId)
- * This is called when a user selects a category to see its subcategories
+ * Fetch sub-subcategories (expense_sub_subcategories) for a given expense_subcategories.id
+ * Called when a user selects a subcategory (e.g. "Masonry") to load its sub-subcategories
  *
  * Query params:
- * - includeUserCreated: Include user-created subcategories (default: true)
+ * - includeUserCreated: Include user-created entries (default: true)
  */
 export async function GET(
   request: NextRequest,
@@ -27,49 +27,28 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const includeUserCreated = searchParams.get('includeUserCreated') !== 'false';
 
-    // subcategoryId is actually categoryId now
-    const categoryId = subcategoryId;
-
-    // Verify category exists
-    const category = await prisma.expenseCategories.findUnique({
-      where: { id: categoryId },
-      select: {
-        id: true,
-        name: true,
-        domain: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
+    // Verify subcategory exists
+    const subcategory = await prisma.expenseSubcategories.findUnique({
+      where: { id: subcategoryId },
+      select: { id: true, name: true },
     });
 
-    if (!category) {
+    if (!subcategory) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
-    // Fetch subcategories for this category
-    const subSubcategories = await prisma.expenseSubcategories.findMany({
+    // Fetch sub-subcategories for this subcategory
+    const subSubcategories = await prisma.expenseSubSubcategories.findMany({
       where: {
-        categoryId,
+        subcategoryId,
         ...(includeUserCreated ? {} : { isUserCreated: false }),
       },
       select: {
         id: true,
         name: true,
         emoji: true,
-        description: true,
-        isDefault: true,
         isUserCreated: true,
         createdAt: true,
-        createdBy: true,
-        users: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
       },
       orderBy: {
         name: 'asc',
@@ -77,7 +56,7 @@ export async function GET(
     });
 
     return NextResponse.json({
-      subcategory: category, // category is now the "subcategory" for compatibility
+      subcategory,
       subSubcategories,
       count: subSubcategories.length,
     });

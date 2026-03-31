@@ -919,12 +919,16 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           ))}
                           {pendingActions.pendingPaymentRequests?.map((r: any) => {
                             const hasUrgent = (r.urgentCount ?? 0) > 0
+                            const isSingle = !!r.singlePaymentId
+                            const href = isSingle
+                              ? `/expense-accounts/${r.id}/payments/${r.singlePaymentId}`
+                              : `/admin/pending-actions`
                             return (
-                            <Link key={r.id} href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${hasUrgent ? 'border-l-2 border-red-500' : ''}`}>
+                            <Link key={r.id} href={href} onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${hasUrgent ? 'border-l-2 border-red-500' : ''}`}>
                               <span className="mt-0.5 shrink-0">{hasUrgent ? '🚨' : '💳'}</span>
                               <div className="min-w-0">
                                 <p className={`font-medium truncate ${hasUrgent ? 'text-red-600 dark:text-red-400' : 'text-primary'}`}>
-                                  Payment Requests — {r.accountName ?? '—'}
+                                  {isSingle ? 'Payment Request' : 'Payment Requests'} — {r.accountName ?? '—'}
                                   {hasUrgent && <span className="ml-1.5 text-xs font-bold text-red-600 dark:text-red-400"> URGENT</span>}
                                   {r.cashCount > 0 && <span className="ml-1.5 font-normal">💵 {r.cashCount}</span>}
                                   {r.ecocashCount > 0 && <span className="ml-1.5 font-normal">📱 {r.ecocashCount}</span>}

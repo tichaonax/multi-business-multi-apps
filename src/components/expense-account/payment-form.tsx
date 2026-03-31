@@ -297,6 +297,9 @@ function getDefaultDomainName(businessType: string): string {
     hardware: 'Hardware',
     construction: 'Construction',
     vehicles: 'Vehicle',
+    services: 'Services',
+    retail: 'Retail',
+    consulting: 'Consulting',
   }
   return map[businessType] || 'Business'
 }
@@ -475,19 +478,9 @@ export function PaymentForm({
             }
             // categories[] stays empty for personal accounts (category column shows locked label)
           } else {
-            // When a business type is known, only show that domain + global (non-domain) categories.
-            // This prevents restaurant users from seeing Business/Personal/Clothing/etc. domain entries.
-            const targetDomainName = businessId && defaultCategoryBusinessType
-              ? getDefaultDomainName(defaultCategoryBusinessType)
-              : null
-
             data.domains.forEach((domain: any) => {
               if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
                 domain.expense_categories.forEach((cat: any) => {
-                  // If account has no business, skip all business-type domain entries
-                  if (!businessId && cat.isDomainCategory) return
-                  // If a specific business type is known, skip other domain entries
-                  if (targetDomainName && cat.isDomainCategory && cat.name !== targetDomainName) return
                   flattenedCategories.push({
                     id: cat.id,
                     name: cat.name,

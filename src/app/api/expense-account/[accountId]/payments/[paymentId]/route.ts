@@ -58,6 +58,7 @@ export async function GET(
             lastName: true,
             fullName: true,
             nationalId: true,
+            phone: true,
           },
         },
         payeePerson: {
@@ -73,7 +74,7 @@ export async function GET(
           select: { id: true, name: true, type: true, description: true },
         },
         payeeSupplier: {
-          select: { id: true, name: true },
+          select: { id: true, name: true, phone: true, contactPerson: true, email: true },
         },
         category: {
           select: { id: true, name: true, emoji: true, color: true, domainId: true },
@@ -315,6 +316,20 @@ export async function PATCH(
         await updateExpenseAccountBalanceTx(tx, accountId)
         return p
       })
+
+      // Clear "Payment Approved — Action Required" notification for the requester now that it's paid
+      if (existingPayment.createdBy) {
+        await prisma.appNotification.updateMany({
+          where: {
+            userId: existingPayment.createdBy,
+            type: 'PAYMENT_APPROVED',
+            linkUrl: `/expense-accounts/${accountId}/payments/${paymentId}`,
+            isRead: false,
+          },
+          data: { isRead: true, readAt: new Date() },
+        })
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Payment marked as paid',
@@ -326,6 +341,14 @@ export async function PATCH(
     if (existingPayment.paymentType === 'TRANSFER_OUT') {
       return NextResponse.json(
         { error: 'Auto-transfer payments cannot be edited. They are system-generated records.' },
+        { status: 403 }
+      )
+    }
+
+    // APPROVED, PAID, and REVERSED payments are immutable
+    if (['APPROVED', 'PAID', 'REVERSED'].includes(existingPayment.status)) {
+      return NextResponse.json(
+        { error: `This payment has been ${existingPayment.status.toLowerCase()} and can no longer be edited.` },
         { status: 403 }
       )
     }
@@ -386,6 +409,15 @@ export async function PATCH(
           { status: 400 }
         )
       }
+    }
+
+    // Notes are mandatory when modifying a submitted (non-DRAFT) payment.
+    // Payee-change edits use payeeChangeReason instead, so skip this check there.
+    if (existingPayment.status !== 'DRAFT' && !isChangingPayee && !notes?.trim()) {
+      return NextResponse.json(
+        { error: 'Notes are required when modifying a submitted payment — explain the reason for the change.' },
+        { status: 400 }
+      )
     }
 
     // Build update data

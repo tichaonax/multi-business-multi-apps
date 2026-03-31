@@ -121,10 +121,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
           const newStock = hasPhysicalCount ? physCount! + newQty : sysQty + newQty
 
           // Validate categoryId exists before using it (may be stale if category was deleted)
+          // Draft stores subCategoryId || categoryId, so item.categoryId may be an InventorySubcategory ID
           let validCategoryId: string | null = null
+          let validSubcategoryId: string | null = null
           if (item.categoryId) {
             const cat = await prisma.businessCategories.findUnique({ where: { id: item.categoryId }, select: { id: true } })
-            if (cat) validCategoryId = cat.id
+            if (cat) {
+              validCategoryId = cat.id
+            } else {
+              const sub = await prisma.inventorySubcategories.findUnique({ where: { id: item.categoryId }, select: { id: true, categoryId: true } })
+              if (sub) { validCategoryId = sub.categoryId; validSubcategoryId = sub.id }
+            }
           }
 
           await prisma.barcodeInventoryItems.update({
@@ -138,6 +145,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
               ...(item.name?.trim() ? { name: item.name.trim() } : {}),
               customLabel: item.description?.trim() || null,
               ...(validCategoryId ? { categoryId: validCategoryId } : {}),
+              ...(validSubcategoryId ? { subcategoryId: validSubcategoryId } : {}),
               ...(item.domainId ? { domainId: item.domainId } : {}),
               ...(item.supplierId ? { supplierId: item.supplierId } : {}),
             },
@@ -265,10 +273,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
           : await prisma.barcodeInventoryItems.findFirst({ where: { businessId: draft.businessId, name: item.name.trim() } })
 
         // Validate categoryId exists before using it (may be stale if category was deleted)
+        // Draft stores subCategoryId || categoryId, so item.categoryId may be an InventorySubcategory ID
         let newItemCategoryId: string | null = null
+        let newItemSubcategoryId: string | null = null
         if (item.categoryId) {
           const cat = await prisma.businessCategories.findUnique({ where: { id: item.categoryId }, select: { id: true } })
-          if (cat) newItemCategoryId = cat.id
+          if (cat) {
+            newItemCategoryId = cat.id
+          } else {
+            const sub = await prisma.inventorySubcategories.findUnique({ where: { id: item.categoryId }, select: { id: true, categoryId: true } })
+            if (sub) { newItemCategoryId = sub.categoryId; newItemSubcategoryId = sub.id }
+          }
         }
 
         if (existingByBarcode) {
@@ -282,6 +297,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
               sellingPrice,
               ...(item.costPrice !== null ? { costPrice: Number(item.costPrice) } : {}),
               ...(newItemCategoryId ? { categoryId: newItemCategoryId } : {}),
+              ...(newItemSubcategoryId ? { subcategoryId: newItemSubcategoryId } : {}),
               ...(item.domainId ? { domainId: item.domainId } : {}),
               ...(item.supplierId ? { supplierId: item.supplierId } : {}),
             },
@@ -304,6 +320,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
               costPrice: item.costPrice !== null ? Number(item.costPrice) : null,
               sellingPrice,
               categoryId: newItemCategoryId,
+              subcategoryId: newItemSubcategoryId,
               domainId: item.domainId || null,
               supplierId: item.supplierId || null,
               createdById: user.id,

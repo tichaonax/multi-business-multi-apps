@@ -101,10 +101,7 @@ export async function POST(request: NextRequest) {
         subcategoryId,
         name: name.trim(),
         emoji: emoji || null,
-        description: description || `${name.trim()} expenses`,
-        isDefault: false,
         isUserCreated: true,
-        createdBy: userId,
       },
       include: {
         subcategory: {
@@ -114,12 +111,6 @@ export async function POST(request: NextRequest) {
                 domain: true,
               },
             },
-          },
-        },
-        users: {
-          select: {
-            id: true,
-            name: true,
           },
         },
       },

@@ -397,6 +397,21 @@ export async function GET() {
             business: { select: { id: true, name: true } },
           },
         })
+
+        // For accounts with exactly 1 pending payment, fetch its ID to enable deep-linking from the bell dropdown
+        const singlePaymentMap: Record<string, string> = {}
+        const singleAccountIds = accountIds.filter(aid => {
+          const rows = grouped.filter(g => g.expenseAccountId === aid)
+          return rows.reduce((s, r) => s + r._count.id, 0) === 1
+        })
+        if (singleAccountIds.length > 0) {
+          const singlePayments = await prisma.expenseAccountPayments.findMany({
+            where: { ...pendingPaymentWhere, expenseAccountId: { in: singleAccountIds } },
+            select: { id: true, expenseAccountId: true },
+          })
+          singlePayments.forEach((p: any) => { singlePaymentMap[p.expenseAccountId] = p.id })
+        }
+
         pendingPaymentRequests = accounts.map((acct) => {
           const rows = grouped.filter((g) => g.expenseAccountId === acct.id)
           const cashRows = rows.filter((g) => (g as any).paymentChannel !== 'ECOCASH')
@@ -409,6 +424,7 @@ export async function GET() {
             cashCount: cashRows.reduce((s, r) => s + r._count.id, 0),
             ecocashCount: ecocashRows.reduce((s, r) => s + r._count.id, 0),
             urgentCount,
+            singlePaymentId: singlePaymentMap[acct.id] ?? null,
           }
         })
         // Sort so accounts with urgent payments appear first

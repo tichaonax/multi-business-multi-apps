@@ -34,6 +34,7 @@ function HardwareInventoryContent() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
   const [selectedDepartment, setSelectedDepartment] = useState('')
+  const [filterCount, setFilterCount] = useState<number | null>(null)
   const [stats, setStats] = useState<any>(null)
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
@@ -469,7 +470,10 @@ function HardwareInventoryContent() {
                         <span className="text-sm text-secondary">Active filter:</span>
                         <span className="inline-flex items-center gap-2 rounded-md bg-orange-100 dark:bg-orange-900 px-3 py-1 text-sm font-medium text-orange-800 dark:text-orange-200">
                           Department: {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
-                          <button type="button" onClick={() => setSelectedDepartment('')} className="hover:text-orange-600 dark:hover:text-orange-400" title="Clear department filter">×</button>
+                          {filterCount !== null && (
+                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-orange-200 dark:bg-orange-800 text-xs font-semibold">{filterCount} item{filterCount !== 1 ? 's' : ''}</span>
+                          )}
+                          <button type="button" onClick={() => { setSelectedDepartment(''); setFilterCount(null) }} className="hover:text-orange-600 dark:hover:text-orange-400" title="Clear department filter">×</button>
                         </span>
                       </div>
                     )}
@@ -507,6 +511,7 @@ function HardwareInventoryContent() {
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}
                       onItemAddToCart={handleItemAddToCart}
+                      onTotalChange={selectedDepartment ? setFilterCount : undefined}
                       refreshTrigger={refreshKey}
                       showActions={true}
                       layout="table"
