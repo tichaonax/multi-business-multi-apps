@@ -87,9 +87,6 @@ async function run() {
       const serviceArgs = ['start'];
       if (forceBuild) serviceArgs.push('--force-build');
 
-      // Load .env.local so DATABASE_URL and other vars are available to Prisma/child processes
-      loadEnvLocal();
-
       try {
         // Simple migration lock to avoid concurrent runs (prevents 'runs twice' races)
         const path = require('path')

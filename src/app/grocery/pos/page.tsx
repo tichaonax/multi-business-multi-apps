@@ -59,6 +59,10 @@ interface POSItem {
   imageUrl?: string  // Product image for customer display
   baleId?: string   // set for bale items transferred from clothing
   stockQuantity?: number  // from desk-products API
+  categoryEmoji?: string  // from desk-products API
+  categoryColor?: string  // hex color from business_category.color
+  subcategoryEmoji?: string
+  domainEmoji?: string
 }
 
 interface CartItem extends POSItem {
@@ -80,6 +84,30 @@ interface Customer {
 }
 
 // Main POS content component that uses the business context
+/** Returns a best-match emoji for a product based on subcategory → category → domain → name keyword. */
+function getGenericEmoji(name: string): string {
+  const n = name.toLowerCase()
+  if (/apple|mango|orange|grape|lemon|lime|pear|plum|peach|banana|pineapple|melon|berry|fruit/.test(n)) return '🍎'
+  if (/carrot|tomato|onion|potato|spinach|cabbage|broccoli|pepper|cucumber|garlic|vegetable|veg|lettuce|mushroom/.test(n)) return '🥕'
+  if (/chicken|breast|thigh|drumstick|wing/.test(n)) return '🍗'
+  if (/beef|pork|lamb|goat|steak|chop|sausage|bacon|ham|mince|meat/.test(n)) return '🥩'
+  if (/fish|tuna|salmon|sardine|tilapia|seafood|prawn|shrimp/.test(n)) return '🐟'
+  if (/egg|eggs/.test(n)) return '🥚'
+  if (/milk|cheese|yogurt|butter|cream|dairy/.test(n)) return '🥛'
+  if (/bread|bun|roll|loaf|pastry|cake|biscuit|cookie|scone/.test(n)) return '🍞'
+  if (/rice|sadza|ugali|posho|porridge|meal|maize|flour|wheat|pasta|spaghetti|noodle/.test(n)) return '🌾'
+  if (/water|juice|drink|soda|cola|beer|wine|spirit|beverage|tea|coffee/.test(n)) return '🥤'
+  if (/oil|cooking|margarine|fat/.test(n)) return '🫙'
+  if (/sugar|salt|spice|sauce|ketchup|mayo|condiment|vinegar/.test(n)) return '🧂'
+  if (/soap|detergent|wash|clean|bleach|sanitizer/.test(n)) return '🧼'
+  if (/snack|chip|crisp|popcorn|nut|peanut|chocolate|sweet|candy/.test(n)) return '🍿'
+  if (/sanitary|tissue|toilet|nappy|diaper|pad/.test(n)) return '🧻'
+  return '🛒'
+}
+function resolveProductEmoji(product: Pick<POSItem, 'subcategoryEmoji' | 'categoryEmoji' | 'domainEmoji' | 'name'>): string {
+  return product.subcategoryEmoji || product.categoryEmoji || product.domainEmoji || getGenericEmoji(product.name)
+}
+
 function GroceryPOSContent() {
   const { formatCurrency } = useBusinessContext()
   const customAlert = useAlert()
@@ -2818,9 +2846,9 @@ function GroceryPOSContent() {
                       (currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })) :
                       addToCart(product)
                     }
-                    className={`relative bg-gray-100 dark:bg-gray-700 border rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm text-primary min-w-0 cursor-pointer select-none ${
+                    className={`relative bg-gray-100 dark:bg-gray-800 border rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-sm text-primary min-w-0 cursor-pointer select-none ${
                       deskMode
-                        ? `p-4 border-2 ${cartQty > 0 ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600'}`
+                        ? `p-4 border-2 ${cartQty > 0 ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'}`
                         : 'p-3 border-gray-200 dark:border-gray-600'
                     }`}
                   >
@@ -2831,6 +2859,7 @@ function GroceryPOSContent() {
                       </span>
                     )}
                     <div className={`font-medium ${deskMode ? 'text-base leading-snug mb-1' : ''}`}>
+                      {deskMode && <span className="mr-1 text-lg" title={product.category}>{resolveProductEmoji(product)}</span>}
                       {(product.name === 'Default' || product.name === 'default' || !product.name)
                         ? (product.barcode && !product.barcode.startsWith('inv_') ? product.barcode : product.pluCode || product.barcode || 'Item')
                         : product.name}
@@ -2880,7 +2909,7 @@ function GroceryPOSContent() {
                         <div className="mt-1 space-y-1">
                           {/* Price + sold badge + revenue */}
                           <div className="flex items-center justify-between gap-1 flex-wrap">
-                            <span className="font-semibold text-green-600 text-sm">{formatCurrency(product.price)}/{product.unit}</span>
+                            <span className="font-semibold text-green-700 dark:text-green-300 text-sm bg-green-100 dark:bg-green-950/60 px-1.5 py-0.5 rounded-md">{formatCurrency(product.price)}/{product.unit}</span>
                             {showBar && (
                               <div className="flex items-center gap-1">
                                 <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300`}>
@@ -2911,10 +2940,10 @@ function GroceryPOSContent() {
                             {product.stockQuantity !== undefined && (
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                                 product.stockQuantity === 0
-                                  ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-white'
                                   : product.stockQuantity < 5
-                                  ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400'
-                                  : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                                  ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-white'
+                                  : 'bg-slate-200 text-slate-700 dark:bg-slate-700/60 dark:text-slate-100'
                               }`}>
                                 {product.stockQuantity === 0 ? 'Out of stock' : `${product.stockQuantity} left`}
                               </span>

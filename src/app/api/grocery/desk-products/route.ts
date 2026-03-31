@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
     const rawItems = await prisma.barcodeInventoryItems.findMany({
       where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
       include: {
-        business_category: { select: { id: true, name: true, emoji: true } }
+        business_category: {
+          select: { id: true, name: true, emoji: true, color: true, domain: { select: { emoji: true } } }
+        },
+        inventory_subcategory: { select: { emoji: true } }
       },
       orderBy: { name: 'asc' }
     })
@@ -57,6 +60,10 @@ export async function GET(request: NextRequest) {
         barcode: item.barcodeData ?? undefined,
         category: item.business_category?.name ?? 'Other',
         categoryId: item.categoryId ?? '__uncategorized__',
+        categoryEmoji: item.business_category?.emoji ?? undefined,
+        categoryColor: item.business_category?.color ?? '#3B82F6',
+        subcategoryEmoji: item.inventory_subcategory?.emoji ?? undefined,
+        domainEmoji: item.business_category?.domain?.emoji ?? undefined,
         price: item.sellingPrice ? parseFloat(item.sellingPrice.toString()) : 0,
         stockQuantity: item.stockQuantity,
         unitType: 'each' as const,
