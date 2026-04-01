@@ -20,9 +20,26 @@ interface EmojiPickerEnhancedProps {
 export function EmojiPickerEnhanced({
   onSelect,
   selectedEmoji,
-  searchPlaceholder = 'Search emojis...',
+  searchPlaceholder = 'Search by name or paste an emoji directly…',
 }: EmojiPickerEnhancedProps) {
   const [searchQuery, setSearchQuery] = useState('');
+
+  /** Returns true if the string is purely an emoji (paste from internet) */
+  function looksLikeEmoji(str: string): boolean {
+    const s = str.trim();
+    if (!s) return false;
+    return /^\p{Extended_Pictographic}/u.test(s) && !/[a-zA-Z0-9]/.test(s);
+  }
+
+  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    if (looksLikeEmoji(val)) {
+      onSelect(val.trim());
+      setSearchQuery('');
+      return;
+    }
+    setSearchQuery(val);
+  }
   const [localResults, setLocalResults] = useState<EmojiResult[]>([]);
   const [githubResults, setGithubResults] = useState<EmojiResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -200,7 +217,7 @@ export function EmojiPickerEnhanced({
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={handleSearchChange}
           placeholder={searchPlaceholder}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
         />

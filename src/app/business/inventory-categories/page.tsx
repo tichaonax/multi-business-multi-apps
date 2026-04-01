@@ -35,6 +35,16 @@ export default function InventoryCategoriesPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [stats, setStats] = useState<any>(null);
 
+  // Fetch DB-level user permissions (useSession only carries id/role/name, not permissions)
+  const [userPerms, setUserPerms] = useState<Record<string, any>>({});
+  useEffect(() => {
+    fetch('/api/user/permissions')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.permissions) setUserPerms(d.permissions) })
+      .catch(() => {})
+  }, []);
+  const effectiveUser = session?.user ? { ...session.user, permissions: userPerms } : null;
+
   // Editor state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false);
@@ -47,12 +57,12 @@ export default function InventoryCategoriesPage() {
   const currentBusinessType = selectedBusinessType;
 
   // Permissions
-  const canCreateCategories = hasUserPermission(session?.user, 'canCreateInventoryCategories');
-  const canEditCategories = hasUserPermission(session?.user, 'canEditInventoryCategories');
-  const canDeleteCategories = hasUserPermission(session?.user, 'canDeleteInventoryCategories');
-  const canCreateSubcategories = hasUserPermission(session?.user, 'canCreateInventorySubcategories');
-  const canEditSubcategories = hasUserPermission(session?.user, 'canEditInventorySubcategories');
-  const canDeleteSubcategories = hasUserPermission(session?.user, 'canDeleteInventorySubcategories');
+  const canCreateCategories = hasUserPermission(effectiveUser, 'canCreateInventoryCategories');
+  const canEditCategories = hasUserPermission(effectiveUser, 'canEditInventoryCategories');
+  const canDeleteCategories = hasUserPermission(effectiveUser, 'canDeleteInventoryCategories');
+  const canCreateSubcategories = hasUserPermission(effectiveUser, 'canCreateInventorySubcategories');
+  const canEditSubcategories = hasUserPermission(effectiveUser, 'canEditInventorySubcategories');
+  const canDeleteSubcategories = hasUserPermission(effectiveUser, 'canDeleteInventorySubcategories');
 
   // Fetch department statistics for clothing business
   useEffect(() => {
@@ -246,10 +256,15 @@ export default function InventoryCategoriesPage() {
           </label>
           <div className="flex flex-wrap gap-2">
             {[
-              { type: 'clothing', emoji: '👕', label: 'Clothing' },
-              { type: 'hardware', emoji: '🔧', label: 'Hardware' },
-              { type: 'grocery', emoji: '🛒', label: 'Grocery' },
-              { type: 'restaurant', emoji: '🍽️', label: 'Restaurant' },
+              { type: 'clothing',     emoji: '👗',  label: 'Clothing' },
+              { type: 'hardware',     emoji: '🔧',  label: 'Hardware' },
+              { type: 'grocery',      emoji: '🛒',  label: 'Grocery' },
+              { type: 'restaurant',   emoji: '🍽️', label: 'Restaurant' },
+              { type: 'retail',       emoji: '🏪',  label: 'Retail' },
+              { type: 'services',     emoji: '🛠️', label: 'Services' },
+              { type: 'consulting',   emoji: '💼',  label: 'Consulting' },
+              { type: 'construction', emoji: '🏗️', label: 'Construction' },
+              { type: 'other',        emoji: '📦',  label: 'Other' },
             ].map(({ type, emoji, label }) => (
               <button
                 key={type}

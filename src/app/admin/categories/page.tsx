@@ -6,7 +6,17 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 
-const BUSINESS_TYPES = ['grocery', 'hardware', 'restaurant', 'clothing']
+const BUSINESS_TYPES = [
+  { value: 'grocery',      label: 'Grocery',      emoji: '🛒' },
+  { value: 'clothing',     label: 'Clothing',     emoji: '👗' },
+  { value: 'hardware',     label: 'Hardware',     emoji: '🔧' },
+  { value: 'restaurant',   label: 'Restaurant',   emoji: '🍽️' },
+  { value: 'retail',       label: 'Retail',       emoji: '🏪' },
+  { value: 'services',     label: 'Services',     emoji: '🛠️' },
+  { value: 'consulting',   label: 'Consulting',   emoji: '💼' },
+  { value: 'construction', label: 'Construction', emoji: '🏗️' },
+  { value: 'other',        label: 'Other',        emoji: '📦' },
+]
 
 interface Category {
   id: string
@@ -181,18 +191,18 @@ function CategoriesContent() {
       }
     >
       {/* Business Type Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         {BUSINESS_TYPES.map(bt => (
           <button
-            key={bt}
-            onClick={() => setBusinessType(bt)}
-            className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-colors ${
-              businessType === bt
+            key={bt.value}
+            onClick={() => setBusinessType(bt.value)}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              businessType === bt.value
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
-            {bt}
+            {bt.emoji} {bt.label}
           </button>
         ))}
       </div>
