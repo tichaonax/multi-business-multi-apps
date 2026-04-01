@@ -62,6 +62,20 @@ export async function findOverlappingContracts(
   periodEnd: Date,
   businessId?: string
 ): Promise<ContractInfo[]> {
+  const contractInclude = {
+    compensation_types: {
+      select: { id: true, name: true, type: true }
+    },
+    job_titles: {
+      select: { id: true, title: true }
+    },
+    contract_benefits: {
+      include: {
+        benefit_types: true
+      }
+    }
+  }
+
   const where: any = {
     employeeId,
     startDate: { lte: periodEnd },
@@ -77,26 +91,43 @@ export async function findOverlappingContracts(
 
   const contracts = await prisma.employeeContracts.findMany({
     where,
-    include: {
-      compensation_types: {
-        select: { id: true, name: true, type: true }
-      },
-      job_titles: {
-        select: { id: true, title: true }
-      },
-      contract_benefits: {
-        include: {
-          benefit_types: true
-        }
-      }
-    },
+    include: contractInclude,
     orderBy: [
       { startDate: 'desc' },
       { createdAt: 'desc' }
     ]
   })
 
-  return contracts as ContractInfo[]
+  if (contracts.length > 0) {
+    return contracts as ContractInfo[]
+  }
+
+  // Fallback: contract was created/signed after the period end (e.g. backdated paperwork).
+  // Find the most recent signed contract for the employee regardless of start date.
+  const fallbackWhere: any = {
+    employeeId,
+    employeeSignedAt: { not: null },
+    managerSignedAt: { not: null }
+  }
+  if (businessId) {
+    fallbackWhere.primaryBusinessId = businessId
+  }
+
+  const fallbackContracts = await prisma.employeeContracts.findMany({
+    where: fallbackWhere,
+    include: contractInclude,
+    orderBy: [
+      { startDate: 'desc' },
+      { createdAt: 'desc' }
+    ],
+    take: 1
+  })
+
+  if (fallbackContracts.length > 0) {
+    console.log(`findOverlappingContracts: no overlapping contract found for employee ${employeeId}, falling back to most recent signed contract (backdated scenario)`)
+  }
+
+  return fallbackContracts as ContractInfo[]
 }
 
 /**
@@ -163,6 +194,13 @@ export async function selectApplicableContracts(
     if (startsBeforePeriodEnds && endsAfterPeriodStarts) {
       applicableContracts.push(contract)
     }
+  }
+
+  // Fallback: contract was created/signed after the period ended (backdated paperwork).
+  // Use the most recent signed contract so the employee can still be paid for that period.
+  if (applicableContracts.length === 0 && signedContracts.length > 0) {
+    console.log(`selectApplicableContracts: no overlapping signed contracts for employee ${employeeId} in period — using most recent signed contract as backdated fallback`)
+    return [signedContracts[0]]
   }
 
   // If employee was terminated, ensure we respect the termination date

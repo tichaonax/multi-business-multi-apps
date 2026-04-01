@@ -164,7 +164,8 @@ export async function POST(req: NextRequest) {
         nationalId: true,
         dateOfBirth: true,
         hireDate: true,
-        terminationDate: true
+        terminationDate: true,
+        primaryBusinessId: true
       }
     })
 
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest) {
       period.periodStart,
       period.periodEnd,
       employee.terminationDate,
-      period.businessId
+      employee.primaryBusinessId ?? period.businessId
     )
 
     if (contractEntries.length === 0) {

@@ -240,7 +240,9 @@ export default function PayrollPeriodDetailPage() {
       const map: Record<string, number> = {}
       const pendingMap: Record<string, number> = {}
       entries.forEach(e => {
-        map[e.employeeId] = (map[e.employeeId] ?? 0) + Number(e.amount)
+        if (e.approvalStatus === 'approved') {
+          map[e.employeeId] = (map[e.employeeId] ?? 0) + Number(e.amount)
+        }
         if (e.approvalStatus === 'pending') {
           pendingMap[e.employeeId] = (pendingMap[e.employeeId] ?? 0) + 1
         }
@@ -401,6 +403,36 @@ export default function PayrollPeriodDetailPage() {
       }
     } catch (error) {
       showNotification('error', 'Failed to submit for review')
+    }
+  }
+
+  const handleRevertToInProgress = async () => {
+    if (!period) return
+
+    const ok = await confirm({
+      title: 'Revert to In Progress',
+      description: 'Move this payroll period back to in-progress? It will need to be re-submitted for review.',
+      confirmText: 'Revert'
+    })
+
+    if (!ok) return
+
+    try {
+      const response = await fetch(`/api/payroll/periods/${period.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'in_progress' })
+      })
+
+      if (response.ok) {
+        showNotification('success', 'Payroll period reverted to in progress')
+        loadPeriod()
+      } else {
+        const error = await response.json()
+        showNotification('error', error.error || 'Failed to revert payroll period')
+      }
+    } catch {
+      showNotification('error', 'Failed to revert payroll period')
     }
   }
 
@@ -993,6 +1025,14 @@ export default function PayrollPeriodDetailPage() {
                 </div>
               )
             })()
+          )}
+          {canEditEntry && period.status === 'review' && (
+            <button
+              onClick={handleRevertToInProgress}
+              className="px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-md hover:bg-yellow-700"
+            >
+              Back to In Progress
+            </button>
           )}
           {canEditEntry && period.status === 'review' && period.payroll_entries.length > 0 && (
             <button
