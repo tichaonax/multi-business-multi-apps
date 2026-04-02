@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getWorkingDaysInMonth, computeTotalsForEntry } from '@/lib/payroll/helpers'
+import { loadBrackets, loadTaxConstants, calculatePaye, calculateAidsLevy, calculateNssa } from '@/lib/payroll/paye-calc'
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 import { generatePayrollExcel } from '@/lib/payroll/excel-generator'
@@ -401,6 +402,13 @@ const perDiemByEmployee: Record<string, number> = {}
       priorPeriodIds = priorPeriods.map(p => p.id)
     }
 
+    // Pre-load tax brackets and constants once for the whole period (avoid per-entry DB calls)
+    const taxYear = period.year
+    const [monthlyBrackets, taxConstants] = await Promise.all([
+      loadBrackets(taxYear, 'MONTHLY'),
+      loadTaxConstants(taxYear),
+    ])
+
     let cumulativeByEmployee: Record<string, any> = {}
     if (priorPeriodIds.length > 0) {
       const grouped = await prisma.payrollEntries.groupBy({
@@ -416,6 +424,25 @@ const perDiemByEmployee: Record<string, number> = {}
           cumulativeLeaveDays: Number(g._sum.leaveDays ?? 0),
           cumulativeAbsenceDays: Number(g._sum.absenceDays ?? 0)
         }
+      }
+    }
+
+    // Batch-fetch approved clock-in OT adjustments for all entries so they can be
+    // added to the OT columns instead of the Adjustments column in the export
+    const allEntryIds = period.payroll_entries.map((e: any) => e.id)
+    const clockInOTRows = allEntryIds.length > 0 ? await prisma.payrollAdjustments.findMany({
+      where: {
+        payrollEntryId: { in: allEntryIds },
+        isClockInAdjustment: true,
+        status: 'approved',
+      } as any,
+      select: { payrollEntryId: true, adjustmentType: true, amount: true }
+    }) : []
+    const clockInOTByEntry: Record<string, number> = {}
+    for (const a of clockInOTRows) {
+      const t = String((a as any).adjustmentType || '').toLowerCase()
+      if ((t === 'overtime_credit' || t === 'overtime') && a.payrollEntryId) {
+        clockInOTByEntry[a.payrollEntryId] = (clockInOTByEntry[a.payrollEntryId] || 0) + Math.abs(Number(a.amount || 0))
       }
     }
 
@@ -484,11 +511,28 @@ const perDiemByEmployee: Record<string, number> = {}
       const additionsTotal = Number(totals.additionsTotal || 0)
       const absenceDeduction = Number(totals.absenceDeduction || 0)
 
+      // Clock-in approved OT belongs in the OT column, not the Adjustments column
+      const clockInOTAmount = clockInOTByEntry[(entry as any).id] || 0
+      const additionsTotalForExport = Math.max(0, additionsTotal - clockInOTAmount)
+
       const perDiemForEntry = empId ? (perDiemByEmployee[empId] || 0) : 0
       const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
       // Include per diem in gross — computeTotalsForEntry doesn't know about per diem
       const grossRaw = grossFromTotals + perDiemForEntry
       const netComputed = grossRaw // Net = Gross (doesn't subtract deductions)
+
+      // Contractual basic salary (pre-proration) — used for NSSA calculation
+      // Prefer contract pdfGenerationData.basicSalary (same fallback chain as UI table)
+      const contractualBasicSalary = Number(
+        contract?.pdfGenerationData?.basicSalary
+        ?? contract?.baseSalary
+        ?? Number(entry.baseSalary || 0)
+      )
+      // PAYE uses total taxable gross (gross earnings)
+      const payeAmt = calculatePaye(grossRaw, monthlyBrackets)
+      const aidsLevyAmt = calculateAidsLevy(payeAmt, taxConstants.aidsLevyRate)
+      const nssaEmployeeAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployeeRate)
+      const nssaEmployerAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployerRate)
 
       enrichedEntries.push({
         ...entry,
@@ -507,7 +551,7 @@ const perDiemByEmployee: Record<string, number> = {}
         absenceDeduction: absenceDeduction,
         netPay: Number(totals.netPay ?? netComputed),
         // expose adjustments and derived deduction fields so excelRows picks them up
-        adjustmentsTotal: additionsTotal,
+        adjustmentsTotal: additionsTotalForExport,
         adjustmentsAsDeductions: adjustmentsAsDeductions,
         totalDeductions: totalDeductions,
         // copy employee name parts if available (these come from included employee select)
@@ -522,9 +566,33 @@ const perDiemByEmployee: Record<string, number> = {}
         // Per diem: approved amount for this employee in this period
         perDiem: empId ? (perDiemByEmployee[empId] || 0) : 0,
         // Effective termination date: payroll entry field or employee record
-        terminationDate: entryTermDate
+        terminationDate: entryTermDate,
+        // Statutory deductions
+        contractualBasicSalary,
+        standardOvertimePay: Number(totals.standardOvertimePay || 0) + clockInOTAmount,
+        doubleOvertimePay: Number(totals.doubleOvertimePay || 0),
+        payeAmount: payeAmt,
+        aidsLevy: aidsLevyAmt,
+        nssaEmployee: nssaEmployeeAmt,
+        nssaEmployer: nssaEmployerAmt,
+        cashInLieu: Number((entry as any).cashInLieu || 0),
       })
     }
+
+    // Persist statutory deductions (nssaEmployer, nssaEmployee, payeAmount, aidsLevy) per entry to DB
+    await Promise.allSettled(enrichedEntries.map(async (e: any) => {
+      try {
+        await prisma.payrollEntries.update({
+          where: { id: e.id },
+          data: {
+            nssaEmployer: e.nssaEmployer ?? 0,
+            nssaEmployee: e.nssaEmployee ?? 0,
+            payeAmount: e.payeAmount ?? 0,
+            aidsLevy: e.aidsLevy ?? 0,
+          }
+        })
+      } catch { /* non-fatal */ }
+    }))
 
     // Generate Excel file using enriched entries; include benefits in gross/net
     const excelRows = enrichedEntries.map(entry => ({
@@ -563,6 +631,16 @@ const perDiemByEmployee: Record<string, number> = {}
       grossPay: parseFloat(entry.grossPay.toString()),
       totalDeductions: parseFloat(entry.totalDeductions.toString()),
       netPay: parseFloat(entry.netPay.toString()),
+      // Statutory deductions and split overtime
+      contractualBasicSalary: Number((entry as any).contractualBasicSalary || 0),
+      standardOvertimePay: Number((entry as any).standardOvertimePay || 0),
+      doubleOvertimePay: Number((entry as any).doubleOvertimePay || 0),
+      payeAmount: Number((entry as any).payeAmount || 0),
+      aidsLevy: Number((entry as any).aidsLevy || 0),
+      nssaEmployee: Number((entry as any).nssaEmployee || 0),
+      nssaEmployer: Number((entry as any).nssaEmployer || 0),
+      cashInLieu: Number((entry as any).cashInLieu || 0),
+      roundedNetPay: (entry as any).roundedNetPay != null ? Number((entry as any).roundedNetPay) : null,
       // include merged benefits and totals for excel generator
       mergedBenefits: entry.mergedBenefits || [],
       totalBenefitsAmount: entry.totalBenefitsAmount || 0,

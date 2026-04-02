@@ -9,7 +9,7 @@ import { usePrompt } from '@/components/ui/input-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { generatePayrollEntryFileName, PayrollEntryData } from '@/lib/pdf-utils'
 import { PayrollSlipPreviewModal } from './payroll-slip-preview-modal'
-import { calculateTotalOvertimePay, deriveHourlyRateFromMonthlySalary } from '@/lib/payroll/overtime-utils'
+import { calculateTotalOvertimePay, calculateOvertimePay, deriveHourlyRateFromMonthlySalary } from '@/lib/payroll/overtime-utils'
 
 interface PayrollEntryBenefit {
   id: string
@@ -236,6 +236,7 @@ export function PayrollEntryDetailModal({
     standardOvertimeHours: 0,
     doubleTimeOvertimeHours: 0,
     commission: 0,
+    cashInLieu: 0,
     miscDeductions: 0,
     absenceFraction: '0',
     notes: ''
@@ -606,6 +607,7 @@ export function PayrollEntryDetailModal({
             standardOvertimeHours: Number(data.standardOvertimeHours || 0),
             doubleTimeOvertimeHours: Number(data.doubleTimeOvertimeHours || 0),
             commission: data.commission,
+            cashInLieu: Number(data.cashInLieu || 0),
             miscDeductions: Number(data.miscDeductions || 0),
             notes: data.notes || ''
           })
@@ -629,6 +631,7 @@ export function PayrollEntryDetailModal({
             standardOvertimeHours: Number(data.standardOvertimeHours || 0),
             doubleTimeOvertimeHours: Number(data.doubleTimeOvertimeHours || 0),
             commission: data.commission,
+            cashInLieu: Number(data.cashInLieu || 0),
             miscDeductions: Number(data.miscDeductions || 0),
             notes: data.notes || ''
           })
@@ -942,13 +945,14 @@ export function PayrollEntryDetailModal({
         ['standardOvertimeHours', 'standardOvertimeHours'],
         ['doubleTimeOvertimeHours', 'doubleTimeOvertimeHours'],
         ['commission', 'commission'],
+        ['cashInLieu', 'cashInLieu'],
         ['miscDeductions', 'miscDeductions'],
         ['notes', 'notes']
       ]
 
       // Treat known numeric form fields as numbers and compare numerically to avoid
       // false-positives when server returns strings/Decimals.
-      const numericKeys = new Set(['workDays', 'sickDays', 'leaveDays', 'absenceDays', 'absenceFraction', 'overtimeHours', 'standardOvertimeHours', 'doubleTimeOvertimeHours', 'commission', 'miscDeductions'])
+      const numericKeys = new Set(['workDays', 'sickDays', 'leaveDays', 'absenceDays', 'absenceFraction', 'overtimeHours', 'standardOvertimeHours', 'doubleTimeOvertimeHours', 'commission', 'cashInLieu', 'miscDeductions'])
       for (const [k, serverKey] of mapKeys) {
         const newVal = (formData as any)[k]
         const oldVal = (entry as any)[serverKey]
@@ -1471,9 +1475,14 @@ export function PayrollEntryDetailModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) { onError('Failed to approve adjustment'); return }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        onError(errData?.error || `Failed to approve adjustment (${res.status})`)
+        return
+      }
       setOverrideAmounts(prev => { const n = { ...prev }; delete n[adjId]; return n })
       await loadEntry()
+      onSuccess({ message: 'Adjustment approved', refresh: false })
     } finally {
       setApprovingAdjId(null)
     }
@@ -1487,8 +1496,13 @@ export function PayrollEntryDetailModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'reject' }),
       })
-      if (!res.ok) { onError('Failed to reject adjustment'); return }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        onError(errData?.error || `Failed to reject adjustment (${res.status})`)
+        return
+      }
       await loadEntry()
+      onSuccess({ message: 'Adjustment rejected', refresh: false })
     } finally {
       setApprovingAdjId(null)
     }
@@ -2060,6 +2074,20 @@ export function PayrollEntryDetailModal({
                     disabled={isLocked}
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">Cash in Lieu</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.cashInLieu}
+                    onChange={(e) => setFormData({ ...formData, cashInLieu: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+                    onBlur={() => flushAutosave()}
+                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                    min="0"
+                    disabled={isLocked}
+                    placeholder="Leave cash-out, gratuity…"
+                  />
+                </div>
               </div>
             </div>
 
@@ -2080,6 +2108,12 @@ export function PayrollEntryDetailModal({
                     <span className="text-primary font-medium">{formatCurrency(formData.commission)}</span>
                   </div>
                 )}
+                {formData.cashInLieu > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Cash in Lieu:</span>
+                    <span className="text-primary font-medium">{formatCurrency(formData.cashInLieu)}</span>
+                  </div>
+                )}
                 {entry.livingAllowance > 0 && (
                   <div className="flex justify-between">
                     <span className="text-secondary">Living Allowance:</span>
@@ -2098,25 +2132,59 @@ export function PayrollEntryDetailModal({
                     <span className="text-primary">{formatCurrency(entry.travelAllowance)}</span>
                   </div>
                 )}
-                {/* Show persisted overtimePay when present, otherwise show computed overtime line */}
+                {/* Show split overtime pay lines (1.5x and 2.0x) */}
                 {(() => {
-                  const otPay = entry.overtimePay > 0 ? entry.overtimePay : computeOvertimeForModal(entry)
-                  if (!(otPay > 0)) return null
-                  const hasHours = formData.standardOvertimeHours > 0 || formData.doubleTimeOvertimeHours > 0
-                  return (
-                    <div className="flex justify-between">
-                      <span className="text-secondary">Overtime Pay:</span>
-                      <div className="text-right">
-                        <span className="text-primary font-medium">{formatCurrency(otPay)}</span>
-                        {hasHours && (
-                          <div className="text-xs text-secondary">
-                            {formData.standardOvertimeHours > 0 && `${formData.standardOvertimeHours}h @1.5×`}
-                            {formData.standardOvertimeHours > 0 && formData.doubleTimeOvertimeHours > 0 && ', '}
-                            {formData.doubleTimeOvertimeHours > 0 && `${formData.doubleTimeOvertimeHours}h @2.0×`}
-                          </div>
-                        )}
+                  const hourlyRate = computeHourlyRateForEntry(entry)
+                  const std1Pay = Number(entry.standardOvertimePay ?? 0) > 0
+                    ? Number(entry.standardOvertimePay)
+                    : calculateOvertimePay(Number(formData.standardOvertimeHours || 0), hourlyRate, false)
+                  const dbl2Pay = Number(entry.doubleOvertimePay ?? 0) > 0
+                    ? Number(entry.doubleOvertimePay)
+                    : calculateOvertimePay(Number(formData.doubleTimeOvertimeHours || 0), hourlyRate, true)
+                  // Legacy fallback: if no split data, fall back to combined line
+                  const hasNoSplitData = !(Number(entry.standardOvertimePay ?? 0) > 0) && !(Number(entry.doubleOvertimePay ?? 0) > 0)
+                    && !(formData.standardOvertimeHours > 0) && !(formData.doubleTimeOvertimeHours > 0)
+                  if (hasNoSplitData) {
+                    const legacyPay = Number(entry.overtimePay ?? 0)
+                    if (!(legacyPay > 0)) return null
+                    return (
+                      <div className="flex justify-between">
+                        <span className="text-secondary">Overtime Pay:</span>
+                        <span className="text-primary font-medium">{formatCurrency(legacyPay)}</span>
                       </div>
-                    </div>
+                    )
+                  }
+                  return (
+                    <>
+                      {(std1Pay > 0 || formData.standardOvertimeHours > 0) && (
+                        <div className="flex justify-between">
+                          <span className="text-secondary">Overtime (1.5x){formData.standardOvertimeHours > 0 ? ` — ${formData.standardOvertimeHours}h` : ''}:</span>
+                          <span className="text-primary font-medium">{formatCurrency(std1Pay)}</span>
+                        </div>
+                      )}
+                      {(dbl2Pay > 0 || formData.doubleTimeOvertimeHours > 0) && (
+                        <div className="flex justify-between">
+                          <span className="text-secondary">Overtime (2.0x){formData.doubleTimeOvertimeHours > 0 ? ` — ${formData.doubleTimeOvertimeHours}h` : ''}:</span>
+                          <span className="text-primary font-medium">{formatCurrency(dbl2Pay)}</span>
+                        </div>
+                      )}
+                      {/* Clock-in approved OT adjustments rolled into OT display */}
+                      {(() => {
+                        const adjs: any[] = entry.payrollAdjustments || []
+                        const approved = adjs.filter((a: any) => a.isClockInAdjustment && a.status === 'approved' && ['overtime_credit', 'overtime'].includes(String(a.adjustmentType || a.type || '').toLowerCase()))
+                        if (!approved.length) return null
+                        return approved.map((a: any) => {
+                          const amt = Math.abs(Number(a.storedAmount ?? a.amount ?? 0))
+                          const label = String(a.adjustmentType || '').toLowerCase() === 'overtime_credit' ? 'OT Credit (clock-in)' : 'OT 1.5× (clock-in)'
+                          return (
+                            <div key={a.id} className="flex justify-between text-xs">
+                              <span className="text-secondary pl-2">↳ {label}:</span>
+                              <span className="text-primary">{formatCurrency(amt)}</span>
+                            </div>
+                          )
+                        })
+                      })()}
+                    </>
                   )
                 })()}
                 {benefits.length > 0 ? (
@@ -2406,7 +2474,7 @@ export function PayrollEntryDetailModal({
                     </button>
                   </div>
                 )}
-                {/* Pending overtime — approval required */}
+                {/* Pending overtime note — approval is handled in the Adjustments section below */}
                 {(() => {
                   const pendingOT = (entry?.payrollAdjustments || []).filter((a: any) =>
                     a.isClockInAdjustment && a.status === 'pending' && a.isAddition && Number(a.amount || 0) > 0
@@ -2414,20 +2482,9 @@ export function PayrollEntryDetailModal({
                   if (pendingOT.length === 0) return null
                   return (
                     <div className="mt-3 border-t border-orange-200 dark:border-orange-700 pt-3">
-                      <div className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-2">⚠ Overtime Pending Approval</div>
-                      {pendingOT.map((adj: any) => (
-                        <PendingOvertimeRow
-                          key={adj.id}
-                          adj={adj}
-                          entryId={entryId}
-                          onApproved={async () => {
-                            const freshEntry = await loadEntry()
-                            if (freshEntry) {
-                              try { onSuccess({ message: '', refresh: false, updatedEntry: freshEntry }) } catch (e) { /* ignore */ }
-                            }
-                          }}
-                        />
-                      ))}
+                      <div className="text-xs font-semibold text-orange-700 dark:text-orange-400">
+                        ⚠ {pendingOT.length} overtime credit{pendingOT.length > 1 ? 's' : ''} pending — approve in the Adjustments section below
+                      </div>
                     </div>
                   )
                 })()}

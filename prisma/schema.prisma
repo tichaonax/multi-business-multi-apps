@@ -122,7 +122,7 @@ model BusinessCategories {
   business_products         BusinessProducts[]
   barcode_inventory_items   BarcodeInventoryItems[]
   inventory_subcategories   InventorySubcategories[]
-  customBulkProducts        CustomBulkProducts[]      @relation("CustomBulkCategory")
+  customBulkProducts        CustomBulkProducts[]     @relation("CustomBulkCategory")
 
   @@unique([businessType, domainId, name])
   @@index([businessType])
@@ -359,19 +359,19 @@ model BusinessSuppliers {
 }
 
 model BusinessLocations {
-  id                String              @id @default(uuid())
-  businessId        String
-  locationCode      String
-  name              String
-  emoji             String?
-  description       String?
-  locationType      String?
-  capacity          Int?
-  isActive          Boolean             @default(true)
-  parentLocationId  String?
-  attributes        Json?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime
+  id                      String                  @id @default(uuid())
+  businessId              String
+  locationCode            String
+  name                    String
+  emoji                   String?
+  description             String?
+  locationType            String?
+  capacity                Int?
+  isActive                Boolean                 @default(true)
+  parentLocationId        String?
+  attributes              Json?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime
   businesses              Businesses              @relation(fields: [businessId], references: [id])
   parent_location         BusinessLocations?      @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   child_locations         BusinessLocations[]     @relation("LocationHierarchy")
@@ -428,8 +428,8 @@ model Businesses {
   phone                                                                    String?
   ecocashEnabled                                                           Boolean                       @default(false)
   ecocashFeeType                                                           String?                       @default("FIXED") @map("ecocash_fee_type")
-  ecocashFeeValue                                                          Decimal?                      @default(0) @db.Decimal(10, 2) @map("ecocash_fee_value")
-  ecocashMinimumFee                                                        Decimal?                      @default(0) @db.Decimal(10, 2) @map("ecocash_minimum_fee")
+  ecocashFeeValue                                                          Decimal?                      @default(0) @map("ecocash_fee_value") @db.Decimal(10, 2)
+  ecocashMinimumFee                                                        Decimal?                      @default(0) @map("ecocash_minimum_fee") @db.Decimal(10, 2)
   couponsEnabled                                                           Boolean                       @default(false)
   promosEnabled                                                            Boolean                       @default(false)
   receiptReturnPolicy                                                      String?
@@ -532,15 +532,15 @@ model Businesses {
   per_diem_entries                                                         PerDiemEntries[]              @relation("PerDiemBusiness")
   employee_absences                                                        EmployeeAbsences[]
   chickenBatches                                                           ChickenBatch[]
-  label_print_history                                                      ClothingLabelPrintHistory[] @relation("LabelPrintHistoryBusiness")
+  label_print_history                                                      ClothingLabelPrintHistory[]   @relation("LabelPrintHistoryBusiness")
   chickenInventory                                                         ChickenInventory[]
   chickenVaccinationSchedules                                              ChickenVaccinationSchedule[]
   chickenUtilityCosts                                                      ChickenUtilityCost[]
   chickenLaborLogs                                                         ChickenLaborLog[]
   chickenRunSettings                                                       ChickenRunSettings?
-  stock_take_drafts                                                        StockTakeDrafts[]     @relation("StockTakeDraftBusiness")
-  stock_take_reports                                                       StockTakeReports[]    @relation("StockTakeReportBusiness")
-  customBulkProducts                                                       CustomBulkProducts[]  @relation("CustomBulkBusiness")
+  stock_take_drafts                                                        StockTakeDrafts[]             @relation("StockTakeDraftBusiness")
+  stock_take_reports                                                       StockTakeReports[]            @relation("StockTakeReportBusiness")
+  customBulkProducts                                                       CustomBulkProducts[]          @relation("CustomBulkBusiness")
 
   @@map("businesses")
 }
@@ -576,7 +576,7 @@ model SavedReports {
   expectedCash           Decimal? @db.Decimal(10, 2)
   cashCounted            Decimal? @db.Decimal(10, 2)
   variance               Decimal? @db.Decimal(10, 2)
-  confirmedEcocashAmount Decimal? @db.Decimal(10, 2) @map("confirmed_ecocash_amount")
+  confirmedEcocashAmount Decimal? @map("confirmed_ecocash_amount") @db.Decimal(10, 2)
 
   // Summary metrics (for quick queries)
   totalSales     Decimal @db.Decimal(10, 2)
@@ -604,12 +604,12 @@ model SavedReports {
 }
 
 model ChatMessages {
-  id        String    @id @default(uuid())
-  message   String
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
-  roomId    String?
-  userId    String?
+  id         String     @id @default(uuid())
+  message    String
+  createdAt  DateTime   @default(now())
+  deletedAt  DateTime?
+  roomId     String?
+  userId     String?
   chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
   users      Users?     @relation(fields: [userId], references: [id])
 
@@ -1969,20 +1969,20 @@ model InventoryDomains {
 }
 
 model InventorySubcategories {
-  id                     String                  @id @default(uuid())
-  categoryId             String
-  name                   String
-  emoji                  String?
-  description            String?
-  isDefault              Boolean                 @default(false)
-  isUserCreated          Boolean                 @default(false)
-  displayOrder           Int                     @default(0)
-  createdAt              DateTime                @default(now())
-  createdBy              String?
-  business_products      BusinessProducts[]
+  id                      String                  @id @default(uuid())
+  categoryId              String
+  name                    String
+  emoji                   String?
+  description             String?
+  isDefault               Boolean                 @default(false)
+  isUserCreated           Boolean                 @default(false)
+  displayOrder            Int                     @default(0)
+  createdAt               DateTime                @default(now())
+  createdBy               String?
+  business_products       BusinessProducts[]
   barcode_inventory_items BarcodeInventoryItems[]
-  category               BusinessCategories      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  users                  Users?                  @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
+  category                BusinessCategories      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users                   Users?                  @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
 
   @@unique([categoryId, name])
   @@map("inventory_subcategories")
@@ -2373,6 +2373,16 @@ model PayrollEntries {
   doubleTimeOvertimeHours  Decimal                       @default(0) @db.Decimal(10, 2)
   standardOvertimeHours    Decimal                       @default(0) @db.Decimal(10, 2)
   contractSnapshot         Json?
+  payeAmount               Decimal                       @default(0) @db.Decimal(12, 2)
+  aidsLevy                 Decimal                       @default(0) @db.Decimal(12, 2)
+  nssaEmployee             Decimal                       @default(0) @db.Decimal(12, 2)
+  nssaEmployer             Decimal                       @default(0) @db.Decimal(12, 2)
+  cashInLieu               Decimal                       @default(0) @db.Decimal(12, 2)
+  standardOvertimePay      Decimal                       @default(0) @db.Decimal(12, 2)
+  doubleOvertimePay        Decimal                       @default(0) @db.Decimal(12, 2)
+  carryoverIn              Decimal                       @default(0) @db.Decimal(8, 4)
+  carryoverOut             Decimal                       @default(0) @db.Decimal(8, 4)
+  roundedNetPay            Decimal?                      @db.Decimal(12, 2)
   payroll_adjustments      PayrollAdjustments[]
   employees                Employees?                    @relation(fields: [employeeId], references: [id])
   payroll_periods          PayrollPeriods?               @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
@@ -2443,6 +2453,7 @@ model PayrollPeriods {
   totalGrossPay                           Decimal          @default(0) @db.Decimal(12, 2)
   totalDeductions                         Decimal          @default(0) @db.Decimal(12, 2)
   totalNetPay                             Decimal          @default(0) @db.Decimal(12, 2)
+  nssaEmployerTotal                       Decimal          @default(0) @db.Decimal(12, 2)
   createdAt                               DateTime         @default(now())
   createdBy                               String?
   approvedAt                              DateTime?
@@ -3309,13 +3320,13 @@ model Users {
   loan_withdrawal_requests_rejected                               LoanWithdrawalRequest[]          @relation("WithdrawalRejector")
   loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]          @relation("WithdrawalPayer")
   app_notifications                                               AppNotification[]
-  bale_bogo_history                                               ClothingBaleBogoHistory[]    @relation("BaleBogoHistoryUser")
-  label_print_history                                             ClothingLabelPrintHistory[]  @relation("LabelPrintHistoryUser")
-  payment_reversal_logs                                           PaymentReversalLog[]          @relation("ReversalLogReverser")
-  stock_take_drafts_created                                       StockTakeDrafts[]             @relation("StockTakeDraftCreator")
-  stock_take_reports_submitted                                    StockTakeReports[]            @relation("StockTakeReportSubmitter")
-  stock_take_reports_managed                                      StockTakeReports[]            @relation("StockTakeReportManager")
-  stock_take_report_employee_signoffs                             StockTakeReportEmployees[]    @relation("StockTakeReportEmployeeSigner")
+  bale_bogo_history                                               ClothingBaleBogoHistory[]        @relation("BaleBogoHistoryUser")
+  label_print_history                                             ClothingLabelPrintHistory[]      @relation("LabelPrintHistoryUser")
+  payment_reversal_logs                                           PaymentReversalLog[]             @relation("ReversalLogReverser")
+  stock_take_drafts_created                                       StockTakeDrafts[]                @relation("StockTakeDraftCreator")
+  stock_take_reports_submitted                                    StockTakeReports[]               @relation("StockTakeReportSubmitter")
+  stock_take_reports_managed                                      StockTakeReports[]               @relation("StockTakeReportManager")
+  stock_take_report_employee_signoffs                             StockTakeReportEmployees[]       @relation("StockTakeReportEmployeeSigner")
 
   @@map("users")
 }
@@ -3323,7 +3334,7 @@ model Users {
 model AppNotification {
   id        String    @id @default(cuid())
   userId    String
-  type      String    // PAYMENT_SUBMITTED | PAYMENT_APPROVED | PAYMENT_REJECTED | PAYMENT_PAID | PETTY_CASH_APPROVED | PETTY_CASH_REJECTED | BATCH_READY
+  type      String // PAYMENT_SUBMITTED | PAYMENT_APPROVED | PAYMENT_REJECTED | PAYMENT_PAID | PETTY_CASH_APPROVED | PETTY_CASH_REJECTED | BATCH_READY
   title     String
   message   String
   linkUrl   String?
@@ -3333,7 +3344,7 @@ model AppNotification {
   createdAt DateTime  @default(now())
   expiresAt DateTime?
 
-  user      Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
@@ -4210,7 +4221,7 @@ model BarcodeTemplates {
   createdById     String
   sku             String?
   batchId         String?
-  scanCode        String?                 // 8-char hex scan token (randomBytes(4).hex) — what the barcode encodes; barcodeValue is shown as display text
+  scanCode        String? // 8-char hex scan token (randomBytes(4).hex) — what the barcode encodes; barcodeValue is shown as display text
   defaultPrice    Decimal?                @db.Decimal(10, 2)
   productName     String?
   defaultColor    String?
@@ -4257,39 +4268,39 @@ model BarcodePrintJobs {
 }
 
 model BarcodeInventoryItems {
-  id                String              @id @default(cuid())
-  name              String
-  sku               String?
-  category          String?
-  barcodeTemplateId String?
-  location          String?
-  stockQuantity     Int                 @default(0)
-  businessId        String
-  inventoryItemId   String
-  barcodeData       String?
-  customLabel       String?
-  batchNumber       String?
-  expiryDate        DateTime?
-  quantity          Int                 @default(1)
-  costPrice         Decimal?            @db.Decimal(10, 2)
-  sellingPrice      Decimal?            @db.Decimal(10, 2)
-  isActive          Boolean             @default(true)
-  createdById       String
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  categoryId        String?
-  supplierId        String?
-  domainId          String?  @map("domain_id")
-  subcategoryId     String?
-  locationId        String?
-  barcodeTemplate   BarcodeTemplates?   @relation(fields: [barcodeTemplateId], references: [id])
-  business          Businesses          @relation(fields: [businessId], references: [id])
-  createdBy         Users               @relation(fields: [createdById], references: [id])
-  business_category BusinessCategories? @relation(fields: [categoryId], references: [id])
-  business_supplier BusinessSuppliers?  @relation("InventoryItemSupplier", fields: [supplierId], references: [id])
+  id                    String                  @id @default(cuid())
+  name                  String
+  sku                   String?
+  category              String?
+  barcodeTemplateId     String?
+  location              String?
+  stockQuantity         Int                     @default(0)
+  businessId            String
+  inventoryItemId       String
+  barcodeData           String?
+  customLabel           String?
+  batchNumber           String?
+  expiryDate            DateTime?
+  quantity              Int                     @default(1)
+  costPrice             Decimal?                @db.Decimal(10, 2)
+  sellingPrice          Decimal?                @db.Decimal(10, 2)
+  isActive              Boolean                 @default(true)
+  createdById           String
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  categoryId            String?
+  supplierId            String?
+  domainId              String?                 @map("domain_id")
+  subcategoryId         String?
+  locationId            String?
+  barcodeTemplate       BarcodeTemplates?       @relation(fields: [barcodeTemplateId], references: [id])
+  business              Businesses              @relation(fields: [businessId], references: [id])
+  createdBy             Users                   @relation(fields: [createdById], references: [id])
+  business_category     BusinessCategories?     @relation(fields: [categoryId], references: [id])
+  business_supplier     BusinessSuppliers?      @relation("InventoryItemSupplier", fields: [supplierId], references: [id])
   inventory_subcategory InventorySubcategories? @relation(fields: [subcategoryId], references: [id])
-  business_location BusinessLocations?  @relation(fields: [locationId], references: [id])
-  printJobs         BarcodePrintJobs[]
+  business_location     BusinessLocations?      @relation(fields: [locationId], references: [id])
+  printJobs             BarcodePrintJobs[]
 
   @@map("barcode_inventory_items")
 }
@@ -4894,9 +4905,9 @@ model ClothingBales {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  business                 Businesses               @relation(fields: [businessId], references: [id])
-  category                 ClothingBaleCategories   @relation(fields: [categoryId], references: [id])
-  employee                 Employees?               @relation("BaleStockedBy", fields: [employeeId], references: [id])
+  business                 Businesses                  @relation(fields: [businessId], references: [id])
+  category                 ClothingBaleCategories      @relation(fields: [categoryId], references: [id])
+  employee                 Employees?                  @relation("BaleStockedBy", fields: [employeeId], references: [id])
   inventory_transfer_items InventoryTransferItems[]
   bogoHistory              ClothingBaleBogoHistory[]
   printHistory             ClothingLabelPrintHistory[] @relation("LabelPrintHistoryBale")
@@ -4911,7 +4922,7 @@ model ClothingBaleBogoHistory {
   bale           ClothingBales @relation(fields: [baleId], references: [id])
   changedBy      String
   user           Users         @relation("BaleBogoHistoryUser", fields: [changedBy], references: [id])
-  action         String        // "ENABLED" | "RATIO_CHANGED"
+  action         String // "ENABLED" | "RATIO_CHANGED"
   previousActive Boolean?
   newActive      Boolean
   previousRatio  Int?
@@ -4937,9 +4948,9 @@ model ClothingLabelPrintHistory {
   printedAt  DateTime @default(now())
   notes      String?
 
-  business      Businesses    @relation("LabelPrintHistoryBusiness", fields: [businessId], references: [id])
-  bale          ClothingBales? @relation("LabelPrintHistoryBale",     fields: [baleId],     references: [id])
-  printedByUser Users          @relation("LabelPrintHistoryUser",     fields: [printedBy],  references: [id])
+  business      Businesses     @relation("LabelPrintHistoryBusiness", fields: [businessId], references: [id])
+  bale          ClothingBales? @relation("LabelPrintHistoryBale", fields: [baleId], references: [id])
+  printedByUser Users          @relation("LabelPrintHistoryUser", fields: [printedBy], references: [id])
 
   @@index([businessId])
   @@index([baleId])
@@ -4970,10 +4981,10 @@ model CustomBulkProducts {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  business  Businesses         @relation("CustomBulkBusiness", fields: [businessId], references: [id])
-  category  BusinessCategories? @relation("CustomBulkCategory", fields: [categoryId], references: [id])
-  supplier  BusinessSuppliers?  @relation("CustomBulkSupplier", fields: [supplierId], references: [id])
-  employee  Employees?          @relation("CustomBulkStockedBy", fields: [employeeId], references: [id])
+  business Businesses          @relation("CustomBulkBusiness", fields: [businessId], references: [id])
+  category BusinessCategories? @relation("CustomBulkCategory", fields: [categoryId], references: [id])
+  supplier BusinessSuppliers?  @relation("CustomBulkSupplier", fields: [supplierId], references: [id])
+  employee Employees?          @relation("CustomBulkStockedBy", fields: [employeeId], references: [id])
 
   @@unique([businessId, batchNumber])
   @@index([businessId])
@@ -5193,30 +5204,30 @@ model CashAllocationLineItem {
 // ============================================================
 
 model PettyCashRequests {
-  id               String          @id @default(cuid())
-  businessId       String
-  expenseAccountId String // business primary expense account — resolved at approval
-  requestedBy      String // FK Users — person who submitted
-  approvedBy       String? // FK Users — cashier who approved
-  settledBy        String? // FK Users — cashier who settled
-  cancelledBy      String? // FK Users — who cancelled
-  status           PettyCashStatus @default(PENDING)
-  requestedAmount  Decimal         @db.Decimal(12, 2)
-  approvedAmount   Decimal?        @db.Decimal(12, 2) // may be less than requestedAmount
-  spentAmount      Decimal         @default(0) @db.Decimal(12, 2) // running total from PettyCashTransactions; updated atomically
-  returnAmount     Decimal?        @db.Decimal(12, 2) // unused cash physically returned at settlement
-  purpose          String // brief description of intended use
-  notes            String?
-  requestedAt      DateTime        @default(now())
-  approvedAt       DateTime?
-  settledAt        DateTime?
-  cancelledAt      DateTime?
+  id                     String          @id @default(cuid())
+  businessId             String
+  expenseAccountId       String // business primary expense account — resolved at approval
+  requestedBy            String // FK Users — person who submitted
+  approvedBy             String? // FK Users — cashier who approved
+  settledBy              String? // FK Users — cashier who settled
+  cancelledBy            String? // FK Users — who cancelled
+  status                 PettyCashStatus @default(PENDING)
+  requestedAmount        Decimal         @db.Decimal(12, 2)
+  approvedAmount         Decimal?        @db.Decimal(12, 2) // may be less than requestedAmount
+  spentAmount            Decimal         @default(0) @db.Decimal(12, 2) // running total from PettyCashTransactions; updated atomically
+  returnAmount           Decimal?        @db.Decimal(12, 2) // unused cash physically returned at settlement
+  purpose                String // brief description of intended use
+  notes                  String?
+  requestedAt            DateTime        @default(now())
+  approvedAt             DateTime?
+  settledAt              DateTime?
+  cancelledAt            DateTime?
   // Financial record links set at approval
-  depositId        String? // FK ExpenseAccountDeposits (PETTY_CASH deposit into expense account)
-  businessTxId     String? // FK BusinessTransactions (DEBIT from business account)
+  depositId              String? // FK ExpenseAccountDeposits (PETTY_CASH deposit into expense account)
+  businessTxId           String? // FK BusinessTransactions (DEBIT from business account)
   // Financial record links set at settlement (only when returnAmount > 0)
-  returnPaymentId  String?         @unique // FK ExpenseAccountPayments (PETTY_CASH_RETURN)
-  returnTxId       String? // FK BusinessTransactions (CREDIT back to business account)
+  returnPaymentId        String?         @unique // FK ExpenseAccountPayments (PETTY_CASH_RETURN)
+  returnTxId             String? // FK BusinessTransactions (CREDIT back to business account)
   // Signature captured at fund handover (base64 PNG data URL, optional)
   signatureData          String?         @db.Text
   paymentChannel         String          @default("CASH") @map("payment_channel")
@@ -5225,7 +5236,7 @@ model PettyCashRequests {
   priority               String          @default("NORMAL") @map("priority")
   // NORMAL | URGENT — requester can flag urgent to help approvers prioritize
   createdAt              DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  updatedAt              DateTime        @updatedAt
 
   business       Businesses              @relation("BusinessPettyCash", fields: [businessId], references: [id])
   expenseAccount ExpenseAccounts         @relation("PettyCashExpenseAccount", fields: [expenseAccountId], references: [id])
@@ -5278,21 +5289,21 @@ model PettyCashTransaction {
 // ============================================================
 
 model PerDiemEntries {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   employeeId     String
   businessId     String
   enteredBy      String
   date           DateTime
-  amount         Decimal  @db.Decimal(12, 2)
+  amount         Decimal   @db.Decimal(12, 2)
   purpose        String // Lodging | Meals | Incidentals | Travel | Other
   notes          String?
   payrollMonth   Int
   payrollYear    Int
-  approvalStatus String   @default("pending") // pending | approved | rejected
+  approvalStatus String    @default("pending") // pending | approved | rejected
   approvedBy     String?
   approvedAt     DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   employee Employees  @relation("PerDiemEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
   business Businesses @relation("PerDiemBusiness", fields: [businessId], references: [id])
@@ -5367,35 +5378,35 @@ model EODPaymentBatch {
 // ============================================================
 
 model CashBucketEntry {
-  id            String   @id @default(uuid())
-  businessId    String
-  entryType     String
+  id             String    @id @default(uuid())
+  businessId     String
+  entryType      String
   // EOD_RECEIPT       — manager brings EOD cash in
   // PAYMENT_APPROVAL  — cashier approves payment batch
   // PETTY_CASH        — petty cash withdrawal
   // CASH_ALLOCATION   — cash allocation (rent, loan, etc.)
   direction      String
   // INFLOW | OUTFLOW
-  paymentChannel String   @default("CASH") @map("payment_channel")
+  paymentChannel String    @default("CASH") @map("payment_channel")
   // CASH | ECOCASH
-  amount         Decimal  @db.Decimal(12, 2)
-  referenceType String?
-  referenceId   String?
-  notes         String?
-  entryDate     DateTime
-  createdAt     DateTime @default(now())
-  createdBy     String
+  amount         Decimal   @db.Decimal(12, 2)
+  referenceType  String?
+  referenceId    String?
+  notes          String?
+  entryDate      DateTime
+  createdAt      DateTime  @default(now())
+  createdBy      String
   // Audit trail for manual edits and soft-deletes
-  editedAt      DateTime?
-  editedBy      String?
-  deletedAt     DateTime?
-  deletedBy     String?
+  editedAt       DateTime?
+  editedBy       String?
+  deletedAt      DateTime?
+  deletedBy      String?
   deletionReason String?
 
-  business    Businesses @relation("BusinessCashBucket", fields: [businessId], references: [id])
-  creator     Users      @relation("CashBucketEntryCreator", fields: [createdBy], references: [id])
-  editor      Users?     @relation("CashBucketEntryEditor", fields: [editedBy], references: [id])
-  deleter     Users?     @relation("CashBucketEntryDeleter", fields: [deletedBy], references: [id])
+  business Businesses @relation("BusinessCashBucket", fields: [businessId], references: [id])
+  creator  Users      @relation("CashBucketEntryCreator", fields: [createdBy], references: [id])
+  editor   Users?     @relation("CashBucketEntryEditor", fields: [editedBy], references: [id])
+  deleter  Users?     @relation("CashBucketEntryDeleter", fields: [deletedBy], references: [id])
 
   @@index([businessId, entryDate])
   @@index([entryDate])
@@ -5408,15 +5419,15 @@ model CashBucketEntry {
 // ============================================================
 
 model GroupedEODRun {
-  id                String   @id @default(cuid())
-  businessId        String
-  managerName       String
-  notes             String?
+  id                   String   @id @default(cuid())
+  businessId           String
+  managerName          String
+  notes                String?
   totalCashReceived    Float? // lump sum handed over by manager to cashier
-  totalEcocashReceived Float? @map("total_ecocash_received") // lump sum EcoCash confirmed over catch-up period
-  runDate           DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  totalEcocashReceived Float?   @map("total_ecocash_received") // lump sum EcoCash confirmed over catch-up period
+  runDate              DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   business       Businesses             @relation(fields: [businessId], references: [id])
   dates          GroupedEODRunDate[]
@@ -5785,11 +5796,11 @@ model ChickenRunSettings {
 model PaymentReversalLog {
   id                 String   @id @default(cuid())
   businessId         String
-  reversedBy         String                    // FK Users — admin who triggered reversal
+  reversedBy         String // FK Users — admin who triggered reversal
   reversalNote       String
-  pettyCashRequestId String   @unique          // FK PettyCashRequests — created by the reversal
+  pettyCashRequestId String   @unique // FK PettyCashRequests — created by the reversal
   totalAmount        Decimal  @db.Decimal(12, 2)
-  paymentIds         String   @db.Text         // JSON array of reversed ExpenseAccountPayments.id
+  paymentIds         String   @db.Text // JSON array of reversed ExpenseAccountPayments.id
   createdAt          DateTime @default(now())
 
   business         Businesses        @relation("ReversalLogBusiness", fields: [businessId], references: [id])
@@ -5804,22 +5815,22 @@ model PaymentReversalLog {
 // ─── Stock Take & Receive Workflow (MBM-158) ─────────────────────────────────
 
 model StockTakeDrafts {
-  id           String                @id @default(cuid())
-  businessId   String
-  createdById  String
-  status           StockTakeDraftStatus  @default(DRAFT)
-  title            String?
-  isStockTakeMode  Boolean               @default(false)
-  lastSyncedAt     DateTime?
-  salesOccurredAt  DateTime?
-  salesCount       Int                   @default(0)
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  id              String               @id @default(cuid())
+  businessId      String
+  createdById     String
+  status          StockTakeDraftStatus @default(DRAFT)
+  title           String?
+  isStockTakeMode Boolean              @default(false)
+  lastSyncedAt    DateTime?
+  salesOccurredAt DateTime?
+  salesCount      Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
-  business    Businesses          @relation("StockTakeDraftBusiness", fields: [businessId], references: [id])
-  createdBy   Users               @relation("StockTakeDraftCreator", fields: [createdById], references: [id])
-  items       StockTakeDraftItems[]
-  reports     StockTakeReports[]
+  business  Businesses            @relation("StockTakeDraftBusiness", fields: [businessId], references: [id])
+  createdBy Users                 @relation("StockTakeDraftCreator", fields: [createdById], references: [id])
+  items     StockTakeDraftItems[]
+  reports   StockTakeReports[]
 
   @@index([businessId])
   @@index([createdById])
@@ -5855,28 +5866,28 @@ model StockTakeDraftItems {
 }
 
 model StockTakeReports {
-  id                 String                  @id @default(cuid())
-  businessId         String
-  draftId            String?
-  submittedById      String
-  status             StockTakeReportStatus   @default(PENDING_SIGNOFF)
-  managerSignedAt    DateTime?
-  managerSignedById  String?
-  fullySignedOffAt   DateTime?
-  reportData         Json
-  totalShortfallQty  Int                     @default(0)
-  totalShortfallValue Decimal                @default(0) @db.Decimal(12, 2)
-  totalNewStockValue  Decimal                @default(0) @db.Decimal(12, 2)
+  id                   String                @id @default(cuid())
+  businessId           String
+  draftId              String?
+  submittedById        String
+  status               StockTakeReportStatus @default(PENDING_SIGNOFF)
+  managerSignedAt      DateTime?
+  managerSignedById    String?
+  fullySignedOffAt     DateTime?
+  reportData           Json
+  totalShortfallQty    Int                   @default(0)
+  totalShortfallValue  Decimal               @default(0) @db.Decimal(12, 2)
+  totalNewStockValue   Decimal               @default(0) @db.Decimal(12, 2)
   totalStockValueAfter Decimal               @default(0) @db.Decimal(12, 2)
-  employeeCount      Int                     @default(1)
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  employeeCount        Int                   @default(1)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
-  business          Businesses                  @relation("StockTakeReportBusiness", fields: [businessId], references: [id])
-  draft             StockTakeDrafts?            @relation(fields: [draftId], references: [id])
-  submittedBy       Users                       @relation("StockTakeReportSubmitter", fields: [submittedById], references: [id])
-  managerSignedBy   Users?                      @relation("StockTakeReportManager", fields: [managerSignedById], references: [id])
-  employees         StockTakeReportEmployees[]
+  business        Businesses                 @relation("StockTakeReportBusiness", fields: [businessId], references: [id])
+  draft           StockTakeDrafts?           @relation(fields: [draftId], references: [id])
+  submittedBy     Users                      @relation("StockTakeReportSubmitter", fields: [submittedById], references: [id])
+  managerSignedBy Users?                     @relation("StockTakeReportManager", fields: [managerSignedById], references: [id])
+  employees       StockTakeReportEmployees[]
 
   @@index([businessId])
   @@index([submittedById])
@@ -5886,16 +5897,16 @@ model StockTakeReports {
 }
 
 model StockTakeReportEmployees {
-  id            String    @id @default(cuid())
-  reportId      String
-  employeeId    String
-  signedAt      DateTime?
+  id             String    @id @default(cuid())
+  reportId       String
+  employeeId     String
+  signedAt       DateTime?
   signedByUserId String?
-  createdAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
 
-  report        StockTakeReports @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  employee      Employees        @relation("StockTakeReportEmployee", fields: [employeeId], references: [id])
-  signedByUser  Users?           @relation("StockTakeReportEmployeeSigner", fields: [signedByUserId], references: [id])
+  report       StockTakeReports @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  employee     Employees        @relation("StockTakeReportEmployee", fields: [employeeId], references: [id])
+  signedByUser Users?           @relation("StockTakeReportEmployeeSigner", fields: [signedByUserId], references: [id])
 
   @@unique([reportId, employeeId])
   @@index([employeeId])
@@ -5915,28 +5926,56 @@ enum StockTakeReportStatus {
 
 // MBM-165 — Expense Payment Vouchers
 model ExpensePaymentVouchers {
-  id             String   @id @default(uuid())
-  paymentId      String   @unique @map("payment_id")
-  businessId     String   @map("business_id")
-  voucherNumber  String   @map("voucher_number")  // e.g. VCH-2026-0001, unique per business
+  id            String @id @default(uuid())
+  paymentId     String @unique @map("payment_id")
+  businessId    String @map("business_id")
+  voucherNumber String @map("voucher_number") // e.g. VCH-2026-0001, unique per business
 
   // Collector — who physically collected the money
-  collectorName      String   @map("collector_name")
-  collectorPhone     String?  @map("collector_phone")
-  collectorIdNumber  String?  @map("collector_id_number")
-  collectorDlNumber  String?  @map("collector_dl_number")
-  collectorSignature String?  @db.Text @map("collector_signature")  // base64 PNG
+  collectorName      String  @map("collector_name")
+  collectorPhone     String? @map("collector_phone")
+  collectorIdNumber  String? @map("collector_id_number")
+  collectorDlNumber  String? @map("collector_dl_number")
+  collectorSignature String? @map("collector_signature") @db.Text // base64 PNG
 
-  notes        String?
-  createdById  String   @map("created_by_id")  // employee who created the voucher
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  notes       String?
+  createdById String   @map("created_by_id") // employee who created the voucher
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  payment   ExpenseAccountPayments @relation(fields: [paymentId], references: [id])
-  business  Businesses             @relation(fields: [businessId], references: [id])
-  creator   Employees              @relation(fields: [createdById], references: [id])
+  payment  ExpenseAccountPayments @relation(fields: [paymentId], references: [id])
+  business Businesses             @relation(fields: [businessId], references: [id])
+  creator  Employees              @relation(fields: [createdById], references: [id])
 
   @@unique([businessId, voucherNumber])
   @@index([businessId])
   @@map("expense_payment_vouchers")
+}
+
+model PayeTaxBrackets {
+  id           String   @id @default(uuid())
+  year         Int
+  tableType    String   @default("MONTHLY")
+  lowerBound   Decimal  @db.Decimal(12, 2)
+  upperBound   Decimal? @db.Decimal(12, 2)
+  rate         Decimal  @db.Decimal(5, 4)
+  deductAmount Decimal  @db.Decimal(12, 2)
+  sortOrder    Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([year, tableType, sortOrder])
+  @@map("paye_tax_brackets")
+}
+
+model PayrollTaxConstants {
+  id               String   @id @default(uuid())
+  year             Int      @unique
+  aidsLevyRate     Decimal  @db.Decimal(5, 4) // e.g. 0.0300 = 3% of PAYE
+  nssaEmployeeRate Decimal  @db.Decimal(5, 4) // e.g. 0.0450 = 4.5% of basic salary
+  nssaEmployerRate Decimal  @db.Decimal(5, 4) // e.g. 0.0450 = 4.5% of basic salary
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("payroll_tax_constants")
 }

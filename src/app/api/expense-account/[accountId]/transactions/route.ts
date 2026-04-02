@@ -198,6 +198,30 @@ export async function GET(
       batches.forEach((b) => { if (b.depositId) batchMap.set(b.depositId, b.id) })
     }
 
+    // Look up petty cash requests linked to deposits (PETTY_CASH sourceType)
+    const pettyCashDepositIds = deposits
+      .filter((d) => d.sourceType === 'PETTY_CASH')
+      .map((d) => d.id)
+    const depositToPettyCashMap = new Map<string, { id: string; purpose: string }>()
+    if (pettyCashDepositIds.length > 0) {
+      const pcRequests = await prisma.pettyCashRequests.findMany({
+        where: { depositId: { in: pettyCashDepositIds } },
+        select: { id: true, depositId: true, purpose: true },
+      })
+      pcRequests.forEach((pc) => { if (pc.depositId) depositToPettyCashMap.set(pc.depositId, { id: pc.id, purpose: pc.purpose }) })
+    }
+
+    // Look up petty cash request IDs for payments (via PettyCashTransaction.paymentId)
+    const paymentIds = payments.map((p) => p.id)
+    const paymentToPettyCashMap = new Map<string, { id: string; purpose: string }>()
+    if (paymentIds.length > 0) {
+      const pcTxns = await prisma.pettyCashTransaction.findMany({
+        where: { paymentId: { in: paymentIds } },
+        select: { paymentId: true, requestId: true, request: { select: { purpose: true } } },
+      })
+      pcTxns.forEach((t) => { if (t.paymentId) paymentToPettyCashMap.set(t.paymentId, { id: t.requestId, purpose: t.request.purpose }) })
+    }
+
     // Transform to unified transaction format
     const transactions: any[] = []
 
@@ -215,7 +239,9 @@ export async function GET(
 
       // Add pseudo-category based on sourceType for deposits
       let category = null
-      if (deposit.sourceType === 'R710_TOKEN_SALE') {
+      if (deposit.sourceType === 'PETTY_CASH') {
+        category = { id: 'petty-cash-category', name: 'Petty Cash', emoji: '🪙' }
+      } else if (deposit.sourceType === 'R710_TOKEN_SALE') {
         category = {
           id: 'r710-wifi-category',
           name: 'R710 WiFi',
@@ -263,6 +289,7 @@ export async function GET(
         isAutoTransfer: isAutoXferIn,
         autoTransferSource,
         category, // Add category for display
+        pettyCashRequestId: depositToPettyCashMap.get(deposit.id)?.id ?? null,
         createdBy: deposit.creator,
         createdAt: deposit.createdAt,
         batchSubmissionId: batchMap.get(deposit.id) ?? null,
@@ -311,6 +338,8 @@ export async function GET(
         isAutoTransfer: isAutoXferOut,
         receiptNumber: payment.receiptNumber,
         status: payment.status,
+        pettyCashRequestId: paymentToPettyCashMap.get(payment.id)?.id ?? null,
+        pettyCashPurpose: paymentToPettyCashMap.get(payment.id)?.purpose ?? null,
         createdBy: payment.creator,
         createdAt: payment.createdAt,
       })

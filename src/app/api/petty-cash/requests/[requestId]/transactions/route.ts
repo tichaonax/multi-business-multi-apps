@@ -53,6 +53,19 @@ export async function GET(
       orderBy: { transactionDate: 'desc' },
     })
 
+    // Resolve payee names via batch queries
+    const supplierIds = [...new Set(transactions.filter(t => t.payeeSupplierId).map(t => t.payeeSupplierId as string))]
+    const employeeIds = [...new Set(transactions.filter(t => t.payeeEmployeeId).map(t => t.payeeEmployeeId as string))]
+    const userIds = [...new Set(transactions.filter(t => t.payeeUserId).map(t => t.payeeUserId as string))]
+    const [suppliers, employees, payeeUsers] = await Promise.all([
+      supplierIds.length ? prisma.businessSuppliers.findMany({ where: { id: { in: supplierIds } }, select: { id: true, name: true, phone: true } }) : [],
+      employeeIds.length ? prisma.employees.findMany({ where: { id: { in: employeeIds } }, select: { id: true, firstName: true, lastName: true, phone: true } }) : [],
+      userIds.length ? prisma.users.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }) : [],
+    ])
+    const supplierMap = Object.fromEntries((suppliers as any[]).map(s => [s.id, s]))
+    const employeeMap = Object.fromEntries((employees as any[]).map(e => [e.id, e]))
+    const userMap = Object.fromEntries((payeeUsers as any[]).map(u => [u.id, u.name]))
+
     const approvedAmount = Number(pcRequest.approvedAmount ?? 0)
     const spentAmount = Number(pcRequest.spentAmount)
     const remainingBalance = approvedAmount - spentAmount
@@ -60,20 +73,36 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: {
-        transactions: transactions.map((t: typeof transactions[number]) => ({
-          id: t.id,
-          amount: Number(t.amount),
-          description: t.description,
-          payeeType: t.payeeType,
-          transactionDate: t.transactionDate.toISOString(),
-          category: t.category,
-          creator: t.creator,
-          paymentId: t.paymentId,
-          paymentStatus: t.payment?.status ?? null,
-          paymentChannel: (t.payment as any)?.paymentChannel ?? 'CASH',
-          ecocashTransactionCode: (t.payment as any)?.ecocashTransactionCode ?? null,
-          createdAt: t.createdAt.toISOString(),
-        })),
+        transactions: transactions.map((t: typeof transactions[number]) => {
+          let payeeName: string | null = null
+          let payeePhone: string | null = null
+          if (t.payeeSupplierId && supplierMap[t.payeeSupplierId]) {
+            payeeName = supplierMap[t.payeeSupplierId].name
+            payeePhone = supplierMap[t.payeeSupplierId].phone ?? null
+          } else if (t.payeeEmployeeId && employeeMap[t.payeeEmployeeId]) {
+            const e = employeeMap[t.payeeEmployeeId]
+            payeeName = `${e.firstName} ${e.lastName}`
+            payeePhone = e.phone ?? null
+          } else if (t.payeeUserId && userMap[t.payeeUserId]) {
+            payeeName = userMap[t.payeeUserId]
+          }
+          return {
+            id: t.id,
+            amount: Number(t.amount),
+            description: t.description,
+            payeeType: t.payeeType,
+            payeeName,
+            payeePhone,
+            transactionDate: t.transactionDate.toISOString(),
+            category: t.category,
+            creator: t.creator,
+            paymentId: t.paymentId,
+            paymentStatus: t.payment?.status ?? null,
+            paymentChannel: (t.payment as any)?.paymentChannel ?? 'CASH',
+            ecocashTransactionCode: (t.payment as any)?.ecocashTransactionCode ?? null,
+            createdAt: t.createdAt.toISOString(),
+          }
+        }),
         summary: {
           approvedAmount,
           spentAmount,

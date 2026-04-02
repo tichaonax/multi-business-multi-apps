@@ -740,14 +740,71 @@ export default function CashBucketPage() {
                 </table>
               </div>
             ) : detailData?.pettyCash ? (
-              <div className="text-sm space-y-2">
-                <div className="flex justify-between"><span className="text-secondary">Purpose</span><span className="font-medium">{detailData.pettyCash.purpose}</span></div>
-                <div className="flex justify-between"><span className="text-secondary">Requested by</span><span>{detailData.pettyCash.requestedBy}</span></div>
-                <div className="flex justify-between"><span className="text-secondary">Requested amount</span><span>{fmt(detailData.pettyCash.requestedAmount)}</span></div>
-                {detailData.pettyCash.approvedAmount != null && <div className="flex justify-between"><span className="text-secondary">Approved amount</span><span className="text-emerald-600 font-semibold">{fmt(detailData.pettyCash.approvedAmount)}</span></div>}
-                {detailData.pettyCash.spentAmount != null && <div className="flex justify-between"><span className="text-secondary">Amount spent</span><span>{fmt(detailData.pettyCash.spentAmount)}</span></div>}
-                {detailData.pettyCash.returnAmount != null && <div className="flex justify-between"><span className="text-secondary">Returned</span><span className="text-emerald-600">{fmt(detailData.pettyCash.returnAmount)}</span></div>}
-                <div className="flex justify-between"><span className="text-secondary">Status</span><span className="capitalize">{detailData.pettyCash.status?.toLowerCase()}</span></div>
+              <div className="flex-1 overflow-y-auto space-y-3">
+                {/* Summary row */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div className="flex justify-between col-span-2"><span className="text-secondary">Purpose</span><span className="font-medium">{detailData.pettyCash.purpose}</span></div>
+                  <div className="flex justify-between"><span className="text-secondary">Requested by</span><span>{detailData.pettyCash.requestedBy}</span></div>
+                  <div className="flex justify-between"><span className="text-secondary">Status</span><span className="capitalize">{detailData.pettyCash.status?.toLowerCase()}</span></div>
+                  <div className="flex justify-between"><span className="text-secondary">Approved</span><span className="text-emerald-600 font-semibold">{detailData.pettyCash.approvedAmount != null ? fmt(detailData.pettyCash.approvedAmount) : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-secondary">Spent</span><span>{detailData.pettyCash.spentAmount != null ? fmt(detailData.pettyCash.spentAmount) : '—'}</span></div>
+                  {detailData.pettyCash.returnAmount != null && (
+                    <div className="flex justify-between"><span className="text-secondary">Returned</span><span className="text-emerald-600">{fmt(detailData.pettyCash.returnAmount)}</span></div>
+                  )}
+                  {/* Remaining balance */}
+                  {detailData.pettyCash.approvedAmount != null && detailData.pettyCash.spentAmount != null && detailData.pettyCash.status !== 'SETTLED' && (
+                    (() => {
+                      const remaining = detailData.pettyCash.approvedAmount - detailData.pettyCash.spentAmount
+                      return remaining > 0 ? (
+                        <div className="flex justify-between col-span-2 pt-1 border-t border-border">
+                          <span className="text-secondary font-medium">Balance remaining</span>
+                          <span className="font-bold text-amber-600 dark:text-amber-400">{fmt(remaining)}</span>
+                        </div>
+                      ) : null
+                    })()
+                  )}
+                </div>
+
+                {/* Transactions table */}
+                {detailData.pettyCash.transactions?.length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-xs font-semibold text-secondary uppercase mb-1">{detailData.pettyCash.transactions.length} expense(s)</div>
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 dark:bg-gray-700/50 text-secondary uppercase sticky top-0">
+                        <tr>
+                          <th className="px-2 py-2 text-left">Payee</th>
+                          <th className="px-2 py-2 text-left">Category</th>
+                          <th className="px-2 py-2 text-left">Description</th>
+                          <th className="px-2 py-2 text-left">Paid by</th>
+                          <th className="px-2 py-2 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {detailData.pettyCash.transactions.map((t: any) => (
+                          <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                            <td className="px-2 py-2">
+                              <div className="font-medium text-primary">{t.payeeName}</div>
+                              {t.payeePhone && <div className="text-secondary">{t.payeePhone}</div>}
+                              {t.payeeContact && <div className="text-secondary">c/o {t.payeeContact}</div>}
+                            </td>
+                            <td className="px-2 py-2 text-secondary">{t.category ?? '—'}</td>
+                            <td className="px-2 py-2 text-secondary">{t.description ?? '—'}</td>
+                            <td className="px-2 py-2 text-secondary">{t.paidBy}</td>
+                            <td className="px-2 py-2 text-right font-semibold text-red-600 dark:text-red-400 whitespace-nowrap">💵 {fmt(t.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50 dark:bg-gray-700/50">
+                        <tr>
+                          <td colSpan={4} className="px-2 py-2 text-xs font-semibold text-secondary text-right">Total spent</td>
+                          <td className="px-2 py-2 text-right font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
+                            {fmt(detailData.pettyCash.transactions.reduce((s: number, t: any) => s + t.amount, 0))}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-secondary py-4 text-center">No details available.</p>

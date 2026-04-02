@@ -34,6 +34,27 @@ export type PermissionKey = keyof UserLevelPermissions
 /**
  * Get effective permissions for a user in a specific business context
  */
+const GLOBAL_PAYROLL_KEYS = [
+  'canAccessPayroll', 'canManagePayroll', 'canCreatePayrollPeriod',
+  'canEditPayrollEntry', 'canApprovePayroll', 'canPrintPayrollEntryDetails',
+  'canEnterPaySlips', 'canReconcilePayroll', 'canViewPayrollReports', 'canManageAdvances',
+] as const
+
+/**
+ * Elevate business-level payroll permissions using the user's global payroll permissions.
+ * If a user has a global payroll permission set, it grants that permission across all businesses.
+ */
+function elevateWithUserPayrollPermissions(user: SessionUser, businessPerms: BusinessPermissions): BusinessPermissions {
+  const userPerms = (user.permissions || {}) as Record<string, boolean>
+  const elevated = { ...businessPerms }
+  for (const key of GLOBAL_PAYROLL_KEYS) {
+    if (userPerms[key] === true) {
+      (elevated as any)[key] = true
+    }
+  }
+  return elevated
+}
+
 export function getEffectivePermissions(user: SessionUser | null | undefined, businessId?: string): BusinessPermissions {
   // Handle undefined/null user
   if (!user) {
@@ -59,7 +80,7 @@ export function getEffectivePermissions(user: SessionUser | null | undefined, bu
       return getNoAccessPermissions()
     }
     
-    return getMembershipPermissions(businessMembership)
+    return elevateWithUserPayrollPermissions(user, getMembershipPermissions(businessMembership))
   }
 
   // No specific business - get highest level permissions across all businesses
@@ -93,7 +114,8 @@ export function getEffectivePermissions(user: SessionUser | null | undefined, bu
     return currentLevel > highestLevel ? current : highest
   })
 
-  return getMembershipPermissions(highestMembership)
+  const businessPerms = getMembershipPermissions(highestMembership)
+  return elevateWithUserPayrollPermissions(user, businessPerms)
 }
 
 /**

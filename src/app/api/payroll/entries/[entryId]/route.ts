@@ -332,6 +332,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       doubleTimeOvertimeHours,
       commission,
       miscDeductions,
+      cashInLieu,
       notes
     } = data
 
@@ -370,6 +371,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       doubleTimeOvertimeHours: doubleTimeOvertimeHours !== undefined ? doubleTimeOvertimeHours : existingEntry.doubleTimeOvertimeHours,
       commission: commission !== undefined ? commission : existingEntry.commission,
       miscDeductions: miscDeductions !== undefined ? miscDeductions : existingEntry.miscDeductions,
+      cashInLieu: cashInLieu !== undefined ? cashInLieu : existingEntry.cashInLieu,
       notes: notes !== undefined ? notes : existingEntry.notes,
       updatedAt: new Date()
     }
@@ -415,6 +417,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         netPay: recomputed.netPay,
         benefitsTotal: recomputed.benefitsTotal ?? 0,
         overtimePay: recomputed.overtimePay ?? 0,
+        standardOvertimePay: recomputed.standardOvertimePay ?? 0,
+        doubleOvertimePay: recomputed.doubleOvertimePay ?? 0,
         // store adjustmentsTotal as additions only (positive adjustments)
         adjustmentsTotal: recomputed.additionsTotal ?? 0,
         // Use derived totalDeductions (advances + loans + misc + adjustmentsAsDeductions), NOT cumulative

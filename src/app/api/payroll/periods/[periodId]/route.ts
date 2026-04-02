@@ -1053,6 +1053,49 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         // Non-fatal — log but don't fail the approval
         console.error('Loan deduction reconciliation error (non-fatal):', err)
       }
+
+      // Compute rounded net pay with running decimal carryover (per employee per business)
+      try {
+        const businessId = existingPeriod.businessId
+        const entries = await prisma.payrollEntries.findMany({
+          where: { payrollPeriodId: periodId },
+          select: { id: true, employeeId: true, netPay: true }
+        })
+
+        for (const entry of entries) {
+          if (!entry.employeeId) continue
+
+          // Find most recent carryoverOut for this employee in this business (prior periods only)
+          const prior = await prisma.payrollEntries.findFirst({
+            where: {
+              employeeId: entry.employeeId,
+              payroll_periods: { businessId: businessId ?? undefined },
+              roundedNetPay: { not: null },
+              payrollPeriodId: { not: periodId }
+            },
+            orderBy: { updatedAt: 'desc' },
+            select: { carryoverOut: true }
+          })
+
+          const carryoverIn = prior ? Number(prior.carryoverOut) : 0
+          const rawNet = Number(entry.netPay ?? 0)
+          const adjusted = rawNet + carryoverIn
+          const rounded = Math.round(adjusted)
+          const carryoverOut = adjusted - rounded
+
+          await prisma.payrollEntries.update({
+            where: { id: entry.id },
+            data: {
+              carryoverIn: carryoverIn,
+              carryoverOut: carryoverOut,
+              roundedNetPay: rounded
+            }
+          })
+        }
+      } catch (err) {
+        // Non-fatal — rounding is presentational; don't block the approval
+        console.error('Net pay rounding carryover error (non-fatal):', err)
+      }
     }
 
     return NextResponse.json(period)

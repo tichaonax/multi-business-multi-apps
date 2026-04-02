@@ -47,6 +47,18 @@ export interface UserLevelPermissions {
   canResetPayrollAcrossBusinesses: boolean;  // Business-agnostic reset permission
   canDeletePayrollAcrossBusinesses: boolean;  // Business-agnostic delete permission
 
+  // Global Payroll Management (mirrors business-level payroll permissions, applies across all businesses)
+  canAccessPayroll: boolean;
+  canManagePayroll: boolean;
+  canCreatePayrollPeriod: boolean;
+  canEditPayrollEntry: boolean;
+  canApprovePayroll: boolean;
+  canPrintPayrollEntryDetails: boolean;
+  canEnterPaySlips: boolean;
+  canReconcilePayroll: boolean;
+  canViewPayrollReports: boolean;
+  canManageAdvances: boolean;
+
   // Inventory Categories (User-level - cross-business capability)
   canCreateInventoryCategories: boolean;
   canEditInventoryCategories: boolean;
@@ -1076,6 +1088,16 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canExportPayrollAcrossBusinesses', label: 'Export Payroll (Global)' },
       { key: 'canResetPayrollAcrossBusinesses', label: 'Reset Exported Payroll (Global)' },
       { key: 'canDeletePayrollAcrossBusinesses', label: 'Delete Payroll (Global)' },
+      { key: 'canAccessPayroll', label: 'Access Payroll' },
+      { key: 'canManagePayroll', label: 'Manage Payroll' },
+      { key: 'canCreatePayrollPeriod', label: 'Create Payroll Period' },
+      { key: 'canEditPayrollEntry', label: 'Edit Payroll Entry' },
+      { key: 'canApprovePayroll', label: 'Approve Payroll' },
+      { key: 'canPrintPayrollEntryDetails', label: 'Print Entry Details PDF' },
+      { key: 'canEnterPaySlips', label: 'Enter Pay Slips' },
+      { key: 'canReconcilePayroll', label: 'Reconcile Payroll' },
+      { key: 'canViewPayrollReports', label: 'View Payroll Reports' },
+      { key: 'canManageAdvances', label: 'Manage Advances' },
     ]
   },
   // Expense Account Management
@@ -2398,6 +2420,18 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canResetPayrollAcrossBusinesses: false,
   canDeletePayrollAcrossBusinesses: false,
 
+  // Global Payroll Management - No access by default
+  canAccessPayroll: false,
+  canManagePayroll: false,
+  canCreatePayrollPeriod: false,
+  canEditPayrollEntry: false,
+  canApprovePayroll: false,
+  canPrintPayrollEntryDetails: false,
+  canEnterPaySlips: false,
+  canReconcilePayroll: false,
+  canViewPayrollReports: false,
+  canManageAdvances: false,
+
   // Inventory Categories - No access by default
   canCreateInventoryCategories: false,
   canEditInventoryCategories: false,
@@ -2494,6 +2528,18 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canExportPayrollAcrossBusinesses: true,
   canResetPayrollAcrossBusinesses: true,
   canDeletePayrollAcrossBusinesses: true,
+
+  // Global Payroll Management - Full access for admins
+  canAccessPayroll: true,
+  canManagePayroll: true,
+  canCreatePayrollPeriod: true,
+  canEditPayrollEntry: true,
+  canApprovePayroll: true,
+  canPrintPayrollEntryDetails: true,
+  canEnterPaySlips: true,
+  canReconcilePayroll: true,
+  canViewPayrollReports: true,
+  canManageAdvances: true,
 
   // Inventory Categories - Full access
   canCreateInventoryCategories: true,

@@ -29,6 +29,14 @@ interface PayrollEntry {
   grossPay: number
   totalDeductions: number
   netPay: number
+  contractualBasicSalary?: number
+  standardOvertimePay?: number
+  doubleOvertimePay?: number
+  payeAmount?: number
+  aidsLevy?: number
+  nssaEmployee?: number
+  nssaEmployer?: number
+  cashInLieu?: number
   payrollEntryBenefits?: PayrollEntryBenefit[]
 }
 
@@ -113,10 +121,13 @@ export async function generatePayrollExcel(
     'Absence Total',
     'Date Engaged',
     'Date Dismissed',
-    'Basic Salary',
+    'Basic Salary (Contractual)',
+    'Basic Salary (Prorated)',
     'Commission',
-    'Overtime',
+    'Overtime (1.5x)',
+    'Overtime (2.0x)',
     'Per Diem',
+    'Cash in Lieu',
     'Adjustments'
   ]
   const benefitHeaders = uniqueBenefits.map(b => b.benefitName)
@@ -125,8 +136,12 @@ export async function generatePayrollExcel(
     'Absence (unearned)',
     'Deductions',
     'Benefits Total',
-    'Gross (incl Benefits)',
-    'Net (incl Benefits)'
+    'Gross Pay',
+    'NSSA Employee',
+    'NSSA Employer',
+    'PAYE Tax',
+    'Aids Levy',
+    'Net Take-Home'
   ]
   const allHeaders = [...fixedHeaders, ...benefitHeaders, ...endHeaders]
   const totalColumns = allHeaders.length
@@ -188,10 +203,13 @@ export async function generatePayrollExcel(
       case 'Absence Total': columnWidths.push(10); break
       case 'Date Engaged': columnWidths.push(12); break
       case 'Date Dismissed': columnWidths.push(12); break
-      case 'Basic Salary': columnWidths.push(15); break
+      case 'Basic Salary (Contractual)': columnWidths.push(18); break
+      case 'Basic Salary (Prorated)': columnWidths.push(16); break
       case 'Commission': columnWidths.push(15); break
-      case 'Overtime': columnWidths.push(15); break
+      case 'Overtime (1.5x)': columnWidths.push(14); break
+      case 'Overtime (2.0x)': columnWidths.push(14); break
       case 'Per Diem': columnWidths.push(12); break
+      case 'Cash in Lieu': columnWidths.push(14); break
       default:
         // benefit or end columns
         columnWidths.push(15)
@@ -214,10 +232,10 @@ export async function generatePayrollExcel(
     const subtotalRowData: any[] = []
     // Fill up to Basic Salary column with blanks (we'll put 'SUBTOTAL for <company>' in column 3)
     subtotalRowData.push('', '', `SUBTOTAL - ${companyKey}`)
-    while (subtotalRowData.length < allHeaders.indexOf('Basic Salary')) subtotalRowData.push('')
-    const baseSalaryIndex = allHeaders.indexOf('Basic Salary') + 1
+    while (subtotalRowData.length < allHeaders.indexOf('Basic Salary (Contractual)')) subtotalRowData.push('')
+    const baseSalaryIndex = allHeaders.indexOf('Basic Salary (Contractual)') + 1
     const commissionIndex = allHeaders.indexOf('Commission') + 1
-    const overtimeIndex = allHeaders.indexOf('Overtime') + 1
+    const overtimeIndex = allHeaders.indexOf('Overtime (1.5x)') + 1
     const firstCurrencyCol = baseSalaryIndex
     const lastCurrencyCol = totalColumns
     for (let col = firstCurrencyCol; col <= lastCurrencyCol; col++) {
@@ -449,10 +467,13 @@ export async function generatePayrollExcel(
       // Prefer employeeHireDate (contract start) when present
       (entry as any).employeeHireDate ? formatDate((entry as any).employeeHireDate) : formatDate(entry.hireDate),
       entry.terminationDate ? formatDate(entry.terminationDate) : '',
+      Number((entry as any).contractualBasicSalary ?? Number(entry.baseSalary || 0)),
       Number(entry.baseSalary || 0),
       Number(entry.commission || 0),
-      Number(entry.overtimePay || 0),
+      Number((entry as any).standardOvertimePay || 0),
+      Number((entry as any).doubleOvertimePay || 0),
       Number((entry as any).perDiem || 0),
+      Number((entry as any).cashInLieu || 0),
       Number((entry as any).adjustmentsTotal || 0)
     ]
 
@@ -535,13 +556,27 @@ export async function generatePayrollExcel(
     const serverBenefitsTotal = serverBenefitsTotalRaw !== undefined && serverBenefitsTotalRaw !== null ? Number(serverBenefitsTotalRaw) : undefined
     const benefitsTotalForExport = serverBenefitsTotal !== undefined ? serverBenefitsTotal : benefitsSum
 
+    // Statutory deductions from the export route calculation
+    const nssaEmployee = Number((entry as any).nssaEmployee || 0)
+    const nssaEmployer = Number((entry as any).nssaEmployer || 0)
+    const paye = Number((entry as any).payeAmount || 0)
+    const aidsLevyAmt = Number((entry as any).aidsLevy || 0)
+    const computedNetTakeHome = Math.max(0, grossInclBenefits - nssaEmployee - paye - aidsLevyAmt)
+    // Use rounded net pay if available (set on approval via carryover rounding); otherwise round to whole dollar
+    const roundedNetPay = (entry as any).roundedNetPay != null ? Number((entry as any).roundedNetPay) : null
+    const netTakeHome = roundedNetPay !== null ? roundedNetPay : Math.round(computedNetTakeHome)
+
     rowData.push(
         // Absence as negative (match preview display)
         computedAbsence && computedAbsence !== 0 ? -Math.abs(Number(computedAbsence)) : 0,
         totalDeductions,
         benefitsTotalForExport,
         grossInclBenefits,
-        netInclBenefits
+        nssaEmployee,
+        nssaEmployer,
+        paye,
+        aidsLevyAmt,
+        netTakeHome
       )
 
   const dataRow = worksheet.addRow(rowData)
@@ -557,7 +592,7 @@ export async function generatePayrollExcel(
       }
 
     // Format currency columns (all numeric columns starting at Basic Salary)
-    const firstCurrencyCol = allHeaders.indexOf('Basic Salary') + 1
+    const firstCurrencyCol = allHeaders.indexOf('Basic Salary (Contractual)') + 1
     const lastCurrencyCol = totalColumns
     for (let col = firstCurrencyCol; col <= lastCurrencyCol; col++) {
       const cell = dataRow.getCell(col)
@@ -571,8 +606,11 @@ export async function generatePayrollExcel(
       if (/deduct/i.test(header) || /absence/i.test(header)) {
         cell.font = { color: { argb: 'FFFF0000' } } // red
       }
-      if (header === 'Net (incl Benefits)') {
+      if (header === 'Net Take-Home') {
         cell.font = { color: { argb: 'FF008000' } } // green
+      }
+      if (header === 'NSSA Employee' || header === 'NSSA Employer' || header === 'PAYE Tax' || header === 'Aids Levy') {
+        cell.font = { color: { argb: 'FFFF0000' } } // red
       }
     }
 
@@ -604,9 +642,9 @@ export async function generatePayrollExcel(
   const totalRowData: any[] = ['', '', 'TOTALS']
 
   // Determine important column indexes dynamically based on headers (1-based)
-  const baseSalaryIndex = allHeaders.indexOf('Basic Salary') + 1
+  const baseSalaryIndex = allHeaders.indexOf('Basic Salary (Contractual)') + 1
   const commissionIndex = allHeaders.indexOf('Commission') + 1
-  const overtimeIndex = allHeaders.indexOf('Overtime') + 1
+  const overtimeIndex = allHeaders.indexOf('Overtime (1.5x)') + 1
 
   // totalRowData currently has 3 items (indices 0,1,2)
   // We need to fill up to baseSalaryIndex - 1
@@ -643,9 +681,9 @@ export async function generatePayrollExcel(
     excelCol++
   })
 
-  // Add formulas for end columns (6 total: Misc Reimbursement, Advances/Loans, Misc Deductions, Benefits Total, Gross Pay, Net Pay)
+  // Add formulas for end columns (8 total: Absence, Deductions, Benefits Total, Gross Pay, NSSA, PAYE, AIDS Levy, Net Take-Home)
   // excelCol now points to the first end column
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
     const colLetter = getColumnLetter(excelCol + i)
     totalRowData.push({ formula: makeSumFormula(colLetter) })
   }
@@ -661,7 +699,7 @@ export async function generatePayrollExcel(
   }
 
   // Format totals currency (all numeric columns starting at Basic Salary)
-  const firstCurrencyColTotals = allHeaders.indexOf('Basic Salary') + 1
+  const firstCurrencyColTotals = allHeaders.indexOf('Basic Salary (Contractual)') + 1
   for (let col = firstCurrencyColTotals; col <= totalColumns; col++) {
     const cell = totalRow.getCell(col)
       // Use signed format for Adjustments column specifically

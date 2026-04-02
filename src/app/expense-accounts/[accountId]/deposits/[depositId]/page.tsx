@@ -13,6 +13,7 @@ export default function ExpenseDepositDetailPage() {
   const { hasPermission } = useBusinessPermissionsContext()
 
   const [deposit, setDeposit] = useState<any | null>(null)
+  const [pettyCashRequest, setPettyCashRequest] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [depositsCount, setDepositsCount] = useState<number | null>(null)
   const [paymentsCount, setPaymentsCount] = useState<number | null>(null)
@@ -36,6 +37,7 @@ export default function ExpenseDepositDetailPage() {
         }
         const data = await res.json()
         setDeposit(data.data.deposit)
+        setPettyCashRequest(data.data.pettyCashRequest ?? null)
         setEditFormData({
           amount: data.data.deposit.amount,
           depositDate: data.data.deposit.depositDate.split('T')[0],
@@ -298,6 +300,101 @@ export default function ExpenseDepositDetailPage() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Petty cash request linked to this deposit */}
+        {pettyCashRequest && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">🪙 Petty Cash Request</h3>
+
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4">
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Purpose</div>
+                <div className="font-medium">{pettyCashRequest.purpose}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Status</div>
+                <div className="capitalize font-medium">{pettyCashRequest.status?.toLowerCase()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Requested by</div>
+                <div>{pettyCashRequest.requestedBy}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Approved by</div>
+                <div>{pettyCashRequest.approvedBy}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Approved amount</div>
+                <div className="font-semibold text-green-600">{pettyCashRequest.approvedAmount != null ? formatCurrency(pettyCashRequest.approvedAmount) : '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Spent</div>
+                <div>{pettyCashRequest.spentAmount != null ? formatCurrency(pettyCashRequest.spentAmount) : '—'}</div>
+              </div>
+              {pettyCashRequest.returnAmount != null && (
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Returned</div>
+                  <div className="text-green-600">{formatCurrency(pettyCashRequest.returnAmount)}</div>
+                </div>
+              )}
+              {pettyCashRequest.approvedAmount != null && pettyCashRequest.spentAmount != null && pettyCashRequest.status !== 'SETTLED' && (
+                (() => {
+                  const remaining = pettyCashRequest.approvedAmount - pettyCashRequest.spentAmount
+                  return remaining > 0 ? (
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Balance remaining</div>
+                      <div className="font-bold text-amber-600 dark:text-amber-400">{formatCurrency(remaining)}</div>
+                    </div>
+                  ) : null
+                })()
+              )}
+            </div>
+
+            {pettyCashRequest.transactions?.length > 0 ? (
+              <>
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">{pettyCashRequest.transactions.length} expense(s) recorded</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded">
+                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Payee</th>
+                        <th className="px-3 py-2 text-left">Category</th>
+                        <th className="px-3 py-2 text-left">Description</th>
+                        <th className="px-3 py-2 text-left">Paid by</th>
+                        <th className="px-3 py-2 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {pettyCashRequest.transactions.map((t: any) => (
+                        <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                          <td className="px-3 py-2">
+                            <div className="font-medium">{t.payeeName}</div>
+                            {t.payeePhone && <div className="text-xs text-gray-500 dark:text-gray-400">{t.payeePhone}</div>}
+                            {t.payeeContact && <div className="text-xs text-gray-500 dark:text-gray-400">c/o {t.payeeContact}</div>}
+                          </td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{t.category ?? '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{t.description ?? '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{t.paidBy}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-red-600 dark:text-red-400">💵 {formatCurrency(t.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 dark:bg-gray-700/50">
+                      <tr>
+                        <td colSpan={4} className="px-3 py-2 text-xs font-semibold text-gray-500 text-right">Total</td>
+                        <td className="px-3 py-2 text-right font-bold text-red-600 dark:text-red-400">
+                          💵 {formatCurrency(pettyCashRequest.transactions.reduce((s: number, t: any) => s + t.amount, 0))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No expenses recorded yet.</p>
+            )}
           </div>
         )}
       </div>

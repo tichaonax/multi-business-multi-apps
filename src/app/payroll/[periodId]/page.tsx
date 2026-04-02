@@ -436,6 +436,36 @@ export default function PayrollPeriodDetailPage() {
     }
   }
 
+  const handleRevertToReview = async () => {
+    if (!period) return
+
+    const ok = await confirm({
+      title: 'Revert to Review',
+      description: 'Move this payroll period back to review so entries can be edited? The period will need to be re-approved before exporting.',
+      confirmText: 'Revert to Review'
+    })
+
+    if (!ok) return
+
+    try {
+      const response = await fetch(`/api/payroll/periods/${period.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'review' })
+      })
+
+      if (response.ok) {
+        showNotification('success', 'Payroll period reverted to review')
+        loadPeriod()
+      } else {
+        const error = await response.json()
+        showNotification('error', error.error || 'Failed to revert payroll period')
+      }
+    } catch {
+      showNotification('error', 'Failed to revert payroll period')
+    }
+  }
+
   const handleDeleteEntry = async (entryId: string) => {
     const ok = await confirm({
       title: 'Remove employee',
@@ -853,6 +883,45 @@ export default function PayrollPeriodDetailPage() {
   return { benefitsTotal, gross, totalDeductions, net }
   }
 
+  // ── Client-side PAYE/NSSA preview (ZIMRA 2025 Monthly brackets) ──────────
+  // Used for on-screen preview before export. Matches server-side calc.
+  const MONTHLY_BRACKETS_2025 = [
+    { lower: 0,        upper: 100,    rate: 0,    deduct: 0 },
+    { lower: 100.01,   upper: 300,    rate: 0.20, deduct: 20 },
+    { lower: 300.01,   upper: 1000,   rate: 0.25, deduct: 35 },
+    { lower: 1000.01,  upper: 2000,   rate: 0.30, deduct: 85 },
+    { lower: 2000.01,  upper: 3000,   rate: 0.35, deduct: 185 },
+    { lower: 3000.01,  upper: Infinity, rate: 0.40, deduct: 335 },
+  ]
+  const AIDS_LEVY_RATE = 0.03
+  const NSSA_RATE = 0.045
+
+  const previewPaye = (taxableGross: number, nssaBase?: number): { paye: number; aidsLevy: number; nssa: number; netTakeHome: number } => {
+    const gross = Math.max(0, taxableGross)
+    let paye = 0
+    for (const b of MONTHLY_BRACKETS_2025) {
+      if (gross > b.lower) {
+        paye = gross * b.rate - b.deduct
+        break
+      }
+    }
+    // Iterate correctly: find highest bracket that applies
+    paye = 0
+    for (let i = MONTHLY_BRACKETS_2025.length - 1; i >= 0; i--) {
+      const b = MONTHLY_BRACKETS_2025[i]
+      if (gross >= b.lower) {
+        paye = Math.max(0, gross * b.rate - b.deduct)
+        break
+      }
+    }
+    const aidsLevy = Math.round(paye * AIDS_LEVY_RATE * 100) / 100
+    paye = Math.round(paye * 100) / 100
+    const nssa = Math.round((nssaBase ?? gross) * NSSA_RATE * 100) / 100
+    const netTakeHome = Math.max(0, gross - paye - aidsLevy - nssa)
+    return { paye, aidsLevy, nssa, netTakeHome }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <ContentLayout title="Payroll Period">
@@ -1068,6 +1137,14 @@ export default function PayrollPeriodDetailPage() {
           })()}
           {canExport && period.status === 'approved' && (
             <>
+              {canEditEntry && (
+                <button
+                  onClick={handleRevertToReview}
+                  className="px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-md hover:bg-yellow-700"
+                >
+                  Revert to Review
+                </button>
+              )}
               <button
                 onClick={() => setShowPreview(true)}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
@@ -1355,9 +1432,11 @@ export default function PayrollPeriodDetailPage() {
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Absence Total</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Engaged</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Dismissed</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Base Salary</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase" title="Contract basic salary — used for NSSA calculation">Basic Salary</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase" title="Computed/prorated earned salary">Earned Salary</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Commission</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Overtime</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">OT (1.5x)</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">OT (2.0x)</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Adjustments</th>
                   {getUniqueBenefits().map(benefit => (
                     <th key={benefit.benefitTypeId} className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">
@@ -1368,6 +1447,10 @@ export default function PayrollPeriodDetailPage() {
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Absence (unearned)</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Deductions</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Gross Pay</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-amber-500 dark:text-amber-400 uppercase" title="NSSA Employee 4.5% — preview using 2025 monthly table">NSSA (Est)</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-amber-500 dark:text-amber-400 uppercase" title="PAYE — preview using 2025 monthly table">PAYE (Est)</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-amber-500 dark:text-amber-400 uppercase" title="AIDS Levy 3% of PAYE — preview">Levy (Est)</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-green-600 dark:text-green-400 uppercase" title="Net Take-Home (whole dollar after rounding carryover once approved; estimate before approval)">Net Pay</th>
                   {canEditEntry && ['draft', 'in_progress'].includes(period.status) && (
                     <th className="px-3 py-2 text-center text-xs font-medium text-secondary uppercase">Actions</th>
                   )}
@@ -1416,7 +1499,12 @@ export default function PayrollPeriodDetailPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.employee?.jobTitles?.title || ''}</td>
+                    <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                      {(entry as any).employees?.job_titles?.title
+                        || (entry as any).contract?.pdfGenerationData?.jobTitle
+                        || entry.employee?.jobTitles?.title
+                        || ''}
+                    </td>
                     <td className="px-3 py-2 text-sm cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
                       {formatContractDateRange(entry) ? (
                         <div className="flex items-center gap-1 flex-wrap">
@@ -1439,35 +1527,64 @@ export default function PayrollPeriodDetailPage() {
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeHireDate ? new Date((entry as any).employeeHireDate).toLocaleDateString() : (entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : '')}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.terminationDate ? new Date(entry.terminationDate).toLocaleDateString() : ''}</td>
+                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(
+                      Number((entry as any).contractSnapshot?.basicSalary
+                        ?? (entry as any).contract?.pdfGenerationData?.basicSalary
+                        ?? (entry as any).contract?.baseSalary
+                        ?? Number(entry.baseSalary || 0))
+                    )}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.baseSalary || 0))}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.commission || 0))}</td>
-                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(computeOvertimeForEntry(entry) || 0))}</td>
+                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency((() => {
+                      const stored = Number((entry as any).standardOvertimePay || 0)
+                      const stdHours = Number((entry as any).standardOvertimeHours || 0)
+                      const dblHours = Number((entry as any).doubleTimeOvertimeHours || 0)
+                      const hr = (() => {
+                        let r = Number((entry as any).hourlyRate || 0)
+                        if (!r) { const b = Number(entry.baseSalary || 0); r = b > 0 ? (b * 12) / (6 * 9 * 52) : 0 }
+                        return r
+                      })()
+                      const manualPay = stored > 0 ? stored : Math.round(stdHours * hr * 1.5 * 100) / 100
+                      // Add approved clock-in OT adjustments (overtime_credit + overtime types)
+                      const adjs = (entry as any).payrollAdjustments || []
+                      const clockInOT = adjs.reduce((s: number, a: any) => {
+                        if (!a.isClockInAdjustment || a.status === 'pending') return s
+                        const t = String(a.adjustmentType || a.type || '').toLowerCase()
+                        if (t !== 'overtime_credit' && t !== 'overtime') return s
+                        return s + Math.abs(Number(a.storedAmount ?? a.amount ?? 0))
+                      }, 0)
+                      return manualPay + clockInOT
+                    })())}</td>
+                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency((() => {
+                      const stored = Number((entry as any).doubleOvertimePay || 0)
+                      const stdHours = Number((entry as any).standardOvertimeHours || 0)
+                      const dblHours = Number((entry as any).doubleTimeOvertimeHours || 0)
+                      const hr = (() => {
+                        let r = Number((entry as any).hourlyRate || 0)
+                        if (!r) { const b = Number(entry.baseSalary || 0); r = b > 0 ? (b * 12) / (6 * 9 * 52) : 0 }
+                        return r
+                      })()
+                      return stored > 0 ? stored : Math.round(dblHours * hr * 2.0 * 100) / 100
+                    })())}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
                       {(() => {
-                        // Prefer server-provided aggregated additions when present and non-zero
-                        let additions = Number((entry as any).adjustmentsTotal || 0)
-                        let deductions = Number((entry as any).adjustmentsAsDeductions || 0)
+                        // Clock-in OT types are shown in OT column — exclude from adjustments
+                        const clockInOTTypes = new Set(['overtime_credit', 'overtime'])
                         const adjustmentsList = (entry as any).payrollAdjustments || []
-                        if ((!additions || additions === 0) || (!deductions || deductions === 0)) {
-                          if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
-                            const derivedAdditions = adjustmentsList.reduce((s: number, a: any) => {
-                              // Exclude pending clock-in OT — only show after approval
-                              if ((a as any).isClockInAdjustment && (a as any).status === 'pending') return s
-                              const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
-                              const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
-                              return s + (isAdd ? Math.abs(amt) : 0)
-                            }, 0)
-                            const derivedDeductions = adjustmentsList.reduce((s: number, a: any) => {
-                              const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
-                              const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
-                              return s + (!isAdd ? Math.abs(amt) : 0)
-                            }, 0)
-                            if (!additions || additions === 0) additions = derivedAdditions
-                            if (!deductions || deductions === 0) deductions = derivedDeductions
-                          }
+                        let additions = 0
+                        if (Array.isArray(adjustmentsList) && adjustmentsList.length > 0) {
+                          additions = adjustmentsList.reduce((s: number, a: any) => {
+                            if ((a as any).isClockInAdjustment && (a as any).status === 'pending') return s
+                            // Exclude clock-in OT — those are shown in OT columns
+                            if ((a as any).isClockInAdjustment && clockInOTTypes.has(String(a.adjustmentType || a.type || '').toLowerCase())) return s
+                            const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+                            const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+                            return s + (isAdd ? Math.abs(amt) : 0)
+                          }, 0)
+                        } else {
+                          // Fall back to server aggregated total (may include clock-in OT, but best available)
+                          additions = Number((entry as any).adjustmentsTotal || 0)
                         }
-
-                        // Show positive additions in this column. Negative adjustments will appear under Deductions.
                         if (additions && additions !== 0) return `+${formatCurrency(additions)}`
                         return formatCurrency(0)
                       })()}
@@ -1526,6 +1643,23 @@ export default function PayrollPeriodDetailPage() {
                           <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{absenceAmt && absenceAmt !== 0 ? `-${formatCurrency(Math.abs(absenceAmt))}` : formatCurrency(0)}</td>
                           <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.totalDeductions)}</td>
                           <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.grossInclBenefits)}</td>
+                          {(() => {
+                            const contractualBasicSalary = Number((entry as any).contractSnapshot?.basicSalary ?? (entry as any).contract?.pdfGenerationData?.basicSalary ?? Number(entry.baseSalary || 0))
+                            const statutory = previewPaye(totals.grossInclBenefits, contractualBasicSalary)
+                            const roundedNetPay = (entry as any).roundedNetPay != null ? Number((entry as any).roundedNetPay) : null
+                            return (
+                              <>
+                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.nssa)}</td>
+                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.paye)}</td>
+                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.aidsLevy)}</td>
+                                {roundedNetPay !== null ? (
+                                  <td className="px-3 py-2 text-sm text-right text-green-700 dark:text-green-300 font-bold cursor-pointer" title="Rounded net pay (whole dollar, carryover applied)" onClick={() => setSelectedEntryId(entry.id)}>${roundedNetPay.toLocaleString()}</td>
+                                ) : (
+                                  <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 font-semibold cursor-pointer" title="Estimate — rounded net pay set on approval" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.netTakeHome)} <span className="text-xs opacity-60">(est)</span></td>
+                                )}
+                              </>
+                            )
+                          })()}
                         </>
                       )
                     })()}

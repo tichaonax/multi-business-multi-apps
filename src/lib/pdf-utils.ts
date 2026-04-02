@@ -1242,6 +1242,15 @@ export const generatePaymentBatchVoucher = (
 // Toner-friendly — no background fills, borders only.
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface PettyCashVoucherTransaction {
+  transactionDate: string
+  payeeName?: string | null
+  payeePhone?: string | null
+  description: string
+  category?: { emoji?: string; name: string } | null
+  amount: number
+}
+
 export interface PettyCashVoucherData {
   requestId: string
   businessName: string
@@ -1254,6 +1263,9 @@ export interface PettyCashVoucherData {
   paymentChannel: 'CASH' | 'ECOCASH'
   approvedAt: string   // ISO string
   notes?: string | null
+  transactions?: PettyCashVoucherTransaction[]
+  spentAmount?: number
+  returnedAmount?: number
 }
 
 export const generatePettyCashVoucher = (
@@ -1332,15 +1344,99 @@ export const generatePettyCashVoucher = (
   drawLine(y)
   y += 8
 
-  // ── Total row ─────────────────────────────────────────────────────────────
-  pdf.setFontSize(12)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text('APPROVED AMOUNT', margin, y)
-  pdf.text(fmt(data.approvedAmount), pageWidth - margin, y, { align: 'right' })
-  y += 10
+  // ── Expenses section ─────────────────────────────────────────────────────
+  if (data.transactions && data.transactions.length > 0) {
+    pdf.setFontSize(9)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('EXPENSE TRANSACTIONS', margin, y)
+    y += 5
 
-  drawLine(y)
-  y += 8
+    // Table header
+    const colDate = margin
+    const colPayee = margin + 28
+    const colDesc = margin + 72
+    const colCat = margin + 118
+    const colAmt = pageWidth - margin
+
+    pdf.setFillColor(240, 240, 240)
+    pdf.rect(margin, y - 3.5, contentWidth, 6, 'F')
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Date', colDate, y)
+    pdf.text('Payee', colPayee, y)
+    pdf.text('Description', colDesc, y)
+    pdf.text('Category', colCat, y)
+    pdf.text('Amount', colAmt, y, { align: 'right' })
+    y += 4
+    drawLine(y, true)
+    y += 3
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7.5)
+    for (const tx of data.transactions) {
+      const dateStr = new Date(tx.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const payeeStr = stripEmoji(tx.payeeName ?? '—')
+      const descStr = stripEmoji(tx.description ?? '').slice(0, 30)
+      const catStr = tx.category ? `${tx.category.name}` : '—'
+      const amtStr = fmt(tx.amount)
+
+      pdf.text(dateStr, colDate, y)
+      pdf.text(payeeStr.slice(0, 20), colPayee, y)
+      pdf.text(descStr, colDesc, y)
+      pdf.text(catStr.slice(0, 18), colCat, y)
+      pdf.text(amtStr, colAmt, y, { align: 'right' })
+
+      // Phone sub-line
+      if (tx.payeePhone) {
+        y += 3.5
+        pdf.setTextColor(120, 120, 120)
+        pdf.text(tx.payeePhone, colPayee, y)
+        pdf.setTextColor(0, 0, 0)
+      }
+
+      y += 4.5
+
+      // Add new page if needed
+      if (y > 265) {
+        pdf.addPage()
+        y = margin + 5
+      }
+    }
+
+    drawLine(y, true)
+    y += 4
+
+    // Totals
+    pdf.setFontSize(8.5)
+    pdf.setFont('helvetica', 'bold')
+    const totalSpent = data.spentAmount ?? data.transactions.reduce((s, t) => s + t.amount, 0)
+    pdf.text('Total Spent', colDesc, y)
+    pdf.text(fmt(totalSpent), colAmt, y, { align: 'right' })
+    y += 5
+
+    if (data.returnedAmount != null && data.returnedAmount > 0) {
+      pdf.text('Returned', colDesc, y)
+      pdf.text(fmt(data.returnedAmount), colAmt, y, { align: 'right' })
+      y += 5
+      pdf.text('Net Spend', colDesc, y)
+      pdf.text(fmt(totalSpent - data.returnedAmount), colAmt, y, { align: 'right' })
+      y += 5
+    }
+
+    y += 3
+    drawLine(y)
+    y += 8
+  } else {
+    // ── Total row ───────────────────────────────────────────────────────────
+    pdf.setFontSize(12)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('APPROVED AMOUNT', margin, y)
+    pdf.text(fmt(data.approvedAmount), pageWidth - margin, y, { align: 'right' })
+    y += 10
+
+    drawLine(y)
+    y += 8
+  }
 
   // ── Signature Lines ───────────────────────────────────────────────────────
   pdf.setFont('helvetica', 'normal')

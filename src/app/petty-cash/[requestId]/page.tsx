@@ -160,6 +160,9 @@ export default function PettyCashDetailPage() {
   const [settleNotes, setSettleNotes] = useState('')
   const [settling, setSettling] = useState(false)
   const [showReturnConfirm, setShowReturnConfirm] = useState(false)
+  // Simple settle confirmation for requesters (no cash-return form)
+  const [showRequesterSettle, setShowRequesterSettle] = useState(false)
+  const [requesterSettling, setRequesterSettling] = useState(false)
 
   // EcoCash Mark as Sent state
   const [showMarkSent, setShowMarkSent] = useState(false)
@@ -327,9 +330,9 @@ export default function PettyCashDetailPage() {
       .catch(() => {})
   }, [status, session, router, fetchDetail])
 
-  // Fetch transactions whenever the request is APPROVED
+  // Fetch transactions whenever the request is APPROVED or SETTLED
   useEffect(() => {
-    if (data?.request?.status === 'APPROVED') {
+    if (data?.request?.status === 'APPROVED' || data?.request?.status === 'SETTLED') {
       fetchTransactions()
     }
   }, [data?.request?.status, fetchTransactions])
@@ -522,6 +525,25 @@ export default function PettyCashDetailPage() {
     await doSettle(ret)
   }
 
+  async function requestSettle() {
+    setRequesterSettling(true)
+    try {
+      const res = await fetch(`/api/petty-cash/requests/${requestId}/request-settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to submit settlement request')
+      toast.push('Settlement request submitted. An approver will complete the settlement.', { type: 'success' })
+      setShowRequesterSettle(false)
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setRequesterSettling(false)
+    }
+  }
+
   async function doSettle(ret: number) {
     setSettling(true)
     try {
@@ -654,6 +676,9 @@ export default function PettyCashDetailPage() {
                     paymentChannel: (req as any).paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
                     approvedAt: req.approvedAt,
                     notes: req.notes ?? null,
+                    transactions: transactions.length > 0 ? transactions : undefined,
+                    spentAmount: spentAmt,
+                    returnedAmount: req.status === 'SETTLED' ? returnAmt : undefined,
                   }, 'print')}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                   title="Print voucher"
@@ -673,6 +698,9 @@ export default function PettyCashDetailPage() {
                     paymentChannel: (req as any).paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
                     approvedAt: req.approvedAt,
                     notes: req.notes ?? null,
+                    transactions: transactions.length > 0 ? transactions : undefined,
+                    spentAmount: spentAmt,
+                    returnedAmount: req.status === 'SETTLED' ? returnAmt : undefined,
                   }, 'save')}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                   title="Save as PDF"
@@ -683,6 +711,37 @@ export default function PettyCashDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Settled banner */}
+        {req.status === 'SETTLED' && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-2xl">✅</span>
+              <div>
+                <h2 className="text-base font-bold text-green-800 dark:text-green-300">Request Settled</h2>
+                {req.settler && req.settledAt && (
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    Settled by {req.settler.name} on {fmtDate(req.settledAt)}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-green-200 dark:border-green-700">
+                <p className="text-xs text-green-600 dark:text-green-400 mb-1">Approved</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{fmt(approvedAmt)}</p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-green-200 dark:border-green-700">
+                <p className="text-xs text-red-500 dark:text-red-400 mb-1">Net Spent</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400">{fmt(approvedAmt - returnAmt)}</p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-green-200 dark:border-green-700">
+                <p className="text-xs text-green-600 dark:text-green-400 mb-1">Returned</p>
+                <p className="text-lg font-bold text-green-700 dark:text-green-400">{fmt(returnAmt)}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Balance card — shown while APPROVED */}
         {isApproved && txSummary && (
@@ -827,7 +886,7 @@ export default function PettyCashDetailPage() {
             )}
             {(canApprove || isRequester) && (
               <button
-                onClick={() => setShowSettle(true)}
+                onClick={() => canApprove ? setShowSettle(true) : setShowRequesterSettle(true)}
                 className={`px-5 py-2.5 text-white rounded-lg text-sm font-medium ${isEcocashRequest ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
               >
                 {isEcocashRequest ? '📱 Settle Request' : 'Settle Request'}
@@ -837,7 +896,7 @@ export default function PettyCashDetailPage() {
         )}
 
         {/* Spending history panel */}
-        {isApproved && (
+        {(isApproved || req.status === 'SETTLED') && (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 dark:text-gray-200">Spending History</h2>
@@ -852,6 +911,7 @@ export default function PettyCashDetailPage() {
                 <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700">
                   <tr>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Date</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Payee</th>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Description</th>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Category</th>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Payment</th>
@@ -862,7 +922,20 @@ export default function PettyCashDetailPage() {
                   {transactions.map((t: any) => (
                     <tr key={t.id}>
                       <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                        {formatDateTimeZim(t.transactionDate)}
+                        <div>{formatDateTimeZim(t.transactionDate)}</div>
+                        {t.creator?.name && (
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">by {t.creator.name}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">
+                        {t.payeeName ? (
+                          <>
+                            <div className="font-medium">{t.payeeName}</div>
+                            {t.payeePhone && <div className="text-xs text-gray-400 dark:text-gray-500">{t.payeePhone}</div>}
+                          </>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{t.description}</td>
                       <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">
@@ -886,7 +959,7 @@ export default function PettyCashDetailPage() {
                 </tbody>
                 <tfoot className="bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                   <tr>
-                    <td colSpan={4} className="px-4 py-2.5 font-medium text-gray-700 dark:text-gray-300">Total spent</td>
+                    <td colSpan={5} className="px-4 py-2.5 font-medium text-gray-700 dark:text-gray-300">Total spent</td>
                     <td className="px-4 py-2.5 text-right font-bold tabular-nums text-red-600 dark:text-red-400">{fmt(spentAmt)}</td>
                   </tr>
                 </tfoot>
@@ -1272,6 +1345,35 @@ export default function PettyCashDetailPage() {
                   className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
                 >
                   {settling ? 'Settling...' : 'Confirm Receipt & Settle'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Requester settle confirmation — simple, no financial editing */}
+        {showRequesterSettle && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Request Settlement</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                This will notify the approver that you are ready to settle. They will review your receipts and complete the settlement.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowRequesterSettle(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={requestSettle}
+                  disabled={requesterSettling}
+                  className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  {requesterSettling ? 'Submitting...' : 'Notify Approver'}
                 </button>
               </div>
             </div>

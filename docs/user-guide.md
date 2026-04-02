@@ -516,7 +516,7 @@ If your business runs stock takes, click this button to pull in any stock shortf
 
 **Per Diem column**
 
-The payroll table includes a **Per Diem** column showing the total per diem approved for each employee in the period. This is fetched live from the Per Diem module and is read-only in the payroll table — to add or correct per diem entries, go to **Employees → Per Diem**.
+The payroll table includes a **Per Diem** column showing the total **approved** per diem for each employee in the period. Only entries with status **Approved** are counted — pending or rejected entries are excluded. This figure is fetched live from the Per Diem module and is read-only in the payroll table — to add or correct per diem entries, go to **Employees → Per Diem**.
 
 ---
 
@@ -550,15 +550,19 @@ The entry shows a running breakdown:
 Basic Salary:                  $500.00
 Commission:                    $  0.00
 Overtime:                      $ 12.50
-Per Diem:                      $ 45.00
 Benefits:                      $ 30.00
 ──────────────────────────────────────
-Gross Pay:                     $587.50
+Gross Pay (excl. Per Diem):    $542.50
+Per Diem (approved):           $ 45.00
+──────────────────────────────────────
+Gross Pay (incl. Per Diem):    $587.50
 Advances/Loans:              - $ 50.00
 Stock Shortfall Deductions:  - $  8.25
 ──────────────────────────────────────
 Net Pay:                       $529.25
 ```
+
+> **Per diem is included in gross and net pay.** The totals shown on the period page, the spreadsheet export, and the payslip capture all include approved per diem. Only **approved** per diem entries count — pending and rejected entries are excluded.
 
 > **Stock Shortfall Deductions** appear only if the employee was listed as a responsible party on one or more signed-off stock take reports in this period. The amount is calculated automatically when the manager clicks **Sync Stock Shortfall**.
 
@@ -581,6 +585,8 @@ If the account is short:
 
 Repeat until the balance covers the total net pay.
 
+> **Cash box earmarks:** When you fund payroll, the amount is recorded against this payroll period in each business's cash box as a **Payroll Funding** earmark. These earmarks remain visible in the cash bucket view until the payroll period is **Approved** — at which point they are automatically cleared. This keeps the cash bucket display accurate during the funding window.
+
 ---
 
 #### Step 5 — Manager Submits for Owner Approval
@@ -595,6 +601,17 @@ Once all entries look correct and the account is funded:
 
 ---
 
+#### Step 5b — Sending Back to In Progress (if corrections are needed)
+
+If the owner or manager notices an issue after the period has been submitted for review, any user with payroll access can send it back:
+
+1. Open the payroll period (status: **Review**).
+2. Click **↩ Back to In Progress**.
+3. Status → **In Progress**.
+4. Make the necessary corrections and repeat Steps 3–5.
+
+---
+
 #### Step 6 — Owner Reviews and Approves
 
 The owner opens the payroll period (from the notification or from **Payroll** in the menu):
@@ -606,6 +623,7 @@ The owner opens the payroll period (from the notification or from **Payroll** in
 
 **What happens automatically on approval:**
 - Approval timestamp and owner name are recorded.
+- Any **Payroll Funding** earmarks in each business's cash box are automatically cleared — the cash is now fully transferred and the earmark display resolves.
 - Any loan deductions in the payroll entries are automatically reconciled — the loan balances decrease and repayment records are created.
 
 ---
@@ -633,7 +651,7 @@ With the period approved, the manager exports the file for the third-party payro
 | Vehicle Reimbursement | Contract allowances |
 | Travel Allowance | Contract allowances |
 | Overtime | Approved overtime adjustments |
-| **Per Diem** | Per diem entries for the month (from PerDiem module — approved + pending) |
+| **Per Diem** | Approved per diem entries for the month (from Per Diem module — pending and rejected entries excluded) |
 | Benefits | Total of all active benefits |
 | Advances | Salary advances deducted |
 | Loans | Loan repayments deducted |
@@ -641,7 +659,7 @@ With the period approved, the manager exports the file for the third-party payro
 | Deductions | Advances + loans |
 | Net Gross | Gross Pay − Deductions |
 
-> **Per Diem in the export:** Per diem values are sourced directly from the Per Diem module (approved and pending entries for the month). They are included in both the **single-month export** and the **Year-to-Date multi-tab export**. Use the **Regenerate Export** button to re-download an already-exported period — the per diem values are included in regenerated files too.
+> **Per Diem in the export:** Only **approved** per diem entries are included in the exported spreadsheet. Pending or rejected entries are excluded. Per diem is included in both the **single-month export** and the **Year-to-Date multi-tab export**, and in the Gross Pay total. Use the **Regenerate Export** button to re-download an already-exported period — the per diem values are included in regenerated files too.
 
 The file is handed to the third-party payroll processor (e.g. an external payroll bureau or accountant) who applies PAYE, NSSA, and any other statutory deductions to produce the final payslips and tax returns.
 
@@ -672,18 +690,29 @@ After the third-party processor returns the completed payroll:
 
 #### Step 9 — Disbursing Payments to Employees
 
-After export:
+After export, the manager can use the **Payroll Account Payments** page to record individual payments directly from the payroll account balance:
 
-1. Click **💸 Process Payments** on the period page.
-2. A payment batch is created listing each employee and their net pay amount.
-3. The cashier receives a notification to disburse.
-4. For each employee:
-   - Count out the correct cash amount.
-   - The employee signs the payslip or a payment register.
-   - Mark the line item as **Paid** in the system.
-5. Once all employees are paid, click **Mark Batch Complete**.
+**Opening the payments page:**
+- Go to **Payroll → Payroll Account → Make Payments**, or
+- Click **💸 Process Payments** on the period page.
 
-For employees paid by bank transfer, the transfer is initiated externally and the cashier marks the entry as paid once the transfer is confirmed.
+**How it works:**
+
+1. The page shows the current **Payroll Account Balance** at the top.
+2. Under **Batch Settings**, choose:
+   - **Default Amount** — a base amount to apply to multiple employees at once (starts at $0 — enter the correct amount or use per-employee amounts)
+   - **Payment Type** — Regular Salary, Bonus, or Commission
+   - **Payment Schedule** — Weekly, Bi-weekly, or Monthly
+3. Under **Select Employees**, tick each employee to pay:
+   - Enter the exact payment amount in their row (or use a quick-amount button: $500, $1000, $1500, $2000)
+   - Click **📝 Note** to add an optional note for that payment (e.g. reason for a different amount)
+4. Use **Select All** to tick every employee, then **Apply Default Amount to Selected** to fill in a uniform amount.
+5. The green summary bar at the bottom shows the **Total Payment Amount** and the **Balance After Payment**.
+6. Click **Process X Payments** to submit.
+
+> **Process Payments is disabled if the total exceeds the payroll account balance.** Top up the account first if needed.
+
+For employees paid by bank transfer, initiate the transfer externally and use this page to record the transaction against their name.
 
 ---
 
@@ -1647,7 +1676,26 @@ To print the **Claim Form** (a filled-in summary for the file):
 
 ---
 
-#### Step 5 — Per Diem Flows into Payroll Automatically
+#### Step 5 — Manager Approves or Rejects Per Diem Entries
+
+Per diem entries start in **Pending** status. A manager must approve them before they count towards payroll.
+
+1. Go to **Employees → Per Diem**.
+2. Select the month and year.
+3. Click **Process Per Diem** (or the approval icon next to the employee).
+4. The approval modal shows all pending entries for the period.
+5. For each entry, click **Approve** or **Reject**:
+   - **Approved** entries are included in the payroll gross/net pay totals for that month.
+   - **Rejected** entries are excluded from payroll totals entirely.
+6. Click **Process** to finalise your decisions.
+
+> **You can click Process even if all entries are rejected** — this closes the review and records the rejections. Rejected entries do not count as pending for subsequent payroll runs.
+
+> **Tip:** Approve per diem entries before submitting payroll for review. Only approved entries are included in the payroll spreadsheet and totals.
+
+---
+
+#### Step 6 — Per Diem Flows into Payroll Automatically
 
 Per diem entries do not need to be transferred or manually added to payroll. When the payroll export runs for the same month and year:
 
@@ -1656,7 +1704,7 @@ Per diem entries do not need to be transferred or manually added to payroll. Whe
 - It is included in the employee's **gross pay** for that period.
 - The payroll processor handles any applicable tax treatment on the per diem amount.
 
-> There is no separate payment or approval step for per diem — once entries are saved against the correct month/year, they are automatically included the next time payroll is exported.
+> Only **approved** per diem entries are included in payroll — pending or rejected entries are excluded. Approve all entries in the Per Diem module before submitting payroll for review to ensure the correct totals are captured.
 
 ---
 

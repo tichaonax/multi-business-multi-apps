@@ -275,15 +275,20 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
     }
 
     // Calculate overtime using utility function for dual rates
-    const { calculateTotalOvertimePay } = await import('@/lib/payroll/overtime-utils')
+    const { calculateOvertimePay, calculateTotalOvertimePay } = await import('@/lib/payroll/overtime-utils')
     let overtimePay = 0
+    let standardOvertimePay = 0
+    let doubleOvertimePay = 0
 
     // Use new dual overtime fields if available, otherwise fall back to legacy single field
     if (standardOvertimeHours > 0 || doubleTimeOvertimeHours > 0) {
+        standardOvertimePay = calculateOvertimePay(standardOvertimeHours, hourlyRate, false)
+        doubleOvertimePay = calculateOvertimePay(doubleTimeOvertimeHours, hourlyRate, true)
         overtimePay = calculateTotalOvertimePay(standardOvertimeHours, doubleTimeOvertimeHours, hourlyRate)
     } else if (oldOvertimeHours > 0 && hourlyRate > 0) {
         // Legacy calculation for backward compatibility
-        overtimePay = Math.round(oldOvertimeHours * hourlyRate * 1.5 * 100) / 100
+        standardOvertimePay = Math.round(oldOvertimeHours * hourlyRate * 1.5 * 100) / 100
+        overtimePay = standardOvertimePay
     }
     // Load payroll adjustments for this entry. Adjustments are stored as signed amounts.
     // Business rule: positive adjustments increase gross pay (additions). Negative adjustments
@@ -343,5 +348,5 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
     // Net = Gross (deductions shown separately, NOT subtracted)
     const netPay = grossPay
 
-    return { grossPay, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, clockInDeductionAmount, overtimePay, hourlyRate, absenceDeduction }
+    return { grossPay, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, clockInDeductionAmount, overtimePay, standardOvertimePay, doubleOvertimePay, hourlyRate, absenceDeduction }
 }

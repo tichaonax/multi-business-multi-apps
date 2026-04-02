@@ -37,6 +37,8 @@ interface Transaction {
   autoTransferSource?: string
   receiptNumber?: string
   status?: string
+  pettyCashRequestId?: string | null
+  pettyCashPurpose?: string | null
   createdBy?: { id: string; name: string }
   createdAt: string
 }
@@ -577,6 +579,13 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         {transaction.receiptNumber && (
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                             {transaction.receiptNumber}
+                          </div>
+                        )}
+                        {transaction.pettyCashRequestId && (
+                          <div className="mt-0.5">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-mono font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300" title={transaction.pettyCashPurpose ?? 'Petty Cash'}>
+                              🪙 PC-{transaction.pettyCashRequestId.slice(-6).toUpperCase()}
+                            </span>
                           </div>
                         )}
                         {transaction.createdBy?.name && (

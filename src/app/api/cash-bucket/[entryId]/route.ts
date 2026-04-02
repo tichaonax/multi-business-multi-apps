@@ -93,9 +93,51 @@ export async function GET(
           id: true, purpose: true, requestedAmount: true, approvedAmount: true,
           spentAmount: true, returnAmount: true, status: true, requestedAt: true,
           requester: { select: { name: true } },
+          transactions: {
+            select: {
+              id: true, amount: true, description: true, transactionDate: true,
+              payeeType: true, payeeSupplierId: true, payeeEmployeeId: true, payeeUserId: true,
+              createdBy: true,
+              category: { select: { name: true } },
+            },
+            orderBy: { transactionDate: 'asc' },
+          },
         },
       })
       if (pc) {
+        // Resolve payee names/phones and creator names via batch queries
+        const supplierIds = [...new Set(pc.transactions.filter((t: any) => t.payeeSupplierId).map((t: any) => t.payeeSupplierId as string))]
+        const employeeIds = [...new Set(pc.transactions.filter((t: any) => t.payeeEmployeeId).map((t: any) => t.payeeEmployeeId as string))]
+        const userIds = [...new Set(pc.transactions.filter((t: any) => t.payeeUserId).map((t: any) => t.payeeUserId as string))]
+        const creatorIds = [...new Set(pc.transactions.map((t: any) => t.createdBy as string))]
+        const [suppliers, employees, payeeUsers, creators] = await Promise.all([
+          supplierIds.length ? prisma.businessSuppliers.findMany({ where: { id: { in: supplierIds } }, select: { id: true, name: true, phone: true, contactPerson: true } }) : [],
+          employeeIds.length ? prisma.employees.findMany({ where: { id: { in: employeeIds } }, select: { id: true, firstName: true, lastName: true, phone: true } }) : [],
+          userIds.length ? prisma.users.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }) : [],
+          creatorIds.length ? prisma.users.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } }) : [],
+        ])
+        const supplierMap = Object.fromEntries((suppliers as any[]).map(s => [s.id, s]))
+        const employeeMap = Object.fromEntries((employees as any[]).map(e => [e.id, e]))
+        const userMap = Object.fromEntries((payeeUsers as any[]).map(u => [u.id, u.name]))
+        const creatorMap = Object.fromEntries((creators as any[]).map(u => [u.id, u.name]))
+        const transactions = pc.transactions.map((t: any) => {
+          let payeeName = '—', payeePhone: string | null = null, payeeContact: string | null = null
+          if (t.payeeSupplierId && supplierMap[t.payeeSupplierId]) {
+            const s = supplierMap[t.payeeSupplierId]
+            payeeName = s.name; payeePhone = s.phone ?? null; payeeContact = s.contactPerson ?? null
+          } else if (t.payeeEmployeeId && employeeMap[t.payeeEmployeeId]) {
+            const e = employeeMap[t.payeeEmployeeId]
+            payeeName = `${e.firstName} ${e.lastName}`; payeePhone = e.phone ?? null
+          } else if (t.payeeUserId && userMap[t.payeeUserId]) {
+            payeeName = userMap[t.payeeUserId]
+          }
+          return {
+            id: t.id, amount: Number(t.amount), description: t.description,
+            category: t.category?.name ?? null, payeeName, payeePhone, payeeContact,
+            paidBy: creatorMap[t.createdBy] ?? '—',
+            transactionDate: t.transactionDate,
+          }
+        })
         pettyCash = {
           id: pc.id,
           purpose: pc.purpose,
@@ -105,7 +147,8 @@ export async function GET(
           returnAmount: pc.returnAmount ? Number(pc.returnAmount) : null,
           status: pc.status,
           requestedAt: pc.requestedAt,
-          requestedBy: (pc as any).requester?.name ?? '—',
+          requestedBy: pc.requester?.name ?? '—',
+          transactions,
         }
       }
     }

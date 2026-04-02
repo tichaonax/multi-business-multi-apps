@@ -17,6 +17,7 @@
 import ExcelJS from 'exceljs'
 import { prisma } from '@/lib/prisma'
 import { computeTotalsForEntry } from '@/lib/payroll/helpers'
+import { loadBrackets, loadTaxConstants, calculatePaye, calculateAidsLevy, calculateNssa } from '@/lib/payroll/paye-calc'
 import { restoreContractFromSnapshot, validateContractSnapshot } from '@/lib/payroll/contract-snapshot'
 
 export interface TabPeriodData {
@@ -85,7 +86,7 @@ async function populateWorksheet(
   const monthName = monthNames[period.month - 1]
 
   // Title rows
-  worksheet.mergeCells('A1:Q1')
+  worksheet.mergeCells('A1:X1')
   const titleCell = worksheet.getCell('A1')
   titleCell.value = businessName
   titleCell.font = { name: 'Calibri', size: 16, bold: true }
@@ -93,7 +94,7 @@ async function populateWorksheet(
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
   worksheet.getRow(1).height = 30
 
-  worksheet.mergeCells('A2:Q2')
+  worksheet.mergeCells('A2:X2')
   const subtitleCell = worksheet.getCell('A2')
   subtitleCell.value = `Payroll Report - ${monthName} ${period.year}${isRegenerated ? ' (Regenerated)' : ''}`
   subtitleCell.font = { name: 'Calibri', size: 12, bold: true }
@@ -108,7 +109,7 @@ async function populateWorksheet(
 
   // Add regeneration notice if applicable
   if (isRegenerated) {
-    worksheet.mergeCells('A4:Q4')
+    worksheet.mergeCells('A4:X4')
     const noticeCell = worksheet.getCell('A4')
     noticeCell.value = 'NOTE: This is a regenerated historical payroll using contract snapshots from the original period creation date.'
     noticeCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF808080' } }
@@ -123,36 +124,43 @@ async function populateWorksheet(
     { key: 'nationalId', header: 'National ID', width: 15 },
     { key: 'jobTitle', header: 'Job Title', width: 20 },
     { key: 'workDays', header: 'Work Days', width: 10 },
-    { key: 'baseSalary', header: 'Base Salary', width: 12 },
+    { key: 'contractualBasicSalary', header: 'Basic Salary (Contractual)', width: 18 },
+    { key: 'baseSalary', header: 'Basic Salary (Prorated)', width: 16 },
     { key: 'benefits', header: 'Benefits', width: 12 },
     { key: 'commission', header: 'Commission', width: 12 },
-    { key: 'overtime', header: 'Overtime', width: 12 },
+    { key: 'overtime15', header: 'Overtime (1.5x)', width: 14 },
+    { key: 'overtime20', header: 'Overtime (2.0x)', width: 14 },
     { key: 'perDiem', header: 'Per Diem', width: 12 },
+    { key: 'cashInLieu', header: 'Cash in Lieu', width: 14 },
     { key: 'adjustments', header: 'Adjustments', width: 12 },
     { key: 'grossPay', header: 'Gross Pay', width: 12 },
     { key: 'advances', header: 'Advances', width: 12 },
     { key: 'loans', header: 'Loans', width: 12 },
     { key: 'deductions', header: 'Other Deductions', width: 12 },
     { key: 'totalDeductions', header: 'Total Deductions', width: 14 },
-    { key: 'netPay', header: 'Net Pay', width: 14 }
+    { key: 'nssaEmployee', header: 'NSSA Employee', width: 14 },
+    { key: 'nssaEmployer', header: 'NSSA Employer', width: 14 },
+    { key: 'paye', header: 'PAYE Tax', width: 12 },
+    { key: 'aidsLevy', header: 'Aids Levy', width: 12 },
+    { key: 'netTakeHome', header: 'Net Take-Home', width: 14 }
   ]
 
   const headerRowObj = worksheet.getRow(headerRow)
-  headers.forEach((col, index) => {
-    const cell = headerRowObj.getCell(index + 1)
-    cell.value = col.header
-    cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } }
-    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  for (let i = 1; i <= headers.length; i++) {
+    const cell = headerRowObj.getCell(i)
+    cell.value = headers[i - 1].header
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
     cell.border = {
       top: { style: 'thin' },
       left: { style: 'thin' },
       bottom: { style: 'thin' },
       right: { style: 'thin' }
     }
-    worksheet.getColumn(index + 1).width = col.width
-  })
-  headerRowObj.height = 20
+    worksheet.getColumn(i).width = headers[i - 1].width
+  }
+  headerRowObj.height = 30
 
   // Data rows
   let rowIndex = headerRow + 1
@@ -169,21 +177,28 @@ async function populateWorksheet(
     const nationalId = entry.nationalId || ''
     const jobTitle = entry.jobTitle || ''
     const workDays = Number(entry.workDays || 0)
+    const contractualBasicSalary = Number(entry.contractualBasicSalary ?? entry.baseSalary ?? 0)
     const baseSalary = Number(entry.baseSalary || 0)
     const benefits = Number(entry.totalBenefitsAmount || 0)
     const commission = Number(entry.commission || 0)
-    const overtime = Number(entry.overtimePay || 0)
+    const overtime15 = Number(entry.standardOvertimePay || 0)
+    const overtime20 = Number(entry.doubleOvertimePay || 0)
     const perDiem = Number(entry.perDiem || 0)
+    const cashInLieu = Number(entry.cashInLieu || 0)
     const adjustments = Number(entry.adjustmentsTotal || 0)
     const grossPay = Number(entry.grossPay || 0)
     const advances = Number(entry.advanceDeductions || 0)
     const loans = Number(entry.loanDeductions || 0)
     const misc = Number(entry.miscDeductions || 0)
     const deductions = Number(entry.totalDeductions || 0)
-    const netPay = Number(entry.netPay || 0)
+    const nssaEmployee = Number(entry.nssaEmployee || 0)
+    const nssaEmployer = Number(entry.nssaEmployer || 0)
+    const paye = Number(entry.payeAmount || 0)
+    const aidsLevy = Number(entry.aidsLevy || 0)
+    const netTakeHome = Math.max(0, grossPay - nssaEmployee - paye - aidsLevy)
 
     totalGross += grossPay
-    totalNet += netPay
+    totalNet += netTakeHome
     totalDeductions += deductions
 
     row.getCell(1).value = employeeNumber
@@ -191,33 +206,52 @@ async function populateWorksheet(
     row.getCell(3).value = nationalId
     row.getCell(4).value = jobTitle
     row.getCell(5).value = workDays
-    row.getCell(6).value = baseSalary
+    row.getCell(6).value = contractualBasicSalary
     row.getCell(6).numFmt = '#,##0.00'
-    row.getCell(7).value = benefits
+    row.getCell(7).value = baseSalary
     row.getCell(7).numFmt = '#,##0.00'
-    row.getCell(8).value = commission
+    row.getCell(8).value = benefits
     row.getCell(8).numFmt = '#,##0.00'
-    row.getCell(9).value = overtime
+    row.getCell(9).value = commission
     row.getCell(9).numFmt = '#,##0.00'
-    row.getCell(10).value = perDiem
+    row.getCell(10).value = overtime15
     row.getCell(10).numFmt = '#,##0.00'
-    row.getCell(11).value = adjustments
+    row.getCell(11).value = overtime20
     row.getCell(11).numFmt = '#,##0.00'
-    row.getCell(12).value = grossPay
+    row.getCell(12).value = perDiem
     row.getCell(12).numFmt = '#,##0.00'
-    row.getCell(13).value = advances
+    row.getCell(13).value = cashInLieu
     row.getCell(13).numFmt = '#,##0.00'
-    row.getCell(14).value = loans
+    row.getCell(14).value = adjustments
     row.getCell(14).numFmt = '#,##0.00'
-    row.getCell(15).value = misc
+    row.getCell(15).value = grossPay
     row.getCell(15).numFmt = '#,##0.00'
-    row.getCell(16).value = deductions
+    row.getCell(16).value = advances
     row.getCell(16).numFmt = '#,##0.00'
-    row.getCell(17).value = netPay
+    row.getCell(17).value = loans
     row.getCell(17).numFmt = '#,##0.00'
+    row.getCell(18).value = misc
+    row.getCell(18).numFmt = '#,##0.00'
+    row.getCell(19).value = deductions
+    row.getCell(19).numFmt = '#,##0.00'
+    row.getCell(20).value = nssaEmployee
+    row.getCell(20).numFmt = '#,##0.00'
+    row.getCell(20).font = { color: { argb: 'FFFF0000' } }
+    row.getCell(21).value = nssaEmployer
+    row.getCell(21).numFmt = '#,##0.00'
+    row.getCell(21).font = { color: { argb: 'FFFF0000' } }
+    row.getCell(22).value = paye
+    row.getCell(22).numFmt = '#,##0.00'
+    row.getCell(22).font = { color: { argb: 'FFFF0000' } }
+    row.getCell(23).value = aidsLevy
+    row.getCell(23).numFmt = '#,##0.00'
+    row.getCell(23).font = { color: { argb: 'FFFF0000' } }
+    row.getCell(24).value = netTakeHome
+    row.getCell(24).numFmt = '#,##0.00'
+    row.getCell(24).font = { color: { argb: 'FF008000' } }
 
     // Add borders
-    for (let i = 1; i <= 17; i++) {
+    for (let i = 1; i <= 24; i++) {
       row.getCell(i).border = {
         top: { style: 'thin' },
         left: { style: 'thin' },
@@ -233,25 +267,25 @@ async function populateWorksheet(
   const totalsRow = worksheet.getRow(rowIndex)
   totalsRow.getCell(1).value = 'TOTALS'
   totalsRow.getCell(1).font = { bold: true }
-  totalsRow.getCell(12).value = totalGross
-  totalsRow.getCell(12).numFmt = '#,##0.00'
-  totalsRow.getCell(12).font = { bold: true }
-  totalsRow.getCell(16).value = totalDeductions
-  totalsRow.getCell(16).numFmt = '#,##0.00'
-  totalsRow.getCell(16).font = { bold: true }
-  totalsRow.getCell(17).value = totalNet
-  totalsRow.getCell(17).numFmt = '#,##0.00'
-  totalsRow.getCell(17).font = { bold: true }
+  totalsRow.getCell(15).value = totalGross
+  totalsRow.getCell(15).numFmt = '#,##0.00'
+  totalsRow.getCell(15).font = { bold: true }
+  totalsRow.getCell(19).value = totalDeductions
+  totalsRow.getCell(19).numFmt = '#,##0.00'
+  totalsRow.getCell(19).font = { bold: true }
+  totalsRow.getCell(24).value = totalNet
+  totalsRow.getCell(24).numFmt = '#,##0.00'
+  totalsRow.getCell(24).font = { bold: true }
 
   // Add borders to totals row
-  for (let i = 1; i <= 17; i++) {
+  for (let i = 1; i <= 24; i++) {
     totalsRow.getCell(i).border = {
       top: { style: 'double' },
       left: { style: 'thin' },
       bottom: { style: 'double' },
       right: { style: 'thin' }
     }
-    totalsRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } }
+  totalsRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } }
   }
   totalsRow.height = 25
 
@@ -309,6 +343,12 @@ export async function regeneratePeriodEntries(periodId: string): Promise<any[]> 
 
   const enrichedEntries: any[] = []
 
+  // Pre-load tax data once for the period year
+  const [monthlyBrackets, taxConstants] = await Promise.all([
+    loadBrackets(period.year, 'MONTHLY'),
+    loadTaxConstants(period.year),
+  ])
+
   for (const entry of period.payrollEntries) {
     // Try to restore contract from snapshot
     let contract = null
@@ -345,6 +385,14 @@ export async function regeneratePeriodEntries(periodId: string): Promise<any[]> 
     // Recompute totals using the snapshot or live contract
     const totals = await computeTotalsForEntry(entry.id)
 
+    // Contractual basic salary for NSSA (pre-proration)
+    const contractualBasicSalary = Number((entry as any).contractSnapshot?.basicSalary ?? Number(entry.baseSalary || 0))
+    const grossForPaye = Number(totals.grossPay || entry.grossPay || 0)
+    const payeAmt = calculatePaye(grossForPaye, monthlyBrackets)
+    const aidsLevyAmt = calculateAidsLevy(payeAmt, taxConstants.aidsLevyRate)
+    const nssaEmployeeAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployeeRate)
+    const nssaEmployerAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployerRate)
+
     enrichedEntries.push({
       ...entry,
       contract,
@@ -356,7 +404,14 @@ export async function regeneratePeriodEntries(periodId: string): Promise<any[]> 
       grossPay: Number(totals.grossPay || entry.grossPay || 0),
       netPay: Number(totals.netPay || entry.netPay || 0),
       totalDeductions: Number(totals.totalDeductions || entry.totalDeductions || 0),
-      adjustmentsTotal: Number(totals.additionsTotal || 0)
+      adjustmentsTotal: Number(totals.additionsTotal || 0),
+      contractualBasicSalary,
+      standardOvertimePay: Number(totals.standardOvertimePay || 0),
+      doubleOvertimePay: Number(totals.doubleOvertimePay || 0),
+      payeAmount: payeAmt,
+      aidsLevy: aidsLevyAmt,
+      nssaEmployee: nssaEmployeeAmt,
+      nssaEmployer: nssaEmployerAmt,
     })
   }
 

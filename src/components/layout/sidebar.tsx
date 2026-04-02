@@ -1310,6 +1310,17 @@ export function Sidebar() {
           </>
         )}
 
+        {/* Tax Tables - all payroll users can view; manage requires canManagePayroll */}
+        {(isSystemAdmin(currentUser) || hasPermission('canAccessPayroll')) && (
+          <Link
+            href="/payroll/tax-tables"
+            className={getLinkClasses('/payroll/tax-tables')}
+          >
+            <span className="text-lg">📊</span>
+            <span>Tax Tables</span>
+          </Link>
+        )}
+
         {/* Expense Accounts - Only for managers/admins who can view reports */}
         {hasPermission('canViewExpenseReports') && (
           <>
