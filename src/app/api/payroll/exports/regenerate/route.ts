@@ -347,7 +347,7 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) { /* ignore */ }
 
-    const fileUrl = `/exports/payroll/${fileName}`
+    const fileUrl = `/api/payroll/exports/download?file=${fileName}`
     const fileSize = excelBuffer.length
 
     // Update export record and its timestamps

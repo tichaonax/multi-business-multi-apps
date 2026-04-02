@@ -249,7 +249,7 @@ export async function POST(req: NextRequest) {
       const filePath = path.join(exportsDir, fileName)
       await writeFile(filePath, excelBuffer)
 
-      const fileUrl = `/exports/payroll/${fileName}`
+      const fileUrl = `/api/payroll/exports/download?file=${fileName}`
       const fileSize = excelBuffer.length
 
       // Create export record
@@ -634,7 +634,7 @@ const perDiemByEmployee: Record<string, number> = {}
     const filePath = path.join(exportsDir, fileName)
     await writeFile(filePath, excelBuffer)
 
-    const fileUrl = `/exports/payroll/${fileName}`
+    const fileUrl = `/api/payroll/exports/download?file=${fileName}`
     const fileSize = excelBuffer.length
 
     // Create export record
