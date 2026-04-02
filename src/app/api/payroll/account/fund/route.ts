@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { transfers } = body
+    const { transfers, periodId } = body
 
     if (!Array.isArray(transfers) || transfers.length === 0) {
       return NextResponse.json({ error: 'transfers array is required' }, { status: 400 })
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
             amount,
             referenceType: 'PAYROLL_ACCOUNT',
             referenceId: payrollAccount.id,
-            notes: `💵 Payroll funding — $${amount.toFixed(2)}`,
+            notes: `💵 Payroll funding — $${amount.toFixed(2)}${periodId ? ` [period:${periodId}]` : ''}`,
             entryDate: now,
             createdBy: user.id,
           },

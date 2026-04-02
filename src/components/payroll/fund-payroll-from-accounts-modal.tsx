@@ -16,6 +16,7 @@ interface CashBoxSource {
 interface FundPayrollFromAccountsModalProps {
   totalRequired: number
   currentPayrollBalance: number
+  periodId?: string
   onSuccess: () => void
   onClose: () => void
 }
@@ -61,6 +62,7 @@ function makeVoucherId(): string {
 export function FundPayrollFromAccountsModal({
   totalRequired,
   currentPayrollBalance,
+  periodId,
   onSuccess,
   onClose,
 }: FundPayrollFromAccountsModalProps) {
@@ -120,7 +122,7 @@ export function FundPayrollFromAccountsModal({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transfers }),
+        body: JSON.stringify({ transfers, periodId }),  
       })
       const data = await res.json()
       if (res.ok) {

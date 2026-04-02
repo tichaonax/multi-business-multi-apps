@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { computeTotalsForEntry } from '@/lib/payroll/helpers'
+import { Prisma } from '@prisma/client'
 
 interface RouteParams {
   params: Promise<{ periodId: string }>
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const period = await prisma.payrollPeriods.findUnique({
       where: { id: periodId },
-      select: { id: true, month: true },
+      select: { id: true, month: true, year: true },
     })
     if (!period) {
       return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
@@ -45,6 +46,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     })
 
+    // Fetch approved per diem for this period, keyed by employeeId
+    const employeeIds = entries.map(e => e.employeeId).filter(Boolean) as string[]
+    const perDiemRows = await prisma.perDiemEntries.groupBy({
+      by: ['employeeId'],
+      where: {
+        approvalStatus: 'approved',
+        payrollYear: period.year,
+        payrollMonth: period.month,
+        ...(employeeIds.length > 0 ? { employeeId: { in: employeeIds } } : {}),
+      },
+      _sum: { amount: true },
+    })
+    const perDiemByEmployee: Record<string, number> = {}
+    for (const row of perDiemRows) {
+      if (row.employeeId) perDiemByEmployee[row.employeeId] = Number(row._sum.amount ?? 0)
+    }
+
     let created = 0
     let refreshed = 0
     let skipped = 0
@@ -61,7 +79,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
 
       // Compute correct gross using the same logic as the exported spreadsheet
-      const { grossPay } = await computeTotalsForEntry(entry.id, period.month)
+      const { grossPay: grossFromEntry } = await computeTotalsForEntry(entry.id, period.month)
+      const perDiem = entry.employeeId ? (perDiemByEmployee[entry.employeeId] || 0) : 0
+      const grossPay = grossFromEntry + perDiem
 
       if (slip) {
         // Refresh existing PENDING slip with correct totalEarnings

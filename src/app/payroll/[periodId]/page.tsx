@@ -1663,6 +1663,7 @@ export default function PayrollPeriodDetailPage() {
         <FundPayrollFromAccountsModal
           totalRequired={period.payroll_entries.reduce((sum, e) => sum + computeEntryTotals(e).netInclBenefits, 0)}
           currentPayrollBalance={payrollAccountBalance ?? 0}
+          periodId={periodId}
           onSuccess={() => {
             setShowFundPayrollModal(false)
             // Refresh balance

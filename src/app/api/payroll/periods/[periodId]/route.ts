@@ -982,6 +982,22 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           where: { id: payrollAccount.id },
           data: { balance: { decrement: totalNetPay }, updatedAt: new Date() },
         })
+
+        // Clear PAYROLL_FUNDING earmarks for this period from cash bucket display
+        // (soft-delete so balance stays correct but allocations display clears)
+        await prisma.cashBucketEntry.updateMany({
+          where: {
+            entryType: 'PAYROLL_FUNDING',
+            direction: 'OUTFLOW',
+            deletedAt: null,
+            notes: { contains: `[period:${periodId}]` },
+          },
+          data: {
+            deletedAt: new Date(),
+            deletedBy: user.id,
+            deletionReason: `Payroll period approved — earmarks cleared`,
+          },
+        })
       }
     }
 

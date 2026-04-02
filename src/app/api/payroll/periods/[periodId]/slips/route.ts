@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { computeTotalsForEntry } from '@/lib/payroll/helpers'
 
 interface RouteParams {
   params: Promise<{ periodId: string }>
@@ -18,6 +19,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const { periodId } = await params
+
+    const period = await prisma.payrollPeriods.findUnique({
+      where: { id: periodId },
+      select: { id: true, month: true, year: true },
+    })
+    if (!period) {
+      return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
+    }
 
     const slips = await prisma.payrollSlips.findMany({
       where: { payrollPeriodId: periodId },
@@ -47,6 +56,32 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       orderBy: { payroll_entries: { employeeName: 'asc' } },
     })
 
+    // Fetch approved per diem for this period, keyed by employeeId
+    const employeeIds = slips.map(s => s.employeeId).filter(Boolean) as string[]
+    const perDiemRows = await prisma.perDiemEntries.groupBy({
+      by: ['employeeId'],
+      where: {
+        approvalStatus: 'approved',
+        payrollYear: period.year,
+        payrollMonth: period.month,
+        ...(employeeIds.length > 0 ? { employeeId: { in: employeeIds } } : {}),
+      },
+      _sum: { amount: true },
+    })
+    const perDiemByEmployee: Record<string, number> = {}
+    for (const row of perDiemRows) {
+      if (row.employeeId) perDiemByEmployee[row.employeeId] = Number(row._sum.amount ?? 0)
+    }
+
+    // Compute live gross for each entry (includes benefits + per diem)
+    const entryGrossMap: Record<string, number> = {}
+    await Promise.all(slips.map(async s => {
+      if (!s.payrollEntryId) return
+      const { grossPay } = await computeTotalsForEntry(s.payrollEntryId, period.month)
+      const pd = s.employeeId ? (perDiemByEmployee[s.employeeId] || 0) : 0
+      entryGrossMap[s.payrollEntryId] = grossPay + pd
+    }))
+
     return NextResponse.json({
       success: true,
       slips: slips.map((s: typeof slips[number]) => ({
@@ -59,7 +94,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         status: s.status,
         // Earnings
         totalEarnings: s.totalEarnings ? Number(s.totalEarnings) : null,
-        entryGrossPay: s.payroll_entries ? Number(s.payroll_entries.grossPay || 0) : null,
+        entryGrossPay: s.payrollEntryId ? (entryGrossMap[s.payrollEntryId] ?? (s.payroll_entries ? Number(s.payroll_entries.grossPay || 0) : null)) : null,
         // Statutory deductions
         payeTax: s.payeTax ? Number(s.payeTax) : null,
         aidsLevy: s.aidsLevy ? Number(s.aidsLevy) : null,

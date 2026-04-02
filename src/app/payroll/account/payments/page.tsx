@@ -50,7 +50,7 @@ function BatchPaymentsContent() {
   const [paymentAmounts, setPaymentAmounts] = useState<Map<string, number>>(new Map())
   const [paymentNotes, setPaymentNotes] = useState<Map<string, string>>(new Map())
 
-  const [defaultAmount, setDefaultAmount] = useState('1000')
+  const [defaultAmount, setDefaultAmount] = useState('0')
   const [paymentType, setPaymentType] = useState<'REGULAR_SALARY' | 'BONUS' | 'COMMISSION'>('REGULAR_SALARY')
   const [paymentSchedule, setPaymentSchedule] = useState<'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'>('MONTHLY')
 
@@ -322,7 +322,7 @@ function BatchPaymentsContent() {
                       value={defaultAmount}
                       onChange={(e) => setDefaultAmount(e.target.value)}
                       className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="1000.00"
+                      placeholder="0.00"
                     />
                   </div>
                 </div>
@@ -456,7 +456,7 @@ function BatchPaymentsContent() {
                 <button
                   onClick={handleSubmit}
                   disabled={submitting || !hasSufficientBalance}
-                  className="w-full px-6 py-3 bg-white dark:bg-gray-800 text-green-700 font-semibold rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 dark:bg-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full px-6 py-3 bg-white text-green-700 font-semibold rounded-lg hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {submitting ? 'Processing...' : `Process ${selectedEmployees.size} Payment${selectedEmployees.size !== 1 ? 's' : ''}`}
                 </button>
