@@ -825,10 +825,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         for (const row of perDiemRows) {
           if (row.employeeId) perDiemByEmployee[row.employeeId] = Number(row._sum.amount ?? 0)
         }
-        enrichedEntries = enrichedEntries.map((e: any) => ({
-          ...e,
-          perDiem: e.employeeId ? (perDiemByEmployee[e.employeeId] || 0) : 0,
-        }))
+        enrichedEntries = enrichedEntries.map((e: any) => {
+          const pd = e.employeeId ? (perDiemByEmployee[e.employeeId] || 0) : 0
+          return {
+            ...e,
+            perDiem: pd,
+            // Include per diem in grossPay/netPay so summary totals and Fund Payroll match the export
+            grossPay: Number(e.grossPay || 0) + pd,
+            netPay: Number(e.netPay || 0) + pd,
+          }
+        })
       } catch {
         // non-fatal — per diem stays as 0
       }
@@ -923,12 +929,36 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     // If approving for the first time, check payroll account balance
     const isFirstApproval = status === 'approved' && !existingPeriod.approvedAt
     if (isFirstApproval) {
-      // Compute total net pay for this period from entries
-      const entriesAgg = await prisma.payrollEntries.aggregate({
+      // Compute total net pay using live DB values + approved per diem
+      // (stored netPay may be stale if benefits were added after entry creation)
+      const periodEntries = await prisma.payrollEntries.findMany({
         where: { payrollPeriodId: periodId },
-        _sum: { netPay: true },
+        select: { netPay: true, employeeId: true }
       })
-      const totalNetPay = Number(entriesAgg._sum.netPay || 0)
+      const periodEmployeeIds = periodEntries.map((e: any) => e.employeeId).filter(Boolean) as string[]
+
+      // Fetch approved per diem for this period
+      let perDiemByEmployee: Record<string, number> = {}
+      try {
+        const perDiemRows = await prisma.perDiemEntries.groupBy({
+          by: ['employeeId'],
+          where: {
+            approvalStatus: 'approved',
+            payrollYear: existingPeriod.year,
+            payrollMonth: existingPeriod.month,
+            ...(periodEmployeeIds.length > 0 ? { employeeId: { in: periodEmployeeIds } } : {}),
+          },
+          _sum: { amount: true },
+        })
+        for (const row of perDiemRows) {
+          if (row.employeeId) perDiemByEmployee[row.employeeId] = Number(row._sum.amount ?? 0)
+        }
+      } catch { /* non-fatal */ }
+
+      const totalNetPay = periodEntries.reduce((sum: number, e: any) => {
+        const pd = e.employeeId ? (perDiemByEmployee[e.employeeId] || 0) : 0
+        return sum + Number(e.netPay || 0) + pd
+      }, 0)
 
       // Check global payroll account has sufficient balance
       const payrollAccount = await prisma.payrollAccounts.findFirst({

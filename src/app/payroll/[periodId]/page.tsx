@@ -792,8 +792,9 @@ export default function PayrollPeriodDetailPage() {
 
     const absenceDeduction = resolveAbsenceDeduction(entry)
     const clockInDeduction = Number((entry as any).clockInDeductionAmount || 0)
+    const perDiem = Number((entry as any).perDiem || 0)
     // Net Gross: true gross minus pre-tax deductions (absence + clock-in tardiness)
-    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions - absenceDeduction - clockInDeduction
+    const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions + perDiem - absenceDeduction - clockInDeduction
 
     const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
     const totalDeductions = derivedTotalDeductions
