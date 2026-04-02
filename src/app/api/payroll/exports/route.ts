@@ -484,8 +484,10 @@ const perDiemByEmployee: Record<string, number> = {}
       const additionsTotal = Number(totals.additionsTotal || 0)
       const absenceDeduction = Number(totals.absenceDeduction || 0)
 
+      const perDiemForEntry = empId ? (perDiemByEmployee[empId] || 0) : 0
       const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
-      const grossRaw = grossFromTotals
+      // Include per diem in gross — computeTotalsForEntry doesn't know about per diem
+      const grossRaw = grossFromTotals + perDiemForEntry
       const netComputed = grossRaw // Net = Gross (doesn't subtract deductions)
 
       enrichedEntries.push({

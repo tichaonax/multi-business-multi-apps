@@ -138,6 +138,61 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
     // When none exist (entries created before the benefit-persistence fix), fall back to
     // contract pdfGenerationData.benefits — applying the same month-restriction filter
     // used by the period GET route so Annual Bonus etc. are correctly excluded.
+    // When combined DOES exist, also merge in any contract pdfGenerationData benefits
+    // not already covered (e.g. Living Allowance added to contract after entry creation).
+
+    // Load month-restricted benefit types once — needed for both branches.
+    let paymentMonthMap = new Map<string, number>()
+    let paymentMonthByName = new Map<string, number>()
+    try {
+        const monthRestricted = await prisma.benefitTypes.findMany({
+            where: { paymentMonth: { not: null } },
+            select: { id: true, name: true, paymentMonth: true }
+        })
+        paymentMonthMap = new Map(monthRestricted.map((b: any) => [b.id, b.paymentMonth as number]))
+        paymentMonthByName = new Map(monthRestricted.map((b: any) => [String(b.name || '').toLowerCase().trim(), b.paymentMonth as number]))
+    } catch (_) { /* ignore — no filtering applied */ }
+
+    const normBenefitName = (s?: string | null) => {
+        if (!s) return ''
+        try { return String(s).normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase() } catch { return String(s).trim().replace(/\s+/g, ' ').toLowerCase() }
+    }
+
+    const entryBaseSalary = Number((entry as any).baseSalary ?? 0)
+
+    const mergePdfBenefitsInto = (list: any[], pdfBenefits: any[]) => {
+        // Build a set of keys already covered by persisted/combined benefits
+        const coveredKeys = new Set<string>()
+        for (const pb of list) {
+            if (pb.benefitTypeId) coveredKeys.add(String(pb.benefitTypeId))
+            const n = normBenefitName(pb.benefitName || pb.name || '')
+            if (n) coveredKeys.add(n)
+        }
+        for (const b of pdfBenefits) {
+            const rawAmount = Number(b.amount || 0)
+            if (!rawAmount) continue
+            // Apply paymentMonth filter
+            const nameLower = String(b.name || '').toLowerCase().trim()
+            const restrictedMonth = b.benefitTypeId
+                ? (paymentMonthMap.get(b.benefitTypeId) ?? paymentMonthByName.get(nameLower))
+                : paymentMonthByName.get(nameLower)
+            if (restrictedMonth && resolvedPeriodMonth && restrictedMonth !== resolvedPeriodMonth) continue
+            // Skip if already covered by a persisted benefit (by typeId or normalized name)
+            const key = b.benefitTypeId ? String(b.benefitTypeId) : normBenefitName(b.name || '')
+            if (key && coveredKeys.has(key)) continue
+            const amount = b.isPercentage === true
+                ? Math.round((rawAmount / 100) * entryBaseSalary * 100) / 100
+                : rawAmount
+            list.push({
+                benefitTypeId: b.benefitTypeId || null,
+                benefitName: b.name || 'Unknown Benefit',
+                amount,
+                isActive: true,
+                source: 'contract'
+            })
+        }
+    }
+
     let mergedBenefits: any[]
     if (combined.length > 0) {
         mergedBenefits = combined.map(pb => ({
@@ -148,44 +203,17 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
             isActive: pb.isActive !== false,
             source: pb.source || 'manual'
         }))
-    } else {
-        // No persisted benefits — read from contract pdfGenerationData with month filtering
+        // Also include any contract pdfGenerationData benefits not already covered
         const pdfBenefits: any[] = (contract as any)?.pdfGenerationData?.benefits || []
         if (pdfBenefits.length > 0) {
-            // Load month-restricted benefit types once for filtering
-            let paymentMonthMap = new Map<string, number>()
-            let paymentMonthByName = new Map<string, number>()
-            try {
-                const monthRestricted = await prisma.benefitTypes.findMany({
-                    where: { paymentMonth: { not: null } },
-                    select: { id: true, name: true, paymentMonth: true }
-                })
-                paymentMonthMap = new Map(monthRestricted.map((b: any) => [b.id, b.paymentMonth as number]))
-                paymentMonthByName = new Map(monthRestricted.map((b: any) => [String(b.name || '').toLowerCase().trim(), b.paymentMonth as number]))
-            } catch (_) { /* ignore — no filtering applied */ }
-
-            const entryBaseSalary = Number((entry as any).baseSalary ?? 0)
+            mergePdfBenefitsInto(mergedBenefits, pdfBenefits)
+        }
+    } else {
+        // No persisted benefits — read entirely from contract pdfGenerationData with month filtering
+        const pdfBenefits: any[] = (contract as any)?.pdfGenerationData?.benefits || []
+        if (pdfBenefits.length > 0) {
             const fromPdf: any[] = []
-            for (const b of pdfBenefits) {
-                const rawAmount = Number(b.amount || 0)
-                if (!rawAmount) continue
-                // Apply paymentMonth filter
-                const nameLower = String(b.name || '').toLowerCase().trim()
-                const restrictedMonth = b.benefitTypeId
-                    ? (paymentMonthMap.get(b.benefitTypeId) ?? paymentMonthByName.get(nameLower))
-                    : paymentMonthByName.get(nameLower)
-                if (restrictedMonth && resolvedPeriodMonth && restrictedMonth !== resolvedPeriodMonth) continue
-                const amount = b.isPercentage === true
-                    ? Math.round((rawAmount / 100) * entryBaseSalary * 100) / 100
-                    : rawAmount
-                fromPdf.push({
-                    benefitTypeId: b.benefitTypeId || null,
-                    benefitName: b.name || 'Unknown Benefit',
-                    amount,
-                    isActive: true,
-                    source: 'contract'
-                })
-            }
+            mergePdfBenefitsInto(fromPdf, pdfBenefits)
             mergedBenefits = fromPdf
         } else {
             mergedBenefits = []
