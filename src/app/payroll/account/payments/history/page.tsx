@@ -425,10 +425,12 @@ function PaymentHistoryContent() {
   const getPaymentTypeLabel = (type: string) => {
     switch (type) {
       case 'SALARY': return 'Salary Payment'
+      case 'REGULAR_SALARY': return 'Regular Salary'
       case 'LOAN_DISBURSEMENT': return 'Loan Disbursement'
       case 'ADVANCE': return 'Salary Advance'
       case 'BONUS': return 'Bonus Payment'
       case 'COMMISSION': return 'Commission Payment'
+      case 'GRATUITY': return 'Gratuity'
       default: return type
     }
   }
@@ -437,10 +439,12 @@ function PaymentHistoryContent() {
     const baseClasses = 'px-2 py-1 text-xs rounded-full font-medium'
     switch (type) {
       case 'SALARY': return `${baseClasses} bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`
+      case 'REGULAR_SALARY': return `${baseClasses} bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`
       case 'LOAN_DISBURSEMENT': return `${baseClasses} bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300`
       case 'ADVANCE': return `${baseClasses} bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300`
       case 'BONUS': return `${baseClasses} bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300`
       case 'COMMISSION': return `${baseClasses} bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300`
+      case 'GRATUITY': return `${baseClasses} bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300`
       default: return `${baseClasses} bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300`
     }
   }
@@ -551,10 +555,12 @@ function PaymentHistoryContent() {
                   >
                     <option value="">All Types</option>
                     <option value="SALARY">Salary Payment</option>
+                    <option value="REGULAR_SALARY">Regular Salary</option>
                     <option value="LOAN_DISBURSEMENT">Loan Disbursement</option>
                     <option value="ADVANCE">Salary Advance</option>
                     <option value="BONUS">Bonus Payment</option>
                     <option value="COMMISSION">Commission Payment</option>
+                    <option value="GRATUITY">Gratuity</option>
                   </select>
                 </div>
 

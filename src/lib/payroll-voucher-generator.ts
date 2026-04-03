@@ -429,46 +429,46 @@ export function generateVoucherHTML(data: VoucherData): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payment Voucher - ${data.employeeNumber} - ${data.employeeName} - ${data.voucherNumber}</title>
   <style>
-    @page { size: A4; margin: 20mm; }
+    @page { size: A4; margin: 12mm; }
     @media print { body { margin: 0; padding: 0; } .no-print { display: none; } }
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
-    .voucher-container { border: 2px solid #333; padding: 30px; background: white; }
+    body { font-family: Arial, sans-serif; line-height: 1.4; color: #333; max-width: 780px; margin: 0 auto; padding: 12px; }
+    .voucher-container { border: 2px solid #333; padding: 18px 22px; background: white; }
 
     /* Business header */
-    .business-header { text-align: center; margin-bottom: 16px; }
-    .business-name { font-size: 22px; font-weight: bold; color: #1e3a5f; margin: 0; }
-    .business-meta { font-size: 13px; color: #555; margin-top: 4px; }
+    .business-header { text-align: center; margin-bottom: 10px; }
+    .business-name { font-size: 18px; font-weight: bold; color: #1e3a5f; margin: 0; }
+    .business-meta { font-size: 12px; color: #555; margin-top: 2px; }
 
     /* Voucher title */
-    .voucher-header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid #333; padding-bottom: 16px; border-top: 1px solid #ccc; padding-top: 16px; }
-    .voucher-header h1 { margin: 0; font-size: 22px; color: #2563eb; }
-    .voucher-number { font-size: 15px; font-weight: bold; margin-top: 6px; color: #666; }
+    .voucher-header { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #333; padding-bottom: 10px; border-top: 1px solid #ccc; padding-top: 10px; }
+    .voucher-header h1 { margin: 0; font-size: 18px; color: #2563eb; }
+    .voucher-number { font-size: 13px; font-weight: bold; margin-top: 3px; color: #666; }
 
     /* Info rows */
-    .voucher-body { margin: 20px 0; }
-    .section-title { font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin: 18px 0 6px; }
-    .info-row { display: flex; justify-content: space-between; margin: 8px 0; padding: 8px 12px; background: #f9fafb; border-left: 3px solid #2563eb; }
-    .info-label { font-weight: bold; color: #555; min-width: 180px; font-size: 14px; }
-    .info-value { flex: 1; text-align: right; color: #333; font-size: 14px; }
+    .voucher-body { margin: 10px 0; }
+    .section-title { font-size: 11px; font-weight: bold; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 4px; }
+    .info-row { display: flex; justify-content: space-between; margin: 4px 0; padding: 5px 10px; background: #f9fafb; border-left: 3px solid #2563eb; }
+    .info-label { font-weight: bold; color: #555; min-width: 160px; font-size: 13px; }
+    .info-value { flex: 1; text-align: right; color: #333; font-size: 13px; }
 
     /* Net pay box — prominent */
-    .net-pay-box { margin: 24px 0 8px; padding: 20px; background: #eff6ff; border: 2px solid #2563eb; text-align: center; }
-    .net-pay-label { font-size: 13px; color: #2563eb; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-    .net-pay-amount { font-size: 36px; font-weight: bold; color: #1d4ed8; }
+    .net-pay-box { margin: 14px 0 6px; padding: 12px; background: #eff6ff; border: 2px solid #2563eb; text-align: center; }
+    .net-pay-label { font-size: 11px; color: #2563eb; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .net-pay-amount { font-size: 28px; font-weight: bold; color: #1d4ed8; }
 
     /* Gross reference row */
-    .gross-ref { display: flex; justify-content: space-between; padding: 6px 12px; background: #f3f4f6; border-left: 3px solid #9ca3af; margin-bottom: 16px; font-size: 13px; color: #6b7280; }
+    .gross-ref { display: flex; justify-content: space-between; padding: 4px 10px; background: #f3f4f6; border-left: 3px solid #9ca3af; margin-bottom: 10px; font-size: 12px; color: #6b7280; }
 
     /* Signature */
-    .signature-section { margin-top: 48px; padding-top: 24px; border-top: 2px solid #e5e7eb; }
-    .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; }
-    .sig-block .sig-line { border-bottom: 2px solid #333; margin-bottom: 6px; height: 40px; }
-    .sig-label { font-size: 13px; color: #666; }
+    .signature-section { margin-top: 20px; padding-top: 14px; border-top: 2px solid #e5e7eb; }
+    .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 18px; }
+    .sig-block .sig-line { border-bottom: 2px solid #333; margin-bottom: 4px; height: 28px; }
+    .sig-label { font-size: 12px; color: #666; }
 
     /* Footer */
-    .regeneration-notice { margin-top: 16px; padding: 8px 12px; background: #fef3c7; border-left: 4px solid #f59e0b; font-size: 12px; color: #92400e; }
-    .voucher-footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #aaa; text-align: center; }
-    .print-button { margin: 16px 0; padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; }
+    .regeneration-notice { margin-top: 10px; padding: 6px 10px; background: #fef3c7; border-left: 4px solid #f59e0b; font-size: 11px; color: #92400e; }
+    .voucher-footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #aaa; text-align: center; }
+    .print-button { margin: 10px 0; padding: 8px 18px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
     .print-button:hover { background: #1d4ed8; }
   </style>
 </head>

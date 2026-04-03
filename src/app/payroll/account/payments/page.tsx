@@ -51,7 +51,7 @@ function BatchPaymentsContent() {
   const [paymentNotes, setPaymentNotes] = useState<Map<string, string>>(new Map())
 
   const [defaultAmount, setDefaultAmount] = useState('0')
-  const [paymentType, setPaymentType] = useState<'REGULAR_SALARY' | 'BONUS' | 'COMMISSION'>('REGULAR_SALARY')
+  const [paymentType, setPaymentType] = useState<'REGULAR_SALARY' | 'BONUS' | 'COMMISSION' | 'GRATUITY'>('REGULAR_SALARY')
   const [paymentSchedule, setPaymentSchedule] = useState<'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'>('MONTHLY')
 
   useEffect(() => {
@@ -340,6 +340,7 @@ function BatchPaymentsContent() {
                     <option value="REGULAR_SALARY">Regular Salary</option>
                     <option value="BONUS">Bonus</option>
                     <option value="COMMISSION">Commission</option>
+                    <option value="GRATUITY">Gratuity</option>
                   </select>
                 </div>
 
