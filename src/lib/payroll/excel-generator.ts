@@ -372,35 +372,8 @@ export async function generatePayrollExcel(
       return isNaN(n) ? 0 : n
     }
 
-    const resolveAbsenceDeduction = (periodParam: any) => {
-      try {
-        // stored explicit absence deduction (take precedence)
-        const stored = Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
-        if (stored && stored !== 0) return stored
-
-        // compute total absence days including fractional component when provided
-        const baseAbsence = Number((entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0)
-        const fraction = parseFraction((entry as any).absenceFraction ?? (entry as any).absenceFractionDays ?? 0)
-        const totalAbsenceDays = (baseAbsence || 0) + (fraction || 0)
-        if (!totalAbsenceDays || totalAbsenceDays <= 0) return 0
-
-        const baseSalary = Number(entry.baseSalary || 0)
-        const d = new Date(periodParam.periodStart)
-        const month = Number((d.getMonth ? d.getMonth() : (new Date()).getMonth()) + 1)
-        const year = Number(d.getFullYear ? d.getFullYear() : (new Date()).getFullYear())
-        const daysInMonth = new Date(year, month, 0).getDate()
-        let cnt = 0
-        for (let dd = 1; dd <= daysInMonth; dd++) {
-          const dt = new Date(year, month - 1, dd)
-          const day = dt.getDay()
-          // Count Monday-Saturday as working days (exclude Sundays only)
-          if (day !== 0) cnt++
-        }
-        const workingDaysLocal = cnt || 22
-        const perDay = workingDaysLocal > 0 ? (baseSalary / workingDaysLocal) : 0
-        const deduction = perDay * totalAbsenceDays
-        return Number(deduction || 0)
-      } catch (e) { return 0 }
+    const resolveAbsenceDeduction = (_periodParam: any) => {
+      return Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
     }
 
     // Build row data array
@@ -522,13 +495,6 @@ export async function generatePayrollExcel(
     // Always prefer derived value when it differs from server (matches preview logic in period detail route)
     const totalDeductions = serverTotalDeductionsVal !== derivedTotalDeductions ? derivedTotalDeductions : (serverTotalDeductionsVal ?? derivedTotalDeductions)
 
-  // Net = Gross (deductions are NOT subtracted - they are shown separately)
-  const netInclBenefits = grossInclBenefits
-
-    // Compute absence/unearned value: prefer stored/persisted absenceDeduction, otherwise compute per-day using cumulativeAbsenceDays
-  // Use resolved absence deduction (positive number). For display in Excel match preview which shows a negative value
-  const absenceDeduction = resolveAbsenceDeduction(period)
-  const absenceDays = Number((entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0)
     const workingDays = (() => {
       try {
         const d = new Date(period.periodStart)
@@ -546,7 +512,8 @@ export async function generatePayrollExcel(
       } catch (e) { return 22 }
     })()
     const perDay = workingDays > 0 ? (Number(entry.baseSalary || 0) / workingDays) : 0
-    const computedAbsence = absenceDeduction && absenceDeduction !== 0 ? absenceDeduction : (perDay * absenceDays)
+    const absenceDeduction = Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
+    const computedAbsence = absenceDeduction
 
     // Deductions: combine advances/loans/misc + adjustments-as-deductions (adjAsDeductions computed earlier)
     const misc = Number(entry.miscDeductions || 0)
@@ -561,10 +528,8 @@ export async function generatePayrollExcel(
     const nssaEmployer = Number((entry as any).nssaEmployer || 0)
     const paye = Number((entry as any).payeAmount || 0)
     const aidsLevyAmt = Number((entry as any).aidsLevy || 0)
-    const computedNetTakeHome = Math.max(0, grossInclBenefits - nssaEmployee - paye - aidsLevyAmt)
-    // Use rounded net pay if available (set on approval via carryover rounding); otherwise round to whole dollar
-    const roundedNetPay = (entry as any).roundedNetPay != null ? Number((entry as any).roundedNetPay) : null
-    const netTakeHome = roundedNetPay !== null ? roundedNetPay : Math.round(computedNetTakeHome)
+    // Net = Gross minus statutory deductions AND personal deductions (loans, advances, misc)
+    const netTakeHome = Math.round(Math.max(0, grossInclBenefits - nssaEmployee - paye - aidsLevyAmt - totalDeductions))
 
     rowData.push(
         // Absence as negative (match preview display)
@@ -681,9 +646,9 @@ export async function generatePayrollExcel(
     excelCol++
   })
 
-  // Add formulas for end columns (8 total: Absence, Deductions, Benefits Total, Gross Pay, NSSA, PAYE, AIDS Levy, Net Take-Home)
+  // Add formulas for end columns (Absence, Deductions, Benefits Total, Gross Pay, NSSA Employee, NSSA Employer, PAYE Tax, Aids Levy, Net Take-Home)
   // excelCol now points to the first end column
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < endHeaders.length; i++) {
     const colLetter = getColumnLetter(excelCol + i)
     totalRowData.push({ formula: makeSumFormula(colLetter) })
   }

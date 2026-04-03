@@ -517,7 +517,7 @@ const perDiemByEmployee: Record<string, number> = {}
 
       const perDiemForEntry = empId ? (perDiemByEmployee[empId] || 0) : 0
       const grossFromTotals = Number(totals.grossPay ?? Number(entry.grossPay || 0))
-      // Include per diem in gross — computeTotalsForEntry doesn't know about per diem
+      // Include per diem in gross for display — but per diem is non-taxable so PAYE is calculated without it
       const grossRaw = grossFromTotals + perDiemForEntry
       const netComputed = grossRaw // Net = Gross (doesn't subtract deductions)
 
@@ -528,8 +528,8 @@ const perDiemByEmployee: Record<string, number> = {}
         ?? contract?.baseSalary
         ?? Number(entry.baseSalary || 0)
       )
-      // PAYE uses total taxable gross (gross earnings)
-      const payeAmt = calculatePaye(grossRaw, monthlyBrackets)
+      // PAYE is calculated on taxable gross only — per diem is a non-taxable reimbursement
+      const payeAmt = calculatePaye(grossFromTotals, monthlyBrackets)
       const aidsLevyAmt = calculateAidsLevy(payeAmt, taxConstants.aidsLevyRate)
       const nssaEmployeeAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployeeRate)
       const nssaEmployerAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployerRate)
@@ -591,6 +591,54 @@ const perDiemByEmployee: Record<string, number> = {}
             aidsLevy: e.aidsLevy ?? 0,
           }
         })
+      } catch { /* non-fatal */ }
+    }))
+
+    // Auto-populate payroll_slips from computed values on every export.
+    // PENDING slips are created or refreshed; CAPTURED/DISTRIBUTED slips are left untouched.
+    await Promise.allSettled(enrichedEntries.map(async (e: any) => {
+      if (!e.employeeId) return
+      try {
+        const grossPay = Number(e.grossPay || 0)
+        const payeAmount = Number(e.payeAmount || 0)
+        const aidsLevy = Number(e.aidsLevy || 0)
+        const nssaEmployee = Number(e.nssaEmployee || 0)
+        const loanDeductions = Number(e.loanDeductions || 0)
+        const advanceDeductions = Number(e.advanceDeductions || 0)
+        const miscDeductions = Number(e.miscDeductions || 0)
+        const absenceDeduction = Number(e.absenceDeduction || 0)
+        const totalDeductions = payeAmount + aidsLevy + nssaEmployee + absenceDeduction + loanDeductions + advanceDeductions + miscDeductions
+        const nettPay = Math.round(Math.max(0, grossPay - totalDeductions))
+
+        const existing = await prisma.payrollSlips.findUnique({
+          where: { payrollEntryId: e.id },
+          select: { id: true, status: true },
+        })
+
+        if (existing && ['CAPTURED', 'DISTRIBUTED'].includes(existing.status)) return
+
+        const slipData = {
+          payrollPeriodId: e.payrollPeriodId,
+          employeeId: e.employeeId,
+          totalEarnings: grossPay,
+          payeTax: payeAmount,
+          aidsLevy: aidsLevy,
+          nssaEmployee: nssaEmployee,
+          loanDeductions: loanDeductions,
+          advanceDeductions: advanceDeductions,
+          miscDeductions: miscDeductions,
+          totalDeductions: totalDeductions,
+          nettPay: nettPay,
+          status: 'CAPTURED' as const,
+          capturedAt: new Date(),
+          capturedBy: user.id,
+        }
+
+        if (existing) {
+          await prisma.payrollSlips.update({ where: { id: existing.id }, data: slipData })
+        } else {
+          await prisma.payrollSlips.create({ data: { payrollEntryId: e.id, ...slipData } })
+        }
       } catch { /* non-fatal */ }
     }))
 

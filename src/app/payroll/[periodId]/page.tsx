@@ -109,6 +109,8 @@ export default function PayrollPeriodDetailPage() {
   const [showAddEntry, setShowAddEntry] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [generatingPayslips, setGeneratingPayslips] = useState(false)
+  const [generatingZimra, setGeneratingZimra] = useState(false)
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [includePastPeriods, setIncludePastPeriods] = useState(false)
@@ -741,22 +743,7 @@ export default function PayrollPeriodDetailPage() {
   // If absent, fall back using the same hourly-rate formula as the Edit modal:
   //   absenceDays × 9 hrs/day × (baseSalary × 12 / 2808)
   const resolveAbsenceDeduction = (entry: PayrollEntry) => {
-    try {
-      const stored = Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
-      if (stored && stored !== 0) return stored
-
-      // Fallback: same formula as Edit modal — hourly rate × 9 hrs/day × absenceDays
-      // Use entry.absenceDays (this month only), NOT cumulativeAbsenceDays which double-counts
-      // because the period API adds cumulative time-tracking days on top of entry.absenceDays.
-      const absenceDays = Number(entry.absenceDays || 0)
-      if (!absenceDays || absenceDays <= 0) return 0
-      const baseSalary = Number(entry.baseSalary || 0)
-      const hourlyRate = (baseSalary * 12) / 2808  // 6 days/wk × 9 hrs/day × 52 wks
-      const deduction = Math.round(absenceDays * 9 * hourlyRate * 100) / 100
-      return Number(deduction || 0)
-    } catch (e) {
-      return 0
-    }
+    return Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
   }
 
   // Resolve benefits total for an entry - prefer server-provided totals but fall back to merged/contract/entry calculations
@@ -1239,6 +1226,65 @@ export default function PayrollPeriodDetailPage() {
                 {exporting ? 'Regenerating...' : 'Regenerate Export'}
               </button>
 
+              {/* Document Generation */}
+              <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
+              <button
+                disabled={generatingPayslips}
+                onClick={async () => {
+                  setGeneratingPayslips(true)
+                  try {
+                    const res = await fetch(`/api/payroll/periods/${period.id}/payslips/generate-bulk`, { method: 'POST' })
+                    if (res.ok) {
+                      const blob = await res.blob()
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'payslips.pdf'
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    } else {
+                      const err = await res.json().catch(() => null)
+                      showNotification('error', err?.error || 'Failed to generate payslips')
+                    }
+                  } catch {
+                    showNotification('error', 'Failed to generate payslips')
+                  } finally {
+                    setGeneratingPayslips(false)
+                  }
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700 disabled:opacity-50"
+              >
+                {generatingPayslips ? '⏳ Generating...' : '📄 Generate Payslips'}
+              </button>
+              <button
+                disabled={generatingZimra}
+                onClick={async () => {
+                  setGeneratingZimra(true)
+                  try {
+                    const res = await fetch(`/api/payroll/periods/${period.id}/zimra/voucher`)
+                    if (res.ok) {
+                      const blob = await res.blob()
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'zimra-voucher.pdf'
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    } else {
+                      const err = await res.json().catch(() => null)
+                      showNotification('error', err?.error || 'Failed to generate ZIMRA voucher')
+                    }
+                  } catch {
+                    showNotification('error', 'Failed to generate ZIMRA voucher')
+                  } finally {
+                    setGeneratingZimra(false)
+                  }
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700 disabled:opacity-50"
+              >
+                {generatingZimra ? '⏳ Generating...' : '🏛️ ZIMRA Voucher'}
+              </button>
+
               {/* Payroll Account Actions */}
               <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
               <button
@@ -1645,18 +1691,17 @@ export default function PayrollPeriodDetailPage() {
                           <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(totals.grossInclBenefits)}</td>
                           {(() => {
                             const contractualBasicSalary = Number((entry as any).contractSnapshot?.basicSalary ?? (entry as any).contract?.pdfGenerationData?.basicSalary ?? Number(entry.baseSalary || 0))
-                            const statutory = previewPaye(totals.grossInclBenefits, contractualBasicSalary)
-                            const roundedNetPay = (entry as any).roundedNetPay != null ? Number((entry as any).roundedNetPay) : null
+                            // Per diem is non-taxable — exclude from PAYE taxable base
+                            const perDiem = Number((entry as any).perDiem || 0)
+                            const taxableGross = Math.max(0, totals.grossInclBenefits - perDiem)
+                            const statutory = previewPaye(taxableGross, contractualBasicSalary)
+                            const netTakeHome = Math.max(0, totals.grossInclBenefits - statutory.nssa - statutory.paye - statutory.aidsLevy - totals.totalDeductions)
                             return (
                               <>
                                 <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.nssa)}</td>
                                 <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.paye)}</td>
                                 <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.aidsLevy)}</td>
-                                {roundedNetPay !== null ? (
-                                  <td className="px-3 py-2 text-sm text-right text-green-700 dark:text-green-300 font-bold cursor-pointer" title="Rounded net pay (whole dollar, carryover applied)" onClick={() => setSelectedEntryId(entry.id)}>${roundedNetPay.toLocaleString()}</td>
-                                ) : (
-                                  <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 font-semibold cursor-pointer" title="Estimate — rounded net pay set on approval" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.netTakeHome)} <span className="text-xs opacity-60">(est)</span></td>
-                                )}
+                                <td className="px-3 py-2 text-sm text-right text-green-700 dark:text-green-300 font-bold cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(netTakeHome)}</td>
                               </>
                             )
                           })()}

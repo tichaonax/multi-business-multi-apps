@@ -28,7 +28,15 @@ export async function GET(req: NextRequest) {
     const years = availableYears.map(r => r.year)
 
     // Resolve year: default to latest
-    const year = yearParam ? parseInt(yearParam) : (years[0] ?? new Date().getFullYear())
+    let year = yearParam ? parseInt(yearParam) : (years[0] ?? new Date().getFullYear())
+
+    // If the requested year has no brackets, fall back to the most recent year that does
+    if (yearParam) {
+      const exists = await prisma.payeTaxBrackets.count({ where: { year } })
+      if (exists === 0 && years.length > 0) {
+        year = years[0]
+      }
+    }
 
     const brackets = await prisma.payeTaxBrackets.findMany({
       where: { year, tableType },

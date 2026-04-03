@@ -195,7 +195,8 @@ async function populateWorksheet(
     const nssaEmployer = Number(entry.nssaEmployer || 0)
     const paye = Number(entry.payeAmount || 0)
     const aidsLevy = Number(entry.aidsLevy || 0)
-    const netTakeHome = Math.max(0, grossPay - nssaEmployee - paye - aidsLevy)
+    // Net = Gross minus statutory deductions AND personal deductions (loans, advances, misc)
+    const netTakeHome = Math.round(Math.max(0, grossPay - nssaEmployee - paye - aidsLevy - deductions))
 
     totalGross += grossPay
     totalNet += netTakeHome
@@ -387,8 +388,11 @@ export async function regeneratePeriodEntries(periodId: string): Promise<any[]> 
 
     // Contractual basic salary for NSSA (pre-proration)
     const contractualBasicSalary = Number((entry as any).contractSnapshot?.basicSalary ?? Number(entry.baseSalary || 0))
+    // PAYE is on taxable gross only — per diem is a non-taxable reimbursement, exclude it
     const grossForPaye = Number(totals.grossPay || entry.grossPay || 0)
-    const payeAmt = calculatePaye(grossForPaye, monthlyBrackets)
+    const perDiemForEntry = Number((entry as any).perDiem || 0)
+    const taxableGross = Math.max(0, grossForPaye - perDiemForEntry)
+    const payeAmt = calculatePaye(taxableGross, monthlyBrackets)
     const aidsLevyAmt = calculateAidsLevy(payeAmt, taxConstants.aidsLevyRate)
     const nssaEmployeeAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployeeRate)
     const nssaEmployerAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployerRate)

@@ -389,40 +389,19 @@ export function PayslipCaptureModal({
                         <div className="font-medium text-gray-900 dark:text-gray-100">{slip.employeeName}</div>
                         <div className="text-gray-400 dark:text-gray-500">{slip.employeeNumber}</div>
                       </td>
-                      {/* Total Earnings */}
-                      <td className="px-2 py-1">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={row.totalEarnings}
-                          onChange={(e) => updateField(slip.id, 'totalEarnings', e.target.value)}
-                          onBlur={() => blurField(slip.id, 'totalEarnings')}
-                          className={`w-24 ${inputBase} ${eMismatch ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/30' : ''}`}
-                        />
-                        {eMismatch && (
-                          <div className="text-amber-600 dark:text-amber-400 text-[10px]">
-                            ⚠ System: {fmt(slip.entryGrossPay)}
-                          </div>
-                        )}
+                      {/* Total Earnings — auto from system */}
+                      <td className="px-2 py-1 text-right font-medium text-gray-900 dark:text-gray-100">
+                        {row.totalEarnings}
                       </td>
-                      {/* Statutory deductions */}
-                      <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20">
-                        <input type="text" inputMode="decimal" value={row.payeTax}
-                          onChange={(e) => updateField(slip.id, 'payeTax', e.target.value)}
-                          onBlur={() => blurField(slip.id, 'payeTax')}
-                          className={`w-20 ${inputBase}`} />
+                      {/* Statutory deductions — auto from system */}
+                      <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20 text-right text-gray-700 dark:text-gray-300">
+                        {row.payeTax || '0.00'}
                       </td>
-                      <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20">
-                        <input type="text" inputMode="decimal" value={row.aidsLevy}
-                          onChange={(e) => updateField(slip.id, 'aidsLevy', e.target.value)}
-                          onBlur={() => blurField(slip.id, 'aidsLevy')}
-                          className={`w-20 ${inputBase}`} />
+                      <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20 text-right text-gray-700 dark:text-gray-300">
+                        {row.aidsLevy || '0.00'}
                       </td>
-                      <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20">
-                        <input type="text" inputMode="decimal" value={row.nssaEmployee}
-                          onChange={(e) => updateField(slip.id, 'nssaEmployee', e.target.value)}
-                          onBlur={() => blurField(slip.id, 'nssaEmployee')}
-                          className={`w-20 ${inputBase}`} />
+                      <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20 text-right text-gray-700 dark:text-gray-300">
+                        {row.nssaEmployee || '0.00'}
                       </td>
                       <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20">
                         <input type="text" inputMode="decimal" value={row.necEmployee}
@@ -481,17 +460,8 @@ export function PayslipCaptureModal({
                       <td className="px-2 py-1 text-right font-medium text-red-700 dark:text-red-400">
                         {totalDed.toFixed(2)}
                       </td>
-                      <td className="px-2 py-1">
-                        <input
-                          type="text" inputMode="decimal"
-                          value={row.nettPay !== '' ? row.nettPay : nettPayCalc.toFixed(2)}
-                          onChange={(e) => updateField(slip.id, 'nettPay', e.target.value)}
-                          onBlur={() => blurField(slip.id, 'nettPay')}
-                          className={`w-24 font-semibold ${inputBase}`}
-                        />
-                        {row.nettPay !== '' && Math.abs((n(row.nettPay) || 0) - nettPayCalc) > 0.01 && (
-                          <div className="text-amber-600 dark:text-amber-400 text-[10px]">⚠ Calc: {nettPayCalc.toFixed(2)}</div>
-                        )}
+                      <td className="px-2 py-1 text-right font-semibold text-green-700 dark:text-green-400">
+                        {row.nettPay || nettPayCalc.toFixed(2)}
                       </td>
                       <td className="px-2 py-1">
                         <input type="text" inputMode="decimal" value={row.leaveDaysDue}
@@ -518,10 +488,9 @@ export function PayslipCaptureModal({
 
         {/* Legend */}
         <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-4 text-xs text-gray-500 dark:text-gray-400">
-          <span><span className="inline-block w-3 h-3 bg-orange-200 dark:bg-orange-700 rounded mr-1"></span>Statutory deductions (from payslip)</span>
-          <span><span className="inline-block w-3 h-3 bg-red-200 dark:bg-red-700 rounded mr-1"></span>Employee deductions (pre-filled from our records)</span>
-          <span><span className="inline-block w-3 h-3 bg-purple-200 dark:bg-purple-700 rounded mr-1"></span>Employer contributions</span>
-          <span className="text-amber-600 dark:text-amber-400">⚠ = mismatch with our records</span>
+          <span><span className="inline-block w-3 h-3 bg-orange-200 dark:bg-orange-700 rounded mr-1"></span>Statutory deductions (auto-populated on export)</span>
+          <span><span className="inline-block w-3 h-3 bg-red-200 dark:bg-red-700 rounded mr-1"></span>Employee deductions (editable)</span>
+          <span><span className="inline-block w-3 h-3 bg-purple-200 dark:bg-purple-700 rounded mr-1"></span>Employer contributions (editable)</span>
         </div>
 
         {/* ZIMRA P2 Remittance Panel */}

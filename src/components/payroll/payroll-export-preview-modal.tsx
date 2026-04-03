@@ -291,20 +291,7 @@ export function PayrollExportPreviewModal({
   // Resolve absence deduction value for an entry. Prefer persisted values exposed by the API
   // but fall back to a per-day pro-rated computation based on cumulativeAbsenceDays.
   const resolveAbsenceDeduction = (entry: PayrollEntry) => {
-    try {
-      const stored = Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
-      if (stored && stored !== 0) return stored
-
-      const absenceDays = Number((entry as any).cumulativeAbsenceDays || 0)
-      if (!absenceDays || absenceDays <= 0) return 0
-      const baseSalary = Number(entry.baseSalary || 0)
-      const workingDays = period ? getWorkingDaysInMonthClient(period.year, period.month) : 22
-      const perDay = workingDays > 0 ? (baseSalary / workingDays) : 0
-      const deduction = perDay * absenceDays
-      return Number(deduction || 0)
-    } catch (e) {
-      return 0
-    }
+    return Number((entry as any).absenceDeduction ?? (entry as any).absenceAmount ?? 0)
   }
 
   if (!isOpen) return null
@@ -467,7 +454,7 @@ export function PayrollExportPreviewModal({
                             acc.nssaEmpr += Number((e as any).nssaEmployer || 0)
                             acc.paye += Number((e as any).payeAmount || 0)
                             acc.aidsLevy += Number((e as any).aidsLevy || 0)
-                            acc.net += (e as any).roundedNetPay != null ? Number((e as any).roundedNetPay) : ((e as any).netPay != null ? Number((e as any).netPay) : computeEntryTotalsAligned(e as any).net)
+                            acc.net += Math.max(0, computeEntryTotalsAligned(e as any).gross - Number((e as any).nssaEmployee || 0) - Number((e as any).payeAmount || 0) - Number((e as any).aidsLevy || 0) - computeEntryTotalsAligned(e as any).totalDeductions)
                             return acc
                           }, { contractual: 0, base: 0, comm: 0, ot1: 0, ot2: 0, pd: 0, cashInLieu: 0, adj: 0, abs: 0, deds: 0, bens: 0, gross: 0, nssaEmp: 0, nssaEmpr: 0, paye: 0, aidsLevy: 0, net: 0 })
                           return (
@@ -579,7 +566,7 @@ export function PayrollExportPreviewModal({
                             <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(Number((entry as any).nssaEmployer || 0))}</td>
                             <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(Number((entry as any).payeAmount || 0))}</td>
                             <td className="px-3 py-2 text-sm text-right text-red-600 dark:text-red-400">{formatCurrency(Number((entry as any).aidsLevy || 0))}</td>
-                            <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium">{(entry as any).roundedNetPay != null ? formatCurrency(Number((entry as any).roundedNetPay)) : ((entry as any).netPay != null ? formatCurrency(Number((entry as any).netPay)) : formatCurrency(computeEntryTotalsAligned(entry).gross - Number((entry as any).nssaEmployee || 0) - Number((entry as any).payeAmount || 0) - Number((entry as any).aidsLevy || 0)))}</td>
+                            <td className="px-3 py-2 text-sm text-right text-green-600 dark:text-green-400 font-medium">{formatCurrency(Math.max(0, computeEntryTotalsAligned(entry).gross - Number((entry as any).nssaEmployee || 0) - Number((entry as any).payeAmount || 0) - Number((entry as any).aidsLevy || 0) - computeEntryTotalsAligned(entry).totalDeductions))}</td>
                           </tr>
                         )
                       })
@@ -635,7 +622,7 @@ export function PayrollExportPreviewModal({
                       <td className="px-3 py-2 text-sm text-right font-bold text-red-600 dark:text-red-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number((e as any).nssaEmployer || 0), 0))}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-red-600 dark:text-red-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number((e as any).payeAmount || 0), 0))}</td>
                       <td className="px-3 py-2 text-sm text-right font-bold text-red-600 dark:text-red-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Number((e as any).aidsLevy || 0), 0))}</td>
-                      <td className="px-3 py-2 text-sm text-right font-bold text-green-600 dark:text-green-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + ((e as any).roundedNetPay != null ? Number((e as any).roundedNetPay) : ((e as any).netPay != null ? Number((e as any).netPay) : computeEntryTotalsAligned(e).gross - Number((e as any).nssaEmployee || 0) - Number((e as any).payeAmount || 0) - Number((e as any).aidsLevy || 0))), 0))}</td>
+                      <td className="px-3 py-2 text-sm text-right font-bold text-green-600 dark:text-green-400">{formatCurrency(period.payrollEntries.reduce((sum, e) => sum + Math.max(0, computeEntryTotalsAligned(e).gross - Number((e as any).nssaEmployee || 0) - Number((e as any).payeAmount || 0) - Number((e as any).aidsLevy || 0) - computeEntryTotalsAligned(e).totalDeductions), 0))}</td>
                     </tr>
                   </tfoot>
                 </table>
