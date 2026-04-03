@@ -1879,8 +1879,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {(() => {
                 // Pinned products first, then fill remaining slots up to 20
-                const pinned = quickAddProducts.filter(p => pinnedProductIds.has(p.id))
-                const unpinned = quickAddProducts.filter(p => !pinnedProductIds.has(p.id))
+                // Exclude products where all variants have zero stock
+                const inStockProducts = quickAddProducts.filter(p => p.variants.some((v: any) => v.stock > 0))
+                const pinned = inStockProducts.filter(p => pinnedProductIds.has(p.id))
+                const unpinned = inStockProducts.filter(p => !pinnedProductIds.has(p.id))
                 const displayProducts = [...pinned, ...unpinned].slice(0, Math.max(20, pinned.length))
                 return displayProducts.map((product) => (
                 <div key={product.id} className={`border rounded-lg p-3 hover:shadow-md transition-shadow ${pinnedProductIds.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : ''}`}>
@@ -1921,7 +1923,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {product.variants.map((variant: any) => {
+                    {product.variants.filter((v: any) => v.stock > 0).map((variant: any) => {
                       // Build variant display name
                       const variantName = [
                         variant.attributes?.size,

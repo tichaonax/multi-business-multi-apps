@@ -582,6 +582,10 @@ export async function createCleanBackup(
   })
 
   // 9. Payroll system
+  // Payroll tax reference tables (global — no businessId filter needed)
+  businessData.payeTaxBrackets = await prisma.payeTaxBrackets.findMany()
+  businessData.payrollTaxConstants = await prisma.payrollTaxConstants.findMany()
+
   businessData.payrollPeriods = await prisma.payrollPeriods.findMany({
     where: {
       businessId: { in: businessIds }
@@ -1054,8 +1058,11 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
-
   businessData.customerDisplayAds = await prisma.customerDisplayAd.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  businessData.posTerminalConfigs = await prisma.posTerminalConfig.findMany({
     where: { businessId: { in: businessIds } }
   })
 
@@ -1324,7 +1331,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.20.0',
+    schemaVersion: '6.21.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

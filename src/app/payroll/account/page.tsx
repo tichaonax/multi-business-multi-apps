@@ -85,7 +85,7 @@ function PayrollAccountContent() {
   }
 
   const getTransactionColor = (type: string) => {
-    return type === 'DEPOSIT' ? 'text-green-600' : 'text-red-600'
+    return type === 'DEPOSIT' ? 'text-green-400' : 'text-orange-400'
   }
 
   const formatCurrency = (amount: number) => {

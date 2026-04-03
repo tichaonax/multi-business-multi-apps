@@ -90,6 +90,10 @@ const RESTORE_ORDER = [
   'conflictResolutions',
   'dataSnapshots',
 
+  // Payroll tax reference data (global, no FK dependencies)
+  'payeTaxBrackets',        // PAYE tax brackets by year
+  'payrollTaxConstants',    // NSSA + AIDS Levy rates by year
+
   // Inventory and expense reference data
   'inventoryDomains',
   'expenseDomains',
@@ -183,6 +187,7 @@ const RESTORE_ORDER = [
   // Saved reports and display ads
   'savedReports',             // Depends on businesses, users
   'customerDisplayAds',       // Depends on businesses
+  'posTerminalConfigs',       // Depends on businesses
 
   // Expense accounts (order matters: grants/lenders/loans before deposits; ledger before payments)
   'expenseAccounts',
@@ -420,6 +425,7 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'customerLaybys': 'customerLayby',
   'customerLaybyPayments': 'customerLaybyPayment',
   'customerDisplayAds': 'customerDisplayAd',
+  'posTerminalConfigs': 'posTerminalConfig',
   // EOD / Cash Box
   'eodPaymentBatches': 'eODPaymentBatch',
   'cashBucketEntries': 'cashBucketEntry',

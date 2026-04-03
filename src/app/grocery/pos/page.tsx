@@ -2816,6 +2816,11 @@ function GroceryPOSContent() {
                     }
                   }
 
+                  // Exclude zero-stock items (desk mode has stockQuantity; normal mode skips this)
+                  if (deskMode) {
+                    filteredProducts = filteredProducts.filter(p => p.stockQuantity === undefined || p.stockQuantity > 0)
+                  }
+
                   // Desk mode: sort by performance (soldToday desc, then firstSoldTodayAt asc, then unsold)
                   if (deskMode && productStatsMap.size > 0) {
                     filteredProducts = [...filteredProducts].sort((a, b) => {
