@@ -630,7 +630,7 @@ The owner opens the payroll period (from the notification or from **Payroll** in
 
 #### Step 7 — Export the Payroll Spreadsheet
 
-With the period approved, the manager exports the file for the third-party payroll processor:
+With the period approved, the manager exports the payroll spreadsheet:
 
 1. Click **Export to Excel** (for the current month) or **Export YTD** (all months January to current).
 2. The system generates a `.xlsx` file.
@@ -661,30 +661,37 @@ With the period approved, the manager exports the file for the third-party payro
 
 > **Per Diem in the export:** Only **approved** per diem entries are included in the exported spreadsheet. Pending or rejected entries are excluded. Per diem is included in both the **single-month export** and the **Year-to-Date multi-tab export**, and in the Gross Pay total. Use the **Regenerate Export** button to re-download an already-exported period — the per diem values are included in regenerated files too.
 
-The file is handed to the third-party payroll processor (e.g. an external payroll bureau or accountant) who applies PAYE, NSSA, and any other statutory deductions to produce the final payslips and tax returns.
+The exported spreadsheet contains all gross pay, OT, per diem, and benefit figures. It can be handed to an external payroll bureau or accountant if required, or used to verify figures before filing.
 
 ---
 
 #### Step 8 — Post-Export: Payslips, ZIMRA, and Statutory Returns
 
-After the third-party processor returns the completed payroll:
+**Payslips are auto-populated on export.** When you export (or regenerate) the payroll spreadsheet, the system automatically calculates PAYE, AIDS Levy, and NSSA Employee contributions for every employee and creates a payslip record for each one with status `CAPTURED`. You do not need to enter these figures manually.
 
-**Capturing payslips:**
+**Reviewing and adjusting captured payslips:**
 1. Return to the exported period in **Payroll**.
 2. Click **📋 Capture Payslips**.
-3. Upload or confirm each employee's payslip has been distributed.
-4. The system records which payslips have been captured (status → `CAPTURED`).
+3. The table shows all employees with their auto-populated values:
+   - **Total Earnings**, **PAYE Tax**, **AIDS Levy**, **NSSA Emp**, and **Nett Pay** are read-only — calculated by the system.
+   - **NEC Emp**, **Net Round**, **WCIF**, **NEC Co.**, **Loan Recovery**, **Advance**, **Other Ded.**, **Leave Days**, and **Pay Point** are editable — fill these in as needed.
+4. Click **Save All** to save any edits.
+5. Click **Mark Distributed** once physical payslips have been handed to employees (status → `DISTRIBUTED`).
 
-**ZIMRA P2 / P6 Returns:**
-- The third-party processor generates the PAYE return (P2 form) and NSSA contribution schedule from the exported spreadsheet.
-- Once filed with ZIMRA, note the filing reference on the period record.
-- Any tax or NSSA payment receipts should be filed with the payroll records for that month.
+> Statutory deductions displayed in the capture modal are calculated using the Zimbabwe tax brackets, NSSA rate, and AIDS Levy rate configured in **Settings → Tax Constants**. Verify these are up to date before each payroll run.
+
+**ZIMRA P2 Remittance Voucher:**
+- Click **Print ZIMRA Voucher** on the period page to generate a two-page PDF:
+  - **Page 1 — NSSA Voucher:** lists total NSSA employee and employer contributions.
+  - **Page 2 — PAYE Voucher:** lists total gross PAYE and AIDS Levy due.
+- The voucher shows your company name, address, registration number, and the pay period.
+- Use the blank fields at the bottom of each page to record the **Payment Reference**, **Bank / Branch**, and payment date when you make the transfer.
 
 **ZIMRA Year-to-Date (P14 / ITC):**
 - Use the **Export YTD** button to download all months January to December in a single multi-tab file.
-- The external processor uses this to prepare annual employee tax certificates (ITF16 / P14).
+- This is used by your accountant or tax agent to prepare annual employee tax certificates (ITF16 / P14).
 
-> The system does **not** calculate PAYE or NSSA directly — it produces the gross pay figures that the third-party processor uses. All statutory calculations and filings happen outside the system.
+> **Tax calculations:** PAYE is computed using the configured monthly tax brackets on the employee's taxable gross (excluding non-taxable per diem). AIDS Levy is a percentage of PAYE. NSSA Employee is a percentage of the employee's contractual basic salary (capped at the NSSA ceiling). All rates are set in **Settings → Tax Constants**.
 
 ---
 
@@ -1490,7 +1497,7 @@ Before terminating the employee record, ensure their final payroll is processed:
 After final payroll is exported:
 1. Generate their final payslip from the payroll period.
 2. Prepare a **Certificate of Service** (also called a reference letter or service letter) stating their employment dates, job title, and reason for leaving. This is a legal requirement in most jurisdictions and a common expectation.
-3. The third-party payroll processor should also provide the employee's **year-to-date tax figures** (for their ZIMRA P45 / ITC), which the employee needs to file with ZIMRA and for their next employer.
+3. Export the **ZIMRA YTD** file (Export YTD button) to get the employee's year-to-date tax figures for their ZIMRA P45 / ITC, which the employee needs to file with ZIMRA and provide to their next employer.
 
 ---
 
