@@ -18,6 +18,9 @@ interface PayslipRow {
   payeTax: number | null
   aidsLevy: number | null
   nssaEmployee: number | null
+  entryPayeTax: number | null
+  entryAidsLevy: number | null
+  entryNssaEmployee: number | null
   necEmployee: number | null
   netPayRound: number | null
   // Employee deductions (pre-filled)
@@ -142,9 +145,9 @@ export function PayslipCaptureModal({
         for (const s of data.slips as PayslipRow[]) {
           rows[s.id] = {
             totalEarnings: fmt(s.totalEarnings ?? s.entryGrossPay),
-            payeTax: fmt(s.payeTax),
-            aidsLevy: fmt(s.aidsLevy),
-            nssaEmployee: fmt(s.nssaEmployee),
+            payeTax: fmt(s.payeTax ?? s.entryPayeTax),
+            aidsLevy: fmt(s.aidsLevy ?? s.entryAidsLevy),
+            nssaEmployee: fmt(s.nssaEmployee ?? s.entryNssaEmployee),
             necEmployee: fmt(s.necEmployee),
             netPayRound: fmt(s.netPayRound),
             loanDeductions: fmt(s.loanDeductions ?? s.entryLoanDeductions),

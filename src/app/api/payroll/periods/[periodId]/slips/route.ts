@@ -42,6 +42,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             advanceDeductions: true,
             miscDeductions: true,
             totalDeductions: true,
+            payeAmount: true,
+            aidsLevy: true,
+            nssaEmployee: true,
           },
         },
         employees: {
@@ -99,6 +102,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         payeTax: s.payeTax ? Number(s.payeTax) : null,
         aidsLevy: s.aidsLevy ? Number(s.aidsLevy) : null,
         nssaEmployee: s.nssaEmployee ? Number(s.nssaEmployee) : null,
+        entryPayeTax: s.payroll_entries ? Number(s.payroll_entries.payeAmount || 0) : null,
+        entryAidsLevy: s.payroll_entries ? Number(s.payroll_entries.aidsLevy || 0) : null,
+        entryNssaEmployee: s.payroll_entries ? Number(s.payroll_entries.nssaEmployee || 0) : null,
         necEmployee: s.necEmployee ? Number(s.necEmployee) : null,
         netPayRound: s.netPayRound ? Number(s.netPayRound) : null,
         // Employee deductions (pre-filled from entry)
