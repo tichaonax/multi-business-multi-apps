@@ -299,6 +299,14 @@ export function QuickPaymentModal({
   const [selectedDropdownValue, setSelectedDropdownValue] = useState(businessId || '')
   // True when the Business dropdown is visible but nothing has been selected yet
   const businessNotSelected = !!(businesses && businesses.length > 1 && !selectedDropdownValue)
+  // For supplier creation: prefer the account's own businessId, fall back to the currently
+  // selected business (user switched via dropdown), then the first available membership.
+  // Personal/home accounts have no businessId but users may still be members of businesses.
+  const supplierBusinessId =
+    businessId ||
+    (selectedBusinessId && !selectedBusinessId.startsWith('domain:') ? selectedBusinessId : null) ||
+    businesses?.find(b => !b.isUmbrellaBusiness)?.businessId ||
+    null
   const [activeDomainOverride, setActiveDomainOverride] = useState<string | null>(null)
   const [activeDomainOverrideId, setActiveDomainOverrideId] = useState<string | null>(null)
   const [domainOverrideItems, setDomainOverrideItems] = useState<ExpenseCategory[]>([])
@@ -761,12 +769,14 @@ export function QuickPaymentModal({
         body: JSON.stringify({ payments: [payment] })
       })
 
-      // Success
+      // Success — message depends on whether the payment was immediately submitted or queued
+      const paymentStatus = result.data?.payments?.[0]?.status
+      const successMessage = paymentStatus === 'SUBMITTED' ? 'Payment submitted successfully' : 'Payment added to queue'
       setPayeeErrorMessage(null)
-      toast.push('Payment added to queue')
+      toast.push(successMessage)
       try {
         onSuccess({
-          message: 'Payment added to queue',
+          message: successMessage,
           id: result.data?.payments?.[0]?.id,
           refresh: true
         })
@@ -1743,9 +1753,9 @@ export function QuickPaymentModal({
       />
 
       {/* Create Supplier Modal */}
-      {showSupplierModal && businessId && (
+      {showSupplierModal && supplierBusinessId && (
         <SupplierEditor
-          businessId={businessId}
+          businessId={supplierBusinessId}
           onSave={handleCreateSupplierSuccess}
           onCancel={() => setShowSupplierModal(false)}
           initialName={payeeSearchQuery}
@@ -1753,9 +1763,9 @@ export function QuickPaymentModal({
       )}
 
       {/* Edit Supplier Modal — opened when a payee error occurs */}
-      {showEditSupplierModal && businessId && supplierForEdit && (
+      {showEditSupplierModal && supplierBusinessId && supplierForEdit && (
         <SupplierEditor
-          businessId={businessId}
+          businessId={supplierBusinessId}
           supplier={supplierForEdit}
           focusField="taxId"
           onSave={handleEditSupplierSuccess}

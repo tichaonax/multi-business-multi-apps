@@ -140,11 +140,12 @@ export async function GET(
             where: {
               expenseAccountId: accountId,
               status: { in: ['PAID', 'SUBMITTED'] }, // Both terminal states appear in the ledger
-              // Date filter: match paidAt if set, otherwise fall back to submittedAt
+              // Date filter: use paidAt for PAID payments, paymentDate for SUBMITTED payments.
+              // paymentDate is the user-entered date and matches what is displayed in the UI (date: paidAt || paymentDate).
               ...(Object.keys(dateFilter).length > 0 && {
                 OR: [
                   { paidAt: dateFilter },
-                  { paidAt: null, submittedAt: dateFilter },
+                  { paidAt: null, paymentDate: dateFilter },
                 ],
               }),
               ...paymentSearchFilter,
@@ -180,7 +181,7 @@ export async function GET(
                 select: { id: true, name: true, email: true },
               },
             },
-            orderBy: { paidAt: sortOrder as 'asc' | 'desc' },
+            orderBy: [{ paidAt: sortOrder as 'asc' | 'desc' }, { paymentDate: sortOrder as 'asc' | 'desc' }],
           })
         : [],
     ])
@@ -382,7 +383,7 @@ export async function GET(
           status: { in: ['PAID', 'SUBMITTED'] },
           OR: [
             { paidAt: { lt: paginatedTransactions[0]?.date || new Date() } },
-            { paidAt: null, submittedAt: { lt: paginatedTransactions[0]?.date || new Date() } },
+            { paidAt: null, paymentDate: { lt: paginatedTransactions[0]?.date || new Date() } },
           ],
         },
         _sum: { amount: true },

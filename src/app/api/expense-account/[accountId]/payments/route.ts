@@ -351,9 +351,12 @@ export async function POST(
     }
 
     // Determine default status before validation loop so balance checks can use it.
-    // All payments go to QUEUED and are processed at EOD.
-    // Only system admins (role=admin) bypass the queue and go directly to SUBMITTED.
-    const defaultPaymentStatus = user.role === 'admin' ? 'SUBMITTED' : 'QUEUED'
+    // Personal/home accounts (no businessId) bypass the approval queue:
+    // payments are submitted and debited immediately as long as there are sufficient funds.
+    // For business-linked accounts the normal flow applies: admins go directly to SUBMITTED,
+    // everyone else goes to QUEUED for EOD batch approval.
+    const isPersonalAccount = !account.businessId
+    const defaultPaymentStatus = (isPersonalAccount || user.role === 'admin') ? 'SUBMITTED' : 'QUEUED'
     const isQueuedFlow = defaultPaymentStatus === 'QUEUED'
 
     // Check if batch payment or single payment
@@ -928,7 +931,9 @@ export async function POST(
         select: { id: true },
       })
       const reviewerIds = reviewers.map(r => r.id).filter(id => id !== user.id)
-      if (reviewerIds.length > 0) {
+      // Only notify reviewers for business-linked accounts that go through the approval queue.
+      // Personal/home account payments are auto-submitted — no reviewer action needed.
+      if (!isPersonalAccount && reviewerIds.length > 0) {
         await emitNotification({
           userIds: reviewerIds,
           type: 'PAYMENT_SUBMITTED',
@@ -939,12 +944,16 @@ export async function POST(
             : `/expense-accounts/${accountId}/payments/${result.payments[0].id}`,
         })
       }
-      // Notify the submitter — confirmation their payment entered the queue
+      // Notify the submitter — wording differs between immediate and queued
       await emitNotification({
         userIds: [user.id],
         type: 'PAYMENT_SUBMITTED',
-        title: hasUrgent ? '🚨 Urgent Payment Queued' : 'Payment Queued',
-        message: `Your payment was queued — ${detailStr}`,
+        title: isPersonalAccount
+          ? (hasUrgent ? '🚨 Payment Processed' : 'Payment Processed')
+          : (hasUrgent ? '🚨 Urgent Payment Queued' : 'Payment Queued'),
+        message: isPersonalAccount
+          ? `Payment processed — ${detailStr}`
+          : `Your payment was queued — ${detailStr}`,
         linkUrl: '/expense-accounts/my-payments',
       })
     } catch { /* non-critical */ }
