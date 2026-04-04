@@ -25,66 +25,81 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
   const contentW = pageW - margin * 2
   let y = 0
 
-  // ── Header band ──────────────────────────────────────────────────────────
-  doc.setFillColor(15, 118, 110) // teal-700
-  doc.rect(0, 0, pageW, 32, 'F')
+  // All colours set to black/dark-grey — no filled regions to save toner.
+  const BLACK = [0, 0, 0] as const
+  const DARK  = [30, 30, 30] as const
+  const MID   = [90, 90, 90] as const
+  const LIGHT = [160, 160, 160] as const
 
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(18)
+  // ── Header (border only, no fill) ────────────────────────────────────────
+  doc.setDrawColor(...BLACK)
+  doc.setLineWidth(0.8)
+  doc.rect(margin, 6, contentW, 22, 'S')     // outline box, no fill
+
+  doc.setTextColor(...DARK)
+  doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text('PAYMENT VOUCHER', margin, 14)
+  doc.text('PAYMENT VOUCHER', margin + 4, 16)
 
-  doc.setFontSize(9)
+  doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text(data.businessName, margin, 22)
-  doc.text(data.voucherNumber, pageW - margin, 14, { align: 'right' })
-  doc.text(new Date(data.paymentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), pageW - margin, 22, { align: 'right' })
+  doc.setTextColor(...MID)
+  doc.text(data.businessName, margin + 4, 23)
+  doc.text(data.voucherNumber, pageW - margin - 4, 16, { align: 'right' })
+  doc.text(new Date(data.paymentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), pageW - margin - 4, 23, { align: 'right' })
 
-  y = 40
+  y = 36
 
-  // ── Amount box ───────────────────────────────────────────────────────────
-  doc.setFillColor(240, 253, 250) // teal-50
-  doc.setDrawColor(13, 148, 136)  // teal-600
-  doc.roundedRect(margin, y, contentW, 22, 3, 3, 'FD')
+  // ── Amount box (border only) ─────────────────────────────────────────────
+  doc.setDrawColor(...BLACK)
+  doc.setLineWidth(0.5)
+  doc.rect(margin, y, contentW, 18, 'S')
 
-  doc.setTextColor(15, 118, 110)
-  doc.setFontSize(11)
+  doc.setTextColor(...MID)
+  doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text('AMOUNT PAID', margin + 6, y + 8)
+  doc.text('AMOUNT PAID', margin + 4, y + 7)
 
-  doc.setFontSize(22)
+  doc.setFontSize(20)
   doc.setFont('helvetica', 'bold')
-  doc.text(`$${data.amount.toFixed(2)}`, margin + 6, y + 18)
+  doc.setTextColor(...DARK)
+  doc.text(`$${data.amount.toFixed(2)}`, margin + 4, y + 15)
 
-  y += 30
+  y += 24
 
-  // ── Helper: section label + body lines ──────────────────────────────────
+  // ── Helper: draw a bordered section with labelled rows ───────────────────
   const section = (title: string, lines: { label: string; value: string }[]) => {
-    doc.setFillColor(249, 250, 251) // gray-50
-    doc.setDrawColor(209, 213, 219) // gray-300
-    doc.rect(margin, y, contentW, 7, 'FD')
+    const rowH = 7
+    const boxH = 8 + lines.length * rowH + 3
+    doc.setDrawColor(...BLACK)
+    doc.setLineWidth(0.4)
+    doc.rect(margin, y, contentW, boxH, 'S')
 
-    doc.setFontSize(9)
+    // Section title — underlined by a thin rule
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(55, 65, 81) // gray-700
-    doc.text(title.toUpperCase(), margin + 3, y + 5)
-    y += 10
+    doc.setTextColor(...DARK)
+    doc.text(title.toUpperCase(), margin + 3, y + 6)
+    doc.setDrawColor(...LIGHT)
+    doc.setLineWidth(0.2)
+    doc.line(margin, y + 8, margin + contentW, y + 8)
 
-    const lineH = 8
+    let rowY = y + 10
     lines.forEach(({ label, value }) => {
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(107, 114, 128) // gray-500
-      doc.setFontSize(8)
-      doc.text(label, margin + 3, y + 5)
+      doc.setTextColor(...MID)
+      doc.setFontSize(7.5)
+      doc.text(label, margin + 3, rowY + 4)
 
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor(17, 24, 39) // gray-900
-      doc.setFontSize(9)
-      doc.text(value || '—', margin + 48, y + 5)
+      doc.setTextColor(...DARK)
+      doc.setFontSize(8)
+      doc.text(value || '—', margin + 46, rowY + 4)
 
-      y += lineH
+      rowY += rowH
     })
-    y += 4
+
+    y += boxH + 4
   }
 
   // ── Payee section ────────────────────────────────────────────────────────
@@ -107,51 +122,56 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
     section('Additional Notes', [{ label: 'Notes', value: data.notes }])
   }
 
-  // ── Signature ────────────────────────────────────────────────────────────
-  const sigBoxH = 38
-  doc.setFillColor(249, 250, 251)
-  doc.setDrawColor(209, 213, 219)
-  doc.rect(margin, y, contentW, sigBoxH, 'FD')
+  // ── Signature box (border only) ────────────────────────────────────────
+  const sigBoxH = 36
+  doc.setDrawColor(...BLACK)
+  doc.setLineWidth(0.4)
+  doc.rect(margin, y, contentW, sigBoxH, 'S')
 
   doc.setFontSize(8)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(55, 65, 81)
+  doc.setTextColor(...DARK)
   doc.text("COLLECTOR'S SIGNATURE", margin + 3, y + 6)
+  doc.setDrawColor(...LIGHT)
+  doc.setLineWidth(0.2)
+  doc.line(margin, y + 8, margin + contentW, y + 8)
 
   if (data.collectorSignature) {
     try {
-      doc.addImage(data.collectorSignature, 'PNG', margin + 3, y + 8, 80, 24)
+      doc.addImage(data.collectorSignature, 'PNG', margin + 3, y + 10, 76, 20)
     } catch {
       // Signature image failed — leave blank
     }
   }
 
-  // Signature line on right side
-  doc.setDrawColor(156, 163, 175) // gray-400
-  doc.line(margin + contentW - 70, y + 30, margin + contentW - 4, y + 30)
+  // Authorised signature line (right side)
+  doc.setDrawColor(...MID)
+  doc.setLineWidth(0.3)
+  doc.line(margin + contentW - 68, y + 30, margin + contentW - 4, y + 30)
   doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(107, 114, 128)
-  doc.text('Authorised Signature', margin + contentW - 70, y + 35)
+  doc.setTextColor(...LIGHT)
+  doc.text('Authorised Signature', margin + contentW - 68, y + 34)
 
-  y += sigBoxH + 8
+  y += sigBoxH + 6
 
   // ── Prepared by ──────────────────────────────────────────────────────────
-  doc.setFontSize(8)
+  doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(107, 114, 128)
+  doc.setTextColor(...LIGHT)
   doc.text(`Prepared by: ${data.creatorName}`, margin, y)
   doc.text(`Generated: ${new Date().toLocaleString('en-GB')}`, pageW - margin, y, { align: 'right' })
 
-  y += 6
+  y += 5
 
-  // ── Footer ───────────────────────────────────────────────────────────────
-  doc.setFillColor(15, 118, 110)
-  doc.rect(0, 287, pageW, 10, 'F')
+  // ── Footer (border only) ─────────────────────────────────────────────────
+  doc.setDrawColor(...BLACK)
+  doc.setLineWidth(0.4)
+  doc.line(margin, y, pageW - margin, y)
   doc.setFontSize(7)
   doc.setFont('helvetica', 'italic')
-  doc.setTextColor(255, 255, 255)
-  doc.text(`This is an official payment record of ${data.businessName} — ${data.voucherNumber}`, pageW / 2, 293, { align: 'center' })
+  doc.setTextColor(...MID)
+  doc.text(`This is an official payment record of ${data.businessName} — ${data.voucherNumber}`, pageW / 2, y + 5, { align: 'center' })
 
   doc.save(`${data.voucherNumber}.pdf`)
 }

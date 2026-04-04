@@ -2,6 +2,8 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { generatePaymentVoucherPdf, VoucherData } from './payment-voucher-pdf'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { NationalIdInput } from '@/components/ui/national-id-input'
 
 export interface PaymentSummary {
   id: string
@@ -46,6 +48,7 @@ export function ExpensePaymentVoucherModal({
   const [collectorName, setCollectorName] = useState(existingVoucher?.collectorName ?? '')
   const [collectorPhone, setCollectorPhone] = useState(existingVoucher?.collectorPhone ?? '')
   const [collectorIdNumber, setCollectorIdNumber] = useState(existingVoucher?.collectorIdNumber ?? '')
+  const [collectorIdTemplateId, setCollectorIdTemplateId] = useState<string | undefined>(undefined)
   const [collectorDlNumber, setCollectorDlNumber] = useState(existingVoucher?.collectorDlNumber ?? '')
   const [notes, setNotes] = useState(existingVoucher?.notes ?? '')
   const [saving, setSaving] = useState(false)
@@ -222,28 +225,19 @@ export function ExpensePaymentVoucherModal({
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                  <input
-                    type="tel"
+              <PhoneNumberInput
+                    label="Phone Number"
                     value={collectorPhone}
-                    onChange={e => setCollectorPhone(e.target.value)}
-                    placeholder="+263..."
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    onChange={(fullNumber) => setCollectorPhone(fullNumber)}
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">National ID</label>
-                  <input
-                    type="text"
+              <NationalIdInput
+                    label="National ID"
                     value={collectorIdNumber}
-                    onChange={e => setCollectorIdNumber(e.target.value)}
-                    placeholder="ID number"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    templateId={collectorIdTemplateId}
+                    onChange={(id, tmplId) => { setCollectorIdNumber(id); if (tmplId) setCollectorIdTemplateId(tmplId) }}
+                    onTemplateChange={(tmplId) => setCollectorIdTemplateId(tmplId)}
+                    showTemplateSelector={true}
                   />
-                </div>
-              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Driver's Licence No.</label>
                 <input

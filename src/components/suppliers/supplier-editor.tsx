@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { EmojiPicker } from '@/components/common/emoji-picker'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StarRating } from '@/components/ui/star-rating'
 
 function fmtCurrency(amount: number) {
@@ -444,7 +445,7 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
                 <EmojiPicker
                   onSelect={viewOnly ? () => {} : (emoji) => handleInputChange('emoji', emoji)}
                   selectedEmoji={formData.emoji || undefined}
-                  searchPlaceholder="Search supplier emoji..."
+                  searchPlaceholder="Search or paste an emoji…"
                   compact={true}
                   businessId={businessId}
                   context="supplier"
@@ -522,16 +523,16 @@ export function SupplierEditor({ supplier, businessId, onSave, onCancel, initial
                       : <span className="text-gray-400">Not set</span>}
                   </div>
                 ) : (
-                  <select
+                  <SearchableSelect
                     value={formData.supplierType || ''}
-                    onChange={(e) => handleInputChange('supplierType', e.target.value || null)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="">— Select type —</option>
-                    {SUPPLIER_TYPES.map(t => (
-                      <option key={t.label} value={t.label}>{t.emoji} {t.label}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleInputChange('supplierType', val || null)}
+                    options={[
+                      { value: '', label: '— Select type —' },
+                      ...SUPPLIER_TYPES.map(t => ({ value: t.label, label: `${t.emoji} ${t.label}` })),
+                    ]}
+                    placeholder="— Select type —"
+                    searchPlaceholder="Search supplier types…"
+                  />
                 )}
               </div>
 

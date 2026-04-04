@@ -141,7 +141,9 @@ export function formatPhoneNumber(countryCode: string, localNumber: string): str
   const country = getCountryByCode(countryCode)
   if (!country) return localNumber
   
-  return `${country.dialCode} ${localNumber}`
+  // Format the local number with proper spacing before joining with dial code
+  const formatted = formatLocalNumber(localNumber, countryCode)
+  return `${country.dialCode} ${formatted}`
 }
 
 // Get expected phone number length for a country

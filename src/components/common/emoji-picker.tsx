@@ -241,6 +241,23 @@ export function EmojiPicker({
     return null;
   };
 
+  /** Returns true if the string looks like a pasted emoji rather than a search term */
+  function looksLikeEmoji(str: string): boolean {
+    const s = str.trim();
+    if (!s) return false;
+    return /^\p{Extended_Pictographic}/u.test(s) && !/[a-zA-Z0-9]/.test(s);
+  }
+
+  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    if (looksLikeEmoji(val)) {
+      onSelect(val.trim());
+      setSearchQuery('');
+      return;
+    }
+    setSearchQuery(val);
+  }
+
   return (
     <div className={compact ? 'space-y-2' : 'space-y-4'}>
       {/* Search Input + Selected badge on same row in compact mode */}
@@ -248,7 +265,7 @@ export function EmojiPicker({
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={handleSearchChange}
           placeholder={searchPlaceholder}
           className={`
             flex-1 px-3 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm
