@@ -2760,9 +2760,10 @@ export default function RestaurantPOS() {
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 pl-5">
                                       {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                       {order.paymentMethod && <span className="ml-2">{order.paymentMethod}</span>}
-                                      {items.length > 0 && (
-                                        <span className="ml-2">{items.length} item{items.length > 1 ? 's' : ''}</span>
-                                      )}
+                                      {items.length > 0 && (() => {
+                                        const totalQty = items.reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1), 0)
+                                        return <span className="ml-2">{totalQty} item{totalQty !== 1 ? 's' : ''}</span>
+                                      })()}
                                     </div>
                                   </div>
                                   <div className="text-sm font-bold text-green-600 dark:text-green-400 whitespace-nowrap">

@@ -153,6 +153,90 @@ export async function GET(
       }
     }
 
+    // Resolve EOD summary for EOD_RECEIPT entries linked to a CashAllocationReport
+    let eodSummary: any = null
+    if (entry.entryType === 'EOD_RECEIPT' && entry.referenceType === 'CASH_ALLOCATION' && entry.referenceId) {
+      const allocationReport = await prisma.cashAllocationReport.findUnique({
+        where: { id: entry.referenceId },
+        select: { id: true, businessId: true, reportDate: true, isGrouped: true, groupedRunId: true, lockedAt: true },
+      })
+      if (allocationReport) {
+        const reportSelect = {
+          id: true,
+          reportDate: true,
+          periodStart: true,
+          periodEnd: true,
+          managerName: true,
+          totalSales: true,
+          cashCounted: true,
+        }
+        let reports: any[] = []
+
+        let groupTotalCash: number | null = null
+        let groupTotalEcocash: number | null = null
+        let groupManagerName: string | null = null
+
+        if (allocationReport.isGrouped && allocationReport.groupedRunId) {
+          const [rows, , groupedRun] = await Promise.all([
+            prisma.savedReports.findMany({
+              where: { businessId: entry.businessId, groupedRunId: allocationReport.groupedRunId, reportType: 'END_OF_DAY' },
+              select: reportSelect,
+              orderBy: { reportDate: 'asc' },
+            }),
+            // kept for symmetry — no longer used (cashCounted is always 0 per day in grouped runs)
+            prisma.groupedEODRunDate.findMany({
+              where: { groupedRunId: allocationReport.groupedRunId },
+              select: { date: true, cashCounted: true },
+            }),
+            prisma.groupedEODRun.findUnique({
+              where: { id: allocationReport.groupedRunId },
+              select: { totalCashReceived: true, totalEcocashReceived: true, managerName: true },
+            }),
+          ])
+          // cashCounted per day is always 0 in GroupedEODRunDate — the real total is
+          // GroupedEODRun.totalCashReceived (lump sum counted by manager across all days)
+          groupTotalCash = groupedRun?.totalCashReceived ?? null
+          groupTotalEcocash = groupedRun?.totalEcocashReceived ?? null
+          groupManagerName = groupedRun?.managerName ?? null
+          reports = rows.map((r: any) => ({
+            id: r.id,
+            reportDate: r.reportDate,
+            periodStart: r.periodStart,
+            periodEnd: r.periodEnd,
+            managerName: r.managerName,
+            totalSales: Number(r.totalSales),
+            cashCounted: r.cashCounted != null ? Number(r.cashCounted) : null,
+          }))
+        } else if (allocationReport.reportDate) {
+          const r = await prisma.savedReports.findFirst({
+            where: { businessId: entry.businessId, reportType: 'END_OF_DAY', reportDate: allocationReport.reportDate },
+            select: reportSelect,
+          })
+          if (r) {
+            reports = [{
+              id: r.id,
+              reportDate: r.reportDate,
+              periodStart: r.periodStart,
+              periodEnd: r.periodEnd,
+              managerName: r.managerName,
+              totalSales: Number(r.totalSales),
+              cashCounted: r.cashCounted != null ? Number(r.cashCounted) : null,
+            }]
+          }
+        }
+
+        eodSummary = {
+          isGrouped: allocationReport.isGrouped,
+          lockedAt: allocationReport.lockedAt,
+          businessType: (entry.business as any)?.type ?? null,
+          reports,
+          groupTotalCash: groupTotalCash != null ? Number(groupTotalCash) : null,
+          groupTotalEcocash: groupTotalEcocash != null ? Number(groupTotalEcocash) : null,
+          groupManagerName,
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -162,6 +246,7 @@ export async function GET(
         referenceId: entry.referenceId,
         payments,
         pettyCash,
+        eodSummary,
       },
     })
   } catch (error) {

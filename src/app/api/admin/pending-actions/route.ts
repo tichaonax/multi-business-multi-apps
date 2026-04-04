@@ -378,7 +378,7 @@ export async function GET() {
       const pendingPaymentWhere = {
         status: { in: ['QUEUED', 'REQUEST', 'SUBMITTED'] },
         createdBy: { not: user.id },
-        paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_EXPENSE', 'LOAN_DISBURSEMENT', 'TRANSFER_OUT', 'TRANSFER_RETURN'] },
+        paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_EXPENSE', 'LOAN_DISBURSEMENT', 'TRANSFER_OUT', 'TRANSFER_RETURN', 'MEAL_PROGRAM', 'MEAL_BATCH', 'PETTY_CASH_SPEND', 'PETTY_CASH_RETURN'] },
       }
       const grouped = await prisma.expenseAccountPayments.groupBy({
         by: ['expenseAccountId', 'paymentChannel', 'priority'],

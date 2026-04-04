@@ -56,6 +56,8 @@ interface BucketEntry {
   deletedAt: string | null
   deletedBy: { id: string; name: string } | null
   deletionReason: string | null
+  pettyCashStatus: string | null
+  pettyCashRequestedAt: string | null
 }
 
 const fmt = (n: number) =>
@@ -66,6 +68,259 @@ const ENTRY_TYPE_LABEL: Record<string, string> = {
   PAYMENT_APPROVAL:  '✅ Payment Approval',
   PETTY_CASH:        '🪙 Petty Cash',
   CASH_ALLOCATION:   '📋 Cash Allocation',
+}
+
+// ── EOD Summary panel (inline, no navigation) ─────────────────────────────────
+function EodSummaryPanel({ eodSummary, fmt }: { eodSummary: any; fmt: (n: number) => string }) {
+  const [reportModal, setReportModal] = useState<{ id: string; label: string } | null>(null)
+  const [reportData, setReportData] = useState<Record<string, any>>({})
+  const [loadingId, setLoadingId] = useState<string | null>(null)
+
+  const openReport = async (reportId: string, label: string) => {
+    setReportModal({ id: reportId, label })
+    if (reportData[reportId]) return
+    setLoadingId(reportId)
+    try {
+      const res = await fetch(`/api/reports/saved/${reportId}`, { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setReportData(prev => ({ ...prev, [reportId]: json.report }))
+      }
+    } finally {
+      setLoadingId(null)
+    }
+  }
+
+  const totalGroupSales = eodSummary.reports.reduce((s: number, r: any) => s + r.totalSales, 0)
+  const activeReport = reportModal ? reportData[reportModal.id] : null
+
+  return (
+    <>
+      <div className="flex-1 overflow-y-auto space-y-3">
+        {/* Header row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {eodSummary.isGrouped && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+              📦 Grouped EOD — {eodSummary.reports.length} day{eodSummary.reports.length !== 1 ? 's' : ''}
+            </span>
+          )}
+          {eodSummary.lockedAt && (
+            <span className="text-xs text-secondary">
+              Locked {new Date(eodSummary.lockedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
+
+        {/* Grouped totals banner */}
+        {eodSummary.isGrouped && (
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-3 py-2.5 space-y-1.5">
+            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
+              Group Totals — signed off by {eodSummary.groupManagerName ?? '—'}
+            </p>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div>
+                <p className="text-secondary">Combined Sales</p>
+                <p className="font-bold text-emerald-700 dark:text-emerald-300">{fmt(totalGroupSales)}</p>
+              </div>
+              <div>
+                <p className="text-secondary">💵 Cash Counted</p>
+                <p className={`font-bold ${eodSummary.groupTotalCash != null ? 'text-primary' : 'text-gray-400'}`}>
+                  {eodSummary.groupTotalCash != null ? fmt(eodSummary.groupTotalCash) : '—'}
+                </p>
+              </div>
+              {eodSummary.groupTotalEcocash != null && eodSummary.groupTotalEcocash > 0 && (
+                <div>
+                  <p className="text-secondary">📱 EcoCash</p>
+                  <p className="font-bold text-teal-600 dark:text-teal-400">{fmt(eodSummary.groupTotalEcocash)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Per-day breakdown */}
+        {eodSummary.reports.length === 0 ? (
+          <p className="text-sm text-secondary py-2">No saved EOD reports linked to this deposit.</p>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-secondary uppercase tracking-wide">
+              {eodSummary.isGrouped ? 'Days Included' : 'EOD Report'}
+            </p>
+            {eodSummary.reports.map((r: any) => {
+              const reportDate = new Date(r.reportDate).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+              const periodStart = new Date(r.periodStart).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              const periodEnd = new Date(r.periodEnd).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              const isLoading = loadingId === r.id
+              return (
+                <div key={r.id} className="rounded-lg border border-border bg-gray-50 dark:bg-gray-700/30 px-3 py-2.5 flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-primary">📅 {reportDate}</p>
+                    <p className="text-xs text-secondary">Period: {periodStart} → {periodEnd} · Manager: {r.managerName}</p>
+                  </div>
+                  <div className="shrink-0 text-right text-xs space-y-0.5 mr-3">
+                    <div>
+                      <span className="text-secondary">Sales </span>
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">{fmt(r.totalSales)}</span>
+                    </div>
+                    {!eodSummary.isGrouped && r.cashCounted != null && (
+                      <div>
+                        <span className="text-secondary">Cash </span>
+                        <span className="font-semibold text-primary">{fmt(r.cashCounted)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => openReport(r.id, reportDate)}
+                    disabled={isLoading}
+                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-700 transition-colors disabled:opacity-50"
+                  >
+                    {isLoading ? '…' : '📄 View Report'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Nested report modal — z-[60] sits above parent modal z-50 */}
+      {reportModal && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 overflow-y-auto py-6 px-4" onClick={() => setReportModal(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+            {/* Report modal header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-b border-border rounded-t-lg">
+              <div>
+                <p className="text-sm font-semibold text-primary">📄 EOD Report — {reportModal.label}</p>
+                <p className="text-xs text-secondary">{eodSummary.reports.find((r: any) => r.id === reportModal.id)?.notes ?? ''}</p>
+              </div>
+              <button onClick={() => setReportModal(null)} className="text-secondary hover:text-primary text-lg leading-none ml-4">✕</button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {!activeReport ? (
+                <p className="text-sm text-secondary text-center py-8">Loading report…</p>
+              ) : (
+                <>
+                  {/* Header info */}
+                  <div className="text-center pb-3 border-b border-border">
+                    <p className="font-bold text-primary text-base">{activeReport.business?.name}</p>
+                    <p className="text-xs text-secondary mt-1">
+                      {new Date(activeReport.reportDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                    <p className="text-xs text-secondary">
+                      Period: {new Date(activeReport.periodStart).toLocaleString()} → {new Date(activeReport.periodEnd).toLocaleString()}
+                    </p>
+                    <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
+                      🔒 Signed by {activeReport.managerName}
+                    </span>
+                  </div>
+
+                  {/* Sales summary */}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                      <p className="text-xs text-secondary mb-0.5">Total Revenue</p>
+                      <p className="font-bold text-emerald-700 dark:text-emerald-300 text-lg">{fmt(Number(activeReport.totalSales))}</p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                      <p className="text-xs text-secondary mb-0.5">Total Orders</p>
+                      <p className="font-bold text-blue-600 dark:text-blue-400 text-lg">{activeReport.totalOrders}</p>
+                    </div>
+                    {activeReport.cashCounted != null && (
+                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <p className="text-xs text-secondary mb-0.5">💵 Cash Counted</p>
+                        <p className="font-bold text-primary text-lg">{fmt(Number(activeReport.cashCounted))}</p>
+                      </div>
+                    )}
+                    {activeReport.variance != null && (
+                      <div className={`rounded-lg p-3 ${Number(activeReport.variance) === 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                        <p className="text-xs text-secondary mb-0.5">Variance</p>
+                        <p className={`font-bold text-lg ${Number(activeReport.variance) === 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                          {fmt(Number(activeReport.variance))}
+                        </p>
+                      </div>
+                    )}
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                      <p className="text-xs text-secondary mb-0.5">Receipts Issued</p>
+                      <p className="font-bold text-primary text-lg">{activeReport.receiptsIssued}</p>
+                    </div>
+                  </div>
+
+                  {/* Payment methods */}
+                  {activeReport.reportData?.paymentMethods && Object.keys(activeReport.reportData.paymentMethods).length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">💳 Payment Methods</p>
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50 text-secondary">
+                          <tr>
+                            <th className="px-3 py-1.5 text-left">Method</th>
+                            <th className="px-3 py-1.5 text-right">Orders</th>
+                            <th className="px-3 py-1.5 text-right">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {Object.entries(activeReport.reportData.paymentMethods).map(([method, data]: [string, any]) => (
+                            <tr key={method} className="hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                              <td className="px-3 py-2 text-primary">{method}</td>
+                              <td className="px-3 py-2 text-right text-secondary">{data.count}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-primary">{fmt(data.total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-gray-50 dark:bg-gray-700/50">
+                          <tr>
+                            <td colSpan={2} className="px-3 py-1.5 text-xs font-semibold text-secondary text-right">Total</td>
+                            <td className="px-3 py-1.5 text-right font-bold text-primary">
+                              {fmt(Object.values(activeReport.reportData.paymentMethods).reduce((s: number, d: any) => s + d.total, 0))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Categories */}
+                  {activeReport.reportData?.categorySales && Object.keys(activeReport.reportData.categorySales).length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">📦 Categories</p>
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50 text-secondary">
+                          <tr>
+                            <th className="px-3 py-1.5 text-left">Category</th>
+                            <th className="px-3 py-1.5 text-right">Orders</th>
+                            <th className="px-3 py-1.5 text-right">Revenue</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {Object.entries(activeReport.reportData.categorySales).map(([cat, data]: [string, any]) => (
+                            <tr key={cat} className="hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                              <td className="px-3 py-2 text-primary">{cat}</td>
+                              <td className="px-3 py-2 text-right text-secondary">{data.count}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-emerald-700 dark:text-emerald-300">{fmt(data.total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-400 text-center pt-1 border-t border-border">Report ID: {reportModal.id}</p>
+                </>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 px-4 py-3 bg-white dark:bg-gray-800 border-t border-border rounded-b-lg">
+              <button
+                onClick={() => setReportModal(null)}
+                className="w-full py-2 px-4 rounded-md text-sm font-medium border border-border text-secondary hover:bg-gray-50 dark:hover:bg-gray-700/30"
+              >
+                ← Back to EOD Summary
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
 }
 
 
@@ -109,9 +364,30 @@ export default function CashBucketPage() {
   const [deleteReason, setDeleteReason] = useState('')
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
-  // Detail modal state (PAYMENT_APPROVAL / PETTY_CASH)
+  // Filter / search state
+  const [search, setSearch] = useState('')
+  const [datePreset, setDatePreset] = useState<string>('7d')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+
+  // Resolve start/end from preset
+  const getDateRange = (preset: string): { startDate: string; endDate: string } => {
+    const today = new Date()
+    const fmt = (d: Date) => d.toISOString().split('T')[0]
+    const ago = (days: number) => { const d = new Date(today); d.setDate(d.getDate() - days); return d }
+    if (preset === 'today')    return { startDate: fmt(today), endDate: fmt(today) }
+    if (preset === 'yesterday'){ const y = ago(1); return { startDate: fmt(y), endDate: fmt(y) } }
+    if (preset === '7d')       return { startDate: fmt(ago(6)), endDate: fmt(today) }
+    if (preset === '30d')      return { startDate: fmt(ago(29)), endDate: fmt(today) }
+    if (preset === '90d')      return { startDate: fmt(ago(89)), endDate: fmt(today) }
+    if (preset === 'custom')   return { startDate: customStart, endDate: customEnd }
+    return { startDate: '', endDate: '' } // 'all'
+  }
+
+  // Detail modal state (PAYMENT_APPROVAL / PETTY_CASH / EOD_RECEIPT)
   const [detailEntry, setDetailEntry] = useState<BucketEntry | null>(null)
-  const [detailData, setDetailData] = useState<{ payments: any[]; pettyCash: any } | null>(null)
+  const [detailData, setDetailData] = useState<{ payments: any[]; pettyCash: any; eodSummary: any } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
   const openDetailModal = async (entry: BucketEntry) => {
@@ -121,17 +397,26 @@ export default function CashBucketPage() {
     try {
       const res = await fetch(`/api/cash-bucket/${entry.id}`, { credentials: 'include' })
       const json = await res.json()
-      if (res.ok) setDetailData({ payments: json.data.payments ?? [], pettyCash: json.data.pettyCash ?? null })
+      if (res.ok) setDetailData({ payments: json.data.payments ?? [], pettyCash: json.data.pettyCash ?? null, eodSummary: json.data.eodSummary ?? null })
     } finally {
       setDetailLoading(false)
     }
   }
 
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { preset?: string; start?: string; end?: string; type?: string }) => {
     setLoading(true)
     try {
-      const res = await fetch('/api/cash-bucket', { credentials: 'include' })
+      const params = new URLSearchParams({ limit: '200' })
+      const preset = opts?.preset ?? datePreset
+      const { startDate, endDate } = preset === 'custom'
+        ? { startDate: opts?.start ?? customStart, endDate: opts?.end ?? customEnd }
+        : getDateRange(preset)
+      if (startDate) params.set('startDate', startDate)
+      if (endDate)   params.set('endDate', endDate)
+      const type = opts?.type ?? typeFilter
+      if (type) params.set('entryType', type)
+      const res = await fetch(`/api/cash-bucket?${params}`, { credentials: 'include' })
       if (!res.ok) { router.push('/dashboard'); return }
       const json = await res.json()
       setTotalBalance(json.data.totalBalance)
@@ -142,7 +427,8 @@ export default function CashBucketPage() {
     } finally {
       setLoading(false)
     }
-  }, [router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, datePreset, customStart, customEnd, typeFilter])
 
   const loadBusinesses = useCallback(async () => {
     const res = await fetch('/api/admin/businesses', { credentials: 'include' })
@@ -521,13 +807,126 @@ export default function CashBucketPage() {
 
         {/* Recent entries ledger */}
         <div>
-          <h2 className="text-sm font-semibold text-primary mb-3">Recent Entries</h2>
+          {/* Filter bar */}
+          <div className="mb-3 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h2 className="text-sm font-semibold text-primary">Entries</h2>
+              {/* Search */}
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search business, notes, type…"
+                className="flex-1 min-w-[180px] max-w-xs px-3 py-1.5 text-xs rounded-md border border-border bg-white dark:bg-gray-800 text-primary placeholder:text-secondary focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+              {/* Entry type filter */}
+              <select
+                value={typeFilter}
+                onChange={e => { setTypeFilter(e.target.value); load({ type: e.target.value }) }}
+                className="px-2 py-1.5 text-xs rounded-md border border-border bg-white dark:bg-gray-800 text-primary focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              >
+                <option value="">All types</option>
+                <option value="EOD_RECEIPT">EOD Receipt</option>
+                <option value="PAYMENT_APPROVAL">Payment Approval</option>
+                <option value="PETTY_CASH">Petty Cash</option>
+                <option value="PETTY_CASH_RETURN">Petty Cash Return</option>
+                <option value="CASH_ALLOCATION">Cash Allocation</option>
+              </select>
+            </div>
+
+            {/* Date preset pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {([
+                { key: 'today',     label: 'Today' },
+                { key: 'yesterday', label: 'Yesterday' },
+                { key: '7d',        label: '7 days' },
+                { key: '30d',       label: '30 days' },
+                { key: '90d',       label: '90 days' },
+                { key: 'all',       label: 'All time' },
+                { key: 'custom',    label: 'Custom' },
+              ] as { key: string; label: string }[]).map(p => (
+                <button
+                  key={p.key}
+                  onClick={() => { setDatePreset(p.key); if (p.key !== 'custom') load({ preset: p.key }) }}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${datePreset === p.key ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-secondary hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom date range */}
+            {datePreset === 'custom' && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                  className="px-2 py-1 text-xs rounded-md border border-border bg-white dark:bg-gray-800 text-primary focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                <span className="text-xs text-secondary">to</span>
+                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                  className="px-2 py-1 text-xs rounded-md border border-border bg-white dark:bg-gray-800 text-primary focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                <button
+                  onClick={() => load({ preset: 'custom', start: customStart, end: customEnd })}
+                  disabled={!customStart || !customEnd}
+                  className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
           {loading ? (
             <p className="text-sm text-secondary">Loading…</p>
           ) : entries.length === 0 ? (
             <p className="text-sm text-secondary">No entries yet.</p>
           ) : (
             <div className="rounded-lg border border-border overflow-hidden">
+              {(() => {
+                // Colour palette — one slot per unique business that has PETTY_CASH entries
+                const PETTY_CASH_COLORS = [
+                  { pill: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',   border: 'border-l-amber-400 dark:border-l-amber-400' },
+                  { pill: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',         border: 'border-l-blue-400 dark:border-l-blue-400' },
+                  { pill: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300', border: 'border-l-violet-400 dark:border-l-violet-400' },
+                  { pill: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',         border: 'border-l-rose-400 dark:border-l-rose-400' },
+                  { pill: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',         border: 'border-l-teal-400 dark:border-l-teal-400' },
+                  { pill: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', border: 'border-l-orange-400 dark:border-l-orange-400' },
+                ]
+                // Assign a stable color index per businessId (order of first appearance)
+                const bizColorIndex: Record<string, number> = {}
+                let colorCounter = 0
+                for (const e of entries) {
+                  if (e.entryType === 'PETTY_CASH' && !(e.businessId in bizColorIndex)) {
+                    bizColorIndex[e.businessId] = colorCounter % PETTY_CASH_COLORS.length
+                    colorCounter++
+                  }
+                }
+                // Build group count + position-within-group for PETTY_CASH entries keyed by requestDate|businessId
+                const pettyCashGroupCount: Record<string, number> = {}
+                const pettyCashGroupPosition: Record<string, number> = {}
+                const pettyCashGroupCursor: Record<string, number> = {}
+                for (const e of entries) {
+                  if (e.entryType === 'PETTY_CASH') {
+                    const reqDate = e.pettyCashRequestedAt ?? e.entryDate
+                    const key = `${new Date(reqDate).toDateString()}|${e.businessId}`
+                    pettyCashGroupCount[key] = (pettyCashGroupCount[key] ?? 0) + 1
+                  }
+                }
+                for (const e of entries) {
+                  if (e.entryType === 'PETTY_CASH') {
+                    const reqDate = e.pettyCashRequestedAt ?? e.entryDate
+                    const key = `${new Date(reqDate).toDateString()}|${e.businessId}`
+                    pettyCashGroupCursor[key] = (pettyCashGroupCursor[key] ?? 0) + 1
+                    pettyCashGroupPosition[e.id] = pettyCashGroupCursor[key]
+                  }
+                }
+                // Client-side search filter
+                const q = search.trim().toLowerCase()
+                const visibleEntries = q
+                  ? entries.filter(e =>
+                      (e.business?.name ?? '').toLowerCase().includes(q) ||
+                      (e.notes ?? '').toLowerCase().includes(q) ||
+                      (ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType).toLowerCase().includes(q)
+                    )
+                  : entries
+                return (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-secondary uppercase">
                   <tr>
@@ -541,21 +940,30 @@ export default function CashBucketPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {entries.map(e => {
+                  {visibleEntries.length === 0 ? (
+                    <tr><td colSpan={7} className="px-3 py-6 text-center text-sm text-secondary">{q ? 'No entries match your search.' : 'No entries yet.'}</td></tr>
+                  ) : visibleEntries.map(e => {
                     const isDeleted = !!e.deletedAt
                     const isEdited = !!e.editedAt && !isDeleted
                     const isEodReceipt = e.entryType === 'EOD_RECEIPT'
                     const isCreator = e.createdBy?.id === currentUserId
-                    // Edit: admin sees all EOD_RECEIPT; others only see their own
                     const canEdit = isEodReceipt && !isDeleted && (isAdmin || isCreator)
-                    // Delete: admin or explicit canDeleteCashBucketEntry permission only
                     const canDelete = isEodReceipt && !isDeleted && canDeleteBucketEntry
-                    const hasDetails = e.entryType === 'PAYMENT_APPROVAL' || e.entryType === 'PETTY_CASH' || e.entryType === 'PETTY_CASH_RETURN'
+                    const hasDetails = e.entryType === 'PAYMENT_APPROVAL' || e.entryType === 'PETTY_CASH' || e.entryType === 'PETTY_CASH_RETURN' || (e.entryType === 'EOD_RECEIPT' && e.referenceType === 'CASH_ALLOCATION')
+                    const isPettyCash = e.entryType === 'PETTY_CASH'
+                    const isPettyCashReturn = e.entryType === 'PETTY_CASH_RETURN'
+                    const pcReqDate = (isPettyCash || isPettyCashReturn) ? (e.pettyCashRequestedAt ?? e.entryDate) : e.entryDate
+                    const pcGroupKey = `${new Date(pcReqDate).toDateString()}|${e.businessId}`
+                    const pcGroupSize = pettyCashGroupCount[pcGroupKey] ?? 1
+                    const pcPosition = isPettyCash ? (pettyCashGroupPosition[e.id] ?? 1) : 1
+                    const pcColor = PETTY_CASH_COLORS[bizColorIndex[e.businessId] ?? 0]
+                    const isSettled = e.pettyCashStatus === 'SETTLED'
+                    const isCancelled = e.pettyCashStatus === 'CANCELLED'
                     return (
                       <tr
                         key={e.id}
                         onClick={hasDetails ? () => openDetailModal(e) : undefined}
-                        className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''} ${hasDetails ? 'cursor-pointer' : ''}`}
+                        className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''} ${hasDetails ? 'cursor-pointer' : ''} ${(isPettyCash || isPettyCashReturn) && pcGroupSize > 1 ? `border-l-2 ${pcColor.border}` : ''}`}
                       >
                         <td className="px-3 py-2 whitespace-nowrap text-secondary">
                           {new Date(e.entryDate).toLocaleDateString()}
@@ -564,7 +972,27 @@ export default function CashBucketPage() {
                           {e.business?.name ?? '—'}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <div>{ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}</span>
+                            {/* Settled / Cancelled badge for petty cash */}
+                            {(isPettyCash || isPettyCashReturn) && isSettled && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                ✓ Settled
+                              </span>
+                            )}
+                            {(isPettyCash || isPettyCashReturn) && isCancelled && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                ✕ Cancelled
+                              </span>
+                            )}
+                            {/* Position indicator — colour per business so groups are visually distinct */}
+                            {isPettyCash && pcGroupSize > 1 && (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${pcColor.pill}`} title={`${e.business?.name} — request ${pcPosition} of ${pcGroupSize} on this date`}>
+                                {pcPosition}/{pcGroupSize}
+                                <span className="font-normal opacity-80">· {new Date(pcReqDate).toLocaleDateString()}</span>
+                              </span>
+                            )}
+                          </div>
                           {e.paymentChannel === 'ECOCASH' ? (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 dark:text-teal-400">
                               <span className="text-base leading-none">📱</span> EcoCash
@@ -628,6 +1056,8 @@ export default function CashBucketPage() {
                   })}
                 </tbody>
               </table>
+                )
+              })()}
             </div>
           )}
         </div>
@@ -740,9 +1170,9 @@ export default function CashBucketPage() {
                 </table>
               </div>
             ) : detailData?.pettyCash ? (
-              <div className="flex-1 overflow-y-auto space-y-3">
-                {/* Summary row */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <>
+                {/* Fixed summary — stays visible while transactions scroll */}
+                <div className="shrink-0 grid grid-cols-2 gap-x-4 gap-y-1 text-sm pb-3 border-b border-border">
                   <div className="flex justify-between col-span-2"><span className="text-secondary">Purpose</span><span className="font-medium">{detailData.pettyCash.purpose}</span></div>
                   <div className="flex justify-between"><span className="text-secondary">Requested by</span><span>{detailData.pettyCash.requestedBy}</span></div>
                   <div className="flex justify-between"><span className="text-secondary">Status</span><span className="capitalize">{detailData.pettyCash.status?.toLowerCase()}</span></div>
@@ -751,7 +1181,6 @@ export default function CashBucketPage() {
                   {detailData.pettyCash.returnAmount != null && (
                     <div className="flex justify-between"><span className="text-secondary">Returned</span><span className="text-emerald-600">{fmt(detailData.pettyCash.returnAmount)}</span></div>
                   )}
-                  {/* Remaining balance */}
                   {detailData.pettyCash.approvedAmount != null && detailData.pettyCash.spentAmount != null && detailData.pettyCash.status !== 'SETTLED' && (
                     (() => {
                       const remaining = detailData.pettyCash.approvedAmount - detailData.pettyCash.spentAmount
@@ -765,12 +1194,12 @@ export default function CashBucketPage() {
                   )}
                 </div>
 
-                {/* Transactions table */}
+                {/* Transactions — scrollable only */}
                 {detailData.pettyCash.transactions?.length > 0 && (
-                  <div className="mt-2">
+                  <div className="flex-1 overflow-y-auto mt-2">
                     <div className="text-xs font-semibold text-secondary uppercase mb-1">{detailData.pettyCash.transactions.length} expense(s)</div>
                     <table className="w-full text-xs">
-                      <thead className="bg-gray-50 dark:bg-gray-700/50 text-secondary uppercase sticky top-0">
+                      <thead className="bg-gray-50 dark:bg-gray-700 text-secondary uppercase sticky top-0 z-10">
                         <tr>
                           <th className="px-2 py-2 text-left">Payee</th>
                           <th className="px-2 py-2 text-left">Category</th>
@@ -805,6 +1234,10 @@ export default function CashBucketPage() {
                     </table>
                   </div>
                 )}
+              </>
+            ) : detailData?.eodSummary ? (
+              <div className="flex-1 overflow-y-auto">
+                <EodSummaryPanel eodSummary={detailData.eodSummary} fmt={fmt} />
               </div>
             ) : (
               <p className="text-sm text-secondary py-4 text-center">No details available.</p>

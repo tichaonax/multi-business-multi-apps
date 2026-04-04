@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
     const totalAllocated = balances.reduce((s, b) => s + b.allocatedTotal, 0)
     const totalPhysicalCash = balances.reduce((s, b) => s + b.physicalCash, 0)
 
-    // Filtered + paginated entries
+    // Filtered + paginated entries — ordered so same-date same-business entries cluster together
     const [entries, total] = await Promise.all([
       prisma.cashBucketEntry.findMany({
         where: entryWhere,
@@ -230,12 +230,25 @@ export async function GET(request: NextRequest) {
           editor: { select: { id: true, name: true } },
           deleter: { select: { id: true, name: true } },
         },
-        orderBy: { entryDate: 'desc' },
+        orderBy: [{ entryDate: 'desc' }, { businessId: 'asc' }, { entryType: 'asc' }],
         take: limit,
         skip: offset,
       }),
       prisma.cashBucketEntry.count({ where: entryWhere }),
     ])
+
+    // Batch-fetch petty cash statuses for PETTY_CASH / PETTY_CASH_RETURN entries
+    const pettyCashIds = entries
+      .filter((e) => (e.entryType === 'PETTY_CASH' || e.entryType === 'PETTY_CASH_RETURN') && e.referenceId)
+      .map((e) => e.referenceId as string)
+    const pettyCashStatuses = pettyCashIds.length > 0
+      ? await prisma.pettyCashRequests.findMany({
+          where: { id: { in: pettyCashIds } },
+          select: { id: true, status: true, requestedAt: true },
+        })
+      : []
+    const pettyCashStatusMap = new Map(pettyCashStatuses.map((r) => [r.id, r.status]))
+    const pettyCashRequestedAtMap = new Map(pettyCashStatuses.map((r) => [r.id, r.requestedAt.toISOString()]))
 
     return NextResponse.json({
       success: true,
@@ -263,6 +276,8 @@ export async function GET(request: NextRequest) {
           deletedAt: e.deletedAt?.toISOString() ?? null,
           deletedBy: e.deleter ?? null,
           deletionReason: e.deletionReason ?? null,
+          pettyCashStatus: e.referenceId ? (pettyCashStatusMap.get(e.referenceId) ?? null) : null,
+          pettyCashRequestedAt: e.referenceId ? (pettyCashRequestedAtMap.get(e.referenceId) ?? null) : null,
         })),
         pagination: { total, limit, offset },
       },

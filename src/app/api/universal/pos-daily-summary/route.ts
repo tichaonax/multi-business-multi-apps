@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const timezone = searchParams.get('timezone') || 'UTC'
+    const daysAgo = Math.min(Math.max(parseInt(searchParams.get('daysAgo') || '0', 10) || 0, 0), 7)
 
     if (!businessId) {
       return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { start, end } = getDayBounds(timezone, 0)
+    const { start, end } = getDayBounds(timezone, daysAgo)
     const { start: yStart, end: yEnd } = getDayBounds(timezone, 1)
     const { start: d2Start, end: d2End } = getDayBounds(timezone, 2)
 
@@ -85,6 +86,7 @@ export async function GET(request: NextRequest) {
       id: string
       amount: number
       payeeName: string
+      payeePhone: string | null
       payeeType: string
       categoryName: string | null
       subcategoryName: string | null
@@ -97,17 +99,19 @@ export async function GET(request: NextRequest) {
           expenseAccountId: { in: accountIds },
           paymentDate: { gte: start, lt: end },
           status: { not: 'CANCELLED' },
+          // Exclude credits/returns — these are money coming INTO the account, not outgoing expenses
+          paymentType: { notIn: ['TRANSFER_RETURN', 'PETTY_CASH_RETURN'] },
         },
         select: {
           id: true,
           amount: true,
           notes: true,
           payeeType: true,
-          payeeEmployee: { select: { firstName: true, lastName: true } },
-          payeePerson: { select: { fullName: true } },
+          payeeEmployee: { select: { firstName: true, lastName: true, phone: true } },
+          payeePerson: { select: { fullName: true, phone: true } },
           payeeUser: { select: { name: true } },
           payeeBusiness: { select: { name: true } },
-          payeeSupplier: { select: { name: true } },
+          payeeSupplier: { select: { name: true, phone: true } },
           category: { select: { name: true } },
           subcategory: { select: { name: true } },
         },
@@ -116,17 +120,27 @@ export async function GET(request: NextRequest) {
 
       expenseItems = payments.map((p) => {
         let payeeName = 'Unknown'
-        if (p.payeeEmployee)
+        let payeePhone: string | null = null
+        if (p.payeeEmployee) {
           payeeName = `${p.payeeEmployee.firstName} ${p.payeeEmployee.lastName}`
-        else if (p.payeePerson) payeeName = p.payeePerson.fullName
-        else if (p.payeeUser) payeeName = p.payeeUser.name || 'User'
-        else if (p.payeeBusiness) payeeName = p.payeeBusiness.name
-        else if (p.payeeSupplier) payeeName = p.payeeSupplier.name
+          payeePhone = p.payeeEmployee.phone ?? null
+        } else if (p.payeePerson) {
+          payeeName = p.payeePerson.fullName
+          payeePhone = p.payeePerson.phone ?? null
+        } else if (p.payeeUser) {
+          payeeName = p.payeeUser.name || 'User'
+        } else if (p.payeeBusiness) {
+          payeeName = p.payeeBusiness.name
+        } else if (p.payeeSupplier) {
+          payeeName = p.payeeSupplier.name
+          payeePhone = p.payeeSupplier.phone ?? null
+        }
 
         return {
           id: p.id,
           amount: Number(p.amount),
           payeeName,
+          payeePhone,
           payeeType: p.payeeType,
           categoryName: p.category?.name ?? null,
           subcategoryName: p.subcategory?.name ?? null,
@@ -143,11 +157,11 @@ export async function GET(request: NextRequest) {
     if (accountIds.length > 0) {
       const [yPayments, d2Payments] = await Promise.all([
         prisma.expenseAccountPayments.findMany({
-          where: { expenseAccountId: { in: accountIds }, paymentDate: { gte: yStart, lt: yEnd }, status: { not: 'CANCELLED' } },
+          where: { expenseAccountId: { in: accountIds }, paymentDate: { gte: yStart, lt: yEnd }, status: { not: 'CANCELLED' }, paymentType: { notIn: ['TRANSFER_RETURN', 'PETTY_CASH_RETURN'] } },
           select: { amount: true },
         }),
         prisma.expenseAccountPayments.findMany({
-          where: { expenseAccountId: { in: accountIds }, paymentDate: { gte: d2Start, lt: d2End }, status: { not: 'CANCELLED' } },
+          where: { expenseAccountId: { in: accountIds }, paymentDate: { gte: d2Start, lt: d2End }, status: { not: 'CANCELLED' }, paymentType: { notIn: ['TRANSFER_RETURN', 'PETTY_CASH_RETURN'] } },
           select: { amount: true },
         }),
       ])
