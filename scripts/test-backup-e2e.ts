@@ -9,23 +9,40 @@ import { createCleanBackup } from '../src/lib/backup-clean'
 import { restoreCleanBackup } from '../src/lib/restore-clean'
 
 const NEW_TABLE_KEYS = [
+  // EOD / Cash Box
   'eodPaymentBatches', 'paymentBatchSubmissions', 'cashBucketEntries',
   'groupedEODRuns', 'groupedEODRunDates', 'cashAllocationReports',
   'cashAllocationLineItems', 'pettyCashRequests', 'pettyCashTransactions',
+  'paymentReversalLogs', 'paymentNotes',
+  // Employees
   'perDiemEntries', 'employeeAbsences', 'employeeLoginLog', 'externalClockIn',
+  // Business Loans
   'businessLoans', 'businessLoanManagers',
   'businessLoanExpenses', 'businessLoanPreLockRepayments', 'loanWithdrawalRequests',
+  // Expense Accounts
   'expenseAccountAutoDeposits', 'businessRentConfigs', 'appNotifications',
+  // Payroll
+  'payrollSlips', 'payrollZimraRemittances', 'payrollPaymentVouchers',
+  'accountOutgoingLoans', 'accountOutgoingLoanPayments',
+  // Promotions, Coupons, Meal Program
+  'promoCampaigns', 'customerRewards', 'coupons', 'couponUsages',
+  'mealProgramParticipants', 'mealProgramEligibleItems', 'mealProgramTransactions',
+  // Supplier Payments
+  'supplierPaymentRequests', 'supplierPaymentRequestItems',
+  'supplierPaymentRequestPartials', 'supplierRatings',
+  // Saved Data / Display / Receipts
+  'savedReports', 'customerDisplayAds', 'posTerminalConfigs', 'receiptSequences', 'reprintLog',
+  // Clothing Bales
+  'clothingBaleCategories', 'clothingBales', 'clothingBaleBogoHistory', 'clothingLabelPrintHistory',
+  // Chicken Run
   'chickenRunSettings', 'chickenVaccinationSchedules',
   'chickenBatches', 'chickenMortality', 'chickenFeedLogs', 'chickenMedicationLogs',
   'chickenWeightLogs', 'chickenVaccinationLogs', 'chickenCulling', 'chickenInventory',
   'chickenBirdWeights', 'chickenInventoryMovements', 'chickenUtilityCosts', 'chickenLaborLogs',
-  'clothingBaleBogoHistory',
-  'clothingLabelPrintHistory',
-  'paymentReversalLogs',
+  // Stock Take
   'stockTakeDrafts', 'stockTakeDraftItems', 'stockTakeReports', 'stockTakeReportEmployees',
+  // Custom Bulk Products
   'customBulkProducts',
-  'paymentNotes',
 ]
 
 async function main() {

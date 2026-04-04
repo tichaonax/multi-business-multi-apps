@@ -223,6 +223,9 @@ export async function POST(
       subSourceId,
       fundSourceNote,
       subSourceNote,
+      incomeDomainId,
+      incomeCategoryId,
+      incomeSubcategoryId,
     } = body
 
     // Validate: fundSourceId and fundSourceNote are mutually exclusive
@@ -442,6 +445,9 @@ export async function POST(
           subSourceId: subSourceId || null,
           fundSourceNote: fundSourceNote?.trim() || null,
           subSourceNote: subSourceNote?.trim() || null,
+          incomeDomainId: incomeDomainId || null,
+          incomeCategoryId: incomeCategoryId || null,
+          incomeSubcategoryId: incomeSubcategoryId || null,
           createdBy: user.id,
         },
         include: {

@@ -24,6 +24,13 @@ interface FundSource {
   description?: string | null
 }
 
+interface IncomeCategory {
+  id: string
+  name: string
+  emoji: string
+  isDomainCategory?: boolean
+}
+
 interface QuickDepositModalProps {
   isOpen: boolean
   onClose: () => void
@@ -33,6 +40,8 @@ interface QuickDepositModalProps {
   onError: (error: string) => void
   isLoanAccount?: boolean
   currentBalance?: number
+  accountType?: string
+  businessId?: string
 }
 
 export function QuickDepositModal({
@@ -44,12 +53,27 @@ export function QuickDepositModal({
   onError,
   isLoanAccount = false,
   currentBalance = 0,
+  accountType = 'GENERAL',
+  businessId,
 }: QuickDepositModalProps) {
+  const isPersonalAccount = accountType === 'PERSONAL'
+  const isBusinessAccount = !!businessId
+
   const [loading, setLoading] = useState(false)
   const [loadingBusinesses, setLoadingBusinesses] = useState(false)
   const toast = useToastContext()
   const customAlert = useAlert()
   const customConfirm = useConfirm()
+
+  // Income domain/category/subcategory state
+  const [incomeCategories, setIncomeCategories] = useState<IncomeCategory[]>([])
+  const [loadingIncomeCategories, setLoadingIncomeCategories] = useState(false)
+  const [incomeSubcategories, setIncomeSubcategories] = useState<IncomeCategory[]>([])
+  const [loadingIncomeSubcategories, setLoadingIncomeSubcategories] = useState(false)
+  const [activeDomainId, setActiveDomainId] = useState<string | null>(null)
+  const [incomeCategoryId, setIncomeCategoryId] = useState('')
+  const [incomeSubcategoryId, setIncomeSubcategoryId] = useState('')
+  const [incomeError, setIncomeError] = useState('')
 
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [fundSources, setFundSources] = useState<FundSource[]>([])
@@ -78,8 +102,41 @@ export function QuickDepositModal({
   })
 
   useEffect(() => {
-    if (isOpen) fetchFundSources()
+    if (isOpen) {
+      fetchFundSources()
+      loadIncomeDomain()
+    }
   }, [isOpen])
+
+  // Auto-activate income domain based on account type
+  const loadIncomeDomain = async () => {
+    const targetDomainName = isPersonalAccount ? 'Personal Income' : isBusinessAccount ? 'Business Income' : null
+    if (!targetDomainName) return
+
+    try {
+      setLoadingIncomeCategories(true)
+      const res = await fetch('/api/expense-categories/hierarchical', { credentials: 'include' })
+      if (!res.ok) return
+      const data = await res.json()
+      const allDomains: IncomeCategory[] = (data.domains?.[0]?.expense_categories || [])
+        .filter((c: any) => c.isDomainCategory)
+
+      const domain = allDomains.find(d => d.name === targetDomainName)
+      if (!domain) return
+
+      setActiveDomainId(domain.id)
+
+      // Fetch categories under this domain
+      const catRes = await fetch(`/api/expense-categories/${domain.id}/subcategories`, { credentials: 'include' })
+      if (!catRes.ok) return
+      const catData = await catRes.json()
+      setIncomeCategories(catData.subcategories || [])
+    } catch {
+      // ignore
+    } finally {
+      setLoadingIncomeCategories(false)
+    }
+  }
 
   useEffect(() => {
     if (formData.sourceType === 'BUSINESS' && businesses.length === 0) {
@@ -119,6 +176,22 @@ export function QuickDepositModal({
       console.error('Error fetching businesses:', error)
     } finally {
       setLoadingBusinesses(false)
+    }
+  }
+
+  const loadIncomeSubcategories = async (categoryId: string) => {
+    try {
+      setLoadingIncomeSubcategories(true)
+      setIncomeSubcategoryId('')
+      setIncomeSubcategories([])
+      const res = await fetch(`/api/expense-categories/${categoryId}/subcategories`, { credentials: 'include' })
+      if (!res.ok) return
+      const data = await res.json()
+      setIncomeSubcategories(data.subcategories || [])
+    } catch {
+      // ignore
+    } finally {
+      setLoadingIncomeSubcategories(false)
     }
   }
 
@@ -171,8 +244,17 @@ export function QuickDepositModal({
       }
     }
 
+    // Validate income category — required for personal and business accounts
+    let incomeValid = true
+    if ((isPersonalAccount || isBusinessAccount) && !incomeCategoryId) {
+      setIncomeError('Please select an income category')
+      incomeValid = false
+    } else {
+      setIncomeError('')
+    }
+
     setErrors(newErrors)
-    return !newErrors.sourceBusinessId && !newErrors.amount && !newErrors.depositDate
+    return !newErrors.sourceBusinessId && !newErrors.amount && !newErrors.depositDate && incomeValid
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -220,6 +302,9 @@ export function QuickDepositModal({
           subSourceId: resolvedSubSourceId,
           fundSourceNote: resolvedFundSourceNote,
           subSourceNote: resolvedSubSourceNote,
+          incomeDomainId: activeDomainId || undefined,
+          incomeCategoryId: incomeCategoryId || undefined,
+          incomeSubcategoryId: incomeSubcategoryId || undefined,
         })
       })
 
@@ -266,6 +351,10 @@ export function QuickDepositModal({
     setSaveSenderNote(false)
     setSaveCourierNote(false)
     setShowFundSourceManager(false)
+    setIncomeCategoryId('')
+    setIncomeSubcategoryId('')
+    setIncomeSubcategories([])
+    setIncomeError('')
     setErrors({
       sourceBusinessId: '',
       amount: '',
@@ -305,7 +394,8 @@ export function QuickDepositModal({
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Source Type */}
+          {/* Source Type — hidden for personal accounts (always MANUAL) */}
+          {!isPersonalAccount && (
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
               Deposit Source <span className="text-red-500">*</span>
@@ -328,6 +418,7 @@ export function QuickDepositModal({
               <option value="OTHER">Other Source</option>
             </select>
           </div>
+          )}
 
           {/* Business Selection (if source is BUSINESS) */}
           {formData.sourceType === 'BUSINESS' && (
@@ -421,6 +512,51 @@ export function QuickDepositModal({
               max={getTodayLocalDateString()}
             />
           </div>
+
+          {/* Income Source section — Personal and Business accounts */}
+          {(isPersonalAccount || isBusinessAccount) && activeDomainId && (
+            <div className="space-y-3 p-3 border border-blue-200 dark:border-blue-700 rounded-lg bg-blue-50/30 dark:bg-blue-900/10">
+              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">
+                Income Source
+              </span>
+
+              {/* Category picker */}
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <SearchableSelect
+                  value={incomeCategoryId}
+                  options={incomeCategories.map(c => ({ id: c.id, label: `${c.emoji || ''} ${c.name}`.trim() }))}
+                  onChange={(val) => {
+                    setIncomeCategoryId(val)
+                    setIncomeError('')
+                    if (val) loadIncomeSubcategories(val)
+                    else { setIncomeSubcategories([]); setIncomeSubcategoryId('') }
+                  }}
+                  placeholder={loadingIncomeCategories ? 'Loading…' : 'Select a category…'}
+                  loading={loadingIncomeCategories}
+                />
+                {incomeError && <p className="text-xs text-red-500 mt-1">{incomeError}</p>}
+              </div>
+
+              {/* Subcategory picker */}
+              {incomeCategoryId && (
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Subcategory
+                  </label>
+                  <SearchableSelect
+                    value={incomeSubcategoryId}
+                    options={incomeSubcategories.map(s => ({ id: s.id, label: `${s.emoji || ''} ${s.name}`.trim() }))}
+                    onChange={(val) => setIncomeSubcategoryId(val)}
+                    placeholder={loadingIncomeSubcategories ? 'Loading…' : 'Select a subcategory…'}
+                    loading={loadingIncomeSubcategories}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Fund source section — MANUAL / OTHER only */}
           {(formData.sourceType === 'MANUAL' || formData.sourceType === 'OTHER') && (

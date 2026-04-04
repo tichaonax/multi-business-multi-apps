@@ -1484,6 +1484,9 @@ model ExpenseAccountDeposits {
   subSourceId               String?
   fundSourceNote            String?
   subSourceNote             String?
+  incomeDomainId            String?
+  incomeCategoryId          String?
+  incomeSubcategoryId       String?
   creator                   Users                   @relation("ExpenseAccountDepositCreator", fields: [createdBy], references: [id])
   expenseAccount            ExpenseAccounts         @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
   sourceBusiness            Businesses?             @relation("ExpenseAccountDepositSource", fields: [sourceBusinessId], references: [id])

@@ -1451,6 +1451,8 @@ export default function ExpenseAccountDetailPage() {
           accountName={account.accountName}
           isLoanAccount={account.isLoanAccount}
           currentBalance={Number(account.balance)}
+          accountType={account.accountType}
+          businessId={account.businessId ?? undefined}
           onSuccess={() => {
             loadAccount()
             setShowDepositModal(false)
