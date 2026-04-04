@@ -414,6 +414,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Chicken Batches: unique on batchNumber
   'chickenBatches': 'batchNumber',
 
+  // POS Terminal Config: unique on terminalId
+  'posTerminalConfigs': 'terminalId',
+
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
