@@ -140,6 +140,8 @@ export async function GET(
           isFullPayment: payment.isFullPayment,
           batchId: payment.batchId,
           paymentChannel: (payment as any).paymentChannel ?? 'CASH',
+          priority: (payment as any).priority ?? 'NORMAL',
+          projectId: (payment as any).projectId ?? null,
           status: payment.status,
           createdBy: payment.creator,
           submittedBy: payment.submitter,
@@ -392,6 +394,9 @@ export async function PATCH(
       payeeBusinessId,
       payeeSupplierId,
       payeeChangeReason,
+      paymentChannel,
+      priority,
+      projectId,
     } = body
 
     // Payee changes are admin-only and require a reason
@@ -516,6 +521,15 @@ export async function PATCH(
       updateData.receiptServiceProvider = receiptServiceProvider?.trim() || null
     if (receiptReason !== undefined) updateData.receiptReason = receiptReason?.trim() || null
     if (isFullPayment !== undefined) updateData.isFullPayment = isFullPayment
+    if (paymentChannel !== undefined) updateData.paymentChannel = paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH'
+    if (priority !== undefined) updateData.priority = priority === 'URGENT' ? 'URGENT' : 'NORMAL'
+    if (projectId !== undefined) {
+      if (projectId) {
+        const project = await prisma.projects.findUnique({ where: { id: projectId }, select: { id: true } })
+        if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+      }
+      updateData.projectId = projectId || null
+    }
 
     // Use transaction to update payment and recalculate balance
     const result = await prisma.$transaction(async (tx) => {

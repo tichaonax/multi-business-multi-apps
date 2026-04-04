@@ -14,6 +14,7 @@ export interface VoucherData {
   collectorSignature?: string  // base64 PNG
   creatorName: string
   businessName: string
+  category?: string
   notes?: string
 }
 
@@ -106,6 +107,7 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
   section('Paid To (Payee)', [
     { label: 'Name', value: data.payeeName },
     { label: 'Type', value: data.payeeType },
+    ...(data.category ? [{ label: 'Category', value: data.category }] : []),
     { label: 'Purpose', value: data.purpose || '—' },
   ])
 

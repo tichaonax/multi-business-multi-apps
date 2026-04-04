@@ -1568,6 +1568,8 @@ model ExpenseAccountPayments {
   reversedBy                String?                          @map("reversed_by")
   reversalNote              String?                          @map("reversal_note")
   reversalPettyCashId       String?                          @map("reversal_petty_cash_id")
+  projectId                 String?                          @map("project_id")
+  project                   Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
   payment_voucher           ExpensePaymentVouchers?
 
   @@index([expenseAccountId, paymentDate])
@@ -1579,6 +1581,7 @@ model ExpenseAccountPayments {
   @@index([expenseAccountId, status], map: "idx_expense_payments_account_status")
   @@index([createdAt(sort: Desc)], map: "idx_expense_payments_created_at")
   @@index([paymentDate(sort: Desc)], map: "idx_expense_payments_payment_date")
+  @@index([projectId], map: "idx_expense_payments_project_id")
   @@map("expense_account_payments")
 }
 
@@ -2953,25 +2956,26 @@ model ProjectTypes {
 }
 
 model Projects {
-  id                   String                @id @default(uuid())
-  name                 String
-  description          String?
-  projectTypeId        String
-  businessType         String
-  businessId           String?
-  status               String                @default("active")
-  budget               Decimal?              @db.Decimal(12, 2)
-  startDate            DateTime?
-  endDate              DateTime?
-  createdAt            DateTime              @default(now())
-  createdBy            String?
-  updatedAt            DateTime              @default(now())
-  project_contractors  ProjectContractors[]
-  project_stages       ProjectStages[]
-  project_transactions ProjectTransactions[]
-  businesses           Businesses?           @relation(fields: [businessId], references: [id])
-  users                Users?                @relation(fields: [createdBy], references: [id])
-  project_types        ProjectTypes          @relation(fields: [projectTypeId], references: [id])
+  id                       String                   @id @default(uuid())
+  name                     String
+  description              String?
+  projectTypeId            String
+  businessType             String
+  businessId               String?
+  status                   String                   @default("active")
+  budget                   Decimal?                 @db.Decimal(12, 2)
+  startDate                DateTime?
+  endDate                  DateTime?
+  createdAt                DateTime                 @default(now())
+  createdBy                String?
+  updatedAt                DateTime                 @default(now())
+  project_contractors      ProjectContractors[]
+  project_stages           ProjectStages[]
+  project_transactions     ProjectTransactions[]
+  expense_account_payments ExpenseAccountPayments[] @relation("ProjectExpensePayments")
+  businesses               Businesses?              @relation(fields: [businessId], references: [id])
+  users                    Users?                   @relation(fields: [createdBy], references: [id])
+  project_types            ProjectTypes             @relation(fields: [projectTypeId], references: [id])
 
   @@index([businessType])
   @@index([createdBy])

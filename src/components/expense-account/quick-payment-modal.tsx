@@ -367,6 +367,8 @@ export function QuickPaymentModal({
   const [subcategories, setSubcategories] = useState<ExpenseSubcategory[]>([])
   const [subSubcategories, setSubSubcategories] = useState<ExpenseSubSubcategory[]>([])
 
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
+
   const [formData, setFormData] = useState({
     payee: presetPayee ?? null as { type: string; id: string; name: string } | null,
     categoryId: '',
@@ -377,6 +379,7 @@ export function QuickPaymentModal({
     notes: '',
     paymentChannel: 'CASH' as 'CASH' | 'ECOCASH',
     priority: 'NORMAL' as 'NORMAL' | 'URGENT',
+    projectId: '',
   })
 
   const [errors, setErrors] = useState({
@@ -393,6 +396,17 @@ export function QuickPaymentModal({
       .then(d => setSavedNotes(d.data || []))
       .catch(() => {})
   }
+
+  useEffect(() => {
+    if (isOpen && businessId) {
+      fetch(`/api/projects?businessId=${businessId}&status=active`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setProjects(data.map((p: any) => ({ id: p.id, name: p.name })))
+        })
+        .catch(() => {})
+    }
+  }, [isOpen, businessId])
 
   useEffect(() => {
     if (isOpen) {
@@ -493,6 +507,24 @@ export function QuickPaymentModal({
         const domainName = getDefaultDomainName(activeBusinessType)
         const match = categories.find(c => c.name === domainName)
         if (match) setFormData(prev => ({ ...prev, categoryId: match.id }))
+      } else if (isPersonalAccount && !selectedDropdownValue) {
+        // Auto-activate Personal Expenses domain for personal accounts (checked before isHomeAccount
+        // because a personal account with no businessId also satisfies isHomeAccount)
+        const personalDomain = domainOptions.find(d => d.name === 'Personal Expenses')
+        if (personalDomain) {
+          const dropVal = `domain:${personalDomain.id}`
+          setSelectedDropdownValue(dropVal)
+          setActiveDomainOverride(personalDomain.name)
+          setActiveDomainOverrideId(personalDomain.id)
+          setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+          setDomainOverrideItems([])
+          setLoadingDomainOverrideItems(true)
+          fetch(`/api/expense-categories/${personalDomain.id}/subcategories`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(d => setDomainOverrideItems(d.subcategories || []))
+            .catch(() => {})
+            .finally(() => setLoadingDomainOverrideItems(false))
+        }
       } else if (isHomeAccount && !selectedDropdownValue) {
         // Auto-activate Home domain override for home accounts
         const homeDomain = domainOptions.find(d => d.name === 'Home')
@@ -759,6 +791,7 @@ export function QuickPaymentModal({
         notes: formData.notes || null,
         paymentChannel: formData.paymentChannel,
         priority: formData.priority,
+        projectId: formData.projectId || undefined,
         isFullPayment: true,
         status: 'SUBMITTED'
       }
@@ -816,6 +849,7 @@ export function QuickPaymentModal({
       notes: '',
       paymentChannel: 'CASH',
       priority: 'NORMAL',
+      projectId: '',
     })
     setErrors({
       payee: '',
@@ -1172,8 +1206,8 @@ export function QuickPaymentModal({
 
         <form onSubmit={handleSubmit}>
           {/* ── Payee — full width ───────────────────────────────────── */}
-          {/* Business selector — shown when multiple businesses available */}
-          {businesses && businesses.length > 1 && (
+          {/* Business selector — shown when multiple businesses available or for personal accounts */}
+          {(isPersonalAccount || (businesses && businesses.length > 1)) && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-secondary mb-1">Business</label>
               <SearchableSelect
@@ -1181,18 +1215,22 @@ export function QuickPaymentModal({
                 disabled={loadingBusinessSwitch}
                 loading={loadingBusinessSwitch}
                 placeholder="Select business or domain..."
-                options={[
-                  ...(!isHomeAccount ? businesses.filter(b => !b.isUmbrellaBusiness).map(b => ({
-                    id: b.businessId,
-                    label: b.businessName,
-                  })) : []),
-                  ...domainOptions
-                    .filter(d => !isHomeAccount || !BUSINESS_DOMAIN_NAMES.has(d.name))
-                    .map(d => ({
-                    id: `domain:${d.id}`,
-                    label: `${d.name} Business Domains`,
-                  })),
-                ]}
+                options={isPersonalAccount
+                  ? domainOptions
+                      .filter(d => d.name === 'Personal Expenses')
+                      .map(d => ({ id: `domain:${d.id}`, label: '🏠 Personal Expenses' }))
+                  : [
+                      ...(!isHomeAccount ? businesses.filter(b => !b.isUmbrellaBusiness).map(b => ({
+                        id: b.businessId,
+                        label: b.businessName,
+                      })) : []),
+                      ...domainOptions
+                        .filter(d => !isHomeAccount || !BUSINESS_DOMAIN_NAMES.has(d.name))
+                        .map(d => ({
+                        id: `domain:${d.id}`,
+                        label: `${d.name} Business Domains`,
+                      })),
+                    ]}
                 onChange={(val) => {
                   setSelectedDropdownValue(val)
                   if (val.startsWith('domain:')) {
@@ -1307,9 +1345,8 @@ export function QuickPaymentModal({
                 })()
               ) : (
                 <>
-                  {/* Domain + Category — hidden for Personal accounts */}
-                  {!isPersonalAccount && (
-                    activeDomainOverride ? (
+                  {/* Domain + Category */}
+                  {(activeDomainOverride ? (
                       // ── Business-domain mode ──────────────────────────────────
                       // domainOverrideItems = expense_categories (General Construction, Structural Work…)
                       // subcategories = expense_subcategories under selected expense_category (Masonry, Steel…)
@@ -1713,6 +1750,19 @@ export function QuickPaymentModal({
               </div>
             </div>
           </div>
+
+          {/* Link to Project (optional, shown only when business has projects) */}
+          {projects.length > 0 && (
+            <div className="px-4 pb-3">
+              <label className="block text-sm font-medium text-secondary mb-1">Link to Project (optional)</label>
+              <SearchableSelect
+                value={formData.projectId}
+                options={projects.map(p => ({ id: p.id, label: p.name }))}
+                onChange={(value) => setFormData({ ...formData, projectId: value })}
+                placeholder="No project linked"
+              />
+            </div>
+          )}
 
           {/* ── Actions — full width ─────────────────────────────────── */}
           <div className="flex justify-end gap-3 pt-2 border-t border-border">

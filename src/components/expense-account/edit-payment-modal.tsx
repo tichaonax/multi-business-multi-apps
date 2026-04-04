@@ -219,6 +219,9 @@ interface PaymentDetail {
   receiptNumber: string | null
   receiptServiceProvider: string | null
   receiptReason: string | null
+  paymentChannel: string
+  priority: string
+  projectId: string | null
   createdAt: string
 }
 
@@ -262,6 +265,10 @@ export function EditPaymentModal({
   const [receiptNumber, setReceiptNumber] = useState('')
   const [receiptServiceProvider, setReceiptServiceProvider] = useState('')
   const [receiptReason, setReceiptReason] = useState('')
+  const [paymentChannel, setPaymentChannel] = useState<'CASH' | 'ECOCASH'>('CASH')
+  const [priority, setPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL')
+  const [projectId, setProjectId] = useState('')
+  const [projects, setProjects] = useState<{ id: string; label: string }[]>([])
 
   // Payee
   const [payee, setPayee] = useState<{ type: string; id: string; name: string } | null>(null)
@@ -423,6 +430,19 @@ export function EditPaymentModal({
     reloadTopOptions()
   }, [isOpen])
 
+  // ── Load all projects ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isOpen) return
+    fetch('/api/projects', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setProjects(data.map((p: any) => ({ id: p.id, label: p.name })))
+        }
+      })
+      .catch(() => {})
+  }, [isOpen])
+
   // ── Load payment data ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return
@@ -450,6 +470,9 @@ export function EditPaymentModal({
         setReceiptNumber(p.receiptNumber || '')
         setReceiptServiceProvider(p.receiptServiceProvider || '')
         setReceiptReason(p.receiptReason || '')
+        setPaymentChannel(p.paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH')
+        setPriority(p.priority === 'URGENT' ? 'URGENT' : 'NORMAL')
+        setProjectId(p.projectId || '')
 
         // Set payee
         const payeeName =
@@ -594,6 +617,9 @@ export function EditPaymentModal({
 
       if (apiCategoryId) body.categoryId = apiCategoryId
       if (apiSubcategoryId !== undefined) body.subcategoryId = apiSubcategoryId
+      body.paymentChannel = paymentChannel
+      body.priority = priority
+      body.projectId = projectId || null
 
       if (payeeChanged && payee) {
         body.payeeType = payee.type
@@ -863,6 +889,66 @@ export function EditPaymentModal({
                   placeholder="Optional"
                   disabled={isHydrating}
                   className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              {/* ── Payment Method ───────────────────────────────────────── */}
+              <div>
+                <label className="text-sm font-medium text-secondary">Payment Method</label>
+                <div className="flex gap-2 mt-1">
+                  {(['CASH', 'ECOCASH'] as const).map(ch => (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => setPaymentChannel(ch)}
+                      disabled={isHydrating}
+                      className={`flex-1 py-2 text-sm font-medium rounded-md border transition-colors disabled:opacity-50 ${
+                        paymentChannel === ch
+                          ? ch === 'ECOCASH'
+                            ? 'bg-green-600 text-white border-green-600'
+                            : 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-background text-secondary border-border hover:bg-muted'
+                      }`}
+                    >
+                      {ch === 'CASH' ? '💵 Cash' : '📱 EcoCash'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Priority ─────────────────────────────────────────────── */}
+              <div>
+                <label className="text-sm font-medium text-secondary">Priority</label>
+                <div className="flex gap-2 mt-1">
+                  {(['NORMAL', 'URGENT'] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPriority(p)}
+                      disabled={isHydrating}
+                      className={`flex-1 py-2 text-sm font-medium rounded-md border transition-colors disabled:opacity-50 ${
+                        priority === p
+                          ? p === 'URGENT'
+                            ? 'bg-red-600 text-white border-red-600'
+                            : 'bg-gray-600 text-white border-gray-600'
+                          : 'bg-background text-secondary border-border hover:bg-muted'
+                      }`}
+                    >
+                      {p === 'URGENT' ? '🚨 Urgent' : '✅ Normal'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Link to Project — full width ──────────────────────────── */}
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-secondary">Link to Project (optional)</label>
+                <SearchableSelect
+                  value={projectId}
+                  options={projects}
+                  onChange={setProjectId}
+                  placeholder="No project linked"
+                  disabled={isHydrating}
                 />
               </div>
 

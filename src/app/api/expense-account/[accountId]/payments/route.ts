@@ -199,6 +199,7 @@ export async function GET(
           status: p.status,
           paymentChannel: (p as any).paymentChannel ?? 'CASH',
           priority: (p as any).priority ?? 'NORMAL',
+          projectId: p.projectId ?? null,
           createdBy: p.creator,
           submittedBy: p.submitter,
           submittedAt: p.submittedAt?.toISOString(),
@@ -755,6 +756,7 @@ export async function POST(
             createdBy: user.id,
             submittedBy: paymentStatus === 'SUBMITTED' ? user.id : null,
             submittedAt: paymentStatus === 'SUBMITTED' ? new Date() : null,
+            projectId: payment.projectId || null,
           },
           include: {
             payeeUser: {

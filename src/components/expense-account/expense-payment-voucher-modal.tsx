@@ -12,6 +12,7 @@ export interface PaymentSummary {
   payeeName: string
   payeeType: string
   purpose: string
+  category?: string
   businessId: string
   businessName: string
 }
@@ -50,15 +51,20 @@ export function ExpensePaymentVoucherModal({
   const [collectorIdNumber, setCollectorIdNumber] = useState(existingVoucher?.collectorIdNumber ?? '')
   const [collectorIdTemplateId, setCollectorIdTemplateId] = useState<string | undefined>(undefined)
   const [collectorDlNumber, setCollectorDlNumber] = useState(existingVoucher?.collectorDlNumber ?? '')
+  const [purpose, setPurpose] = useState(payment.purpose ?? '')
   const [notes, setNotes] = useState(existingVoucher?.notes ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   // Signature pad state
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
   const drawing = useRef(false)
   const lastPos = useRef<{ x: number; y: number } | null>(null)
   const [hasSig, setHasSig] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [savedVoucherData, setSavedVoucherData] = useState<VoucherData | null>(null)
+  const pendingSaved = useRef<ExistingVoucher | null>(null)
 
   // Pre-load existing signature into canvas
   useEffect(() => {
@@ -124,6 +130,7 @@ export function ExpensePaymentVoucherModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!collectorName.trim()) { setError('Collector name is required'); return }
+    if (!purpose.trim()) { setError('Please describe what this payment is for'); return }
     setSaving(true)
     setError('')
 
@@ -149,16 +156,16 @@ export function ExpensePaymentVoucherModal({
       if (!res.ok) { setError(json.error || 'Failed to save'); return }
 
       const saved: ExistingVoucher = json.data
-      onSaved(saved)
+      pendingSaved.current = saved
 
-      // Generate and download the PDF immediately
+      // Show preview instead of downloading immediately
       const voucherData: VoucherData = {
         voucherNumber: saved.voucherNumber,
         paymentDate: payment.paymentDate,
         amount: payment.amount,
         payeeName: payment.payeeName,
         payeeType: payment.payeeType,
-        purpose: payment.purpose,
+        purpose: purpose.trim(),
         collectorName: saved.collectorName,
         collectorPhone: saved.collectorPhone,
         collectorIdNumber: saved.collectorIdNumber,
@@ -166,15 +173,150 @@ export function ExpensePaymentVoucherModal({
         collectorSignature: saved.collectorSignature,
         creatorName,
         businessName: payment.businessName,
+        category: payment.category,
         notes: saved.notes,
       }
-      generatePaymentVoucherPdf(voucherData)
-      onClose()
+      setSavedVoucherData(voucherData)
+      setShowPreview(true)
     } catch {
       setError('Network error — please try again')
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleDownloadPdf = () => {
+    if (savedVoucherData) generatePaymentVoucherPdf(savedVoucherData)
+  }
+
+  const handlePrintVoucher = () => {
+    if (!previewRef.current || !savedVoucherData) return
+    const content = previewRef.current.innerHTML
+    const win = window.open('', '_blank', 'width=800,height=900')
+    if (!win) return
+    win.document.write(`<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8"/>
+  <title>${savedVoucherData.voucherNumber}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; color: #111; background: #fff; padding: 24px; max-width: 600px; margin: 0 auto; }
+    .vch-header { border: 2px solid #000; padding: 12px 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .vch-header h1 { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
+    .vch-header p { font-size: 11px; color: #555; }
+    .vch-amount { border: 1px solid #000; padding: 10px 16px; margin-bottom: 10px; }
+    .vch-amount p { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+    .vch-amount span { font-size: 22px; font-weight: bold; }
+    .vch-section { border: 1px solid #000; padding: 10px 16px; margin-bottom: 8px; }
+    .vch-section-title { font-size: 9px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #ccc; }
+    .vch-row { display: flex; gap: 12px; padding: 2px 0; font-size: 11px; }
+    .vch-label { color: #666; min-width: 120px; }
+    .vch-value { font-weight: bold; }
+    .sig-img { max-height: 56px; margin-top: 6px; }
+    .vch-footer { margin-top: 10px; font-size: 9px; color: #999; text-align: center; border-top: 1px solid #000; padding-top: 6px; font-style: italic; }
+    .vch-prepared { display: flex; justify-content: space-between; font-size: 10px; color: #888; margin-top: 8px; }
+  </style>
+</head><body>${content}</body></html>`)
+    win.document.close()
+    setTimeout(() => { win.focus(); win.print() }, 400)
+  }
+
+  if (showPreview && savedVoucherData) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+        <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: '90vh' }}>
+          {/* Preview header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">📄 Payment Voucher Preview</h2>
+              <p className="text-xs text-gray-500">{savedVoucherData.voucherNumber}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePrintVoucher}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                🖨️ Print
+              </button>
+              <button
+                onClick={handleDownloadPdf}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium"
+              >
+                ⬇️ Save PDF
+              </button>
+              <button onClick={() => { if (pendingSaved.current) onSaved(pendingSaved.current); onClose() }} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-1">×</button>
+            </div>
+          </div>
+          {/* Scrollable preview content */}
+          <div className="flex-1 overflow-y-auto p-5">
+            <div ref={previewRef} className="bg-white text-gray-900 font-sans">
+              {/* Header */}
+              <div className="vch-header border-2 border-black p-3 flex justify-between items-start mb-3">
+                <div>
+                  <h1 className="text-lg font-bold tracking-wide">PAYMENT VOUCHER</h1>
+                  <p className="text-xs text-gray-500">{savedVoucherData.businessName}</p>
+                </div>
+                <div className="text-right text-xs">
+                  <p className="font-semibold">{savedVoucherData.voucherNumber}</p>
+                  <p className="text-gray-500">{new Date(savedVoucherData.paymentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                </div>
+              </div>
+              {/* Amount */}
+              <div className="vch-amount border border-black p-3 mb-2">
+                <p className="vch-amount text-xs text-gray-500 uppercase tracking-wide">Amount Paid</p>
+                <span className="text-2xl font-bold">${savedVoucherData.amount.toFixed(2)}</span>
+              </div>
+              {/* Paid To */}
+              <div className="vch-section border border-black p-3 mb-2">
+                <h3 className="vch-section-title text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-200">Paid To (Payee)</h3>
+                <div className="space-y-0.5 text-xs">
+                  <div className="vch-row flex gap-3"><span className="vch-label text-gray-500 w-28">Name</span><span className="vch-value font-semibold">{savedVoucherData.payeeName}</span></div>
+                  <div className="vch-row flex gap-3"><span className="vch-label text-gray-500 w-28">Type</span><span className="vch-value font-semibold">{savedVoucherData.payeeType}</span></div>
+                  {savedVoucherData.purpose && <div className="vch-row flex gap-3"><span className="vch-label text-gray-500 w-28">Purpose</span><span className="vch-value font-semibold">{savedVoucherData.purpose}</span></div>}
+                  {savedVoucherData.category && <div className="vch-row flex gap-3"><span className="vch-label text-gray-500 w-28">Category</span><span className="vch-value font-semibold">{savedVoucherData.category}</span></div>}
+                </div>
+              </div>
+              {/* Collected By */}
+              <div className="vch-section border border-black p-3 mb-2">
+                <h3 className="vch-section-title text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-200">Collected By</h3>
+                <div className="space-y-0.5 text-xs">
+                  <div className="vch-row flex gap-3"><span className="vch-label text-gray-500 w-28">Full Name</span><span className="vch-value font-semibold">{savedVoucherData.collectorName}</span></div>
+                  {savedVoucherData.collectorPhone && <div className="vch-row flex gap-3"><span className="vch-label text-gray-500 w-28">Phone</span><span className="vch-value font-semibold">{savedVoucherData.collectorPhone}</span></div>}
+                  {savedVoucherData.collectorIdNumber && <div className="vch-row flex gap-3"><span className="vch-label text-gray-500 w-28">National ID</span><span className="vch-value font-semibold">{savedVoucherData.collectorIdNumber}</span></div>}
+                  {savedVoucherData.collectorDlNumber && <div className="vch-row flex gap-3"><span className="vch-label text-gray-500 w-28">Driver&#39;s Licence</span><span className="vch-value font-semibold">{savedVoucherData.collectorDlNumber}</span></div>}
+                </div>
+              </div>
+              {/* Notes */}
+              {savedVoucherData.notes && (
+                <div className="vch-section border border-black p-3 mb-2">
+                  <h3 className="vch-section-title text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-200">Additional Notes</h3>
+                  <p className="text-xs text-gray-700">{savedVoucherData.notes}</p>
+                </div>
+              )}
+              {/* Signature */}
+              <div className="vch-section border border-black p-3 mb-3">
+                <h3 className="vch-section-title text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-200">Collector&#39;s Signature</h3>
+                {savedVoucherData.collectorSignature ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={savedVoucherData.collectorSignature} alt="Collector signature" className="sig-img max-h-14 mt-1" />
+                ) : (
+                  <div className="h-10 flex items-end pb-1"><div className="border-b border-gray-400 w-36" /></div>
+                )}
+              </div>
+              {/* Prepared by */}
+              <div className="vch-prepared flex justify-between text-xs text-gray-400">
+                <span>Prepared by: {savedVoucherData.creatorName}</span>
+                <span>Generated: {new Date().toLocaleString('en-GB')}</span>
+              </div>
+              {/* Footer */}
+              <div className="vch-footer mt-3 pt-2 text-center text-xs italic text-gray-400 border-t border-black">
+                This is an official payment record of {savedVoucherData.businessName} — {savedVoucherData.voucherNumber}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -246,6 +388,19 @@ export function ExpensePaymentVoucherModal({
                   onChange={e => setCollectorDlNumber(e.target.value)}
                   placeholder="Licence number (optional)"
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  What is this payment for? <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={purpose}
+                  onChange={e => setPurpose(e.target.value)}
+                  placeholder="e.g. School fees Term 1 — Chisamba Primary"
+                  rows={2}
+                  required
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
                 />
               </div>
               <div>

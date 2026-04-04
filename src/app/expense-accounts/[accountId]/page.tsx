@@ -284,7 +284,8 @@ function MyQueuePanel({
       paymentDate: new Date().toISOString(),
       payeeName: pName,
       payeeType: p.payeeType ?? 'GENERAL',
-      purpose: p.description ?? p.category?.name ?? '',
+      purpose: p.description ?? '',
+      category: p.category ? `${p.category.emoji} ${p.category.name}` : undefined,
       businessId: businessId!,
       businessName: businessName ?? '',
     }

@@ -97,17 +97,34 @@ interface Project {
   contractorSummaries: ProjectContractor[]
   projectTransactions: ProjectTransaction[]
   projectStages: ProjectStage[]
+  expensePayments: {
+    id: string
+    amount: number
+    paymentDate: string
+    notes: string | null
+    status: string
+    paymentChannel: string
+    category: { id: string; name: string; emoji: string } | null
+    payeeType: string
+    payeePerson: { id: string; fullName: string } | null
+    payeeEmployee: { id: string; fullName: string } | null
+    payeeSupplier: { id: string; name: string } | null
+    payeeBusiness: { id: string; name: string } | null
+    expenseAccount: { id: string; accountName: string }
+  }[]
   financialSummary: {
     totalBudget: number
     totalSpent: number
     remainingBudget: number
     contractorPayments: number
     projectExpenses: number
+    expensePaymentsTotal: number
     percentageSpent: number
     transactionCounts: {
       total: number
       contractorPayments: number
       projectExpenses: number
+      expensePayments: number
     }
   }
 }
@@ -435,10 +452,11 @@ export default function ProjectDetailPage() {
         <Card>
           <CardContent className="p-0">
             <Tabs defaultValue="financial" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="financial">Financial Summary</TabsTrigger>
                 <TabsTrigger value="contractors">Contractors</TabsTrigger>
                 <TabsTrigger value="transactions">Transactions</TabsTrigger>
+                <TabsTrigger value="expenses">Expense Payments</TabsTrigger>
                 <TabsTrigger value="stages">Project Stages</TabsTrigger>
               </TabsList>
 
@@ -468,6 +486,20 @@ export default function ProjectDetailPage() {
                           </p>
                           <p className="text-xs text-secondary/60">
                             {project.financialSummary.transactionCounts.projectExpenses} expenses
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-secondary/60">Expense Payments</p>
+                          <p className="text-lg font-bold text-primary">
+                            {formatCurrency(project.financialSummary.expensePaymentsTotal)}
+                          </p>
+                          <p className="text-xs text-secondary/60">
+                            {project.financialSummary.transactionCounts.expensePayments} payments
                           </p>
                         </div>
                       </CardContent>
@@ -615,6 +647,51 @@ export default function ProjectDetailPage() {
                         </CardContent>
                       </Card>
                     ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="expenses" className="p-6">
+                {(!project.expensePayments || project.expensePayments.length === 0) ? (
+                  <div className="text-center py-8">
+                    <DollarSign className="h-12 w-12 text-secondary/40 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-secondary mb-2">No Expense Payments</h3>
+                    <p className="text-secondary/80">No expense payments have been linked to this project yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-secondary/60 mb-3">
+                      {project.expensePayments.length} payment(s) — Total: {formatCurrency(project.financialSummary.expensePaymentsTotal)}
+                    </p>
+                    {project.expensePayments.map((payment) => {
+                      const payeeName = payment.payeePerson?.fullName || payment.payeeEmployee?.fullName || payment.payeeSupplier?.name || payment.payeeBusiness?.name || payment.payeeType
+                      return (
+                        <Card key={payment.id}>
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-primary truncate">{payeeName}</span>
+                                  {payment.category && (
+                                    <span className="text-xs text-secondary/60">{payment.category.emoji} {payment.category.name}</span>
+                                  )}
+                                </div>
+                                {payment.notes && <p className="text-sm text-secondary/80 truncate">{payment.notes}</p>}
+                                <p className="text-xs text-secondary/60 mt-1">
+                                  {formatDate(payment.paymentDate)} · {payment.expenseAccount.accountName} · {payment.paymentChannel}
+                                </p>
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="font-bold text-primary">{formatCurrency(payment.amount)}</p>
+                                <Badge variant={payment.status === 'PAID' ? 'default' : 'secondary'} className="text-xs mt-1">
+                                  {payment.status}
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
                   </div>
                 )}
               </TabsContent>

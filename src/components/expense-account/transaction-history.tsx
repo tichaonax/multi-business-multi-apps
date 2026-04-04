@@ -39,6 +39,7 @@ interface Transaction {
   status?: string
   pettyCashRequestId?: string | null
   pettyCashPurpose?: string | null
+  notes?: string | null
   createdBy?: { id: string; name: string }
   createdAt: string
 }
@@ -131,10 +132,14 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   async function openVoucherModal(transaction: Transaction) {
     if (!businessId) return
     const paymentId = transaction.id
-    // Fetch existing voucher (or null)
-    const res = await fetch(`/api/payment-vouchers?paymentId=${paymentId}`)
-    const json = await res.json()
-    const existing = json.data ?? null
+    // Fetch existing voucher and fresh payment data in parallel
+    const [voucherRes, paymentRes] = await Promise.all([
+      fetch(`/api/payment-vouchers?paymentId=${paymentId}`),
+      fetch(`/api/expense-account/${accountId}/payments/${paymentId}`),
+    ])
+    const [voucherJson, paymentJson] = await Promise.all([voucherRes.json(), paymentRes.json()])
+    const existing = voucherJson.data ?? null
+    const freshNotes: string = paymentJson.data?.payment?.notes ?? ''
 
     const payeeName = transaction.payeeEmployee?.fullName
       ?? transaction.payeeUser?.name
@@ -148,7 +153,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       paymentDate: transaction.date,
       payeeName,
       payeeType: transaction.payeeType ?? 'GENERAL',
-      purpose: transaction.description ?? '',
+      purpose: freshNotes.trim() || transaction.notes?.trim() || '',
+      category: transaction.category ? `${transaction.category.emoji} ${transaction.category.name}` : undefined,
       businessId,
       businessName: businessName ?? '',
     }
