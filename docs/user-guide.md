@@ -36,6 +36,8 @@
 20. [Team Chat](#20-team-chat)
 21. [Grocery POS — Desk Mode](#21-grocery-pos--desk-mode)
 22. [Expense Account — Quick Payment & My Payment Queue](#22-expense-account--quick-payment--my-payment-queue)
+23. [Quick Deposit — Income Categorisation](#23-quick-deposit--income-categorisation)
+24. [Payment Vouchers — Creating, Viewing & Locking](#24-payment-vouchers--creating-viewing--locking)
 
 ---
 
@@ -4751,8 +4753,11 @@ The dropdown contains two types of entries:
 |-----------|---------|-------------|
 | **Business name** | "HXI Fashions" | Switches to that business's primary expense account and loads its default category set |
 | **Business Domain** | "Services Business Domains" | Overrides the category picker to show categories from that specific domain (e.g. Services expenses) |
+| **🏠 Personal Expenses** | "Personal Expenses" | Available on personal accounts only — loads the Personal Expenses domain so you can classify your own spending |
 
 Use a **Business Domain** entry when you are recording a payment that belongs to a specific spending category that doesn't match your business's default domain — for example, paying a services supplier from a retail business account.
+
+> **Personal accounts:** When you open Quick Payment from a **Personal** expense account, the Business dropdown automatically pre-selects **🏠 Personal Expenses** and loads the personal spending categories (Housing, Food & Groceries, Transport, Health, Education, etc.). You do not need to select this manually.
 
 > **Tip:** Selecting a domain does not change which account the payment is drawn from. It only changes which categories are available in the Category picker below.
 
@@ -4983,5 +4988,192 @@ If no matches are found, the message "No matches found — select manually." is 
 
 ---
 
-*Last updated: March 2026*
+---
+
+## 23. Quick Deposit — Income Categorisation
+
+> **Who reads this:** Anyone who deposits money into an expense account — personal account holders, cashiers, and managers.
+
+When you deposit money into an expense account, you can now classify **where the money came from** using a three-level income hierarchy. This helps with financial reporting and keeps personal and business income properly separated.
+
+---
+
+### Opening Quick Deposit
+
+1. Go to **Expense Accounts** and open the account you want to deposit into.
+2. Click the **+ Deposit** button in the account header.
+3. The **Quick Deposit** modal opens — it is now a wider two-column layout to reduce scrolling.
+
+---
+
+### The Two-Column Layout
+
+The modal organises fields into two columns to fit more information on screen:
+
+- **Left column:** Amount
+- **Right column:** Deposit Date
+
+Below these, the Income Source section and Sender fields appear full-width.
+
+---
+
+### Income Source Section
+
+Every deposit now shows an **INCOME SOURCE** panel (blue-tinted border). This lets you classify the deposit's origin.
+
+#### Income Type
+
+A searchable dropdown lets you choose the income domain:
+
+| Option | When to use |
+|--------|------------|
+| **💵 Personal Income** | Auto-selected for personal accounts — salary, freelance work, investments, government grants |
+| **🏢 Business Income** | Auto-selected for business-linked accounts — sales revenue, service income, financial income |
+
+> **Auto-selection:** The system pre-selects the correct income type based on the account:
+> - Personal accounts → **Personal Income** is selected automatically.
+> - Business-linked accounts → **Business Income** is selected automatically.
+> - You can change this manually if needed.
+
+#### Category (appears after Income Type is selected)
+
+Once an income type is selected, a **Category** dropdown appears showing categories within that domain:
+
+**Personal Income categories:**
+| Category | Examples |
+|----------|----------|
+| Employment Income | Salary & Wages, Allowances, Self-Employment |
+| Business Income | Freelance / Contract, Consulting, Online Business |
+| Investment Income | Capital Gains, Dividends, Rental Income |
+| Government Income | Social Grants, Pension, Tax Refunds |
+| Other Income | Gifts, Inheritance, Miscellaneous |
+
+**Business Income categories:**
+| Category | Examples |
+|----------|----------|
+| Sales Revenue | Product Sales, Service Sales, Recurring Sales |
+| Operating Income | Professional Income, Commission & Referral, Rental & Usage |
+| Financial Income | Interest Earned, Investment Returns, Currency Gains |
+| Government & Support | Grants, Subsidies, Tax Incentives |
+| Other Business Income | Asset Sales, Insurance Proceeds, Miscellaneous Revenue |
+
+#### Subcategory (appears after Category is selected)
+
+An optional **Subcategory** dropdown gives finer classification. For example:
+- Employment Income → **Salary & Wages**
+- Business Income → **Product Sales** → **Online Sales**
+
+---
+
+### Who Sent This Money? (Sender field)
+
+The **Who sent this money?** field is now open by default (type-a-name mode) so it is always ready to fill in. Enter the name of the person or organisation that sent the deposit.
+
+You can:
+- **Type a name** (default) — free-text, e.g. "Mary Hwandaza"
+- **Select from list** — choose from previously saved senders
+- **Not specified** — leave blank if not relevant
+
+The sender appears as the **Source** in the transaction history.
+
+---
+
+### Deposit Source (non-personal accounts)
+
+For standard business expense accounts, a **Deposit Source** dropdown lets you specify how the money arrived:
+
+| Option | Meaning |
+|--------|---------|
+| Manual Entry | Cash counted in by hand |
+| From Business Account | Transfer from a linked business account |
+| Other Source | Any other origin |
+
+This field is hidden for **Personal** accounts (always Manual Entry).
+
+---
+
+### The Transaction List — Source Column
+
+After a deposit is saved, the **Source** column in the transaction history shows:
+- The **sender name** if one was entered
+- Or a friendly label based on the deposit type (e.g. "Manual Entry", "Bank Transfer") if no sender was specified
+- The **Category** column now shows the income category and subcategory for deposits that were classified (e.g. "💵 Employment Income / Salary & Wages")
+
+---
+
+## 24. Payment Vouchers — Creating, Viewing & Locking
+
+> **Who reads this:** Managers and cashiers who process expense payments.
+
+A **Payment Voucher** is an official payment record generated for an expense account payment. It captures the collector's name, ID, signature, and the purpose of the payment, and can be printed or saved as a PDF.
+
+---
+
+### Generating a Voucher (First Time)
+
+1. In the **Transaction History**, find the payment row.
+2. A faint **📄** icon appears at the right of the row — hover over it to see: *"No voucher yet — click to generate one"*.
+3. Click **📄** to open the **Payment Voucher** form.
+4. Fill in:
+   - **Collector Full Name** (required)
+   - **Phone Number** (optional)
+   - **National ID** (optional)
+   - **Driver's Licence No.** (optional)
+   - **What is this payment for?** (required — a description of the purpose)
+   - **Notes** (optional)
+   - **Collector Signature** — draw on the pad using mouse or touch
+5. Click **📄 Save & Generate PDF**.
+6. A **preview** of the voucher opens showing all the details, voucher number (e.g. VCH-2026-0003), and a footer with the business name.
+7. Use **🖨️ Print** or **⬇️ Save PDF** to keep a copy.
+8. Click **×** to close.
+
+> A notification is sent to all admins and managers when a new voucher is generated.
+
+---
+
+### Viewing an Existing Voucher
+
+Once a voucher has been generated, the row in the transaction list changes:
+
+- The faint **📄** icon is replaced by a teal **✅ VCH** badge.
+- Hover over the badge to see: *"Voucher issued: VCH-2026-0003 — click to view PDF"* (the actual voucher number is shown).
+- Click the **✅ VCH** badge to open the **voucher preview directly** — the form is not shown again.
+- From the preview you can **Print** or **Save PDF** the voucher.
+
+---
+
+### Locking Payments After Voucher Issuance
+
+Once a voucher is issued:
+
+- The **Edit** button for that payment row **disappears**.
+- The payment record is considered finalised — it cannot be changed through the normal edit flow.
+- This prevents accidental modification of a payment that has an official voucher on record.
+
+> If a correction is genuinely needed after a voucher has been issued, contact your system administrator.
+
+---
+
+### Voucher Details Reference
+
+Every generated voucher includes:
+
+| Field | Source |
+|-------|--------|
+| Voucher Number | Auto-generated (VCH-YYYY-NNNN) |
+| Date | Payment date |
+| Amount Paid | Payment amount |
+| Paid To — Name | Payee name from the payment record |
+| Paid To — Type | Payee type (Employee, Supplier, etc.) |
+| Purpose | Description entered in the voucher form |
+| Category | Payment category (if classified) |
+| Collector Name | Entered in the voucher form |
+| National ID | Entered in the voucher form (optional) |
+| Collector Signature | Drawn on the signature pad (optional) |
+| Prepared By | Name of the staff member who generated the voucher |
+| Business Name | The business the account belongs to |
+
+---
+
+*Last updated: April 2026*
 *For technical support, contact your system administrator.*
