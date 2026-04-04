@@ -90,8 +90,15 @@ export async function countDatabaseRecords(
               where: { OR: [{ businessId: { in: backedUpBusinessIds } }, { businessId: null }] }
             })
           } catch {
-            // Table doesn't have a businessId field — fall through to global count
-            count = null
+            // businessId may be non-nullable — retry without the null check
+            try {
+              count = await model.count({
+                where: { businessId: { in: backedUpBusinessIds } }
+              })
+            } catch {
+              // Table doesn't have a businessId field — fall through to global count
+              count = null
+            }
           }
         }
 
@@ -141,6 +148,8 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Expense Account Auto Deposits / Rent Config
   'expenseAccountAutoDeposits': 'expenseAccountAutoDeposit',
   'businessRentConfigs': 'businessRentConfig',
+  // POS Terminal Config
+  'posTerminalConfigs': 'posTerminalConfig',
   // Notifications
   'appNotifications': 'appNotification',
   // Chicken Run
