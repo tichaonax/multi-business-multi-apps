@@ -1477,8 +1477,10 @@ export default function ExpenseAccountDetailPage() {
           canCreatePayees={canCreatePayees}
           canChangeCategory={canChangeCategory}
           accountType={account.accountType}
-          defaultCategoryBusinessType={currentBusiness?.businessType}
-          businessId={account.businessId || currentBusiness?.id}
+          defaultCategoryBusinessType={account.businessId
+            ? businesses?.find(b => b.businessId === account.businessId)?.businessType
+            : undefined}
+          businessId={account.businessId ?? undefined}
           businesses={businesses}
           presetPayee={
             account.accountType === 'RENT' && account.landlordSupplierId && account.landlordSupplierName

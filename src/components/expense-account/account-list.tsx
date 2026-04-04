@@ -41,6 +41,8 @@ interface ExpenseAccount {
   isSibling: boolean
   canMerge: boolean
   accountType?: string
+  businessId?: string | null
+  businessName?: string | null
   landlordSupplierId?: string | null
   landlordSupplierName?: string | null
   recentDeposits?: RecentTx[]
@@ -635,6 +637,7 @@ export function AccountList({
       {/* Quick Deposit Modal */}
       {selectedAccount && (
         <QuickDepositModal
+          key={`${selectedAccount.id}-deposit`}
           isOpen={showQuickDepositModal}
           onClose={() => setShowQuickDepositModal(false)}
           accountId={selectedAccount.id}
@@ -647,6 +650,7 @@ export function AccountList({
       {/* Quick Payment Modal */}
       {selectedAccount && (
         <QuickPaymentModal
+          key={`${selectedAccount.id}-payment`}
           isOpen={showQuickPaymentModal}
           onClose={() => setShowQuickPaymentModal(false)}
           accountId={selectedAccount.id}
@@ -656,8 +660,10 @@ export function AccountList({
           onError={handleQuickPaymentError}
           canCreatePayees={canCreatePayees}
           canChangeCategory={canChangeCategory}
-          defaultCategoryBusinessType={businessType}
-          businessId={currentBusinessId}
+          defaultCategoryBusinessType={selectedAccount.businessId
+            ? businesses?.find(b => b.businessId === selectedAccount.businessId)?.businessType ?? businessType
+            : undefined}
+          businessId={selectedAccount.businessId ?? undefined}
           businesses={businesses}
           accountType={selectedAccount.accountType}
           presetPayee={

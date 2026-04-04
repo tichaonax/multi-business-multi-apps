@@ -221,6 +221,12 @@ function getDefaultDomainName(businessType: string): string {
   return map[businessType] || 'Business'
 }
 
+// Domains that belong to specific business types — filtered out for non-business (home) accounts
+const BUSINESS_DOMAIN_NAMES = new Set([
+  'Restaurant', 'Groceries', 'Clothing', 'Hardware', 'Construction',
+  'Vehicle', 'Services', 'Retail', 'Consulting', 'Business (General)',
+])
+
 // ── Rent account category presets ──────────────────────────────────────────
 // Maps: formData.categoryId = domainId, .subcategoryId = categoryId, .subSubcategoryId = subcategoryId
 const RENT_CATEGORY_PRESETS: Record<string, { domainId: string; categoryId: string; subcategoryId: string; displayDomain: string; displayCategory: string }> = {
@@ -281,6 +287,8 @@ export function QuickPaymentModal({
 }: QuickPaymentModalProps) {
   const isPersonalAccount = accountType === 'PERSONAL'
   const isRentAccount = accountType === 'RENT'
+  // No business or business-type means this is a home/personal general account
+  const isHomeAccount = !businessId && !defaultCategoryBusinessType
 
   // Active account — may be overridden when user switches business via the Business selector
   const [activeAccountId, setActiveAccountId] = useState(accountId)
@@ -289,6 +297,8 @@ export function QuickPaymentModal({
   const [activeBusinessType, setActiveBusinessType] = useState(defaultCategoryBusinessType)
   const [selectedBusinessId, setSelectedBusinessId] = useState(businessId || '')
   const [selectedDropdownValue, setSelectedDropdownValue] = useState(businessId || '')
+  // True when the Business dropdown is visible but nothing has been selected yet
+  const businessNotSelected = !!(businesses && businesses.length > 1 && !selectedDropdownValue)
   const [activeDomainOverride, setActiveDomainOverride] = useState<string | null>(null)
   const [activeDomainOverrideId, setActiveDomainOverrideId] = useState<string | null>(null)
   const [domainOverrideItems, setDomainOverrideItems] = useState<ExpenseCategory[]>([])
@@ -314,6 +324,7 @@ export function QuickPaymentModal({
   const [payeeRefreshTrigger, setPayeeRefreshTrigger] = useState(0)
   const [showCreateSubcategory, setShowCreateSubcategory] = useState(false)
   const [showCreateSubSubcategory, setShowCreateSubSubcategory] = useState(false)
+  const [showCreateGlobalCategory, setShowCreateGlobalCategory] = useState(false)
   const [creatingSubItem, setCreatingSubItem] = useState(false)
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingSubcategories, setLoadingSubcategories] = useState(false)
@@ -469,11 +480,28 @@ export function QuickPaymentModal({
 
   // Auto-select domain matching business type when categories load (skip in domain-override mode)
   useEffect(() => {
-    if (categories.length > 0 && !formData.categoryId && !activeDomainOverride && activeBusinessType) {
-      const domainName = getDefaultDomainName(activeBusinessType)
-      const match = categories.find(c => c.name === domainName)
-      if (match) {
-        setFormData(prev => ({ ...prev, categoryId: match.id }))
+    if (categories.length > 0 && !activeDomainOverride) {
+      if (activeBusinessType && !formData.categoryId) {
+        const domainName = getDefaultDomainName(activeBusinessType)
+        const match = categories.find(c => c.name === domainName)
+        if (match) setFormData(prev => ({ ...prev, categoryId: match.id }))
+      } else if (isHomeAccount && !selectedDropdownValue) {
+        // Auto-activate Home domain override for home accounts
+        const homeDomain = domainOptions.find(d => d.name === 'Home')
+        if (homeDomain) {
+          const dropVal = `domain:${homeDomain.id}`
+          setSelectedDropdownValue(dropVal)
+          setActiveDomainOverride(homeDomain.name)
+          setActiveDomainOverrideId(homeDomain.id)
+          setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+          setDomainOverrideItems([])
+          setLoadingDomainOverrideItems(true)
+          fetch(`/api/expense-categories/${homeDomain.id}/subcategories`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(d => setDomainOverrideItems(d.subcategories || []))
+            .catch(() => {})
+            .finally(() => setLoadingDomainOverrideItems(false))
+        }
       }
     }
   }, [categories, activeBusinessType, activeDomainOverride])
@@ -804,8 +832,14 @@ export function QuickPaymentModal({
     setSuggestions([])
     setSuggestOpen(true)
     try {
-      // In domain-override mode, restrict suggestions to the selected domain for relevance
-      const domainParam = activeDomainOverrideId ? `&domainId=${encodeURIComponent(activeDomainOverrideId)}` : ''
+      // Scope suggestions to the selected domain/business — prevents cross-business noise
+      // Domain-override: use the override ID directly.
+      // Normal business: derive the matching domain from the active business type.
+      const derivedDomainId = activeDomainOverrideId
+        ?? (activeBusinessType
+          ? domainOptions.find(d => d.name === getDefaultDomainName(activeBusinessType))?.id ?? null
+          : null)
+      const domainParam = derivedDomainId ? `&domainId=${encodeURIComponent(derivedDomainId)}` : ''
       const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}${domainParam}`, { credentials: 'include' })
       if (res.ok) {
         const data = await res.json()
@@ -959,17 +993,33 @@ export function QuickPaymentModal({
     if (!formData.categoryId) return
     setCreatingSubItem(true)
     try {
-      const res = await fetch('/api/expense-categories/flat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, emoji, color: '#3B82F6', domainId: formData.categoryId, requiresSubcategory: false, isUserCreated: true }),
-      })
-      const data = await res.json()
-      if (res.ok && data.data?.category) {
-        await loadSubcategories(formData.categoryId)
-        setFormData(prev => ({ ...prev, subcategoryId: data.data.category.id, subSubcategoryId: '' }))
-        setShowCreateSubcategory(false)
+      if (activeDomainOverride) {
+        // Domain-override: formData.categoryId is an expenseCategories.id; create expenseSubcategories under it
+        const res = await fetch('/api/expense-categories/subcategories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ categoryId: formData.categoryId, name, emoji }),
+        })
+        const data = await res.json()
+        if (res.ok && data.subcategory) {
+          await loadSubcategories(formData.categoryId)
+          setFormData(prev => ({ ...prev, subcategoryId: data.subcategory.id, subSubcategoryId: '' }))
+          setShowCreateSubcategory(false)
+        }
+      } else {
+        const res = await fetch('/api/expense-categories/flat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name, emoji, color: '#3B82F6', domainId: formData.categoryId, requiresSubcategory: false, isUserCreated: true }),
+        })
+        const data = await res.json()
+        if (res.ok && data.data?.category) {
+          await loadSubcategories(formData.categoryId)
+          setFormData(prev => ({ ...prev, subcategoryId: data.data.category.id, subSubcategoryId: '' }))
+          setShowCreateSubcategory(false)
+        }
       }
     } catch (error) {
       console.error('Error creating subcategory:', error)
@@ -982,20 +1032,51 @@ export function QuickPaymentModal({
     if (!formData.subcategoryId) return
     setCreatingSubItem(true)
     try {
-      const res = await fetch('/api/expense-categories/subcategories', {
+      const res = await fetch('/api/expense-categories/sub-subcategories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ categoryId: formData.subcategoryId, name, emoji }),
+        body: JSON.stringify({ subcategoryId: formData.subcategoryId, name, emoji }),
       })
       const data = await res.json()
-      if (res.ok && data.subcategory) {
-        await loadSubSubcategories(formData.subcategoryId)
-        setFormData(prev => ({ ...prev, subSubcategoryId: data.subcategory.id }))
+      if (res.ok && data.subSubcategory) {
+        if (activeDomainOverride) {
+          // Domain-override mode: reload domainOverrideSubItems (picker reads this state)
+          const itemsRes = await fetch(`/api/expense-categories/sub-subcategories/${formData.subcategoryId}/items`, { credentials: 'include' })
+          if (itemsRes.ok) {
+            const itemsData = await itemsRes.json()
+            setDomainOverrideSubItems(itemsData.items || [])
+          }
+        } else {
+          await loadSubSubcategories(formData.subcategoryId)
+        }
+        setFormData(prev => ({ ...prev, subSubcategoryId: data.subSubcategory.id }))
         setShowCreateSubSubcategory(false)
       }
     } catch (error) {
       console.error('Error creating sub-subcategory:', error)
+    } finally {
+      setCreatingSubItem(false)
+    }
+  }
+
+  const handleCreateGlobalCategory = async (name: string, emoji: string) => {
+    setCreatingSubItem(true)
+    try {
+      const res = await fetch('/api/expense-categories/flat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, emoji, color: '#3B82F6', requiresSubcategory: false, isUserCreated: true }),
+      })
+      const data = await res.json()
+      if (res.ok && data.data?.category) {
+        await loadCategories()
+        setFormData(prev => ({ ...prev, categoryId: data.data.category.id, subcategoryId: '', subSubcategoryId: '' }))
+        setShowCreateGlobalCategory(false)
+      }
+    } catch (error) {
+      console.error('Error creating category:', error)
     } finally {
       setCreatingSubItem(false)
     }
@@ -1006,7 +1087,9 @@ export function QuickPaymentModal({
   // When a domain group is selected from the Business dropdown, restrict the Domain picker to that domain only
   const visibleDomainOptions = activeDomainOverride
     ? domainOptions.filter(d => d.name === activeDomainOverride)
-    : domainOptions
+    : isHomeAccount
+      ? domainOptions.filter(d => !BUSINESS_DOMAIN_NAMES.has(d.name))
+      : domainOptions
   const globalCategories = categories.filter(c => !c.isDomainCategory)
   const selectedIsDomain = selectedCategory?.isDomainCategory ?? false
 
@@ -1089,11 +1172,13 @@ export function QuickPaymentModal({
                 loading={loadingBusinessSwitch}
                 placeholder="Select business or domain..."
                 options={[
-                  ...businesses.filter(b => !b.isUmbrellaBusiness).map(b => ({
+                  ...(!isHomeAccount ? businesses.filter(b => !b.isUmbrellaBusiness).map(b => ({
                     id: b.businessId,
                     label: b.businessName,
-                  })),
-                  ...domainOptions.map(d => ({
+                  })) : []),
+                  ...domainOptions
+                    .filter(d => !isHomeAccount || !BUSINESS_DOMAIN_NAMES.has(d.name))
+                    .map(d => ({
                     id: `domain:${d.id}`,
                     label: `${d.name} Business Domains`,
                   })),
@@ -1249,16 +1334,22 @@ export function QuickPaymentModal({
                             }}
                             placeholder={loadingDomainOverrideItems ? 'Loading…' : 'Select a domain…'}
                             loading={loadingDomainOverrideItems}
-                            disabled={isApplyingSuggestion || loadingDomainOverrideItems}
+                            disabled={isApplyingSuggestion || loadingDomainOverrideItems || businessNotSelected}
                           />
                         </div>
 
                         {/* Category picker — expense_subcategories under selected expense_category */}
                         {formData.categoryId && (
                           <div>
-                            <label className="block text-sm font-medium text-secondary mb-1">
-                              Category
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-sm font-medium text-secondary">
+                                Category
+                              </label>
+                              <button type="button" onClick={() => setShowCreateSubcategory(true)}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                                + Create New
+                              </button>
+                            </div>
                             <SearchableSelect
                               value={formData.subcategoryId}
                               options={subcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
@@ -1277,7 +1368,7 @@ export function QuickPaymentModal({
                               }}
                               placeholder={loadingSubcategories ? 'Loading…' : 'Select a category…'}
                               loading={loadingSubcategories}
-                              disabled={isApplyingSuggestion || !formData.categoryId}
+                              disabled={isApplyingSuggestion || !formData.categoryId || businessNotSelected}
                             />
                           </div>
                         )}
@@ -1285,16 +1376,22 @@ export function QuickPaymentModal({
                         {/* Sub-Category picker — expense_sub_subcategories */}
                         {formData.subcategoryId && (
                           <div>
-                            <label className="block text-sm font-medium text-secondary mb-1">
-                              Sub-Category
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-sm font-medium text-secondary">
+                                Sub-Category
+                              </label>
+                              <button type="button" onClick={() => setShowCreateSubSubcategory(true)}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                                + Create New
+                              </button>
+                            </div>
                             <SearchableSelect
                               value={formData.subSubcategoryId}
                               options={domainOverrideSubItems.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
                               onChange={(val) => setFormData(prev => ({ ...prev, subSubcategoryId: val }))}
                               placeholder={loadingDomainOverrideSubItems ? 'Loading…' : 'Select a sub-category…'}
                               loading={loadingDomainOverrideSubItems}
-                              disabled={isApplyingSuggestion || !formData.subcategoryId || loadingDomainOverrideSubItems}
+                              disabled={isApplyingSuggestion || !formData.subcategoryId || loadingDomainOverrideSubItems || businessNotSelected}
                             />
                           </div>
                         )}
@@ -1320,7 +1417,7 @@ export function QuickPaymentModal({
                                 setFormData({ ...formData, categoryId: domainId, subcategoryId: '', subSubcategoryId: '' })
                                 setErrors({ ...errors, categoryId: '' })
                               }}
-                              disabled={isApplyingSuggestion || !canChangeCategory}
+                              disabled={isApplyingSuggestion || !canChangeCategory || businessNotSelected}
                               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             >
                               <option value="">— Select domain —</option>
@@ -1334,9 +1431,15 @@ export function QuickPaymentModal({
                         {/* Global Category picker — only shown when no domain selected */}
                         {!selectedIsDomain && (
                           <div>
-                            <label className="block text-sm font-medium text-secondary mb-1">
-                              Category <span className="text-red-500">*</span>
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-sm font-medium text-secondary">
+                                Category <span className="text-red-500">*</span>
+                              </label>
+                              <button type="button" onClick={() => setShowCreateGlobalCategory(true)}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">
+                                + New Category
+                              </button>
+                            </div>
                             {loadingCategories ? (
                               <div className="text-sm text-secondary">Loading categories...</div>
                             ) : (
@@ -1348,7 +1451,7 @@ export function QuickPaymentModal({
                                   setErrors({ ...errors, categoryId: '' })
                                 }}
                                 error={errors.categoryId}
-                                disabled={!canChangeCategory}
+                                disabled={!canChangeCategory || businessNotSelected}
                               />
                             )}
                           </div>
@@ -1374,7 +1477,7 @@ export function QuickPaymentModal({
                               onChange={(val) => setFormData({ ...formData, subcategoryId: val, subSubcategoryId: '' })}
                               placeholder="Select a subcategory..."
                               loading={loadingSubcategories}
-                              disabled={isApplyingSuggestion || !formData.categoryId}
+                              disabled={isApplyingSuggestion || !formData.categoryId || businessNotSelected}
                             />
                           </div>
                         )}
@@ -1398,7 +1501,7 @@ export function QuickPaymentModal({
                               options={subSubcategories.map(s => ({ id: s.id, label: `${s.emoji} ${s.name}` }))}
                               onChange={(val) => setFormData({ ...formData, subSubcategoryId: val })}
                               placeholder="Select a sub-subcategory..."
-                              disabled={isApplyingSuggestion || !formData.subcategoryId}
+                              disabled={isApplyingSuggestion || !formData.subcategoryId || businessNotSelected}
                             />
                           </div>
                         )}
@@ -1520,7 +1623,7 @@ export function QuickPaymentModal({
                   </label>
                   <button
                     type="button"
-                    disabled={formData.notes.trim().length < 3}
+                    disabled={formData.notes.trim().length < 3 || businessNotSelected}
                     onClick={handleSuggest}
                     className="text-xs px-2 py-1 rounded border border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Get domain/category suggestions based on your description"
@@ -1675,6 +1778,14 @@ export function QuickPaymentModal({
         placeholder="e.g., Whole Milk"
         onClose={() => setShowCreateSubSubcategory(false)}
         onSubmit={handleCreateSubSubcategory}
+        loading={creatingSubItem}
+      />
+      <QuickCreateModal
+        isOpen={showCreateGlobalCategory}
+        title="Create Category"
+        placeholder="e.g., Gym Membership"
+        onClose={() => setShowCreateGlobalCategory(false)}
+        onSubmit={handleCreateGlobalCategory}
         loading={creatingSubItem}
       />
 
