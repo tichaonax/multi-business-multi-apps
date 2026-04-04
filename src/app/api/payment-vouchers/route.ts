@@ -2,12 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 
-// GET /api/payment-vouchers?paymentId=xxx
-// Returns the voucher for a specific payment (if it exists)
+// GET /api/payment-vouchers?paymentId=xxx  — single lookup
+// GET /api/payment-vouchers?paymentIds=id1,id2,... — batch lookup (returns map of id→voucherNumber)
 export async function GET(request: NextRequest) {
   const paymentId = request.nextUrl.searchParams.get('paymentId')
+  const paymentIds = request.nextUrl.searchParams.get('paymentIds')
+
+  // Batch lookup
+  if (paymentIds) {
+    const ids = paymentIds.split(',').filter(Boolean)
+    if (ids.length === 0) return NextResponse.json({ success: true, data: {} })
+    const vouchers = await prisma.expensePaymentVouchers.findMany({
+      where: { paymentId: { in: ids } },
+      select: { paymentId: true, voucherNumber: true },
+    })
+    const map: Record<string, string> = {}
+    vouchers.forEach(v => { map[v.paymentId] = v.voucherNumber })
+    return NextResponse.json({ success: true, data: map })
+  }
+
   if (!paymentId) {
-    return NextResponse.json({ error: 'paymentId is required' }, { status: 400 })
+    return NextResponse.json({ error: 'paymentId or paymentIds is required' }, { status: 400 })
   }
 
   const voucher = await prisma.expensePaymentVouchers.findUnique({

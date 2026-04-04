@@ -32,6 +32,8 @@ interface Transaction {
   payeePerson?: { id: string; fullName: string }
   payeeBusiness?: { id: string; name: string }
   category?: { id: string; name: string; emoji: string }
+  incomeCategory?: { id: string; name: string; emoji: string } | null
+  incomeSubcategory?: { id: string; name: string; emoji?: string } | null
   paymentType?: string
   isAutoTransfer?: boolean
   autoTransferSource?: string
@@ -139,6 +141,12 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     ])
     const [voucherJson, paymentJson] = await Promise.all([voucherRes.json(), paymentRes.json()])
     const existing = voucherJson.data ?? null
+
+    // If a voucher already exists, immediately update the map so the badge shows correctly
+    if (existing?.voucherNumber) {
+      setVoucherMap(prev => ({ ...prev, [paymentId]: existing.voucherNumber }))
+    }
+
     const freshNotes: string = paymentJson.data?.payment?.notes ?? ''
 
     const payeeName = transaction.payeeEmployee?.fullName
@@ -276,8 +284,24 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
       if (response.ok) {
         const data = await response.json()
-        setTransactions(data.data.transactions || [])
+        const txns = data.data.transactions || []
+        setTransactions(txns)
         setHasMore(data.data.pagination?.hasMore || false)
+
+        // Batch-check which payment IDs already have vouchers (only when businessId present)
+        if (businessId) {
+          const paymentIds = txns
+            .filter((t: any) => t.type === 'PAYMENT' && !t.isAutoTransfer)
+            .map((t: any) => t.id as string)
+          if (paymentIds.length > 0) {
+            fetch(`/api/payment-vouchers?paymentIds=${paymentIds.join(',')}`, { credentials: 'include' })
+              .then(r => r.json())
+              .then(json => {
+                if (json.data) setVoucherMap(prev => ({ ...prev, ...json.data }))
+              })
+              .catch(() => {})
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading transactions:', error)
@@ -604,6 +628,13 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                         {transaction.category ? (
                           <span>{transaction.category.emoji} {transaction.category.name}</span>
+                        ) : transaction.incomeCategory ? (
+                          <span>
+                            {transaction.incomeCategory.emoji} {transaction.incomeCategory.name}
+                            {transaction.incomeSubcategory && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400"> / {transaction.incomeSubcategory.name}</span>
+                            )}
+                          </span>
                         ) : transaction.paymentType === 'LOAN_DISBURSEMENT' ? (
                           <span className="text-green-700 dark:text-green-400">🤝 Loan Disbursement</span>
                         ) : transaction.paymentType === 'LOAN_REPAYMENT' ? (
@@ -640,6 +671,14 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           </span>
                         ) : transaction.depositSource ? (
                           <span className="font-medium">{transaction.depositSource.emoji} {transaction.depositSource.name}</span>
+                        ) : isDeposit && transaction.sourceType ? (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 italic">
+                            {transaction.sourceType === 'MANUAL' ? 'Manual Entry'
+                              : transaction.sourceType === 'OTHER' ? 'Other'
+                              : transaction.sourceType === 'CASH' ? 'Cash'
+                              : transaction.sourceType === 'BANK_TRANSFER' ? 'Bank Transfer'
+                              : transaction.sourceType.charAt(0) + transaction.sourceType.slice(1).toLowerCase().replace(/_/g, ' ')}
+                          </span>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500">—</span>
                         )}
@@ -664,7 +703,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
                       {/* Action column: Edit (payments) or PDF voucher (batch deposits) */}
                       <td className="px-2 py-2 sm:py-3 text-right whitespace-nowrap">
-                        {canEditPayments && !isDeposit && !transaction.isAutoTransfer && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+                        {canEditPayments && !isDeposit && !transaction.isAutoTransfer && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt)) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setEditPaymentId(transaction.id) }}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
@@ -693,17 +732,23 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         )}
                         {/* Payment Voucher icon — appears on all PAYMENT rows when businessId is provided */}
                         {!isDeposit && !transaction.isAutoTransfer && businessId && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); openVoucherModal(transaction) }}
-                            className={`ml-1 text-sm px-1 py-0.5 rounded transition-colors ${
-                              voucherMap[transaction.id]
-                                ? 'text-teal-600 dark:text-teal-400'
-                                : 'text-gray-300 dark:text-gray-600 hover:text-teal-500 dark:hover:text-teal-400'
-                            }`}
-                            title={voucherMap[transaction.id] ? 'View / regenerate voucher' : 'Generate payment voucher'}
-                          >
-                            📄
-                          </button>
+                          voucherMap[transaction.id] ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openVoucherModal(transaction) }}
+                              className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-800/60 font-medium transition-colors"
+                              title={`Voucher issued: ${voucherMap[transaction.id]} — click to view PDF`}
+                            >
+                              ✅ VCH
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openVoucherModal(transaction) }}
+                              className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+                              title="No voucher yet — click to generate one"
+                            >
+                              📄
+                            </button>
+                          )
                         )}
                       </td>
                     </tr>

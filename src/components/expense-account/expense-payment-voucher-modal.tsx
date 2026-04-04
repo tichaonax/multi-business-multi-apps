@@ -66,7 +66,36 @@ export function ExpensePaymentVoucherModal({
   const [savedVoucherData, setSavedVoucherData] = useState<VoucherData | null>(null)
   const pendingSaved = useRef<ExistingVoucher | null>(null)
 
-  // Pre-load existing signature into canvas
+  // If a voucher already exists, jump straight to preview — skip the form
+  useEffect(() => {
+    if (existingVoucher) {
+      const existingCreatorName = existingVoucher.creator
+        ? `${existingVoucher.creator.firstName} ${existingVoucher.creator.lastName}`
+        : creatorName
+      const voucherData: VoucherData = {
+        voucherNumber: existingVoucher.voucherNumber,
+        paymentDate: payment.paymentDate,
+        amount: payment.amount,
+        payeeName: payment.payeeName,
+        payeeType: payment.payeeType,
+        purpose: payment.purpose,
+        collectorName: existingVoucher.collectorName,
+        collectorPhone: existingVoucher.collectorPhone,
+        collectorIdNumber: existingVoucher.collectorIdNumber,
+        collectorDlNumber: existingVoucher.collectorDlNumber,
+        collectorSignature: existingVoucher.collectorSignature,
+        creatorName: existingCreatorName,
+        businessName: payment.businessName,
+        category: payment.category,
+        notes: existingVoucher.notes,
+      }
+      setSavedVoucherData(voucherData)
+      setShowPreview(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Pre-load existing signature into canvas (for edit form — only reached when no existingVoucher)
   useEffect(() => {
     if (existingVoucher?.collectorSignature && canvasRef.current) {
       const img = new Image()
@@ -244,7 +273,7 @@ export function ExpensePaymentVoucherModal({
               >
                 ⬇️ Save PDF
               </button>
-              <button onClick={() => { if (pendingSaved.current) onSaved(pendingSaved.current); onClose() }} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-1">×</button>
+              <button onClick={() => { if (pendingSaved.current) { onSaved(pendingSaved.current) } onClose() }} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-1">×</button>
             </div>
           </div>
           {/* Scrollable preview content */}

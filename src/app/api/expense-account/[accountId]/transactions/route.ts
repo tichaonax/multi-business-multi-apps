@@ -223,6 +223,20 @@ export async function GET(
       pcTxns.forEach((t) => { if (t.paymentId) paymentToPettyCashMap.set(t.paymentId, { id: t.requestId, purpose: t.request.purpose }) })
     }
 
+    // Batch-lookup income category and subcategory names for deposits
+    const incomeCategoryIds = deposits.map(d => (d as any).incomeCategoryId).filter(Boolean) as string[]
+    const incomeSubcategoryIds = deposits.map(d => (d as any).incomeSubcategoryId).filter(Boolean) as string[]
+    const [incomeCategoriesArr, incomeSubcategoriesArr] = await Promise.all([
+      incomeCategoryIds.length > 0
+        ? prisma.expenseCategories.findMany({ where: { id: { in: incomeCategoryIds } }, select: { id: true, name: true, emoji: true } })
+        : [],
+      incomeSubcategoryIds.length > 0
+        ? prisma.expenseSubcategories.findMany({ where: { id: { in: incomeSubcategoryIds } }, select: { id: true, name: true, emoji: true } })
+        : [],
+    ])
+    const incomeCategoryMap = new Map(incomeCategoriesArr.map(c => [c.id, c]))
+    const incomeSubcategoryMap = new Map(incomeSubcategoriesArr.map(s => [s.id, s]))
+
     // Transform to unified transaction format
     const transactions: any[] = []
 
@@ -290,6 +304,8 @@ export async function GET(
         isAutoTransfer: isAutoXferIn,
         autoTransferSource,
         category, // Add category for display
+        incomeCategory: (deposit as any).incomeCategoryId ? (incomeCategoryMap.get((deposit as any).incomeCategoryId) ?? null) : null,
+        incomeSubcategory: (deposit as any).incomeSubcategoryId ? (incomeSubcategoryMap.get((deposit as any).incomeSubcategoryId) ?? null) : null,
         pettyCashRequestId: depositToPettyCashMap.get(deposit.id)?.id ?? null,
         createdBy: deposit.creator,
         createdAt: deposit.createdAt,
