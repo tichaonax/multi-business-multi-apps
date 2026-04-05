@@ -234,6 +234,18 @@ interface QueuedPayment {
   paymentChannel?: string
 }
 
+interface PettyCashQueueItem {
+  id: string
+  requestedAmount: number
+  purpose: string
+  notes?: string | null
+  status: string
+  paymentChannel: string
+  priority: string
+  requestedAt: string
+  requestedBy: string
+}
+
 function MyQueuePanel({
   accountId,
   refreshKey,
@@ -272,6 +284,7 @@ function MyQueuePanel({
   const [queueVoucherModal, setQueueVoucherModal] = useState<{ payment: PaymentSummary; existing: any | null } | null>(null)
   const [queueOpen, setQueueOpen] = useState(true)
   const [queueSearch, setQueueSearch] = useState('')
+  const [pettyRequests, setPettyRequests] = useState<PettyCashQueueItem[]>([])
 
   const openQueueVoucher = async (p: QueuedPayment) => {
     if (!businessId) return
@@ -294,20 +307,26 @@ function MyQueuePanel({
 
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
-    const [q, pa, a] = await Promise.all([
+    const [q, pa, a, pc] = await Promise.all([
       fetch(`/api/expense-account/${accountId}/payment-requests`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null).then(d => d?.data ?? []),
       fetch(`/api/expense-account/${accountId}/payments?status=PENDING_APPROVAL&sortBy=createdAt&limit=20`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null).then(d => d?.data?.payments ?? []),
       fetch(`/api/expense-account/${accountId}/payments?status=APPROVED&sortBy=createdAt&limit=20`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null).then(d => d?.data?.payments ?? []),
+      businessId
+        ? fetch(`/api/petty-cash/requests?businessId=${businessId}&status=PENDING&limit=50`, { credentials: 'include' })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => (d?.data?.requests ?? []).filter((r: any) => r.requestedBy === queueUserId))
+        : Promise.resolve([]),
     ])
     setQueued(q)
     setPendingApproval(pa)
     pendingApprovalRef.current = pa
     setApproved(a.filter((p: QueuedPayment) => !dismissedIdsRef.current.has(p.id)))
+    setPettyRequests(pc)
     if (!silent) setLoading(false)
-  }, [accountId])
+  }, [accountId, businessId, queueUserId])
 
   // Initial load
   useEffect(() => { fetchAll() }, [fetchAll, refreshKey])
@@ -412,6 +431,24 @@ function MyQueuePanel({
     }
   }
 
+  const handleCancelPetty = async (requestId: string) => {
+    const ok = await confirm({ title: 'Cancel Petty Cash', description: 'Cancel this petty cash request?', confirmText: 'Yes, Cancel', cancelText: 'Keep' })
+    if (!ok) return
+    setActionId(requestId)
+    try {
+      const res = await fetch(`/api/petty-cash/requests/${requestId}/cancel`, { method: 'POST', credentials: 'include' })
+      if (res.ok) {
+        setPettyRequests(prev => prev.filter(r => r.id !== requestId))
+        onActionDone()
+      } else {
+        const d = await res.json()
+        await alert({ title: 'Error', description: d.error ?? 'Failed to cancel request' })
+      }
+    } finally {
+      setActionId(null)
+    }
+  }
+
   const handleMarkSentEcocash = async () => {
     if (!ecocashModal) return
     if (!ecocashTxCode.trim()) return
@@ -442,15 +479,19 @@ function MyQueuePanel({
   }
 
   if (loading) return null
-  if (queued.length === 0 && pendingApproval.length === 0 && approved.length === 0) return null
+  if (queued.length === 0 && pendingApproval.length === 0 && approved.length === 0 && pettyRequests.length === 0) return null
 
-  const totalCount = queued.length + pendingApproval.length + approved.length
+  const totalCount = queued.length + pendingApproval.length + approved.length + pettyRequests.length
   const searchLower = queueSearch.toLowerCase()
   const matchesSearch = (p: QueuedPayment) =>
     !queueSearch ||
     payeeName(p).toLowerCase().includes(searchLower) ||
     (p.category?.name ?? '').toLowerCase().includes(searchLower) ||
     (p.description ?? '').toLowerCase().includes(searchLower)
+  const matchesPettySearch = (p: PettyCashQueueItem) =>
+    !queueSearch ||
+    p.purpose.toLowerCase().includes(searchLower) ||
+    (p.notes ?? '').toLowerCase().includes(searchLower)
 
   return (
     <>
@@ -461,7 +502,7 @@ function MyQueuePanel({
         className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">My Payment Queue</span>
+          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">My Queue</span>
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
             {totalCount}
           </span>
@@ -488,10 +529,15 @@ function MyQueuePanel({
         {pendingApproval.filter(matchesSearch).map(p => (
           <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 flex-wrap">
                 {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
                 <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold">💳 PMT</span>
                 <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-medium">AWAITING CASHIER</span>
+                {p.paymentChannel === 'ECOCASH'
+                  ? <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-medium">📱 EcoCash</span>
+                  : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
+                }
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
             </div>
@@ -506,10 +552,12 @@ function MyQueuePanel({
               <div className="flex items-center gap-1.5">
                 {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
                 <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold">💳 PMT</span>
                 <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">APPROVED</span>
-                {p.paymentChannel === 'ECOCASH' && (
-                  <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-medium">📱 ECOCASH</span>
-                )}
+                {p.paymentChannel === 'ECOCASH'
+                  ? <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-medium">📱 EcoCash</span>
+                  : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
+                }
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
             </div>
@@ -593,10 +641,15 @@ function MyQueuePanel({
             ) : (
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 flex-wrap">
                     {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
                     <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                    <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold">💳 PMT</span>
                     <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">IN QUEUE</span>
+                    {p.paymentChannel === 'ECOCASH'
+                      ? <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-medium">📱 EcoCash</span>
+                      : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
+                    }
                   </div>
                   <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
                 </div>
@@ -619,6 +672,33 @@ function MyQueuePanel({
                 </div>
               </div>
             )}
+          </div>
+        ))}
+        {pettyRequests.filter(matchesPettySearch).map(p => (
+          <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-semibold">💵 PCR</span>
+                <p className="text-xs font-medium text-primary truncate">{p.purpose}</p>
+                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">PENDING</span>
+                {p.paymentChannel === 'ECOCASH'
+                  ? <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-medium">📱 EcoCash</span>
+                  : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
+                }
+                {p.priority === 'URGENT' && <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-medium">🚨 URGENT</span>}
+              </div>
+              {p.notes && <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{p.notes}</p>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.requestedAmount)}</span>
+              <button
+                onClick={() => handleCancelPetty(p.id)}
+                disabled={actionId === p.id}
+                className="px-2 py-0.5 text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 rounded hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50"
+              >
+                {actionId === p.id ? '…' : '✕ Cancel'}
+              </button>
+            </div>
           </div>
         ))}
       </div>}
@@ -677,6 +757,99 @@ function MyQueuePanel({
 }
 // ────────────────────────────────────────────────────────────────────────────
 
+function QuickPettyCashModal({ businessId, onClose, onSuccess }: { businessId: string; onClose: () => void; onSuccess: () => void }) {
+  const toast = useToastContext()
+  const [amount, setAmount] = useState('')
+  const [purpose, setPurpose] = useState('')
+  const [notes, setNotes] = useState('')
+  const [channel, setChannel] = useState<'CASH' | 'ECOCASH'>('CASH')
+  const [priority, setPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL')
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const amt = parseFloat(amount)
+    if (!amt || amt <= 0) { toast.error('Enter a valid amount'); return }
+    if (!purpose.trim()) { toast.error('Purpose is required'); return }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/petty-cash/requests', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, requestedAmount: amt, purpose: purpose.trim(), notes: notes.trim() || undefined, paymentChannel: channel, priority }),
+      })
+      const json = await res.json()
+      if (!res.ok) { toast.error(json.error || 'Failed to submit request'); return }
+      toast.push('Petty cash request submitted', { type: 'success' })
+      onSuccess()
+      onClose()
+    } catch { toast.error('Failed to submit request') } finally { setSubmitting(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">💵 Petty Cash Request</h3>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Amount</label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+              <input type="number" step="0.01" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} required placeholder="0.00"
+                className="w-full pl-6 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Purpose <span className="text-red-500">*</span></label>
+            <input type="text" value={purpose} onChange={e => setPurpose(e.target.value)} required placeholder="What is this for?"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional notes"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Channel</label>
+              <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden text-xs">
+                {(['CASH', 'ECOCASH'] as const).map(ch => (
+                  <button key={ch} type="button" onClick={() => setChannel(ch)}
+                    className={`flex-1 py-1.5 font-medium transition-colors ${channel === ch ? 'bg-purple-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    {ch === 'CASH' ? '💵 Cash' : '📱 EcoCash'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+              <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden text-xs">
+                {(['NORMAL', 'URGENT'] as const).map(pr => (
+                  <button key={pr} type="button" onClick={() => setPriority(pr)}
+                    className={`flex-1 py-1.5 font-medium transition-colors ${priority === pr ? (pr === 'URGENT' ? 'bg-red-600 text-white' : 'bg-purple-600 text-white') : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    {pr === 'NORMAL' ? 'Normal' : '🚨 Urgent'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} disabled={submitting}
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={submitting}
+              className="px-4 py-1.5 text-sm text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50">
+              {submitting ? 'Submitting…' : '💵 Submit Request'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function ExpenseAccountDetailPage() {
   const { data: session, status } = useSession()
   const toast = useToastContext()
@@ -704,6 +877,7 @@ export default function ExpenseAccountDetailPage() {
 
   const [showVehicleExpenseModal, setShowVehicleExpenseModal] = useState(false)
   const [showBatchModal, setShowBatchModal] = useState(false)
+  const [showPettyCashModal, setShowPettyCashModal] = useState(false)
   const [loansRefreshKey, setLoansRefreshKey] = useState(0)
   const [batchRefreshKey, setBatchRefreshKey] = useState(0)
   const [depositRefreshKey, setDepositRefreshKey] = useState(0)
@@ -713,6 +887,8 @@ export default function ExpenseAccountDetailPage() {
   const [pendingBatchCountOthers, setPendingBatchCountOthers] = useState(0)
   const [rentPaymentSubmitting, setRentPaymentSubmitting] = useState(false)
   const [rentPaidThisMonth, setRentPaidThisMonth] = useState(false)
+  const [canRequestPettyCash, setCanRequestPettyCash] = useState(false)
+  const [pendingPettyCashCount, setPendingPettyCashCount] = useState(0)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness, businesses } = useBusinessPermissionsContext()
@@ -748,6 +924,23 @@ export default function ExpenseAccountDetailPage() {
       fetchCounts()
     }
   }, [session, accountId])
+
+  useEffect(() => {
+    if (!session?.user) return
+    fetch('/api/petty-cash/my-permissions', { credentials: 'include' })
+      .then(r => r.json())
+      .then(j => {
+        const canRequest = j.canRequest ?? false
+        setCanRequestPettyCash(canRequest)
+        if (canRequest && account?.businessId) {
+          fetch(`/api/petty-cash/requests?status=PENDING&businessId=${account.businessId}&limit=50`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(j => setPendingPettyCashCount(j.data?.pagination?.total ?? 0))
+            .catch(() => {})
+        }
+      })
+      .catch(() => {})
+  }, [session, account?.businessId])
 
   // Re-check rent payment status when the user returns to this tab (e.g. after cancelling from another page)
   useEffect(() => {
@@ -1000,6 +1193,19 @@ export default function ExpenseAccountDetailPage() {
                 className="px-2.5 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
               >
                 + Deposit
+              </button>
+            )}
+            {canRequestPettyCash && account.accountType !== 'RENT' && (
+              <button
+                onClick={() => setShowPettyCashModal(true)}
+                className="relative px-2.5 py-1 bg-teal-600 text-white rounded text-xs font-medium hover:bg-teal-700"
+              >
+                💵 Petty Cash
+                {pendingPettyCashCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {pendingPettyCashCount > 9 ? '9+' : pendingPettyCashCount}
+                  </span>
+                )}
               </button>
             )}
             {canMakeExpensePayments && account?.accountType === 'RENT' ? (
@@ -1560,6 +1766,18 @@ export default function ExpenseAccountDetailPage() {
             setShowVehicleExpenseModal(false)
             setBatchRefreshKey(k => k + 1)
             setActiveTab('payments')
+          }}
+        />
+      )}
+
+      {/* Quick Petty Cash Modal */}
+      {showPettyCashModal && account?.businessId && (
+        <QuickPettyCashModal
+          businessId={account.businessId}
+          onClose={() => setShowPettyCashModal(false)}
+          onSuccess={() => {
+            setPaymentRefreshKey(k => k + 1)
+            setPendingPettyCashCount(prev => prev + 1)
           }}
         />
       )}

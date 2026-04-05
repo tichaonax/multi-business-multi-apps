@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
@@ -140,6 +140,8 @@ export default function PettyCashDetailPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
+  const returnUrl = searchParams.get('returnUrl')
   const requestId = params.requestId as string
   const toast = useToastContext()
   const confirm = useConfirm()
@@ -651,7 +653,7 @@ export default function PettyCashDetailPage() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <button onClick={() => router.push('/petty-cash')} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-2 flex items-center gap-1">
+            <button onClick={() => router.push(returnUrl ?? '/petty-cash')} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-2 flex items-center gap-1">
               &larr; Back to list
             </button>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{req.purpose}</h1>

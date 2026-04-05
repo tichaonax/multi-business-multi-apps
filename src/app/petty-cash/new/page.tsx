@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -11,6 +11,8 @@ import { useToastContext } from '@/components/ui/toast'
 export default function NewPettyCashRequestPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const returnUrl = searchParams.get('returnUrl')
   const toast = useToastContext()
   const { currentBusinessId, currentBusiness, isAuthenticated, loading: bizLoading } = useBusinessPermissionsContext()
 
@@ -65,7 +67,8 @@ export default function NewPettyCashRequestPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to submit')
       toast.push('Petty cash request submitted', { type: 'success' })
-      router.push(`/petty-cash/${json.data.request.id}`)
+      const dest = `/petty-cash/${json.data.request.id}${returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : ''}`
+      router.push(dest)
     } catch (e: any) {
       toast.error(e.message)
     } finally {
@@ -164,7 +167,7 @@ export default function NewPettyCashRequestPage() {
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => router.back()}
+                onClick={() => router.push(returnUrl ?? '/petty-cash')}
                 className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Cancel
