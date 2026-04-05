@@ -246,6 +246,17 @@ interface PettyCashQueueItem {
   requestedBy: string
 }
 
+interface EodSubmissionQueueItem {
+  id: string
+  businessId: string
+  business: { id: string; name: string }
+  cashier: { id: string; name: string }
+  totalAmount: string
+  paymentCount: number
+  submittedAt: string
+  eodBatch: { id: string; eodDate: string; status: string; paymentCount: number } | null
+}
+
 function MyQueuePanel({
   accountId,
   refreshKey,
@@ -285,6 +296,7 @@ function MyQueuePanel({
   const [queueOpen, setQueueOpen] = useState(true)
   const [queueSearch, setQueueSearch] = useState('')
   const [pettyRequests, setPettyRequests] = useState<PettyCashQueueItem[]>([])
+  const [eodSubmissions, setEodSubmissions] = useState<EodSubmissionQueueItem[]>([])
 
   const openQueueVoucher = async (p: QueuedPayment) => {
     if (!businessId) return
@@ -307,7 +319,7 @@ function MyQueuePanel({
 
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
-    const [q, pa, a, pc] = await Promise.all([
+    const [q, pa, a, pc, eod] = await Promise.all([
       fetch(`/api/expense-account/${accountId}/payment-requests`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null).then(d => d?.data ?? []),
       fetch(`/api/expense-account/${accountId}/payments?status=PENDING_APPROVAL&sortBy=createdAt&limit=20`, { credentials: 'include' })
@@ -319,12 +331,15 @@ function MyQueuePanel({
             .then(r => r.ok ? r.json() : null)
             .then(d => (d?.data?.requests ?? []).filter((r: any) => r.requestedBy === queueUserId))
         : Promise.resolve([]),
+      fetch(`/api/expense-account/${accountId}/eod-submissions`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null).then(d => d?.data ?? []),
     ])
     setQueued(q)
     setPendingApproval(pa)
     pendingApprovalRef.current = pa
     setApproved(a.filter((p: QueuedPayment) => !dismissedIdsRef.current.has(p.id)))
     setPettyRequests(pc)
+    setEodSubmissions(eod)
     if (!silent) setLoading(false)
   }, [accountId, businessId, queueUserId])
 
@@ -479,9 +494,9 @@ function MyQueuePanel({
   }
 
   if (loading) return null
-  if (queued.length === 0 && pendingApproval.length === 0 && approved.length === 0 && pettyRequests.length === 0) return null
+  if (queued.length === 0 && pendingApproval.length === 0 && approved.length === 0 && pettyRequests.length === 0 && eodSubmissions.length === 0) return null
 
-  const totalCount = queued.length + pendingApproval.length + approved.length + pettyRequests.length
+  const totalCount = queued.length + pendingApproval.length + approved.length + pettyRequests.length + eodSubmissions.length
   const searchLower = queueSearch.toLowerCase()
   const matchesSearch = (p: QueuedPayment) =>
     !queueSearch ||
@@ -699,6 +714,26 @@ function MyQueuePanel({
                 {actionId === p.id ? '…' : '✕ Cancel'}
               </button>
             </div>
+          </div>
+        ))}
+        {eodSubmissions.filter(s =>
+          !queueSearch ||
+          s.business.name.toLowerCase().includes(queueSearch.toLowerCase()) ||
+          (s.eodBatch?.eodDate ?? '').includes(queueSearch)
+        ).map(s => (
+          <div key={s.id} className="flex items-center gap-2 px-3 py-2 bg-orange-50/50 dark:bg-orange-900/10">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-semibold">🏪 EOD</span>
+                <p className="text-xs font-medium text-primary truncate">{s.business.name}</p>
+                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">AWAITING ALLOCATION</span>
+                <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                {s.eodBatch?.eodDate ? new Date(s.eodBatch.eodDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''} · {s.paymentCount} payment{s.paymentCount !== 1 ? 's' : ''} · by {s.cashier.name}
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-green-600 dark:text-green-400 shrink-0">+{fmt(Number(s.totalAmount))}</span>
           </div>
         ))}
       </div>}
