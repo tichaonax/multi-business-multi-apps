@@ -16,9 +16,17 @@ function RestaurantCashAllocationContent() {
   const reportId = searchParams.get('reportId')
   const businessIdOverride = searchParams.get('businessId')
 
-  const contextBusinessId = currentBusinessId ||
-    (isSystemAdmin ? businesses?.find(b => b.businessType === 'restaurant' && b.isActive)?.businessId ?? null : null)
+  const isCurrentRestaurant = !!currentBusinessId && businesses?.find(b => b.businessId === currentBusinessId)?.businessType === 'restaurant'
+  const contextBusinessId = isCurrentRestaurant
+    ? currentBusinessId
+    : (businesses?.find(b => b.businessType === 'restaurant' && b.isActive)?.businessId ?? null)
   const businessId = businessIdOverride || contextBusinessId
+  // When businessIdOverride is set (admin/cashier viewing a specific business via URL param),
+  // don't use the context businesses array for the name — it reflects the cashier's current
+  // context business, not the target. Let the component's async fetch resolve the correct name.
+  const businessName = businessIdOverride
+    ? null
+    : (businesses?.find(b => b.businessId === businessId)?.businessName ?? null)
 
   if (!businessId) return null
 
@@ -37,6 +45,7 @@ function RestaurantCashAllocationContent() {
       ) : (
         <CashAllocationDailyReport
           businessId={businessId}
+          businessName={businessName}
           businessType="restaurant"
           lockedDate={lockedDate}
           businessIdOverride={null}

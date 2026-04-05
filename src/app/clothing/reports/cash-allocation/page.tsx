@@ -16,9 +16,12 @@ function ClothingCashAllocationContent() {
   const reportId = searchParams.get('reportId')
   const businessIdOverride = searchParams.get('businessId')
 
-  const contextBusinessId = currentBusinessId ||
-    (isSystemAdmin ? businesses?.find(b => b.businessType === 'clothing' && b.isActive)?.businessId ?? null : null)
+  const isCurrentClothing = !!currentBusinessId && businesses?.find(b => b.businessId === currentBusinessId)?.businessType === 'clothing'
+  const contextBusinessId = isCurrentClothing
+    ? currentBusinessId
+    : (businesses?.find(b => b.businessType === 'clothing' && b.isActive)?.businessId ?? null)
   const businessId = businessIdOverride || contextBusinessId
+  const businessName = businesses?.find(b => b.businessId === businessId)?.businessName ?? null
 
   if (!businessId) return null
 
@@ -37,6 +40,7 @@ function ClothingCashAllocationContent() {
       ) : (
         <CashAllocationDailyReport
           businessId={businessId}
+          businessName={businessName}
           businessType="clothing"
           lockedDate={lockedDate}
           businessIdOverride={null}

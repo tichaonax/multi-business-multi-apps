@@ -34,6 +34,7 @@ interface DaySummary {
 
 interface Props {
   businessId: string
+  businessName?: string | null    // shown prominently so cashier knows which business they're reconciling
   businessType?: string           // e.g. 'restaurant' — used to build EOD report link
   lockedDate?: string | null      // passed from page — makes date read-only
   businessIdOverride?: string | null // passed from page — admin reconciling a specific business
@@ -42,8 +43,11 @@ interface Props {
 const toNum = (v: number | string | null | undefined) =>
   v === null || v === undefined ? 0 : Number(v)
 
-export function CashAllocationDailyReport({ businessId: propBusinessId, businessType, lockedDate, businessIdOverride }: Props) {
+export function CashAllocationDailyReport({ businessId: propBusinessId, businessName: propBusinessName, businessType, lockedDate, businessIdOverride }: Props) {
   const businessId = businessIdOverride || propBusinessId
+
+  // Resolved from the cash allocation API response — always matches the business whose data is shown
+  const [resolvedBusinessName, setResolvedBusinessName] = useState<string | null>(propBusinessName ?? null)
 
   const today = new Date().toISOString().split('T')[0]
   const [date, setDate] = useState(lockedDate ?? today)
@@ -109,8 +113,10 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     try {
       const res = await fetch(`/api/cash-allocation/${businessId}?date=${d}`)
       const data = await res.json()
+      console.log('[CashAllocation] loadReport response:', { businessId, date: d, exists: data.exists, businessName: data.businessName, propBusinessName, resolvedBusinessName })
       if (!res.ok) throw new Error(data.error ?? 'Failed to load')
       if (data.exists) {
+        if (data.businessName) setResolvedBusinessName(data.businessName)
         setReport(data.report)
         setLineItems(data.lineItems)
         setAllChecked(data.allChecked)
@@ -392,7 +398,16 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
   return (
     <div className="space-y-6">
 
-      {/* 7-day overview */}
+      {/* Prominent business identity banner — critical when cashier handles multiple businesses */}
+      {resolvedBusinessName && (
+        <div className="rounded-lg bg-indigo-600 dark:bg-indigo-700 px-4 py-3 flex items-center gap-3 shadow-md">
+          <span className="text-2xl shrink-0">🏪</span>
+          <div>
+            <p className="text-[10px] font-semibold text-indigo-200 uppercase tracking-widest">Reconciling Business</p>
+            <p className="text-lg font-bold text-white leading-tight">{resolvedBusinessName}</p>
+          </div>
+        </div>
+      )}
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Last 7 Days</h3>

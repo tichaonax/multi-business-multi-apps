@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       include: {
         lineItems: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
         locker: { select: { name: true } },
+        business: { select: { name: true } },
         groupedRun: {
           select: {
             id: true,
@@ -62,8 +63,10 @@ export async function GET(request: NextRequest, { params }: Params) {
     const readyToLock = nonRentItems.length === 0 ||
       nonRentItems.some((item: { isChecked: boolean; actualAmount: unknown }) => item.isChecked && item.actualAmount !== null)
 
+    console.log('[cash-allocation GET] businessId:', businessId, 'business.name:', report.business?.name ?? null)
     return NextResponse.json({
       exists: true,
+      businessName: report.business?.name ?? null,
       report: { ...report, lockerName: report.locker?.name ?? null },
       lineItems: report.lineItems,
       allChecked,

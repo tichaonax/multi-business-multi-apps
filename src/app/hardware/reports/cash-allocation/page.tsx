@@ -16,9 +16,12 @@ function HardwareCashAllocationContent() {
   const reportId = searchParams.get('reportId')
   const businessIdOverride = searchParams.get('businessId')
 
-  const contextBusinessId = currentBusinessId ||
-    (isSystemAdmin ? businesses?.find(b => b.businessType === 'hardware' && b.isActive)?.businessId ?? null : null)
+  const isCurrentHardware = !!currentBusinessId && businesses?.find(b => b.businessId === currentBusinessId)?.businessType === 'hardware'
+  const contextBusinessId = isCurrentHardware
+    ? currentBusinessId
+    : (businesses?.find(b => b.businessType === 'hardware' && b.isActive)?.businessId ?? null)
   const businessId = businessIdOverride || contextBusinessId
+  const businessName = businesses?.find(b => b.businessId === businessId)?.businessName ?? null
 
   if (!businessId) return null
 
@@ -37,6 +40,7 @@ function HardwareCashAllocationContent() {
       ) : (
         <CashAllocationDailyReport
           businessId={businessId}
+          businessName={businessName}
           businessType="hardware"
           lockedDate={lockedDate}
           businessIdOverride={null}
