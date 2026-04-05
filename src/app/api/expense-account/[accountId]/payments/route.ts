@@ -356,12 +356,18 @@ export async function POST(
     // payments are submitted and debited immediately as long as there are sufficient funds.
     // For business-linked accounts the normal flow applies: admins go directly to SUBMITTED,
     // everyone else goes to QUEUED for EOD batch approval.
+    //
+    // requestCashierApproval=true (personal accounts, single payment only): status=REQUEST,
+    // balance is NOT debited at creation — cashier approves/rejects via Pending Actions.
     const isPersonalAccount = !account.businessId || account.accountType === 'PERSONAL'
-    const defaultPaymentStatus = (isPersonalAccount || user.role === 'admin') ? 'SUBMITTED' : 'QUEUED'
-    const isQueuedFlow = defaultPaymentStatus === 'QUEUED'
 
     // Check if batch payment or single payment
     const isBatch = Array.isArray(body.payments)
+
+    const isRequestFlow = !isBatch && isPersonalAccount && body.requestCashierApproval === true
+    const defaultPaymentStatus = isRequestFlow ? 'REQUEST' : (isPersonalAccount || user.role === 'admin') ? 'SUBMITTED' : 'QUEUED'
+    // Skip balance debit for QUEUED (EOD) and REQUEST (cashier-assisted) flows
+    const isQueuedFlow = defaultPaymentStatus === 'QUEUED' || isRequestFlow
     const paymentsToCreate = isBatch ? body.payments : [body]
 
     // Generate unique batchId if this is a batch
@@ -933,8 +939,9 @@ export async function POST(
         select: { id: true },
       })
       const reviewerIds = reviewers.map(r => r.id).filter(id => id !== user.id)
-      // Only notify reviewers for business-linked accounts that go through the approval queue.
-      // Personal/home account payments are auto-submitted — no reviewer action needed.
+      // Business accounts: notify all eligible reviewers (go through EOD approval queue).
+      // Personal REQUEST payments: notify only reviewers who have an explicit grant on this account.
+      // Regular personal payments are auto-submitted — no reviewer action needed.
       if (!isPersonalAccount && reviewerIds.length > 0) {
         await emitNotification({
           userIds: reviewerIds,
@@ -945,15 +952,35 @@ export async function POST(
             ? `/expense-accounts/${accountId}`
             : `/expense-accounts/${accountId}/payments/${result.payments[0].id}`,
         })
+      } else if (isRequestFlow && reviewerIds.length > 0) {
+        // Only notify cashiers who have a grant on this personal account
+        const accountGrants = await prisma.expenseAccountGrants.findMany({
+          where: { expenseAccountId: accountId, userId: { in: reviewerIds } },
+          select: { userId: true },
+        })
+        const grantedReviewerIds = accountGrants.map((g: { userId: string }) => g.userId)
+        if (grantedReviewerIds.length > 0) {
+          await emitNotification({
+            userIds: grantedReviewerIds,
+            type: 'PAYMENT_SUBMITTED',
+            title: '💰 Personal Payment Request',
+            message: `${user.name} → ${account.accountName}: ${detailStr}`,
+            linkUrl: `/admin/pending-actions`,
+          })
+        }
       }
-      // Notify the submitter — wording differs between immediate and queued
+      // Notify the submitter — wording differs between immediate, queued, and cashier-request
       await emitNotification({
         userIds: [user.id],
         type: 'PAYMENT_SUBMITTED',
-        title: isPersonalAccount
+        title: isRequestFlow
+          ? 'Payment Request Submitted'
+          : isPersonalAccount
           ? (hasUrgent ? '🚨 Payment Processed' : 'Payment Processed')
           : (hasUrgent ? '🚨 Urgent Payment Queued' : 'Payment Queued'),
-        message: isPersonalAccount
+        message: isRequestFlow
+          ? `Your payment request is awaiting cashier approval — ${detailStr}`
+          : isPersonalAccount
           ? `Payment processed — ${detailStr}`
           : `Your payment was queued — ${detailStr}`,
         linkUrl: '/expense-accounts/my-payments',

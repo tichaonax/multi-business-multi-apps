@@ -1571,6 +1571,9 @@ model ExpenseAccountPayments {
   reversedBy                String?                          @map("reversed_by")
   reversalNote              String?                          @map("reversal_note")
   reversalPettyCashId       String?                          @map("reversal_petty_cash_id")
+  // Rejection audit trail (MBM-171)
+  rejectedBy                String?                          @map("rejected_by")
+  rejectedAt                DateTime?                        @map("rejected_at")
   projectId                 String?                          @map("project_id")
   project                   Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
   payment_voucher           ExpensePaymentVouchers?
@@ -2014,15 +2017,15 @@ model FundSources {
 }
 
 model PaymentNotes {
-  id             String   @id @default(uuid())
-  note           String
-  usageCount     Int      @default(0)
-  isActive       Boolean  @default(true)
-  userId         String?
-  createdAt      DateTime @default(now())
-  domainId       String?
-  categoryId     String?
-  subcategoryId  String?
+  id            String   @id @default(uuid())
+  note          String
+  usageCount    Int      @default(0)
+  isActive      Boolean  @default(true)
+  userId        String?
+  createdAt     DateTime @default(now())
+  domainId      String?
+  categoryId    String?
+  subcategoryId String?
 
   users Users? @relation(fields: [userId], references: [id])
 

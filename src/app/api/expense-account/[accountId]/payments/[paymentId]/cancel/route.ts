@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 /**
  * POST /api/expense-account/[accountId]/payments/[paymentId]/cancel
@@ -28,6 +29,10 @@ export async function POST(
         status: true,
         createdBy: true,
         amount: true,
+        expenseAccount: {
+          select: { businessId: true, accountType: true, accountName: true },
+        },
+        creator: { select: { name: true } },
       },
     })
 
@@ -59,6 +64,33 @@ export async function POST(
       data: { status: 'CANCELLED', cancelledAt: new Date() },
       select: { id: true, status: true, cancelledAt: true },
     })
+
+    // For personal REQUEST payments, notify cashier grantees that the request was cancelled
+    const isPersonalRequest =
+      payment.status === 'REQUEST' &&
+      (!payment.expenseAccount?.businessId || payment.expenseAccount?.accountType === 'PERSONAL')
+
+    if (isPersonalRequest) {
+      const grants = await prisma.expenseAccountGrants.findMany({
+        where: { expenseAccountId: accountId },
+        select: { userId: true },
+      })
+      const granteeIds = grants.map((g) => g.userId)
+      if (granteeIds.length > 0) {
+        const creatorName = payment.creator?.name ?? 'Someone'
+        const accountName = payment.expenseAccount?.accountName ?? 'expense account'
+        const amt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+          Number(payment.amount)
+        )
+        await emitNotification({
+          userIds: granteeIds,
+          type: 'PAYMENT_SUBMITTED',
+          title: '🚫 Payment Request Cancelled',
+          message: `${creatorName} cancelled a ${amt} payment request on ${accountName}.`,
+          link: `/expense-accounts/${accountId}/payments`,
+        })
+      }
+    }
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {

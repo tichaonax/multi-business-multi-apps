@@ -190,7 +190,10 @@ function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; ref
                   {p.status === 'DRAFT' && (
                     <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">DRAFT</span>
                   )}
-                  {(p.status === 'REQUEST' || p.status === 'QUEUED') && (
+                  {p.status === 'REQUEST' && (
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">⏳ Awaiting Cashier</span>
+                  )}
+                  {p.status === 'QUEUED' && (
                     <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-medium">IN QUEUE</span>
                   )}
                   {p.status === 'APPROVED' && (

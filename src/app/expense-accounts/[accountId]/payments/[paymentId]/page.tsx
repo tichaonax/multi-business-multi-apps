@@ -22,6 +22,7 @@ export default function ExpensePaymentDetailPage() {
   const [editErrors, setEditErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [actionState, setActionState] = useState<'idle' | 'approving' | 'rejecting'>('idle')
+  const [cancelling, setCancelling] = useState(false)
 
   useEffect(() => {
     if (!accountId || !paymentId) return
@@ -270,6 +271,26 @@ export default function ExpensePaymentDetailPage() {
     }
   }
 
+  const handleCancelRequest = async () => {
+    if (!confirm('Cancel this payment request? This cannot be undone.')) return
+    setCancelling(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        const e = await res.json()
+        alert(e.error || 'Failed to cancel')
+        return
+      }
+      const data = await res.json()
+      setPayment((prev: any) => ({ ...prev, status: data.data.status, cancelledAt: data.data.cancelledAt }))
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   // Header actions: counts showing deposits and payments
   const headerActions = (
     <div className="flex items-center gap-3">
@@ -375,7 +396,11 @@ export default function ExpensePaymentDetailPage() {
             <div className="mt-4 text-sm text-gray-700 dark:text-gray-300 space-y-1">
               <div className="flex items-center gap-2">
                 <strong>Status:</strong>
-                {payment.status === 'REVERSED' ? (
+                {payment.status === 'REQUEST' && (!payment.expenseAccount?.businessId || payment.expenseAccount?.accountType === 'PERSONAL') ? (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-xs font-semibold">
+                    ⏳ Awaiting Cashier
+                  </span>
+                ) : payment.status === 'REVERSED' ? (
                   <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 text-xs font-semibold uppercase">
                     Reversed
                   </span>
@@ -421,6 +446,22 @@ export default function ExpensePaymentDetailPage() {
                       ✏️ Edit / Adjust Request
                     </button>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Personal REQUEST — awaiting cashier approval */}
+            {payment.status === 'REQUEST' && (!payment.expenseAccount?.businessId || payment.expenseAccount?.accountType === 'PERSONAL') && (
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-sm text-amber-700 dark:text-amber-300">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>⏳ This payment is awaiting cashier approval. You will be notified when it is reviewed.</span>
+                  <button
+                    onClick={handleCancelRequest}
+                    disabled={cancelling}
+                    className="px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded transition-colors disabled:opacity-50"
+                  >
+                    {cancelling ? 'Cancelling…' : 'Cancel Request'}
+                  </button>
                 </div>
               </div>
             )}

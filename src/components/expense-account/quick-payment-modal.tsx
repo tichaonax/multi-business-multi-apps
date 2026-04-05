@@ -350,6 +350,7 @@ export function QuickPaymentModal({
   const [noteMode, setNoteMode] = useState<'saved' | 'type'>('type')
   const [saveNote, setSaveNote] = useState(false)
   const [selectedSavedNote, setSelectedSavedNote] = useState<{ id: string; domainId?: string | null; categoryId?: string | null; subcategoryId?: string | null } | null>(null)
+  const [requestCashierApproval, setRequestCashierApproval] = useState(false)
 
   // Classification suggestion
   const [suggestOpen, setSuggestOpen] = useState(false)
@@ -837,7 +838,7 @@ export function QuickPaymentModal({
       const result = await fetchWithValidation(`/api/expense-account/${activeAccountId}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payments: [payment] })
+        body: JSON.stringify({ payments: [payment], requestCashierApproval: isPersonalAccount ? requestCashierApproval : false })
       })
 
       // Success — message depends on whether the payment was immediately submitted or queued
@@ -903,6 +904,7 @@ export function QuickPaymentModal({
     setNoteMode('type')
     setSaveNote(false)
     setSelectedSavedNote(null)
+    setRequestCashierApproval(false)
     setIsApplyingSuggestion(false)
     setSuggestions([])
     setSuggestOpen(false)
@@ -1824,6 +1826,22 @@ export function QuickPaymentModal({
                 onChange={(value) => setFormData({ ...formData, projectId: value })}
                 placeholder="No project linked"
               />
+            </div>
+          )}
+
+          {/* Request cashier approval — personal accounts only */}
+          {isPersonalAccount && (
+            <div className="flex items-center gap-2 py-1">
+              <input
+                type="checkbox"
+                id="requestCashierApproval"
+                checked={requestCashierApproval}
+                onChange={e => setRequestCashierApproval(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-orange-600"
+              />
+              <label htmlFor="requestCashierApproval" className="text-sm text-secondary select-none cursor-pointer">
+                Request cashier approval before payment
+              </label>
             </div>
           )}
 

@@ -455,6 +455,66 @@ export async function GET() {
       businessType: d.business?.type ?? 'clothing',
     }))
 
+    // Personal payment requests — REQUEST-status payments on personal accounts where the
+    // current user has an explicit expenseAccountGrant (or is a sys admin who sees all).
+    let personalPaymentRequests: object[] = []
+    if (sysAdmin || permissions.canSubmitPaymentBatch) {
+      let grantedAccountIds: string[] | null = null
+      if (!sysAdmin) {
+        const userGrants = await prisma.expenseAccountGrants.findMany({
+          where: { userId: user.id },
+          select: { expenseAccountId: true },
+        })
+        grantedAccountIds = userGrants.map((g: { expenseAccountId: string }) => g.expenseAccountId)
+      }
+
+      if (sysAdmin || (grantedAccountIds && grantedAccountIds.length > 0)) {
+        const personalRequestRows = await prisma.expenseAccountPayments.findMany({
+          where: {
+            status: 'REQUEST',
+            paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_EXPENSE', 'TRANSFER_OUT', 'TRANSFER_RETURN'] },
+            expenseAccount: { accountType: 'PERSONAL' },
+            ...(grantedAccountIds ? { expenseAccountId: { in: grantedAccountIds } } : {}),
+          },
+          select: {
+            id: true,
+            amount: true,
+            notes: true,
+            paymentDate: true,
+            paymentChannel: true,
+            priority: true,
+            createdAt: true,
+            expenseAccountId: true,
+            creator: { select: { id: true, name: true } },
+            category: { select: { id: true, name: true, emoji: true } },
+            subcategory: { select: { id: true, name: true } },
+            payeeUser: { select: { name: true } },
+            payeeEmployee: { select: { fullName: true } },
+            payeePerson: { select: { fullName: true } },
+            payeeSupplier: { select: { name: true } },
+            expenseAccount: { select: { id: true, accountName: true } },
+          },
+          orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+          take: 50,
+        })
+        personalPaymentRequests = personalRequestRows.map((p: any) => ({
+          id: p.id,
+          amount: Number(p.amount),
+          notes: p.notes ?? null,
+          paymentDate: p.paymentDate?.toISOString() ?? null,
+          paymentChannel: p.paymentChannel,
+          priority: p.priority,
+          createdAt: p.createdAt?.toISOString() ?? null,
+          expenseAccountId: p.expenseAccountId,
+          accountName: p.expenseAccount?.accountName ?? '—',
+          creatorName: p.creator?.name ?? null,
+          categoryName: p.category ? `${p.category.emoji ?? ''} ${p.category.name}`.trim() : null,
+          subcategoryName: p.subcategory?.name ?? null,
+          payeeName: p.payeeEmployee?.fullName ?? p.payeePerson?.fullName ?? p.payeeSupplier?.name ?? p.payeeUser?.name ?? null,
+        }))
+      }
+    }
+
     const total =
       (loanLockRequests as unknown[]).length +
       (pendingSupplierPayments as unknown[]).length +
@@ -467,7 +527,8 @@ export async function GET() {
       (myPendingPayments as unknown[]).length +
       myApprovedPaymentsMapped.length +
       myApprovedPettyCash.length +
-      pendingStockTakeDrafts.length
+      pendingStockTakeDrafts.length +
+      (personalPaymentRequests as unknown[]).length
 
     return NextResponse.json({
       loanLockRequests,
@@ -483,6 +544,7 @@ export async function GET() {
       myApprovedPayments: myApprovedPaymentsMapped,
       myApprovedPettyCash,
       pendingStockTakeDrafts,
+      personalPaymentRequests,
       canApprovePettyCash,
       canRequestPettyCash,
       canApproveCashAlloc: canApproveCashAllocation,

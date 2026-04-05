@@ -92,6 +92,22 @@ interface PendingMealProgram {
   business: { id: string; name: string } | null
 }
 
+interface PersonalPaymentRequest {
+  id: string
+  amount: number
+  notes: string | null
+  paymentDate: string | null
+  paymentChannel: string
+  priority: string
+  createdAt: string | null
+  expenseAccountId: string
+  accountName: string
+  creatorName: string | null
+  categoryName: string | null
+  subcategoryName: string | null
+  payeeName: string | null
+}
+
 interface StandalonePaymentDetail {
   id: string
   amount: string
@@ -121,10 +137,12 @@ export default function PendingActionsPage() {
   const [myApprovedPayments, setMyApprovedPayments] = useState<any[]>([])
   const [myApprovedPettyCash, setMyApprovedPettyCash] = useState<any[]>([])
   const [pendingMealPrograms, setPendingMealPrograms] = useState<PendingMealProgram[]>([])
+  const [personalPaymentRequests, setPersonalPaymentRequests] = useState<PersonalPaymentRequest[]>([])
+  const [personalActionState, setPersonalActionState] = useState<Record<string, 'approving' | 'rejecting' | null>>({})
   const [loading, setLoading] = useState(true)
   const total = loanLockRequests.length + pendingSupplierPayments.length + pendingPettyCash.length +
     pendingCashAllocations.length + pendingPaymentBatches.length + pendingPaymentRequests.length +
-    pendingMealPrograms.length
+    pendingMealPrograms.length + personalPaymentRequests.length
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [batchingId, setBatchingId] = useState<string | null>(null)
   const [approvingMealId, setApprovingMealId] = useState<string | null>(null)
@@ -153,6 +171,7 @@ export default function PendingActionsPage() {
         setMyApprovedPayments(json.myApprovedPayments || [])
         setMyApprovedPettyCash(json.myApprovedPettyCash || [])
         setPendingMealPrograms(json.pendingMealPrograms || [])
+        setPersonalPaymentRequests(json.personalPaymentRequests || [])
       }
     } catch { /* ignore */ } finally {
       setLoading(false)
@@ -243,6 +262,42 @@ export default function PendingActionsPage() {
     } catch (e: any) {
       toast.error(e.message)
       setStandaloneReview(prev => prev ? { ...prev, submitting: false } : null)
+    }
+  }
+
+  async function handlePersonalApprove(item: PersonalPaymentRequest) {
+    setPersonalActionState(prev => ({ ...prev, [item.id]: 'approving' }))
+    try {
+      const res = await fetch(`/api/expense-account/pending-actions/${item.id}/approve`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to approve')
+      toast.push(`Approved $${item.amount.toFixed(2)} for ${item.creatorName ?? 'requester'}`, { type: 'success' })
+      setPersonalPaymentRequests(prev => prev.filter(p => p.id !== item.id))
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setPersonalActionState(prev => ({ ...prev, [item.id]: null }))
+    }
+  }
+
+  async function handlePersonalReject(item: PersonalPaymentRequest) {
+    setPersonalActionState(prev => ({ ...prev, [item.id]: 'rejecting' }))
+    try {
+      const res = await fetch(`/api/expense-account/pending-actions/${item.id}/reject`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to reject')
+      toast.push(`Rejected payment request from ${item.creatorName ?? 'requester'}`)
+      setPersonalPaymentRequests(prev => prev.filter(p => p.id !== item.id))
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setPersonalActionState(prev => ({ ...prev, [item.id]: null }))
     }
   }
 
@@ -531,6 +586,64 @@ export default function PendingActionsPage() {
                       </Link>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Personal Payment Requests — cashier-assisted payments awaiting approval */}
+            {personalPaymentRequests.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>🙋</span> Personal Payment Requests
+                  <span className="bg-amber-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {personalPaymentRequests.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {personalPaymentRequests.map(item => {
+                    const isUrgent = item.priority === 'URGENT'
+                    const actionState = personalActionState[item.id]
+                    return (
+                      <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${isUrgent ? 'border-2 border-red-500 dark:border-red-400' : 'border border-amber-300 dark:border-amber-700'}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {isUrgent && <span className="text-lg">🚨</span>}
+                            <span className={`font-semibold ${isUrgent ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-white'}`}>
+                              ${item.amount.toFixed(2)}
+                            </span>
+                            <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-medium px-2 py-0.5 rounded">⏳ Awaiting Cashier</span>
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${item.paymentChannel === 'ECOCASH' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'}`}>
+                              {item.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'}
+                            </span>
+                          </div>
+                          {item.notes && <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{item.notes}</p>}
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                            <span>Account: <span className="font-medium text-gray-700 dark:text-gray-300">{item.accountName}</span></span>
+                            {item.payeeName && <span>Payee: <span className="font-medium text-gray-700 dark:text-gray-300">{item.payeeName}</span></span>}
+                            {item.categoryName && <span>Category: <span className="font-medium text-gray-700 dark:text-gray-300">{item.categoryName}</span></span>}
+                            {item.creatorName && <span>Requested by: <span className="font-medium text-gray-700 dark:text-gray-300">{item.creatorName}</span></span>}
+                            {item.createdAt && <span>At: <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateTimeZim(item.createdAt)}</span></span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => handlePersonalApprove(item)}
+                            disabled={!!actionState}
+                            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded transition-colors"
+                          >
+                            {actionState === 'approving' ? 'Approving…' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => handlePersonalReject(item)}
+                            disabled={!!actionState}
+                            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium rounded transition-colors"
+                          >
+                            {actionState === 'rejecting' ? 'Rejecting…' : 'Reject'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
