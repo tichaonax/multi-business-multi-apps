@@ -14,18 +14,22 @@ export async function GET(
     }
 
     const { businessId } = await params
-    // System admins can access any business, others need membership
+    // System admins can access any business, others need membership or expense account access
     if (!isSystemAdmin(user)) {
-      // Check if user has access to this business
-      const membership = await prisma.businessMemberships.findFirst({
-        where: {
-          businessId: businessId,
-          userId: user.id,
-          isActive: true
-        }
-      })
+      // Check if user has access to this business via membership OR expense account grant
+      const [membership, expenseGrant] = await Promise.all([
+        prisma.businessMemberships.findFirst({
+          where: { businessId, userId: user.id, isActive: true }
+        }),
+        prisma.expenseAccountGrants.findFirst({
+          where: {
+            userId: user.id,
+            expenseAccount: { businessId, isActive: true }
+          }
+        })
+      ])
 
-      if (!membership) {
+      if (!membership && !expenseGrant) {
         return NextResponse.json({ error: 'Business not found or access denied' }, { status: 404 })
       }
     }

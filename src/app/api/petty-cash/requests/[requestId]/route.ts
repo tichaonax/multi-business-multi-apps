@@ -62,6 +62,31 @@ export async function GET(
       .filter(p => p.paymentType !== 'PETTY_CASH_RETURN')
       .reduce((sum, p) => sum + Number(p.amount), 0)
 
+    // Fetch reversed payments if notes contain "Reversed from payments: uuid1, uuid2, ..."
+    let reversedFromPayments: any[] = []
+    if (pcRequest.notes && pcRequest.expenseAccountId) {
+      const match = pcRequest.notes.match(/^Reversed from payments:\s*(.+)/i)
+      if (match) {
+        const ids = match[1].split(',').map((s: string) => s.trim()).filter(Boolean)
+        reversedFromPayments = await prisma.expenseAccountPayments.findMany({
+          where: { id: { in: ids } },
+          select: {
+            id: true,
+            amount: true,
+            paymentDate: true,
+            notes: true,
+            payeeType: true,
+            payeeBusiness: { select: { name: true, phone: true } },
+            payeeSupplier: { select: { name: true, phone: true, contactPerson: true } },
+            payeeEmployee: { select: { fullName: true, phone: true } },
+            payeePerson:   { select: { fullName: true, phone: true } },
+            payeeUser:     { select: { name: true, email: true } },
+            category: { select: { name: true, emoji: true } },
+          },
+        })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -104,6 +129,15 @@ export async function GET(
           createdAt: pcRequest.createdAt.toISOString(),
           updatedAt: pcRequest.updatedAt.toISOString(),
         },
+        reversedFromPayments: reversedFromPayments.map(p => ({
+          id: p.id,
+          amount: Number(p.amount),
+          paymentDate: p.paymentDate.toISOString(),
+          notes: p.notes,
+          payeeName: p.payeeBusiness?.name || p.payeeSupplier?.name || p.payeeEmployee?.fullName || p.payeePerson?.fullName || p.payeeUser?.name || null,
+          payeeContact: p.payeeBusiness?.phone || p.payeeSupplier?.phone || p.payeeEmployee?.phone || p.payeePerson?.phone || p.payeeUser?.email || null,
+          category: p.category,
+        })),
         // Expense account payments made after approval — read-only context for cashier
         recentPayments: recentPayments.map(p => ({
           id: p.id,

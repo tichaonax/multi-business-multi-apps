@@ -148,6 +148,7 @@ export default function PettyCashDetailPage() {
 
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [reversedExpanded, setReversedExpanded] = useState(false)
   const [canRequest, setCanRequest] = useState(false)
   const [canApprove, setCanApprove] = useState(false)
 
@@ -636,6 +637,56 @@ export default function PettyCashDetailPage() {
   if (!data) return null
 
   const req = data.request
+  const expenseAccountId = req.expenseAccount?.id ?? null
+
+  const reversedFromPayments: any[] = data.reversedFromPayments ?? []
+
+  const renderNotes = (notes: string | null) => {
+    if (!notes) return <span className="italic text-gray-400">No notes provided</span>
+    const reversedMatch = notes.match(/^Reversed from payments:\s*(.+)/i)
+    if (reversedMatch && reversedFromPayments.length > 0) {
+      return (
+        <div className="space-y-2">
+          <button
+            onClick={() => setReversedExpanded(v => !v)}
+            className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+          >
+            <span>{reversedExpanded ? '▾' : '▸'}</span>
+            <span>Reversed from {reversedFromPayments.length} payment{reversedFromPayments.length !== 1 ? 's' : ''}</span>
+          </button>
+          {reversedExpanded && (
+            <div className="space-y-2">
+              {reversedFromPayments.map((p: any) => (
+                <div key={p.id} className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {p.category ? `${p.category.emoji ?? ''} ${p.category.name}` : 'Payment'}
+                    </span>
+                    <span className="font-semibold text-red-600 dark:text-red-400">-${Number(p.amount).toFixed(2)}</span>
+                  </div>
+                  {p.payeeName && (
+                    <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                      <span className="text-gray-400">To:</span>
+                      <span>{p.payeeName}</span>
+                    </div>
+                  )}
+                  {p.payeeContact && (
+                    <div className="text-gray-500 dark:text-gray-500 text-xs">{p.payeeContact}</div>
+                  )}
+                  <div className="text-gray-400 dark:text-gray-500 text-xs">
+                    {new Date(p.paymentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </div>
+                  {p.notes && <div className="text-gray-500 dark:text-gray-400 italic text-xs border-t border-gray-200 dark:border-gray-700 pt-1.5">{p.notes}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    return <span className="whitespace-pre-wrap">{notes}</span>
+  }
+
   const approvedAmt = req.approvedAmount ?? 0
   const returnAmt = req.returnAmount ?? 0
   const remaining = txSummary?.remainingBalance ?? (approvedAmt - (req.spentAmount ?? 0))
@@ -841,7 +892,7 @@ export default function PettyCashDetailPage() {
           {req.notes && (
             <div className="col-span-2">
               <p className="text-gray-500 dark:text-gray-400">Notes</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{req.notes}</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{renderNotes(req.notes)}</p>
             </div>
           )}
           {req.signatureData && (

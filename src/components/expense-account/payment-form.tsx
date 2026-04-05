@@ -317,7 +317,7 @@ export function PaymentForm({
   batchRefreshKey = 0,
   ecocashEnabled = false,
 }: PaymentFormProps) {
-  const isPersonalAccount = accountType === 'PERSONAL'
+  const isPersonalAccount = accountType === 'PERSONAL' || !businessId
   const customAlert = useAlert()
   const customConfirm = useConfirm()
 

@@ -68,6 +68,7 @@ function DashboardContent() {
 
   // Activity filter states
   const [todayStats, setTodayStats] = useState<Record<string, any>>({})
+  const [yesterdayStats, setYesterdayStats] = useState<Record<string, any>>({})
   const [loadingTodayStats, setLoadingTodayStats] = useState(false)
 
   const [activityFilterScope, setActivityFilterScope] = useState<string>('my') // 'my', 'all', 'user', 'business'
@@ -396,7 +397,7 @@ function DashboardContent() {
     setSelectedUser(null)
   }
 
-  // Fetch today's stats for each active POS-type business
+  // Fetch today's + yesterday's stats for each active POS-type business
   useEffect(() => {
     if (!activeBusinesses.length || businessesLoading) return
     const posBizTypes = ['restaurant', 'grocery', 'clothing', 'hardware']
@@ -407,17 +408,40 @@ function DashboardContent() {
     )
     if (!eligible.length) return
     setLoadingTodayStats(true)
+
+    // Build date strings for today, yesterday, day-before-yesterday
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const dateStr = (offsetDays: number) => {
+      const d = new Date()
+      d.setDate(d.getDate() - offsetDays)
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    }
+    const todayDate = dateStr(0)
+    const yesterdayDate = dateStr(1)
+    const dayBeforeDate = dateStr(2)
+
+    const fetchSummary = (businessId: string, start: string) =>
+      fetch(`/api/universal/orders?businessId=${businessId}&startDate=${start}T00:00:00&endDate=${start}T23:59:59&page=1&limit=1`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => data?.meta?.summary || null)
+        .catch(() => null)
+
     Promise.all(
-      eligible.map(b =>
-        fetch(`/api/universal/orders?businessId=${b.businessId}&dateRange=today&page=1&limit=1`)
-          .then(r => r.ok ? r.json() : null)
-          .then(data => ({ businessId: b.businessId, summary: data?.meta?.summary || null }))
-          .catch(() => ({ businessId: b.businessId, summary: null }))
-      )
+      eligible.flatMap(b => [
+        fetchSummary(b.businessId, todayDate).then(s => ({ businessId: b.businessId, day: 'today', summary: s })),
+        fetchSummary(b.businessId, yesterdayDate).then(s => ({ businessId: b.businessId, day: 'yesterday', summary: s })),
+        fetchSummary(b.businessId, dayBeforeDate).then(s => ({ businessId: b.businessId, day: 'dayBefore', summary: s })),
+      ])
     ).then(results => {
-      const map: Record<string, any> = {}
-      results.forEach(r => { map[r.businessId] = r.summary })
-      setTodayStats(map)
+      const todayMap: Record<string, any> = {}
+      const yesterdayMap: Record<string, any> = {}
+      results.forEach(r => {
+        if (r.day === 'today') todayMap[r.businessId] = r.summary
+        else if (r.day === 'yesterday') yesterdayMap[r.businessId] = r.summary
+        else if (r.day === 'dayBefore') yesterdayMap[r.businessId + '__dayBefore'] = r.summary
+      })
+      setTodayStats(todayMap)
+      setYesterdayStats(yesterdayMap)
       setLoadingTodayStats(false)
     })
   }, [activeBusinesses, businessesLoading, isSysAdmin])
@@ -889,9 +913,30 @@ function DashboardContent() {
                   const icon = b.businessType === 'restaurant' ? '🍽️' : b.businessType === 'grocery' ? '🛒' : b.businessType === 'clothing' ? '👕' : '🔧'
                   const href = `/${b.businessType}`
                   const summary = todayStats[b.businessId]
+                  const ystSummary = yesterdayStats[b.businessId]
+                  const dayBeforeSummary = yesterdayStats[b.businessId + '__dayBefore']
                   const canFinancial = isSysAdmin || hasPermissionInBusiness('canAccessFinancialData', b.businessId)
                   const isActive = currentBusiness?.businessId === b.businessId
                   const fmt = (n: number) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                  const pctChange = (curr: number, prev: number) => {
+                    if (!prev) return null
+                    const pct = ((curr - prev) / prev) * 100
+                    return pct
+                  }
+                  const todaySales = Number(summary?.totalAmount || 0)
+                  const ystSales = Number(ystSummary?.totalAmount || 0)
+                  const dayBeforeSales = Number(dayBeforeSummary?.totalAmount || 0)
+                  const todayVsYst = pctChange(todaySales, ystSales)
+                  const ystVsDayBefore = pctChange(ystSales, dayBeforeSales)
+                  const DeltaBadge = ({ pct }: { pct: number | null }) => {
+                    if (pct === null) return null
+                    const up = pct >= 0
+                    return (
+                      <span className={`text-[10px] font-semibold px-1 py-0.5 rounded ${up ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
+                        {up ? '▲' : '▼'} {Math.abs(pct).toFixed(0)}%
+                      </span>
+                    )
+                  }
                   return (
                     <Link key={b.businessId} href={href}>
                       <div className={`card p-4 hover:shadow-lg transition-all cursor-pointer ${
@@ -914,24 +959,39 @@ function DashboardContent() {
                             <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-24" />
                             {canFinancial && <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-16" />}
                           </div>
-                        ) : summary ? (
+                        ) : (
                           <div className="mt-2 space-y-1">
+                            {/* Today */}
                             <div className="flex items-center justify-between">
-                              <span className="text-xs text-secondary">Orders today</span>
-                              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{summary.totalOrders}</span>
+                              <span className="text-xs text-secondary">Today orders</span>
+                              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{summary?.totalOrders ?? 0}</span>
                             </div>
                             {canFinancial && (
                               <>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-secondary">Revenue</span>
-                                  <span className="text-sm font-bold text-green-600 dark:text-green-400">{fmt(summary.totalAmount)}</span>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-xs text-secondary shrink-0">Today sales</span>
+                                  <div className="flex items-center gap-1">
+                                    <DeltaBadge pct={todayVsYst} />
+                                    <span className="text-sm font-bold text-green-600 dark:text-green-400">{fmt(todaySales)}</span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-secondary">Completed</span>
-                                  <span className="text-xs text-green-600 dark:text-green-400">{fmt(summary.completedRevenue)}</span>
+                                {/* Yesterday */}
+                                <div className="flex items-center justify-between gap-1 border-t border-gray-100 dark:border-gray-700/50 pt-1">
+                                  <span className="text-xs text-secondary shrink-0">Yesterday</span>
+                                  <div className="flex items-center gap-1">
+                                    <DeltaBadge pct={ystVsDayBefore} />
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">{fmt(ystSales)}</span>
+                                  </div>
                                 </div>
-                                {summary.pendingOrders > 0 && (
+                                {/* Day before yesterday */}
+                                {dayBeforeSales > 0 && (
                                   <div className="flex items-center justify-between">
+                                    <span className="text-xs text-secondary shrink-0">2 days ago</span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500">{fmt(dayBeforeSales)}</span>
+                                  </div>
+                                )}
+                                {summary?.pendingOrders > 0 && (
+                                  <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-700/50 pt-1">
                                     <span className="text-xs text-secondary">Pending</span>
                                     <span className="text-xs text-orange-600 dark:text-orange-400">
                                       {summary.pendingOrders} · {fmt(summary.pendingRevenue)}
@@ -941,8 +1001,6 @@ function DashboardContent() {
                               </>
                             )}
                           </div>
-                        ) : (
-                          <p className="text-xs text-secondary mt-2">No orders yet today</p>
                         )}
                       </div>
                     </Link>

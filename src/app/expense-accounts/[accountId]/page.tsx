@@ -39,6 +39,8 @@ interface ExpenseAccount {
   isLoanAccount: boolean
   createdAt: string
   businessId: string | null
+  businessName: string | null
+  businessType: string | null
   accountType: string
   // Sibling account fields
   parentAccountId: string | null
@@ -222,6 +224,8 @@ interface QueuedPayment {
   id: string
   amount: number
   paymentDate: string
+  createdAt?: string
+  createdBy?: { id: string } | null
   description?: string | null
   status: string
   payeeUser?: { name: string } | null
@@ -252,9 +256,8 @@ interface EodSubmissionQueueItem {
   business: { id: string; name: string }
   cashier: { id: string; name: string }
   totalAmount: string
-  paymentCount: number
   submittedAt: string
-  eodBatch: { id: string; eodDate: string; status: string; paymentCount: number } | null
+  eodBatch: { id: string; eodDate: string; status: string; approvedCount: number } | null
 }
 
 function MyQueuePanel({
@@ -292,8 +295,10 @@ function MyQueuePanel({
   const [ecocashSubmitting, setEcocashSubmitting] = useState(false)
   const ecocashSubmittingRef = useRef(false)
   const dismissedIdsRef = useRef<Set<string>>(new Set())
+  const mountedRef = useRef(false)
   const [queueVoucherModal, setQueueVoucherModal] = useState<{ payment: PaymentSummary; existing: any | null } | null>(null)
   const [queueOpen, setQueueOpen] = useState(true)
+  const [mealGroupOpen, setMealGroupOpen] = useState(false)
   const [queueSearch, setQueueSearch] = useState('')
   const [pettyRequests, setPettyRequests] = useState<PettyCashQueueItem[]>([])
   const [eodSubmissions, setEodSubmissions] = useState<EodSubmissionQueueItem[]>([])
@@ -337,14 +342,21 @@ function MyQueuePanel({
     setQueued(q)
     setPendingApproval(pa)
     pendingApprovalRef.current = pa
-    setApproved(a.filter((p: QueuedPayment) => !dismissedIdsRef.current.has(p.id)))
+    setApproved(a.filter((p: QueuedPayment) => !dismissedIdsRef.current.has(p.id) && p.createdBy?.id === queueUserId))
     setPettyRequests(pc)
     setEodSubmissions(eod)
     if (!silent) setLoading(false)
   }, [accountId, businessId, queueUserId])
 
-  // Initial load
-  useEffect(() => { fetchAll() }, [fetchAll, refreshKey])
+  // Initial load (non-silent); subsequent refreshKey or fetchAll changes run silently to avoid panel flash
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      fetchAll(false)
+    } else {
+      fetchAll(true)
+    }
+  }, [fetchAll, refreshKey])
 
   // Auto-poll every 10s while any payments are PENDING_APPROVAL (cashier reviewing)
   useEffect(() => {
@@ -358,6 +370,20 @@ function MyQueuePanel({
 
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+
+  const timeAgo = (iso: string | undefined | null): string => {
+    if (!iso) return ''
+    const diffMs = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diffMs / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    if (days === 1) return 'yesterday'
+    if (days < 7) return `${days}d ago`
+    return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+  }
 
   const payeeName = (p: QueuedPayment): string => {
     if (p.payeeType === 'NONE') return 'General'
@@ -437,6 +463,7 @@ function MyQueuePanel({
         dismissedIdsRef.current.add(paymentId)
         setApproved(prev => prev.filter(p => p.id !== paymentId))
         onBalanceRefresh?.()
+        fetchAll(true)
       } else {
         const d = await res.json()
         await alert({ title: 'Error', description: d.error ?? 'Failed to mark payment as paid' })
@@ -478,11 +505,13 @@ function MyQueuePanel({
         body: JSON.stringify({ action: 'markPaid', ecocashTransactionCode: ecocashTxCode.trim() }),
       })
       if (res.ok) {
-        dismissedIdsRef.current.add(ecocashModal.paymentId)
-        setApproved(prev => prev.filter(p => p.id !== ecocashModal.paymentId))
+        const paidId = ecocashModal.paymentId
+        dismissedIdsRef.current.add(paidId)
+        setApproved(prev => prev.filter(p => p.id !== paidId))
         setEcocashModal(null)
         setEcocashTxCode('')
         onBalanceRefresh?.()
+        fetchAll(true)
       } else {
         const d = await res.json()
         await alert({ title: 'Error', description: d.error ?? 'Failed to mark EcoCash payment as sent' })
@@ -554,14 +583,14 @@ function MyQueuePanel({
                   : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
                 }
               </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
             </div>
             <div className="shrink-0">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
             </div>
           </div>
         ))}
-        {approved.filter(matchesSearch).map(p => (
+        {approved.filter(p => !dismissedIdsRef.current.has(p.id)).filter(matchesSearch).map(p => (
           <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-green-50/50 dark:bg-green-900/10">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
@@ -574,7 +603,7 @@ function MyQueuePanel({
                   : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
                 }
               </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
@@ -607,7 +636,7 @@ function MyQueuePanel({
             </div>
           </div>
         ))}
-        {queued.filter(matchesSearch).map(p => (
+        {queued.filter(p => p.category?.name !== 'Employee Meal Program').filter(matchesSearch).map(p => (
           <div key={p.id} className="px-3 py-2">
             {editingId === p.id ? (
               <div className="space-y-2">
@@ -666,7 +695,7 @@ function MyQueuePanel({
                       : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
                     }
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
@@ -689,6 +718,69 @@ function MyQueuePanel({
             )}
           </div>
         ))}
+        {(() => {
+          const mealItems = queued.filter(p => p.category?.name === 'Employee Meal Program').filter(matchesSearch)
+          if (mealItems.length === 0) return null
+          return (
+            <div className="border-t border-border">
+              <button
+                onClick={() => setMealGroupOpen(o => !o)}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+              >
+                <span className="font-medium flex items-center gap-1.5">
+                  🍽️ Employee Meal Program
+                  <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{mealItems.length}</span>
+                </span>
+                <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${mealGroupOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {mealGroupOpen && mealItems.map(p => (
+                <div key={p.id} className="px-3 py-2 border-t border-border/50">
+                  {editingId === p.id ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
+                        <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                        <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">IN QUEUE</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                          <input type="number" step="0.01" min="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)} className="pl-5 pr-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-24 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+                        <input type="text" value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Notes (optional)" className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleSaveEdit} disabled={saving} className="px-2 py-0.5 text-[10px] font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">{saving ? '…' : '✓ Save'}</button>
+                        <button onClick={() => setEditingId(null)} disabled={saving} className="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-500 rounded hover:bg-gray-200 dark:hover:bg-gray-500">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {p.category?.emoji && <span className="text-xs shrink-0">{p.category.emoji}</span>}
+                          <p className="text-xs font-medium text-primary truncate">{payeeName(p)}</p>
+                          <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold">💳 PMT</span>
+                          <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">IN QUEUE</span>
+                          {p.paymentChannel === 'ECOCASH'
+                            ? <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-medium">📱 EcoCash</span>
+                            : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
+                          }
+                        </div>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
+                        <button onClick={() => startEdit(p)} disabled={!!actionId} className="px-2 py-0.5 text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50">✎ Edit</button>
+                        <button onClick={() => handleCancel(p.id)} disabled={actionId === p.id} className="px-2 py-0.5 text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 rounded hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50">{actionId === p.id ? '…' : '✕ Cancel'}</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        })()}
         {pettyRequests.filter(matchesPettySearch).map(p => (
           <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10">
             <div className="flex-1 min-w-0">
@@ -702,7 +794,7 @@ function MyQueuePanel({
                 }
                 {p.priority === 'URGENT' && <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-medium">🚨 URGENT</span>}
               </div>
-              {p.notes && <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{p.notes}</p>}
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{p.notes ?? ''}<span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.requestedAt)}</span></p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.requestedAmount)}</span>
@@ -730,7 +822,7 @@ function MyQueuePanel({
                 <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
-                {s.eodBatch?.eodDate ? new Date(s.eodBatch.eodDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''} · {s.paymentCount} payment{s.paymentCount !== 1 ? 's' : ''} · by {s.cashier.name}
+                {s.eodBatch?.eodDate ? new Date(s.eodBatch.eodDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''} · {s.eodBatch?.approvedCount ?? 0} payment{(s.eodBatch?.approvedCount ?? 0) !== 1 ? 's' : ''} · by {s.cashier.name}<span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(s.submittedAt)}</span>
               </p>
             </div>
             <span className="text-xs font-semibold text-green-600 dark:text-green-400 shrink-0">+{fmt(Number(s.totalAmount))}</span>
@@ -1721,10 +1813,9 @@ export default function ExpenseAccountDetailPage() {
           canCreatePayees={canCreatePayees}
           canChangeCategory={canChangeCategory}
           accountType={account.accountType}
-          defaultCategoryBusinessType={account.businessId
-            ? businesses?.find(b => b.businessId === account.businessId)?.businessType
-            : undefined}
-          businessId={account.businessId ?? undefined}
+          defaultCategoryBusinessType={account.accountType === 'PERSONAL' ? undefined : (account.businessType ?? businesses?.find(b => b.businessId === account.businessId)?.businessType)}
+          businessId={account.accountType === 'PERSONAL' ? undefined : (account.businessId ?? undefined)}
+          businessName={account.accountType === 'PERSONAL' ? undefined : (account.businessName ?? undefined)}
           businesses={businesses}
           presetPayee={
             account.accountType === 'RENT' && account.landlordSupplierId && account.landlordSupplierName

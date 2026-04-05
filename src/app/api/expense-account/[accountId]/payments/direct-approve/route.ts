@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { getEffectivePermissions } from '@/lib/permission-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 
@@ -20,8 +21,8 @@ export async function POST(
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const isAdmin = user.role === 'admin'
-    const permissions = user.permissions as any
-    if (!isAdmin && !permissions?.canSubmitPaymentBatch) {
+    const permissions = getEffectivePermissions(user)
+    if (!isAdmin && !permissions.canSubmitPaymentBatch) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -29,12 +30,15 @@ export async function POST(
 
     const account = await prisma.expenseAccounts.findUnique({
       where: { id: accountId },
-      select: { id: true, businessId: true },
+      select: { id: true, businessId: true, accountType: true },
     })
 
     if (!account) return NextResponse.json({ error: 'Account not found' }, { status: 404 })
 
-    if (account.businessId !== null) {
+    // Only redirect to batch flow for actual business-operational accounts.
+    // Personal/family accounts may have a businessId for grouping but use direct-approve.
+    const isPersonalAccount = !account.businessId || account.accountType === 'PERSONAL'
+    if (!isPersonalAccount) {
       return NextResponse.json(
         { error: 'This account is linked to a business — use the standard batch review flow instead.' },
         { status: 400 }

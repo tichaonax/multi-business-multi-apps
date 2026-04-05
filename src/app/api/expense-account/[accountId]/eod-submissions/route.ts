@@ -25,7 +25,7 @@ export async function GET(
       include: {
         business: { select: { id: true, name: true } },
         cashier: { select: { id: true, name: true } },
-        eodBatch: { select: { id: true, eodDate: true, status: true, paymentCount: true } }
+        eodBatch: { select: { id: true, eodDate: true, status: true, approvedCount: true } }
       },
       orderBy: { submittedAt: 'desc' },
     })

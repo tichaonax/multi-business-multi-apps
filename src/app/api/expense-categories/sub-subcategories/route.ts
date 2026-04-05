@@ -35,12 +35,12 @@ export async function POST(request: NextRequest) {
       select: { permissions: true, role: true },
     });
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const isAdmin = user.role === 'admin';
-    const permissions = user.permissions as any;
+    const isAdmin = dbUser.role === 'admin';
+    const permissions = dbUser.permissions as any;
     if (!isAdmin && !permissions?.canCreateExpenseSubcategories) {
       return NextResponse.json(
         { error: 'You do not have permission to create expense sub-subcategories' },

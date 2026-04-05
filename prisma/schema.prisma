@@ -2014,12 +2014,15 @@ model FundSources {
 }
 
 model PaymentNotes {
-  id         String   @id @default(uuid())
-  note       String
-  usageCount Int      @default(0)
-  isActive   Boolean  @default(true)
-  userId     String?
-  createdAt  DateTime @default(now())
+  id             String   @id @default(uuid())
+  note           String
+  usageCount     Int      @default(0)
+  isActive       Boolean  @default(true)
+  userId         String?
+  createdAt      DateTime @default(now())
+  domainId       String?
+  categoryId     String?
+  subcategoryId  String?
 
   users Users? @relation(fields: [userId], references: [id])
 

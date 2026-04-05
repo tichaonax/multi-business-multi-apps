@@ -407,54 +407,22 @@ export default function ExpensePaymentDetailPage() {
               </div>
             )}
 
-            {/* Approve / Reject — for reviewers on pending payments */}
-            {['QUEUED', 'REQUEST', 'SUBMITTED'].includes(payment.status) && hasPermission('canSubmitPaymentBatch') && (
-              payment.expenseAccount?.businessId === null ? (
-                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-3">⏳ Awaiting Review</p>
-                  <div className="flex flex-wrap gap-3">
+            {/* Approve / Reject — only for business accounts awaiting EOD batch review */}
+            {['QUEUED', 'REQUEST', 'SUBMITTED'].includes(payment.status) && hasPermission('canSubmitPaymentBatch') && !!payment.expenseAccount?.businessId && (
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>ℹ️ This payment will be reviewed as part of an EOD payment batch.</span>
+                  <a href="/admin/pending-actions" className="underline hover:no-underline">Go to Pending Actions</a>
+                  {hasPermission('canEditExpenseTransactions') && (
                     <button
-                      onClick={() => handleDecision('approve')}
-                      disabled={actionState !== 'idle'}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+                      onClick={handleEdit}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
                     >
-                      {actionState === 'approving' ? 'Approving…' : '✓ Approve'}
+                      ✏️ Edit / Adjust Request
                     </button>
-                    <button
-                      onClick={() => handleDecision('reject')}
-                      disabled={actionState !== 'idle'}
-                      className="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
-                    >
-                      {actionState === 'rejecting' ? 'Rejecting…' : '✕ Reject'}
-                    </button>
-                    {hasPermission('canEditExpenseTransactions') && (
-                      <button
-                        onClick={handleEdit}
-                        disabled={actionState !== 'idle'}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
-                      >
-                        ✏️ Edit / Adjust Request
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">Rejected payments return to queue and will appear for review again. Use "Edit / Adjust" to modify the amount or details before approving.</p>
+                  )}
                 </div>
-              ) : (
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span>ℹ️ This payment will be reviewed as part of an EOD payment batch.</span>
-                    <a href="/admin/pending-actions" className="underline hover:no-underline">Go to Pending Actions</a>
-                    {hasPermission('canEditExpenseTransactions') && (
-                      <button
-                        onClick={handleEdit}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-                      >
-                        ✏️ Edit / Adjust Request
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
+              </div>
             )}
 
             <div className="mt-4 flex gap-2">

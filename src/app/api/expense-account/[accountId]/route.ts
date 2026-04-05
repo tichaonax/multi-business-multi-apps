@@ -71,6 +71,14 @@ export async function GET(
         .catch(() => {}) // non-blocking
     }
 
+    // Fetch the business name/type when the account is linked to a business
+    const linkedBusiness = account.businessId
+      ? await prisma.businesses.findUnique({
+          where: { id: account.businessId },
+          select: { name: true, type: true },
+        })
+      : null
+
     return NextResponse.json({
       success: true,
       data: {
@@ -87,6 +95,8 @@ export async function GET(
           updatedAt: account.updatedAt.toISOString(),
           creator: account.creator,
           businessId: account.businessId,
+          businessName: linkedBusiness?.name ?? null,
+          businessType: linkedBusiness?.type ?? null,
           accountType: account.accountType,
           // Sibling account fields
           parentAccountId: account.parentAccountId,

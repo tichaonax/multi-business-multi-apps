@@ -352,11 +352,11 @@ export async function POST(
     }
 
     // Determine default status before validation loop so balance checks can use it.
-    // Personal/home accounts (no businessId) bypass the approval queue:
+    // Personal/home accounts (no businessId, or accountType=PERSONAL) bypass the approval queue:
     // payments are submitted and debited immediately as long as there are sufficient funds.
     // For business-linked accounts the normal flow applies: admins go directly to SUBMITTED,
     // everyone else goes to QUEUED for EOD batch approval.
-    const isPersonalAccount = !account.businessId
+    const isPersonalAccount = !account.businessId || account.accountType === 'PERSONAL'
     const defaultPaymentStatus = (isPersonalAccount || user.role === 'admin') ? 'SUBMITTED' : 'QUEUED'
     const isQueuedFlow = defaultPaymentStatus === 'QUEUED'
 

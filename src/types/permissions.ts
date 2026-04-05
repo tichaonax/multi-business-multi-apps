@@ -59,6 +59,9 @@ export interface UserLevelPermissions {
   canViewPayrollReports: boolean;
   canManageAdvances: boolean;
 
+  // Expense Category Management (User-level - cross-business capability)
+  canCreateExpenseSubcategories: boolean;
+
   // Inventory Categories (User-level - cross-business capability)
   canCreateInventoryCategories: boolean;
   canEditInventoryCategories: boolean;
@@ -232,6 +235,7 @@ export interface CoreBusinessPermissions {
   canManageBusinessLoans: boolean;     // Create, lock, and approve withdrawals for business loan repayment accounts (MBM-137)
   canRunCashAllocationReport: boolean;    // Run and lock the daily cash allocation report (EOD creator)
   canApproveCashAllocationReport: boolean; // Receive bell notification and reconcile/approve the cash allocation report (cashier/manager)
+  canCreateExpenseSubcategories: boolean;  // Create expense sub-categories and sub-subcategories
 
   // Supplier Management
   canViewSuppliers: boolean;
@@ -997,6 +1001,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canCreateBusinessSubcategories', label: 'Create Subcategories' },
       { key: 'canEditBusinessSubcategories', label: 'Edit Subcategories' },
       { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
+      { key: 'canCreateExpenseSubcategories', label: 'Create Expense Sub-categories' },
     ]
   },
   inventoryManagement: {
@@ -1127,6 +1132,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canManageAutoDeposits', label: 'Manage EOD Auto-Deposits' },
       { key: 'canRunCashAllocationReport', label: 'Run Cash Allocation Report' },
       { key: 'canApproveCashAllocationReport', label: 'Approve / Reconcile Cash Allocation Report' },
+      { key: 'canCreateExpenseSubcategories', label: 'Create Expense Sub-categories' },
     ]
   },
   // Payee Management
@@ -1224,6 +1230,7 @@ export const CORE_PERMISSIONS = {
     { key: 'canCreateBusinessSubcategories', label: 'Create Subcategories' },
     { key: 'canEditBusinessSubcategories', label: 'Edit Subcategories' },
     { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
+    { key: 'canCreateExpenseSubcategories', label: 'Create Expense Sub-categories' },
   ],
   inventoryManagement: [
     { key: 'canManageInventory', label: 'Manage Inventory' },
@@ -2440,6 +2447,9 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canEditInventorySubcategories: false,
   canDeleteInventorySubcategories: false,
 
+  // Expense Category Management - No access by default
+  canCreateExpenseSubcategories: false,
+
   // Universal Printing Module - Limited access by default
   canManageNetworkPrinters: false,      // Admin only
   canSelectPrinters: false,             // Must be granted
@@ -2548,6 +2558,9 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canCreateInventorySubcategories: true,
   canEditInventorySubcategories: true,
   canDeleteInventorySubcategories: true,
+
+  // Expense Category Management - Full access for admins
+  canCreateExpenseSubcategories: true,
 
   // Universal Printing Module - Full access
   canManageNetworkPrinters: true,       // Admins can manage printers

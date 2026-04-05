@@ -263,6 +263,8 @@ interface QuickPaymentModalProps {
   accountType?: string
   defaultCategoryBusinessType?: string
   businessId?: string
+  /** Display name of the account's linked business (used as fallback when business is not in user's context) */
+  businessName?: string
   /** All businesses the user can access — enables the Business selector dropdown */
   businesses?: BusinessMembership[]
   /** When set, the payee is locked to this value and shown as read-only (e.g. rent account → landlord) */
@@ -282,10 +284,11 @@ export function QuickPaymentModal({
   accountType = 'GENERAL',
   defaultCategoryBusinessType,
   businessId,
+  businessName,
   businesses,
   presetPayee = null,
 }: QuickPaymentModalProps) {
-  const isPersonalAccount = accountType === 'PERSONAL'
+  const isPersonalAccount = accountType === 'PERSONAL' || !businessId
   const isRentAccount = accountType === 'RENT'
   // No business or business-type means this is a home/personal general account
   const isHomeAccount = !businessId && !defaultCategoryBusinessType
@@ -343,9 +346,10 @@ export function QuickPaymentModal({
   const toast = useToastContext()
 
   // Saved payment notes
-  const [savedNotes, setSavedNotes] = useState<{ id: string; note: string; usageCount: number }[]>([])
+  const [savedNotes, setSavedNotes] = useState<{ id: string; note: string; usageCount: number; domainId?: string | null; categoryId?: string | null; subcategoryId?: string | null }[]>([])
   const [noteMode, setNoteMode] = useState<'saved' | 'type'>('type')
   const [saveNote, setSaveNote] = useState(false)
+  const [selectedSavedNote, setSelectedSavedNote] = useState<{ id: string; domainId?: string | null; categoryId?: string | null; subcategoryId?: string | null } | null>(null)
 
   // Classification suggestion
   const [suggestOpen, setSuggestOpen] = useState(false)
@@ -389,6 +393,22 @@ export function QuickPaymentModal({
     paymentDate: '',
     notes: '',
   })
+
+  // Resolved human-readable business name for the account's linked business
+  const [resolvedBusinessName, setResolvedBusinessName] = useState(
+    businessName || businesses?.find(b => b.businessId === businessId)?.businessName || ''
+  )
+
+  useEffect(() => {
+    if (!businessId) return
+    const fromProp = businessName || businesses?.find(b => b.businessId === businessId)?.businessName
+    if (fromProp) { setResolvedBusinessName(fromProp); return }
+    // Not in prop or context — fetch from business API
+    fetch(`/api/business/${businessId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.business?.name) setResolvedBusinessName(d.business.name) })
+      .catch(() => {})
+  }, [businessId, businessName, businesses])
 
   const fetchSavedNotes = () => {
     fetch('/api/expense-account/payment-notes', { credentials: 'include' })
@@ -758,11 +778,29 @@ export function QuickPaymentModal({
 
     try {
       // Save note if requested (type mode + save checkbox)
+      const noteDomainId = activeDomainOverride ? (activeDomainOverrideId ?? null) : (formData.categoryId || null)
+      const noteCategoryId = activeDomainOverride ? (formData.categoryId || null) : (formData.subcategoryId || null)
+      const noteSubcategoryId = activeDomainOverride ? (formData.subcategoryId || null) : (formData.subSubcategoryId || null)
+
       if (noteMode === 'type' && formData.notes.trim() && saveNote) {
         fetch('/api/expense-account/payment-notes', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-          body: JSON.stringify({ note: formData.notes.trim() }),
+          body: JSON.stringify({ note: formData.notes.trim(), domainId: noteDomainId, categoryId: noteCategoryId, subcategoryId: noteSubcategoryId }),
         }).then(() => fetchSavedNotes()).catch(() => {})
+      }
+
+      // If a saved note was used, update its classification if it changed
+      if (selectedSavedNote) {
+        const classificationChanged =
+          noteDomainId !== (selectedSavedNote.domainId ?? null) ||
+          noteCategoryId !== (selectedSavedNote.categoryId ?? null) ||
+          noteSubcategoryId !== (selectedSavedNote.subcategoryId ?? null)
+        if (classificationChanged) {
+          fetch(`/api/expense-account/payment-notes/${selectedSavedNote.id}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ domainId: noteDomainId, categoryId: noteCategoryId, subcategoryId: noteSubcategoryId }),
+          }).then(() => fetchSavedNotes()).catch(() => {})
+        }
       }
 
       // Construct the payment payload with correct field names based on payee type
@@ -864,6 +902,7 @@ export function QuickPaymentModal({
     setSubSubcategories([])
     setNoteMode('type')
     setSaveNote(false)
+    setSelectedSavedNote(null)
     setIsApplyingSuggestion(false)
     setSuggestions([])
     setSuggestOpen(false)
@@ -951,6 +990,22 @@ export function QuickPaymentModal({
       setIsApplyingSuggestion(false)
       requestAnimationFrame(() => { skipCascadeRef.current = false })
     }
+  }
+
+  const applyPhraseClassification = async (n: typeof savedNotes[0]) => {
+    // Always track the selected note so submit can update its classification if needed
+    setSelectedSavedNote({ id: n.id, domainId: n.domainId, categoryId: n.categoryId, subcategoryId: n.subcategoryId })
+    // Only apply saved classification if the note actually has one
+    if (!n.domainId && !n.categoryId) return
+    await applySuggestion({
+      domainId: n.domainId ?? '',
+      domainName: '', domainEmoji: null,
+      categoryId: n.categoryId ?? '',
+      categoryName: '', categoryEmoji: null,
+      subcategoryId: n.subcategoryId ?? '',
+      subcategoryName: '', subcategoryEmoji: null,
+      score: 0,
+    })
   }
 
   const handleCancel = async () => {
@@ -1206,8 +1261,8 @@ export function QuickPaymentModal({
 
         <form onSubmit={handleSubmit}>
           {/* ── Payee — full width ───────────────────────────────────── */}
-          {/* Business selector — shown when multiple businesses available or for personal accounts */}
-          {(isPersonalAccount || (businesses && businesses.length > 1)) && (
+          {/* Business selector — shown for all non-RENT accounts */}
+          {!isRentAccount && (isPersonalAccount || !!businessId || (businesses && businesses.length > 1)) && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-secondary mb-1">Business</label>
               <SearchableSelect
@@ -1219,18 +1274,21 @@ export function QuickPaymentModal({
                   ? domainOptions
                       .filter(d => d.name === 'Personal Expenses')
                       .map(d => ({ id: `domain:${d.id}`, label: '🏠 Personal Expenses' }))
-                  : [
-                      ...(!isHomeAccount ? businesses.filter(b => !b.isUmbrellaBusiness).map(b => ({
-                        id: b.businessId,
-                        label: b.businessName,
-                      })) : []),
-                      ...domainOptions
-                        .filter(d => !isHomeAccount || !BUSINESS_DOMAIN_NAMES.has(d.name))
-                        .map(d => ({
-                        id: `domain:${d.id}`,
-                        label: `${d.name} Business Domains`,
-                      })),
-                    ]}
+                  : businessId
+                    // Account is tied to a specific business — show only that business (locked, like personal shows only "Personal Expenses")
+                    ? [{ id: businessId, label: resolvedBusinessName || '...' }]
+                    : [
+                        ...(!isHomeAccount ? businesses.filter(b => !b.isUmbrellaBusiness).map(b => ({
+                          id: b.businessId,
+                          label: b.businessName,
+                        })) : []),
+                        ...domainOptions
+                          .filter(d => !isHomeAccount || !BUSINESS_DOMAIN_NAMES.has(d.name))
+                          .map(d => ({
+                          id: `domain:${d.id}`,
+                          label: `${d.name} Business Domains`,
+                        })),
+                      ]}
                 onChange={(val) => {
                   setSelectedDropdownValue(val)
                   if (val.startsWith('domain:')) {
@@ -1682,7 +1740,7 @@ export function QuickPaymentModal({
                 <div className="flex gap-2 mb-2">
                   {(['saved', 'type'] as const).map(mode => (
                     <button key={mode} type="button"
-                      onClick={() => { setNoteMode(mode); setFormData({ ...formData, notes: '' }); setSaveNote(false) }}
+                      onClick={() => { setNoteMode(mode); setFormData({ ...formData, notes: '' }); setSaveNote(false); setSelectedSavedNote(null) }}
                       className={`px-3 py-1.5 text-xs rounded border transition-colors ${noteMode === mode
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 font-semibold'
                         : 'border-border hover:bg-gray-50 dark:hover:bg-gray-700'}`}
@@ -1698,7 +1756,12 @@ export function QuickPaymentModal({
                 {noteMode === 'saved' && (
                   <select
                     value={formData.notes}
-                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                    onChange={e => {
+                      const note = e.target.value
+                      setFormData({ ...formData, notes: note })
+                      const matched = savedNotes.find(n => n.note === note)
+                      if (matched) applyPhraseClassification(matched)
+                    }}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select a saved phrase...</option>
@@ -1729,7 +1792,7 @@ export function QuickPaymentModal({
                           <p className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-b border-border">Matching saved phrases — click to use:</p>
                           {matches.map(n => (
                             <button key={n.id} type="button"
-                              onClick={() => { setFormData({ ...formData, notes: n.note }); setNoteMode('saved') }}
+                              onClick={() => { setFormData({ ...formData, notes: n.note }); setNoteMode('saved'); applyPhraseClassification(n) }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left">
                               <span className="text-primary flex-1">{n.note}</span>
                               <span className="ml-auto text-xs text-blue-600 dark:text-blue-400">Use this</span>

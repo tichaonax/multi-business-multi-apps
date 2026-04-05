@@ -14,7 +14,7 @@ export async function GET() {
     const notes = await prisma.paymentNotes.findMany({
       where: { userId: user.id, isActive: true },
       orderBy: [{ usageCount: 'desc' }, { createdAt: 'asc' }],
-      select: { id: true, note: true, usageCount: true },
+      select: { id: true, note: true, usageCount: true, domainId: true, categoryId: true, subcategoryId: true },
     })
 
     return NextResponse.json({ success: true, data: notes })
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { note } = await request.json()
+    const { note, domainId, categoryId, subcategoryId } = await request.json()
 
     if (!note?.trim()) {
       return NextResponse.json({ error: 'Note text is required' }, { status: 400 })
@@ -45,12 +45,31 @@ export async function POST(request: NextRequest) {
       where: { userId: user.id, note: note.trim(), isActive: true },
     })
     if (existing) {
+      // Update classification if provided
+      if (domainId !== undefined || categoryId !== undefined || subcategoryId !== undefined) {
+        const updated = await prisma.paymentNotes.update({
+          where: { id: existing.id },
+          data: {
+            ...(domainId !== undefined ? { domainId: domainId || null } : {}),
+            ...(categoryId !== undefined ? { categoryId: categoryId || null } : {}),
+            ...(subcategoryId !== undefined ? { subcategoryId: subcategoryId || null } : {}),
+          },
+          select: { id: true, note: true, usageCount: true, domainId: true, categoryId: true, subcategoryId: true },
+        })
+        return NextResponse.json({ success: true, data: updated }, { status: 200 })
+      }
       return NextResponse.json({ success: true, data: existing }, { status: 200 })
     }
 
     const saved = await prisma.paymentNotes.create({
-      data: { note: note.trim(), userId: user.id },
-      select: { id: true, note: true, usageCount: true },
+      data: {
+        note: note.trim(),
+        userId: user.id,
+        domainId: domainId || null,
+        categoryId: categoryId || null,
+        subcategoryId: subcategoryId || null,
+      },
+      select: { id: true, note: true, usageCount: true, domainId: true, categoryId: true, subcategoryId: true },
     })
 
     return NextResponse.json({ success: true, data: saved }, { status: 201 })

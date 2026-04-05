@@ -121,8 +121,10 @@ export default function PendingActionsPage() {
   const [myApprovedPayments, setMyApprovedPayments] = useState<any[]>([])
   const [myApprovedPettyCash, setMyApprovedPettyCash] = useState<any[]>([])
   const [pendingMealPrograms, setPendingMealPrograms] = useState<PendingMealProgram[]>([])
-  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const total = loanLockRequests.length + pendingSupplierPayments.length + pendingPettyCash.length +
+    pendingCashAllocations.length + pendingPaymentBatches.length + pendingPaymentRequests.length +
+    pendingMealPrograms.length
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [batchingId, setBatchingId] = useState<string | null>(null)
   const [approvingMealId, setApprovingMealId] = useState<string | null>(null)
@@ -151,7 +153,6 @@ export default function PendingActionsPage() {
         setMyApprovedPayments(json.myApprovedPayments || [])
         setMyApprovedPettyCash(json.myApprovedPettyCash || [])
         setPendingMealPrograms(json.pendingMealPrograms || [])
-        setTotal(json.total ?? 0)
       }
     } catch { /* ignore */ } finally {
       setLoading(false)
@@ -235,9 +236,10 @@ export default function PendingActionsPage() {
       const parts = []
       if (json.approvedCount > 0) parts.push(`${json.approvedCount} approved`)
       if (json.rejectedCount > 0) parts.push(`${json.rejectedCount} returned to queue`)
-      toast.success(parts.join(', '))
+      toast.push(parts.join(', '), { type: 'success' })
+      const removedAccountId = standaloneReview.accountId
       setStandaloneReview(null)
-      fetchItems()
+      setPendingPaymentRequests(prev => prev.filter(r => r.id !== removedAccountId))
     } catch (e: any) {
       toast.error(e.message)
       setStandaloneReview(prev => prev ? { ...prev, submitting: false } : null)
@@ -262,7 +264,7 @@ export default function PendingActionsPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to approve')
       toast.push(`Approved ${json.approved} meal subsidy payment${json.approved !== 1 ? 's' : ''}`, { type: 'success' })
-      fetchItems()
+      setPendingMealPrograms(prev => prev.filter(m => m.batchPaymentId !== item.batchPaymentId))
     } catch (e: any) {
       toast.error(e.message)
     } finally {
@@ -283,7 +285,7 @@ export default function PendingActionsPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to approve lock')
       toast.push(`Lock approved for ${loan.loanNumber}`, { type: 'success' })
-      fetchItems()
+      setLoanLockRequests(prev => prev.filter(l => l.id !== loan.id))
     } catch (e: any) {
       toast.error(e.message)
     } finally {

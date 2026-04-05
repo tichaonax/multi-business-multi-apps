@@ -56,7 +56,7 @@ export function QuickDepositModal({
   accountType = 'GENERAL',
   businessId,
 }: QuickDepositModalProps) {
-  const isPersonalAccount = accountType === 'PERSONAL'
+  const isPersonalAccount = accountType === 'PERSONAL' || !businessId
   const isBusinessAccount = !!businessId
 
   const [loading, setLoading] = useState(false)
