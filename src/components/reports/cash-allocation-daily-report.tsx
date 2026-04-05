@@ -113,7 +113,6 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     try {
       const res = await fetch(`/api/cash-allocation/${businessId}?date=${d}`)
       const data = await res.json()
-      console.log('[CashAllocation] loadReport response:', { businessId, date: d, exists: data.exists, businessName: data.businessName, propBusinessName, resolvedBusinessName })
       if (!res.ok) throw new Error(data.error ?? 'Failed to load')
       if (data.exists) {
         if (data.businessName) setResolvedBusinessName(data.businessName)

@@ -63,7 +63,6 @@ export async function GET(request: NextRequest, { params }: Params) {
     const readyToLock = nonRentItems.length === 0 ||
       nonRentItems.some((item: { isChecked: boolean; actualAmount: unknown }) => item.isChecked && item.actualAmount !== null)
 
-    console.log('[cash-allocation GET] businessId:', businessId, 'business.name:', report.business?.name ?? null)
     return NextResponse.json({
       exists: true,
       businessName: report.business?.name ?? null,
