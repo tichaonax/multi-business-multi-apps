@@ -73,41 +73,40 @@ export async function POST(
     const amount = Number(payment.amount)
     const accountId = payment.expenseAccountId
 
-    // Balance check + debit inside a transaction
-    await prisma.$transaction(async (tx) => {
-      const depositsAgg = await tx.expenseAccountDeposits.aggregate({
+    // Compute balance OUTSIDE the transaction to avoid aggregate timeout inside interactive tx
+    const [depositsAgg, paymentsAgg] = await Promise.all([
+      prisma.expenseAccountDeposits.aggregate({
         where: { expenseAccountId: accountId },
         _sum: { amount: true },
-      })
-      const paymentsAgg = await tx.expenseAccountPayments.aggregate({
-        where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+      }),
+      prisma.expenseAccountPayments.aggregate({
+        where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED'] } },
         _sum: { amount: true },
-      })
-      const trueBalance =
-        Number(depositsAgg._sum.amount || 0) - Number(paymentsAgg._sum.amount || 0)
+      }),
+    ])
+    const trueBalance =
+      Number(depositsAgg._sum.amount || 0) - Number(paymentsAgg._sum.amount || 0)
 
-      if (amount > trueBalance) {
-        throw new Error(
-          `Insufficient balance. Available: $${trueBalance.toFixed(2)}, Required: $${amount.toFixed(2)}`
-        )
-      }
+    if (amount > trueBalance) {
+      return NextResponse.json(
+        { error: `Insufficient balance. Available: $${trueBalance.toFixed(2)}, Required: $${amount.toFixed(2)}` },
+        { status: 422 }
+      )
+    }
 
-      await tx.expenseAccountPayments.update({
+    const newBalance = trueBalance - amount
+
+    // Only writes inside the transaction — fast, no timeout risk
+    await prisma.$transaction([
+      prisma.expenseAccountPayments.update({
         where: { id: paymentId },
-        data: {
-          status: 'SUBMITTED',
-          submittedBy: user.id,
-          submittedAt: new Date(),
-        },
-      })
-
-      // Recalculate and store account balance
-      const newBalance = trueBalance - amount
-      await tx.expenseAccounts.update({
+        data: { status: 'SUBMITTED', submittedBy: user.id, submittedAt: new Date() },
+      }),
+      prisma.expenseAccounts.update({
         where: { id: accountId },
         data: { balance: newBalance, updatedAt: new Date() },
-      })
-    })
+      }),
+    ])
 
     // Notify the original creator
     if (payment.createdBy) {
@@ -126,7 +125,7 @@ export async function POST(
     console.error('Error approving personal payment request:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to approve payment' },
-      { status: error instanceof Error && error.message.startsWith('Insufficient') ? 422 : 500 }
+      { status: 500 }
     )
   }
 }

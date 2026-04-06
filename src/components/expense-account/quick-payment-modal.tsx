@@ -227,6 +227,11 @@ const BUSINESS_DOMAIN_NAMES = new Set([
   'Vehicle', 'Services', 'Retail', 'Consulting', 'Business (General)',
 ])
 
+// Income-type domains should never appear in payment (expense) dropdowns
+const INCOME_DOMAIN_NAMES = new Set([
+  'Business Income', 'Personal Income',
+])
+
 // ── Rent account category presets ──────────────────────────────────────────
 // Maps: formData.categoryId = domainId, .subcategoryId = categoryId, .subSubcategoryId = subcategoryId
 const RENT_CATEGORY_PRESETS: Record<string, { domainId: string; categoryId: string; subcategoryId: string; displayDomain: string; displayCategory: string }> = {
@@ -850,7 +855,8 @@ export function QuickPaymentModal({
         onSuccess({
           message: successMessage,
           id: result.data?.payments?.[0]?.id,
-          refresh: true
+          refresh: true,
+          isRequest: paymentStatus === 'REQUEST',
         })
       } catch (e) {}
 
@@ -999,6 +1005,33 @@ export function QuickPaymentModal({
     setSelectedSavedNote({ id: n.id, domainId: n.domainId, categoryId: n.categoryId, subcategoryId: n.subcategoryId })
     // Only apply saved classification if the note actually has one
     if (!n.domainId && !n.categoryId) return
+
+    // If the note has a domainId, activate that domain in the Business dropdown first
+    // so that applySuggestion runs in domain-override mode with the correct category hierarchy.
+    if (n.domainId) {
+      const targetDomain = domainOptions.find(d => d.id === n.domainId)
+      if (targetDomain && activeDomainOverrideId !== n.domainId) {
+        const dropVal = `domain:${targetDomain.id}`
+        setSelectedDropdownValue(dropVal)
+        setActiveDomainOverride(targetDomain.name)
+        setActiveDomainOverrideId(targetDomain.id)
+        setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+        setSubcategories([])
+        setSubSubcategories([])
+        // Load domain category items so the picker is populated
+        setDomainOverrideItems([])
+        setLoadingDomainOverrideItems(true)
+        try {
+          const r = await fetch(`/api/expense-categories/${targetDomain.id}/subcategories`, { credentials: 'include' })
+          if (r.ok) {
+            const d = await r.json()
+            setDomainOverrideItems(d.subcategories || [])
+          }
+        } catch {}
+        finally { setLoadingDomainOverrideItems(false) }
+      }
+    }
+
     await applySuggestion({
       domainId: n.domainId ?? '',
       domainName: '', domainEmoji: null,
@@ -1184,7 +1217,7 @@ export function QuickPaymentModal({
   }
 
   const selectedCategory = categories.find(c => c.id === formData.categoryId)
-  const domainOptions = categories.filter(c => c.isDomainCategory)
+  const domainOptions = categories.filter(c => c.isDomainCategory && !INCOME_DOMAIN_NAMES.has(c.name))
   // When a domain group is selected from the Business dropdown, restrict the Domain picker to that domain only
   const visibleDomainOptions = activeDomainOverride
     ? domainOptions.filter(d => d.name === activeDomainOverride)
@@ -1273,9 +1306,10 @@ export function QuickPaymentModal({
                 loading={loadingBusinessSwitch}
                 placeholder="Select business or domain..."
                 options={isPersonalAccount
-                  ? domainOptions
-                      .filter(d => d.name === 'Personal Expenses')
-                      .map(d => ({ id: `domain:${d.id}`, label: '🏠 Personal Expenses' }))
+                  ? domainOptions.filter(d => !INCOME_DOMAIN_NAMES.has(d.name)).map(d => ({
+                      id: `domain:${d.id}`,
+                      label: d.name === 'Personal Expenses' ? '🏠 Personal Expenses' : `${d.name} Business Domains`,
+                    }))
                   : businessId
                     // Account is tied to a specific business — show only that business (locked, like personal shows only "Personal Expenses")
                     ? [{ id: businessId, label: resolvedBusinessName || '...' }]
@@ -1285,7 +1319,7 @@ export function QuickPaymentModal({
                           label: b.businessName,
                         })) : []),
                         ...domainOptions
-                          .filter(d => !isHomeAccount || !BUSINESS_DOMAIN_NAMES.has(d.name))
+                          .filter(d => (!isHomeAccount || !BUSINESS_DOMAIN_NAMES.has(d.name)) && !INCOME_DOMAIN_NAMES.has(d.name))
                           .map(d => ({
                           id: `domain:${d.id}`,
                           label: `${d.name} Business Domains`,

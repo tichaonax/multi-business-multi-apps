@@ -525,6 +525,7 @@ export function QuickDepositModal({
               Deposit Date <span className="text-red-500">*</span>
             </label>
             <DateInput
+              label=""
               value={formData.depositDate}
               onChange={(value) => {
                 setFormData({ ...formData, depositDate: value })

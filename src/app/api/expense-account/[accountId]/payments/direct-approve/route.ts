@@ -55,6 +55,21 @@ export async function POST(
       return NextResponse.json({ error: 'No payment decisions provided' }, { status: 400 })
     }
 
+    // REQUEST-status payments must go through /pending-actions/[paymentId]/approve — never here.
+    const allIds = [...approvedPaymentIds, ...rejectedPaymentIds]
+    if (allIds.length > 0) {
+      const requestPayments = await prisma.expenseAccountPayments.findMany({
+        where: { id: { in: allIds }, status: 'REQUEST' },
+        select: { id: true },
+      })
+      if (requestPayments.length > 0) {
+        return NextResponse.json(
+          { error: 'REQUEST-status payments must be approved via the personal payment requests flow.' },
+          { status: 400 }
+        )
+      }
+    }
+
     await prisma.$transaction(async (tx: any) => {
       if (approvedPaymentIds.length > 0) {
         await tx.expenseAccountPayments.updateMany({

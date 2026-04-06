@@ -197,6 +197,8 @@ export default function PendingActionsPage() {
         const res = await fetch(`/api/expense-account/${item.id}/payments?status=all&limit=100`, { credentials: 'include' })
         const json = await res.json()
         if (!res.ok) throw new Error(json.error || 'Failed to load payments')
+        // Personal-account REQUEST payments are in personalPaymentRequests section.
+        // Business-account REQUEST payments use the old request/approval flow and appear here.
         const pendingStatuses = ['QUEUED', 'REQUEST', 'SUBMITTED']
         const payments: StandalonePaymentDetail[] = (json.data?.payments ?? [])
           .filter((p: any) => pendingStatuses.includes(p.status))

@@ -5952,13 +5952,13 @@ model ExpensePaymentVouchers {
   collectorSignature String? @map("collector_signature") @db.Text // base64 PNG
 
   notes       String?
-  createdById String   @map("created_by_id") // employee who created the voucher
+  createdById String?  @map("created_by_id") // employee who created the voucher (nullable for admin users)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   payment  ExpenseAccountPayments @relation(fields: [paymentId], references: [id])
   business Businesses             @relation(fields: [businessId], references: [id])
-  creator  Employees              @relation(fields: [createdById], references: [id])
+  creator  Employees?             @relation(fields: [createdById], references: [id])
 
   @@unique([businessId, voucherNumber])
   @@index([businessId])

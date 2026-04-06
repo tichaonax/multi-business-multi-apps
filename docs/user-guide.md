@@ -36,6 +36,7 @@
 20. [Team Chat](#20-team-chat)
 21. [Grocery POS — Desk Mode](#21-grocery-pos--desk-mode)
 22. [Expense Account — Quick Payment & My Payment Queue](#22-expense-account--quick-payment--my-payment-queue)
+    - [Cashier-Assisted Payment Requests (Personal Accounts)](#cashier-assisted-payment-requests-personal-accounts)
 23. [Quick Deposit — Income Categorisation](#23-quick-deposit--income-categorisation)
 24. [Payment Vouchers — Creating, Viewing & Locking](#24-payment-vouchers--creating-viewing--locking)
 
@@ -4840,13 +4841,17 @@ If no matches are found, the message "No matches found — please select manuall
 | **Payment Channel** | Yes | Cash, EcoCash, Bank Transfer, etc. |
 | **Notes / Reference** | No | Invoice number, receipt number, or free text description |
 
-Click **Submit Payment** to record the payment. The account balance is updated immediately and the payment appears in the account's transaction history.
+Click **Submit Payment** to record the payment.
+
+- **Personal accounts:** The balance is debited immediately and the payment appears in the transaction history.
+- **Business accounts (non-admin):** The payment is placed **IN QUEUE** (amber badge) and appears in your **My Payment Queue** panel. It will be included in the next batch submitted by a cashier or manager. Your balance is debited when the batch is submitted.
+- **Business accounts (admin / owner):** The payment is submitted directly without queuing.
 
 ---
 
 ### My Payment Queue Panel
 
-The **My Payment Queue** panel appears on any expense account detail page. It shows all payments associated with your account that are awaiting action — submitted but not yet disbursed.
+The **My Payment Queue** panel appears on any expense account detail page. It shows **your own** payments that are awaiting action — payments you submitted that have not yet been fully disbursed. You do not need special cashier permissions to see your own payments here.
 
 #### Panel Header
 
@@ -4867,26 +4872,114 @@ Payments in the queue are grouped by status, each with a colour-coded badge:
 
 | Badge | Colour | Meaning |
 |-------|--------|---------|
-| **AWAITING CASHIER** | Blue | Submitted to the cash office — cashier is reviewing |
+| **AWAITING CASHIER** | Blue | Payment request submitted — cashier is reviewing (personal accounts only) |
 | **APPROVED** | Green | Approved and ready to be physically disbursed |
-| **IN QUEUE** | Amber | Queued, awaiting manager approval |
+| **IN QUEUE** | Amber | Queued for batch approval (business accounts) — awaiting manager review |
 
 #### Actions per Status
 
 **APPROVED payments** — payments that have been approved but not yet physically handed over:
 - **📄 Voucher** — generate a payment voucher document for record-keeping.
-- **✓ Mark as Paid** — confirm physical handover. The item disappears from the queue immediately. Balance is updated silently.
-- **📱 Mark as Sent** (EcoCash only) — enter the EcoCash transaction code to confirm mobile transfer.
+- **✓ Mark as Paid** — confirm physical handover. The item disappears from the queue immediately and the account balance updates instantly.
+- **📱 Mark as Sent** (EcoCash only) — enter the EcoCash transaction code to confirm mobile transfer. Balance also updates instantly.
 
-**IN QUEUE payments** — payments you submitted that are waiting for approval:
-- **✎ Edit** — change the amount or notes before the manager reviews it.
+**AWAITING CASHIER payments** (personal accounts) — requests pending cashier approval:
+- **✕ Cancel** — withdraw the request before the cashier acts on it.
+
+**IN QUEUE payments** (business accounts) — payments awaiting the next batch submission:
+- **✎ Edit** — change the amount or notes before the batch is submitted.
 - **✕ Cancel** — withdraw the payment request entirely.
 
-> **Note:** Clicking "Mark as Paid" removes the item from the list immediately without reloading the whole page. If you mark multiple payments in quick succession, each one is removed as you go.
+> **Live updates:** The queue and account balance refresh automatically when a payment is approved or marked as paid — no browser refresh needed. If an AWAITING CASHIER request is approved or rejected while you have the page open, it moves out of the queue and the transaction list updates within 10 seconds.
 
 ---
 
-### Admin — Blocking Stock Take Drafts
+### Cashier-Assisted Payment Requests (Personal Accounts)
+
+> **Who reads this:** Personal expense account holders who want to hand cash to a cashier for verification, and the cashiers who review and approve those requests.
+
+Sometimes you have cash ready to pay out, but you need a cashier to physically handle the transaction before the balance is debited. The **"Request cashier approval before payment"** checkbox lets you submit a payment as a **request** rather than an immediate deduction — the balance is only debited when the cashier approves it.
+
+This is available on **personal expense accounts only**. Business accounts use the EOD batch workflow instead.
+
+---
+
+#### For the Requester — Submitting a Payment Request
+
+1. Open quick payment from your personal expense account.
+2. Fill in all payment details (payee, amount, category, notes).
+3. Tick the **"Request cashier approval before payment"** checkbox (appears only on personal accounts).
+4. Click **Submit Payment**.
+
+The payment is created with status **⏳ Awaiting Cashier** — your balance is **not** debited yet.
+
+You will receive a **bell notification** once a cashier approves or rejects your request.
+
+> **Tip:** Only tick this box when you need a cashier to physically handle or verify the cash. For normal personal payments you process yourself, leave it unticked.
+
+---
+
+#### Viewing Your Pending Request
+
+On the payment detail page the request shows an amber panel:
+
+> ⏳ This payment is awaiting cashier approval. You will be notified when it is reviewed.
+
+The status badge reads **⏳ Awaiting Cashier** (amber). On the recent payments panel of your account page, the same amber badge appears next to the payment.
+
+To cancel the request before a cashier acts on it:
+
+1. Open the payment detail page.
+2. Click **Cancel Request** in the amber info panel.
+3. Confirm the dialog.
+
+The payment is set to **CANCELLED** and any notified cashiers receive a bell notification that the request was cancelled.
+
+---
+
+#### For the Cashier — Reviewing Payment Requests
+
+When a user submits a cashier-assisted payment request, you receive a **bell notification** (only if you have a grant on that account). These requests also appear on the **Admin → Pending Actions** page under the **"Personal Payment Requests"** section. Note: this section covers both accounts explicitly typed as Personal and any standalone expense accounts not linked to a business.
+
+Each request shows:
+- Requester name
+- Payee name
+- Amount and payment date
+- Categories and notes
+- Priority (Normal / Urgent)
+
+**To approve a request:**
+
+1. Go to **Admin → Pending Actions**.
+2. Find the request under **Personal Payment Requests**.
+3. Click **Approve**.
+
+The system performs a live balance check. If the account has sufficient funds, the payment is moved to **SUBMITTED**, the balance is debited, and the requester receives a notification:
+
+> ✅ Payment Request Approved — $X.XX was approved by [your name]
+
+If the account does not have enough funds, you will see a **422 Insufficient Balance** error — ask the requester to top up the account first.
+
+**To reject a request:**
+
+1. Click **Reject** on the request row.
+
+The payment is set to **REJECTED**, no balance change is made, and the requester receives:
+
+> ❌ Payment Request Rejected — $X.XX was rejected by [your name]
+
+---
+
+#### Status Reference
+
+| Status | Colour | Meaning |
+|--------|--------|---------|
+| ⏳ Awaiting Cashier | Amber | Request submitted — balance not yet debited |
+| SUBMITTED | Default | Approved by cashier — balance has been debited |
+| REJECTED | Red | Rejected — no balance change |
+| CANCELLED | Grey | Cancelled by the requester before approval |
+
+---
 
 > **Who reads this:** System administrators only.
 

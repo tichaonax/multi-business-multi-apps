@@ -59,16 +59,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Resolve user → employee
+    // Resolve user → employee (optional — admin users without employee records are allowed)
     const employee = await prisma.employees.findFirst({
       where: { userId },
       select: { id: true, firstName: true, lastName: true },
     })
-    const createdById = employee?.id
-    if (!createdById) {
-      return NextResponse.json({ error: 'No employee profile found for current user' }, { status: 403 })
+    const createdById = employee?.id ?? null
+    let creatorName: string
+    if (employee) {
+      creatorName = `${employee.firstName} ${employee.lastName}`
+    } else {
+      const user = await prisma.users.findUnique({ where: { id: userId }, select: { name: true } })
+      creatorName = user?.name ?? 'Admin'
     }
-    const creatorName = `${employee.firstName} ${employee.lastName}`
 
     // Check if payment exists and pull payee info for the notification
     const payment = await prisma.expenseAccountPayments.findUnique({

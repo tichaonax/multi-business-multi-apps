@@ -40,7 +40,7 @@ export async function GET(
     const payments = await prisma.expenseAccountPayments.findMany({
       where: {
         expenseAccountId: accountId,
-        status: { in: ['QUEUED', 'REQUEST'] },
+        status: 'QUEUED',
         paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_DISBURSEMENT', 'TRANSFER_OUT', 'TRANSFER_RETURN'] },
       },
       include: {

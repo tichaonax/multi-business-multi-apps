@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import {
   validatePaymentAmount,
   validateBatchPaymentTotal,
+  updateExpenseAccountBalanceTx,
 } from '@/lib/expense-account-utils'
 import { validatePayee } from '@/lib/payee-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
@@ -362,16 +363,20 @@ export async function POST(
     const isPersonalAccount = !account.businessId || account.accountType === 'PERSONAL'
 
     // Check if batch payment or single payment
+    // The frontend always wraps even single payments in an array ({ payments: [payment] }),
+    // so a true multi-payment batch is an array with more than 1 item.
     const isBatch = Array.isArray(body.payments)
+    const isMultiPaymentBatch = isBatch && body.payments.length > 1
 
-    const isRequestFlow = !isBatch && isPersonalAccount && body.requestCashierApproval === true
+    // REQUEST flow: personal accounts, single payment only (not a true multi-payment batch)
+    const isRequestFlow = !isMultiPaymentBatch && isPersonalAccount && body.requestCashierApproval === true
     const defaultPaymentStatus = isRequestFlow ? 'REQUEST' : (isPersonalAccount || user.role === 'admin') ? 'SUBMITTED' : 'QUEUED'
     // Skip balance debit for QUEUED (EOD) and REQUEST (cashier-assisted) flows
     const isQueuedFlow = defaultPaymentStatus === 'QUEUED' || isRequestFlow
     const paymentsToCreate = isBatch ? body.payments : [body]
 
-    // Generate unique batchId if this is a batch
-    const batchId = isBatch ? uuidv4() : null
+    // Generate unique batchId only for true multi-payment batches
+    const batchId = isMultiPaymentBatch ? uuidv4() : null
 
     // Validate all payments
     for (let i = 0; i < paymentsToCreate.length; i++) {
@@ -883,32 +888,11 @@ export async function POST(
         }
       }
 
-      // Update expense account balance (only submitted payments affect balance)
-      // Calculate balance from deposits and payments within the transaction
-      const depositsSum = await tx.expenseAccountDeposits.aggregate({
-        where: { expenseAccountId: accountId },
-        _sum: { amount: true },
-      })
+      // Update expense account balance using the authoritative utility
+      // which counts both PAID and SUBMITTED payments as spent.
+      await updateExpenseAccountBalanceTx(tx, accountId)
 
-      const paymentsSum = await tx.expenseAccountPayments.aggregate({
-        where: {
-          expenseAccountId: accountId,
-          status: 'SUBMITTED',
-        },
-        _sum: { amount: true },
-      })
-
-      const totalDeposits = Number(depositsSum._sum.amount || 0)
-      const totalPayments = Number(paymentsSum._sum.amount || 0)
-      const newBalance = totalDeposits - totalPayments
-
-      // Update the account balance
-      await tx.expenseAccounts.update({
-        where: { id: accountId },
-        data: { balance: newBalance, updatedAt: new Date() },
-      })
-
-      return { payments: createdPayments, newBalance }
+      return { payments: createdPayments }
     })
 
     // Notify reviewers + submitter of new payment request
@@ -1012,7 +996,7 @@ export async function POST(
             batchId: p.batchId,
             createdAt: p.createdAt.toISOString(),
           })),
-          expenseAccountBalance: result.newBalance,
+          expenseAccountBalance: null,
           totalAmount,
           batchId,
         },

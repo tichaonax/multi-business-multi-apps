@@ -375,10 +375,18 @@ export async function GET() {
       // Accounts with pending (QUEUED/REQUEST/SUBMITTED) payments awaiting cashier action
       // Exclude payments submitted by the current user — submitters should not see their own requests
       // Group by [expenseAccountId, paymentChannel, priority] to get per-channel + urgency counts
+      // REQUEST on personal accounts (accountType=PERSONAL or businessId=null) is handled
+      // separately in personalPaymentRequests. REQUEST on business-linked accounts uses the
+      // old request/approval/mark-as-paid workflow and remains here.
       const pendingPaymentWhere = {
         status: { in: ['QUEUED', 'REQUEST', 'SUBMITTED'] },
         createdBy: { not: user.id },
         paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_EXPENSE', 'LOAN_DISBURSEMENT', 'TRANSFER_OUT', 'TRANSFER_RETURN', 'MEAL_PROGRAM', 'MEAL_BATCH', 'PETTY_CASH_SPEND', 'PETTY_CASH_RETURN'] },
+        // Exclude personal/standalone accounts — their REQUEST payments go to personalPaymentRequests
+        expenseAccount: {
+          accountType: { not: 'PERSONAL' },
+          businessId: { not: null },
+        },
       }
       const grouped = await prisma.expenseAccountPayments.groupBy({
         by: ['expenseAccountId', 'paymentChannel', 'priority'],
@@ -473,7 +481,7 @@ export async function GET() {
           where: {
             status: 'REQUEST',
             paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_EXPENSE', 'TRANSFER_OUT', 'TRANSFER_RETURN'] },
-            expenseAccount: { accountType: 'PERSONAL' },
+            expenseAccount: { OR: [{ accountType: 'PERSONAL' }, { businessId: null }] },
             ...(grantedAccountIds ? { expenseAccountId: { in: grantedAccountIds } } : {}),
           },
           select: {

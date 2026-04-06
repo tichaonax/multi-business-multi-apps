@@ -327,10 +327,13 @@ function MyQueuePanel({
 
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
+    const prevPendingCount = pendingApprovalRef.current.length
     const [q, pa, a, pc, eod] = await Promise.all([
-      fetch(`/api/expense-account/${accountId}/payment-requests`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : null).then(d => d?.data ?? []),
-      fetch(`/api/expense-account/${accountId}/payments?status=PENDING_APPROVAL&sortBy=createdAt&limit=20`, { credentials: 'include' })
+      // Fetch QUEUED payments via the general payments endpoint (accessible to all account members).
+      // Filter client-side to the current user's own payments so "My Queue" is personal.
+      fetch(`/api/expense-account/${accountId}/payments?status=QUEUED&sortBy=createdAt&limit=50`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null).then(d => d?.data?.payments ?? []),
+      fetch(`/api/expense-account/${accountId}/payments?status=REQUEST&sortBy=createdAt&limit=20`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null).then(d => d?.data?.payments ?? []),
       fetch(`/api/expense-account/${accountId}/payments?status=APPROVED&sortBy=createdAt&limit=20`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null).then(d => d?.data?.payments ?? []),
@@ -342,14 +345,22 @@ function MyQueuePanel({
       fetch(`/api/expense-account/${accountId}/eod-submissions`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null).then(d => d?.data ?? []),
     ])
-    setQueued(q)
+    // Only show the current user's own QUEUED payments in My Queue
+    setQueued(q.filter((p: QueuedPayment) => p.createdBy?.id === queueUserId))
+    // Show ALL REQUEST payments on this account — not filtered by creator.
+    // The requester sees their own; cashiers/admins viewing the account also see pending requests.
     setPendingApproval(pa)
     pendingApprovalRef.current = pa
     setApproved(a.filter((p: QueuedPayment) => !dismissedIdsRef.current.has(p.id) && p.createdBy?.id === queueUserId))
     setPettyRequests(pc)
     setEodSubmissions(eod)
     if (!silent) setLoading(false)
-  }, [accountId, businessId, queueUserId])
+    // If a pending REQUEST payment was just approved/rejected (count dropped), refresh the
+    // transaction history and balance so the change is visible without a page reload.
+    if (prevPendingCount > 0 && pa.length < prevPendingCount) {
+      onActionDone()
+    }
+  }, [accountId, businessId, queueUserId, onActionDone])
 
   // Initial load (non-silent); subsequent refreshKey or fetchAll changes run silently to avoid panel flash
   useEffect(() => {
@@ -409,6 +420,7 @@ function MyQueuePanel({
       })
       if (res.ok) {
         setQueued(prev => prev.filter(p => p.id !== paymentId))
+        setPendingApproval(prev => prev.filter(p => p.id !== paymentId))
         onActionDone()
       } else {
         const d = await res.json()
@@ -465,7 +477,8 @@ function MyQueuePanel({
       if (res.ok) {
         dismissedIdsRef.current.add(paymentId)
         setApproved(prev => prev.filter(p => p.id !== paymentId))
-        onBalanceRefresh?.()
+        // onActionDone refreshes balance + increments paymentRefreshKey (drives TransactionHistory)
+        onActionDone()
         fetchAll(true)
       } else {
         const d = await res.json()
@@ -513,7 +526,7 @@ function MyQueuePanel({
         setApproved(prev => prev.filter(p => p.id !== paidId))
         setEcocashModal(null)
         setEcocashTxCode('')
-        onBalanceRefresh?.()
+        onActionDone()
         fetchAll(true)
       } else {
         const d = await res.json()
@@ -588,8 +601,15 @@ function MyQueuePanel({
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
             </div>
-            <div className="shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
+              <button
+                onClick={() => handleCancel(p.id)}
+                disabled={actionId === p.id}
+                className="px-2 py-0.5 text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 rounded hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50"
+              >
+                {actionId === p.id ? '…' : '✕ Cancel'}
+              </button>
             </div>
           </div>
         ))}
@@ -1149,21 +1169,28 @@ export default function ExpenseAccountDetailPage() {
       .catch(() => {})
   }, [account?.businessId, canViewSupplierPaymentQueue])
 
-  // Fetch pending REQUEST payments count for cashier batch button
+  // Fetch pending payment count for cashier batch button.
+  // - QUEUED payments = business account EOD batch flow
+  // - REQUEST payments = personal account cashier-assisted flow (MBM-171)
+  // Both contribute to the badge so cashiers see any pending work.
   useEffect(() => {
     if (!accountId || !canSubmitPaymentBatch) return
-    fetch(`/api/expense-account/${accountId}/payment-requests`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        const payments: any[] = data?.data ?? []
-        setPendingBatchCount(payments.length)
-        const currentUserId = (session?.user as any)?.id
-        const othersCount = currentUserId
-          ? payments.filter((p: any) => p.createdBy?.id !== currentUserId).length
-          : payments.length
-        setPendingBatchCountOthers(othersCount)
-      })
-      .catch(() => {})
+    Promise.all([
+      fetch(`/api/expense-account/${accountId}/payment-requests`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => (data?.data ?? []) as any[]),
+      fetch(`/api/expense-account/${accountId}/payments?status=REQUEST&limit=50&sortBy=createdAt`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => (data?.data?.payments ?? []) as any[]),
+    ]).then(([queued, requested]) => {
+      const allPending = [...queued, ...requested]
+      setPendingBatchCount(allPending.length)
+      const currentUserId = (session?.user as any)?.id
+      const othersCount = currentUserId
+        ? allPending.filter((p: any) => p.createdBy?.id !== currentUserId).length
+        : allPending.length
+      setPendingBatchCountOthers(othersCount)
+    }).catch(() => {})
   }, [accountId, canSubmitPaymentBatch, paymentRefreshKey, batchRefreshKey, session])
 
   const refreshBalanceSilent = async () => {
@@ -1805,11 +1832,14 @@ export default function ExpenseAccountDetailPage() {
           accountId={accountId}
           accountName={account.accountName}
           currentBalance={Number(account.balance)}
-          onSuccess={() => {
+          onSuccess={(payload) => {
             loadAccount()
             fetchCounts()
             setPaymentRefreshKey(k => k + 1)
-            setActiveTab('payments')
+            // REQUEST payments stay on Overview so the requester sees My Queue update
+            if (typeof payload === 'object' && !payload.isRequest) {
+              setActiveTab('payments')
+            }
             setShowQuickPaymentModal(false)
           }}
           onError={(error) => toast.error(error)}
