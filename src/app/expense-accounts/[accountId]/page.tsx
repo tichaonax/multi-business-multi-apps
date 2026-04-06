@@ -19,6 +19,7 @@ import { ReturnTransferModal } from '@/components/expense-account/return-transfe
 import { LendMoneyModal } from '@/components/expense-account/lend-money-modal'
 import { FundPayrollModal } from '@/components/expense-account/fund-payroll-modal'
 import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-panel'
+import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-payment-modal'
 import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-modal'
 import { AutoDepositAdminPanel } from '@/components/expense-account/auto-deposit-admin-panel'
 import { PaymentBatchModal } from '@/components/expense-account/payment-batch-modal'
@@ -1021,6 +1022,7 @@ export default function ExpenseAccountDetailPage() {
   const [activeTab, setActiveTab] = useState(urlTab || 'overview')
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
+  const [showSmartQuickPayModal, setShowSmartQuickPayModal] = useState(false)
   const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
   const [showLendMoneyModal, setShowLendMoneyModal] = useState(false)
   const [showFundPayrollModal, setShowFundPayrollModal] = useState(false)
@@ -1391,7 +1393,7 @@ export default function ExpenseAccountDetailPage() {
             ) : null}
             {canMakeExpensePayments && account.accountType !== 'RENT' && (
               <button
-                onClick={() => setShowQuickPaymentModal(true)}
+                onClick={() => setShowSmartQuickPayModal(true)}
                 className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
               >
                 ⚡ Daily
@@ -1894,6 +1896,26 @@ export default function ExpenseAccountDetailPage() {
             setShowFundPayrollModal(false)
           }}
           onClose={() => setShowFundPayrollModal(false)}
+        />
+      )}
+
+      {/* Smart Daily Expenses Modal — multi-line with historical pre-fill, adds to queue */}
+      {showSmartQuickPayModal && account && (
+        <SmartQuickPaymentModal
+          isOpen={showSmartQuickPayModal}
+          onClose={() => setShowSmartQuickPayModal(false)}
+          accountId={accountId}
+          accountBalance={Number(account.balance)}
+          defaultCategoryBusinessType={account.businessId
+            ? businesses?.find(b => b.businessId === account.businessId)?.businessType
+            : currentBusiness?.businessType}
+          businessId={account.businessId ?? undefined}
+          onSuccess={() => {
+            setShowSmartQuickPayModal(false)
+            loadAccount()
+            setPaymentRefreshKey(k => k + 1)
+            setActiveTab('payments')
+          }}
         />
       )}
 
