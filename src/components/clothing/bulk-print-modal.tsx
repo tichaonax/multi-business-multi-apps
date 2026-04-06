@@ -5,11 +5,10 @@ import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatDate } from '@/lib/date-format'
 import {
-  isQzTrayAvailable,
-  listQzPrinters,
   printToQzPrinter,
   getQzPrinterConfig,
 } from '@/lib/printing/qz-tray-printer'
+import { QzTraySetup } from '@/components/printing/qz-tray-setup'
 
 const QZ_PRINTER_PREFIX = 'qz::'
 
@@ -273,46 +272,35 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   const [printers, setPrinters] = useState<NetworkPrinter[]>([])
   const [qzPrinters, setQzPrinters] = useState<string[]>([])
   const [selectedPrinterId, setSelectedPrinterId] = useState<string>('')
+  const [showQzSetup, setShowQzSetup] = useState(false)
   const [printersLoading, setPrintersLoading] = useState(true)
   const [checkingOnline, setCheckingOnline] = useState<string | null>(null)
 
-  const loadPrinters = async (currentSelected?: string) => {
+  const loadPrinters = (currentSelected?: string) => {
     setPrintersLoading(true)
-    try {
-      const [networkRes, qzAvailable] = await Promise.all([
-        fetch('/api/printers?printerType=receipt', { credentials: 'include' }).then(r => r.ok ? r.json() : { printers: [] }),
-        isQzTrayAvailable(),
-      ])
-      const list: NetworkPrinter[] = networkRes.printers || []
-      setPrinters(list)
+    fetch('/api/printers?printerType=receipt', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { printers: [] })
+      .then(data => {
+        const list: NetworkPrinter[] = data.printers || []
+        setPrinters(list)
 
-      let detectedQz: string[] = []
-      if (qzAvailable) {
-        try {
-          detectedQz = await listQzPrinters()
-          const savedQz = getQzPrinterConfig()
-          if (savedQz && detectedQz.includes(savedQz.printerName)) {
-            detectedQz = [savedQz.printerName, ...detectedQz.filter(p => p !== savedQz.printerName)]
-          }
-        } catch { /* non-critical */ }
-      }
-      setQzPrinters(detectedQz)
+        // Only show saved QZ printer — no connection on load
+        const savedQz = getQzPrinterConfig()
+        const qzList = savedQz ? [savedQz.printerName] : []
+        setQzPrinters(qzList)
 
-      const saved = currentSelected ?? localStorage.getItem(printerKey) ?? localStorage.getItem('lastSelectedPrinterId') ?? ''
-      if (saved) {
-        if (saved.startsWith(QZ_PRINTER_PREFIX)) {
-          const qzName = saved.slice(QZ_PRINTER_PREFIX.length)
-          if (detectedQz.includes(qzName)) { setSelectedPrinterId(saved); return }
-        } else if (list.find(p => p.id === saved)) { setSelectedPrinterId(saved); return }
-      }
-      // Auto-select saved QZ printer if available
-      const savedQz = getQzPrinterConfig()
-      if (savedQz && detectedQz.includes(savedQz.printerName)) { setSelectedPrinterId(QZ_PRINTER_PREFIX + savedQz.printerName); return }
-      const online = list.find(p => p.isOnline)
-      if (online) setSelectedPrinterId(online.id)
-      else if (list.length === 1) setSelectedPrinterId(list[0].id)
-    } catch { /* non-critical */ }
-    finally { setPrintersLoading(false) }
+        const saved = currentSelected ?? localStorage.getItem(printerKey) ?? localStorage.getItem('lastSelectedPrinterId') ?? ''
+        if (saved) {
+          if (saved.startsWith(QZ_PRINTER_PREFIX) && qzList.includes(saved.slice(QZ_PRINTER_PREFIX.length))) { setSelectedPrinterId(saved); return }
+          if (list.find(p => p.id === saved)) { setSelectedPrinterId(saved); return }
+        }
+        if (savedQz) { setSelectedPrinterId(QZ_PRINTER_PREFIX + savedQz.printerName); return }
+        const online = list.find(p => p.isOnline)
+        if (online) setSelectedPrinterId(online.id)
+        else if (list.length === 1) setSelectedPrinterId(list[0].id)
+      })
+      .catch(() => {})
+      .finally(() => setPrintersLoading(false))
   }
 
   useEffect(() => {
@@ -725,6 +713,30 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
               </div>
             )}
 
+            {/* QZ Tray Setup / Bring Online */}
+            <div className="pt-1 border-t border-gray-100 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setShowQzSetup(v => !v)}
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                {showQzSetup ? '▲ Hide QZ Setup' : '⚙ QZ Tray Setup / Bring Online'}
+              </button>
+              {showQzSetup && (
+                <div className="mt-2">
+                  <QzTraySetup
+                    compact
+                    lazy
+                    onSetupComplete={(cfg) => {
+                      setQzPrinters([cfg.printerName])
+                      setSelectedPrinterId(`${QZ_PRINTER_PREFIX}${cfg.printerName}`)
+                    }}
+                    onDisconnect={() => setQzPrinters([])}
+                  />
+                </div>
+              )}
+            </div>
+
             <button onClick={onClose} className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
               Cancel
             </button>
@@ -867,6 +879,29 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                       )}
                     </div>
                   )}
+                  {/* QZ Tray Setup / Bring Online */}
+                  <div className="pt-1 border-t border-gray-100 dark:border-gray-700">
+                    <button
+                      type="button"
+                      onClick={() => setShowQzSetup(v => !v)}
+                      className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {showQzSetup ? '▲ Hide QZ Setup' : '⚙ QZ Tray Setup / Bring Online'}
+                    </button>
+                    {showQzSetup && (
+                      <div className="mt-2">
+                        <QzTraySetup
+                          compact
+                          lazy
+                          onSetupComplete={(cfg) => {
+                            setQzPrinters([cfg.printerName])
+                            setSelectedPrinterId(`${QZ_PRINTER_PREFIX}${cfg.printerName}`)
+                          }}
+                          onDisconnect={() => setQzPrinters([])}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -11,6 +11,7 @@ import { SalaryIncreaseModal } from '@/components/employees/salary-increase-moda
 import { PayrollExportModal } from '@/components/payroll/payroll-export-modal'
 import { AddEmployeeModal } from '@/components/employees/add-employee-modal'
 import { EmployeeIdCard } from '@/components/clock-in/employee-id-card'
+import { PrintCardToReceiptPrinter } from '@/components/ui/print-card-to-receipt-printer'
 
 interface Employee {
   id: string
@@ -1088,6 +1089,15 @@ export default function EmployeesPage() {
                 🖨️ Print
               </button>
             </div>
+            {printCardEmployee.primaryBusiness?.id && (
+              <div className="mt-3">
+                <PrintCardToReceiptPrinter
+                  cardElementId="employee-id-card"
+                  businessId={printCardEmployee.primaryBusiness.id}
+                  label="Print to Receipt Printer"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

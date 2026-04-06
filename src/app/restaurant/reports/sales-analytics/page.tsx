@@ -15,6 +15,7 @@ import { SalesSummaryCards } from '@/components/reports/sales-summary-cards'
 import { TopPerformersCards } from '@/components/reports/top-performers-cards'
 import { DailySalesLineChart } from '@/components/reports/daily-sales-line-chart'
 import { SalesBreakdownCharts } from '@/components/reports/sales-breakdown-charts'
+import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 
 interface SalesAnalyticsData {
   summary: {
@@ -32,7 +33,7 @@ interface SalesAnalyticsData {
   topCategories: Array<{ categoryPath: string; emoji: string; revenue: number }>
   topSalesReps: Array<{ employeeName: string; revenue: number }>
   dailySales: Array<{ date: string; sales: number; orderCount: number; expenses?: number }>
-  productBreakdown: Array<{ productName: string; emoji: string; revenue: number; percentage: number }>
+  productBreakdown: Array<{ productId?: string; productName: string; emoji: string; revenue: number; percentage: number }>
   categoryBreakdown: Array<{ categoryPath: string; emoji: string; revenue: number; percentage: number }>
   salesRepBreakdown: Array<{ employeeName: string; revenue: number; percentage: number }>
   paymentMethodBreakdown?: Record<string, { count: number; total: number }>
@@ -63,6 +64,7 @@ export default function RestaurantSalesAnalytics() {
   const [dateRange, setDateRange] = useState<DateRange>(getInitialDateRange())
   const [data, setData] = useState<SalesAnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [insightsTarget, setInsightsTarget] = useState<{ productId: string; productName: string } | null>(null)
 
   useEffect(() => {
     if (currentBusinessId) {
@@ -219,11 +221,22 @@ export default function RestaurantSalesAnalytics() {
                 productBreakdown={data.productBreakdown}
                 categoryBreakdown={data.categoryBreakdown}
                 salesRepBreakdown={data.salesRepBreakdown}
+                onProductClick={(productId, productName) => setInsightsTarget({ productId, productName })}
               />
             )}
           </div>
         </div>
       </div>
+
+      {insightsTarget && currentBusinessId && (
+        <ItemInsightsPanel
+          type="inventory"
+          itemId=""
+          businessId={currentBusinessId}
+          productId={insightsTarget.productId}
+          onClose={() => setInsightsTarget(null)}
+        />
+      )}
 
       {/* Print Styles */}
       <style jsx global>{`

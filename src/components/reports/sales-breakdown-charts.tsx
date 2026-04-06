@@ -3,6 +3,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 
 interface ProductBreakdown {
+  productId?: string
   productName: string
   emoji: string
   revenue: number
@@ -26,6 +27,7 @@ interface SalesBreakdownChartsProps {
   productBreakdown: ProductBreakdown[]
   categoryBreakdown: CategoryBreakdown[]
   salesRepBreakdown: SalesRepBreakdown[]
+  onProductClick?: (productId: string, productName: string) => void
 }
 
 const COLORS = [
@@ -36,12 +38,15 @@ const COLORS = [
 export function SalesBreakdownCharts({
   productBreakdown,
   categoryBreakdown,
-  salesRepBreakdown
+  salesRepBreakdown,
+  onProductClick,
 }: SalesBreakdownChartsProps) {
-  // Format product data for bar chart
+  // Format product data for bar chart — keep productId for click handler
   const productData = productBreakdown.map(p => ({
     name: `${p.emoji} ${p.productName}`,
-    value: p.revenue
+    value: p.revenue,
+    productId: p.productId,
+    productName: p.productName,
   }))
 
   // Format category data for bar chart
@@ -63,10 +68,18 @@ export function SalesBreakdownCharts({
       <div className="bg-purple-50 dark:bg-purple-900/20 border-2 border-purple-200 dark:border-purple-800 rounded-lg p-6">
         <h3 className="text-lg font-bold text-purple-900 dark:text-purple-300 mb-4">
           Sales by Product
+          {onProductClick && (
+            <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
+              — click a bar for insights
+            </span>
+          )}
         </h3>
         {productData.length > 0 ? (
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={productData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+            <BarChart
+              data={productData}
+              margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+            >
               <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
               <XAxis
                 type="category"
@@ -87,7 +100,18 @@ export function SalesBreakdownCharts({
                 formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']}
                 labelStyle={{ color: '#000' }}
               />
-              <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} minPointSize={2}>
+              <Bar
+                dataKey="value"
+                fill="#8b5cf6"
+                radius={[4, 4, 0, 0]}
+                minPointSize={2}
+                onClick={onProductClick ? (data: any) => {
+                  if (data?.productId) {
+                    onProductClick(data.productId, data.productName)
+                  }
+                } : undefined}
+                style={onProductClick ? { cursor: 'pointer' } : undefined}
+              >
                 {productData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}

@@ -24,6 +24,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
+import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 
 function RestaurantInventoryContent() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts' | 'receiving'>('ingredients')
@@ -40,6 +41,7 @@ function RestaurantInventoryContent() {
   const [posTrackedFilter, setPosTrackedFilter] = useState(false)
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
+  const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
   const [isInventoryTracked, setIsInventoryTracked] = useState(false)
   const [reorderLevel, setReorderLevel] = useState(0)
   const searchParams = useSearchParams()
@@ -634,6 +636,7 @@ function RestaurantInventoryContent() {
                       setSelectedItem(item)
                       setShowAddForm(true)
                     }}
+                    onItemView={(item) => setInsightsTarget({ type: 'inventory', id: item.id })}
                     onItemAddToCart={async (item) => {
                       try {
                         const res = await fetch(`/api/universal/products?businessId=${businessId}&productId=${item.id}&includeVariants=true`)
@@ -794,6 +797,16 @@ function RestaurantInventoryContent() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Item Insights Panel */}
+          {insightsTarget && (
+            <ItemInsightsPanel
+              type={insightsTarget.type}
+              itemId={insightsTarget.id}
+              businessId={businessId}
+              onClose={() => setInsightsTarget(null)}
+            />
           )}
 
           {/* Loading Overlay for Product Fetch */}

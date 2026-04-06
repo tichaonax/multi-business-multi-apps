@@ -301,7 +301,11 @@ export async function GET(
           productStats[productId].revenue += itemRevenue;
         } else if (item.attributes?.productName) {
           // Fallback: use attributes if no variant linked
-          const productId = item.attributes.productId || `attr-${item.id}`;
+          // Prefer baleId (prefixed) so item-insights can resolve it; then real productId; then synthetic
+          const baleId = (item.attributes as any).baleId
+          const productId = baleId
+            ? `bale_${baleId}`
+            : (item.attributes.productId || `attr-${item.id}`)
           const productName = item.attributes.productName;
           let emoji = extractEmoji(productName) || '📦';
 
@@ -529,6 +533,7 @@ export async function GET(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10)
       .map(p => ({
+        productId: p.productId,
         productName: p.productName,
         emoji: p.emoji,
         revenue: Number(p.revenue.toFixed(2)),

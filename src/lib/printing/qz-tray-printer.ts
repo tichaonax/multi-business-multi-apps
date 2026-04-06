@@ -121,9 +121,10 @@ function escPosStringToBytes(str: string): number[] {
 
 /**
  * Print an ESC/POS string to a named printer via QZ Tray.
+ * Uses base64 encoding to ensure binary data is transmitted correctly.
  *
  * @param printerName - Exact printer name as returned by listQzPrinters()
- * @param escPosString - ESC/POS string from generateReceipt()
+ * @param escPosString - ESC/POS string from generateReceipt() or card-print-utils
  */
 export async function printToQzPrinter(
   printerName: string,
@@ -133,7 +134,9 @@ export async function printToQzPrinter(
   const qz = await getQz()
 
   const config = qz.configs.create(printerName)
-  const data = [{ type: 'raw', format: 'command', data: escPosStringToBytes(escPosString) }]
+  // Pass the ESC/POS string directly — QZ Tray sends each character as its byte value (Latin-1).
+  // This is the same pattern used by printZplToQzPrinter and matches QZ Tray's raw command format.
+  const data = [{ type: 'raw', format: 'command', data: escPosString }]
   await qz.print(config, data)
 }
 

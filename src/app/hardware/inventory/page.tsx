@@ -24,6 +24,7 @@ import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useToastContext } from '@/components/ui/toast'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
+import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 
 function HardwareInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
@@ -33,6 +34,7 @@ function HardwareInventoryContent() {
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
+  const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [filterCount, setFilterCount] = useState<number | null>(null)
   const [stats, setStats] = useState<any>(null)
@@ -247,7 +249,7 @@ function HardwareInventoryContent() {
 
   const handleItemView = (item: any) => {
     setSelectedItem(item)
-    console.log('Viewing item:', item)
+    setInsightsTarget({ type: 'inventory', id: item.id })
   }
 
   const handleItemDelete = async (item: any) => {
@@ -649,6 +651,16 @@ function HardwareInventoryContent() {
             isOpen={showAddForm}
             mode={selectedItem ? 'edit' : 'create'}
           />
+
+          {/* Item Insights Panel */}
+          {insightsTarget && (
+            <ItemInsightsPanel
+              type={insightsTarget.type}
+              itemId={insightsTarget.id}
+              businessId={businessId}
+              onClose={() => setInsightsTarget(null)}
+            />
+          )}
 
           {/* Loading Overlay for Product Fetch */}
           {isLoadingProduct && (

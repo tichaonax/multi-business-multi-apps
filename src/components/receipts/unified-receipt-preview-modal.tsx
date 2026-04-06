@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { useToastContext } from '@/components/ui/toast'
 import { ReceiptTemplate } from '@/components/printing/receipt-template'
 import { LocalPrinterSetup } from '@/components/printing/local-printer-setup'
+import { QzTraySetup } from '@/components/printing/qz-tray-setup'
 import { generateReceipt } from '@/lib/printing/receipt-templates'
 import {
   isWebSerialSupported,
@@ -28,8 +29,6 @@ import {
   isLocalPrinterAvailable,
 } from '@/lib/printing/local-serial-printer'
 import {
-  isQzTrayAvailable,
-  listQzPrinters,
   printToQzPrinter,
   getQzPrinterConfig,
 } from '@/lib/printing/qz-tray-printer'
@@ -75,6 +74,7 @@ export function UnifiedReceiptPreviewModal({
   const [localPrinterName, setLocalPrinterName] = useState(() => printerCache?.localPrinterName || '')
   const [qzPrinters, setQzPrinters] = useState<string[]>(() => printerCache?.qzPrinters || [])
   const [showLocalSetup, setShowLocalSetup] = useState(false)
+  const [showQzSetup, setShowQzSetup] = useState(false)
   const [checkingOnline, setCheckingOnline] = useState(false)
   const toast = useToastContext()
   const { data: session } = useSession()
@@ -130,32 +130,19 @@ export function UnifiedReceiptPreviewModal({
       let localName = ''
       let detectedQzPrinters: string[] = []
 
-      const [, qzAvailable] = await Promise.all([
-        // Web Serial check
-        (async () => {
-          if (isWebSerialSupported()) {
-            const localConfig = getLocalPrinterConfig()
-            if (localConfig) {
-              localAvailable = await isLocalPrinterAvailable()
-              localName = localConfig.name
-            }
-          }
-        })(),
-        // QZ Tray check
-        isQzTrayAvailable(),
-      ])
-
-      if (qzAvailable) {
-        try {
-          detectedQzPrinters = await listQzPrinters()
-          // If no printer saved yet but QZ has printers, pre-select the saved one
-          const savedQz = getQzPrinterConfig()
-          if (savedQz && detectedQzPrinters.includes(savedQz.printerName)) {
-            detectedQzPrinters = [savedQz.printerName, ...detectedQzPrinters.filter(p => p !== savedQz.printerName)]
-          }
-        } catch {
-          // QZ printer list failed — continue without it
+      // Web Serial check
+      if (isWebSerialSupported()) {
+        const localConfig = getLocalPrinterConfig()
+        if (localConfig) {
+          localAvailable = await isLocalPrinterAvailable()
+          localName = localConfig.name
         }
+      }
+
+      // QZ Tray: only show the saved printer (no connection on load — avoids security prompt)
+      const savedQz = getQzPrinterConfig()
+      if (savedQz) {
+        detectedQzPrinters = [savedQz.printerName]
       }
 
       // Save to module-level cache
@@ -486,6 +473,33 @@ export function UnifiedReceiptPreviewModal({
                   )}
                 </div>
               )}
+
+              {/* QZ Tray Setup / Bring Online */}
+              <div className="mt-2">
+                <button
+                  onClick={() => setShowQzSetup(v => !v)}
+                  className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  {showQzSetup ? '▲ Hide QZ Setup' : '⚙ QZ Tray Setup / Bring Online'}
+                </button>
+                {showQzSetup && (
+                  <div className="mt-2">
+                    <QzTraySetup
+                      compact
+                      lazy
+                      onSetupComplete={(cfg) => {
+                        setQzPrinters([cfg.printerName])
+                        setSelectedPrinterId(`qz::${cfg.printerName}`)
+                        if (printerCache) printerCache.qzPrinters = [cfg.printerName]
+                      }}
+                      onDisconnect={() => {
+                        setQzPrinters([])
+                        if (printerCache) printerCache.qzPrinters = []
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Local USB Printer Setup */}
               {isWebSerialSupported() && (

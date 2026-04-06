@@ -23,6 +23,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
+import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 
 function GroceryTransferHistoryPanel({ businessId }: { businessId: string }) {
   const [transfers, setTransfers] = useState<any[]>([])
@@ -103,6 +104,7 @@ function GroceryInventoryContent() {
   const [printBaleId, setPrintBaleId] = useState<string | undefined>(undefined)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showBulkPrintModal, setShowBulkPrintModal] = useState(false)
+  const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
   const searchParams = useSearchParams()
 
   const { data: session, status } = useSession()
@@ -1031,6 +1033,15 @@ function GroceryInventoryContent() {
                       <button
                         onClick={() => {
                           setShowViewModal(false)
+                          setInsightsTarget({ type: 'inventory', id: selectedItem.id })
+                        }}
+                        className="flex-1 btn-secondary"
+                      >
+                        📈 Insights
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false)
                           setSelectedItem(null)
                         }}
                         className="flex-1 btn-secondary"
@@ -1042,6 +1053,16 @@ function GroceryInventoryContent() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Item Insights Panel */}
+          {insightsTarget && (
+            <ItemInsightsPanel
+              type={insightsTarget.type}
+              itemId={insightsTarget.id}
+              businessId={businessId}
+              onClose={() => setInsightsTarget(null)}
+            />
           )}
 
           {/* Loading Overlay for Product Fetch */}

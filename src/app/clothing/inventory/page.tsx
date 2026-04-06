@@ -25,6 +25,7 @@ import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 import { ZeroOutInventoryModal } from '@/components/inventory/zero-out-inventory-modal'
+import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 
 // ── Transfer History Panel ──────────────────────────────────────────────────
 
@@ -138,6 +139,7 @@ function ClothingInventoryContent() {
   const [printHistoryBale, setPrintHistoryBale] = useState<any | null>(null)
   const [printHistory, setPrintHistory] = useState<any[]>([])
   const [printHistoryLoading, setPrintHistoryLoading] = useState(false)
+  const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
   const searchParams = useSearchParams()
   const customAlert = useAlert()
   const confirm = useConfirm()
@@ -1741,6 +1743,14 @@ function ClothingInventoryContent() {
                                       <span className="sm:hidden">📋</span>
                                       <span className="hidden sm:inline whitespace-nowrap">History</span>
                                     </button>
+                                    <button
+                                      onClick={() => setInsightsTarget({ type: 'bale', id: bale.id })}
+                                      className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                                      title="View profitability insights"
+                                    >
+                                      <span className="sm:hidden">📈</span>
+                                      <span className="hidden sm:inline whitespace-nowrap">Insights</span>
+                                    </button>
                                     {session?.user?.role === 'admin' && bale.remainingCount === bale.itemCount && (
                                       <button
                                         onClick={() => handleDeleteBale(bale)}
@@ -2118,6 +2128,15 @@ function ClothingInventoryContent() {
                       <button
                         onClick={() => {
                           setShowViewModal(false)
+                          setInsightsTarget({ type: 'inventory', id: selectedItem.id })
+                        }}
+                        className="flex-1 btn-secondary"
+                      >
+                        📈 Insights
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false)
                           setSelectedItem(null)
                         }}
                         className="flex-1 btn-secondary"
@@ -2129,6 +2148,16 @@ function ClothingInventoryContent() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Item Insights Panel */}
+          {insightsTarget && (
+            <ItemInsightsPanel
+              type={insightsTarget.type}
+              itemId={insightsTarget.id}
+              businessId={businessId}
+              onClose={() => setInsightsTarget(null)}
+            />
           )}
 
           {/* Loading Overlay for Product Fetch */}

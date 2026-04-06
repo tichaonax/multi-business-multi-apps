@@ -12,39 +12,47 @@
 
 /**
  * Convert a canvas to an ESC/POS GS v 0 raster image byte array.
- * Canvas is scaled to maxWidthDots wide, height proportional.
+ * The image is scaled to (maxWidthDots - leftPad) wide and offset by leftPad
+ * dots, so the left edge never touches the printer's non-printable hardware zone.
+ * Right side fills to the paper edge (no right shrinkage = no quality loss).
  */
-function canvasToEscPosRaster(canvas: HTMLCanvasElement, maxWidthDots: number): Uint8Array {
-  const scaleFactor = maxWidthDots / canvas.width
-  const scaledW = maxWidthDots
+function canvasToEscPosRaster(
+  canvas: HTMLCanvasElement,
+  maxWidthDots: number,
+  leftPad = 12,           // dots of white space on the left only (~1.5 mm on 203 dpi)
+): Uint8Array {
+  const innerW = maxWidthDots - leftPad
+  const scaleFactor = innerW / canvas.width
   const scaledH = Math.round(canvas.height * scaleFactor)
 
+  // Draw card at inner width onto a temporary canvas
   const scaled = document.createElement('canvas')
-  scaled.width = scaledW
+  scaled.width = innerW
   scaled.height = scaledH
   const ctx = scaled.getContext('2d')!
   ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, scaledW, scaledH)
-  ctx.drawImage(canvas, 0, 0, scaledW, scaledH)
+  ctx.fillRect(0, 0, innerW, scaledH)
+  ctx.drawImage(canvas, 0, 0, innerW, scaledH)
 
-  const imageData = ctx.getImageData(0, 0, scaledW, scaledH)
+  const imageData = ctx.getImageData(0, 0, innerW, scaledH)
   const pixels = imageData.data
 
-  // Build 1-bit bitmap (MSB first, dark pixel = 1)
-  const bytesPerRow = Math.ceil(scaledW / 8)
-  const bitmap = new Uint8Array(bytesPerRow * scaledH)
+  // Build 1-bit bitmap at FULL paper width (leftPad dots = white on left only)
+  const bytesPerRow = Math.ceil(maxWidthDots / 8)
+  const bitmap = new Uint8Array(bytesPerRow * scaledH) // all 0x00 = white
 
   for (let y = 0; y < scaledH; y++) {
-    for (let x = 0; x < scaledW; x++) {
-      const idx = (y * scaledW + x) * 4
+    for (let x = 0; x < innerW; x++) {
+      const idx = (y * innerW + x) * 4
       const lum = 0.299 * pixels[idx] + 0.587 * pixels[idx + 1] + 0.114 * pixels[idx + 2]
       if (lum < 128) {
-        bitmap[y * bytesPerRow + Math.floor(x / 8)] |= (0x80 >> (x % 8))
+        const px = x + leftPad // offset into full-width row
+        bitmap[y * bytesPerRow + Math.floor(px / 8)] |= (0x80 >> (px % 8))
       }
     }
   }
 
-  // GS v 0 raster image header
+  // GS v 0 raster image header (full paper width)
   const xL = bytesPerRow & 0xFF
   const xH = (bytesPerRow >> 8) & 0xFF
   const yL = scaledH & 0xFF
@@ -85,12 +93,14 @@ function buildFoldLine(widthDots: number): Uint8Array {
   return out
 }
 
+const QZ_PRINTER_PREFIX = 'qz::'
+
 /**
  * Capture a DOM card element and send TWO stacked copies to the receipt printer
  * with a fold/cut separator between them.
  *
  * @param cardElement      The DOM element to capture.
- * @param printerId        Network printer ID (from /api/printers).
+ * @param printerId        Network printer ID (from /api/printers) OR 'qz::PrinterName' for QZ Tray.
  * @param businessId       Business ID for the print job queue.
  * @param printerWidthDots Dot width of the paper — default 576 (80mm @ 203 DPI).
  */
@@ -135,6 +145,12 @@ export async function printCardToReceiptPrinter(
   write(cut)
 
   const escPosBytes = Array.from(all).map(b => String.fromCharCode(b)).join('')
+
+  if (printerId.startsWith(QZ_PRINTER_PREFIX)) {
+    const { printToQzPrinter } = await import('@/lib/printing/qz-tray-printer')
+    await printToQzPrinter(printerId.slice(QZ_PRINTER_PREFIX.length), escPosBytes)
+    return
+  }
 
   const res = await fetch('/api/print/card', {
     method: 'POST',
@@ -194,6 +210,12 @@ export async function printBulkLabelsToReceiptPrinter(
   for (const chunk of chunks) { all.set(chunk, offset); offset += chunk.length }
 
   const escPosBytes = Array.from(all).map(b => String.fromCharCode(b)).join('')
+
+  if (printerId.startsWith(QZ_PRINTER_PREFIX)) {
+    const { printToQzPrinter } = await import('@/lib/printing/qz-tray-printer')
+    await printToQzPrinter(printerId.slice(QZ_PRINTER_PREFIX.length), escPosBytes)
+    return
+  }
 
   const res = await fetch('/api/print/card', {
     method: 'POST',

@@ -13,6 +13,7 @@ import {
   isQzTrayAvailable,
   listQzPrinters,
   testQzPrinter,
+  disconnectQzTray,
   getQzPrinterConfig,
   saveQzPrinterConfig,
   clearQzPrinterConfig,
@@ -23,26 +24,32 @@ interface QzTraySetupProps {
   onSetupComplete?: (config: QzPrinterConfig) => void
   onDisconnect?: () => void
   compact?: boolean
+  /** When true, don't auto-check on mount — user must click "Check QZ Tray" first */
+  lazy?: boolean
 }
 
-export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false }: QzTraySetupProps) {
-  const [available, setAvailable] = useState<boolean | null>(null) // null = checking
+export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, lazy = false }: QzTraySetupProps) {
+  const [available, setAvailable] = useState<boolean | null>(lazy ? false : null) // null = checking, false = not available
   const [printers, setPrinters] = useState<string[]>([])
   const [selectedPrinter, setSelectedPrinter] = useState('')
   const [savedConfig, setSavedConfig] = useState<QzPrinterConfig | null>(null)
   const [loading, setLoading] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null)
+  const [successMsg, setSuccessMsg] = useState('Test print sent successfully')
   const [error, setError] = useState('')
+  const [hasChecked, setHasChecked] = useState(false)
 
   useEffect(() => {
     const config = getQzPrinterConfig()
     setSavedConfig(config)
     if (config) setSelectedPrinter(config.printerName)
-    checkAvailability()
+    if (!lazy) checkAvailability()
   }, [])
 
   async function checkAvailability() {
-    setAvailable(null)
+    setAvailable(null) // show spinner while checking
+    setHasChecked(true)
     const ok = await isQzTrayAvailable()
     setAvailable(ok)
     if (ok) {
@@ -75,6 +82,7 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false }: 
     setLoading(true)
     setTestResult(null)
     setError('')
+    setSuccessMsg('Test print sent successfully')
     try {
       await testQzPrinter(selectedPrinter)
       setTestResult('success')
@@ -94,9 +102,26 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false }: 
     onDisconnect?.()
   }
 
+  async function handleStopQz() {
+    setStopping(true)
+    setTestResult(null)
+    setError('')
+    try {
+      await disconnectQzTray()
+      setAvailable(false)
+      setHasChecked(false)
+      setSuccessMsg('QZ Tray disconnected — pending jobs stopped')
+      setTestResult('success')
+    } catch {
+      setAvailable(false)
+    } finally {
+      setStopping(false)
+    }
+  }
+
   const pad = compact ? 'p-3' : 'p-4'
 
-  // Still checking
+  // Checking QZ Tray availability (spinner)
   if (available === null) {
     return (
       <div className={`${pad} bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg`}>
@@ -108,8 +133,28 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false }: 
     )
   }
 
-  // QZ Tray not running
+  // QZ Tray not running (or lazy and not yet checked)
   if (!available) {
+    // Lazy mode before first check — just show a connect button
+    if (lazy && !hasChecked) {
+      return (
+        <div className={`${pad} bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg`}>
+          <div className="flex items-center gap-2">
+            <Printer className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span className="text-xs text-secondary flex-1">
+              {savedConfig ? `QZ: ${savedConfig.printerName}` : 'QZ Tray local printer'}
+            </span>
+            <button
+              onClick={checkAvailability}
+              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+            >
+              <RefreshCw className="w-3 h-3" /> Bring Online
+            </button>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className={`${pad} bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg`}>
         <div className="flex items-start gap-2">
@@ -185,7 +230,7 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false }: 
       {/* Feedback */}
       {testResult === 'success' && (
         <div className="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs">
-          <Check className="w-3 h-3" /> Test print sent successfully
+          <Check className="w-3 h-3" /> {successMsg}
         </div>
       )}
       {error && (
@@ -210,6 +255,14 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false }: 
         >
           <Printer className="w-3 h-3" />
           {loading ? 'Printing…' : 'Test Print'}
+        </button>
+        <button
+          onClick={handleStopQz}
+          disabled={loading || stopping}
+          className="px-3 py-1.5 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 flex items-center gap-1"
+          title="Disconnect QZ Tray and stop all pending print jobs"
+        >
+          {stopping ? '…' : '⏹ Stop QZ'}
         </button>
         {savedConfig && (
           <button

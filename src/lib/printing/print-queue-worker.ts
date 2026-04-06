@@ -411,6 +411,9 @@ async function processQueue(): Promise<void> {
       } else if (jobData?.formattedLabel) {
         // Legacy format with pre-formatted content
         printContent = jobData.formattedLabel;
+      } else if (jobData?.cardData) {
+        // Card print job — pre-built ESC/POS raster bytes (base64) from /api/print/card
+        printContent = Buffer.from(jobData.cardData, 'base64').toString('binary');
       } else {
         // New format: generate label text from LabelData
         const { generateLabel } = await import('./label-generator');
