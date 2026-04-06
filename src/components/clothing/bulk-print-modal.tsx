@@ -4,6 +4,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatDate } from '@/lib/date-format'
+import {
+  isQzTrayAvailable,
+  listQzPrinters,
+  printToQzPrinter,
+  getQzPrinterConfig,
+} from '@/lib/printing/qz-tray-printer'
+
+const QZ_PRINTER_PREFIX = 'qz::'
 
 interface Bale {
   id: string
@@ -263,25 +271,48 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
   // Receipt printers
   const printerKey = userId ? `lastSelectedPrinterId-${userId}` : 'lastSelectedPrinterId'
   const [printers, setPrinters] = useState<NetworkPrinter[]>([])
+  const [qzPrinters, setQzPrinters] = useState<string[]>([])
   const [selectedPrinterId, setSelectedPrinterId] = useState<string>('')
   const [printersLoading, setPrintersLoading] = useState(true)
   const [checkingOnline, setCheckingOnline] = useState<string | null>(null)
 
-  const loadPrinters = (currentSelected?: string) => {
+  const loadPrinters = async (currentSelected?: string) => {
     setPrintersLoading(true)
-    fetch('/api/printers?printerType=receipt', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : { printers: [] })
-      .then(data => {
-        const list: NetworkPrinter[] = data.printers || []
-        setPrinters(list)
-        const saved = currentSelected ?? localStorage.getItem(printerKey) ?? localStorage.getItem('lastSelectedPrinterId') ?? ''
-        if (saved && list.find(p => p.id === saved)) { setSelectedPrinterId(saved); return }
-        const online = list.find(p => p.isOnline)
-        if (online) setSelectedPrinterId(online.id)
-        else if (list.length === 1) setSelectedPrinterId(list[0].id)
-      })
-      .catch(() => {})
-      .finally(() => setPrintersLoading(false))
+    try {
+      const [networkRes, qzAvailable] = await Promise.all([
+        fetch('/api/printers?printerType=receipt', { credentials: 'include' }).then(r => r.ok ? r.json() : { printers: [] }),
+        isQzTrayAvailable(),
+      ])
+      const list: NetworkPrinter[] = networkRes.printers || []
+      setPrinters(list)
+
+      let detectedQz: string[] = []
+      if (qzAvailable) {
+        try {
+          detectedQz = await listQzPrinters()
+          const savedQz = getQzPrinterConfig()
+          if (savedQz && detectedQz.includes(savedQz.printerName)) {
+            detectedQz = [savedQz.printerName, ...detectedQz.filter(p => p !== savedQz.printerName)]
+          }
+        } catch { /* non-critical */ }
+      }
+      setQzPrinters(detectedQz)
+
+      const saved = currentSelected ?? localStorage.getItem(printerKey) ?? localStorage.getItem('lastSelectedPrinterId') ?? ''
+      if (saved) {
+        if (saved.startsWith(QZ_PRINTER_PREFIX)) {
+          const qzName = saved.slice(QZ_PRINTER_PREFIX.length)
+          if (detectedQz.includes(qzName)) { setSelectedPrinterId(saved); return }
+        } else if (list.find(p => p.id === saved)) { setSelectedPrinterId(saved); return }
+      }
+      // Auto-select saved QZ printer if available
+      const savedQz = getQzPrinterConfig()
+      if (savedQz && detectedQz.includes(savedQz.printerName)) { setSelectedPrinterId(QZ_PRINTER_PREFIX + savedQz.printerName); return }
+      const online = list.find(p => p.isOnline)
+      if (online) setSelectedPrinterId(online.id)
+      else if (list.length === 1) setSelectedPrinterId(list[0].id)
+    } catch { /* non-critical */ }
+    finally { setPrintersLoading(false) }
   }
 
   useEffect(() => {
@@ -465,17 +496,24 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
         }
       }
 
-      const bytes = new Uint8Array(allLabels.length)
-      for (let i = 0; i < allLabels.length; i++) bytes[i] = allLabels.charCodeAt(i) & 0xFF
-      const escPosData = btoa(Array.from(bytes).map(b => String.fromCharCode(b)).join(''))
-      const res = await fetch('/api/print/card', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printerId: selectedPrinterId, businessId: selectedBusinessId, escPosData }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `Print failed (${res.status})`)
+      // QZ Tray path — print directly via WebSocket
+      if (selectedPrinterId.startsWith(QZ_PRINTER_PREFIX)) {
+        const printerName = selectedPrinterId.slice(QZ_PRINTER_PREFIX.length)
+        await printToQzPrinter(printerName, allLabels)
+      } else {
+        // Network printer path
+        const bytes = new Uint8Array(allLabels.length)
+        for (let i = 0; i < allLabels.length; i++) bytes[i] = allLabels.charCodeAt(i) & 0xFF
+        const escPosData = btoa(Array.from(bytes).map(b => String.fromCharCode(b)).join(''))
+        const res = await fetch('/api/print/card', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ printerId: selectedPrinterId, businessId: selectedBusinessId, escPosData }),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || `Print failed (${res.status})`)
+        }
       }
       await logPrintHistory(qtyPerBale)
       setReceiptSuccess(true)
@@ -621,12 +659,13 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                 : <>🖨️ Print / Save as PDF {qtyPerBale > 0 && `(${qtyPerBale})`}</>}
             </button>
 
-            {printers.length > 0 && (
+            {(printers.length > 0 || qzPrinters.length > 0) && (
               <div className="space-y-2">
-                {printers.length > 1 && (
+                {(printers.length + qzPrinters.length > 1) && (
                   <select value={selectedPrinterId} onChange={e => handlePrinterChange(e.target.value)}
                     className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                     <option value="">Select printer…</option>
+                    {qzPrinters.map(name => <option key={`${QZ_PRINTER_PREFIX}${name}`} value={`${QZ_PRINTER_PREFIX}${name}`}>{name} (QZ Tray)</option>)}
                     {printers.map(p => <option key={p.id} value={p.id}>{p.printerName}{p.isOnline === false ? ' (offline)' : ''}</option>)}
                   </select>
                 )}
@@ -766,14 +805,15 @@ export function BulkPrintModal({ isOpen, onClose, baleId, qty, templateId, busin
                   <span className="inline-block w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                   Looking for receipt printers…
                 </div>
-              ) : printers.length === 0 ? (
+              ) : printers.length === 0 && qzPrinters.length === 0 ? (
                 <p className="text-xs text-gray-400 py-1">No receipt printers found</p>
               ) : (
                 <div className="space-y-2">
-                  {printers.length > 1 && (
+                  {(printers.length + qzPrinters.length > 1) && (
                     <select value={selectedPrinterId} onChange={e => handlePrinterChange(e.target.value)}
                       className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                       <option value="">Select printer…</option>
+                      {qzPrinters.map(name => <option key={`${QZ_PRINTER_PREFIX}${name}`} value={`${QZ_PRINTER_PREFIX}${name}`}>{name} (QZ Tray)</option>)}
                       {printers.map(p => <option key={p.id} value={p.id}>{p.printerName}{p.isOnline === false ? ' (offline)' : ''}</option>)}
                     </select>
                   )}

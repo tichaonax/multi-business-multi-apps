@@ -148,8 +148,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
 
-  // Browse tab: 'quickadd' | 'bales'
-  const [browseTab, setBrowseTab] = useState<'quickadd' | 'bales'>('quickadd')
+  // Browse tab: 'quickadd' | 'bales' | 'wifi'
+  const [browseTab, setBrowseTab] = useState<'quickadd' | 'bales' | 'wifi'>('quickadd')
+  const [wifiTokenProducts, setWifiTokenProducts] = useState<any[]>([])
   const [bales, setBales] = useState<any[]>([])
   const [balesLoading, setBalesLoading] = useState(false)
   const [showAddStockPanel, setShowAddStockPanel] = useState(false)
@@ -652,14 +653,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             })
             .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
 
-          // Load R710 WiFi tokens and add as products
-          let wifiTokenProducts: any[] = []
+          // Load R710 WiFi tokens — shown in dedicated WiFi tab
+          let loadedWifiTokens: any[] = []
           try {
             const r710Response = await fetch(`/api/business/${currentBusiness.businessId}/r710-tokens`)
             if (r710Response.ok) {
               const r710Data = await r710Response.json()
               if (r710Data.menuItems && r710Data.menuItems.length > 0) {
-                wifiTokenProducts = r710Data.menuItems
+                loadedWifiTokens = r710Data.menuItems
                   .filter((item: any) => item.isActive && item.tokenConfig?.isActive)
                   .map((item: any) => {
                     const config = item.tokenConfig
@@ -684,7 +685,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                       }]
                     }
                   })
-                console.log(`📶 Loaded ${wifiTokenProducts.length} R710 WiFi token products for clothing POS`)
+                console.log(`📶 Loaded ${loadedWifiTokens.length} R710 WiFi token products for clothing POS`)
               }
             }
           } catch (wifiError) {
@@ -697,7 +698,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             const stored = localStorage.getItem(`pos-quickadd-${currentBusiness.businessId}`)
             if (stored) {
               const pinnedIds: string[] = JSON.parse(stored)
-              const loadedIds = new Set([...wifiTokenProducts, ...products].map((p: any) => p.id))
+              const loadedIds = new Set(products.map((p: any) => p.id))
               const missingIds = pinnedIds.filter(id => !loadedIds.has(id))
 
               for (const pid of missingIds) {
@@ -748,7 +749,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             }
           } catch { /* ignore localStorage errors */ }
 
-          setQuickAddProducts([...pinnedProducts, ...wifiTokenProducts, ...products].filter(
+          // WiFi tokens get their own tab — keep them separate from quick-add products
+          setWifiTokenProducts(loadedWifiTokens)
+          setQuickAddProducts([...pinnedProducts, ...products].filter(
             p => p.variants.some((v: any) => v.price > 0)
           ))
         }
@@ -856,8 +859,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
             // Also include WiFi token products that match search term
             const searchLower = productSearchTerm.toLowerCase()
-            const matchingWifiTokens = quickAddProducts.filter(p =>
-              p.id.startsWith('r710_') && p.name.toLowerCase().includes(searchLower)
+            const matchingWifiTokens = wifiTokenProducts.filter((p: any) =>
+              p.name.toLowerCase().includes(searchLower)
             )
 
             // Also search locally-loaded bales by SKU, batchNumber, or category name
@@ -1841,6 +1844,19 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               >
                 📦 Bale Items
               </button>
+              {wifiTokenProducts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setBrowseTab('wifi')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    browseTab === 'wifi'
+                      ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                  }`}
+                >
+                  📶 R710 WiFi
+                </button>
+              )}
             </div>
             {browseTab === 'bales' && (
               <button
@@ -2036,6 +2052,40 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   </div>
                 )
               })()}
+            </div>
+          )}
+
+          {/* ── WiFi Tokens Tab ── */}
+          {browseTab === 'wifi' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {wifiTokenProducts.map((product: any) => {
+                const variant = product.variants[0]
+                return (
+                  <div key={product.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-800 rounded-lg flex items-center justify-center text-2xl flex-shrink-0">
+                        📶
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{product.name}</p>
+                        {variant?.attributes?.description && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{variant.attributes.description}</p>
+                        )}
+                        <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                          {variant?.price > 0 ? `$${Number(variant.price).toFixed(2)}` : 'Free'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addToCart(product.id, variant.id)}
+                      className="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Add to Cart
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

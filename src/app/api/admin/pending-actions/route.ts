@@ -463,6 +463,32 @@ export async function GET() {
       businessType: d.business?.type ?? 'clothing',
     }))
 
+    // Pending eco-cash conversion requests — visible to users with canSubmitPaymentBatch
+    let pendingEcocashConversions: object[] = []
+    if (sysAdmin || permissions.canSubmitPaymentBatch) {
+      const ecocashRows = await prisma.ecocashConversion.findMany({
+        where: { status: 'PENDING' },
+        select: {
+          id: true,
+          amount: true,
+          notes: true,
+          requestedAt: true,
+          requester: { select: { id: true, name: true } },
+          business: { select: { id: true, name: true } },
+        },
+        orderBy: { requestedAt: 'asc' },
+        take: 50,
+      })
+      pendingEcocashConversions = ecocashRows.map((e: any) => ({
+        id: e.id,
+        amount: Number(e.amount),
+        notes: e.notes ?? null,
+        requestedAt: e.requestedAt.toISOString(),
+        requester: e.requester ? { id: e.requester.id, name: e.requester.name } : null,
+        business: e.business ? { id: e.business.id, name: e.business.name } : null,
+      }))
+    }
+
     // Personal payment requests — REQUEST-status payments on personal accounts where the
     // current user has an explicit expenseAccountGrant (or is a sys admin who sees all).
     let personalPaymentRequests: object[] = []
@@ -536,7 +562,8 @@ export async function GET() {
       myApprovedPaymentsMapped.length +
       myApprovedPettyCash.length +
       pendingStockTakeDrafts.length +
-      (personalPaymentRequests as unknown[]).length
+      (personalPaymentRequests as unknown[]).length +
+      (pendingEcocashConversions as unknown[]).length
 
     return NextResponse.json({
       loanLockRequests,
@@ -553,6 +580,7 @@ export async function GET() {
       myApprovedPettyCash,
       pendingStockTakeDrafts,
       personalPaymentRequests,
+      pendingEcocashConversions,
       canApprovePettyCash,
       canRequestPettyCash,
       canApproveCashAlloc: canApproveCashAllocation,

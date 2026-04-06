@@ -39,6 +39,7 @@
     - [Cashier-Assisted Payment Requests (Personal Accounts)](#cashier-assisted-payment-requests-personal-accounts)
 23. [Quick Deposit — Income Categorisation](#23-quick-deposit--income-categorisation)
 24. [Payment Vouchers — Creating, Viewing & Locking](#24-payment-vouchers--creating-viewing--locking)
+25. [Eco-Cash to Cash Conversions](#25-eco-cash-to-cash-conversions)
 
 ---
 
@@ -424,6 +425,106 @@ When the manager runs payroll, they may ask you to pull cash for salary payments
 
 ---
 
+### Eco-Cash to Cash Conversions
+
+A **Cash Bucket** cashier can convert eco-cash (mobile money) into physical cash for customers or staff. The system tracks the transaction through a multi-step approval workflow so that both the eco-cash wallet balance and the physical cash balance stay accurate.
+
+#### Who Is Involved
+
+| Role | What they do |
+|------|--------------|
+| **Requester** | Submits a request for a specific dollar amount to be converted from eco-cash to cash |
+| **Cashier / Approver** | Reviews the request, verifies the eco-cash balance is sufficient, and confirms the tendered amount |
+| **Cashier / Completer** | Physically sends the eco-cash transfer, receives the cash, and records the final amounts |
+
+Approver and Completer can be the same person.
+
+---
+
+#### Step 1 — Submitting a Conversion Request (Requester)
+
+1. Go to **Cash Bucket** in the menu.
+2. Click **New Eco-Cash Conversion** (or the equivalent button on the page).
+3. Select the **business** whose eco-cash wallet will be used.
+4. Enter the **amount** you want converted (in USD).
+5. Add any **notes** — e.g. the reason or the recipient's name.
+6. Click **Submit Request**.
+
+The request is created with status **PENDING** and a notification is sent to cashiers with approval access.
+
+---
+
+#### Step 2 — Approving the Request (Cashier)
+
+1. Open the 🔔 **bell** menu or go to **Pending Actions**. Pending eco-cash conversions appear under *Eco-Cash Conversions*.
+2. Click **Review** to open the **Cash Bucket** page.
+3. Find the PENDING conversion in the list.
+4. Click **Approve**.
+5. In the dialog, confirm the **Tendered Amount** — this is the exact eco-cash amount that will be sent to the requester. It may differ slightly from the requested amount (e.g. the requested amount is $66.00 but eco-cash fees round it to $66.35).
+6. Click **Approve**.
+
+The system checks that the eco-cash wallet has sufficient balance before approving. If the balance is too low, the approval is blocked.
+
+The status changes to **APPROVED**.
+
+---
+
+#### Step 3 — Completing the Conversion (Cashier)
+
+After approval:
+
+1. Open the eco-cash app or use the USSD interface to send the approved amount to the requester's eco-cash number. The requester **must have the cash ready** to hand over.
+2. Note the **transaction code** from the eco-cash confirmation SMS or app (e.g. `66567DE`).
+3. Back in the system, find the APPROVED conversion and click **Complete**.
+4. Fill in the three fields:
+
+| Field | What to enter | Required? |
+|-------|---------------|-----------|
+| **Eco-Cash Transaction Code** | The reference code from the eco-cash confirmation message | Optional but strongly recommended |
+| **Eco-Cash Total Sent** | The exact decimal amount debited from the eco-cash wallet (e.g. `66.35`) — may include fees | Required |
+| **Cash Tendered** | The whole dollar amount of physical cash you received from the requester (e.g. `67`) | Required |
+
+5. Click **Confirm & Complete**.
+
+The system:
+- Records an **OUTFLOW** from the eco-cash wallet for the exact eco-cash amount sent.
+- Records an **INFLOW** into the cash bucket for the cash received.
+- Marks the conversion as **COMPLETED** and stores the transaction code.
+
+---
+
+#### Step 4 — Rejecting a Request (if needed)
+
+If a request cannot be processed (insufficient balance, incorrect amount, or suspicious request):
+
+1. Find the PENDING conversion and click **Reject**.
+2. Enter a **rejection reason** — this is saved and visible to the requester.
+3. Click **Reject**.
+
+The status changes to **REJECTED** and the requester can see the reason.
+
+---
+
+#### Status Overview
+
+| Status | Meaning |
+|--------|---------|
+| **PENDING** | Request submitted, awaiting cashier approval |
+| **APPROVED** | Cashier confirmed the tendered amount; ready to complete |
+| **COMPLETED** | Eco-cash sent, cash received, ledger entries created |
+| **REJECTED** | Request declined; no ledger entries created |
+
+---
+
+#### Important Tips
+
+- Always record the **transaction code**. If the eco-cash payment is disputed later, the code is your proof.
+- The **Eco-Cash Total Sent** (decimal) and **Cash Tendered** (integer) may differ — fees, rounding, or change. Enter both exactly as they occurred. The system uses each figure for the correct ledger side.
+- The eco-cash balance check happens at **Approve** time. If another transaction reduces the balance between approval and completion, the system will still allow completion — always verify the balance yourself before sending.
+- Completed conversions appear in the list with a summary: *EcoCash: $66.35 → Cash: $67* and the transaction code for quick reference.
+
+---
+
 ## 4. Manager — Approvals, Payroll & Reports
 
 > **Who reads this:** Business managers and business owners responsible for approving staff requests, running payroll, and reviewing financial performance.
@@ -437,6 +538,7 @@ Click the bell or go to **Pending Actions** to see everything in one place. Item
 - Salary increase requests
 - Petty cash requests
 - Payroll periods ready for approval
+- Eco-Cash to Cash conversion requests (cashiers only)
 
 Click any item to review and approve or decline it.
 

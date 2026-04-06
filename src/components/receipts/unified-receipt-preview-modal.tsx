@@ -27,15 +27,23 @@ import {
   printToLocalPrinter,
   isLocalPrinterAvailable,
 } from '@/lib/printing/local-serial-printer'
+import {
+  isQzTrayAvailable,
+  listQzPrinters,
+  printToQzPrinter,
+  getQzPrinterConfig,
+} from '@/lib/printing/qz-tray-printer'
 import type { ReceiptData, NetworkPrinter, BusinessType } from '@/types/printing'
 
 const LOCAL_PRINTER_ID = 'local-serial'
+const QZ_PRINTER_PREFIX = 'qz::'
 
 // Module-level cache — persists across modal opens within the same page session
 let printerCache: {
   printers: NetworkPrinter[]
   hasLocalPrinter: boolean
   localPrinterName: string
+  qzPrinters: string[]
 } | null = null
 
 interface UnifiedReceiptPreviewModalProps {
@@ -65,6 +73,7 @@ export function UnifiedReceiptPreviewModal({
   const [printersLoading, setPrintersLoading] = useState(() => printerCache === null)
   const [hasLocalPrinter, setHasLocalPrinter] = useState(() => printerCache?.hasLocalPrinter || false)
   const [localPrinterName, setLocalPrinterName] = useState(() => printerCache?.localPrinterName || '')
+  const [qzPrinters, setQzPrinters] = useState<string[]>(() => printerCache?.qzPrinters || [])
   const [showLocalSetup, setShowLocalSetup] = useState(false)
   const [checkingOnline, setCheckingOnline] = useState(false)
   const toast = useToastContext()
@@ -85,7 +94,7 @@ export function UnifiedReceiptPreviewModal({
       isPrintingRef.current = false
       if (printerCache) {
         // Cache hit — auto-select printer without any network call or loading state
-        autoSelectPrinter(printerCache.printers, printerCache.hasLocalPrinter)
+        autoSelectPrinter(printerCache.printers, printerCache.hasLocalPrinter, printerCache.qzPrinters)
       } else {
         loadPrinters()
       }
@@ -98,7 +107,7 @@ export function UnifiedReceiptPreviewModal({
       setPrinters(printerCache.printers)
       setHasLocalPrinter(printerCache.hasLocalPrinter)
       setLocalPrinterName(printerCache.localPrinterName)
-      autoSelectPrinter(printerCache.printers, printerCache.hasLocalPrinter)
+      autoSelectPrinter(printerCache.printers, printerCache.hasLocalPrinter, printerCache.qzPrinters)
       setPrintersLoading(false)
       return
     }
@@ -116,14 +125,36 @@ export function UnifiedReceiptPreviewModal({
       const data = await response.json()
       const availablePrinters = data.printers || []
 
-      // Check for local USB printer
+      // Check for local USB printer (Web Serial) and QZ Tray printers in parallel
       let localAvailable = false
       let localName = ''
-      if (isWebSerialSupported()) {
-        const localConfig = getLocalPrinterConfig()
-        if (localConfig) {
-          localAvailable = await isLocalPrinterAvailable()
-          localName = localConfig.name
+      let detectedQzPrinters: string[] = []
+
+      const [, qzAvailable] = await Promise.all([
+        // Web Serial check
+        (async () => {
+          if (isWebSerialSupported()) {
+            const localConfig = getLocalPrinterConfig()
+            if (localConfig) {
+              localAvailable = await isLocalPrinterAvailable()
+              localName = localConfig.name
+            }
+          }
+        })(),
+        // QZ Tray check
+        isQzTrayAvailable(),
+      ])
+
+      if (qzAvailable) {
+        try {
+          detectedQzPrinters = await listQzPrinters()
+          // If no printer saved yet but QZ has printers, pre-select the saved one
+          const savedQz = getQzPrinterConfig()
+          if (savedQz && detectedQzPrinters.includes(savedQz.printerName)) {
+            detectedQzPrinters = [savedQz.printerName, ...detectedQzPrinters.filter(p => p !== savedQz.printerName)]
+          }
+        } catch {
+          // QZ printer list failed — continue without it
         }
       }
 
@@ -132,12 +163,14 @@ export function UnifiedReceiptPreviewModal({
         printers: availablePrinters,
         hasLocalPrinter: localAvailable,
         localPrinterName: localName,
+        qzPrinters: detectedQzPrinters,
       }
 
       setPrinters(availablePrinters)
       setHasLocalPrinter(localAvailable)
       setLocalPrinterName(localName)
-      autoSelectPrinter(availablePrinters, localAvailable)
+      setQzPrinters(detectedQzPrinters)
+      autoSelectPrinter(availablePrinters, localAvailable, detectedQzPrinters)
 
       if (availablePrinters.length === 0 && !localAvailable) {
         toast.error('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
@@ -151,7 +184,7 @@ export function UnifiedReceiptPreviewModal({
     }
   }
 
-  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean) {
+  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean, qzPrinterList: string[] = []) {
     try {
       let lastPrinterId = localStorage.getItem(printerKey)
       if (!lastPrinterId) {
@@ -164,11 +197,23 @@ export function UnifiedReceiptPreviewModal({
       if (lastPrinterId) {
         if (lastPrinterId === LOCAL_PRINTER_ID && localAvailable) {
           setSelectedPrinterId(LOCAL_PRINTER_ID)
+        } else if (lastPrinterId.startsWith(QZ_PRINTER_PREFIX)) {
+          const qzName = lastPrinterId.slice(QZ_PRINTER_PREFIX.length)
+          if (qzPrinterList.includes(qzName)) {
+            setSelectedPrinterId(lastPrinterId)
+          }
         } else {
           const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
           if (savedPrinter && savedPrinter.isOnline) {
             setSelectedPrinterId(lastPrinterId)
           }
+        }
+      }
+      // Auto-select saved QZ printer even if no prior selection
+      if (!lastPrinterId && qzPrinterList.length > 0) {
+        const saved = getQzPrinterConfig()
+        if (saved && qzPrinterList.includes(saved.printerName)) {
+          setSelectedPrinterId(QZ_PRINTER_PREFIX + saved.printerName)
         }
       }
     } catch (storageError) {
@@ -244,6 +289,30 @@ export function UnifiedReceiptPreviewModal({
         return
       }
 
+      // QZ Tray printer path — print directly via QZ Tray WebSocket
+      if (selectedPrinterId?.startsWith(QZ_PRINTER_PREFIX)) {
+        const printerName = selectedPrinterId.slice(QZ_PRINTER_PREFIX.length)
+        console.log('🖨️ [Modal] Printing via QZ Tray to:', printerName)
+
+        const businessReceiptData = { ...receiptData, receiptType: 'business' as const }
+        const businessEscPos = generateReceipt(businessReceiptData)
+        await printToQzPrinter(printerName, businessEscPos)
+        console.log('✅ Business copy printed via QZ Tray')
+
+        if (supportsCustomerCopy && printCustomerCopy) {
+          const customerReceiptData = { ...receiptData, receiptType: 'customer' as const }
+          const customerEscPos = generateReceipt(customerReceiptData)
+          for (let i = 0; i < copies; i++) {
+            await printToQzPrinter(printerName, customerEscPos)
+          }
+          console.log('✅ Customer copy printed via QZ Tray (' + copies + ' copies)')
+        }
+
+        toast.push('Receipt printed via QZ Tray')
+        onClose()
+        return
+      }
+
       // Network printer path — send to server print queue
       console.log('📋 [Modal] Calling onPrintConfirm at:', new Date().toISOString())
       console.log('   printerId:', selectedPrinterId)
@@ -277,9 +346,10 @@ export function UnifiedReceiptPreviewModal({
 
   const selectedPrinter = printers.find(p => p.id === selectedPrinterId)
   const isLocalSelected = selectedPrinterId === LOCAL_PRINTER_ID
+  const isQzSelected = selectedPrinterId?.startsWith(QZ_PRINTER_PREFIX) ?? false
   const isRestaurant = businessType === 'restaurant'
   const supportsCustomerCopy = ['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)
-  const hasPrintersOrLocal = printers.length > 0 || hasLocalPrinter
+  const hasPrintersOrLocal = printers.length > 0 || hasLocalPrinter || qzPrinters.length > 0
 
   if (!isOpen) return null
 
@@ -364,6 +434,11 @@ export function UnifiedReceiptPreviewModal({
                   {hasLocalPrinter && (
                     <option value={LOCAL_PRINTER_ID}>{localPrinterName} (Local USB)</option>
                   )}
+                  {qzPrinters.map((name) => (
+                    <option key={`${QZ_PRINTER_PREFIX}${name}`} value={`${QZ_PRINTER_PREFIX}${name}`}>
+                      {name} (QZ Tray)
+                    </option>
+                  ))}
                   {printers.map((printer) => (
                     <option key={printer.id} value={printer.id}>
                       {printer.printerName} {printer.isOnline ? '(Online)' : '(Offline)'}
@@ -381,6 +456,11 @@ export function UnifiedReceiptPreviewModal({
               {isLocalSelected && (
                 <p className="mt-1.5 flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
                   <Usb className="w-3.5 h-3.5" /> Prints directly from this browser
+                </p>
+              )}
+              {isQzSelected && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                  <Printer className="w-3.5 h-3.5" /> Prints via QZ Tray on this machine
                 </p>
               )}
               {selectedPrinter && !isLocalSelected && (
@@ -502,11 +582,11 @@ export function UnifiedReceiptPreviewModal({
             </Button>
             <Button
               onClick={handlePrint}
-              disabled={loading || !selectedPrinterId || (!isLocalSelected && !selectedPrinter?.isOnline)}
+              disabled={loading || !selectedPrinterId || (!isLocalSelected && !isQzSelected && !selectedPrinter?.isOnline)}
               title={
                 !selectedPrinterId
                   ? 'Please select a printer first'
-                  : !isLocalSelected && !selectedPrinter?.isOnline
+                  : !isLocalSelected && !isQzSelected && !selectedPrinter?.isOnline
                   ? 'Selected printer is offline'
                   : 'Print receipt'
               }

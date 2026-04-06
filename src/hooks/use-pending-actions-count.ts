@@ -23,6 +23,7 @@ export interface PendingActionsData {
   myApprovedPayments: { id: string; amount: number; notes: string | null; categoryName: string | null; businessName: string; approvedAt: string | null; payeeName: string | null; payeePhone: string | null }[]
   myApprovedPettyCash: { id: string; purpose: string; approvedAmount: number | null; approvedAt: string | null; business: { name: string } | null }[]
   pendingStockTakeDrafts: { id: string; title: string; itemCount: number; updatedAt: string; businessId: string | null; businessName: string; businessType: string }[]
+  pendingEcocashConversions: { id: string; amount: number; notes: string | null; requestedAt: string; requester: { id: string; name: string } | null; business: { id: string; name: string } | null }[]
 }
 
 // Module-level promise cache — deduplicates concurrent fetches (e.g. bell + dashboard badge mounting together)

@@ -121,6 +121,15 @@ interface StandalonePaymentDetail {
   creatorName: string | null
 }
 
+interface PendingEcocashConversion {
+  id: string
+  amount: number
+  notes: string | null
+  requestedAt: string
+  requester: { id: string; name: string } | null
+  business: { id: string; name: string } | null
+}
+
 export default function PendingActionsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -138,11 +147,12 @@ export default function PendingActionsPage() {
   const [myApprovedPettyCash, setMyApprovedPettyCash] = useState<any[]>([])
   const [pendingMealPrograms, setPendingMealPrograms] = useState<PendingMealProgram[]>([])
   const [personalPaymentRequests, setPersonalPaymentRequests] = useState<PersonalPaymentRequest[]>([])
+  const [pendingEcocashConversions, setPendingEcocashConversions] = useState<PendingEcocashConversion[]>([])
   const [personalActionState, setPersonalActionState] = useState<Record<string, 'approving' | 'rejecting' | null>>({})
   const [loading, setLoading] = useState(true)
   const total = loanLockRequests.length + pendingSupplierPayments.length + pendingPettyCash.length +
     pendingCashAllocations.length + pendingPaymentBatches.length + pendingPaymentRequests.length +
-    pendingMealPrograms.length + personalPaymentRequests.length
+    pendingMealPrograms.length + personalPaymentRequests.length + pendingEcocashConversions.length
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [batchingId, setBatchingId] = useState<string | null>(null)
   const [approvingMealId, setApprovingMealId] = useState<string | null>(null)
@@ -172,6 +182,7 @@ export default function PendingActionsPage() {
         setMyApprovedPettyCash(json.myApprovedPettyCash || [])
         setPendingMealPrograms(json.pendingMealPrograms || [])
         setPersonalPaymentRequests(json.personalPaymentRequests || [])
+        setPendingEcocashConversions(json.pendingEcocashConversions || [])
       }
     } catch { /* ignore */ } finally {
       setLoading(false)
@@ -466,6 +477,45 @@ export default function PendingActionsPage() {
                     </div>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Pending Eco-Cash Conversions */}
+            {pendingEcocashConversions.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>📱</span> Eco-Cash to Cash Conversions
+                  <span className="bg-teal-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {pendingEcocashConversions.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {pendingEcocashConversions.map(item => (
+                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-teal-300 dark:border-teal-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-lg">📱→💵</span>
+                          <span className="font-semibold text-gray-900 dark:text-white">
+                            {item.business?.name ?? '—'}
+                          </span>
+                          <span className="bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 text-xs font-medium px-2 py-0.5 rounded">Pending Approval</span>
+                        </div>
+                        {item.notes && <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{item.notes}</p>}
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                          <span>Amount: <span className="font-semibold text-teal-600 dark:text-teal-400">${Number(item.amount).toFixed(2)}</span></span>
+                          <span>Requested by: <span className="font-medium text-gray-700 dark:text-gray-300">{item.requester?.name ?? '—'}</span></span>
+                          <span>At: <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateTimeZim(item.requestedAt)}</span></span>
+                        </div>
+                      </div>
+                      <Link
+                        href="/cash-bucket"
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      >
+                        Review
+                      </Link>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

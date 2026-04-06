@@ -3,12 +3,14 @@
 /**
  * Local Printer Setup Component
  *
- * Allows users to pair a local USB thermal printer via the Web Serial API.
+ * Allows users to pair a local USB thermal printer via the Web Serial API
+ * or configure QZ Tray for USB/network printing.
  * The printer is stored in localStorage (per-machine, not shared).
  */
 
 import { useState, useEffect } from 'react'
 import { Usb, Check, AlertCircle, Trash2, Printer } from 'lucide-react'
+import { QzTraySetup } from '@/components/printing/qz-tray-setup'
 import {
   isWebSerialSupported,
   requestLocalPrinter,
@@ -177,10 +179,24 @@ export function LocalPrinterSetup({
 
   // Setup state
   return (
-    <div className={`${compact ? 'p-3' : 'p-4'} bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg`}>
+    <div className={`${compact ? 'p-3' : 'p-4'} space-y-4`}>
+      {/* QZ Tray section — recommended, shown in full (non-compact) view */}
+      {!compact && (
+        <div>
+          <h4 className="text-sm font-semibold text-primary mb-1 flex items-center gap-2">
+            <Printer className="w-4 h-4" />
+            QZ Tray <span className="text-xs font-normal text-green-600 dark:text-green-400">(Recommended — all browsers, USB + network)</span>
+          </h4>
+          <QzTraySetup />
+        </div>
+      )}
+
+      {/* Web Serial section */}
+      <div className={`${compact ? '' : 'pt-2 border-t border-gray-200 dark:border-gray-700'}`}>
+      <div className={`${compact ? 'p-3' : 'p-4'} bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg`}>
       <h4 className="text-sm font-medium text-primary mb-3 flex items-center gap-2">
         <Usb className="w-4 h-4" />
-        Setup Local USB Printer
+        {compact ? 'Setup Local USB Printer' : 'Web Serial (Chrome/Edge only)'}
       </h4>
 
       <div className="space-y-3 mb-4">
@@ -229,6 +245,8 @@ export function LocalPrinterSetup({
       <p className="text-xs text-secondary mt-2">
         Your browser will show a list of available serial ports. Select the port for your thermal receipt printer.
       </p>
+    </div>
+    </div>
     </div>
   )
 }

@@ -541,6 +541,7 @@ model Businesses {
   stock_take_drafts                                                        StockTakeDrafts[]             @relation("StockTakeDraftBusiness")
   stock_take_reports                                                       StockTakeReports[]            @relation("StockTakeReportBusiness")
   customBulkProducts                                                       CustomBulkProducts[]          @relation("CustomBulkBusiness")
+  ecocash_conversions                                                      EcocashConversion[]           @relation("BusinessEcocashConversions")
 
   @@map("businesses")
 }
@@ -3340,6 +3341,10 @@ model Users {
   stock_take_reports_submitted                                    StockTakeReports[]               @relation("StockTakeReportSubmitter")
   stock_take_reports_managed                                      StockTakeReports[]               @relation("StockTakeReportManager")
   stock_take_report_employee_signoffs                             StockTakeReportEmployees[]       @relation("StockTakeReportEmployeeSigner")
+  ecocash_conversions_requested                                   EcocashConversion[]              @relation("EcocashConversionRequester")
+  ecocash_conversions_approved                                    EcocashConversion[]              @relation("EcocashConversionApprover")
+  ecocash_conversions_completed                                   EcocashConversion[]              @relation("EcocashConversionCompleter")
+  ecocash_conversions_rejected                                    EcocashConversion[]              @relation("EcocashConversionRejecter")
 
   @@map("users")
 }
@@ -5425,6 +5430,58 @@ model CashBucketEntry {
   @@index([entryDate])
   @@index([direction])
   @@map("cash_bucket_entries")
+}
+
+model EcocashConversion {
+  id             String   @id @default(uuid())
+  businessId     String
+  amount         Decimal  @db.Decimal(12, 2)
+  // tenderedAmount: actual eco-cash amount set by approver. May differ from amount.
+  // Cashier collects exactly this in cash. Both ledger entries use this value.
+  tenderedAmount Decimal? @map("tendered_amount") @db.Decimal(12, 2)
+  notes          String?
+
+  status String @default("PENDING")
+  // PENDING | APPROVED | COMPLETED | REJECTED
+
+  requestedBy String
+  requestedAt DateTime @default(now())
+
+  approvedBy String?
+  approvedAt DateTime?
+
+  completedBy String?
+  completedAt DateTime?
+
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  // Eco-cash transaction reference code captured at completion
+  transactionCode String? @map("transaction_code")
+
+  // Actual eco-cash amount sent (decimal, captured at completion) — used for OUTFLOW ECOCASH ledger entry
+  ecocashAmount Decimal? @map("eco_cash_amount") @db.Decimal(12, 2)
+
+  // Actual physical cash handed to requester (whole number, captured at completion) — used for INFLOW CASH ledger entry
+  cashTendered Int? @map("cash_tendered")
+
+  // Ledger entries created atomically on completion
+  outflowEntryId String? @unique @map("outflow_entry_id")
+  inflowEntryId  String? @unique @map("inflow_entry_id")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  business  Businesses @relation("BusinessEcocashConversions", fields: [businessId], references: [id])
+  requester Users      @relation("EcocashConversionRequester", fields: [requestedBy], references: [id])
+  approver  Users?     @relation("EcocashConversionApprover", fields: [approvedBy], references: [id])
+  completer Users?     @relation("EcocashConversionCompleter", fields: [completedBy], references: [id])
+  rejecter  Users?     @relation("EcocashConversionRejecter", fields: [rejectedBy], references: [id])
+
+  @@index([businessId, status])
+  @@index([businessId, requestedAt])
+  @@map("ecocash_conversions")
 }
 
 // ============================================================

@@ -917,6 +917,27 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
+                          {(pendingActions.pendingEcocashConversions?.length ?? 0) > 0 && (
+                            <>
+                              <div className="px-3 py-1.5 bg-teal-50 dark:bg-teal-900/20 border-t border-border">
+                                <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wide">
+                                  📱 Eco-Cash Conversions — {pendingActions.pendingEcocashConversions!.length} pending
+                                </span>
+                              </div>
+                              {pendingActions.pendingEcocashConversions!.map((e: any) => (
+                                <Link key={e.id} href="/cash-bucket" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-900/10 text-xs">
+                                  <span className="mt-0.5 shrink-0">📱→💵</span>
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-primary truncate">{e.business?.name ?? '—'}</p>
+                                    <p className="text-secondary">
+                                      <span className="text-teal-600 dark:text-teal-400 font-semibold">${Number(e.amount).toFixed(2)}</span>
+                                      {e.requester?.name ? ` · ${e.requester.name}` : ''}
+                                    </p>
+                                  </div>
+                                </Link>
+                              ))}
+                            </>
+                          )}
                           {pendingActions.pendingPaymentRequests?.map((r: any) => {
                             const hasUrgent = (r.urgentCount ?? 0) > 0
                             const isSingle = !!r.singlePaymentId

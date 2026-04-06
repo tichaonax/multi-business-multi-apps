@@ -8,6 +8,9 @@ import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { EcocashConversionRequestForm } from '@/components/ecocash-conversion/EcocashConversionRequestForm'
+import { EcocashConversionList, type EcocashConversion } from '@/components/ecocash-conversion/EcocashConversionList'
+import { EcocashConversionActions } from '@/components/ecocash-conversion/EcocashConversionActions'
 
 interface Business {
   id: string
@@ -64,10 +67,11 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
 
 const ENTRY_TYPE_LABEL: Record<string, string> = {
-  EOD_RECEIPT:       '💵 EOD Receipt',
-  PAYMENT_APPROVAL:  '✅ Payment Approval',
-  PETTY_CASH:        '🪙 Petty Cash',
-  CASH_ALLOCATION:   '📋 Cash Allocation',
+  EOD_RECEIPT:         '💵 EOD Receipt',
+  PAYMENT_APPROVAL:    '✅ Payment Approval',
+  PETTY_CASH:          '🪙 Petty Cash',
+  CASH_ALLOCATION:     '📋 Cash Allocation',
+  ECOCASH_CONVERSION:  '📱→💵 Eco-Cash Conversion',
 }
 
 // ── EOD Summary panel (inline, no navigation) ─────────────────────────────────
@@ -364,6 +368,15 @@ export default function CashBucketPage() {
   const [deleteReason, setDeleteReason] = useState('')
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
+  // Eco-cash conversion state
+  const [conversions, setConversions] = useState<EcocashConversion[]>([])
+  const [conversionsLoading, setConversionsLoading] = useState(false)
+  const [showConversionForm, setShowConversionForm] = useState(false)
+  const [conversionAction, setConversionAction] = useState<{
+    conversion: EcocashConversion
+    action: 'approve' | 'complete' | 'reject'
+  } | null>(null)
+
   // Filter / search state
   const [search, setSearch] = useState('')
   const [datePreset, setDatePreset] = useState<string>('7d')
@@ -438,9 +451,22 @@ export default function CashBucketPage() {
     }
   }, [])
 
+  const loadConversions = useCallback(async () => {
+    setConversionsLoading(true)
+    try {
+      const res = await fetch('/api/ecocash-conversions?limit=50', { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setConversions(json.data?.conversions ?? [])
+      }
+    } finally {
+      setConversionsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (status === 'unauthenticated') { router.push('/auth/signin'); return }
-    if (status === 'authenticated') { load(); loadBusinesses() }
+    if (status === 'authenticated') { load(); loadBusinesses(); loadConversions() }
   }, [status, load, loadBusinesses, router])
 
   useEffect(() => {
@@ -805,6 +831,31 @@ export default function CashBucketPage() {
           </div>
         </div>
 
+        {/* Eco-Cash Conversion section */}
+        <div className="rounded-lg border border-teal-200 dark:border-teal-700 bg-teal-50/40 dark:bg-teal-900/10 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-teal-800 dark:text-teal-200">📱→💵 Eco-Cash Conversions</h2>
+              <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">
+                Convert eco-cash wallet balance to physical cash. Net effect on total value = zero.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowConversionForm(true)}
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+            >
+              + Request Conversion
+            </button>
+          </div>
+          <EcocashConversionList
+            conversions={conversions}
+            loading={conversionsLoading}
+            onApprove={c => setConversionAction({ conversion: c, action: 'approve' })}
+            onComplete={c => setConversionAction({ conversion: c, action: 'complete' })}
+            onReject={c => setConversionAction({ conversion: c, action: 'reject' })}
+          />
+        </div>
+
         {/* Recent entries ledger */}
         <div>
           {/* Filter bar */}
@@ -831,6 +882,7 @@ export default function CashBucketPage() {
                 <option value="PETTY_CASH">Petty Cash</option>
                 <option value="PETTY_CASH_RETURN">Petty Cash Return</option>
                 <option value="CASH_ALLOCATION">Cash Allocation</option>
+                <option value="ECOCASH_CONVERSION">Eco-Cash Conversion</option>
               </select>
             </div>
 
@@ -1293,6 +1345,25 @@ export default function CashBucketPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Eco-cash conversion request form modal */}
+      {showConversionForm && (
+        <EcocashConversionRequestForm
+          businesses={businesses}
+          onSuccess={() => { setShowConversionForm(false); loadConversions(); load() }}
+          onClose={() => setShowConversionForm(false)}
+        />
+      )}
+
+      {/* Eco-cash conversion action modal (approve / complete / reject) */}
+      {conversionAction && (
+        <EcocashConversionActions
+          conversion={conversionAction.conversion}
+          action={conversionAction.action}
+          onSuccess={() => { setConversionAction(null); loadConversions(); load() }}
+          onClose={() => setConversionAction(null)}
+        />
       )}
 
     </ContentLayout>
