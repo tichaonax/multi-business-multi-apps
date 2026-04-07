@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { EmployeeIdCard } from '@/components/clock-in/employee-id-card'
+import { EmployeeIdCard, EmployeeIdCardModal } from '@/components/clock-in/employee-id-card'
 import { EmployeeAttendanceReport, type ReportEmployee } from '@/components/clock-in/employee-attendance-report'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
@@ -192,7 +192,6 @@ export default function ClockInDashboardPage() {
   // Print ID Card
   const [printCardEmp, setPrintCardEmp] = useState<AttendanceEmployee | null>(null)
   const [printExemptEmp, setPrintExemptEmp] = useState<ExemptEmployee | null>(null)
-  const printCardRef = useRef<HTMLDivElement>(null)
 
   // Exempt employee actions
   const [uploadingExemptPhotoId, setUploadingExemptPhotoId] = useState<string | null>(null)
@@ -522,39 +521,6 @@ export default function ClockInDashboardPage() {
     }
   }
 
-  const printDoubleCard = (name: string) => {
-    const cardEl = document.getElementById('employee-id-card')
-    if (!cardEl) return
-    const printWindow = window.open('', '_blank', 'width=900,height=520')
-    if (!printWindow) return
-    const styles = Array.from(document.styleSheets)
-      .map((sheet) => {
-        try { return Array.from(sheet.cssRules).map((r) => r.cssText).join('\n') }
-        catch { return '' }
-      })
-      .join('\n')
-    const cardHtml = cardEl.outerHTML
-    printWindow.document.write(`<!DOCTYPE html><html><head><title>ID Card — ${name}</title><style>${styles}
-      html,body{height:100%;margin:0;padding:0;}
-      body{display:flex;flex-direction:column;align-items:center;padding:16px;}
-      .print-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:10px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;width:100%;max-width:700px;box-sizing:border-box;}
-      .print-btn{background:#1f2937;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;}
-      .print-btn:hover{background:#374151;}
-      .print-title{font-size:13px;color:#64748b;}
-      .card-pair{display:inline-flex;align-items:flex-start;}
-      .fold-guide{width:0;align-self:stretch;border-left:2px dashed #888;}
-      @media print{.print-toolbar{display:none;}body{padding:5mm;}.fold-guide{border-left-color:#bbb;}}
-    </style></head><body>
-    <div class="print-toolbar">
-      <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
-      <span class="print-title">ID Card — ${name}</span>
-    </div>
-    <div class="card-pair">${cardHtml}<div class="fold-guide"></div>${cardHtml}</div>
-    </body></html>`)
-    printWindow.document.close()
-  }
-
-  const printIdCard = () => printDoubleCard(printCardEmp?.fullName ?? '')
 
   const formatTime = (iso: string | null) => {
     if (!iso) return '--'
@@ -1754,85 +1720,41 @@ export default function ClockInDashboardPage() {
 
       {/* Print ID Card Modal */}
       {printCardEmp && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900 dark:text-white">🪪 Employee ID Card</h3>
-              <button onClick={() => setPrintCardEmp(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
-            </div>
-            <div ref={printCardRef}>
-              <EmployeeIdCard
-                employee={{
-                  id: printCardEmp.id,
-                  fullName: printCardEmp.fullName,
-                  employeeNumber: printCardEmp.employeeNumber,
-                  scanToken: printCardEmp.scanToken ?? printCardEmp.employeeNumber,
-                  profilePhotoUrl: printCardEmp.profilePhotoUrl,
-                  phone: printCardEmp.phone,
-                  scheduledStartTime: printCardEmp.scheduledStartTime,
-                  scheduledEndTime: printCardEmp.scheduledEndTime,
-                  primaryBusiness: printCardEmp.primaryBusiness,
-                  jobTitle: printCardEmp.jobTitle,
-                }}
-              />
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={() => setPrintCardEmp(null)}
-                className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Close
-              </button>
-              <button
-                onClick={printIdCard}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-              >
-                🖨️ Print
-              </button>
-            </div>
-          </div>
-        </div>
+        <EmployeeIdCardModal
+          employee={{
+            id: printCardEmp.id,
+            fullName: printCardEmp.fullName,
+            employeeNumber: printCardEmp.employeeNumber,
+            scanToken: printCardEmp.scanToken ?? printCardEmp.employeeNumber,
+            profilePhotoUrl: printCardEmp.profilePhotoUrl,
+            phone: printCardEmp.phone,
+            scheduledStartTime: printCardEmp.scheduledStartTime,
+            scheduledEndTime: printCardEmp.scheduledEndTime,
+            primaryBusiness: printCardEmp.primaryBusiness,
+            jobTitle: printCardEmp.jobTitle,
+          }}
+          onClose={() => setPrintCardEmp(null)}
+        />
       )}
 
       {/* Print ID Card Modal — Exempt Employee */}
       {printExemptEmp && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900 dark:text-white">🪪 Employee ID Card</h3>
-              <button onClick={() => setPrintExemptEmp(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
-            </div>
-            <EmployeeIdCard
-              employee={{
-                id: printExemptEmp.id,
-                fullName: printExemptEmp.fullName,
-                employeeNumber: printExemptEmp.employeeNumber,
-                scanToken: (printExemptEmp as any).scanToken ?? printExemptEmp.employeeNumber,
-                profilePhotoUrl: printExemptEmp.profilePhotoUrl,
-                phone: printExemptEmp.phone,
-                businessContactPhone: (printExemptEmp as any).businessContactPhone ?? null,
-                scheduledStartTime: printExemptEmp.scheduledStartTime,
-                scheduledEndTime: printExemptEmp.scheduledEndTime,
-                primaryBusiness: printExemptEmp.primaryBusiness,
-                jobTitle: printExemptEmp.jobTitle,
-              }}
-            />
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={() => setPrintExemptEmp(null)}
-                className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => printDoubleCard(printExemptEmp?.fullName ?? '')}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-              >
-                🖨️ Print
-              </button>
-            </div>
-          </div>
-        </div>
+        <EmployeeIdCardModal
+          employee={{
+            id: printExemptEmp.id,
+            fullName: printExemptEmp.fullName,
+            employeeNumber: printExemptEmp.employeeNumber,
+            scanToken: (printExemptEmp as any).scanToken ?? printExemptEmp.employeeNumber,
+            profilePhotoUrl: printExemptEmp.profilePhotoUrl,
+            phone: printExemptEmp.phone,
+            businessContactPhone: printExemptEmp.businessContactPhone ?? null,
+            scheduledStartTime: printExemptEmp.scheduledStartTime,
+            scheduledEndTime: printExemptEmp.scheduledEndTime,
+            primaryBusiness: printExemptEmp.primaryBusiness,
+            jobTitle: printExemptEmp.jobTitle,
+          }}
+          onClose={() => setPrintExemptEmp(null)}
+        />
       )}
 
       {/* Employee Attendance Report Modal */}
