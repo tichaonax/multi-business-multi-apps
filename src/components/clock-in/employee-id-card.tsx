@@ -59,7 +59,7 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
       <div className="bg-blue-600 px-3 py-2 flex items-center justify-between">
         <span className="text-white font-bold text-xs tracking-wide leading-normal">EMPLOYEE ID CARD</span>
         {employee.primaryBusiness?.name && (
-          <span className="text-blue-200 text-xs ml-2 max-w-[140px] overflow-hidden whitespace-nowrap leading-normal">{employee.primaryBusiness.name}</span>
+          <span className="text-blue-200 text-xs ml-2 max-w-[140px] whitespace-nowrap leading-normal" style={{overflow:'visible'}}>{employee.primaryBusiness.name}</span>
         )}
       </div>
 
@@ -82,12 +82,12 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
 
         {/* Info */}
         <div className="flex-1 min-w-0 pt-0.5">
-          <div className="font-bold text-gray-900 text-sm leading-normal overflow-hidden whitespace-nowrap">{employee.fullName}</div>
+          <div className="font-bold text-gray-900 text-sm leading-relaxed whitespace-nowrap">{employee.fullName}</div>
           {employee.jobTitle && (
-            <div className="text-blue-700 text-xs font-medium mt-0.5 leading-normal overflow-hidden whitespace-nowrap">{employee.jobTitle.title}</div>
+            <div className="text-blue-700 text-xs font-medium mt-0.5 leading-relaxed whitespace-nowrap">{employee.jobTitle.title}</div>
           )}
           {employee.jobTitle?.department && (
-            <div className="text-gray-500 text-xs leading-normal overflow-hidden whitespace-nowrap">{employee.jobTitle.department}</div>
+            <div className="text-gray-500 text-xs leading-relaxed whitespace-nowrap">{employee.jobTitle.department}</div>
           )}
           {(employee.businessContactPhone || employee.primaryBusiness?.phone || employee.primaryBusiness?.umbrellaBusinessPhone || employee.phone) && (
             <div className="text-gray-600 text-xs mt-0.5">
