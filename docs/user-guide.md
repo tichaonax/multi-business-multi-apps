@@ -11,6 +11,8 @@
 3. [Cash Office — Cash Handling & End of Day](#3-cash-office--cash-handling--end-of-day)
 4. [Manager — Approvals, Payroll & Reports](#4-manager--approvals-payroll--reports)
 5. [HR & Employee Management](#5-hr--employee-management)
+    - [Employee Scan Cards (ID / Clock-In Cards)](#employee-scan-cards-id--clock-in-cards)
+    - [Printer Troubleshooting — Clearing Stuck Jobs](#printer-troubleshooting--clearing-stuck-jobs)
 6. [Employees — Clock-In, Leave & Per Diem](#6-employees--clock-in-leave--per-diem)
 7. [Expense Accounts & Petty Cash](#7-expense-accounts--petty-cash)
 8. [Business Loans](#8-business-loans)
@@ -1361,8 +1363,11 @@ Every employee has a personal barcode card used to clock in and out quickly. The
 **Issuing or reprinting a card:**
 1. Open the employee's profile (**Employees → [Employee Name]**).
 2. Go to the **ID Card** tab (or **Clock-In Card** tab).
-3. Click **Print Card**.
-4. The card opens as a printable page — **the front and back are laid out side by side on one sheet** so the card can be folded in half. Print the page, fold down the centre line (the two halves will face outward), trim to card size, laminate, and hand to the employee.
+3. Choose a print method (see below).
+
+#### Option A — Print ID Card (A4 / Laser / Inkjet)
+
+Click **🖨️ Print ID Card**. A browser print window opens showing **two identical copies side by side** separated by a dashed fold line.
 
 ```
 ┌─────────────────┬─────────────────┐
@@ -1375,13 +1380,46 @@ Every employee has a personal barcode card used to clock in and out quickly. The
          ↑ fold here ↑
 ```
 
-> Print on plain A4, fold in half along the centre line, trim the edges, and laminate. A standard credit-card-sized laminating pouch works perfectly.
+Print → fold along the dashed line (both faces outward) → trim to card size → laminate. A standard credit-card-sized laminating pouch works perfectly.
+
+#### Option B — Print Card to Receipt Printer (Thermal)
+
+Click **Print Card to Receipt Printer** to send the card directly to a thermal receipt printer. The printer outputs **two copies stacked vertically** with a fold/cut line between them — fold at the line and trim so you have a card with identical faces on each side.
+
+This option requires either:
+- A **network receipt printer** already configured for your business (set up under Settings → Printers), or
+- **QZ Tray** — a free desktop app that lets the system print to any USB or locally-installed printer on the same PC.
+
+**Setting up QZ Tray (one-time, on the PC connected to the printer):**
+
+1. Download and install QZ Tray from **https://qz.io/download/** (requires Java 8+).
+2. Start QZ Tray — look for its icon in the system tray (bottom-right of the Windows taskbar).
+3. On the ID Card page, click **⚙ QZ Tray Setup / Bring Online** (below the print buttons).
+4. If QZ Tray is running, it will show **QZ Tray connected** with a green dot.
+5. Select your printer from the dropdown and click **Save Printer**.
+6. Click **Test Print** to confirm it is working.
+7. From now on, **Print Card to Receipt Printer** will use that saved printer automatically.
+
+> If the QZ Tray panel shows "not detected", make sure QZ Tray is running in the system tray and click the refresh icon to retry.
 
 **Updating a card (e.g. name change or new photo):**
 1. Update the employee's details or profile photo on their profile.
 2. Return to the **ID Card** tab and reprint — the card automatically reflects the latest information.
 
 > Cards use the employee's unique number (e.g. `RES-EMP-000012`) as the barcode value. If a card is lost, simply reprint from the same screen — the barcode does not change.
+
+#### Printer Troubleshooting — Clearing Stuck Jobs
+
+If a printer is not responding or is printing garbage, open the **Test Print** panel (printer icon in the top bar) to manage print queues without leaving the app.
+
+| Button | What it does |
+|---|---|
+| **Bring Online** | Pings the printer to check its network connection and refresh its online status |
+| **Test** | Sends a short test page to confirm the printer is reachable |
+| **🗑 Clear Print Queue** | Cancels all stuck jobs for that printer and restarts the Windows print spooler |
+| **⏹ Stop QZ / Clear Pending Jobs** | Disconnects QZ Tray and drops all pending QZ print jobs immediately |
+
+> Use **Clear Print Queue** first if the printer is online but stuck (e.g. printing the same job repeatedly). Use **Stop QZ** if a QZ Tray job is looping or printing garbage — then reconnect QZ Tray from the ID Card or receipt page.
 
 ### How Barcode Scanning Works System-Wide — Full Priority Order
 
