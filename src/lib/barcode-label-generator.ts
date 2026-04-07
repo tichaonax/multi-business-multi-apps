@@ -188,9 +188,9 @@ function generateBarcodeCommand(data: string, symbology: string): string {
 
   // Set barcode width (GS w n) - auto-scale based on data length
   // For 58mm thermal printers (~384 dots width):
-  // - Short barcodes (≤10 chars): width 4 (darker/thicker bars)
-  // - Long barcodes (>10 chars): width 3 (moderate, fits on paper)
-  const barcodeWidth = data.length <= 10 ? 4 : 3;
+  // - Short barcodes (≤10 chars): width 3 (moderate)
+  // - Long barcodes (>10 chars): width 2 (narrow) to fit on paper
+  const barcodeWidth = data.length <= 10 ? 3 : 2;
   command += '\x1D\x77' + String.fromCharCode(barcodeWidth);
 
   // Set HRI (Human Readable Interpretation) position (GS H n)
