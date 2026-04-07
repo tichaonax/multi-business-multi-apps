@@ -377,6 +377,25 @@ export default function RestaurantPOS() {
     return () => window.removeEventListener('pos:add-inventory-item-to-cart', handler)
   }, [])
 
+  // Listen for pos:add-custom-bulk-to-cart from GlobalBarcodeModal (when already on POS)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bulk = (e as CustomEvent).detail
+      if (!bulk?.id) return
+      const cartItem: any = {
+        id: `cbulk_${bulk.id}_${Date.now()}`,
+        name: bulk.name || `Bulk - ${bulk.batchNumber}`,
+        price: parseFloat(bulk.unitPrice ?? 0),
+        category: 'bulk',
+        isAvailable: true,
+        attributes: { isCustomBulk: true, customBulkId: bulk.id },
+      }
+      addToCartRef.current?.(cartItem)
+    }
+    window.addEventListener('pos:add-custom-bulk-to-cart', handler)
+    return () => window.removeEventListener('pos:add-custom-bulk-to-cart', handler)
+  }, [])
+
   // Store pending inventory item to add once cart has finished loading from localStorage
   const pendingInventoryItemRef = useRef<any>(null)
 

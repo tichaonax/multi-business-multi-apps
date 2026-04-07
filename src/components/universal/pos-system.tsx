@@ -240,6 +240,53 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
     return () => window.removeEventListener('pos:external-add', handler)
   }, [businessId])
 
+  // Listen for custom bulk products dispatched by global barcode modal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bulk = (e as CustomEvent).detail
+      if (!bulk?.id) return
+      const unitPrice = Number(bulk.unitPrice) || 0
+      if (!unitPrice || unitPrice <= 0) return
+      const productId = `cbulk_${bulk.id}`
+      const syntheticProduct: UniversalProduct = {
+        id: productId,
+        name: bulk.name || `Bulk - ${bulk.batchNumber}`,
+        sku: bulk.sku || productId,
+        productType: 'PHYSICAL',
+        condition: 'NEW',
+        basePrice: unitPrice,
+        businessType: 'retail',
+        isActive: true,
+        attributes: { isCustomBulk: true, customBulkId: bulk.id },
+      }
+      setCart(currentCart => {
+        const existing = currentCart.findIndex(item => item.productId === productId)
+        if (existing >= 0) {
+          const updatedCart = [...currentCart]
+          const existingItem = updatedCart[existing]
+          const newQuantity = existingItem.quantity + 1
+          updatedCart[existing] = {
+            ...existingItem,
+            quantity: newQuantity,
+            totalPrice: unitPrice * newQuantity - existingItem.discountAmount,
+          }
+          return updatedCart
+        }
+        return [...currentCart, {
+          productId,
+          variantId: undefined,
+          product: syntheticProduct,
+          quantity: 1,
+          unitPrice,
+          discountAmount: 0,
+          totalPrice: unitPrice,
+        }]
+      })
+    }
+    window.addEventListener('pos:add-custom-bulk-to-cart', handler)
+    return () => window.removeEventListener('pos:add-custom-bulk-to-cart', handler)
+  }, [])
+
   // Listen for external cart-clear events (e.g. from mini-cart "Clear All" button)
   useEffect(() => {
     const handler = (e: Event) => {

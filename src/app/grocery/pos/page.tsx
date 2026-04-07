@@ -1399,6 +1399,38 @@ function GroceryPOSContent() {
     return () => window.removeEventListener('pos:add-inventory-item-to-cart', handler)
   }, [addInventoryItemToCart])
 
+  // Listen for custom bulk products dispatched by global barcode modal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bulk = (e as CustomEvent).detail
+      if (!bulk?.id) return
+      const price = parseFloat(bulk.unitPrice ?? 0)
+      if (price <= 0) return
+      const posItem: POSItem = {
+        id: `cbulk_${bulk.id}`,
+        name: bulk.name || `Bulk - ${bulk.batchNumber}`,
+        barcode: bulk.sku || undefined,
+        category: bulk.categoryName || 'General',
+        unitType: 'each',
+        price,
+        unit: 'each',
+        taxable: false,
+        weightRequired: false,
+      }
+      setCart(prev => {
+        const existing = prev.find(ci => ci.id === posItem.id)
+        if (existing) {
+          return prev.map(ci => ci.id === posItem.id
+            ? { ...ci, quantity: ci.quantity + 1, subtotal: ci.subtotal + price }
+            : ci)
+        }
+        return [...prev, { ...posItem, quantity: 1, subtotal: price }]
+      })
+    }
+    window.addEventListener('pos:add-custom-bulk-to-cart', handler)
+    return () => window.removeEventListener('pos:add-custom-bulk-to-cart', handler)
+  }, [])
+
   // Step 1: Capture addProduct from URL ONCE on mount.
   // Use window.history.replaceState (synchronous) so React Strict Mode's second
   // mount sees a clean URL and doesn't re-capture the same product twice.
