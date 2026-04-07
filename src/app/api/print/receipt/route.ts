@@ -220,6 +220,9 @@ export async function POST(request: NextRequest) {
 
       console.log('🖨️ Attempting immediate print for job:', printJob.id);
 
+      // Mark as processing immediately so the background worker does not also pick it up
+      await markJobAsProcessing(printJob.id);
+
       // Get printer details
       const printer = await prisma.networkPrinters.findUnique({
         where: { id: data.printerId },
@@ -238,9 +241,6 @@ export async function POST(request: NextRequest) {
         console.error(`❌ Printer offline: ${printer.printerName}`);
         throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
       }
-
-      // Mark job as processing
-      await markJobAsProcessing(printJob.id);
 
       // Decode receipt text from base64
       const receiptText = printJobData.jobData.receiptText as string;

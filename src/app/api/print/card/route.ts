@@ -52,14 +52,15 @@ export async function POST(request: NextRequest) {
       user.id
     )
 
+    // Immediately mark as processing so the background worker does not also pick it up
+    await markJobAsProcessing(printJob.id)
+
     // Immediately attempt to print
     try {
       const { printRawData } = await import('@/lib/printing/windows-raw-printer')
 
       const isOnline = await checkPrinterConnectivity(printer.id)
       if (!isOnline) throw new Error(`Printer "${printer.printerName}" is offline or unreachable`)
-
-      await markJobAsProcessing(printJob.id)
 
       const rawBytes = Buffer.from(escPosData, 'base64').toString('binary')
       await printRawData(rawBytes, { printerName: printer.printerName, copies: 1 })
