@@ -466,6 +466,35 @@ export default function RestaurantPOS() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
+  // Handle addCustomBulk URL param — navigated here from GlobalBarcodeModal "Add to Cart" on another business
+  useEffect(() => {
+    const addCustomBulkId = searchParams?.get('addCustomBulk')
+    if (!addCustomBulkId) return
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/custom-bulk/${addCustomBulkId}`)
+        if (!res.ok) return
+        const d = await res.json()
+        if (d.success && d.data) {
+          const bulk = d.data
+          const cartItem: any = {
+            id: `cbulk_${bulk.id}`,
+            name: bulk.name,
+            price: Number(bulk.unitPrice ?? 0),
+            category: bulk.category?.name || 'bulk',
+            isAvailable: true,
+            attributes: { isCustomBulk: true, customBulkId: bulk.id },
+          }
+          addToCartRef.current?.(cartItem)
+        }
+        router.replace(window.location.pathname)
+      } catch (err) {
+        console.error('Error fetching custom bulk for restaurant POS:', err)
+      }
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
   // Auto-apply first available ISSUED reward when customer rewards load (skip if coupon active)
   useEffect(() => {
     if (!selectedCustomer || appliedReward || customerRewards.length === 0) return

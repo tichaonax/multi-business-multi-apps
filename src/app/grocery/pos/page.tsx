@@ -1531,6 +1531,39 @@ function GroceryPOSContent() {
       .catch(() => {})
   }, [searchParams, currentBusinessId])
 
+  // Handle addCustomBulk URL param — navigated here from GlobalBarcodeModal "Add to Cart" on another business
+  useEffect(() => {
+    const addCustomBulkId = searchParams?.get('addCustomBulk')
+    if (!addCustomBulkId || !currentBusinessId) return
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/custom-bulk/${addCustomBulkId}`)
+        if (!res.ok) return
+        const d = await res.json()
+        if (d.success && d.data) {
+          const bulk = d.data
+          const price = parseFloat(bulk.unitPrice ?? 0)
+          if (price <= 0) return
+          addToCart({
+            id: `cbulk_${bulk.id}`,
+            name: bulk.name,
+            barcode: bulk.sku || undefined,
+            category: bulk.category?.name || 'General',
+            unitType: 'each',
+            price,
+            unit: 'each',
+            taxable: false,
+            weightRequired: false,
+          })
+        }
+        router.replace(`/grocery/pos?businessId=${currentBusinessId}`, { scroll: false })
+      } catch (err) {
+        console.error('Error fetching custom bulk for grocery POS:', err)
+      }
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, currentBusinessId])
+
   // Handle pos:add-bale-to-cart event — dispatched by GlobalBarcodeModal when already on POS
   // Uses functional setCart updater to avoid stale closure over `cart`
   useEffect(() => {

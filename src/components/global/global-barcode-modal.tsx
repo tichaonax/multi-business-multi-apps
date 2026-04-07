@@ -587,6 +587,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
       ? `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addInventoryItem=${firstAccessible.inventoryItemId}`
       : firstAccessible.isBale
       ? `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addBale=${firstAccessible.baleId}`
+      : firstAccessible.isCustomBulk
+      ? `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addCustomBulk=${firstAccessible.customBulkId}`
       : `/${firstAccessible.businessType}/pos?businessId=${firstAccessible.businessId}&addProduct=${firstAccessible.productId}${firstAccessible.variantId ? `&variantId=${firstAccessible.variantId}` : ''}&autoAdd=true`
     const currentBusinessId = localStorage.getItem('currentBusinessId')
 

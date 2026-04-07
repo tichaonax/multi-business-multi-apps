@@ -1282,6 +1282,28 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     })()
   }, [searchParams, autoAddProcessed, router])
 
+  // Auto-add custom bulk from query parameters (from barcode scanner modal "Add to Cart")
+  useEffect(() => {
+    const addCustomBulkId = searchParams?.get('addCustomBulk')
+    if (!addCustomBulkId || autoAddProcessed) return
+    setAutoAddProcessed(true)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/custom-bulk/${addCustomBulkId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.success && data.data) {
+          const bulkKey = `cbulk_${data.data.id}`
+          const alreadyInCart = cartRef.current.some(ci => ci.variantId === bulkKey || ci.attributes?.customBulkId === data.data.id)
+          if (!alreadyInCart) addCustomBulkToCart(data.data)
+        }
+        router.replace(window.location.pathname)
+      } catch (err) {
+        console.error('Error auto-adding custom bulk:', err)
+      }
+    })()
+  }, [searchParams, autoAddProcessed, router])
+
   const handleReturn = (originalOrderId: string, reason: string) => {
     // In a real implementation, this would fetch the original order
     // and add items to cart with return flag
