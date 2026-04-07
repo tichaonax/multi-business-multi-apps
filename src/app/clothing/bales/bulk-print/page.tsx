@@ -53,13 +53,13 @@ function buildLabelHtml(
   return `
     <div style="width:220px;border:1px dashed #999;padding:8px 10px;background:white;font-family:sans-serif;display:inline-block;vertical-align:top;box-sizing:border-box;">
       <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-bottom:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
-      <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(businessName)}</div>
-      <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;">${escHtml(bale.category.name)}</div>
+      <div style="font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;line-height:1.6;">${escHtml(businessName)}</div>
+      <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:2px;line-height:1.6;">${escHtml(bale.category.name)}</div>
       <div style="font-size:9px;text-align:center;margin-bottom:2px;">Batch ${escHtml(bale.batchNumber)}</div>
       <div style="font-size:9px;text-align:center;margin-bottom:4px;">${escHtml(dateLine)}</div>
       <div style="display:flex;justify-content:center;margin-bottom:2px;">${barcodeSvg}</div>
       <div style="font-size:9px;text-align:center;color:#444;margin-bottom:4px;letter-spacing:0.03em;">${escHtml(bale.scanCode)}</div>
-      <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;">${escHtml(price)}</div>
+      <div style="font-size:18px;font-weight:bold;text-align:center;margin-bottom:2px;line-height:1.6;">${escHtml(price)}</div>
       <div style="font-size:8px;text-align:center;color:#666;">${escHtml(template.name)}</div>
       <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;font-family:monospace;margin-top:4px;"><span>&#124;&nbsp;&nbsp;&#124;&nbsp;&nbsp;&#124;</span><span>&#124;&nbsp;&nbsp;&#124;</span></div>
     </div>

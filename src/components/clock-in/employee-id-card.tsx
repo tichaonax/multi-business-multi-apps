@@ -71,7 +71,7 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
             <img
               src={employee.profilePhotoUrl}
               alt={employee.fullName}
-              className="w-14 h-14 rounded-md object-cover border border-gray-200"
+              className="w-14 h-14 rounded-md object-cover border border-gray-200" style={{ filter: 'brightness(1.9) contrast(0.7)' }}
             />
           ) : (
             <div className="w-14 h-14 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-2xl">
