@@ -134,9 +134,12 @@ export async function printToQzPrinter(
   const qz = await getQz()
 
   const config = qz.configs.create(printerName)
-  // Pass the ESC/POS string directly — QZ Tray sends each character as its byte value (Latin-1).
-  // This is the same pattern used by printZplToQzPrinter and matches QZ Tray's raw command format.
-  const data = [{ type: 'raw', format: 'command', data: escPosString }]
+  // ESC/POS raster data contains bytes > 127 (e.g. 0xFF for black bitmap pixels).
+  // Sending via format:'command' causes QZ Tray to UTF-8 encode the string, turning
+  // each byte > 127 into a 2-byte sequence — this corrupts the raster stream and the
+  // printer only prints the first few rows before byte offsets go wrong ("top half only").
+  // base64 encoding ensures the binary payload is transmitted byte-perfect.
+  const data = [{ type: 'raw', format: 'base64', data: btoa(escPosString) }]
   await qz.print(config, data)
 }
 

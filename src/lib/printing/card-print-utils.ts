@@ -12,47 +12,39 @@
 
 /**
  * Convert a canvas to an ESC/POS GS v 0 raster image byte array.
- * The image is scaled to (maxWidthDots - leftPad) wide and offset by leftPad
- * dots, so the left edge never touches the printer's non-printable hardware zone.
- * Right side fills to the paper edge (no right shrinkage = no quality loss).
+ * Canvas is scaled to maxWidthDots wide, height proportional.
  */
-function canvasToEscPosRaster(
-  canvas: HTMLCanvasElement,
-  maxWidthDots: number,
-  leftPad = 12,           // dots of white space on the left only (~1.5 mm on 203 dpi)
-): Uint8Array {
-  const innerW = maxWidthDots - leftPad
-  const scaleFactor = innerW / canvas.width
+function canvasToEscPosRaster(canvas: HTMLCanvasElement, maxWidthDots: number): Uint8Array {
+  const scaleFactor = maxWidthDots / canvas.width
+  const scaledW = maxWidthDots
   const scaledH = Math.round(canvas.height * scaleFactor)
 
-  // Draw card at inner width onto a temporary canvas
   const scaled = document.createElement('canvas')
-  scaled.width = innerW
+  scaled.width = scaledW
   scaled.height = scaledH
   const ctx = scaled.getContext('2d')!
   ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, innerW, scaledH)
-  ctx.drawImage(canvas, 0, 0, innerW, scaledH)
+  ctx.fillRect(0, 0, scaledW, scaledH)
+  ctx.drawImage(canvas, 0, 0, scaledW, scaledH)
 
-  const imageData = ctx.getImageData(0, 0, innerW, scaledH)
+  const imageData = ctx.getImageData(0, 0, scaledW, scaledH)
   const pixels = imageData.data
 
-  // Build 1-bit bitmap at FULL paper width (leftPad dots = white on left only)
-  const bytesPerRow = Math.ceil(maxWidthDots / 8)
-  const bitmap = new Uint8Array(bytesPerRow * scaledH) // all 0x00 = white
+  // Build 1-bit bitmap (MSB first, dark pixel = 1)
+  const bytesPerRow = Math.ceil(scaledW / 8)
+  const bitmap = new Uint8Array(bytesPerRow * scaledH)
 
   for (let y = 0; y < scaledH; y++) {
-    for (let x = 0; x < innerW; x++) {
-      const idx = (y * innerW + x) * 4
+    for (let x = 0; x < scaledW; x++) {
+      const idx = (y * scaledW + x) * 4
       const lum = 0.299 * pixels[idx] + 0.587 * pixels[idx + 1] + 0.114 * pixels[idx + 2]
-      if (lum < 128) {
-        const px = x + leftPad // offset into full-width row
-        bitmap[y * bytesPerRow + Math.floor(px / 8)] |= (0x80 >> (px % 8))
+      if (lum < 180) {
+        bitmap[y * bytesPerRow + Math.floor(x / 8)] |= (0x80 >> (x % 8))
       }
     }
   }
 
-  // GS v 0 raster image header (full paper width)
+  // GS v 0 raster image header
   const xL = bytesPerRow & 0xFF
   const xH = (bytesPerRow >> 8) & 0xFF
   const yL = scaledH & 0xFF

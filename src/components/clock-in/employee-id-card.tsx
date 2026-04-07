@@ -56,10 +56,10 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
       style={{ width: '314px', fontFamily: 'sans-serif' }}
     >
       {/* Header strip */}
-      <div className="bg-blue-600 px-3 py-1.5 flex items-center justify-between">
-        <span className="text-white font-bold text-xs tracking-wide">EMPLOYEE ID CARD</span>
+      <div className="bg-blue-600 px-3 py-2 flex items-center justify-between">
+        <span className="text-white font-bold text-xs tracking-wide leading-normal">EMPLOYEE ID CARD</span>
         {employee.primaryBusiness?.name && (
-          <span className="text-blue-200 text-xs truncate ml-2 max-w-[140px]">{employee.primaryBusiness.name}</span>
+          <span className="text-blue-200 text-xs ml-2 max-w-[140px] overflow-hidden whitespace-nowrap leading-normal">{employee.primaryBusiness.name}</span>
         )}
       </div>
 
@@ -82,12 +82,12 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
 
         {/* Info */}
         <div className="flex-1 min-w-0 pt-0.5">
-          <div className="font-bold text-gray-900 text-sm leading-tight truncate">{employee.fullName}</div>
+          <div className="font-bold text-gray-900 text-sm leading-normal overflow-hidden whitespace-nowrap">{employee.fullName}</div>
           {employee.jobTitle && (
-            <div className="text-blue-700 text-xs font-medium mt-0.5 truncate">{employee.jobTitle.title}</div>
+            <div className="text-blue-700 text-xs font-medium mt-0.5 leading-normal overflow-hidden whitespace-nowrap">{employee.jobTitle.title}</div>
           )}
           {employee.jobTitle?.department && (
-            <div className="text-gray-500 text-xs truncate">{employee.jobTitle.department}</div>
+            <div className="text-gray-500 text-xs leading-normal overflow-hidden whitespace-nowrap">{employee.jobTitle.department}</div>
           )}
           {(employee.businessContactPhone || employee.primaryBusiness?.phone || employee.primaryBusiness?.umbrellaBusinessPhone || employee.phone) && (
             <div className="text-gray-600 text-xs mt-0.5">
@@ -95,7 +95,7 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
             </div>
           )}
           {hours && (
-            <div className="text-gray-500 text-xs mt-0.5">
+            <div className="text-gray-500 text-xs mt-0.5 leading-normal">
               <span className="font-medium text-gray-700">{hours}</span>
             </div>
           )}
@@ -116,7 +116,7 @@ export function PrintIdCardButton({ employee }: EmployeeIdCardProps) {
     const cardEl = document.getElementById('employee-id-card')
     if (!cardEl) return
 
-    const printWindow = window.open('', '_blank', 'width=900,height=460')
+    const printWindow = window.open('', '_blank', 'width=900,height=520')
     if (!printWindow) return
 
     const styles = Array.from(document.styleSheets)
@@ -139,22 +139,30 @@ export function PrintIdCardButton({ employee }: EmployeeIdCardProps) {
           <style>
             ${styles}
             html, body { height: 100%; margin: 0; padding: 0; }
-            body { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+            body { display: flex; flex-direction: column; align-items: center; padding: 16px; }
+            .print-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 10px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; width: 100%; max-width: 700px; box-sizing: border-box; }
+            .print-btn { background: #1f2937; color: #fff; border: none; border-radius: 6px; padding: 8px 20px; font-size: 14px; font-weight: 600; cursor: pointer; }
+            .print-btn:hover { background: #374151; }
+            .print-title { font-size: 13px; color: #64748b; }
             .card-pair { display: inline-flex; align-items: flex-start; gap: 0; }
             .fold-guide { width: 0; align-self: stretch; border-left: 2px dashed #888; }
             @media print {
-              html, body { height: 100vh; margin: 0; padding: 0; }
+              .print-toolbar { display: none; }
+              body { padding: 5mm; }
               .fold-guide { border-left-color: #bbb; }
             }
           </style>
         </head>
         <body>
+          <div class="print-toolbar">
+            <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+            <span class="print-title">ID Card — ${employee.fullName}</span>
+          </div>
           <div class="card-pair">
             ${cardHtml}
             <div class="fold-guide"></div>
             ${cardHtml}
           </div>
-          <script>window.onload = () => { window.print(); window.close(); }<\/script>
         </body>
       </html>
     `)

@@ -224,7 +224,72 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Last resort: productId might be a raw ClothingBales.id (no bale_ prefix)
+        // Last resort: check CustomBulkProducts
+        const customBulk = await prisma.customBulkProducts.findFirst({
+          where: { id: productId, businessId },
+          include: { category: { select: { name: true } }, employee: { select: { fullName: true } } },
+        }).catch(() => null)
+
+        if (customBulk) {
+          // Get sales via attributes.customBulkId or attributes.productId
+          const cbOrderItems = await prisma.businessOrderItems.findMany({
+            where: {
+              attributes: { path: ['customBulkId'], equals: productId },
+            },
+            include: {
+              business_orders: { select: { createdAt: true, status: true, transactionDate: true, businessId: true } },
+            },
+          })
+          const cbCompleted = cbOrderItems.filter(
+            (oi) => oi.business_orders.status === 'COMPLETED' && oi.business_orders.businessId === businessId
+          )
+          let cbSold = 0, cbRevenue = 0
+          const cbDayMap = new Map<string, { units: number; revenue: number }>()
+          for (const oi of cbCompleted) {
+            cbSold += oi.quantity
+            cbRevenue += Number(oi.totalPrice)
+            const date = (oi.business_orders.transactionDate ?? oi.business_orders.createdAt).toISOString().slice(0, 10)
+            const ex = cbDayMap.get(date) ?? { units: 0, revenue: 0 }
+            cbDayMap.set(date, { units: ex.units + oi.quantity, revenue: ex.revenue + Number(oi.totalPrice) })
+          }
+          const cbCostPrice = Number(customBulk.costPrice ?? 0)
+          const cbProfit = cbRevenue - cbCostPrice * cbSold
+          const cbProfitPct = cbCostPrice > 0 ? (cbProfit / (cbCostPrice * cbSold || 1)) * 100 : 0
+          const cbTotalCost = cbCostPrice * customBulk.itemCount
+          const cbCostRecoveredPct = cbTotalCost > 0 ? Math.min((cbRevenue / cbTotalCost) * 100, 100) : 0
+          const cbSalesByDay = Array.from(cbDayMap.entries())
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([date, val]) => ({ date, units: val.units, revenue: val.revenue }))
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              type: 'inventory' as const,
+              productType: 'PHYSICAL',
+              name: customBulk.name,
+              sku: customBulk.sku,
+              category: customBulk.category?.name ?? null,
+              purchasedAt: customBulk.createdAt.toISOString().slice(0, 10),
+              stockedBy: customBulk.employee?.fullName ?? null,
+              costPrice: cbCostPrice,
+              unitPrice: Number(customBulk.unitPrice),
+              itemCount: customBulk.itemCount,
+              remainingCount: customBulk.remainingCount,
+              sold: cbSold,
+              revenue: Math.round(cbRevenue * 100) / 100,
+              bogoFreeGiven: 0,
+              transferred: 0,
+              profit: Math.round(cbProfit * 100) / 100,
+              profitPct: Math.round(cbProfitPct * 10) / 10,
+              costRecoveredPct: Math.round(cbCostRecoveredPct * 10) / 10,
+              bogoActive: false,
+              bogoHistory: [],
+              salesByDay: cbSalesByDay,
+            },
+          })
+        }
+
+        // Check raw ClothingBales.id (no bale_ prefix)
         const baleCheck = await prisma.clothingBales.findFirst({
           where: { id: productId, businessId },
           select: { id: true },
