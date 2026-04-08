@@ -30,6 +30,11 @@ export function MobileSidebar() {
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
   const [r710IntegrationEnabled, setR710IntegrationEnabled] = useState(false)
 
+  // Collapsible section states
+  const [employeeSectionOpen, setEmployeeSectionOpen] = useState(false)
+  const [toolsSectionOpen, setToolsSectionOpen] = useState(false)
+  const [adminSectionOpen, setAdminSectionOpen] = useState(false)
+
   const {
     businesses,
     currentBusiness,
@@ -93,15 +98,13 @@ export function MobileSidebar() {
     window.location.href = `/${businessType}`
   }
 
+  const close = () => setIsOpen(false)
+
   const linkClass = "flex items-center gap-2 px-4 py-2 rounded text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+  const sectionLinkClass = "block px-4 py-2.5 rounded hover:bg-gray-700"
 
   const navLink = (href: string, icon: string, label: string) => (
-    <Link
-      key={href}
-      href={href}
-      className={linkClass}
-      onClick={() => setIsOpen(false)}
-    >
+    <Link key={href} href={href} className={linkClass} onClick={close}>
       <span>{icon}</span>
       <span>{label}</span>
     </Link>
@@ -116,6 +119,7 @@ export function MobileSidebar() {
     const canConfigWifi = isAdmin || hasBusinessPermission('canConfigureWifiTokens')
     const canSellWifi = isAdmin || hasBusinessPermission('canSellWifiTokens')
     const canViewOrders = isAdmin || hasBusinessPermission('canEnterManualOrders') || hasBusinessPermission('canAccessFinancialData')
+    const canCashAlloc = isAdmin || hasBusinessPermission('canRunCashAllocationReport')
 
     const wifiLinks = () => (
       <>
@@ -132,8 +136,16 @@ export function MobileSidebar() {
           <>
             {navLink('/restaurant/pos', '🍽️', 'POS System')}
             {canReport && navLink('/restaurant/reports', '📊', 'Sales Reports')}
+            {canCashAlloc && navLink('/restaurant/reports/cash-allocation', '💰', 'Cash Allocation')}
             {navLink('/restaurant/inventory', '📦', 'Inventory')}
             {canManageMenuPerm && navLink('/restaurant/menu', '📋', 'Menu Management')}
+            {(isAdmin || hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canManageMenu') || hasBusinessPermission('canManageInventory')) && (
+              <>
+                {navLink('/restaurant/meal-program/participants', '🍱', 'Meal Participants')}
+                {navLink('/restaurant/meal-program/eligible-items', '✅', 'Eligible Items')}
+              </>
+            )}
+            {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/restaurant/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/restaurant/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
@@ -144,9 +156,11 @@ export function MobileSidebar() {
           <>
             {navLink('/grocery/pos', '🛒', 'POS System')}
             {canReport && navLink('/grocery/reports', '📊', 'Sales Reports')}
+            {canCashAlloc && navLink('/grocery/reports/cash-allocation', '💰', 'Cash Allocation')}
             {navLink('/grocery/inventory', '📦', 'Inventory')}
             {navLink('/grocery/products', '📦', 'Products')}
             {navLink('/grocery/inventory?tab=bales', '📦', 'Bales Inventory')}
+            {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/grocery/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/grocery/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
@@ -157,9 +171,11 @@ export function MobileSidebar() {
           <>
             {navLink('/clothing/pos', '👕', 'POS System')}
             {canReport && navLink('/clothing/reports', '📊', 'Sales Reports')}
+            {canCashAlloc && navLink('/clothing/reports/cash-allocation', '💰', 'Cash Allocation')}
             {navLink('/clothing/inventory', '📦', 'Inventory')}
             {navLink('/clothing/products', '👗', 'Products')}
             {navLink('/clothing/inventory?tab=bales', '📦', 'Bales Inventory')}
+            {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/clothing/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/clothing/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
@@ -170,8 +186,10 @@ export function MobileSidebar() {
           <>
             {navLink('/hardware/pos', '🔧', 'POS System')}
             {canReport && navLink('/hardware/reports', '📊', 'Sales Reports')}
+            {canCashAlloc && navLink('/hardware/reports/cash-allocation', '💰', 'Cash Allocation')}
             {navLink('/hardware/inventory', '📦', 'Inventory')}
             {navLink('/hardware/products', '🛠️', 'Products')}
+            {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/hardware/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/hardware/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
@@ -205,6 +223,19 @@ export function MobileSidebar() {
     }
   }
 
+  const SectionHeader = ({ label, isOpen: open, onToggle }: { label: string; isOpen: boolean; onToggle: () => void }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center justify-between px-4 pt-3 pb-1 text-left"
+    >
+      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</span>
+      <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+  )
+
   return (
     <>
       <button
@@ -219,16 +250,12 @@ export function MobileSidebar() {
 
       {isOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsOpen(false)} />
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={close} />
 
           <div className="relative w-72 bg-gray-800 text-white p-4 overflow-y-auto max-h-full">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-lg font-bold">Business Hub</h1>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-white hover:text-gray-300 p-1"
-                aria-label="Close menu"
-              >
+              <button onClick={close} className="text-white hover:text-gray-300 p-1" aria-label="Close menu">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -236,11 +263,7 @@ export function MobileSidebar() {
             </div>
 
             <nav className="space-y-1">
-              <Link
-                href="/dashboard"
-                className="block px-4 py-3 rounded hover:bg-gray-700"
-                onClick={() => setIsOpen(false)}
-              >
+              <Link href="/dashboard" className="block px-4 py-3 rounded hover:bg-gray-700" onClick={close}>
                 📊 Dashboard
               </Link>
 
@@ -254,7 +277,6 @@ export function MobileSidebar() {
               {Object.entries(businessesByType).map(([type, typedBusinesses]) => {
                 const icon = getBusinessTypeIcon(type)
                 const isExpanded = expandedTypes.has(type)
-
                 return (
                   <div key={type}>
                     <button
@@ -265,14 +287,10 @@ export function MobileSidebar() {
                         {icon} {type.charAt(0).toUpperCase() + type.slice(1)}
                         <span className="ml-2 text-xs text-gray-400">({typedBusinesses.length})</span>
                       </span>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                      >
+                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-
                     {isExpanded && (
                       <div className="ml-4 space-y-0.5">
                         {typedBusinesses.map((biz: any) => (
@@ -286,9 +304,7 @@ export function MobileSidebar() {
                             }`}
                           >
                             {biz.businessName}
-                            {currentBusinessId === biz.businessId && (
-                              <span className="ml-2 text-xs text-blue-300">✓</span>
-                            )}
+                            {currentBusinessId === biz.businessId && <span className="ml-2 text-xs text-blue-300">✓</span>}
                           </button>
                         ))}
                       </div>
@@ -311,19 +327,91 @@ export function MobileSidebar() {
                 </>
               )}
 
-              {/* Business and Personal Finances */}
+              {/* ── Finance & Operations ── */}
               <div className="pt-3 pb-1">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">Finance & Tools</div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">Finance & Operations</div>
               </div>
 
               {(hasUserPermission(user, 'canAccessPersonalFinance') || isAdmin) && (
+                <Link href="/personal" className={sectionLinkClass} onClick={close}>💰 Personal Finances</Link>
+              )}
+
+              {(hasBusinessPermission('canAccessPayroll') || hasBusinessPermission('canManagePayroll') || isAdmin) && (
+                <Link href="/payroll" className={sectionLinkClass} onClick={close}>🧾 Payroll</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canAccessPayrollAccount')) && (
+                <Link href="/payroll/account" className={sectionLinkClass} onClick={close}>💰 Payroll Account</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canAccessPayroll')) && (
+                <Link href="/payroll/tax-tables" className={sectionLinkClass} onClick={close}>📊 Tax Tables</Link>
+              )}
+
+              {(hasUserPermission(user, 'canAccessExpenseAccount') || isAdmin) && (
+                <Link href="/expense-accounts" className={sectionLinkClass} onClick={close}>💳 Expense Accounts</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canSubmitPaymentBatch')) && (
+                <Link href="/expense-accounts/payment-batches" className={sectionLinkClass} onClick={close}>📋 Payment Batches</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canSubmitPaymentBatch')) && (
+                <Link href="/cash-bucket" className={sectionLinkClass} onClick={close}>🪣 Cash Bucket</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canViewCashBucketReport')) && (
+                <Link href="/cash-bucket/report" className={sectionLinkClass} onClick={close}>📊 Cash Bucket Report</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports" className={sectionLinkClass} onClick={close}>📊 Expense Reports</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canAccessFinancialData')) && (
+                <Link href="/business-accounts" className={sectionLinkClass} onClick={close}>🏦 Business Accounts</Link>
+              )}
+
+              {(hasBusinessPermission('canViewSupplierPaymentQueue') || hasBusinessPermission('canSubmitSupplierPaymentRequests')) && (
                 <Link
-                  href="/personal"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
+                  href={hasBusinessPermission('canViewSupplierPaymentQueue') ? '/supplier-payments' : '/supplier-payments/my-requests'}
+                  className={sectionLinkClass}
+                  onClick={close}
                 >
-                  💰 Personal Finances
+                  🧾 Supplier Payments
                 </Link>
+              )}
+
+              {hasBusinessPermission('canSubmitSupplierPaymentRequests') && (
+                <Link href="/supplier-payments/request" className={sectionLinkClass} onClick={close}>➕ Submit Supplier Request</Link>
+              )}
+
+              {hasBusinessPermission('canViewPayees') && (
+                <Link href="/payees" className={sectionLinkClass} onClick={close}>👥 Payee Management</Link>
+              )}
+
+              {(hasUserPermission(user, 'canAccessPersonalFinance') || hasBusinessPermission('canManageBusinessLoans')) && (
+                <Link href="/loans" className={sectionLinkClass} onClick={close}>🏦 Loan Repayments</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canManageBusinessUsers') || hasBusinessPermission('canAccessFinancialData')) && (
+                <Link href="/reports" className={sectionLinkClass} onClick={close}>📈 Reports</Link>
+              )}
+
+              {(hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canEditEmployees')) && (
+                <Link href="/admin/reports" className={sectionLinkClass} onClick={close}>📊 HR Reports</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canManageAllBusinesses') || hasBusinessPermission('canViewExpenseReports')) && (
+                <Link href="/admin/reports/cash-allocation-summary" className={sectionLinkClass} onClick={close}>💰 Cash Allocation Summary</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canSetupPortalIntegration')) && (
+                <Link href="/wifi-portal" className={sectionLinkClass} onClick={close}>📡 ESP32 WiFi Portal</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canSetupPortalIntegration')) && (
+                <Link href="/r710-portal" className={sectionLinkClass} onClick={close}>📶 R710 WiFi Portal</Link>
               )}
 
               {/* Fleet Management */}
@@ -336,7 +424,7 @@ export function MobileSidebar() {
                       !hasUserPermission(user, 'canAccessPersonalFinance') &&
                       !isAdmin
                     window.location.href = isDriver ? '/driver' : '/vehicles'
-                    setIsOpen(false)
+                    close()
                   }}
                   className="block w-full text-left px-4 py-2.5 rounded hover:bg-gray-700"
                 >
@@ -344,155 +432,163 @@ export function MobileSidebar() {
                 </button>
               )}
 
-              {/* Contractor Management */}
-              {(hasUserPermission(user, 'canManagePersonalContractors') || isAdmin) && (
-                <Link
-                  href="/contractors"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  👷 Contractors
-                </Link>
+              {/* ── Employee Management (collapsible) ── */}
+              {(hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canEditEmployees') || hasBusinessPermission('canManageBusinessUsers') || hasBusinessPermission('canManageJobTitles') || hasBusinessPermission('canManageBenefitTypes') || hasBusinessPermission('canManageCompensationTypes') || hasBusinessPermission('canManageDisciplinaryActions') || isAdmin) && (
+                <>
+                  <SectionHeader label="Employee Management" isOpen={employeeSectionOpen} onToggle={() => setEmployeeSectionOpen(p => !p)} />
+                  {employeeSectionOpen && (
+                    <div className="space-y-0.5">
+                      {(hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canEditEmployees') || hasBusinessPermission('canManageBusinessUsers') || isAdmin) && (
+                        <Link href="/employees" className={sectionLinkClass} onClick={close}>👤 Employees</Link>
+                      )}
+                      {hasBusinessPermission('canManageJobTitles') && (
+                        <Link href="/admin/job-titles" className={sectionLinkClass} onClick={close}>💼 Job Titles</Link>
+                      )}
+                      {hasBusinessPermission('canEditEmployees') && (
+                        <Link href="/admin/hierarchy" className={sectionLinkClass} onClick={close}>🌳 Hierarchy</Link>
+                      )}
+                      {(hasBusinessPermission('canManageBenefitTypes') || hasBusinessPermission('canManageCompensationTypes')) && (
+                        <Link href="/admin/benefits" className={sectionLinkClass} onClick={close}>💰 Benefits & Compensation</Link>
+                      )}
+                      {hasBusinessPermission('canManageDisciplinaryActions') && (
+                        <Link href="/admin/disciplinary" className={sectionLinkClass} onClick={close}>⚠️ Disciplinary Actions</Link>
+                      )}
+                      {(hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canEditEmployees')) && (
+                        <Link href="/employees/clock-in" className={sectionLinkClass} onClick={close}>🕐 Clock-In Management</Link>
+                      )}
+                      {(hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canEditEmployees')) && (
+                        <Link href="/employees/absences" className={sectionLinkClass} onClick={close}>📋 Absences</Link>
+                      )}
+                      {(isAdmin || hasBusinessPermission('canAccessPerDiem') || hasBusinessPermission('canAccessPayroll')) && (
+                        <Link href="/employees/per-diem" className={sectionLinkClass} onClick={close}>🗂️ Per Diem</Link>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Employees */}
-              {(hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canEditEmployees') || hasBusinessPermission('canManageBusinessUsers') || isAdmin) && (
-                <Link
-                  href="/employees"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  👤 Employees
-                </Link>
+              {/* ── Tools (collapsible) ── */}
+              <SectionHeader label="Tools" isOpen={toolsSectionOpen} onToggle={() => setToolsSectionOpen(p => !p)} />
+              {toolsSectionOpen && (
+                <div className="space-y-0.5">
+                  <Link
+                    href={`/universal/receipts${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
+                    className={sectionLinkClass}
+                    onClick={close}
+                  >
+                    🧾 Receipt History
+                  </Link>
+
+                  {(isAdmin || hasUserPermission(user, 'canCreateBusinessCategories') || hasUserPermission(user, 'canEditBusinessCategories')) && (
+                    <Link href="/business/categories" className={sectionLinkClass} onClick={close}>📁 Business Categories</Link>
+                  )}
+
+                  {(hasBusinessPermission('canCreateInventoryCategories') || hasBusinessPermission('canEditInventoryCategories') || hasBusinessPermission('canDeleteInventoryCategories')) && (
+                    <Link href="/business/inventory-categories" className={sectionLinkClass} onClick={close}>📦 Inventory Categories</Link>
+                  )}
+
+                  {(isAdmin || hasBusinessPermission('canViewBarcodeTemplates') || hasBusinessPermission('canManageBarcodeTemplates') || hasUserPermission(user, 'canViewBarcodeTemplates') || hasUserPermission(user, 'canManageBarcodeTemplates')) && (
+                    <Link
+                      href={`/universal/barcode-management${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
+                      className={sectionLinkClass}
+                      onClick={close}
+                    >
+                      🏷️ Barcode Management
+                    </Link>
+                  )}
+
+                  {(isAdmin || hasBusinessPermission('canViewSuppliers') || hasBusinessPermission('canCreateSuppliers') || hasBusinessPermission('canEditSuppliers')) && (
+                    <Link href="/business/suppliers" className={sectionLinkClass} onClick={close}>🚚 Suppliers</Link>
+                  )}
+
+                  {(isAdmin || hasBusinessPermission('canViewPayees') || hasBusinessPermission('canCreatePayees') || hasBusinessPermission('canEditPayees')) && (
+                    <Link href="/payees" className={sectionLinkClass} onClick={close}>🧑 Individuals</Link>
+                  )}
+
+                  {(isAdmin || hasUserPermission(user, 'canManagePersonalContractors')) && (
+                    <Link href="/contractors" className={sectionLinkClass} onClick={close}>👷 Contractors</Link>
+                  )}
+
+                  {(hasBusinessPermission('canViewLocations') || hasBusinessPermission('canCreateLocations') || hasBusinessPermission('canEditLocations')) && (
+                    <Link href="/business/locations" className={sectionLinkClass} onClick={close}>📍 Locations</Link>
+                  )}
+
+                  {(isAdmin || hasBusinessPermission('canAccessCustomers') || hasBusinessPermission('canManageCustomers')) && (
+                    <Link href="/customers" className={sectionLinkClass} onClick={close}>👥 Customers</Link>
+                  )}
+
+                  {(isAdmin || hasBusinessPermission('canAccessCustomers') || hasBusinessPermission('canManageCustomers')) && (
+                    <Link href="/customers/reports" className={sectionLinkClass} onClick={close}>📊 Customer Reports</Link>
+                  )}
+
+                  {hasBusinessPermission('canManageLaybys') && (
+                    <Link href="/business/laybys" className={sectionLinkClass} onClick={close}>🛍️ Layby Management</Link>
+                  )}
+
+                  {(isAdmin || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
+                    <Link href="/projects" className={sectionLinkClass} onClick={close}>📋 Projects</Link>
+                  )}
+
+                  <button
+                    type="button"
+                    className="block w-full text-left px-4 py-2.5 rounded hover:bg-gray-700"
+                    onClick={() => { close(); window.dispatchEvent(new CustomEvent('chat:open')) }}
+                  >
+                    💬 Team Chat
+                  </button>
+                </div>
               )}
 
-              {/* Reports */}
-              {(isAdmin || hasBusinessPermission('canManageBusinessUsers') || hasBusinessPermission('canAccessFinancialData')) && (
-                <Link
-                  href="/reports"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  📈 Reports
-                </Link>
-              )}
-
-              {/* Payroll */}
-              {(hasBusinessPermission('canAccessPayroll') || hasBusinessPermission('canManagePayroll') || isAdmin) && (
-                <Link
-                  href="/payroll"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  🧾 Payroll
-                </Link>
-              )}
-
-              {/* Expense Accounts */}
-              {(hasUserPermission(user, 'canAccessExpenseAccount') || isAdmin) && (
-                <Link
-                  href="/expense-accounts"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  💳 Expense Accounts
-                </Link>
-              )}
-
-              {/* Categories */}
-              {(isAdmin || hasUserPermission(user, 'canCreateBusinessCategories') || hasUserPermission(user, 'canEditBusinessCategories')) && (
-                <Link
-                  href="/business/categories"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  📁 Categories
-                </Link>
-              )}
-
-              {/* Customers */}
-              {(isAdmin || hasBusinessPermission('canAccessCustomers') || hasBusinessPermission('canManageCustomers')) && (
-                <Link
-                  href="/customers"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  👥 Customers
-                </Link>
-              )}
-
-              {/* Projects */}
-              {(isAdmin || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
-                <Link
-                  href="/projects"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  📋 Projects
-                </Link>
-              )}
-
-              <button
-                type="button"
-                className="block w-full text-left px-4 py-2.5 rounded hover:bg-gray-700"
-                onClick={() => { setIsOpen(false); window.dispatchEvent(new CustomEvent('chat:open')) }}
-              >
-                💬 Team Chat
-              </button>
-
-              {/* Receipt History */}
-              <Link
-                href={`/universal/receipts${currentBusinessId ? `?businessId=${currentBusinessId}` : ''}`}
-                className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                onClick={() => setIsOpen(false)}
-              >
-                🧾 Receipt History
-              </Link>
-
-              {/* Suppliers */}
-              {(isAdmin || hasBusinessPermission('canViewSuppliers') || hasBusinessPermission('canCreateSuppliers') || hasBusinessPermission('canEditSuppliers')) && (
-                <Link
-                  href="/business/suppliers"
-                  className="block px-4 py-2.5 rounded hover:bg-gray-700"
-                  onClick={() => setIsOpen(false)}
-                >
-                  🚚 Suppliers
-                </Link>
-              )}
-
-              {/* Administration */}
+              {/* ── Administration (collapsible) ── */}
               {(isAdmin || hasBusinessPermission('canManageBusinessUsers') || hasBusinessPermission('canManageBusinessSettings')) && (
                 <>
-                  <div className="pt-3 pb-1">
-                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">Administration</div>
-                  </div>
-
-                  {isAdmin && (
-                    <Link href="/admin" className="block px-4 py-2.5 rounded hover:bg-gray-700" onClick={() => setIsOpen(false)}>
-                      🛠️ System Admin
-                    </Link>
-                  )}
-
-                  {(isAdmin || hasBusinessPermission('canManageBusinessUsers')) && (
-                    <Link href="/business/manage" className="block px-4 py-2.5 rounded hover:bg-gray-700" onClick={() => setIsOpen(false)}>
-                      🏢 Business Management
-                    </Link>
-                  )}
-
-                  {hasBusinessPermission('canManageBusinessUsers') && (
-                    <Link href="/admin/users" className="block px-4 py-2.5 rounded hover:bg-gray-700" onClick={() => setIsOpen(false)}>
-                      👥 User Management
-                    </Link>
+                  <SectionHeader label="Administration" isOpen={adminSectionOpen} onToggle={() => setAdminSectionOpen(p => !p)} />
+                  {adminSectionOpen && (
+                    <div className="space-y-0.5">
+                      {isAdmin && (
+                        <Link href="/admin" className={sectionLinkClass} onClick={close}>🛠️ System Admin</Link>
+                      )}
+                      {isAdmin && (
+                        <Link href="/admin/petty-cash-permissions" className={sectionLinkClass} onClick={close}>💵 Petty Cash Permissions</Link>
+                      )}
+                      {(isAdmin || hasBusinessPermission('canReversePaymentsToPettyCash')) && (
+                        <Link href="/admin/reverse-payments" className={sectionLinkClass} onClick={close}>↩️ Reverse Payments</Link>
+                      )}
+                      {(isAdmin || hasBusinessPermission('canManageWifiPortal')) && (
+                        <Link href="/admin/connected-clients" className={sectionLinkClass} onClick={close}>📡 Connected Clients</Link>
+                      )}
+                      {isAdmin && (
+                        <Link href="/admin/personal-finance" className={sectionLinkClass} onClick={close}>💰 Global Finance</Link>
+                      )}
+                      {isAdmin && (
+                        <Link href="/admin/contractors" className={sectionLinkClass} onClick={close}>👷 Global Contractors</Link>
+                      )}
+                      {(isAdmin || hasBusinessPermission('canManageBusinessUsers')) && (
+                        <Link href="/admin/users" className={sectionLinkClass} onClick={close}>👥 User Management</Link>
+                      )}
+                      {hasBusinessPermission('canManageBusinessSettings') && (
+                        <Link href="/admin/settings" className={sectionLinkClass} onClick={close}>⚙️ System Settings</Link>
+                      )}
+                      {(isAdmin || hasBusinessPermission('canManageBusinessUsers')) && (
+                        <Link href="/business/manage" className={sectionLinkClass} onClick={close}>🏢 Business Management</Link>
+                      )}
+                      {hasBusinessPermission('canAccessFinancialData') && (
+                        <Link href="/business/manage/loans" className={sectionLinkClass} onClick={close}>💰 Business Loans</Link>
+                      )}
+                      {hasBusinessPermission('canManageBusinessLoans') && (
+                        <Link href="/admin/loans" className={sectionLinkClass} onClick={close}>🏦 Loan Repayments</Link>
+                      )}
+                      {hasBusinessPermission('canManageBusinessSettings') && (
+                        <Link href="/admin/umbrella-business" className={sectionLinkClass} onClick={close}>🏢 Umbrella Business</Link>
+                      )}
+                    </div>
                   )}
                 </>
               )}
 
               <div className="pt-4 border-t border-gray-700">
                 <button
-                  onClick={() => signOut({
-                    callbackUrl: window.location.origin,
-                    redirect: true
-                  })}
+                  onClick={() => signOut({ callbackUrl: window.location.origin, redirect: true })}
                   className="block w-full text-left px-4 py-3 rounded hover:bg-gray-700"
                 >
                   🚪 Sign Out

@@ -16,7 +16,7 @@
 6. [Employees — Clock-In, Leave & Per Diem](#6-employees--clock-in-leave--per-diem)
 7. [Expense Accounts & Petty Cash](#7-expense-accounts--petty-cash)
 8. [Business Loans](#8-business-loans)
-9. [Customers & Laybys](#9-customers--laybys)
+9. [Customers, Loyalty Cards & Campaigns](#9-customers-loyalty-cards--campaigns)
 10. [Chicken Run Management](#10-chicken-run-management)
 11. [Construction & Projects](#11-construction--projects)
 12. [Driver & Vehicle Log](#12-driver--vehicle-log)
@@ -4489,7 +4489,7 @@ DIRECT SALE (not via POS)
 
 ---
 
-## 16. Suppliers & Payees
+## 17. Suppliers & Payees
 
 > **Who reads this:** Managers and accounts staff who create and maintain the supplier list used in expense accounts, rent accounts, and purchase orders.
 
@@ -4589,7 +4589,7 @@ To see all payments made to a specific supplier:
 
 ---
 
-## 17. Batch EOD Catch-Up — Manager and Cashier Roles
+## 18. Batch EOD Catch-Up — Manager and Cashier Roles
 
 This section explains who does what when multiple days of EOD have been missed and need to be caught up at once.
 
@@ -5405,6 +5405,105 @@ Every generated voucher includes:
 | Collector Signature | Drawn on the signature pad (optional) |
 | Prepared By | Name of the staff member who generated the voucher |
 | Business Name | The business the account belongs to |
+
+---
+
+## 25. Eco-Cash to Cash Conversions
+
+> **Who reads this:** Cashiers and managers who handle mobile money (EcoCash) and need to convert it to physical cash for customers or staff.
+
+A **Cash Bucket** cashier can convert eco-cash (mobile money) into physical cash. The system tracks the transaction through a multi-step workflow so that both the eco-cash wallet balance and the physical cash bucket balance stay accurate.
+
+---
+
+### Who Is Involved
+
+| Role | What they do |
+|------|--------------|
+| **Requester** | Submits a request for a specific amount to be converted from eco-cash to cash |
+| **Cashier / Approver** | Reviews the request, verifies the eco-cash wallet has sufficient balance, and confirms the tendered amount |
+| **Cashier / Completer** | Physically sends the eco-cash transfer, receives the cash, and records the final amounts |
+
+Approver and Completer can be the same person.
+
+---
+
+### Step 1 — Submitting a Conversion Request (Requester)
+
+1. Go to **Cash Bucket** in the menu.
+2. Click **New Eco-Cash Conversion**.
+3. Select the **business** whose eco-cash wallet will be used.
+4. Enter the **amount** you want converted (in USD).
+5. Add any **notes** — e.g. the reason or the recipient's name.
+6. Click **Submit Request**.
+
+The request is created with status **PENDING** and cashiers with approval access are notified.
+
+---
+
+### Step 2 — Approving the Request (Cashier)
+
+1. Open the 🔔 **bell** menu or go to **Pending Actions**. Pending conversions appear under *Eco-Cash Conversions*.
+2. Click **Review** to open the Cash Bucket page.
+3. Find the PENDING conversion and click **Approve**.
+4. Confirm the **Tendered Amount** — the exact eco-cash amount that will be sent to the requester. This may differ slightly from the requested amount (e.g. requested $66.00 but eco-cash fees round it to $66.35).
+5. Click **Approve**.
+
+The system checks that the eco-cash wallet has sufficient balance before approving. If the balance is too low the approval is blocked.
+
+Status changes to **APPROVED**.
+
+---
+
+### Step 3 — Completing the Conversion (Cashier)
+
+1. Use the eco-cash app or USSD to send the approved amount to the requester's eco-cash number. The requester must have the **cash ready** to hand over.
+2. Note the **transaction code** from the eco-cash confirmation SMS or app (e.g. `66567DE`).
+3. In the system, find the APPROVED conversion and click **Complete**.
+4. Fill in the three fields:
+
+| Field | What to enter | Required? |
+|-------|---------------|-----------|
+| **Eco-Cash Transaction Code** | The reference code from the eco-cash confirmation message | Optional but strongly recommended |
+| **Eco-Cash Total Sent** | Exact decimal amount debited from the eco-cash wallet (e.g. `66.35`) — may include fees | Required |
+| **Cash Tendered** | Whole dollar amount of physical cash received from the requester (e.g. `67`) | Required |
+
+5. Click **Confirm & Complete**.
+
+The system records:
+- An **OUTFLOW** from the eco-cash wallet for the eco-cash amount sent.
+- An **INFLOW** into the cash bucket for the cash received.
+- The conversion status changes to **COMPLETED** with the transaction code stored.
+
+---
+
+### Step 4 — Rejecting a Request (if needed)
+
+1. Find the PENDING conversion and click **Reject**.
+2. Enter a **rejection reason** — this is saved and visible to the requester.
+3. Click **Reject**.
+
+Status changes to **REJECTED**. No ledger entries are created.
+
+---
+
+### Status Overview
+
+| Status | Meaning |
+|--------|---------|
+| **PENDING** | Request submitted, awaiting cashier approval |
+| **APPROVED** | Cashier confirmed the tendered amount; ready to complete |
+| **COMPLETED** | Eco-cash sent, cash received, both ledgers updated |
+| **REJECTED** | Request declined; no ledger entries created |
+
+---
+
+### Important Tips
+
+- Always record the **transaction code**. If the eco-cash payment is disputed later, the code is your proof.
+- The **Eco-Cash Total Sent** (decimal) and **Cash Tendered** (integer) may differ — fees, rounding, or change. Enter both exactly as they occurred.
+- The eco-cash balance check happens at **Approve** time. If another transaction reduces the balance between approval and completion the system will still allow completion — always verify the balance yourself before sending.
+- Completed conversions appear in the list with a summary: *EcoCash: $66.35 → Cash: $67* and the transaction code for quick reference.
 
 ---
 
