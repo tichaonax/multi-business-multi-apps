@@ -59,17 +59,21 @@ export async function DELETE(
 
     const newBalance = await prisma.$transaction(async (tx) => {
       // Delete the mirrored payment record first (foreign-key safe order)
-      await tx.expenseAccountPayments.deleteMany({
-        where: {
-          paymentType: 'LOAN_EXPENSE',
-          receiptNumber: expenseId,
-          expenseAccountId: loan.expenseAccountId,
-        },
-      })
+      if (loan.expenseAccountId) {
+        await tx.expenseAccountPayments.deleteMany({
+          where: {
+            paymentType: 'LOAN_EXPENSE',
+            receiptNumber: expenseId,
+            expenseAccountId: loan.expenseAccountId,
+          },
+        })
+      }
 
       await tx.businessLoanExpense.delete({ where: { id: expenseId } })
 
-      return updateExpenseAccountBalanceTx(tx, loan.expenseAccountId)
+      return loan.expenseAccountId
+        ? updateExpenseAccountBalanceTx(tx, loan.expenseAccountId)
+        : null
     })
 
     return NextResponse.json({ newBalance })

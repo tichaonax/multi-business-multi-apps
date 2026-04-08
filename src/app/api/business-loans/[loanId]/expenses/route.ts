@@ -76,22 +76,26 @@ export async function POST(
             creator: { connect: { id: user.id } },
           },
         })
-        await tx.expenseAccountPayments.create({
-          data: {
-            expenseAccountId: loan.expenseAccountId,
-            paymentType: 'LOAN_EXPENSE',
-            amount: parsedAmount,
-            paymentDate: new Date(item.expenseDate),
-            payeeType: 'OTHER',
-            status: 'SUBMITTED',
-            receiptNumber: expense.id,
-            notes: `Loan expense: ${item.description}`,
-            createdBy: user.id,
-          },
-        })
+        if (loan.expenseAccountId) {
+          await tx.expenseAccountPayments.create({
+            data: {
+              expenseAccountId: loan.expenseAccountId,
+              paymentType: 'LOAN_EXPENSE',
+              amount: parsedAmount,
+              paymentDate: new Date(item.expenseDate),
+              payeeType: 'OTHER',
+              status: 'SUBMITTED',
+              receiptNumber: expense.id,
+              notes: `Loan expense: ${item.description}`,
+              createdBy: user.id,
+            },
+          })
+        }
         expenses.push(expense)
       }
-      const newBalance = await updateExpenseAccountBalanceTx(tx, loan.expenseAccountId)
+      const newBalance = loan.expenseAccountId
+        ? await updateExpenseAccountBalanceTx(tx, loan.expenseAccountId)
+        : null
       return { expenses, newBalance }
     })
 
