@@ -82,14 +82,16 @@ export async function getAllAvailablePayees(
       orderBy: { fullName: 'asc' },
     }),
 
-    // Get active businesses
+    // Get active non-umbrella businesses
     prisma.businesses.findMany({
-      where: { isActive: true },
+      where: { isActive: true, isUmbrellaBusiness: false },
       select: {
         id: true,
         name: true,
         type: true,
         description: true,
+        phone: true,
+        address: true,
       },
       orderBy: { name: 'asc' },
     }),
@@ -185,6 +187,8 @@ export async function getAllAvailablePayees(
       businessName: business.name,
       businessType: business.type,
       description: business.description,
+      phone: (business as any).phone ?? null,
+      address: (business as any).address ?? null,
     })),
 
     suppliers: suppliers.map((supplier) => ({
@@ -653,6 +657,7 @@ export async function searchPayees(
     prisma.businesses.findMany({
       where: {
         isActive: true,
+        isUmbrellaBusiness: false,
         OR: [
           { name: { contains: term, mode: 'insensitive' } },
           { type: { contains: term, mode: 'insensitive' } },
@@ -663,6 +668,8 @@ export async function searchPayees(
         name: true,
         type: true,
         description: true,
+        phone: true,
+        address: true,
       },
       orderBy: { name: 'asc' },
     }),
@@ -747,6 +754,8 @@ export async function searchPayees(
       businessName: business.name,
       businessType: business.type,
       description: business.description,
+      phone: (business as any).phone ?? null,
+      address: (business as any).address ?? null,
     })),
 
     suppliers: suppliers.map((supplier) => ({

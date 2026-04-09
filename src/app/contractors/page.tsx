@@ -4,7 +4,6 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -15,6 +14,7 @@ import { NationalIdInput } from '@/components/ui/national-id-input'
 import { DateInput } from '@/components/ui/date-input'
 import { hasUserPermission } from '@/lib/permission-utils'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+
 
 interface Person {
   id: string
@@ -124,13 +124,11 @@ export default function ContractorsPage() {
   if (!session?.user || (fetchedPermissions === null && session.user.role !== 'admin')) {
     return (
       <ProtectedRoute>
-        <MainLayout>
-          <ContentLayout title="Contractors" breadcrumb={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Contractors', isActive: true }]}>
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
-            </div>
-          </ContentLayout>
-        </MainLayout>
+        <ContentLayout title="Contractors" breadcrumb={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Contractors', isActive: true }]}>
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
+          </div>
+        </ContentLayout>
       </ProtectedRoute>
     )
   }
@@ -139,28 +137,26 @@ export default function ContractorsPage() {
   if (!canManage) {
     return (
       <ProtectedRoute>
-        <MainLayout>
-          <ContentLayout
-            title="Access Denied"
-            subtitle="You don't have permission to access contractor management"
-            breadcrumb={[
-              { label: 'Dashboard', href: '/dashboard' },
-              { label: 'Contractors', isActive: true }
-            ]}
-          >
-            <div className="card p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-              <p className="text-red-600 dark:text-red-400 mb-4">
-                You don't have permission to manage contractors. Please contact your administrator to request the "Manage Contractors" permission.
-              </p>
-              <Link
-                href="/dashboard"
-                className="btn-secondary"
-              >
-                ← Back to Dashboard
-              </Link>
-            </div>
-          </ContentLayout>
-        </MainLayout>
+        <ContentLayout
+          title="Access Denied"
+          subtitle="You don't have permission to access contractor management"
+          breadcrumb={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Contractors', isActive: true }
+          ]}
+        >
+          <div className="card p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <p className="text-red-600 dark:text-red-400 mb-4">
+              You don't have permission to manage contractors. Please contact your administrator to request the "Manage Contractors" permission.
+            </p>
+            <Link
+              href="/dashboard"
+              className="btn-secondary"
+            >
+              ← Back to Dashboard
+            </Link>
+          </div>
+        </ContentLayout>
       </ProtectedRoute>
     )
   }
@@ -485,21 +481,18 @@ export default function ContractorsPage() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <MainLayout>
-          <ContentLayout title="Loading...">
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          </ContentLayout>
-        </MainLayout>
+        <ContentLayout title="Loading...">
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        </ContentLayout>
       </ProtectedRoute>
     )
   }
 
   return (
     <ProtectedRoute>
-      <MainLayout>
-        <ContentLayout
+      <ContentLayout
           title="🔨 Contractors & Personnel"
           subtitle="Manage your contractors, subcontractors, and personnel directory"
           breadcrumb={[
@@ -1123,7 +1116,7 @@ export default function ContractorsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <span className="text-sm font-medium text-secondary">Phone:</span>
-                      <p className="text-primary">{selectedContractor.phone}</p>
+                      <p className="text-primary">{formatPhoneNumberForDisplay(selectedContractor.phone)}</p>
                     </div>
                     <div>
                       <span className="text-sm font-medium text-secondary">National ID:</span>
@@ -1362,7 +1355,6 @@ export default function ContractorsPage() {
             </div>
           )}
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

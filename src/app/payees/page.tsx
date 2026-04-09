@@ -7,8 +7,10 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { CreateIndividualPayeeModal } from '@/components/expense-account/create-individual-payee-modal'
 import { EditIndividualPayeeModal } from '@/components/payee/edit-individual-payee-modal'
+import { BusinessPayeeModal } from '@/components/payee/business-payee-modal'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 
 interface Payee {
@@ -27,6 +29,7 @@ interface Payee {
   businessName?: string
   // BUSINESS
   businessType?: string
+  address?: string
 }
 
 function getTypeConfig(type: string) {
@@ -64,6 +67,8 @@ export default function PayeesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedPayeeId, setSelectedPayeeId] = useState<string | null>(null)
+  const [showBusinessModal, setShowBusinessModal] = useState(false)
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const isAdmin = session?.user?.role === 'admin'
@@ -118,7 +123,7 @@ export default function PayeesPage() {
           ...result.data.businesses.map((b: any) => ({
             id: b.id, type: 'BUSINESS' as const, name: b.name,
             businessType: b.businessType ?? b.identifier,
-            email: b.email, phone: b.phone, isActive: b.isActive
+            email: b.email, phone: b.phone, address: b.address, isActive: b.isActive
           }))
         ]
         setPayees(allPayees)
@@ -197,9 +202,14 @@ export default function PayeesPage() {
           breadcrumb={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Payees', isActive: true }]}
           headerActions={
             canCreate ? (
-              <button className="btn-primary" onClick={() => setShowCreateModal(true)}>
-                + Add Individual Payee
-              </button>
+              <div className="flex gap-2">
+                <button className="btn-secondary" onClick={() => { setSelectedBusinessId(null); setShowBusinessModal(true) }}>
+                  + Add Business Payee
+                </button>
+                <button className="btn-primary" onClick={() => setShowCreateModal(true)}>
+                  + Add Individual Payee
+                </button>
+              </div>
             ) : undefined
           }
         >
@@ -312,7 +322,7 @@ export default function PayeesPage() {
                           <>
                             {payee.employeeNumber && <DetailRow label="Emp #" value={payee.employeeNumber} />}
                             {payee.nationalId && <DetailRow label="Nat. ID" value={payee.nationalId} />}
-                            {payee.phone && <DetailRow label="Phone" value={payee.phone} />}
+                            {payee.phone && <DetailRow label="Phone" value={formatPhoneNumberForDisplay(payee.phone)} />}
                             {payee.email && <DetailRow label="Email" value={payee.email} truncate />}
                             {payee.businessName && <DetailRow label="Business" value={payee.businessName} truncate />}
                           </>
@@ -321,7 +331,7 @@ export default function PayeesPage() {
                         {payee.type === 'PERSON' && (
                           <>
                             {payee.nationalId && <DetailRow label="Nat. ID" value={payee.nationalId} />}
-                            {payee.phone && <DetailRow label="Phone" value={payee.phone} />}
+                            {payee.phone && <DetailRow label="Phone" value={formatPhoneNumberForDisplay(payee.phone)} />}
                             {payee.email && <DetailRow label="Email" value={payee.email} truncate />}
                           </>
                         )}
@@ -329,8 +339,9 @@ export default function PayeesPage() {
                         {payee.type === 'BUSINESS' && (
                           <>
                             {payee.businessType && <DetailRow label="Type" value={payee.businessType} />}
-                            {payee.phone && <DetailRow label="Phone" value={payee.phone} />}
+                            {payee.phone && <DetailRow label="Phone" value={formatPhoneNumberForDisplay(payee.phone)} />}
                             {payee.email && <DetailRow label="Email" value={payee.email} truncate />}
+                            {payee.address && <DetailRow label="Address" value={payee.address} truncate />}
                           </>
                         )}
                       </div>
@@ -343,6 +354,14 @@ export default function PayeesPage() {
                               <button
                                 className="flex-1 btn-secondary text-sm py-2"
                                 onClick={() => { setSelectedPayeeId(payee.id); setShowEditModal(true) }}
+                              >
+                                Edit
+                              </button>
+                            )}
+                            {payee.type === 'BUSINESS' && (
+                              <button
+                                className="flex-1 btn-secondary text-sm py-2"
+                                onClick={() => { setSelectedBusinessId(payee.id); setShowBusinessModal(true) }}
                               >
                                 Edit
                               </button>
@@ -370,6 +389,7 @@ export default function PayeesPage() {
           {/* Create Individual Payee Modal */}
           {showCreateModal && (
             <CreateIndividualPayeeModal
+              isOpen={showCreateModal}
               onClose={() => setShowCreateModal(false)}
               onSuccess={() => {
                 setShowCreateModal(false)
@@ -386,6 +406,19 @@ export default function PayeesPage() {
               onSuccess={() => {
                 setShowEditModal(false)
                 setSelectedPayeeId(null)
+                setRefreshTrigger(prev => prev + 1)
+              }}
+            />
+          )}
+
+          {/* Create / Edit Business Payee Modal */}
+          {showBusinessModal && (
+            <BusinessPayeeModal
+              payeeId={selectedBusinessId ?? undefined}
+              onClose={() => { setShowBusinessModal(false); setSelectedBusinessId(null) }}
+              onSuccess={() => {
+                setShowBusinessModal(false)
+                setSelectedBusinessId(null)
                 setRefreshTrigger(prev => prev + 1)
               }}
             />
