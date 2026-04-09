@@ -10,7 +10,6 @@ import Link from 'next/link'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { CreateIndividualPayeeModal } from '@/components/expense-account/create-individual-payee-modal'
 import { EditIndividualPayeeModal } from '@/components/payee/edit-individual-payee-modal'
-import { BusinessPayeeModal } from '@/components/payee/business-payee-modal'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 
 interface Payee {
@@ -67,8 +66,7 @@ export default function PayeesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedPayeeId, setSelectedPayeeId] = useState<string | null>(null)
-  const [showBusinessModal, setShowBusinessModal] = useState(false)
-  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null)
+
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const isAdmin = session?.user?.role === 'admin'
@@ -202,14 +200,9 @@ export default function PayeesPage() {
           breadcrumb={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Payees', isActive: true }]}
           headerActions={
             canCreate ? (
-              <div className="flex gap-2">
-                <button className="btn-secondary" onClick={() => { setSelectedBusinessId(null); setShowBusinessModal(true) }}>
-                  + Add Business Payee
-                </button>
-                <button className="btn-primary" onClick={() => setShowCreateModal(true)}>
-                  + Add Individual Payee
-                </button>
-              </div>
+              <button className="btn-primary" onClick={() => setShowCreateModal(true)}>
+                + Add Individual Payee
+              </button>
             ) : undefined
           }
         >
@@ -358,14 +351,6 @@ export default function PayeesPage() {
                                 Edit
                               </button>
                             )}
-                            {payee.type === 'BUSINESS' && (
-                              <button
-                                className="flex-1 btn-secondary text-sm py-2"
-                                onClick={() => { setSelectedBusinessId(payee.id); setShowBusinessModal(true) }}
-                              >
-                                Edit
-                              </button>
-                            )}
                             <button
                               className={`flex-1 text-sm py-2 rounded font-medium transition-colors ${
                                 payee.isActive
@@ -411,18 +396,6 @@ export default function PayeesPage() {
             />
           )}
 
-          {/* Create / Edit Business Payee Modal */}
-          {showBusinessModal && (
-            <BusinessPayeeModal
-              payeeId={selectedBusinessId ?? undefined}
-              onClose={() => { setShowBusinessModal(false); setSelectedBusinessId(null) }}
-              onSuccess={() => {
-                setShowBusinessModal(false)
-                setSelectedBusinessId(null)
-                setRefreshTrigger(prev => prev + 1)
-              }}
-            />
-          )}
         </ContentLayout>
     </ProtectedRoute>
   )

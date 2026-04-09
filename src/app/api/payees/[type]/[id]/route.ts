@@ -51,7 +51,7 @@ export async function GET(
               select: {
                 id: true,
                 amount: true,
-                description: true,
+                notes: true,
                 paymentDate: true,
                 expenseAccount: {
                   select: {
@@ -93,7 +93,7 @@ export async function GET(
               select: {
                 id: true,
                 amount: true,
-                description: true,
+                notes: true,
                 paymentDate: true,
                 expenseAccount: {
                   select: {
@@ -131,7 +131,7 @@ export async function GET(
               select: {
                 id: true,
                 amount: true,
-                description: true,
+                notes: true,
                 paymentDate: true,
                 expenseAccount: {
                   select: {
@@ -168,7 +168,7 @@ export async function GET(
               select: {
                 id: true,
                 amount: true,
-                description: true,
+                notes: true,
                 paymentDate: true,
                 expenseAccount: {
                   select: {
