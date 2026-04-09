@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { DriverLicenseInput } from '@/components/ui/driver-license-input'
@@ -46,6 +46,7 @@ export default function ContractorsPage() {
   const customAlert = useAlert()
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { permissions, loaded } = useUserPermissions()
   const [persons, setPersons] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -198,27 +199,24 @@ export default function ContractorsPage() {
     }
   }
 
-  const canManageContractors = session?.user && hasUserPermission(session.user, 'canAddPersonalExpenses')
+  const canManageContractors = permissions?.canAddPersonalExpenses
 
   // Check user-level permissions for Personal Finance access
   useEffect(() => {
-    if (status === 'loading') return
+    if (status === 'loading' || !loaded) return
 
     if (!session) {
       router.push('/auth/signin')
       return
     }
 
-    // Check if user has access to Personal Finance module
-    if (!hasUserPermission(session.user, 'canAccessPersonalFinance')) {
-      // Redirect back to Personal Finance instead of dashboard
+    if (!permissions?.canAccessPersonalFinance) {
       router.push('/personal')
       return
     }
-  }, [session, status, router])
+  }, [session, status, router, permissions, loaded])
 
-  // Show loading state while checking permissions
-  if (status === 'loading') {
+  if (status === 'loading' || !loaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -226,8 +224,7 @@ export default function ContractorsPage() {
     )
   }
 
-  // Don't render content if no session or no access
-  if (!session || !hasUserPermission(session.user, 'canAccessPersonalFinance')) {
+  if (!session || !permissions?.canAccessPersonalFinance) {
     return null
   }
 

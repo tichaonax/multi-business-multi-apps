@@ -7,7 +7,8 @@ import { formatPhoneNumberForDisplay, parseDateFromFormat, formatDateByFormat } 
 import { useDateFormat } from '@/contexts/settings-context'
 import { useSession } from 'next-auth/react'
 import { VehicleDriver } from '@/types/vehicle'
-import { hasPermission, isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { Car, Calendar, Shield } from 'lucide-react'
 
@@ -19,12 +20,13 @@ import { Car, Calendar, Shield } from 'lucide-react'
 
  export function DriverDetailModal({ driver, onClose, onUpdate }: DriverDetailModalProps) {
    const { data: session } = useSession()
+   const { permissions } = useUserPermissions()
    const user = session?.user as any
 
    if (!driver) return null
 
    // Determine if user can edit drivers: allow system admin or vehicles management permission
-   const canEdit = !!user && (isSystemAdmin(user) || hasUserPermission(user, 'canManageDrivers') || hasPermission(user, 'canManageBusinessUsers'))
+   const canEdit = isSystemAdmin(user) || (permissions?.canManageDrivers ?? false) || hasPermission(user, 'canManageBusinessUsers')
 
   const { format: globalDateFormat, defaultCountry } = useDateFormat()
 

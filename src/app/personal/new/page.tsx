@@ -11,7 +11,8 @@ import Link from 'next/link'
 import { DateInput } from '@/components/ui/date-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
-import { hasUserPermission, getAvailableBusinessTypesForProjects, canCreateProjectsForBusinessType } from '@/lib/permission-utils'
+import { getAvailableBusinessTypesForProjects, canCreateProjectsForBusinessType } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { ProjectCreationModal } from '@/components/projects/project-creation-modal'
 import { PersonRegistrationForm } from '@/components/construction/person-registration-form'
 import { CategorySelector } from '@/components/personal/category-selector'
@@ -95,6 +96,7 @@ export default function NewExpensePage() {
   const customAlert = useAlert()
   const { data: session } = useSession()
   const router = useRouter()
+  const { permissions, loaded } = useUserPermissions()
   const [categories, setCategories] = useState<Category[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [projectTypes, setProjectTypes] = useState<ProjectType[]>([])
@@ -139,8 +141,16 @@ export default function NewExpensePage() {
   })
   const [newCategory, setNewCategory] = useState({ name: '', emoji: '💰', color: '#3B82F6' })
 
-  // Check if user has permission to add personal expenses
-  if (!session?.user || !hasUserPermission(session.user, 'canAddPersonalExpenses')) {
+  // Wait for permissions to load before rendering access denied
+  if (!session?.user || !loaded) {
+    return (
+      <ProtectedRoute>
+        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+      </ProtectedRoute>
+    )
+  }
+
+  if (!permissions?.canAddPersonalExpenses) {
     return (
       <ProtectedRoute>
         <div className="card p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
@@ -837,7 +847,7 @@ export default function NewExpensePage() {
                     setSelectedCategoryForCreator(categoryInfo)
                     setShowSubcategoryCreator(true)
                   }}
-                  showCreateButton={hasUserPermission(session?.user, 'canCreateExpenseSubcategories')}
+                  showCreateButton={permissions?.canCreateExpenseSubcategories}
                   required={true}
                   disabled={loading}
                 />
@@ -913,7 +923,7 @@ export default function NewExpensePage() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Project *
                       </label>
-                      {hasUserPermission(session?.user, 'canAddPersonalExpenses') && (
+                      {permissions?.canAddPersonalExpenses && (
                         <button
                           type="button"
                           onClick={() => setShowNewProjectForm(true)}
@@ -990,7 +1000,7 @@ export default function NewExpensePage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Contractor *
                   </label>
-                  {hasUserPermission(session?.user, 'canManagePersonalContractors') && (
+                  {permissions?.canManagePersonalContractors && (
                     <button
                       type="button"
                       onClick={() => setShowNewContractorForm(true)}
@@ -1023,7 +1033,7 @@ export default function NewExpensePage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Project Contractor *
                   </label>
-                  {hasUserPermission(session?.user, 'canManagePersonalContractors') && (
+                  {permissions?.canManagePersonalContractors && (
                     <button
                       type="button"
                       onClick={() => setShowNewContractorForm(true)}
@@ -1150,7 +1160,7 @@ export default function NewExpensePage() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                           Select {formData.recipientType === 'business' ? 'Business' : formData.recipientType === 'employee' ? 'Employee' : 'Individual'} *
                         </label>
-                        {formData.recipientType === 'person' && hasUserPermission(session?.user, 'canManagePersonalContractors') && (
+                        {formData.recipientType === 'person' && permissions?.canManagePersonalContractors && (
                           <button
                             type="button"
                             onClick={() => setShowNewPersonForm(true)}

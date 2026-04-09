@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createIndividualPayee } from '@/lib/payee-utils'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getEffectivePermissions, hasUserPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
 /**
@@ -24,10 +24,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
-    // Accept either the legacy canCreateIndividualPayees or the new canCreatePayees
+    // Accept either the business-level canCreateIndividualPayees or the user-level canCreatePayees
     const permissions = getEffectivePermissions(user)
-    if (!permissions.canCreateIndividualPayees && !permissions.canCreatePayees) {
+    if (!permissions.canCreateIndividualPayees && !hasUserPermission(user, 'canCreatePayees') && user.role !== 'admin') {
       return NextResponse.json(
         { error: 'You do not have permission to create individual payees' },
         { status: 403 }

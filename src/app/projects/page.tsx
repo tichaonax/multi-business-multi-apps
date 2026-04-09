@@ -13,7 +13,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Search, Filter, DollarSign, Users, Calendar, TrendingUp, User, Clock, UserCheck } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { hasUserPermission, getCustomPermissionValue, isSystemAdmin } from '@/lib/permission-utils'
+import { getCustomPermissionValue, isSystemAdmin } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import Link from 'next/link'
 
 interface ProjectType {
@@ -68,6 +69,7 @@ interface Project {
 
 export default function ProjectsPage() {
   const { data: session } = useSession()
+  const { permissions } = useUserPermissions()
   const [projects, setProjects] = useState<Project[]>([])
   const [projectTypes, setProjectTypes] = useState<ProjectType[]>([])
   const [loading, setLoading] = useState(true)
@@ -186,12 +188,12 @@ export default function ProjectsPage() {
     if (isSystemAdmin(session.user as any)) return true
 
     // Check general view projects permission first
-    if (hasUserPermission(session.user as any, 'canViewProjects')) return true
+    if (permissions?.canViewProjects) return true
 
     // For personal projects, also check personal project permissions
     if (businessType === 'personal') {
-      return hasUserPermission(session.user as any, 'canCreatePersonalProjects') ||
-             hasUserPermission(session.user as any, 'canManagePersonalProjects')
+      return (permissions?.canCreatePersonalProjects ?? false) ||
+             (permissions?.canManagePersonalProjects ?? false)
     }
 
     // For business projects, check business-specific permissions

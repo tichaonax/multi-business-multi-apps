@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { getLocalDateString } from '@/lib/utils'
 
 interface ExpenseReport {
@@ -35,6 +35,7 @@ interface ExpenseReport {
 export default function PersonalReportsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { permissions, loaded } = useUserPermissions()
   const [reportData, setReportData] = useState<ExpenseReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState({
@@ -70,22 +71,20 @@ export default function PersonalReportsPage() {
 
   // Check user-level permissions for Personal Finance access
   useEffect(() => {
-    if (status === 'loading') return
+    if (status === 'loading' || !loaded) return
 
     if (!session) {
       router.push('/auth/signin')
       return
     }
 
-    // Check if user has access to Personal Finance module
-    if (!hasUserPermission(session.user, 'canAccessPersonalFinance')) {
+    if (!permissions?.canAccessPersonalFinance) {
       router.push('/personal')
       return
     }
-  }, [session, status, router])
+  }, [session, status, router, permissions, loaded])
 
-  // Show loading state while checking permissions
-  if (status === 'loading') {
+  if (status === 'loading' || !loaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -93,8 +92,7 @@ export default function PersonalReportsPage() {
     )
   }
 
-  // Don't render content if no session or no access
-  if (!session || !hasUserPermission(session.user, 'canAccessPersonalFinance')) {
+  if (!session || !permissions?.canAccessPersonalFinance) {
     return null
   }
 
@@ -312,12 +310,12 @@ export default function PersonalReportsPage() {
                 No personal expenses found for the selected date range.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                {hasUserPermission(session?.user, 'canAddPersonalExpenses') && (
+                {permissions?.canAddPersonalExpenses && (
                   <Link href="/personal/new" className="btn-primary">
                     Add Expense
                   </Link>
                 )}
-                {hasUserPermission(session?.user, 'canAddPersonalExpenses') && (
+                {permissions?.canAddPersonalExpenses && (
                   <Link href="/personal/contractors" className="btn-secondary">
                     Manage Contractors
                   </Link>

@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useToastContext } from '@/components/ui/toast'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { UniversalSupplierForm } from '@/components/universal/supplier'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,11 +101,12 @@ export function QuickStockFromScanModal({
 }: QuickStockFromScanModalProps) {
   const toast = useToastContext()
   const { data: session } = useSession()
+  const { permissions } = useUserPermissions()
 
   // ── Derived flags ─────────────────────────────────────────────────────────
   const isClothing = businessType === 'clothing'
   const isActivateMode = !!existingProduct // barcode already linked to a $0 product
-  const canCreateSubcategories = !!(session?.user && hasUserPermission(session.user, 'canCreateInventorySubcategories'))
+  const canCreateSubcategories = !!(permissions?.canCreateInventorySubcategories)
 
   // ── Mode / step ───────────────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>('create-new')

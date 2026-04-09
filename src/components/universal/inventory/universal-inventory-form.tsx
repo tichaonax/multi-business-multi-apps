@@ -7,7 +7,7 @@ import { InventorySubcategoryEditor } from '@/components/inventory/inventory-sub
 import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { useSession } from 'next-auth/react'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { LabelPreview } from '@/components/printing/label-preview'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
@@ -132,6 +132,7 @@ export function UniversalInventoryForm({
   const [suggestions, setSuggestions] = useState<SuggestItem[]>([])
 
   const { data: session } = useSession()
+  const { permissions } = useUserPermissions()
 
   // Modal hooks
   const prompt = usePrompt()
@@ -1052,7 +1053,7 @@ export function UniversalInventoryForm({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Subcategory</label>
-                    {selectedCategory && session?.user && hasUserPermission(session.user, 'canCreateInventorySubcategories') && (
+                    {selectedCategory && permissions?.canCreateInventorySubcategories && (
                       <button
                         type="button"
                         onClick={() => setShowSubcategoryEditor(true)}

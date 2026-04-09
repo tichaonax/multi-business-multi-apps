@@ -4,30 +4,30 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { Loader2, Car, ArrowRight, Wrench } from 'lucide-react'
 import Link from 'next/link'
 
 export default function DriverPortalPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { permissions, loaded } = useUserPermissions()
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (status === 'loading' || !loaded) return
 
     if (!session?.user?.id) {
       router.push('/auth/signin')
       return
     }
 
-    // Check if user has permission to log driver trips or maintenance
-    if (!hasUserPermission(session.user, 'canLogDriverTrips') && !hasUserPermission(session.user, 'canLogDriverMaintenance')) {
+    if (!permissions?.canLogDriverTrips && !permissions?.canLogDriverMaintenance) {
       router.push('/unauthorized')
       return
     }
-  }, [session, status, router])
+  }, [session, status, router, permissions, loaded])
 
-  if (status === 'loading') {
+  if (status === 'loading' || !loaded) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -35,7 +35,7 @@ export default function DriverPortalPage() {
     )
   }
 
-  if (!session?.user?.id || (!hasUserPermission(session.user, 'canLogDriverTrips') && !hasUserPermission(session.user, 'canLogDriverMaintenance'))) {
+  if (!session?.user?.id || (!permissions?.canLogDriverTrips && !permissions?.canLogDriverMaintenance)) {
     return null
   }
 
@@ -61,7 +61,7 @@ export default function DriverPortalPage() {
 
         {/* Quick Access Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {hasUserPermission(session.user, 'canLogDriverTrips') && (
+          {permissions?.canLogDriverTrips && (
             <Link
               href="/driver/trips"
               className="card p-6 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group cursor-pointer"
@@ -79,7 +79,7 @@ export default function DriverPortalPage() {
             </Link>
           )}
 
-          {hasUserPermission(session.user, 'canLogDriverMaintenance') && (
+          {permissions?.canLogDriverMaintenance && (
             <Link
               href="/driver/maintenance"
               className="card p-6 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group cursor-pointer"
@@ -97,7 +97,7 @@ export default function DriverPortalPage() {
             </Link>
           )}
 
-          {(!hasUserPermission(session.user, 'canLogDriverTrips') || !hasUserPermission(session.user, 'canLogDriverMaintenance')) && (
+          {(!permissions?.canLogDriverTrips || !permissions?.canLogDriverMaintenance) && (
             <div className="card p-6 opacity-50 cursor-not-allowed">
               <div className="flex items-center justify-between mb-4">
                 <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
@@ -117,7 +117,7 @@ export default function DriverPortalPage() {
         <div className="card p-6">
           <h3 className="text-lg font-semibold text-primary mb-3">Driver Guidelines</h3>
           <div className="space-y-2 text-sm text-secondary">
-            {hasUserPermission(session.user, 'canLogDriverTrips') && (
+            {permissions?.canLogDriverTrips && (
               <>
                 <p>• Always log trips accurately with correct start and end mileage</p>
                 <p>• Select the appropriate trip purpose and type (Business/Personal/Mixed)</p>
@@ -125,7 +125,7 @@ export default function DriverPortalPage() {
                 <p>• Complete trip details promptly after each journey</p>
               </>
             )}
-            {hasUserPermission(session.user, 'canLogDriverMaintenance') && (
+            {permissions?.canLogDriverMaintenance && (
               <>
                 <p>• Record all maintenance services performed on vehicles</p>
                 <p>• Include service costs, provider details, and warranty information</p>

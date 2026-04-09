@@ -15,7 +15,7 @@ import {
   UniversalInventoryStats
 } from '@/components/universal/inventory'
 import { useSession } from 'next-auth/react'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useGlobalCart } from '@/contexts/global-cart-context'
@@ -146,6 +146,7 @@ function ClothingInventoryContent() {
 
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { permissions } = useUserPermissions()
   const { addToCart } = useGlobalCart()
   const { push: showToast } = useToastContext()
 
@@ -159,7 +160,7 @@ function ClothingInventoryContent() {
     hasPermission,
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
-  const canZeroOut = isSystemAdmin || hasPermission('canZeroOutInventory') || hasUserPermission(session?.user as any, 'canZeroOutInventory')
+  const canZeroOut = isSystemAdmin || hasPermission('canZeroOutInventory') || (permissions?.canZeroOutInventory ?? false)
   const [zeroOutItem, setZeroOutItem] = useState<any>(null)
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [seedingCategories, setSeedingCategories] = useState(false)

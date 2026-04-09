@@ -7,7 +7,8 @@ import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils';
+import { isSystemAdmin } from '@/lib/permission-utils';
+import { useUserPermissions } from '@/hooks/use-user-permissions';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { ExpenseCategoryHierarchy, ExpenseCategory, ExpenseSubcategory } from '@/types/expense-category';
 import { CategoryEditor } from '@/components/business/category-editor';
@@ -15,6 +16,7 @@ import { SubcategoryEditor } from '@/components/business/subcategory-editor';
 
 export default function BusinessCategoriesPage() {
   const { data: session } = useSession();
+  const { permissions } = useUserPermissions();
   const [hierarchy, setHierarchy] = useState<ExpenseCategoryHierarchy | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,14 +36,14 @@ export default function BusinessCategoriesPage() {
     emoji: string;
   } | null>(null);
 
-  // Permissions - System admins have all permissions
+  // isSystemAdmin checks role from JWT (available client-side); fine to use directly
   const isAdmin = isSystemAdmin(session?.user);
-  const canCreateCategories = isAdmin || hasUserPermission(session?.user, 'canCreateBusinessCategories');
-  const canEditCategories = isAdmin || hasUserPermission(session?.user, 'canEditBusinessCategories');
-  const canDeleteCategories = isAdmin || hasUserPermission(session?.user, 'canDeleteBusinessCategories');
-  const canCreateSubcategories = isAdmin || hasUserPermission(session?.user, 'canCreateBusinessSubcategories');
-  const canEditSubcategories = isAdmin || hasUserPermission(session?.user, 'canEditBusinessSubcategories');
-  const canDeleteSubcategories = isAdmin || hasUserPermission(session?.user, 'canDeleteBusinessSubcategories');
+  const canCreateCategories = isAdmin || (permissions?.canCreateBusinessCategories ?? false);
+  const canEditCategories = isAdmin || (permissions?.canEditBusinessCategories ?? false);
+  const canDeleteCategories = isAdmin || (permissions?.canDeleteBusinessCategories ?? false);
+  const canCreateSubcategories = isAdmin || (permissions?.canCreateBusinessSubcategories ?? false);
+  const canEditSubcategories = isAdmin || (permissions?.canEditBusinessSubcategories ?? false);
+  const canDeleteSubcategories = isAdmin || (permissions?.canDeleteBusinessSubcategories ?? false);
 
   const customAlert = useAlert();
   const confirm = useConfirm();

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import {
@@ -80,6 +80,7 @@ interface DriverTripListProps {
 
 export function DriverTripList({ onEditTrip }: DriverTripListProps) {
   const { data: session } = useSession()
+  const { permissions } = useUserPermissions()
   const { format: globalDateFormat } = useDateFormat()
   const [trips, setTrips] = useState<DriverTrip[]>([])
   const [loading, setLoading] = useState(true)
@@ -134,8 +135,7 @@ export function DriverTripList({ onEditTrip }: DriverTripListProps) {
     if (!session?.user) return false
 
     // Admin or managers can always edit
-    if (hasUserPermission(session.user, 'isSystemAdmin') ||
-      hasUserPermission(session.user, 'isBusinessManager')) {
+    if (permissions?.isSystemAdmin || permissions?.isBusinessManager) {
       return true
     }
 
@@ -154,12 +154,12 @@ export function DriverTripList({ onEditTrip }: DriverTripListProps) {
     if (!session?.user) return false
 
     // Admin can always delete
-    if (hasUserPermission(session.user, 'isSystemAdmin')) {
+    if (permissions?.isSystemAdmin) {
       return true
     }
 
     // Managers can delete within their business
-    if (hasUserPermission(session.user, 'isBusinessManager')) {
+    if (permissions?.isBusinessManager) {
       return true
     }
 

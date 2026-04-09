@@ -10,7 +10,8 @@ import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { ExpenseDetailModal } from '@/components/personal/expense-detail-modal'
 import { useSession } from 'next-auth/react'
-import { hasPermission, hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { useNavigation } from '@/contexts/navigation-context'
@@ -78,6 +79,7 @@ function PermissionCard({
 export default function PersonalPage() {
   const customAlert = useAlert()
   const { data: session } = useSession()
+  const { permissions } = useUserPermissions()
   const globalDateFormat = useDateFormat()
   const { navigateTo } = useNavigation()
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -278,7 +280,7 @@ export default function PersonalPage() {
         ]}
         headerActions={
           <div className="flex flex-wrap gap-2 sm:gap-3">
-            {hasUserPermission(session?.user, 'canAddMoney') && (
+            {permissions?.canAddMoney && (
               <button
                 onClick={() => navigateTo('/personal/add-money')}
                 className="btn-primary"
@@ -286,7 +288,7 @@ export default function PersonalPage() {
                 💰 Add Money
               </button>
             )}
-            {hasUserPermission(session?.user, 'canAddPersonalExpenses') && (
+            {permissions?.canAddPersonalExpenses && (
               <button
                 onClick={() => navigateTo('/personal/new')}
                 className="btn-primary bg-green-600 hover:bg-green-700"
@@ -325,7 +327,7 @@ export default function PersonalPage() {
             title="New Project"
             href="/projects/new"
             linkText="Create Project"
-            hasPermission={hasUserPermission(session?.user, 'canCreatePersonalProjects')}
+            hasPermission={permissions?.canCreatePersonalProjects ?? false}
             requiredPermission="Create Personal Projects"
           />
 
@@ -333,7 +335,7 @@ export default function PersonalPage() {
             title="Categories"
             href="/personal/categories"
             linkText="Manage Categories"
-            hasPermission={hasUserPermission(session?.user, 'canManagePersonalCategories')}
+            hasPermission={permissions?.canManagePersonalCategories ?? false}
             requiredPermission="Manage Personal Categories"
           />
 
@@ -341,7 +343,7 @@ export default function PersonalPage() {
             title="Contractors"
             href="/personal/contractors"
             linkText="Manage People"
-            hasPermission={hasUserPermission(session?.user, 'canAddPersonalExpenses')}
+            hasPermission={permissions?.canAddPersonalExpenses}
             requiredPermission="Add Personal Expenses"
           />
 
@@ -349,7 +351,7 @@ export default function PersonalPage() {
             title="Reports"
             href="/personal/reports"
             linkText="View Reports"
-            hasPermission={hasUserPermission(session?.user, 'canViewPersonalReports')}
+            hasPermission={permissions?.canViewPersonalReports ?? false}
             requiredPermission="View Personal Reports"
           />
         </div>
@@ -510,7 +512,7 @@ export default function PersonalPage() {
                           {loanTransaction && loanTransaction.transactionType === 'payment' ? '+' : '-'}${expense.amount ? Number(expense.amount).toFixed(2) : '0.00'}
                         </div>
                         {(() => {
-                          if (!session?.user || !hasUserPermission(session.user, 'canEditPersonalExpenses')) {
+                          if (!permissions?.canEditPersonalExpenses) {
                             return null
                           }
 

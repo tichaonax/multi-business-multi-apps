@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getEffectivePermissions } from '@/lib/permission-utils'
+import { hasUserPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
 /**
@@ -26,9 +26,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check permission
-    const permissions = getEffectivePermissions(user)
-    if (!permissions.canEditPayees) {
+    // canEditPayees is a user-level permission — check user.permissions directly
+    if (user.role !== 'admin' && !hasUserPermission(user, 'canEditPayees')) {
       return NextResponse.json(
         { error: 'You do not have permission to edit payees' },
         { status: 403 }

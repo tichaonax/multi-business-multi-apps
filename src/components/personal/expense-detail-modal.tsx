@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { hasUserPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { isSystemAdmin } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { DateInput } from '@/components/ui/date-input'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
@@ -20,6 +21,7 @@ interface ExpenseDetailModalProps {
 
 export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: ExpenseDetailModalProps) {
   const { data: session } = useSession()
+  const { permissions } = useUserPermissions()
   const router = useRouter()
   const { format: globalDateFormat } = useDateFormat()
   const [isEditing, setIsEditing] = useState(false)
@@ -52,7 +54,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
     if (!currentUser || !expense) return false
 
     // Check basic permission
-    if (!hasUserPermission(currentUser, 'canEditPersonalExpenses')) return false
+    if (!permissions?.canEditPersonalExpenses) return false
 
     // Admins can always edit
     if (isSystemAdmin(currentUser)) return true
@@ -873,7 +875,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
               {!isEditAllowed && (
                 <div className="space-y-3">
                   {/* Time Restriction Message for non-admin users */}
-                  {session?.user && hasUserPermission(session.user, 'canEditPersonalExpenses') && !isSystemAdmin(session.user) && (
+                  {permissions?.canEditPersonalExpenses && !isSystemAdmin(session?.user) && (
                     <div className="p-3 bg-amber-50 dark:bg-amber-900 dark:bg-opacity-20 border border-amber-200 dark:border-amber-700 rounded-md">
                       <div className="flex items-start">
                         <div className="flex-shrink-0">
@@ -892,7 +894,7 @@ export function ExpenseDetailModal({ expense, isOpen, onClose, onUpdate }: Expen
                   )}
 
                   {/* General Permission Message */}
-                  {session?.user && !hasUserPermission(session.user, 'canEditPersonalExpenses') && (
+                  {!permissions?.canEditPersonalExpenses && (
                     <div className="p-3 bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-20 border border-yellow-200 dark:border-yellow-700 rounded-md">
                       <div className="flex items-start">
                         <div className="flex-shrink-0">

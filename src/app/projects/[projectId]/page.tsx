@@ -26,7 +26,8 @@ import {
   XCircle
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { getCustomPermissionValue, isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
+import { getCustomPermissionValue, isSystemAdmin } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import Link from 'next/link'
 
 interface ProjectContractor {
@@ -131,6 +132,7 @@ interface Project {
 
 export default function ProjectDetailPage() {
   const { data: session } = useSession()
+  const { permissions } = useUserPermissions()
   const params = useParams()
   const router = useRouter()
   const [project, setProject] = useState<Project | null>(null)
@@ -173,12 +175,12 @@ export default function ProjectDetailPage() {
     if (isSystemAdmin(session.user as any)) return true
 
     // Check general view projects permission first
-    if (hasUserPermission(session.user as any, 'canViewProjects')) return true
+    if (permissions?.canViewProjects) return true
 
     // For personal projects, also check personal project permissions
     if (businessType === 'personal') {
-      return hasUserPermission(session.user as any, 'canCreatePersonalProjects') ||
-             hasUserPermission(session.user as any, 'canManagePersonalProjects')
+      return (permissions?.canCreatePersonalProjects ?? false) ||
+             (permissions?.canManagePersonalProjects ?? false)
     }
 
     // For business projects, check business-specific permissions
@@ -192,12 +194,12 @@ export default function ProjectDetailPage() {
     if (isSystemAdmin(session.user as any)) return true
 
     // Check general edit projects permission first
-    if (hasUserPermission(session.user as any, 'canEditProjects')) return true
+    if (permissions?.canEditProjects) return true
 
     // For personal projects, also check personal project permissions
     if (businessType === 'personal') {
-      return hasUserPermission(session.user as any, 'canCreatePersonalProjects') ||
-             hasUserPermission(session.user as any, 'canManagePersonalProjects')
+      return (permissions?.canCreatePersonalProjects ?? false) ||
+             (permissions?.canManagePersonalProjects ?? false)
     }
 
     // For business projects, check business-specific permissions

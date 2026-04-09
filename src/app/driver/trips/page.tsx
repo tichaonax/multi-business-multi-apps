@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { DriverTripForm } from '@/components/driver/driver-trip-form'
 import { DriverTripList } from '@/components/driver/driver-trip-list'
 import { Loader2, Car, Clock, Plus, List } from 'lucide-react'
@@ -12,31 +12,31 @@ import { Loader2, Car, Clock, Plus, List } from 'lucide-react'
 export default function DriverTripsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { permissions, loaded } = useUserPermissions()
   const [activeView, setActiveView] = useState<'form' | 'list'>('form')
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (status === 'loading' || !loaded) return
 
     if (!session?.user?.id) {
       router.push('/auth/signin')
       return
     }
 
-    // Check if user has permission to log driver trips
-    if (!hasUserPermission(session.user, 'canLogDriverTrips')) {
+    if (!permissions?.canLogDriverTrips) {
       router.push('/unauthorized')
       return
     }
-  }, [session, status, router])
+  }, [session, status, router, permissions, loaded])
 
-  if (status === 'loading') {
+  if (status === 'loading' || !loaded) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
-  if (!session?.user?.id || !hasUserPermission(session.user, 'canLogDriverTrips')) {
+  if (!session?.user?.id || !permissions?.canLogDriverTrips) {
     return null
   }
 

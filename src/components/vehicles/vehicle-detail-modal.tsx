@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { hasUserPermission } from '@/lib/permission-utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { LicenseStatusIndicator } from './license-status-indicator'
@@ -41,6 +41,7 @@ interface VehicleDetailModalProps {
 
 export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetailModalProps) {
   const { data: session } = useSession()
+  const { permissions } = useUserPermissions()
   const { format: globalDateFormat } = useDateFormat()
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -70,10 +71,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
     isActive: vehicle.isActive
   })
 
-  const canEdit = session?.user && (
-    hasUserPermission(session.user, 'isSystemAdmin') ||
-    hasUserPermission(session.user, 'canManageVehicles')
-  )
+  const canEdit = permissions?.isSystemAdmin || permissions?.canManageVehicles
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))

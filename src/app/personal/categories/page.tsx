@@ -7,12 +7,13 @@ import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { hasUserPermission } from '@/lib/permission-utils';
+import { useUserPermissions } from '@/hooks/use-user-permissions';
 import { ExpenseCategoryHierarchy, ExpenseCategory } from '@/types/expense-category';
 import { SubcategoryCreator } from '@/components/personal/subcategory-creator';
 
 export default function CategoriesPage() {
   const { data: session } = useSession();
+  const { permissions } = useUserPermissions();
   const [hierarchy, setHierarchy] = useState<ExpenseCategoryHierarchy | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,7 @@ export default function CategoriesPage() {
     emoji: string;
   } | null>(null);
 
-  const canCreateSubcategories = hasUserPermission(session?.user, 'canCreateExpenseSubcategories');
+  const canCreateSubcategories = permissions?.canCreateExpenseSubcategories ?? false;
 
   // Fetch category hierarchy
   useEffect(() => {
@@ -105,7 +106,7 @@ export default function CategoriesPage() {
     })).filter(domain => domain.expense_categories && domain.expense_categories.length > 0),
   } : null;
 
-  if (!session?.user || !hasUserPermission(session.user, 'canAccessPersonalFinance')) {
+  if (!session?.user || !permissions?.canAccessPersonalFinance) {
     return (
       <ProtectedRoute>
         <div className="card p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
