@@ -528,12 +528,9 @@ export async function POST(
           // Fetch from settings API (should ideally be cached)
           let maxPaymentWithoutId = 100 // Default fallback
           try {
-            const settingsRes = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:8080'}/api/admin/settings`, {
-              headers: { 'Cookie': request.headers.get('cookie') || '' }
-            })
-            if (settingsRes.ok) {
-              const settings = await settingsRes.json()
-              maxPaymentWithoutId = settings.maxPaymentWithoutId || 100
+            const settings = await prisma.systemSettings.findFirst({ select: { maxPaymentWithoutId: true } })
+            if (settings?.maxPaymentWithoutId) {
+              maxPaymentWithoutId = Number(settings.maxPaymentWithoutId)
             }
           } catch (error) {
             console.error('[PaymentAPI] Failed to fetch settings, using default:', error)
@@ -936,19 +933,20 @@ export async function POST(
             ? `/expense-accounts/${accountId}`
             : `/expense-accounts/${accountId}/payments/${result.payments[0].id}`,
         })
-      } else if (isRequestFlow && reviewerIds.length > 0) {
-        // Only notify cashiers who have a grant on this personal account
+      } else if (isRequestFlow) {
+        // Notify ALL users with a grant on this personal account (cashier-assisted flow).
+        // Do NOT filter by canSubmitPaymentBatch — cashiers are defined purely by account grants.
         const accountGrants = await prisma.expenseAccountGrants.findMany({
-          where: { expenseAccountId: accountId, userId: { in: reviewerIds } },
+          where: { expenseAccountId: accountId, userId: { not: user.id } },
           select: { userId: true },
         })
-        const grantedReviewerIds = accountGrants.map((g: { userId: string }) => g.userId)
-        if (grantedReviewerIds.length > 0) {
+        const grantedUserIds = accountGrants.map((g: { userId: string }) => g.userId)
+        if (grantedUserIds.length > 0) {
           await emitNotification({
-            userIds: grantedReviewerIds,
+            userIds: grantedUserIds,
             type: 'PAYMENT_SUBMITTED',
-            title: '💰 Personal Payment Request',
-            message: `${user.name} → ${account.accountName}: ${detailStr}`,
+            title: '💰 Payment Approval Request',
+            message: `${user.name} requests cashier approval — ${account.accountName}: ${detailStr}`,
             linkUrl: `/admin/pending-actions`,
           })
         }

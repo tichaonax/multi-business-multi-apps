@@ -92,20 +92,51 @@ export default function ContractorsPage() {
     idFormatTemplateId: ''
   })
 
+  // Fetch user-level permissions from DB (not stored in JWT/session)
+  const [fetchedPermissions, setFetchedPermissions] = useState<Record<string, any> | null>(null)
+  useEffect(() => {
+    if (!session?.user) return
+    if (session.user.role === 'admin') { setFetchedPermissions({}); return }
+    fetch('/api/user/permissions')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setFetchedPermissions(data?.permissions ?? {}))
+      .catch(() => setFetchedPermissions({}))
+  }, [session?.user?.id])
+
+  const userWithPerms = session?.user
+    ? { ...session.user, permissions: fetchedPermissions ?? {} }
+    : null
+  const canManage = session?.user?.role === 'admin' ||
+    !!(userWithPerms && fetchedPermissions !== null && hasUserPermission(userWithPerms as any, 'canManagePersonalContractors'))
+
   // All hooks must be called before any conditional returns (Rules of Hooks)
   useEffect(() => {
-    // Only fetch if user has permission
-    if (session?.user && hasUserPermission(session.user, 'canManagePersonalContractors')) {
+    if (canManage) {
       fetchContractors()
     }
-  }, [session?.user])
+  }, [canManage])
 
   // alert/confirm hooks
   const customAlert = useAlert()
   const confirm = useConfirm()
 
+  // Show loading while permissions are being fetched
+  if (!session?.user || (fetchedPermissions === null && session.user.role !== 'admin')) {
+    return (
+      <ProtectedRoute>
+        <MainLayout>
+          <ContentLayout title="Contractors" breadcrumb={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Contractors', isActive: true }]}>
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
+            </div>
+          </ContentLayout>
+        </MainLayout>
+      </ProtectedRoute>
+    )
+  }
+
   // Check if user has permission to manage contractors
-  if (!session?.user || !hasUserPermission(session.user, 'canManagePersonalContractors')) {
+  if (!canManage) {
     return (
       <ProtectedRoute>
         <MainLayout>
@@ -441,8 +472,8 @@ export default function ContractorsPage() {
     return (
       contractor.fullName.toLowerCase().includes(search) ||
       contractor.email?.toLowerCase().includes(search) ||
-      contractor.phone.includes(search) ||
-      contractor.nationalId.toLowerCase().includes(search) ||
+      contractor.phone?.includes(search) ||
+      contractor.nationalId?.toLowerCase().includes(search) ||
       // Also search in project assignments
       contractor.project_contractors.some(pc => 
         pc.project.name.toLowerCase().includes(search) ||

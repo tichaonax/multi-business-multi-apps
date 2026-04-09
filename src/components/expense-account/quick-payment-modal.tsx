@@ -768,7 +768,9 @@ export function QuickPaymentModal({
     }
 
     setErrors(newErrors)
-    return !newErrors.payee && !newErrors.categoryId && !newErrors.amount && !newErrors.paymentDate && !newErrors.notes
+    const firstError = newErrors.payee || newErrors.categoryId || newErrors.amount || newErrors.paymentDate || newErrors.notes
+    if (firstError) toast.error(firstError)
+    return !firstError
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1546,7 +1548,7 @@ export function QuickPaymentModal({
                         {/* Domain picker */}
                         <div>
                           <label className="block text-sm font-medium text-secondary mb-1">
-                            Domain
+                            Domain <span className="text-red-500">*</span>
                           </label>
                           {loadingCategories ? (
                             <div className="text-sm text-secondary">Loading...</div>

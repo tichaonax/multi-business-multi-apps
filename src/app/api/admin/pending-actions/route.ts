@@ -491,8 +491,9 @@ export async function GET() {
 
     // Personal payment requests — REQUEST-status payments on personal accounts where the
     // current user has an explicit expenseAccountGrant (or is a sys admin who sees all).
+    // Any user with a grant qualifies as a cashier — canSubmitPaymentBatch is NOT required.
     let personalPaymentRequests: object[] = []
-    if (sysAdmin || permissions.canSubmitPaymentBatch) {
+    {
       let grantedAccountIds: string[] | null = null
       if (!sysAdmin) {
         const userGrants = await prisma.expenseAccountGrants.findMany({

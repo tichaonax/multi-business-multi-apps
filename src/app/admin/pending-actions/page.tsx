@@ -10,6 +10,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import Link from 'next/link'
 import { formatDateTimeZim } from '@/lib/date-utils'
+import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 
 interface LockRequest {
   id: string
@@ -149,6 +150,7 @@ export default function PendingActionsPage() {
   const [personalPaymentRequests, setPersonalPaymentRequests] = useState<PersonalPaymentRequest[]>([])
   const [pendingEcocashConversions, setPendingEcocashConversions] = useState<PendingEcocashConversion[]>([])
   const [personalActionState, setPersonalActionState] = useState<Record<string, 'approving' | 'rejecting' | null>>({})
+  const [voucherItem, setVoucherItem] = useState<PersonalPaymentRequest | null>(null)
   const [loading, setLoading] = useState(true)
   const total = loanLockRequests.length + pendingSupplierPayments.length + pendingPettyCash.length +
     pendingCashAllocations.length + pendingPaymentBatches.length + pendingPaymentRequests.length +
@@ -287,8 +289,9 @@ export default function PendingActionsPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to approve')
-      toast.push(`Approved $${item.amount.toFixed(2)} for ${item.creatorName ?? 'requester'}`, { type: 'success' })
       setPersonalPaymentRequests(prev => prev.filter(p => p.id !== item.id))
+      // Open voucher modal so cashier knows payment was approved and can generate receipt
+      setVoucherItem(item)
     } catch (e: any) {
       toast.error(e.message)
     } finally {
@@ -1045,6 +1048,28 @@ export default function PendingActionsPage() {
         </div>
       )
     })()}
+
+    {/* Payment Voucher modal — opens after cashier approves a personal payment request */}
+    {voucherItem && (
+      <ExpensePaymentVoucherModal
+        payment={{
+          id: voucherItem.id,
+          amount: voucherItem.amount,
+          paymentDate: voucherItem.paymentDate ?? new Date().toISOString(),
+          payeeName: voucherItem.payeeName ?? '—',
+          payeeType: 'PERSON',
+          purpose: voucherItem.notes ?? voucherItem.categoryName ?? '—',
+          category: voucherItem.categoryName ?? undefined,
+          businessId: '',
+          businessName: voucherItem.accountName,
+        } as PaymentSummary}
+        existingVoucher={null}
+        userId={session?.user?.id ?? ''}
+        creatorName={session?.user?.name ?? ''}
+        onClose={() => setVoucherItem(null)}
+        onSaved={() => setVoucherItem(null)}
+      />
+    )}
   </>
   )
 }

@@ -253,7 +253,7 @@ export function ExpensePaymentVoucherModal({
   if (showPreview && savedVoucherData) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-        <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: '90vh' }}>
+        <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: '90vh' }}>
           {/* Preview header */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <div>
@@ -350,7 +350,7 @@ export function ExpensePaymentVoucherModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div>
@@ -383,8 +383,9 @@ export function ExpensePaymentVoucherModal({
           {/* Collector details */}
           <div>
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Collector Details</h3>
-            <div className="space-y-3">
-              <div>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Row 1: Full Name | Phone Number — spacer keeps heights equal */}
+              <div className="flex flex-col">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Full Name <span className="text-red-500">*</span>
                 </label>
@@ -395,20 +396,29 @@ export function ExpensePaymentVoucherModal({
                   placeholder="Name of person who collected"
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
+                {/* Spacer to match "Full number: +263" helper text height in PhoneNumberInput */}
+                <p className="text-xs mt-1 invisible select-none">_</p>
               </div>
-              <PhoneNumberInput
-                    label="Phone Number"
-                    value={collectorPhone}
-                    onChange={(fullNumber) => setCollectorPhone(fullNumber)}
-                  />
-              <NationalIdInput
-                    label="National ID"
-                    value={collectorIdNumber}
-                    templateId={collectorIdTemplateId}
-                    onChange={(id, tmplId) => { setCollectorIdNumber(id); if (tmplId) setCollectorIdTemplateId(tmplId) }}
-                    onTemplateChange={(tmplId) => setCollectorIdTemplateId(tmplId)}
-                    showTemplateSelector={true}
-                  />
+              <div>
+                <PhoneNumberInput
+                  label="Phone Number"
+                  value={collectorPhone}
+                  onChange={(fullNumber) => setCollectorPhone(fullNumber)}
+                />
+              </div>
+              {/* Row 2: ID Format Template + National ID stacked, full width so dropdown doesn't wrap */}
+              <div className="col-span-2">
+                <NationalIdInput
+                  label="National ID"
+                  value={collectorIdNumber}
+                  templateId={collectorIdTemplateId}
+                  onChange={(id, tmplId) => { setCollectorIdNumber(id); if (tmplId) setCollectorIdTemplateId(tmplId) }}
+                  onTemplateChange={(tmplId) => setCollectorIdTemplateId(tmplId)}
+                  showTemplateSelector={true}
+                  twoColumnLayout={false}
+                />
+              </div>
+              {/* Row 3: Driver's Licence (left) */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Driver's Licence No.</label>
                 <input
@@ -419,6 +429,8 @@ export function ExpensePaymentVoucherModal({
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
+              <div /> {/* intentionally empty */}
+              {/* Row 4: Purpose | Notes */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   What is this payment for? <span className="text-red-500">*</span>
@@ -427,7 +439,7 @@ export function ExpensePaymentVoucherModal({
                   value={purpose}
                   onChange={e => setPurpose(e.target.value)}
                   placeholder="e.g. School fees Term 1 — Chisamba Primary"
-                  rows={2}
+                  rows={3}
                   required
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
                 />
@@ -438,7 +450,7 @@ export function ExpensePaymentVoucherModal({
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="Any additional notes about this payment..."
-                  rows={2}
+                  rows={3}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
                 />
               </div>

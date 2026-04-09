@@ -792,6 +792,23 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           <span className="text-xs text-secondary">{pendingCount} total</span>
                         </div>
                         <div className="divide-y divide-border max-h-80 overflow-y-auto">
+                          {(pendingActions as any).personalPaymentRequests?.map((r: any) => (
+                            <Link key={r.id} href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 text-xs ${r.priority === 'URGENT' ? 'border-l-2 border-red-500' : 'border-l-2 border-purple-400'}`}>
+                              <span className="mt-0.5 shrink-0">{r.priority === 'URGENT' ? '🚨' : '🙋'}</span>
+                              <div className="min-w-0">
+                                <p className="font-medium text-purple-700 dark:text-purple-300 truncate">
+                                  Personal Payment Request
+                                  {r.paymentChannel === 'ECOCASH' ? ' · 📱' : ' · 💵'}
+                                </p>
+                                <p className="text-secondary truncate">
+                                  {r.creatorName ?? '—'} → {r.accountName}
+                                  {r.payeeName ? ` · ${r.payeeName}` : ''}
+                                  {' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.amount).toFixed(2)}</span>
+                                </p>
+                                {r.notes && <p className="text-secondary italic truncate">{r.notes}</p>}
+                              </div>
+                            </Link>
+                          ))}
                           {pendingActions.pendingPaymentBatches?.map((b: any) => (
                             <Link key={b.id} href={`/expense-accounts/payment-batches/${b.id}/review`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
                               <span className="mt-0.5 shrink-0">📋</span>
