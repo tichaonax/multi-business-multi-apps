@@ -33,6 +33,8 @@
 15a. [Services as Products](#15a-services-as-products--selling-services-via-barcode)
 16. [Quick Reference Cards](#16-quick-reference-cards)
 17. [Suppliers & Payees](#17-suppliers--payees)
+    - [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments)
+    - [Payee Receipt Report](#payee-receipt-report)
 18. [Batch EOD Catch-Up — Manager and Cashier Roles](#18-batch-eod-catch-up--manager-and-cashier-roles)
 19. [Employee Termination Checklist](#employee-termination--full-checklist)
 20. [Team Chat](#20-team-chat)
@@ -4586,6 +4588,87 @@ To see all payments made to a specific supplier:
 1. Open the supplier record.
 2. Click the **Payments** tab.
 3. The full list of expense payments, batch payments, and rent payments linked to this supplier is shown, with dates and amounts.
+
+---
+
+### Attaching Receipts to Expense Payments
+
+> **Who reads this:** Cashiers and managers who process expense account payments. Physical receipts can be captured after a payment is recorded — even days later.
+
+Each expense account payment can have one or more receipts attached to it. A receipt records the actual physical document details: the date on the receipt, the amount, a description of what was purchased, and which supplier or individual was paid.
+
+#### The Receipt Badge
+
+On the transaction history table, every payment row has a small receipt icon (🧾) at the right side:
+
+| Badge appearance | Meaning |
+|---|---|
+| **🧾 N** (green, with a number) | N receipts are already attached — click to view or add more |
+| **🧾** (grey, no number) | No receipt yet — click to attach the first one |
+
+#### Attaching the First Receipt
+
+1. In the transaction history, find the payment row and click the grey **🧾** icon.
+2. The **Add Receipt** form opens.
+
+**Step 1 — Payee:**
+- If the payment already has a known payee, their name is shown and pre-selected. Click **Change** if the receipt is from a different person or supplier.
+- If no payee is recorded, click **Select** and type to search.
+- As you type, matching individuals, suppliers, and contractors appear in a dropdown. Select the correct one.
+- If the payee does not exist yet, click **+ Create individual** or **+ Create supplier** directly from the search results to add them on the fly.
+
+**Payee mismatch — correcting a wrong payee:**
+
+Sometimes a payment is recorded with a placeholder name (the person who collected the cash) rather than the actual supplier. When you select a different payee from the one on the payment, an amber banner appears:
+
+> ⚠️ Payment was recorded under **[old name]**. Update it to **[new name]**?
+
+- Click **Yes, update payment** to correct the payment record to point to the right payee. The transaction row updates immediately.
+- Click **No, keep original** to save the receipt linked to the new payee without changing the payment record itself.
+
+**Step 2 — Receipt details:**
+
+| Field | Required | Notes |
+|---|---|---|
+| Receipt Date | Yes | The date printed on the physical receipt — may differ from the payment date |
+| Amount | Yes | The amount on the receipt — may differ from the payment amount |
+| Description | No | Brief note of what was purchased (e.g. "Cleaning supplies — March") |
+| Internal Notes | No | Any internal memo that does not need to appear on reports |
+
+3. Click **Save Receipt**.
+
+#### Viewing and Managing Existing Receipts
+
+Click the green **🧾 N** badge on any payment row to open the receipts panel. This shows:
+- Each receipt with its date, amount, payee name, and description
+- Who added the receipt and when
+- A **✕** delete button — visible to the receipt's creator within 7 days, or to admins at any time
+
+To add another receipt to the same payment, click **+ Add Receipt** at the bottom of the panel.
+
+#### Why Attach Receipts?
+
+- Provides a paper trail linking physical documents to digital payments
+- Corrects the payee on a payment when the original entry used a placeholder name
+- Enables per-payee spending reports (see [Payee Receipt Report](#payee-receipt-report) below)
+- Helps with audits — each receipt shows who recorded it and when
+
+---
+
+### Payee Receipt Report
+
+Once receipts are attached to payments, you can view a spending summary for any individual or business payee directly from the Payees page.
+
+1. Go to **Payees** in the menu.
+2. Find the person or business payee.
+3. Click the **🧾 Receipts** button on their card.
+
+The report shows:
+- **Summary card** — total number of receipts and total amount across all receipts linked to this payee
+- **Receipt table** — each receipt listed with its date, the payment it belongs to, the expense account, the amount, and the description
+- Results are sorted newest first
+
+This gives managers a quick view of total spending with a specific supplier or contractor across all expense accounts and all time.
 
 ---
 
