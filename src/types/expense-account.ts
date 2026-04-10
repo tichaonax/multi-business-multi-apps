@@ -30,6 +30,7 @@ export interface ExpenseAccount {
   largestPaymentId?: string | null
   parentAccount?: ExpenseAccount | null
   siblingAccounts?: ExpenseAccount[]
+  permissions?: Record<string, boolean>
 }
 
 export interface ExpenseAccountDeposit {

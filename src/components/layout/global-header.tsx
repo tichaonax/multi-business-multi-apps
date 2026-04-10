@@ -1691,6 +1691,7 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                 </Link>
               )}
 
+
               {/* Business Account link - visible to users with financial data access or admins */}
               {(
                 isSystemAdmin(user) ||

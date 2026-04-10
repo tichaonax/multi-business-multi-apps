@@ -352,6 +352,18 @@ export function MobileSidebar() {
                 <Link href="/expense-accounts" className={sectionLinkClass} onClick={close}>💳 Expense Accounts</Link>
               )}
 
+              {hasBusinessPermission('canCreateExpenseAccount') && (
+                <Link href="/expense-accounts/new" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>➕ Create Account</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/lenders" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🏦 Lenders</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canAccessExpenseAccount')) && (
+                <Link href="/expense-accounts/auto-deposits" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>💳 EOD Auto-Deposits</Link>
+              )}
+
               {(isAdmin || hasBusinessPermission('canSubmitPaymentBatch')) && (
                 <Link href="/expense-accounts/payment-batches" className={sectionLinkClass} onClick={close}>📋 Payment Batches</Link>
               )}
@@ -366,6 +378,30 @@ export function MobileSidebar() {
 
               {hasBusinessPermission('canViewExpenseReports') && (
                 <Link href="/expense-accounts/reports" className={sectionLinkClass} onClick={close}>📊 Expense Reports</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/accounts-overview" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🏦 Accounts Overview</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/loans" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>💼 Loan Portfolio</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/categories" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🏷️ Category Analysis</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/payees" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>👥 Payee Analysis</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/trends" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>📈 Monthly Trends</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/transfers" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🔄 Transfer Report</Link>
               )}
 
               {(isAdmin || hasBusinessPermission('canAccessFinancialData')) && (
@@ -528,6 +564,7 @@ export function MobileSidebar() {
                   {(isAdmin || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
                     <Link href="/projects" className={sectionLinkClass} onClick={close}>📋 Projects</Link>
                   )}
+
 
                   <button
                     type="button"

@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -12,6 +13,7 @@ import type { TemplateListItem } from '@/types/seed-templates'
 export default function SeedTemplatesPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const confirm = useConfirm()
   
   const [templates, setTemplates] = useState<TemplateListItem[]>([])
   const [filteredTemplates, setFilteredTemplates] = useState<TemplateListItem[]>([])
@@ -80,7 +82,13 @@ export default function SeedTemplatesPage() {
   }
 
   async function handleSetDefault(templateId: string) {
-    if (!confirm('Set this template as the default for its business type?')) return
+    const ok = await confirm({
+      title: 'Set Default Template',
+      description: 'Set this template as the default for its business type?',
+      confirmText: 'Set Default',
+      cancelText: 'Cancel',
+    })
+    if (!ok) return
 
     try {
       const res = await fetch('/api/admin/seed-templates', {
@@ -100,7 +108,13 @@ export default function SeedTemplatesPage() {
   }
 
   async function handleDelete(templateId: string, templateName: string) {
-    if (!confirm(`Delete template "${templateName}"? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: 'Delete Template',
+      description: `Delete template "${templateName}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+    })
+    if (!ok) return
 
     try {
       const res = await fetch(`/api/admin/seed-templates?id=${templateId}`, {

@@ -7,6 +7,7 @@ import { CreateSiblingAccountModal } from './create-sibling-modal'
 import { MergeAccountModal } from './merge-account-modal'
 import { QuickDepositModal } from './quick-deposit-modal'
 import { QuickPaymentModal } from './quick-payment-modal'
+import { TransferModal } from './transfer-modal'
 import type { OnSuccessArg } from '@/types/ui'
 
 interface RecentTx {
@@ -92,6 +93,7 @@ export function AccountList({
   const [showMergeModal, setShowMergeModal] = useState(false)
   const [showQuickDepositModal, setShowQuickDepositModal] = useState(false)
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
+  const [showTransferModal, setShowTransferModal] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<ExpenseAccount | null>(null)
 
   useEffect(() => {
@@ -237,6 +239,11 @@ export function AccountList({
   const handleQuickPayment = (account: ExpenseAccount) => {
     setSelectedAccount(account)
     setShowQuickPaymentModal(true)
+  }
+
+  const handleTransfer = (account: ExpenseAccount) => {
+    setSelectedAccount(account)
+    setShowTransferModal(true)
   }
 
   const handleQuickDepositSuccess = (payload: OnSuccessArg) => {
@@ -471,6 +478,19 @@ export function AccountList({
                         </button>
                       )}
 
+                      {account.isActive && !account.businessId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleTransfer(account)
+                          }}
+                          className="px-2 sm:px-3 py-1 text-xs font-medium text-violet-700 bg-violet-100 hover:bg-violet-200 dark:bg-violet-900 dark:text-violet-300 dark:hover:bg-violet-800 rounded transition-colors"
+                          title="Transfer funds to another account"
+                        >
+                          ⇄ Transfer
+                        </button>
+                      )}
+
                       {canCreateSiblingAccounts && !account.isSibling && (
                         <button
                           onClick={(e) => {
@@ -644,6 +664,22 @@ export function AccountList({
           accountName={selectedAccount.accountName}
           onSuccess={handleQuickDepositSuccess}
           onError={handleQuickDepositError}
+        />
+      )}
+
+      {/* Transfer Modal */}
+      {selectedAccount && !selectedAccount.businessId && (
+        <TransferModal
+          key={`${selectedAccount.id}-transfer`}
+          isOpen={showTransferModal}
+          onClose={() => setShowTransferModal(false)}
+          sourceAccountId={selectedAccount.id}
+          sourceAccountName={selectedAccount.accountName}
+          currentBalance={Number(selectedAccount.balance)}
+          onSuccess={() => {
+            setShowTransferModal(false)
+            loadAccounts()
+          }}
         />
       )}
 

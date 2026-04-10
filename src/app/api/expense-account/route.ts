@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const filterBusinessId = searchParams.get('businessId')
 
     const allForSetup = searchParams.get('allForSetup') === 'true'
+    const simple = searchParams.get('simple') === 'true' // lightweight mode: id, name, number, type, balance only
 
     let whereClause: any = {}
     if (isAdmin && filterBusinessId) {
@@ -86,6 +87,62 @@ export async function GET(request: NextRequest) {
 
     // Compute aggregate deposits and payments for each account in a single query using groupBy
     const accountIds = accounts.map((a) => a.id)
+
+    // Simple mode: lightweight account list scoped to accounts the user can WRITE to (deposit into).
+    // Used by the transfer modal destination selector.
+    if (simple) {
+      // For non-admins, restrict to accounts with actual write access:
+      // - Business accounts where canMakeExpenseDeposits is true
+      // - Explicitly granted accounts with FULL (not VIEW) grant
+      let writeableIds: string[] = accountIds
+      if (!isAdmin) {
+        const userBusinessIds = user.businessMemberships?.map((m: any) => m.businessId) || []
+        const fullGrants = await prisma.expenseAccountGrants.findMany({
+          where: { userId: user.id, permissionLevel: 'FULL' },
+          select: { expenseAccountId: true },
+        })
+        const fullGrantIds = new Set(fullGrants.map(g => g.expenseAccountId))
+
+        writeableIds = accounts
+          .filter(a => {
+            // Transfers only allowed on non-business accounts with FULL grant
+            if (a.businessId) return false
+            return fullGrantIds.has(a.id)
+          })
+          .map(a => a.id)
+      }
+
+      const writeableAccounts = accounts.filter(a => writeableIds.includes(a.id))
+      const writeableAccountIds = writeableAccounts.map(a => a.id)
+
+      const [simpleDeposits, simplePayments] = await Promise.all([
+        prisma.expenseAccountDeposits.groupBy({
+          by: ['expenseAccountId'],
+          where: { expenseAccountId: { in: writeableAccountIds } },
+          _sum: { amount: true },
+        }),
+        prisma.expenseAccountPayments.groupBy({
+          by: ['expenseAccountId'],
+          where: { expenseAccountId: { in: writeableAccountIds }, status: { in: ['SUBMITTED', 'APPROVED', 'PAID'] } },
+          _sum: { amount: true },
+        }),
+      ])
+      const depMap = new Map(simpleDeposits.map(g => [g.expenseAccountId, Number(g._sum?.amount ?? 0)]))
+      const payMap = new Map(simplePayments.map(g => [g.expenseAccountId, Number(g._sum?.amount ?? 0)]))
+      return NextResponse.json({
+        success: true,
+        data: {
+          accounts: writeableAccounts.map(a => ({
+            id: a.id,
+            accountName: a.accountName,
+            accountNumber: a.accountNumber,
+            accountType: a.accountType,
+            isActive: a.isActive,
+            balance: (depMap.get(a.id) ?? 0) - (payMap.get(a.id) ?? 0),
+          })),
+        },
+      })
+    }
 
     // For RENT-type accounts, fetch the landlord supplier details
     const rentAccountIds = accounts.filter(a => a.accountType === 'RENT').map(a => a.id)

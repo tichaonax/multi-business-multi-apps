@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { hasExpenseAccountPermission } from '@/lib/expense-account-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { canUserAccessAccount } from '@/lib/expense-account-access'
 
@@ -154,10 +155,13 @@ export async function PATCH(
     // Get user permissions (pass full user object, not just ID)
     const permissions = getEffectivePermissions(user)
     if (!permissions.canCreateExpenseAccount) {
-      return NextResponse.json(
-        { error: 'You do not have permission to update expense accounts' },
-        { status: 403 }
-      )
+      const accountFull = await prisma.expenseAccounts.findUnique({ where: { id: accountId } })
+      if (!accountFull || !hasExpenseAccountPermission(user, accountFull, 'canCreateExpenseAccount')) {
+        return NextResponse.json(
+          { error: 'You do not have permission to update expense accounts' },
+          { status: 403 }
+        )
+      }
     }
 
     const { accountId} = await params
@@ -276,10 +280,13 @@ export async function DELETE(
     // Get user permissions (pass full user object, not just ID)
     const permissions = getEffectivePermissions(user)
     if (!permissions.canDeleteExpenseAccounts) {
-      return NextResponse.json(
-        { error: 'You do not have permission to delete expense accounts' },
-        { status: 403 }
-      )
+      const accountFull = await prisma.expenseAccounts.findUnique({ where: { id: accountId } })
+      if (!accountFull || !hasExpenseAccountPermission(user, accountFull, 'canDeleteExpenseAccounts')) {
+        return NextResponse.json(
+          { error: 'You do not have permission to delete expense accounts' },
+          { status: 403 }
+        )
+      }
     }
 
     const { accountId } = await params

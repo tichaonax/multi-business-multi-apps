@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, CSSProperties } from 'react'
+import { useState, useRef, useEffect, CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 interface Option {
@@ -24,6 +24,8 @@ interface SearchableSelectProps {
   error?: string
   disabled?: boolean
   loading?: boolean
+  renderOption?: (option: Option) => ReactNode   // custom row content in dropdown
+  renderValue?: (option: Option) => ReactNode    // custom content in trigger when selected
 }
 
 function getOptionValue(o: Option): string {
@@ -49,6 +51,8 @@ export function SearchableSelect({
   error,
   disabled = false,
   loading = false,
+  renderOption,
+  renderValue,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -172,9 +176,9 @@ export function SearchableSelect({
                 key={val}
                 type="button"
                 onClick={() => select(val)}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${value === val ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-primary'}`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap ${value === val ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-primary'}`}
               >
-                {getOptionLabel(o)}
+                {renderOption ? renderOption(o) : getOptionLabel(o)}
               </button>
             )
           })
@@ -193,7 +197,7 @@ export function SearchableSelect({
         className={`w-full border rounded-md px-3 py-2 text-sm bg-background text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-400' : 'border-border'} ${disabled || loading ? 'opacity-50 cursor-not-allowed text-secondary' : 'text-primary'}`}
       >
         <span className={selected ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}>
-          {loading ? 'Loading…' : selected ? getOptionLabel(selected) : placeholder}
+          {loading ? 'Loading…' : selected ? (renderValue ? renderValue(selected) : getOptionLabel(selected)) : placeholder}
         </span>
         <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

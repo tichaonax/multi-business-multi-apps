@@ -62,7 +62,6 @@ export function getEffectivePermissions(user: SessionUser | null | undefined, bu
   }
 
   // System admins get full permissions regardless of business context
-  // Combine both user-level and core business permissions for admins
   if (user.role === 'admin') {
     return {
       ...ADMIN_USER_PERMISSIONS,
@@ -70,34 +69,38 @@ export function getEffectivePermissions(user: SessionUser | null | undefined, bu
     } as BusinessPermissions
   }
 
-  const activeBusinessMemberships = user.businessMemberships?.filter(m => m.isActive) || []
-  
+  const memberships = user.businessMemberships || [];
+  // Elevate all business-agnostic permissions to all businesses
+  // (businessId is null/undefined for global permissions)
+  const businessIds = memberships.filter(m => m.isActive && m.businessId).map(m => m.businessId);
+  const businessAgnosticMemberships = memberships.filter(m => m.isActive && !m.businessId);
+  const elevatedMemberships = [
+    ...memberships.filter(m => m.isActive && m.businessId),
+    ...businessAgnosticMemberships.flatMap(m => businessIds.map(businessId => ({ ...m, businessId })))
+  ];
+
   // If a specific business is requested, get permissions for that business only
   if (businessId) {
-    const businessMembership = activeBusinessMemberships.find(m => m.businessId === businessId)
-    if (!businessMembership) {
-      // User has no access to this specific business
-      return getNoAccessPermissions()
+    const membership = elevatedMemberships.find(m => m.businessId === businessId);
+    if (!membership) {
+      return getNoAccessPermissions();
     }
-    
-    return elevateWithUserPayrollPermissions(user, getMembershipPermissions(businessMembership))
+    return getMembershipPermissions(membership);
   }
 
   // No specific business - get highest level permissions across all businesses
-  if (activeBusinessMemberships.length === 0) {
+  if (elevatedMemberships.length === 0) {
     // Special case: Check if this is a driver-only user (has only driver permissions)
-    const userPermissions = user.permissions || {}
+    const userPermissions = user.permissions || {};
     const isDriverOnly = userPermissions.canLogDriverTrips &&
                         userPermissions.canLogDriverMaintenance &&
                         !userPermissions.canAccessPersonalFinance &&
-                        !userPermissions.canManageVehicles
+                        !userPermissions.canManageVehicles;
 
     if (isDriverOnly) {
-      // Drivers get NO business-level permissions, only their specific user-level permissions
-      return getDriverOnlyPermissions()
+      return getDriverOnlyPermissions();
     }
-
-    return getPersonalOnlyPermissions()
+    return getPersonalOnlyPermissions();
   }
 
   // Find the membership with the highest permissions (business-owner > business-manager > employee > read-only)
@@ -106,16 +109,13 @@ export function getEffectivePermissions(user: SessionUser | null | undefined, bu
     'business-manager': 3,
     'employee': 2,
     'read-only': 1
-  }
-
-  const highestMembership = activeBusinessMemberships.reduce((highest, current) => {
-    const currentLevel = roleHierarchy[current.role] || 0
-    const highestLevel = roleHierarchy[highest.role] || 0
-    return currentLevel > highestLevel ? current : highest
-  })
-
-  const businessPerms = getMembershipPermissions(highestMembership)
-  return elevateWithUserPayrollPermissions(user, businessPerms)
+  };
+  const highestMembership = elevatedMemberships.reduce((highest, current) => {
+    const currentLevel = roleHierarchy[current.role] || 0;
+    const highestLevel = roleHierarchy[highest.role] || 0;
+    return currentLevel > highestLevel ? current : highest;
+  });
+  return getMembershipPermissions(highestMembership);
 }
 
 /**
@@ -158,23 +158,6 @@ function getDriverOnlyPermissions(): BusinessPermissions {
     canViewUsers: false,
     canInviteUsers: false,
     canEditUserPermissions: false,
-    canRemoveUsers: false,
-    canViewAuditLogs: false,
-    canExportBusinessData: false,
-    canImportBusinessData: false,
-    canBackupBusiness: false,
-    canRestoreBusiness: false,
-    canViewEmployees: false,
-    canCreateEmployees: false,
-    canEditEmployees: false,
-    canDeleteEmployees: false,
-    canManageEmployees: false,
-    canViewEmployeeContracts: false,
-    canCreateEmployeeContracts: false,
-    canEditEmployeeContracts: false,
-    canDeleteEmployeeContracts: false,
-    canManageJobTitles: false,
-    canManageBenefitTypes: false,
     canManageCompensationTypes: false,
     canManageDisciplinaryActions: false,
     canViewEmployeeReports: false,

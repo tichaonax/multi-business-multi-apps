@@ -1787,6 +1787,7 @@ export function Sidebar() {
           </Link>
         )}
 
+
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('chat:open'))}

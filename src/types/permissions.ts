@@ -236,6 +236,7 @@ export interface CoreBusinessPermissions {
   canRunCashAllocationReport: boolean;    // Run and lock the daily cash allocation report (EOD creator)
   canApproveCashAllocationReport: boolean; // Receive bell notification and reconcile/approve the cash allocation report (cashier/manager)
   canCreateExpenseSubcategories: boolean;  // Create expense sub-categories and sub-subcategories
+  canTransferBetweenAccounts: boolean;     // Initiate manual fund transfers between expense accounts (MBM-174)
 
   // Supplier Management
   canViewSuppliers: boolean;
@@ -1133,6 +1134,7 @@ export const USER_LEVEL_PERMISSIONS = {
       { key: 'canRunCashAllocationReport', label: 'Run Cash Allocation Report' },
       { key: 'canApproveCashAllocationReport', label: 'Approve / Reconcile Cash Allocation Report' },
       { key: 'canCreateExpenseSubcategories', label: 'Create Expense Sub-categories' },
+      { key: 'canTransferBetweenAccounts', label: 'Transfer Between Accounts' },
     ]
   },
   // Payee Management
@@ -1231,6 +1233,7 @@ export const CORE_PERMISSIONS = {
     { key: 'canEditBusinessSubcategories', label: 'Edit Subcategories' },
     { key: 'canDeleteBusinessSubcategories', label: 'Delete Subcategories' },
     { key: 'canCreateExpenseSubcategories', label: 'Create Expense Sub-categories' },
+    { key: 'canTransferBetweenAccounts', label: 'Transfer Between Expense Accounts' },
   ],
   inventoryManagement: [
     { key: 'canManageInventory', label: 'Manage Inventory' },
@@ -1410,6 +1413,8 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: true,        // ✅ Owner/Admin manages business loan accounts
   canRunCashAllocationReport: true,    // ✅ Owner can run cash allocation report
   canApproveCashAllocationReport: false, // ❌ Owner creates EOD — doesn't need to reconcile it
+  canCreateExpenseSubcategories: true,   // ✅ Owners can create expense sub-categories
+  canTransferBetweenAccounts: false,     // ❌ Requires explicit grant — not automatic for owners
 
   // Supplier Management - Full access
   canViewSuppliers: true,
@@ -1565,6 +1570,8 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,    // ❌ Admin only
   canRunCashAllocationReport: true,     // ✅ Manager can run cash allocation report
   canApproveCashAllocationReport: false, // ❌ Requires explicit cash_allocation.approve system permission — not granted by role
+  canCreateExpenseSubcategories: true,   // ✅ Managers can create expense sub-categories
+  canTransferBetweenAccounts: false,     // ❌ Requires explicit grant — not automatic for managers
 
   // Supplier Management - Manager access
   canViewSuppliers: true,
@@ -1720,6 +1727,8 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canCreateExpenseSubcategories: false,
+  canTransferBetweenAccounts: false,     // ❌ Employees cannot transfer
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -1873,6 +1882,8 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canCreateExpenseSubcategories: false,
+  canTransferBetweenAccounts: false,     // ❌ Read-only cannot transfer
 
   // Supplier Management - View only
   canViewSuppliers: true,
@@ -2029,6 +2040,8 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canCreateExpenseSubcategories: false,
+  canTransferBetweenAccounts: false,     // ❌ Associates cannot transfer
 
   // Supplier Management - View only (for ingredient info)
   canViewSuppliers: true,
@@ -2185,6 +2198,8 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canCreateExpenseSubcategories: false,
+  canTransferBetweenAccounts: false,     // ❌ Salesperson cannot transfer
 
   // Supplier Management - No access
   canViewSuppliers: false,
@@ -2338,6 +2353,8 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: true,        // ✅ Super-admin manages business loan accounts
   canRunCashAllocationReport: true,    // ✅ Super-admin can run cash allocation report
   canApproveCashAllocationReport: true, // ✅ Super-admin can also reconcile
+  canCreateExpenseSubcategories: true,  // ✅ Super-admin can create expense sub-categories
+  canTransferBetweenAccounts: true,     // ✅ Super-admin can transfer between accounts
 
   // Supplier Management - Full access
   canViewSuppliers: true,

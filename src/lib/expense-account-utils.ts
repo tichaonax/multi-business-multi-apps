@@ -1,3 +1,29 @@
+import { hasPermission } from '@/lib/permission-utils'
+import type { SessionUser } from '@/lib/permission-utils'
+import type { ExpenseAccount } from '@/types/expense-account'
+
+/**
+ * Checks if a user has a specific permission for an expense account.
+ * - If the account has its own permissions, check those.
+ * - Otherwise, fall back to business/user-level permissions.
+ */
+export function hasExpenseAccountPermission(
+  user: SessionUser | null | undefined,
+  account: ExpenseAccount,
+  permission: string
+): boolean {
+  // 1. Account-level permissions (for orphaned accounts)
+  if (account.permissions && account.permissions[permission] === true) {
+    return true
+  }
+  // 2. If account is tied to a business, check business/user permissions
+  if (account.parentAccountId) {
+    // If you have a businessId field, use it here instead
+    return hasPermission(user, permission, account.parentAccountId)
+  }
+  // 3. Fallback: user-level permission
+  return hasPermission(user, permission)
+}
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 

@@ -7,6 +7,7 @@ import {
 } from '@/lib/expense-account-utils'
 import { validatePayee } from '@/lib/payee-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { hasExpenseAccountPermission } from '@/lib/expense-account-utils'
 import { canUserViewAccount, canUserWriteAccount } from '@/lib/expense-account-access'
 import { v4 as uuidv4 } from 'uuid'
 import { getServerUser } from '@/lib/get-server-user'
@@ -262,7 +263,10 @@ export async function POST(
     const { accountId } = await params
 
     if (!permissions.canMakeExpensePayments && user.role !== 'admin') {
-      if (!(await canUserWriteAccount(user.id, accountId))) {
+      const accountFull = await prisma.expenseAccounts.findUnique({ where: { id: accountId } })
+      const hasWrite = await canUserWriteAccount(user.id, accountId)
+      const hasOrphaned = accountFull && hasExpenseAccountPermission(user, accountFull, 'canMakeExpensePayments')
+      if (!hasWrite && !hasOrphaned) {
         return NextResponse.json(
           { error: 'You do not have permission to make expense payments' },
           { status: 403 }

@@ -8,6 +8,7 @@ import {
   updateExpenseAccountBalance,
 } from '@/lib/expense-account-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { hasExpenseAccountPermission } from '@/lib/expense-account-utils'
 import { canUserViewAccount, canUserWriteAccount } from '@/lib/expense-account-access'
 import { getServerUser } from '@/lib/get-server-user'
 
@@ -181,7 +182,10 @@ export async function POST(
     const { accountId } = await params
 
     if (!permissions.canMakeExpenseDeposits && user.role !== 'admin') {
-      if (!(await canUserWriteAccount(user.id, accountId))) {
+      const accountFull = await prisma.expenseAccounts.findUnique({ where: { id: accountId } })
+      const hasWrite = await canUserWriteAccount(user.id, accountId)
+      const hasOrphaned = accountFull && hasExpenseAccountPermission(user, accountFull, 'canMakeExpenseDeposits')
+      if (!hasWrite && !hasOrphaned) {
         return NextResponse.json(
           { error: 'You do not have permission to make expense deposits' },
           { status: 403 }

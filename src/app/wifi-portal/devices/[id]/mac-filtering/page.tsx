@@ -7,6 +7,7 @@ import { ProtectedRoute } from '@/components/auth/protected-route'
 import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, use } from 'react'
+import { useConfirm } from '@/components/ui/confirm-modal'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
@@ -38,6 +39,7 @@ export default function ESP32MacFilteringPage({ params }: { params: Promise<{ id
 }
 
 function ESP32MacFilteringContent({ params }: { params: Promise<{ id: string }> }) {
+  const confirm = useConfirm()
   const resolvedParams = use(params)
   const { data: session } = useSession()
   const user = session?.user as any
@@ -161,9 +163,13 @@ function ESP32MacFilteringContent({ params }: { params: Promise<{ id: string }> 
   }
 
   const handleRemoveMac = async (mac: string, list: 'blacklist' | 'whitelist') => {
-    if (!confirm(`Remove ${mac} from ${list}?`)) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Remove MAC',
+      description: `Remove ${mac} from ${list}?`,
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+    })
+    if (!ok) return
 
     try {
       setProcessing(true)
@@ -200,9 +206,13 @@ function ESP32MacFilteringContent({ params }: { params: Promise<{ id: string }> 
       ? 'Clear ALL MAC filters (blacklist and whitelist)? This cannot be undone.'
       : `Clear entire ${list}? This cannot be undone.`
 
-    if (!confirm(confirmMsg)) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Clear MAC Filters',
+      description: confirmMsg,
+      confirmText: 'Clear',
+      cancelText: 'Cancel',
+    })
+    if (!ok) return
 
     // Check admin permission for destructive operations
     if (!hasPermission('isAdmin')) {

@@ -20,6 +20,8 @@ import { LendMoneyModal } from '@/components/expense-account/lend-money-modal'
 import { FundPayrollModal } from '@/components/expense-account/fund-payroll-modal'
 import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-panel'
 import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-payment-modal'
+import { TransferModal } from '@/components/expense-account/transfer-modal'
+import { TransferHistory } from '@/components/expense-account/transfer-history'
 import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-modal'
 import { AutoDepositAdminPanel } from '@/components/expense-account/auto-deposit-admin-panel'
 import { PaymentBatchModal } from '@/components/expense-account/payment-batch-modal'
@@ -1021,6 +1023,7 @@ export default function ExpenseAccountDetailPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState(urlTab || 'overview')
   const [showDepositModal, setShowDepositModal] = useState(false)
+  const [showTransferModal, setShowTransferModal] = useState(false)
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
   const [showSmartQuickPayModal, setShowSmartQuickPayModal] = useState(false)
   const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
@@ -1032,6 +1035,10 @@ export default function ExpenseAccountDetailPage() {
   const [showPettyCashModal, setShowPettyCashModal] = useState(false)
   const [loansRefreshKey, setLoansRefreshKey] = useState(0)
   const [batchRefreshKey, setBatchRefreshKey] = useState(0)
+  const [switcherOpen, setSwitcherOpen] = useState(false)
+  const [switcherSearch, setSwitcherSearch] = useState('')
+  const [switcherAccounts, setSwitcherAccounts] = useState<{ id: string; accountName: string; accountNumber: string; balance: number }[]>([])
+  const switcherRef = useRef<HTMLDivElement>(null)
   const [depositRefreshKey, setDepositRefreshKey] = useState(0)
   const [paymentRefreshKey, setPaymentRefreshKey] = useState(0)
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
@@ -1052,7 +1059,7 @@ export default function ExpenseAccountDetailPage() {
   const canChangeCategory = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
   const canViewSupplierPaymentQueue = hasPermission('canViewSupplierPaymentQueue')
   const canSubmitPaymentBatch = isSystemAdmin || hasPermission('canSubmitPaymentBatch')
-  const canCreatePayees = canChangeCategory // Only owners, managers, and admins can create payees
+const canCreatePayees = canChangeCategory // Only owners, managers, and admins can create payees
   const canEditPayments = canChangeCategory // Same set of roles can edit payments
 
   const confirm = useConfirm()
@@ -1074,6 +1081,22 @@ export default function ExpenseAccountDetailPage() {
     if (session?.user && accountId) {
       loadAccount()
       fetchCounts()
+      // Fetch all accessible accounts for the switcher
+      fetch('/api/expense-account', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          if (json.data?.accounts) {
+            setSwitcherAccounts(
+              json.data.accounts.map((a: any) => ({
+                id: a.id,
+                accountName: a.accountName,
+                accountNumber: a.accountNumber,
+                balance: Number(a.balance ?? 0),
+              }))
+            )
+          }
+        })
+        .catch(() => {})
     }
   }, [session, accountId])
 
@@ -1105,6 +1128,18 @@ export default function ExpenseAccountDetailPage() {
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [accountId, session])
+
+  // Close switcher dropdown on outside click
+  useEffect(() => {
+    if (!switcherOpen) return
+    const handler = (e: MouseEvent) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
+        setSwitcherOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [switcherOpen])
 
   const loadAccount = async () => {
     try {
@@ -1324,6 +1359,65 @@ export default function ExpenseAccountDetailPage() {
 
           <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
 
+          {/* Account switcher */}
+          {switcherAccounts.length > 1 && (
+            <div ref={switcherRef} className="relative shrink-0">
+              <button
+                onClick={() => { setSwitcherOpen(o => !o); setSwitcherSearch('') }}
+                className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors"
+                title="Switch account"
+              >
+                <span>⇄ Switch</span>
+                <svg className={`w-3 h-3 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {switcherOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg w-72">
+                  <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={switcherSearch}
+                      onChange={e => setSwitcherSearch(e.target.value)}
+                      placeholder="Search accounts..."
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
+                  <div className="max-h-56 overflow-y-auto">
+                    {switcherAccounts
+                      .filter(a => !switcherSearch || a.accountName.toLowerCase().includes(switcherSearch.toLowerCase()) || a.accountNumber.toLowerCase().includes(switcherSearch.toLowerCase()))
+                      .map(a => (
+                        <button
+                          key={a.id}
+                          onClick={() => {
+                            setSwitcherOpen(false)
+                            setSwitcherSearch('')
+                            router.push(`/expense-accounts/${a.id}`)
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-between gap-2 ${a.id === accountId ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate">{a.accountName}</div>
+                            <div className="text-gray-400 dark:text-gray-500">{a.accountNumber}</div>
+                          </div>
+                          <span className={`shrink-0 font-medium ${a.balance <= 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+                            ${a.balance.toFixed(2)}
+                          </span>
+                        </button>
+                      ))
+                    }
+                    {switcherAccounts.filter(a => !switcherSearch || a.accountName.toLowerCase().includes(switcherSearch.toLowerCase()) || a.accountNumber.toLowerCase().includes(switcherSearch.toLowerCase())).length === 0 && (
+                      <div className="px-3 py-4 text-xs text-gray-400 text-center">No accounts found</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <span className="text-gray-300 dark:text-gray-600 text-xs">/</span>
+
           {/* Account type badge */}
           {account.accountType === 'PERSONAL' ? (
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 shrink-0">
@@ -1346,6 +1440,14 @@ export default function ExpenseAccountDetailPage() {
           {/* Action buttons — compact */}
           {/* RENT accounts only show Deposit, Payment and Reports — Daily/Vehicle are not applicable */}
           <div className="flex flex-wrap gap-1.5 items-center">
+            {!account?.businessId && account?.accountType !== 'RENT' && (
+              <button
+                onClick={() => setShowTransferModal(true)}
+                className="px-2.5 py-1 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700"
+              >
+                ⇄ Transfer
+              </button>
+            )}
             {canMakeExpenseDeposits && (
               <button
                 onClick={() => setShowDepositModal(true)}
@@ -1512,6 +1614,19 @@ export default function ExpenseAccountDetailPage() {
               >
                 Transactions
               </button>
+
+              {!account?.businessId && account?.accountType !== 'RENT' && (
+                <button
+                  onClick={() => setActiveTab('transfers')}
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === 'transfers'
+                      ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                  }`}
+                >
+                  ⇄ Transfers
+                </button>
+              )}
 
               <button
                 onClick={() => setActiveTab('loans')}
@@ -1764,6 +1879,21 @@ export default function ExpenseAccountDetailPage() {
             )}
 
             {/* Loans Tab */}
+            {activeTab === 'transfers' && !account?.businessId && (
+              <div className="p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Transfer History</h3>
+                  <button
+                    onClick={() => setShowTransferModal(true)}
+                    className="px-3 py-1.5 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700"
+                  >
+                    ⇄ New Transfer
+                  </button>
+                </div>
+                <TransferHistory accountId={accountId} showFilters={true} />
+              </div>
+            )}
+
             {activeTab === 'loans' && (
               <div>
                 <LoansTab accountId={accountId} />
@@ -1959,6 +2089,21 @@ export default function ExpenseAccountDetailPage() {
           onSuccess={() => {
             setPaymentRefreshKey(k => k + 1)
             setPendingPettyCashCount(prev => prev + 1)
+          }}
+        />
+      )}
+
+      {showTransferModal && account && !account.businessId && (
+        <TransferModal
+          isOpen={showTransferModal}
+          onClose={() => setShowTransferModal(false)}
+          sourceAccountId={accountId}
+          sourceAccountName={account.accountName}
+          currentBalance={account.balance}
+          onSuccess={() => {
+            setShowTransferModal(false)
+            setPaymentRefreshKey(k => k + 1)
+            loadAccount()
           }}
         />
       )}
