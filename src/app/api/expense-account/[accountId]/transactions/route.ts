@@ -351,6 +351,7 @@ export async function GET(
         payeeEmployee: payment.payeeEmployee,
         payeePerson: payment.payeePerson,
         payeeBusiness: payment.payeeBusiness,
+        payeeSupplier: (payment as any).payeeSupplier ?? null,
         category: payment.category,
         paymentType: (payment as any).paymentType || 'REGULAR',
         isAutoTransfer: isAutoXferOut,

@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { CreateIndividualPayeeModal } from '@/components/expense-account/create-individual-payee-modal'
 import { EditIndividualPayeeModal } from '@/components/payee/edit-individual-payee-modal'
+import { PayeeReceiptsModal } from '@/components/expense-account/payee-receipts-modal'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 
 interface Payee {
@@ -66,6 +67,7 @@ export default function PayeesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedPayeeId, setSelectedPayeeId] = useState<string | null>(null)
+  const [receiptsModal, setReceiptsModal] = useState<{ type: 'PERSON' | 'BUSINESS' | 'SUPPLIER'; id: string; name: string } | null>(null)
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
@@ -340,17 +342,25 @@ export default function PayeesPage() {
                       </div>
 
                       {/* Actions */}
-                      {canEdit && (
-                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                          <div className="flex gap-2">
-                            {payee.type === 'PERSON' && (
-                              <button
-                                className="flex-1 btn-secondary text-sm py-2"
-                                onClick={() => { setSelectedPayeeId(payee.id); setShowEditModal(true) }}
-                              >
-                                Edit
-                              </button>
-                            )}
+                      <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                        <div className="flex gap-2">
+                          {canEdit && payee.type === 'PERSON' && (
+                            <button
+                              className="flex-1 btn-secondary text-sm py-2"
+                              onClick={() => { setSelectedPayeeId(payee.id); setShowEditModal(true) }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {(payee.type === 'PERSON' || payee.type === 'BUSINESS') && (
+                            <button
+                              className="flex-1 btn-secondary text-sm py-2"
+                              onClick={() => setReceiptsModal({ type: payee.type as 'PERSON' | 'BUSINESS', id: payee.id, name: payee.name })}
+                            >
+                              🧾 Receipts
+                            </button>
+                          )}
+                          {canEdit && (
                             <button
                               className={`flex-1 text-sm py-2 rounded font-medium transition-colors ${
                                 payee.isActive
@@ -361,9 +371,9 @@ export default function PayeesPage() {
                             >
                               {payee.isActive ? 'Deactivate' : 'Activate'}
                             </button>
-                          </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   )
                 })}
@@ -393,6 +403,16 @@ export default function PayeesPage() {
                 setSelectedPayeeId(null)
                 setRefreshTrigger(prev => prev + 1)
               }}
+            />
+          )}
+
+          {/* Payee Receipts Modal */}
+          {receiptsModal && (
+            <PayeeReceiptsModal
+              payeeType={receiptsModal.type}
+              payeeId={receiptsModal.id}
+              payeeName={receiptsModal.name}
+              onClose={() => setReceiptsModal(null)}
             />
           )}
 

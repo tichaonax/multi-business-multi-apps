@@ -7,6 +7,8 @@ import { EditPaymentModal } from './edit-payment-modal'
 import { EditDepositModal } from './edit-deposit-modal'
 import { ExpensePaymentVoucherModal, PaymentSummary } from './expense-payment-voucher-modal'
 import { generatePaymentVoucherPdf } from './payment-voucher-pdf'
+import { AddReceiptModal } from './add-receipt-modal'
+import { ViewReceiptsModal } from './view-receipts-modal'
 
 interface Transaction {
   id: string
@@ -31,6 +33,7 @@ interface Transaction {
   payeeEmployee?: { id: string; fullName: string }
   payeePerson?: { id: string; fullName: string }
   payeeBusiness?: { id: string; name: string }
+  payeeSupplier?: { id: string; name: string } | null
   category?: { id: string; name: string; emoji: string }
   incomeCategory?: { id: string; name: string; emoji: string } | null
   incomeSubcategory?: { id: string; name: string; emoji?: string } | null
@@ -112,6 +115,16 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   // Voucher state
   const [voucherModal, setVoucherModal] = useState<{ payment: PaymentSummary; existing: any | null } | null>(null)
   const [voucherMap, setVoucherMap] = useState<Record<string, any>>({}) // paymentId → voucher or false
+
+  // Receipt state
+  const [receiptCountMap, setReceiptCountMap] = useState<Record<string, number>>({}) // paymentId → count
+  const [receiptModal, setReceiptModal] = useState<{
+    paymentId: string
+    paymentAmount: number
+    paymentDescription: string
+    paymentPayee: { type: string; id: string; name: string } | null
+    mode: 'add' | 'view'
+  } | null>(null)
   const [startDate, setStartDate] = useState(() => {
     if (initialStartDate) return initialStartDate
     const d = new Date(); d.setDate(d.getDate() - 29)
@@ -289,18 +302,27 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         setHasMore(data.data.pagination?.hasMore || false)
 
         // Batch-check which payment IDs already have vouchers (only when businessId present)
-        if (businessId) {
-          const paymentIds = txns
-            .filter((t: any) => t.type === 'PAYMENT' && !t.isAutoTransfer)
-            .map((t: any) => t.id as string)
-          if (paymentIds.length > 0) {
-            fetch(`/api/payment-vouchers?paymentIds=${paymentIds.join(',')}`, { credentials: 'include' })
-              .then(r => r.json())
-              .then(json => {
-                if (json.data) setVoucherMap(prev => ({ ...prev, ...json.data }))
-              })
-              .catch(() => {})
-          }
+        const paymentIds = txns
+          .filter((t: any) => t.type === 'PAYMENT' && !t.isAutoTransfer)
+          .map((t: any) => t.id as string)
+
+        if (businessId && paymentIds.length > 0) {
+          fetch(`/api/payment-vouchers?paymentIds=${paymentIds.join(',')}`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(json => {
+              if (json.data) setVoucherMap(prev => ({ ...prev, ...json.data }))
+            })
+            .catch(() => {})
+        }
+
+        // Batch-fetch receipt counts for all payment rows
+        if (paymentIds.length > 0) {
+          fetch(`/api/expense-account/payments/receipt-counts?paymentIds=${paymentIds.join(',')}`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(json => {
+              if (json.data) setReceiptCountMap(prev => ({ ...prev, ...json.data }))
+            })
+            .catch(() => {})
         }
       }
     } catch (error) {
@@ -730,6 +752,57 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             PDF
                           </button>
                         )}
+                        {/* Receipt badge — appears on all non-auto PAYMENT rows */}
+                        {!isDeposit && !transaction.isAutoTransfer && (() => {
+                          const count = receiptCountMap[transaction.id] ?? 0
+                          const paymentPayee = transaction.payeeEmployee
+                            ? { type: 'EMPLOYEE', id: transaction.payeeEmployee.id, name: transaction.payeeEmployee.fullName }
+                            : transaction.payeeUser
+                            ? { type: 'USER', id: transaction.payeeUser.id, name: transaction.payeeUser.name }
+                            : transaction.payeeBusiness
+                            ? { type: 'BUSINESS', id: transaction.payeeBusiness.id, name: transaction.payeeBusiness.name }
+                            : transaction.payeePerson
+                            ? { type: 'PERSON', id: transaction.payeePerson.id, name: transaction.payeePerson.fullName }
+                            : transaction.payeeSupplier
+                            ? { type: 'SUPPLIER', id: transaction.payeeSupplier.id, name: transaction.payeeSupplier.name }
+                            : null
+                          return count > 0 ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setReceiptModal({
+                                  paymentId: transaction.id,
+                                  paymentAmount: Math.abs(transaction.amount),
+                                  paymentDescription: transaction.description,
+                                  paymentPayee,
+                                  mode: 'view',
+                                })
+                              }}
+                              className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800/60 font-medium transition-colors"
+                              title={`${count} receipt${count !== 1 ? 's' : ''} — click to view`}
+                            >
+                              🧾 {count}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setReceiptModal({
+                                  paymentId: transaction.id,
+                                  paymentAmount: Math.abs(transaction.amount),
+                                  paymentDescription: transaction.description,
+                                  paymentPayee,
+                                  mode: 'add',
+                                })
+                              }}
+                              className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
+                              title="No receipts yet — click to add"
+                            >
+                              🧾
+                            </button>
+                          )
+                        })()}
+
                         {/* Payment Voucher icon — appears on all PAYMENT rows when businessId is provided */}
                         {!isDeposit && !transaction.isAutoTransfer && businessId && (
                           voucherMap[transaction.id] ? (
@@ -808,6 +881,84 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           depositId={editDepositId}
           isAdmin={isAdmin}
           onSuccess={() => { setEditDepositId(null); loadTransactions(); onDataChanged?.() }}
+        />
+      )}
+
+      {/* Receipt Modals */}
+      {receiptModal && receiptModal.mode === 'add' && (
+        <AddReceiptModal
+          paymentId={receiptModal.paymentId}
+          paymentPayee={receiptModal.paymentPayee}
+          onClose={() => setReceiptModal(null)}
+          onSuccess={(result) => {
+            const pid = receiptModal.paymentId;
+            setReceiptCountMap(prev => ({ ...prev, [pid]: (prev[pid] ?? 0) + 1 }));
+            setReceiptModal(null);
+            // Use the updated payment object from the API to update the row instantly
+            if (result && result.updatedPayment) {
+              const p = result.updatedPayment;
+              setTransactions(prev => prev.map(t => {
+                if (t.id !== pid) return t;
+                // Set only the correct payee field, clear others
+                let payeePerson, payeeBusiness, payeeSupplier, payeeUser, payeeEmployee;
+                if (p.type === 'PERSON') payeePerson = { id: p.id, fullName: p.name };
+                if (p.type === 'BUSINESS') payeeBusiness = { id: p.id, name: p.name };
+                if (p.type === 'SUPPLIER') payeeSupplier = { id: p.id, name: p.name };
+                if (p.type === 'USER') payeeUser = { id: p.id, name: p.name };
+                if (p.type === 'EMPLOYEE') payeeEmployee = { id: p.id, fullName: p.name };
+                const payeeName = p.name;
+                return {
+                  ...t,
+                  payeeType: p.type,
+                  payeePerson,
+                  payeeBusiness,
+                  payeeSupplier,
+                  payeeUser,
+                  payeeEmployee,
+                  description: payeeName ? `Payment to ${payeeName}` : t.description,
+                };
+              }));
+            }
+          }}
+        />
+      )}
+      {receiptModal && receiptModal.mode === 'view' && (
+        <ViewReceiptsModal
+          paymentId={receiptModal.paymentId}
+          paymentAmount={receiptModal.paymentAmount}
+          paymentDescription={receiptModal.paymentDescription}
+          paymentPayee={receiptModal.paymentPayee}
+          onClose={() => setReceiptModal(null)}
+          onReceiptsChanged={() => {
+            const pid = receiptModal.paymentId
+            // Refresh badge count
+            fetch(`/api/expense-account/payments/receipt-counts?paymentIds=${pid}`, { credentials: 'include' })
+              .then(r => r.json())
+              .then(json => { if (json.data) setReceiptCountMap(prev => ({ ...prev, ...json.data })) })
+              .catch(() => {})
+            // Refresh the row so any payee update made inside AddReceiptModal is reflected immediately
+            fetch(`/api/expense-account/${accountId}/payments/${pid}`, { credentials: 'include' })
+              .then(r => r.json())
+              .then(json => {
+                if (!json.success || !json.data?.payment) return
+                const p = json.data.payment
+                const payeeName = p.payeePerson?.fullName ?? p.payeeBusiness?.name ?? p.payeeSupplier?.name ?? p.payeeUser?.name ?? p.payeeEmployee?.fullName
+                setTransactions(prev => prev.map(t => {
+                  if (t.id !== pid) return t
+                  return {
+                    ...t,
+                    payeeType: p.payeeType,
+                    payeePerson:   p.payeePerson   ? { id: p.payeePerson.id,   fullName: p.payeePerson.fullName }   : undefined,
+                    payeeBusiness: p.payeeBusiness ? { id: p.payeeBusiness.id, name: p.payeeBusiness.name }         : undefined,
+                    payeeSupplier: p.payeeSupplier ? { id: p.payeeSupplier.id, name: p.payeeSupplier.name }         : undefined,
+                    payeeUser:     p.payeeUser     ? { id: p.payeeUser.id,     name: p.payeeUser.name }             : undefined,
+                    payeeEmployee: p.payeeEmployee ? { id: p.payeeEmployee.id, fullName: p.payeeEmployee.fullName } : undefined,
+                    description: payeeName ? `Payment to ${payeeName}` : t.description,
+                  }
+                }))
+              })
+              .catch(() => {})
+          }}
         />
       )}
 

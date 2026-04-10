@@ -346,6 +346,7 @@ model BusinessSuppliers {
   businesses                Businesses?               @relation(fields: [businessId], references: [id])
   supplier_products         SupplierProducts[]
   expense_account_payments  ExpenseAccountPayments[]  @relation("ExpensePaymentPayeeSupplier")
+  expense_payment_receipts  ExpensePaymentReceipts[]  @relation("ReceiptPayeeSupplier")
   supplier_payment_requests SupplierPaymentRequests[]
   supplier_ratings          SupplierRatings[]
   rent_configs              BusinessRentConfig[]      @relation("RentLandlord")
@@ -476,6 +477,7 @@ model Businesses {
   expense_accounts                                                         ExpenseAccounts[]             @relation("BusinessExpenseAccounts")
   expense_account_deposits                                                 ExpenseAccountDeposits[]      @relation("ExpenseAccountDepositSource")
   expense_account_payments_as_payee                                        ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeBusiness")
+  expense_payment_receipts                                                 ExpensePaymentReceipts[]      @relation("ReceiptPayeeBusiness")
   expense_payment_vouchers                                                 ExpensePaymentVouchers[]
   inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
   inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
@@ -1589,7 +1591,38 @@ model ExpenseAccountPayments {
   @@index([createdAt(sort: Desc)], map: "idx_expense_payments_created_at")
   @@index([paymentDate(sort: Desc)], map: "idx_expense_payments_payment_date")
   @@index([projectId], map: "idx_expense_payments_project_id")
+  expense_payment_receipts  ExpensePaymentReceipts[]
+
   @@map("expense_account_payments")
+}
+
+// ─── Expense Payment Receipts (MBM-173) ──────────────────────────────────────
+
+model ExpensePaymentReceipts {
+  id                String   @id @default(uuid())
+  expensePaymentId  String   @map("expense_payment_id")
+  receiptDate       DateTime @map("receipt_date")
+  amount            Decimal  @db.Decimal(12, 2)
+  description       String?
+  payeeType         String?  @map("payee_type")
+  payeePersonId     String?  @map("payee_person_id")
+  payeeBusinessId   String?  @map("payee_business_id")
+  payeeSupplierId   String?  @map("payee_supplier_id")
+  notes             String?
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+
+  expensePayment    ExpenseAccountPayments  @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
+  payeePerson       Persons?                @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
+  payeeBusiness     Businesses?             @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier     BusinessSuppliers?      @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  creator           Users                   @relation("ReceiptCreator", fields: [createdBy], references: [id])
+
+  @@index([expensePaymentId], map: "idx_expense_payment_receipts_payment_id")
+  @@index([payeePersonId], map: "idx_expense_payment_receipts_person_id")
+  @@index([payeeBusinessId], map: "idx_expense_payment_receipts_business_id")
+  @@map("expense_payment_receipts")
 }
 
 // ─── Business Loan Repayment System (MBM-137) ────────────────────────────────
@@ -2748,6 +2781,7 @@ model Persons {
   driverLicenseTemplateId           String?
   taxId                             String?
   expense_account_payments_as_payee ExpenseAccountPayments[] @relation("ExpensePaymentPayeePerson")
+  expense_payment_receipts          ExpensePaymentReceipts[] @relation("ReceiptPayeePerson")
   loans_as_borrower                 InterBusinessLoans[]     @relation("loans_as_borrower")
   loans_as_lender                   InterBusinessLoans[]     @relation("loans_as_lender")
   users                             Users?                   @relation(fields: [createdBy], references: [id])
@@ -3235,6 +3269,7 @@ model Users {
   expense_account_payments_created                                ExpenseAccountPayments[]         @relation("ExpensePaymentCreator")
   expense_account_payments_as_payee                               ExpenseAccountPayments[]         @relation("ExpensePaymentPayeeUser")
   expense_account_payments_submitted                              ExpenseAccountPayments[]         @relation("ExpensePaymentSubmitter")
+  expense_payment_receipts_created                               ExpensePaymentReceipts[]         @relation("ReceiptCreator")
   expense_accounts_created                                        ExpenseAccounts[]                @relation("ExpenseAccountCreator")
   expense_account_grants_received                                 ExpenseAccountGrants[]           @relation("ExpenseAccountGrantUser")
   expense_account_grants_given                                    ExpenseAccountGrants[]           @relation("ExpenseAccountGrantGrantor")
