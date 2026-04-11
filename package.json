@@ -17,6 +17,7 @@
     "prebuild": "node -e \"require('fs').mkdirSync('.next/export', { recursive: true })\"",
     "build": "prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=8192 next build && npm run build:server",
     "build:server": "tsc --project tsconfig.server.json",
+    "qz:generate-cert": "node scripts/generate-qz-cert.js",
     "postbuild": "node scripts/mark-build-complete.js",
     "postinstall": "node scripts/postinstall.js",
     "build:service": "node scripts/build-service.js",
