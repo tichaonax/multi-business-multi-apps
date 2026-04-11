@@ -591,9 +591,10 @@ class HybridServiceWrapper extends EventEmitter {
       const buildIdFile = path.join(nextDir, 'BUILD_ID');
       const buildCommitFile = path.join(nextDir, '.build-commit');
 
-      // A valid build requires the BUILD_ID file to exist and be non-empty
+      // A valid build requires the BUILD_ID file to exist, be non-empty, AND dist/server.js must exist
+      const customServerFile = path.join(__dirname, '..', 'dist', 'server.js');
       let hasValidBuild = false;
-      if (fs.existsSync(nextDir) && fs.existsSync(buildIdFile)) {
+      if (fs.existsSync(nextDir) && fs.existsSync(buildIdFile) && fs.existsSync(customServerFile)) {
         try {
           const buildId = fs.readFileSync(buildIdFile, 'utf8').trim();
           hasValidBuild = buildId.length > 0;
