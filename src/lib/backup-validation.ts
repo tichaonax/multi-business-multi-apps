@@ -139,6 +139,7 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Petty Cash / Per Diem
   'pettyCashTransactions': 'pettyCashTransaction',
   'paymentReversalLogs': 'paymentReversalLog',
+  'ecocashConversions': 'ecocashConversion',
   // Business Loans
   'businessLoans': 'businessLoan',
   'businessLoanManagers': 'businessLoanManager',
