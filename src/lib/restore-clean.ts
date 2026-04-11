@@ -206,6 +206,7 @@ const RESTORE_ORDER = [
   'paymentBatchSubmissions',    // depends on eodPaymentBatches + expenseAccounts + expenseAccountDeposits
   'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger + paymentBatchSubmissions + eodPaymentBatches
   'expensePaymentVouchers',     // depends on expenseAccountPayments + businesses + employees
+  'expensePaymentReceipts',     // depends on expenseAccountPayments
   'supplierPaymentRequests',    // Depends on businesses, businessSuppliers, expenseAccounts, users
   'supplierPaymentRequestItems', // Depends on supplierPaymentRequests, expenseCategories, expenseSubcategories
   'supplierPaymentRequestPartials', // Depends on supplierPaymentRequests, expenseAccountPayments, users
@@ -215,6 +216,7 @@ const RESTORE_ORDER = [
   'pettyCashRequests',          // depends on businesses + expenseAccounts + expenseAccountDeposits + expenseAccountPayments
   'pettyCashTransactions',      // depends on pettyCashRequests + expenseAccountPayments
   'paymentReversalLogs',        // depends on businesses + users + pettyCashRequests
+  'ecocashConversions',         // depends on businesses + users
 
   // Payroll
   'payrollAccounts',
@@ -448,6 +450,8 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Expense Account Auto Deposits / Rent Config
   'expenseAccountAutoDeposits': 'expenseAccountAutoDeposit',
   'businessRentConfigs': 'businessRentConfig',
+  // Eco-Cash Conversions
+  'ecocashConversions': 'ecocashConversion',
   // Notifications
   'appNotifications': 'appNotification',
   // Chicken Run

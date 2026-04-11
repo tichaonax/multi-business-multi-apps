@@ -15,6 +15,8 @@
     - [Printer Troubleshooting — Clearing Stuck Jobs](#printer-troubleshooting--clearing-stuck-jobs)
 6. [Employees — Clock-In, Leave & Per Diem](#6-employees--clock-in-leave--per-diem)
 7. [Expense Accounts & Petty Cash](#7-expense-accounts--petty-cash)
+    - [Switching Between Expense Accounts](#switching-between-expense-accounts)
+    - [Transferring Funds Between Non-Business Accounts](#transferring-funds-between-non-business-accounts)
 8. [Business Loans](#8-business-loans)
 9. [Customers, Loyalty Cards & Campaigns](#9-customers-loyalty-cards--campaigns)
 10. [Chicken Run Management](#10-chicken-run-management)
@@ -1404,6 +1406,19 @@ This option requires either:
 
 > If the QZ Tray panel shows "not detected", make sure QZ Tray is running in the system tray and click the refresh icon to retry.
 
+**If the printer list is empty after connecting:**
+
+QZ Tray requires a one-time security approval before it can list printers. If you see "QZ Tray connected" but no printers appear in the dropdown:
+
+1. Check the Windows taskbar for a **QZ Tray dialog** asking for permission — click **Allow**.
+2. Click the **refresh icon** (top-right of the QZ Tray panel) to reload the printer list.
+3. If the list is still empty, enter your printer name manually in the text field provided.
+   - To find the exact name: open Windows **Start → Settings → Printers & scanners** and copy the printer's name exactly as shown.
+   - Example: `EPSON TM-T20III`
+4. Click **Save Printer** — manual names work identically to auto-detected ones.
+
+> QZ Tray can be used from any machine that has it installed — including machines accessing the app remotely (e.g. at `http://192.168.0.108:8080/`). The printer connection runs locally on the machine viewing the page, not on the server.
+
 **Updating a card (e.g. name change or new photo):**
 1. Update the employee's details or profile photo on their profile.
 2. Return to the **ID Card** tab and reprint — the card automatically reflects the latest information.
@@ -1422,6 +1437,8 @@ If a printer is not responding or is printing garbage, open the **Test Print** p
 | **⏹ Stop QZ / Clear Pending Jobs** | Disconnects QZ Tray and drops all pending QZ print jobs immediately |
 
 > Use **Clear Print Queue** first if the printer is online but stuck (e.g. printing the same job repeatedly). Use **Stop QZ** if a QZ Tray job is looping or printing garbage — then reconnect QZ Tray from the ID Card or receipt page.
+
+> **No printers found after connecting QZ Tray?** Click the refresh icon on the QZ Tray panel, then check the Windows taskbar for a QZ Tray security dialog and click **Allow**. If the list remains empty, use the manual printer name entry field (see QZ Tray setup instructions above).
 
 ### How Barcode Scanning Works System-Wide — Full Priority Order
 
@@ -1952,6 +1969,54 @@ Your manager will review it. You will receive a notification when it is approved
 1. Go to **Expense Accounts**.
 2. The balance for each account is shown on the main list.
 3. Click into an account to see the full history of deposits and payments, including who requested each payment and when it was approved.
+
+---
+
+### Switching Between Expense Accounts
+
+When you are inside an expense account detail page, a **⇄ Switch** button appears in the breadcrumb bar next to "Accounts /". This lets you jump directly to another account without going back to the list.
+
+**How to use it:**
+1. Open any expense account.
+2. Click **⇄ Switch** in the top breadcrumb area.
+3. A dropdown appears showing all expense accounts you have access to, along with each account's current balance (green = positive, red = zero/negative).
+4. Type to search by account name or account number.
+5. Click any account to navigate directly to it.
+
+> The current account is highlighted in blue in the switcher list.
+
+---
+
+### Transferring Funds Between Non-Business Accounts
+
+The **Transfer** feature moves money from one expense account to another. Transfers are only available on accounts that are **not tied to a specific business** — these are shared or personal accounts accessible via direct grants.
+
+> If an account belongs to a business (e.g. "Office Supplies – Restaurant"), the Transfer button will not appear on that account. Only accounts with no business link show the Transfer button.
+
+**Who can transfer:**
+- Users who have been granted **Full Access** to the source account.
+- System administrators.
+
+#### Transferring from the Account Detail Page
+
+1. Open the expense account you want to transfer **from**.
+2. Click **⇄ Transfer** (top-right action buttons area).
+3. In the Transfer Funds modal:
+   - **From** — pre-filled with the current account and its balance (read-only).
+   - **To** — select the destination account from the dropdown. Each option shows the account name, number, and current balance. Type to search.
+   - **Amount** — enter the amount to transfer. A "Balance after transfer" preview updates as you type.
+   - **Notes** — required. Describe the reason for the transfer (e.g. "Covering shortfall for supplier payment").
+4. Click **Transfer**.
+
+The transfer is atomic — the debit and credit happen together. If the source account has insufficient balance the transfer is rejected.
+
+#### Transferring from the Accounts List Page
+
+On the **Expense Accounts** list, accounts without a business link show a **⇄ Transfer** button directly on the account card. Click it to open the same Transfer Funds modal without navigating into the account first.
+
+#### Viewing Transfer History
+
+Inside any non-business expense account, click the **⇄ Transfers** tab to see all transfers involving that account — both inbound and outbound — with the date, amount, counterpart account, and notes.
 
 ### Personal Expense Accounts — Private Expense Tracking
 

@@ -581,6 +581,20 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // Receipts attached to expense payments (proof of spend documents)
+  businessData.expensePaymentReceipts = await prisma.expensePaymentReceipts.findMany({
+    where: {
+      expensePayment: {
+        expenseAccount: {
+          OR: [
+            { businessId: { in: businessIds } },
+            { businessId: null }
+          ]
+        }
+      }
+    }
+  })
+
   // 9. Payroll system
   // Payroll tax reference tables (global — no businessId filter needed)
   businessData.payeTaxBrackets = await prisma.payeTaxBrackets.findMany()
@@ -1128,7 +1142,12 @@ export async function createCleanBackup(
     where: { reportId: { in: cashAllocationReportIds } }
   })
 
-  // 40. Petty Cash
+  // 40. Eco-Cash Conversions
+  businessData.ecocashConversions = await prisma.ecocashConversion.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 40b. Petty Cash
   businessData.pettyCashRequests = await prisma.pettyCashRequests.findMany({
     where: { businessId: { in: businessIds } }
   })
