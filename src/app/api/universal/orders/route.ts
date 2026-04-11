@@ -405,8 +405,8 @@ export async function POST(request: NextRequest) {
           orderData.employeeId = employeeByUserId.id
         } else {
           console.warn(`Employee ID ${orderData.employeeId} not found in employees table (tried id and userId) - might be non-employee admin. Order will proceed without employee link.`)
-          // Remove employeeId if not found so order creation doesn't fail
-          orderData.employeeId = undefined
+          // Set to null (not undefined) — Prisma may still send undefined as a value, causing FK violations
+          orderData.employeeId = null
         }
       }
     }

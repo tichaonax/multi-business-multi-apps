@@ -338,12 +338,12 @@ export function EditPaymentModal({
   const reloadSubOptions = async (categoryId: string) => {
     try {
       const res = await fetch(
-        `/api/expense-categories/subcategories/${categoryId}/sub-subcategories`,
+        `/api/expense-categories/${categoryId}/subcategories`,
         { credentials: 'include' }
       )
       if (!res.ok) return
       const data = await res.json()
-      const opts = (data.subSubcategories ?? []).map((s: any) => ({
+      const opts = (data.subcategories ?? []).map((s: any) => ({
         id: s.id,
         label: `${s.emoji || '📂'} ${s.name}`,
       }))
@@ -547,10 +547,10 @@ export function EditPaymentModal({
       return
     }
     setLoadingSub(true)
-    fetch(`/api/expense-categories/subcategories/${midId}/sub-subcategories`, { credentials: 'include' })
+    fetch(`/api/expense-categories/${midId}/subcategories`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
-        const opts = (data.subSubcategories ?? []).map((s: any) => ({
+        const opts = (data.subcategories ?? []).map((s: any) => ({
           id: s.id,
           label: `${s.emoji || '📂'} ${s.name}`,
         }))

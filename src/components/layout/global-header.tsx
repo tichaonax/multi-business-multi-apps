@@ -1405,11 +1405,19 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
   const userMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const userMenuOpenedAt = useRef(0)
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null)
+  const [hasTransferrableAccounts, setHasTransferrableAccounts] = useState(false)
 
   useEffect(() => {
     fetch('/api/user/profile', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.profilePhotoUrl) setProfilePhotoUrl(data.profilePhotoUrl) })
+      .catch(() => {})
+  }, [user.id])
+
+  useEffect(() => {
+    fetch('/api/expense-account/transferrable', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.success) setHasTransferrableAccounts(data.data.length > 0) })
       .catch(() => {})
   }, [user.id])
 
@@ -1564,7 +1572,20 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                   <span>Profile Settings</span>
                 </div>
               </Link>
-              
+
+              {hasTransferrableAccounts && (
+                <Link
+                  href="/expense-accounts/transfer"
+                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => closeUserMenu()}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>🔄</span>
+                    <span>Transfer Funds</span>
+                  </div>
+                </Link>
+              )}
+
               <Link
                 href="/dashboard"
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

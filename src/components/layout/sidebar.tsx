@@ -78,6 +78,7 @@ export function Sidebar() {
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
   const [esp32HasMenuItems, setEsp32HasMenuItems] = useState(false)
   const [grantedAccounts, setGrantedAccounts] = useState<{ id: string; accountName: string; accountNumber: string; permissionLevel: string }[]>([])
+  const hasTransferrableAccounts = isSystemAdmin(currentUser) || grantedAccounts.some(a => a.permissionLevel === 'FULL')
   const [r710IntegrationEnabled, setR710IntegrationEnabled] = useState(false)
   const [r710HasMenuItems, setR710HasMenuItems] = useState(false)
   const [showWiFiPortalLinks, setShowWiFiPortalLinks] = useState(false)
@@ -1457,6 +1458,16 @@ export function Sidebar() {
                       <span>Transfer Report</span>
                     </Link>
                   </>
+                )}
+
+                {hasTransferrableAccounts && (
+                  <Link
+                    href="/expense-accounts/transfer"
+                    className={`text-sm px-3 py-2 rounded flex items-center space-x-2 ${pathname === '/expense-accounts/transfer' ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                  >
+                    <span>🔄</span>
+                    <span>Transfer Funds</span>
+                  </Link>
                 )}
               </div>
             )}

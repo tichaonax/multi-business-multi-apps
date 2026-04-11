@@ -32,6 +32,7 @@ export function TransferModal({
   const [destinationAccountId, setDestinationAccountId] = useState('')
   const [amount, setAmount] = useState('')
   const [notes, setNotes] = useState('')
+  const [transferDate, setTransferDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -85,7 +86,7 @@ export function TransferModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ destinationAccountId, amount: parsed, notes: notes.trim() }),
+        body: JSON.stringify({ destinationAccountId, amount: parsed, notes: notes.trim(), transferDate }),
       })
       const json = await res.json()
       if (res.ok) {
@@ -213,6 +214,20 @@ export function TransferModal({
                   </p>
                 )
               })()}
+            </div>
+
+            {/* Transfer Date */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Transfer Date</label>
+              <input
+                type="date"
+                value={transferDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => setTransferDate(e.target.value)}
+                className="input w-full px-3 py-2"
+                disabled={submitting}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Defaults to today. Set a past date for retroactive transfers.</p>
             </div>
 
             {/* Notes */}
