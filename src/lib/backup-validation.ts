@@ -180,10 +180,22 @@ const KNOWN_PARTIAL_BACKUP_TABLES = new Set(['images', 'clothingLabelPrintHistor
 
 /**
  * Tables that have a businessId field but should NOT be scoped by backedUpBusinessIds
- * during validation — because the backup captures ALL records for these tables
- * (e.g. records with orphaned/non-FK businessIds like "default").
+ * during validation — because the backup captures ALL records for these tables globally
+ * (e.g. records with orphaned/non-FK businessIds like demo businesses).
  */
-const SKIP_BUSINESS_SCOPING = new Set(['externalClockIn'])
+const SKIP_BUSINESS_SCOPING = new Set([
+  'externalClockIn',
+  // Expense account tables — backed up with findMany() (no business filter)
+  'expenseAccounts',
+  'expenseAccountGrants',
+  'expenseAccountLoans',
+  'expenseAccountDeposits',
+  'expenseAccountPayments',
+  'expenseAccountLenders',
+  'businessTransferLedger',
+  'personalDepositSources',
+  'expensePaymentReceipts',
+])
 
 /**
  * Find Prisma model name from table name

@@ -49,6 +49,51 @@ async function getQz(): Promise<any> {
   return (mod as any).default ?? mod
 }
 
+// ─── Security handlers ───────────────────────────────────────────────────────
+
+/**
+ * Configure QZ Tray security for unsigned requests.
+ *
+ * QZ Tray auto-trusts connections from localhost. For any other origin
+ * (e.g. http://192.168.x.x:8080), it requires either a signed certificate
+ * or "Allow unsigned" to be enabled on the QZ Tray side.
+ *
+ * Setting these handlers tells QZ Tray we are running without a certificate.
+ * QZ Tray will then show an "Allow / Deny" dialog on first connection from
+ * this origin. The user clicks Allow (and optionally "Always allow from this
+ * site") and that approval is remembered in QZ Tray's settings.
+ *
+ * Without these handlers the connection is silently rejected before any
+ * dialog appears — which is why QZ Tray shows as "not detected" on remote
+ * origins even when it is running fine.
+ */
+function setupQzSecurity(qz: any): void {
+  try {
+    qz.security.setCertificatePromise((_resolve: any, reject: any) => {
+      // No certificate — QZ Tray will prompt the user to Allow/Deny
+      reject('No certificate — running in unsigned mode')
+    })
+    qz.security.setSignaturePromise((_toSign: any) => {
+      return (_resolve: any, reject: any) => {
+        reject('No signature — running in unsigned mode')
+      }
+    })
+  } catch {
+    // Security API not available in this QZ Tray version — safe to ignore
+  }
+}
+
+let securityConfigured = false
+
+async function getQzWithSecurity(): Promise<any> {
+  const qz = await getQz()
+  if (!securityConfigured) {
+    setupQzSecurity(qz)
+    securityConfigured = true
+  }
+  return qz
+}
+
 // ─── Connection ──────────────────────────────────────────────────────────────
 
 /**
@@ -57,7 +102,7 @@ async function getQz(): Promise<any> {
  */
 export async function isQzTrayAvailable(): Promise<boolean> {
   try {
-    const qz = await getQz()
+    const qz = await getQzWithSecurity()
     if (qz.websocket.isActive()) return true
 
     await Promise.race([
@@ -77,14 +122,14 @@ export async function isQzTrayAvailable(): Promise<boolean> {
  * Safe to call multiple times — no-ops if already connected.
  */
 export async function connectQzTray(): Promise<void> {
-  const qz = await getQz()
+  const qz = await getQzWithSecurity()
   if (qz.websocket.isActive()) return
   await qz.websocket.connect({ retries: 1, delay: 1 })
 }
 
 export async function disconnectQzTray(): Promise<void> {
   try {
-    const qz = await getQz()
+    const qz = await getQzWithSecurity()
     if (qz.websocket.isActive()) await qz.websocket.disconnect()
   } catch {
     // Ignore disconnect errors
