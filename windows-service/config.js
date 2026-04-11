@@ -63,7 +63,8 @@ module.exports = {
   },
 
   // Dependencies (other services this depends on)
-  dependencies: [],
+  // PostgreSQL must be running before this service starts
+  dependencies: ['postgresql-x64-18'],
 
   // Windows service commands
   commands: {

@@ -1198,6 +1198,14 @@ class HybridServiceWrapper extends EventEmitter {
       console.log(`📂 Working directory: ${this.appRoot}`);
       console.log(`🔌 PORT: ${appPort}`);
 
+      // If certs are present, tell Node.js to trust the mkcert root CA for internal fetch() calls
+      // (Next.js server makes server-side fetch to its own HTTPS endpoints — Node rejects self-signed certs by default)
+      const rootCaPath = path.join(this.appRoot, 'certs', 'rootCA.pem');
+      const nodeExtraCaCerts = fs.existsSync(rootCaPath) ? rootCaPath : undefined;
+      if (nodeExtraCaCerts) {
+        console.log(`🔐 NODE_EXTRA_CA_CERTS set to ${rootCaPath}`);
+      }
+
       this.appProcess = spawn('node', [serverScript], {
         cwd: this.appRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -1206,6 +1214,7 @@ class HybridServiceWrapper extends EventEmitter {
           ...process.env,
           NODE_ENV: 'production',
           PORT: appPort,
+          ...(nodeExtraCaCerts ? { NODE_EXTRA_CA_CERTS: nodeExtraCaCerts } : {}),
         },
       });
 
