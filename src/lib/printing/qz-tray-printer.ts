@@ -69,9 +69,9 @@ async function getQz(): Promise<any> {
  */
 function setupQzSecurity(qz: any): void {
   try {
-    qz.security.setCertificatePromise((_resolve: any, reject: any) => {
-      // No certificate — QZ Tray will prompt the user to Allow/Deny
-      reject('No certificate — running in unsigned mode')
+    qz.security.setCertificatePromise((resolve: any, _reject: any) => {
+      // Resolve with empty string — QZ Tray will prompt the user to Allow/Deny
+      resolve('')
     })
     qz.security.setSignaturePromise((_toSign: any) => {
       return (_resolve: any, reject: any) => {
