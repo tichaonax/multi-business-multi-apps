@@ -35,6 +35,7 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, la
   const [savedConfig, setSavedConfig] = useState<QzPrinterConfig | null>(null)
   const [loading, setLoading] = useState(false)
   const [stopping, setStopping] = useState(false)
+  const [manualName, setManualName] = useState('')
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null)
   const [successMsg, setSuccessMsg] = useState('Test print sent successfully')
   const [error, setError] = useState('')
@@ -70,21 +71,24 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, la
   }
 
   async function handleSave() {
-    if (!selectedPrinter) return
-    const config: QzPrinterConfig = { printerName: selectedPrinter }
+    const name = selectedPrinter || manualName.trim()
+    if (!name) return
+    const config: QzPrinterConfig = { printerName: name }
     saveQzPrinterConfig(config)
     setSavedConfig(config)
+    if (!selectedPrinter) setSelectedPrinter(name)
     onSetupComplete?.(config)
   }
 
   async function handleTestPrint() {
-    if (!selectedPrinter) return
+    const printerName = selectedPrinter || manualName.trim()
+    if (!printerName) return
     setLoading(true)
     setTestResult(null)
     setError('')
     setSuccessMsg('Test print sent successfully')
     try {
-      await testQzPrinter(selectedPrinter)
+      await testQzPrinter(printerName)
       setTestResult('success')
     } catch (err: any) {
       setTestResult('error')
@@ -224,7 +228,22 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, la
           </select>
         </div>
       ) : (
-        <p className="text-xs text-secondary">No printers found. Check that your printer is installed in Windows.</p>
+        <div className="space-y-2">
+          <p className="text-xs text-yellow-700 dark:text-yellow-400">
+            QZ Tray could not list printers automatically — this can happen if a security approval is pending in the QZ Tray popup. Check your taskbar for a QZ Tray dialog and click <strong>Allow</strong>, then refresh.
+          </p>
+          <p className="text-xs text-secondary">Or enter your printer name manually:</p>
+          <input
+            type="text"
+            value={manualName}
+            onChange={e => setManualName(e.target.value)}
+            placeholder="e.g. EPSON TM-T20III"
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-primary placeholder-gray-400"
+          />
+          <p className="text-xs text-gray-400">
+            Find the exact name: open Windows <strong>Start → Settings → Printers & scanners</strong>
+          </p>
+        </div>
       )}
 
       {/* Feedback */}
@@ -243,14 +262,14 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, la
       <div className="flex gap-2 flex-wrap">
         <button
           onClick={handleSave}
-          disabled={!selectedPrinter}
+          disabled={!selectedPrinter && !manualName.trim()}
           className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
         >
           Save Printer
         </button>
         <button
           onClick={handleTestPrint}
-          disabled={loading || !selectedPrinter}
+          disabled={loading || (!selectedPrinter && !manualName.trim())}
           className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-primary rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 flex items-center gap-1"
         >
           <Printer className="w-3 h-3" />

@@ -100,7 +100,13 @@ export async function disconnectQzTray(): Promise<void> {
 export async function listQzPrinters(): Promise<string[]> {
   await connectQzTray()
   const qz = await getQz()
-  const printers: string[] = await qz.printers.find()
+  // qz.printers.find() returns string (1 printer), string[] (many), or null
+  const result = await qz.printers.find()
+  const printers: string[] = Array.isArray(result)
+    ? result
+    : result
+    ? [result]
+    : []
   return printers.filter(Boolean).sort()
 }
 
