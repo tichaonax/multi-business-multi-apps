@@ -1184,28 +1184,21 @@ class HybridServiceWrapper extends EventEmitter {
       // Store appRoot for use in this method
       this.appRoot = path.join(__dirname, '..');
 
-      // Verify Next.js binary is available
-      await this.verifyNextJsAvailable();
+      // Verify custom server is available (compiled from server.ts)
+      const serverScript = path.join(this.appRoot, 'dist', 'server.js');
+      if (!fs.existsSync(serverScript)) {
+        throw new Error(`Custom server not found: ${serverScript}. Run npm run build first.`);
+      }
 
-      console.log('Production build verified. Starting Next.js application directly...');
-
-      // Start Next.js directly using node, not npm
-      const nextPath = path.join(
-        this.appRoot,
-        'node_modules',
-        'next',
-        'dist',
-        'bin',
-        'next'
-      );
+      console.log('Production build verified. Starting custom server (HTTPS/SSL)...');
 
       const appPort = process.env.PORT || '8080';
 
-      console.log(`📝 Spawning: node ${nextPath} start`);
+      console.log(`📝 Spawning: node dist/server.js`);
       console.log(`📂 Working directory: ${this.appRoot}`);
       console.log(`🔌 PORT: ${appPort}`);
 
-      this.appProcess = spawn('node', [nextPath, 'start'], {
+      this.appProcess = spawn('node', [serverScript], {
         cwd: this.appRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
@@ -1249,7 +1242,7 @@ class HybridServiceWrapper extends EventEmitter {
       try {
         await this.verifyNextJsStarted();
         console.log(`🚀 SERVICE STARTUP COMPLETE: Next.js application started successfully!`);
-        console.log(`🌐 Application available at: http://localhost:${appPort}`);
+        console.log(`🌐 Application available at: https://localhost:${appPort}`);
 
         // Start Electron after Next.js is confirmed running
         await this.startElectron();

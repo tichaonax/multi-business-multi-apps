@@ -7,15 +7,33 @@
 
 const { app, BrowserWindow, screen } = require('electron')
 const path = require('path')
+const fs = require('fs')
 
 let mainWindow = null
 let customerWindow = null
 
 // Get server URL from environment (supports both dev and production)
 const SERVER_PORT = process.env.PORT || process.env.NEXT_PUBLIC_PORT || 8080
-const SERVER_URL = `http://localhost:${SERVER_PORT}`
+
+// Auto-detect HTTPS: use https:// if certs are present in the project root certs/ folder
+const certsDir = path.join(__dirname, '..', 'certs')
+const hasHttpsCerts = fs.existsSync(certsDir) &&
+  fs.readdirSync(certsDir).some(f => f.endsWith('.pem') && !f.includes('-key') && f !== 'rootCA.pem')
+const protocol = hasHttpsCerts ? 'https' : 'http'
+const SERVER_URL = `${protocol}://localhost:${SERVER_PORT}`
 
 console.log(`Electron using server URL: ${SERVER_URL}`)
+
+// Trust the local self-signed certificate (mkcert) for localhost connections.
+// This must be registered before app.whenReady().
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+  if (url.startsWith(`https://localhost:`) || url.startsWith('https://127.0.0.1:')) {
+    event.preventDefault()
+    callback(true) // trust local cert
+  } else {
+    callback(false)
+  }
+})
 
 function createWindows() {
   // Get all displays
