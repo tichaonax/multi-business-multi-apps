@@ -74,8 +74,8 @@ function setupQzSecurity(qz: any): void {
       resolve('')
     })
     qz.security.setSignaturePromise((_toSign: any) => {
-      return (_resolve: any, reject: any) => {
-        reject('No signature — running in unsigned mode')
+      return (resolve: any, _reject: any) => {
+        resolve('')
       }
     })
   } catch {
@@ -144,7 +144,7 @@ export async function disconnectQzTray(): Promise<void> {
  */
 export async function listQzPrinters(): Promise<string[]> {
   await connectQzTray()
-  const qz = await getQz()
+  const qz = await getQzWithSecurity()
   // qz.printers.find() returns string (1 printer), string[] (many), or null
   const result = await qz.printers.find()
   const printers: string[] = Array.isArray(result)
