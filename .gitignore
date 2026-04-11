@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# SSL certificates (copy to server manually, never commit)
+/certs/
+
 # dependencies
 /node_modules
 /.pnp
@@ -152,3 +155,4 @@ scripts/validate-all-relations.ts
 scripts/validate-prisma-usage.ts
 test-backup-*.json
 electron/node_modules/
+ai-contexts/project-plans/review/projectplan-MBM-174-expense-account-transfers-2026-04-10.md
