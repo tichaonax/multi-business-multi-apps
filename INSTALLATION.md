@@ -1,827 +1,550 @@
-# Multi-Business Management Platform - Production Installation Guide
+# Multi-Business Management Platform — Production Installation Guide
 
-Complete guide for installing and setting up the Multi-Business Management Platform on a new machine for production use.
+> **Platform:** Windows 10/11 (production target)
+> **Architecture:** Next.js app running as a Windows service via node-windows, with optional Electron desktop wrapper
 
-## System Requirements
+---
 
-### Minimum Hardware Requirements
-- **CPU**: 2+ cores (4+ cores recommended)
-- **RAM**: 4GB minimum (8GB+ recommended)
-- **Storage**: 10GB free disk space
-- **Network**: Stable internet connection
+## Table of Contents
 
-### Software Requirements
-- **Node.js**: v18.0.0 or higher
-- **PostgreSQL**: v13.0 or higher
-- **Git**: Latest version
-- **npm**: v8.0.0 or higher (comes with Node.js)
+1. [Prerequisites](#1-prerequisites)
+2. [Clone and Install](#2-clone-and-install)
+3. [Environment Configuration](#3-environment-configuration)
+4. [Database Setup](#4-database-setup)
+5. [Build](#5-build)
+6. [SSL Certificates (HTTPS)](#6-ssl-certificates-https)
+7. [Windows Service Installation](#7-windows-service-installation)
+8. [QZ Tray Receipt Printing](#8-qz-tray-receipt-printing)
+9. [Electron Desktop App](#9-electron-desktop-app)
+10. [Client Machine Setup](#10-client-machine-setup)
+11. [Deploying Updates](#11-deploying-updates)
+12. [Troubleshooting](#12-troubleshooting)
+13. [Service Management Reference](#13-service-management-reference)
 
-### Operating System Support
-- ✅ Windows 10/11
-- ✅ macOS 10.15+
-- ✅ Ubuntu 20.04+
-- ✅ CentOS 8+
-- ✅ Amazon Linux 2
-- ✅ Docker (any platform)
+---
 
-## Installation Steps
+## 1. Prerequisites
 
-### Step 1: Install Prerequisites
+Install the following on the server machine before proceeding.
 
-#### 🟢 **Node.js Installation**
+### Node.js (via nvm for Windows)
 
-**Windows:**
-1. Download Node.js from [nodejs.org](https://nodejs.org/)
-2. Run the installer and follow the setup wizard
-3. Verify installation:
-```bash
-node --version
+Use [nvm-windows](https://github.com/coreybutler/nvm-windows) to manage Node.js versions.
+
+```powershell
+# After installing nvm-windows, install and use Node.js 20
+nvm install 20
+nvm use 20
+
+# Verify
+node --version   # v20.x.x
 npm --version
 ```
 
-**macOS:**
-```bash
-# Using Homebrew (recommended)
-brew install node
+### PostgreSQL 18
 
-# Or download from nodejs.org
+Download and install from [postgresql.org](https://www.postgresql.org/download/windows/).
+
+- Default port: `5432`
+- Note the password you set for the `postgres` user
+- Ensure the service name is `postgresql-x64-18` (the app depends on this)
+
+Verify:
+```bash
+"C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "SELECT version();"
 ```
 
-**Linux (Ubuntu/Debian):**
-```bash
-# Install Node.js 18.x
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
+### Git
 
-# Verify installation
-node --version
-npm --version
+Download from [git-scm.com](https://git-scm.com/download/win). Git also installs `openssl` which is required for certificate generation.
+
+### Java (for QZ Tray printing)
+
+Required only on machines that will print receipts via QZ Tray.
+
+Download from [adoptium.net](https://adoptium.net/) (Java 11+ LTS recommended).
+
+```bash
+java -version  # verify
 ```
 
-**Linux (CentOS/RHEL):**
+---
+
+## 2. Clone and Install
+
 ```bash
-# Install Node.js 18.x
-curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
-sudo yum install -y nodejs
+git clone <your-repository-url> multi-business-multi-apps
+cd multi-business-multi-apps
 
-# Verify installation
-node --version
-npm --version
-```
-
-#### 🐘 **PostgreSQL Installation**
-
-**Windows:**
-1. Download PostgreSQL from [postgresql.org](https://www.postgresql.org/download/windows/)
-2. Run the installer
-3. Remember the postgres user password
-4. Note the port (default: 5432)
-
-**macOS:**
-```bash
-# Using Homebrew
-brew install postgresql
-brew services start postgresql
-
-# Create postgres user if needed
-createuser -s postgres
-```
-
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-
-# Start PostgreSQL service
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-
-# Set postgres user password
-sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'your_password';"
-```
-
-**Linux (CentOS/RHEL):**
-```bash
-sudo yum install postgresql-server postgresql-contrib
-sudo postgresql-setup initdb
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-
-# Set postgres user password
-sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'your_password';"
-```
-
-#### 🐳 **Docker Alternative (Optional)**
-
-If you prefer using Docker for PostgreSQL:
-```bash
-# Install Docker (follow official Docker installation guide)
-# Run PostgreSQL in Docker
-docker run --name postgres-db \
-  -e POSTGRES_PASSWORD=your_password \
-  -e POSTGRES_DB=business_platform \
-  -p 5432:5432 \
-  -d postgres:15
-
-# Verify PostgreSQL is running
-docker ps
-```
-
-### Step 2: Clone and Setup Application
-
-#### Clone the Repository
-```bash
-# Clone the project
-git clone <your-repository-url> multi-business-platform
-cd multi-business-platform
-
-# Or if you have the source code as a zip file
-unzip multi-business-platform.zip
-cd multi-business-platform
-```
-
-#### Install Dependencies
-```bash
-# Install all Node.js dependencies
 npm install
-
-# This will install all production and development dependencies
-# Takes 1-3 minutes depending on internet speed
 ```
 
-### Step 3: Database Configuration
+> **Note:** `npm install` triggers a `postinstall` script. This is expected and safe.
 
-#### Create Database
-```bash
-# Method 1: Using psql command line
-psql -U postgres -h localhost
-CREATE DATABASE business_platform;
-\q
+---
 
-# Method 2: Using createdb command
-createdb -U postgres business_platform
+## 3. Environment Configuration
 
-# Method 3: Using GUI tool like pgAdmin
-# Connect to PostgreSQL and create database named "business_platform"
-```
+Create `.env.local` in the project root (this file is never committed to git):
 
-#### Configure Environment Variables
-```bash
-# Create environment file
-cp .env.example .env
-
-# Or create .env file manually with these contents:
-```
-
-Create a `.env` file in the project root:
 ```env
-# Database Configuration
-DATABASE_URL="postgresql://postgres:your_password@localhost:5432/business_platform"
+# ── Database ──────────────────────────────────────────────────────────────────
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/multi_business_db"
 
-# NextAuth Configuration
-NEXTAUTH_URL="http://localhost:8080"
-NEXTAUTH_SECRET="your-super-secret-key-change-this-in-production"
+# ── Auth ──────────────────────────────────────────────────────────────────────
+# Generate a secret: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+NEXTAUTH_SECRET="your-generated-secret-here"
+NEXTAUTH_URL="http://localhost:8080"   # update to https:// after SSL is set up
 
-# Application Configuration
-NODE_ENV="production"
+# ── App ───────────────────────────────────────────────────────────────────────
 PORT=8080
+NODE_ENV=production
+APP_NAME="Multi-Business Management Platform"
+ADMIN_EMAIL="your-admin@email.com"
+ENCRYPTION_KEY="generate-a-64-char-hex-string"
 
-# Optional: Advanced Configuration
-LOG_LEVEL="info"
-MAX_FILE_SIZE="10mb"
-ALLOWED_FILE_TYPES="image/*,application/pdf"
+# ── Sync Service ──────────────────────────────────────────────────────────────
+SYNC_NODE_ID="generate-a-16-char-hex-string"
+SYNC_NODE_NAME="sync-node-MACHINENAME"
+SYNC_SERVICE_PORT=8765
+SYNC_HTTP_PORT=8080
+SYNC_AUTO_START=true
+SYNC_LOG_LEVEL=warn
+SYNC_REGISTRATION_KEY="generate-a-64-char-hex-string"
+
+# ── QZ Tray Printing (add after running npm run qz:generate-cert) ─────────────
+# QZ_PRIVATE_KEY=<base64 value from generate-qz-cert output>
+# QZ_CERTIFICATE=<base64 value from generate-qz-cert output>
 ```
 
-**🔒 Security Notes:**
-- Replace `your_password` with your actual PostgreSQL password
-- Generate a secure `NEXTAUTH_SECRET` using: `openssl rand -base64 32`
-- Use environment-specific values for production
-
-### Step 4: Database Setup and Migration
-
-#### Initialize Database Schema
+**Generating secret values:**
 ```bash
-# Generate Prisma client
-npx prisma generate
+# NEXTAUTH_SECRET (32 random bytes, base64)
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
-# Apply database migrations (creates all tables)
-npx prisma migrate deploy
+# ENCRYPTION_KEY (32 random bytes, hex)
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
-# Verify database schema
-npx prisma db pull
-```
+# SYNC_NODE_ID (8 random bytes, hex)
+node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
 
-#### Seed Database with Production Data
-```bash
-# Run the comprehensive production setup script
-node scripts/production-setup.js
-```
-
-This script will:
-- ✅ Create all required database tables
-- ✅ Seed ID format templates (5 countries)
-- ✅ Seed phone number templates (7 countries)
-- ✅ Seed date format templates (5 formats)
-- ✅ Seed driver license templates (4 countries)
-- ✅ Seed job titles (29 positions)
-- ✅ Seed compensation types (15 types)
-- ✅ Seed benefit types (28 benefits)
-- ✅ Seed project types (20+ types across all business types)
-- ✅ Seed default personal finance categories (14 categories)
-- ✅ Create system administrator account
-- ✅ Verify all data was created successfully
-
-### Step 5: Build and Start Application
-
-#### Development Mode (for testing)
-```bash
-# Start development server
-npm run dev
-
-# Application will be available at:
-# http://localhost:8080
-```
-
-#### Production Mode
-```bash
-# Build the application for production
-npm run build
-
-# Start production server
-npm start
-
-# Application will be available at:
-# http://localhost:3000 (or your configured PORT)
-```
-
-## Post-Installation Setup
-
-### Step 1: Login and Change Admin Password
-
-1. **Open your browser** and navigate to `http://localhost:8080`
-2. **Login with default credentials:**
-   - Email: `admin@business.local`
-   - Password: `admin123`
-3. **Change the default password immediately!**
-   - Go to Profile Settings
-   - Update your password to something secure
-
-### Step 2: System Configuration
-
-1. **Create Your First Business:**
-   - Go to Admin → Businesses
-   - Click "Create Business"
-   - Fill in your business details
-
-2. **Create Additional Users:**
-   - Go to Admin → Users
-   - Click "Create User"
-   - Assign appropriate permissions
-
-3. **Configure System Settings:**
-   - Set default date format
-   - Configure phone number format
-   - Set up ID templates for your region
-
-### Step 3: Verify Everything Works
-
-Test key functionality:
-- ✅ User login/logout
-- ✅ Create a test project
-- ✅ Add a personal expense
-- ✅ Create a contractor
-- ✅ Generate a basic report
-
-## Production Deployment Options
-
-### Option 1: Windows Service Deployment (Recommended for Windows)
-
-The Multi-Business Management Platform includes a sophisticated Windows service deployment with database replication capabilities.
-
-#### Windows Service Features:
-- ✅ **Background Database Synchronization** - Automatic peer discovery and conflict resolution
-- ✅ **Hybrid Service Architecture** - Direct process execution with comprehensive PID management
-- ✅ **Production Migration Support** - Safe updates with backup/rollback capabilities
-- ✅ **Multi-Instance Replication** - Synchronizes data between multiple deployments
-- ✅ **Automatic Recovery** - Self-healing service with restart capabilities
-- ✅ **Security Management** - Encrypted peer authentication and audit logging
-
-#### Installation Steps:
-
-1. **Build the Service:**
-   ```bash
-   npm run build:service
-   ```
-
-2. **Set Environment Variables** (Important for Production):
-   ```bash
-   set SYNC_REGISTRATION_KEY=your-secure-production-key-here
-   set SYNC_PORT=8765
-   set SYNC_INTERVAL=30000
-   set LOG_LEVEL=info
-   set DATABASE_URL=postgresql://user:pass@host:5432/database
-   ```
-
-3. **Install as Windows Service** (Run as Administrator):
-   ```bash
-   npm run service:install
-   ```
-
-4. **Start the Service:**
-   ```bash
-   npm run service:start
-   ```
-
-5. **Verify Installation:**
-   ```bash
-   npm run service:diagnose
-   ```
-
-#### Service Management Commands:
-```bash
-# Core service management
-npm run service:install    - Install as Windows service
-npm run service:start      - Start the service
-npm run service:stop       - Stop the service
-npm run service:restart    - Restart the service
-npm run service:diagnose   - Comprehensive health check
-
-# Production updates
-npm run service:update     - Update service with backup/rollback
-npm run service:rollback   - Rollback to previous version
-
-# Legacy commands (still available)
-npm run sync-service:status    - Check service status
-npm run sync-service:uninstall - Remove the service
-```
-
-#### Multi-Instance Setup:
-
-For database replication between multiple machines:
-
-1. **Each machine must have the same SYNC_REGISTRATION_KEY**
-2. **Ensure network connectivity** between machines on the sync port
-3. **Start services on all machines** - they will automatically discover each other
-4. **Monitor sync status** with `npm run service:diagnose`
-
-#### Production Migration Workflow:
-
-```bash
-# 1. Test the update process (creates backup automatically)
-npm run service:update
-
-# 2. If something goes wrong, rollback immediately
-npm run service:rollback
-
-# 3. Verify everything works
-npm run service:diagnose
-```
-
-#### Troubleshooting:
-
-- **Service won't start**: Run `npm run service:diagnose` for detailed diagnostics
-- **Peer discovery issues**: Check SYNC_REGISTRATION_KEY matches across instances
-- **Permission errors**: Ensure running as Administrator for service operations
-- **Build errors**: Ensure sync schema is properly set up in Prisma
-
-### Option 2: Traditional Server Deployment
-
-```bash
-# Install PM2 for process management
-npm install -g pm2
-
-# Create PM2 ecosystem file
-cat > ecosystem.config.js << 'EOF'
-module.exports = {
-  apps: [{
-    name: 'business-platform',
-    script: 'npm',
-    args: 'start',
-    cwd: '/path/to/your/app',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 8080
-    },
-    instances: 'max',
-    exec_mode: 'cluster'
-  }]
-}
-EOF
-
-# Start with PM2
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
-### Option 2: Docker Deployment
-
-Create `Dockerfile`:
-```dockerfile
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci --only=production
-
-COPY . .
-RUN npm run build
-
-EXPOSE 8080
-
-CMD ["npm", "start"]
-```
-
-Create `docker-compose.yml`:
-```yaml
-version: '3.8'
-
-services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-## Safe Windows Service Install (step-by-step)
-
-Important: the steps below modify Windows Services and should be run in a staging environment first. Commands that change system services require Administrator privileges.
-
-0) Open an elevated shell (PowerShell recommended)
-
-- Right-click Start → "Windows PowerShell (Admin)" or run:
-```powershell
-Start-Process PowerShell -Verb RunAs
-```
-
-1) Prepare environment variables and configuration
-
-PowerShell (temporary vars):
-```powershell
-$env:DATABASE_URL = "postgresql://user:pass@localhost:5432/mydb"
-$env:SYNC_REGISTRATION_KEY = "replace-with-secure-key"
-$env:SYNC_PORT = "8765"
-$env:HEALTH_PORT = "3002"
-```
-
-Bash (if you prefer):
-```bash
-export DATABASE_URL="postgresql://user:pass@localhost:5432/mydb"
-export SYNC_REGISTRATION_KEY="replace-with-secure-key"
-export SYNC_PORT=8765
-export HEALTH_PORT=3002
-```
-
-2) Backup DB and configs (SAFETY)
-
-Use the repository backup script if available:
-```bash
-npm run backup:database
-```
-
-Or create a pg_dump manually:
-```bash
-pg_dump "$DATABASE_URL" -F c -f ./backups/pre-install-$(date +%Y%m%d%H%M%S).dump
-```
-
-Also back up important config files:
-```bash
-cp config/service-config.json config/service-config.json.bak
-```
-
-3) Run non-destructive checks (safe)
-
-Skip DB precheck if you don't want to connect to the DB yet:
-```bash
-SKIP_DB_PRECHECK=true npm run service:smoke-check
-```
-
-Run the detailed diagnostic:
-```bash
-npm run service:diagnose
-# or via shim
-node scripts/service-cmd.js diagnose
-```
-
-4) Install the Windows service (Administrator required)
-
-Run this in the elevated PowerShell session:
-```powershell
-npm run service:install
-```
-
-What this does: registers the "Multi-Business Sync Service" and creates wrapper/daemon files. If it fails with permissions errors, make sure the shell is elevated.
-
-5) Verify installation and status (non-destructive)
-
-```bash
-npm run service:status
-# or
-npm run sync-service:status
-```
-
-Or use the Windows `sc` tool:
-```powershell
-sc query "Multi-Business Sync Service"
-```
-
-6) Start the service (Admin)
-
-```powershell
-npm run service:start
-# or
-sc start "Multi-Business Sync Service"
-```
-
-7) View logs
-
-PowerShell (tail):
-```powershell
-Get-Content -Path data\sync\sync-service.log -Tail 200 -Wait
-```
-
-Bash (tail):
-```bash
-tail -n 200 -f data/sync/sync-service.log
-```
-
-8) Stop and uninstall (Admin)
-
-```powershell
-npm run service:stop
-npm run service:uninstall
-```
-
-If the installer exposes `update`/`rollback` helpers, use them for safe updates:
-```bash
-npm run service:update
-# if needed
-npm run service:rollback
-```
-
-Troubleshooting quick checklist
-
-- If `service:install` fails: confirm Administrator privileges and check `Event Viewer` → Application/System logs.
-- If `sc start` fails: run `npm run service:diagnose` and inspect wrapper paths (`dist/service/sync-service-runner.js`).
-- If DB fails: verify `DATABASE_URL` and network connectivity, then run smoke-check without SKIP.
-
-Copyable summary (PowerShell elevated):
-```powershell
-# backup
-npm run backup:database
-
-# smoke-check
-$env:SKIP_DB_PRECHECK='true'; npm run service:smoke-check; Remove-Item Env:\SKIP_DB_PRECHECK
-
-# install (Admin)
-npm run service:install
-
-# status
-npm run service:status
-
-# start
-npm run service:start
-
-# view logs
-Get-Content -Path data\sync\sync-service.log -Tail 200 -Wait
-
-# stop
-npm run service:stop
-
-# uninstall (Admin)
-npm run service:uninstall
+# SYNC_REGISTRATION_KEY (32 random bytes, hex)
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ---
 
-If you'd like, I can add a PowerShell script `scripts/install-service-windows.ps1` that automates this flow (it would prompt for confirmation before each destructive step). I won't execute it without your go-ahead.
-      - DATABASE_URL=postgresql://postgres:password@db:5432/business_platform
-      - NEXTAUTH_URL=http://localhost:8080
-      - NEXTAUTH_SECRET=your-secret-key
-    depends_on:
-      - db
+## 4. Database Setup
 
-  db:
-    image: postgres:15
-    environment:
-      - POSTGRES_DB=business_platform
-      - POSTGRES_PASSWORD=password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+### Create the database
 
-volumes:
-  postgres_data:
+```bash
+"C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE multi_business_db;"
 ```
 
-Deploy with Docker:
-```bash
-# Build and start services
-docker-compose up -d
+### Run migrations
 
-# Run production setup (one time only)
-docker-compose exec app node scripts/production-setup.js
+```bash
+npm run db:deploy
 ```
 
-### Option 3: Cloud Platform Deployment
+> **Critical:** Never use `prisma db push` on production. Always use `db:deploy` which runs `prisma migrate deploy`.
 
-#### Vercel (Recommended for Next.js)
+### Verify
+
 ```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Deploy to Vercel
-vercel
-
-# Configure environment variables in Vercel dashboard
-# Add PostgreSQL database (Vercel Postgres or external)
+npx prisma migrate status --env-file .env.local
 ```
 
-#### Heroku
+Expected: `Database schema is up to date!`
+
+---
+
+## 5. Build
+
 ```bash
-# Install Heroku CLI
-# Create Heroku app
-heroku create your-app-name
-
-# Add PostgreSQL addon
-heroku addons:create heroku-postgresql:hobby-dev
-
-# Configure environment variables
-heroku config:set NEXTAUTH_SECRET="your-secret-key"
-heroku config:set NEXTAUTH_URL="https://your-app-name.herokuapp.com"
-
-# Deploy
-git push heroku main
-
-# Run production setup
-heroku run node scripts/production-setup.js
-```
-
-## Backup and Maintenance
-
-### Database Backup
-```bash
-# Create backup
-pg_dump -U postgres -h localhost business_platform > backup.sql
-
-# Restore backup
-psql -U postgres -h localhost business_platform < backup.sql
-```
-
-### Application Updates
-```bash
-# Pull latest changes
-git pull origin main
-
-# Update dependencies
-npm install
-
-# Apply any new migrations
-npx prisma migrate deploy
-
-# Rebuild application
 npm run build
-
-# Restart application
-pm2 restart business-platform
 ```
 
-## Troubleshooting
+This runs:
+1. `prisma generate` — generates the Prisma client
+2. `next build` — compiles the Next.js app into `.next/`
+3. `tsc --project tsconfig.server.json` — compiles `server.ts` into `dist/server.js`
 
-### Common Issues
+> **Important:** `dist/server.js` must exist for the service to start. If it's missing after a `git pull`, run `npm run build:server` (faster than a full rebuild).
 
-#### Database Connection Issues
+---
+
+## 6. SSL Certificates (HTTPS)
+
+The app auto-detects HTTPS by checking the `certs/` folder for `.pem` files. If certs are present, the server starts on HTTPS; otherwise it falls back to HTTP.
+
+### Generating certificates (first time, on any machine with mkcert)
+
+Certificates are generated once and copied to each server. They are **not** committed to git.
+
 ```bash
-# Check PostgreSQL is running
-sudo systemctl status postgresql  # Linux
-brew services list | grep postgres  # macOS
+# Install mkcert (Windows, via Scoop or Chocolatey)
+scoop install mkcert
+# or
+choco install mkcert
 
-# Test connection
-psql -U postgres -h localhost -c "SELECT version();"
+# Install the local CA
+mkcert -install
 
-# Check connection string format
-echo $DATABASE_URL
+# Generate cert covering your server IPs + localhost
+mkcert 192.168.0.108 192.168.1.211 localhost 127.0.0.1
 ```
 
-#### Port Already in Use
+This creates two files (e.g. `192.168.0.108+3.pem` and `192.168.0.108+3-key.pem`) plus a `rootCA.pem` in the mkcert data directory.
+
+### Placing certificates on the server
+
+Copy the following into `certs/` in the app root (create the folder if it doesn't exist):
+
+```
+certs/
+  192.168.0.108+3.pem        ← SSL certificate
+  192.168.0.108+3-key.pem    ← Private key
+  rootCA.pem                 ← Root CA (for client trust)
+  setup-ssl.bat              ← One-click CA installer for client machines
+```
+
+> The `certs/` folder is in `.gitignore` — copy it manually (USB, shared folder, SCP).
+
+### Trusting the certificate on the server
+
+Run once on the server machine (so the server's own browser trusts it):
+
 ```bash
-# Find process using port 8080
-netstat -tlnp | grep :8080  # Linux
-lsof -ti:8080  # macOS
-
-# Kill process
-kill -9 <process_id>
+certs\setup-ssl.bat
 ```
 
-#### Permission Errors
+### Update NEXTAUTH_URL
+
+After SSL is working, update `.env.local`:
+
+```env
+NEXTAUTH_URL="https://192.168.0.108:8080"
+```
+
+Restart the service after this change.
+
+---
+
+## 7. Windows Service Installation
+
+The app runs as a Windows service via `node-windows`. The service starts PostgreSQL → runs migrations → seeds reference data → starts the Next.js app.
+
+### Install (run as Administrator)
+
 ```bash
-# Fix file permissions
-chmod +x scripts/production-setup.js
-
-# Fix npm permissions (if needed)
-sudo chown -R $(whoami) ~/.npm
+npm run service:install
 ```
 
-#### Build Errors
+This registers the `MultiBusinessSyncService` in Windows Services and creates the daemon files in `windows-service/daemon/`.
+
+> The service depends on `postgresql-x64-18`. PostgreSQL must be installed and its service name must match.
+
+### Start
+
 ```bash
-# Clear cache and reinstall
-rm -rf node_modules package-lock.json
-npm install
-
-# Check Node.js version
-node --version  # Should be 18+
+npm run service:start
 ```
 
-### Getting Help
+### Verify it's running
 
-1. **Check Application Logs:**
-   ```bash
-   # Development mode
-   Check terminal output
-
-   # Production mode with PM2
-   pm2 logs business-platform
-
-   # Docker mode
-   docker-compose logs app
-   ```
-
-2. **Database Issues:**
-   ```bash
-   # Check database connectivity
-   npx prisma db pull
-
-   # Validate schema
-   npx prisma validate
-   ```
-
-3. **Performance Issues:**
-   - Monitor memory usage: `htop` or `top`
-   - Check disk space: `df -h`
-   - Monitor database: `pgAdmin` or database monitoring tools
-
-## Security Checklist for Production
-
-- [ ] Changed default admin password
-- [ ] Generated secure NEXTAUTH_SECRET
-- [ ] Configured HTTPS/SSL certificates
-- [ ] Set up firewall rules
-- [ ] Configured database access restrictions
-- [ ] Set up regular backups
-- [ ] Enabled application logging
-- [ ] Updated all system packages
-- [ ] Configured environment-specific settings
-- [ ] Set up monitoring and alerts
-
-## Performance Optimization
-
-### Database Optimization
-```sql
--- Add database indexes for better performance
-CREATE INDEX CONCURRENTLY idx_users_email ON users(email);
-CREATE INDEX CONCURRENTLY idx_audit_logs_timestamp ON audit_logs(timestamp);
-CREATE INDEX CONCURRENTLY idx_projects_business_type ON projects(business_type);
-```
-
-### Application Optimization
 ```bash
-# Enable production optimizations in next.config.js
-# Configure caching strategies
-# Set up CDN for static assets
-# Implement database connection pooling
+npm run service:status
+# or
+sc query "MultiBusinessSyncService"
+```
+
+### View logs
+
+```powershell
+# Live tail of application output
+Get-Content "windows-service\daemon\multibusinesssyncservice.out.log" -Wait -Tail 30
+
+# Live tail of errors
+Get-Content "windows-service\daemon\multibusinesssyncservice.err.log" -Wait -Tail 30
+```
+
+Healthy startup sequence ends with:
+```
+[Server] HTTPS enabled — cert: <filename>.pem, key: <filename>-key.pem
+[Server] listening on https://localhost:8080
 ```
 
 ---
 
-## Quick Start Summary
+## 8. QZ Tray Receipt Printing
 
-For experienced developers, here's the quick setup:
+QZ Tray is a Java desktop app that lets the browser print to local/network printers without browser print dialogs.
+
+### Install QZ Tray
+
+Download version **2.2.6** from [qz.io](https://qz.io/download/) and install on each machine that will print receipts. Start QZ Tray — it runs in the system tray.
+
+### Set up signed certificates (eliminates the Allow/Deny popup)
+
+> **How this differs from SSL certs:** The SSL `rootCA.pem` must be a physical file on the server. The QZ certificate is different — the server reads it from `.env.local` env vars, not from a file. Only client machines (where QZ Tray is installed) need the physical `qz-certificate.pem` file.
+
+**Step 1 — Generate the signing certificate** (run once on the server or any dev machine):
 
 ```bash
-# 1. Install prerequisites
-node --version  # Ensure 18+
-psql --version  # Ensure PostgreSQL installed
-
-# 2. Clone and setup
-git clone <repo> && cd multi-business-platform
-npm install
-
-# 3. Configure database
-createdb -U postgres business_platform
-echo 'DATABASE_URL="postgresql://postgres:password@localhost:5432/business_platform"' > .env
-echo 'NEXTAUTH_SECRET="'$(openssl rand -base64 32)'"' >> .env
-echo 'NEXTAUTH_URL="http://localhost:8080"' >> .env
-
-# 4. Setup database
-npx prisma generate
-npx prisma migrate deploy
-node scripts/production-setup.js
-
-# 5. Start application
-npm run build && npm start
+npm run qz:generate-cert
 ```
 
-Login at `http://localhost:8080` with `admin@business.local` / `admin123`
+This outputs two environment variable values **and** creates `certs/qz-certificate.pem`.
 
-**🎉 You're ready to go!**
+**Step 2 — Add env vars to the server's `.env.local`:**
+
+```env
+QZ_PRIVATE_KEY=<value from script output>
+QZ_CERTIFICATE=<value from script output>
+```
+
+The server serves the certificate to the browser via `/api/qz/certificate` using these env vars. **No file copy to the server is needed** — the env vars are sufficient.
+
+**Step 3 — Distribute `qz-certificate.pem` to each client machine running QZ Tray:**
+
+Copy `certs/qz-certificate.pem` to each machine where QZ Tray is installed (USB, shared folder, etc.), then:
+
+1. Right-click QZ Tray icon in system tray
+2. **Advanced** → **Site Manager**
+3. Click **Add Certificate**
+4. Select the `qz-certificate.pem` file
+5. Restart QZ Tray
+
+**Step 4 — Rebuild and restart the service:**
+
+```bash
+npm run build
+npm run service:stop
+npm run service:start
+```
+
+From this point, QZ Tray will silently trust all print requests from the app — no more popups.
+
+| File | Server needs it? | QZ Tray machine needs it? |
+|------|-----------------|--------------------------|
+| `rootCA.pem` | ✅ Physical file in `certs/` | ✅ Run `setup-ssl.bat` |
+| SSL cert + key `.pem` | ✅ Physical file in `certs/` | ❌ Not needed |
+| `qz-certificate.pem` | ❌ Env var in `.env.local` only | ✅ Add to QZ Tray trusted list |
+
+---
+
+## 9. Electron Desktop App
+
+Electron wraps the web app as a desktop application and launches automatically at Windows startup.
+
+### Install the startup shortcut
+
+```bash
+npm run electron:install-startup
+```
+
+This creates a shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` that launches Electron when the user logs in.
+
+> Run this command **after** setting up SSL certificates. The shortcut is regenerated with the correct `http://` or `https://` protocol based on what certs are present.
+
+### Launch manually
+
+```bash
+npm run electron
+```
+
+### How Electron detects HTTPS
+
+`electron/main.js` auto-detects certs in the `certs/` folder and loads `https://localhost:8080` if they exist, otherwise `http://localhost:8080`. It also has a certificate-error handler to trust the self-signed mkcert cert.
+
+---
+
+## 10. Client Machine Setup
+
+Every Windows machine that opens the app in Chrome or Edge needs to trust the SSL certificate once.
+
+### Option A — One-click (recommended)
+
+1. Copy `certs/setup-ssl.bat` and `certs/rootCA.pem` to the client machine
+2. Double-click `setup-ssl.bat`
+3. Restart Chrome/Edge
+
+### Option B — Manual
+
+1. Copy `certs/rootCA.pem` to the client machine
+2. Press `Win+R` → type `certmgr.msc` → Enter
+3. Expand **Trusted Root Certification Authorities** → right-click **Certificates**
+4. **All Tasks** → **Import** → select `rootCA.pem`
+5. Restart Chrome/Edge
+
+### QZ Tray on client machines
+
+Each client machine that prints needs:
+1. Java 11+ installed
+2. QZ Tray 2.2.6 installed and running
+3. `certs/qz-certificate.pem` added to QZ Tray (see Section 8 Step 2)
+
+---
+
+## 11. Deploying Updates
+
+```bash
+# 1. Pull latest code
+git pull
+
+# 2. Install any new dependencies
+npm install
+
+# 3. Run new migrations
+npm run db:deploy
+
+# 4. Rebuild
+npm run build
+
+# 5. Restart the service
+npm run service:stop
+npm run service:start
+```
+
+> If only `server.ts` changed (no UI changes), you can skip the full build and just run `npm run build:server` then restart the service. The service will detect the code change and skip the Next.js rebuild automatically.
+
+### After a failed migration
+
+If a migration fails and leaves the database in a `failed` state:
+
+```bash
+# 1. Mark the failed migration as rolled back
+npx prisma migrate resolve --rolled-back "MIGRATION_NAME" --env-file .env.local
+
+# 2. Re-apply (with the fixed migration SQL)
+npm run db:deploy
+```
+
+---
+
+## 12. Troubleshooting
+
+### Service starts then stops immediately
+
+Check the error log:
+```powershell
+Get-Content "windows-service\daemon\multibusinesssyncservice.err.log" -Tail 50
+```
+
+Common causes:
+- **`dist/server.js` not found** — run `npm run build:server`
+- **PostgreSQL not running** — start PostgreSQL service first
+- **Port 8080 in use** — find and stop the conflicting process
+- **Migration failed** — see "After a failed migration" above
+
+### Migration lock stuck
+
+Symptom: `Migration lock present, waiting 5s...` repeating in logs.
+
+```bash
+npm run service:stop
+npm run db:clear-locks    # or manually delete .migration.lock file
+npm run service:start
+```
+
+If no lock file but still stuck, reboot the server — a zombie process may be holding the lock.
+
+### App running on HTTP instead of HTTPS
+
+The server logs this on startup:
+```
+[Server] HTTP only — no certs found in ./certs/
+```
+
+Fix:
+1. Ensure `certs/` folder exists in the app root (`C:\Users\...\multi-business-multi-apps\certs\`)
+2. Ensure it contains both a `.pem` cert file and a `-key.pem` key file
+3. Ensure `dist/server.js` was compiled from the latest `server.ts` (run `npm run build:server`)
+4. Restart the service
+
+### QZ Tray popup appears every print job
+
+The `QZ_PRIVATE_KEY` and `QZ_CERTIFICATE` are not set in `.env.local`, or the cert hasn't been added to QZ Tray. Follow Section 8 fully.
+
+### Electron shows ERR_TIMED_OUT
+
+The server hasn't finished starting when Electron tried to connect. Wait 30–60 seconds for the full startup sequence to complete, then re-open Electron. For a permanent fix, the startup shortcut waits before launching — re-run `npm run electron:install-startup`.
+
+### NEXTAUTH JWT session errors after rebuilding
+
+Old session cookies become invalid when `NEXTAUTH_SECRET` changes or the server URL changes from `http://` to `https://`. Users just need to log out and log back in. No code fix required.
+
+---
+
+## 13. Service Management Reference
+
+| Command | Description |
+|---------|-------------|
+| `npm run service:install` | Install as Windows service (run as Admin) |
+| `npm run service:uninstall` | Remove Windows service (run as Admin) |
+| `npm run service:start` | Start the service |
+| `npm run service:stop` | Stop the service |
+| `npm run service:restart` | Stop then start |
+| `npm run service:status` | Show service status |
+| `npm run db:deploy` | Run pending database migrations |
+| `npm run db:clear-locks` | Clear stuck migration locks |
+| `npm run build` | Full build (Next.js + server.ts) |
+| `npm run build:server` | Compile server.ts only (fast) |
+| `npm run electron:install-startup` | Install/update Electron startup shortcut |
+| `npm run qz:generate-cert` | Generate QZ Tray signing certificate |
+
+### Log file locations
+
+| Log | Path |
+|-----|------|
+| Application stdout | `windows-service\daemon\multibusinesssyncservice.out.log` |
+| Application stderr | `windows-service\daemon\multibusinesssyncservice.err.log` |
+| Wrapper log | `windows-service\daemon\multibusinesssyncservice.wrapper.log` |
+
+---
+
+## Quick Reference — Fresh Server Setup
+
+```bash
+# 1. Install Node.js (via nvm), PostgreSQL 18, Git
+
+# 2. Clone and install
+git clone <repo> multi-business-multi-apps
+cd multi-business-multi-apps
+npm install
+
+# 3. Create .env.local (fill in your values)
+#    See Section 3 for all required variables
+
+# 4. Create database
+"C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE multi_business_db;"
+
+# 5. Run migrations
+npm run db:deploy
+
+# 6. Build
+npm run build
+
+# 7. Copy certs/ folder from another server or generate new ones
+#    Place cert + key .pem files in certs/ in the app root
+
+# 8. Install Windows service (Admin shell)
+npm run service:install
+npm run service:start
+
+# 9. Set up QZ Tray signing (eliminates print popups)
+npm run qz:generate-cert
+# → add QZ_PRIVATE_KEY and QZ_CERTIFICATE to .env.local
+# → add certs/qz-certificate.pem to QZ Tray trusted list
+npm run service:stop && npm run service:start
+
+# 10. Install Electron startup shortcut
+npm run electron:install-startup
+
+# 11. Trust SSL cert on each client machine
+#     Copy certs/setup-ssl.bat + certs/rootCA.pem → run setup-ssl.bat on each machine
+```
+
+Default admin login: `admin@business.local` / `admin123` — **change immediately after first login.**

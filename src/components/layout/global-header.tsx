@@ -1663,8 +1663,8 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                 </Link>
               )}
 
-              {/* Printer Management link - visible to admins and business owners */}
-              {(isSystemAdmin(user) || currentBusiness?.role === 'business-owner') && (
+              {/* Printer Management link - visible to admins, business owners, and users with printer management permission */}
+              {(isSystemAdmin(user) || currentBusiness?.role === 'business-owner' || user?.userLevelPermissions?.canManageNetworkPrinters) && (
                 <Link
                   href="/admin/printers"
                   className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

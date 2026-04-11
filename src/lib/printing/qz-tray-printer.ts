@@ -70,12 +70,22 @@ async function getQz(): Promise<any> {
 function setupQzSecurity(qz: any): void {
   try {
     qz.security.setCertificatePromise((resolve: any, _reject: any) => {
-      // Resolve with empty string — QZ Tray will prompt the user to Allow/Deny
-      resolve('')
+      fetch('/api/qz/certificate')
+        .then((r) => (r.ok ? r.text() : Promise.resolve('')))
+        .then(resolve)
+        .catch(() => resolve(''))
     })
-    qz.security.setSignaturePromise((_toSign: any) => {
+
+    qz.security.setSignaturePromise((toSign: any) => {
       return (resolve: any, _reject: any) => {
-        resolve('')
+        fetch('/api/qz/sign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request: toSign }),
+        })
+          .then((r) => (r.ok ? r.json() : Promise.resolve({ signature: '' })))
+          .then((data) => resolve(data.signature ?? ''))
+          .catch(() => resolve(''))
       }
     })
   } catch {
