@@ -1,36 +1,64 @@
 'use client'
 
-
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
+
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { DateInput } from '@/components/ui/date-input'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
+import { getLocalDateString } from '@/lib/utils'
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#a4de6c']
+
+function getDefaultRange(): DateRange {
+  const end = new Date()
+  const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  return { start, end }
+}
+
+function formatCurrency(val: number) {
+  return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+interface SummaryData {
+  totalRevenue: number
+  totalExpenses: number
+  netProfit: number
+  revenueTrend: { date: string; revenue: number }[]
+  expensesByCategory: { category: string; amount: number }[]
+}
 
 export default function ReportsPage() {
-  const [dateRange, setDateRange] = useState({
-    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
-  })
+  const [dateRange, setDateRange] = useState<DateRange>(getDefaultRange())
+  const [data, setData] = useState<SummaryData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const sampleRevenueData = [
-    { date: '2024-01-01', revenue: 1200 },
-    { date: '2024-01-02', revenue: 1800 },
-    { date: '2024-01-03', revenue: 1500 },
-    { date: '2024-01-04', revenue: 2200 },
-    { date: '2024-01-05', revenue: 1900 },
-  ]
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const startDate = getLocalDateString(dateRange.start)
+      const endDate = getLocalDateString(dateRange.end)
+      const res = await fetch(`/api/reports/summary?startDate=${startDate}&endDate=${endDate}`)
+      const json = await res.json()
+      if (json.success) {
+        setData(json)
+      } else {
+        setError(json.error ?? 'Failed to load report')
+      }
+    } catch {
+      setError('Failed to load report')
+    } finally {
+      setLoading(false)
+    }
+  }, [dateRange])
 
-  const sampleExpenseData = [
-    { category: 'Materials', amount: 5000 },
-    { category: 'Labor', amount: 3500 },
-    { category: 'Equipment', amount: 2000 },
-    { category: 'Other', amount: 800 },
-  ]
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   return (
     <ProtectedRoute>
@@ -40,84 +68,95 @@ export default function ReportsPage() {
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Reports', isActive: true }
         ]}
-        headerActions={
-          <div className="flex space-x-4">
-            <DateInput
-              value={dateRange.start}
-              onChange={(date) => setDateRange(prev => ({ ...prev, start: date }))}
-              label="Start Date"
-              compact
-            />
-            <DateInput
-              value={dateRange.end}
-              onChange={(date) => setDateRange(prev => ({ ...prev, end: date }))}
-              label="End Date"
-              compact
-            />
-          </div>
-        }
       >
+        <DateRangeSelector value={dateRange} onChange={setDateRange} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold mb-4 text-primary">Revenue Trend</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={sampleRevenueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="revenue" stroke="#3B82F6" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-4 border-blue-600" />
+            <span className="ml-4 text-gray-500">Loading...</span>
           </div>
+        )}
 
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold mb-4 text-primary">Expenses by Category</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={sampleExpenseData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ category, percent }) => `${category} ${((percent || 0) * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="amount"
-                >
-                  {sampleExpenseData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 text-red-700 dark:text-red-400">
+            {error}
           </div>
-        </div>
+        )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold mb-2 text-primary">Total Revenue</h3>
-            <p className="text-3xl font-bold text-green-600">$12,400</p>
-            <p className="text-sm text-gray-500">Last 30 days</p>
-          </div>
-          
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold mb-2 text-primary">Total Expenses</h3>
-            <p className="text-3xl font-bold text-red-600">$8,300</p>
-            <p className="text-sm text-gray-500">Last 30 days</p>
-          </div>
-          
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold mb-2 text-primary">Net Profit</h3>
-            <p className="text-3xl font-bold text-blue-600">$4,100</p>
-            <p className="text-sm text-gray-500">Last 30 days</p>
-          </div>
-        </div>
+        {!loading && data && (
+          <>
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="card p-6">
+                <h3 className="text-lg font-semibold mb-2 text-primary">Total Revenue</h3>
+                <p className="text-3xl font-bold text-green-600">${formatCurrency(data.totalRevenue)}</p>
+                <p className="text-sm text-gray-500">Selected period</p>
+              </div>
+              <div className="card p-6">
+                <h3 className="text-lg font-semibold mb-2 text-primary">Total Expenses</h3>
+                <p className="text-3xl font-bold text-red-600">${formatCurrency(data.totalExpenses)}</p>
+                <p className="text-sm text-gray-500">Selected period</p>
+              </div>
+              <div className="card p-6">
+                <h3 className="text-lg font-semibold mb-2 text-primary">Net Profit</h3>
+                <p className={`text-3xl font-bold ${data.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                  ${formatCurrency(data.netProfit)}
+                </p>
+                <p className="text-sm text-gray-500">Selected period</p>
+              </div>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="card p-6">
+                <h3 className="text-lg font-semibold mb-4 text-primary">Revenue Trend</h3>
+                {data.revenueTrend.length === 0 ? (
+                  <p className="text-gray-400 text-center py-10">No sales data for this period</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={data.revenueTrend}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(v: number) => [`$${formatCurrency(v)}`, 'Revenue']} />
+                      <Line type="monotone" dataKey="revenue" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              <div className="card p-6">
+                <h3 className="text-lg font-semibold mb-4 text-primary">Expenses by Category</h3>
+                {data.expensesByCategory.length === 0 ? (
+                  <p className="text-gray-400 text-center py-10">No expense data for this period</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={data.expensesByCategory}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ category, percent }) => `${category} ${((percent || 0) * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        dataKey="amount"
+                      >
+                        {data.expensesByCategory.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: number) => [`$${formatCurrency(v)}`, 'Amount']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Report Hubs */}
-        <div className="mt-6">
+        <div className="mt-2">
           <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">Report Hubs</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <a href="/expense-accounts/reports"

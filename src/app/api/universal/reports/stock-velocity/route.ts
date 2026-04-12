@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
           businessId,
           status: 'COMPLETED',
           orderType: 'SALE',
-          transactionDate: { gte: start, lte: end },
+          OR: [
+            { transactionDate: { gte: start, lte: end } },
+            { transactionDate: null, createdAt: { gte: start, lte: end } },
+          ],
         },
       },
       select: {
@@ -48,13 +51,12 @@ export async function GET(request: NextRequest) {
       salesMap.set(item.productVariantId, (salesMap.get(item.productVariantId) ?? 0) + item.quantity)
     }
 
-    // Fetch all active inventory-tracked product variants for this business
+    // Fetch all active product variants for this business
     const variants = await prisma.productVariants.findMany({
       where: {
         business_products: {
           businessId,
           isActive: true,
-          isInventoryTracked: true,
         },
       },
       select: {

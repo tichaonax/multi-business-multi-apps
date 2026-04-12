@@ -141,7 +141,7 @@ export default function StockVelocityPage() {
               <tr
                 key={row.variantId}
                 className={`border-b border-gray-100 dark:border-gray-700 ${
-                  i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-750'
+                  i % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800' : 'bg-gray-100 dark:bg-gray-700'
                 }`}
               >
                 <td className="px-4 py-2">
@@ -150,6 +150,9 @@ export default function StockVelocityPage() {
                     <div className="text-xs text-gray-500 dark:text-gray-400">{row.variantName}</div>
                   )}
                   <div className="text-xs text-gray-400 dark:text-gray-500">{row.category}</div>
+                  {row.isTransferred && (
+                    <div className="text-xs italic text-blue-500 dark:text-blue-400">Transferred Items</div>
+                  )}
                 </td>
                 <td className="px-4 py-2 text-gray-600 dark:text-gray-400 font-mono text-xs">{row.sku || '—'}</td>
                 <td className="px-4 py-2 text-right font-semibold text-gray-900 dark:text-gray-100">

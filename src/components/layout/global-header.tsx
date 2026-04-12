@@ -6,7 +6,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from '@/contexts/theme-context'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
-import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
+import { SessionUser, isSystemAdmin, canManageNetworkPrinters } from '@/lib/permission-utils'
 import { MiniCart } from '@/components/global/mini-cart'
 import { TestPrintModal } from '@/components/printing/test-print-modal'
 import { BusinessCreationModal } from '@/components/user-management/business-creation-modal'
@@ -1663,19 +1663,17 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                 </Link>
               )}
 
-              {/* Printer Management link - visible to admins, business owners, and users with printer management permission */}
-              {(isSystemAdmin(user) || currentBusiness?.role === 'business-owner' || user?.userLevelPermissions?.canManageNetworkPrinters) && (
-                <Link
-                  href="/admin/printers"
-                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => closeUserMenu()}
-                >
-                  <div className="flex items-center space-x-2">
-                    <span>🖨️</span>
-                    <span>Printer Management</span>
-                  </div>
-                </Link>
-              )}
+              {/* Printer Setup — visible to all users; QZ Tray is per-machine so each user configures their own */}
+              <Link
+                href="/admin/printers"
+                className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => closeUserMenu()}
+              >
+                <div className="flex items-center space-x-2">
+                  <span>🖨️</span>
+                  <span>Printer Setup</span>
+                </div>
+              </Link>
 
               {/* Business Management link - visible to system admins and users with business management permissions */}
               {(

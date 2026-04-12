@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
           businessId,
           status: 'COMPLETED',
           orderType: 'SALE',
-          transactionDate: { gte: start, lte: end },
+          OR: [
+            { transactionDate: { gte: start, lte: end } },
+            { transactionDate: null, createdAt: { gte: start, lte: end } },
+          ],
         },
       },
       select: {
@@ -52,13 +55,12 @@ export async function GET(request: NextRequest) {
       salesMap.set(item.productVariantId, (salesMap.get(item.productVariantId) ?? 0) + item.quantity)
     }
 
-    // Fetch all active inventory-tracked variants
+    // Fetch all active variants for this business
     const variants = await prisma.productVariants.findMany({
       where: {
         business_products: {
           businessId,
           isActive: true,
-          isInventoryTracked: true,
         },
       },
       select: {
@@ -66,6 +68,7 @@ export async function GET(request: NextRequest) {
         name: true,
         sku: true,
         stockQuantity: true,
+        reorderLevel: true,
         price: true,
         business_products: {
           select: {
@@ -78,28 +81,39 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Build reorder rows — only include items that need reordering
+    // Build reorder rows — include items that need reordering
     const rows = []
     for (const variant of variants) {
       const totalUnitsSold = salesMap.get(variant.id) ?? 0
-
-      // Skip items with no sales history — can't estimate velocity
-      if (totalUnitsSold === 0) continue
+      const currentStock = variant.stockQuantity ?? 0
+      const reorderLevel = variant.reorderLevel ?? 0
 
       const avgDailySales = totalUnitsSold / dayRange
-      const currentStock = variant.stockQuantity ?? 0
       const daysOfStockLeft = avgDailySales > 0 ? currentStock / avgDailySales : null
 
-      // Only include if within reorder threshold
-      if (daysOfStockLeft === null || daysOfStockLeft > reorderThresholdDays) continue
+      // Determine if this item needs reordering via velocity OR explicit reorder level
+      const belowReorderLevel = reorderLevel > 0 && currentStock <= reorderLevel
+      const belowVelocityThreshold = daysOfStockLeft !== null && daysOfStockLeft <= reorderThresholdDays
 
-      // Suggested qty = enough for targetStockDays minus what's already on hand
-      const suggestedReorderQty = Math.max(0, Math.ceil(avgDailySales * targetStockDays) - currentStock)
+      if (!belowVelocityThreshold && !belowReorderLevel) continue
+
+      // Suggested qty: velocity-based if we have sales, reorder-level-based fallback
+      let suggestedReorderQty: number
+      let daysOfStockLeftForDisplay: number
+      if (avgDailySales > 0) {
+        suggestedReorderQty = Math.max(0, Math.ceil(avgDailySales * targetStockDays) - currentStock)
+        daysOfStockLeftForDisplay = daysOfStockLeft ?? 0
+      } else {
+        // No sales data — suggest enough to reach reorderLevel * 2 as a rough target
+        suggestedReorderQty = Math.max(0, reorderLevel * 2 - currentStock)
+        daysOfStockLeftForDisplay = 0
+      }
+
       const costPrice = variant.business_products.costPrice ? parseFloat(variant.business_products.costPrice.toString()) : null
       const estimatedCost = costPrice !== null ? Math.round(suggestedReorderQty * costPrice * 100) / 100 : null
 
       const urgency: 'critical' | 'low' =
-        daysOfStockLeft < 3 ? 'critical' : 'low'
+        currentStock === 0 || daysOfStockLeftForDisplay < 3 ? 'critical' : 'low'
 
       rows.push({
         variantId: variant.id,
@@ -110,7 +124,7 @@ export async function GET(request: NextRequest) {
         category: variant.business_products.business_categories?.name ?? 'Uncategorised',
         currentStock,
         avgDailySales: Math.round(avgDailySales * 100) / 100,
-        daysOfStockLeft: Math.round(daysOfStockLeft * 10) / 10,
+        daysOfStockLeft: Math.round(daysOfStockLeftForDisplay * 10) / 10,
         urgency,
         suggestedReorderQty,
         costPrice,
