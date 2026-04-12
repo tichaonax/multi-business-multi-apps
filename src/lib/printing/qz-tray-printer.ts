@@ -78,10 +78,11 @@ function setupQzSecurity(qz: any): void {
 
     qz.security.setSignaturePromise((toSign: any) => {
       return (resolve: any, _reject: any) => {
+        // Send as plain text to avoid JSON encoding altering the toSign value
         fetch('/api/qz/sign', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ request: toSign }),
+          headers: { 'Content-Type': 'text/plain' },
+          body: String(toSign),
         })
           .then((r) => (r.ok ? r.json() : Promise.resolve({ signature: '' })))
           .then((data) => resolve(data.signature ?? ''))

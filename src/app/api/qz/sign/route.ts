@@ -8,7 +8,8 @@ import { NextResponse } from 'next/server'
  */
 export async function POST(req: Request) {
   try {
-    const { request } = await req.json()
+    // Read as plain text to preserve the exact toSign value QZ Tray expects
+    const toSign = await req.text()
 
     const privateKeyB64 = process.env.QZ_PRIVATE_KEY
     if (!privateKeyB64) {
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
 
     const privateKey = Buffer.from(privateKeyB64, 'base64').toString('utf8')
     const sign = createSign('SHA512')
-    sign.update(request)
+    sign.update(toSign, 'utf8')
     const signature = sign.sign(privateKey, 'base64')
 
     return NextResponse.json({ signature })

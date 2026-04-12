@@ -159,7 +159,7 @@ export function UnifiedReceiptPreviewModal({
       setQzPrinters(detectedQzPrinters)
       autoSelectPrinter(availablePrinters, localAvailable, detectedQzPrinters)
 
-      if (availablePrinters.length === 0 && !localAvailable) {
+      if (availablePrinters.length === 0 && !localAvailable && detectedQzPrinters.length === 0) {
         toast.error('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
       }
 
