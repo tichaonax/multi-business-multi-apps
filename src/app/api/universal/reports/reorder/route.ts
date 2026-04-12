@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all active inventory-tracked variants
-    const variants = await prisma.businessProductVariants.findMany({
+    const variants = await prisma.productVariants.findMany({
       where: {
         business_products: {
           businessId,
@@ -63,15 +63,15 @@ export async function GET(request: NextRequest) {
       },
       select: {
         id: true,
-        variantName: true,
+        name: true,
         sku: true,
         stockQuantity: true,
-        costPrice: true,
         price: true,
         business_products: {
           select: {
             id: true,
             name: true,
+            costPrice: true,
             business_categories: { select: { name: true } },
           },
         },
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 
       // Suggested qty = enough for targetStockDays minus what's already on hand
       const suggestedReorderQty = Math.max(0, Math.ceil(avgDailySales * targetStockDays) - currentStock)
-      const costPrice = variant.costPrice ? parseFloat(variant.costPrice.toString()) : null
+      const costPrice = variant.business_products.costPrice ? parseFloat(variant.business_products.costPrice.toString()) : null
       const estimatedCost = costPrice !== null ? Math.round(suggestedReorderQty * costPrice * 100) / 100 : null
 
       const urgency: 'critical' | 'low' =
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
         variantId: variant.id,
         productId: variant.business_products.id,
         productName: variant.business_products.name,
-        variantName: variant.variantName ?? 'Default',
+        variantName: variant.name ?? 'Default',
         sku: variant.sku ?? '',
         category: variant.business_products.business_categories?.name ?? 'Uncategorised',
         currentStock,
