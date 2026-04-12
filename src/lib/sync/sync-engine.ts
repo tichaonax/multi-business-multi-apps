@@ -394,6 +394,8 @@ export class SyncEngine extends EventEmitter {
    * Handle new peer discovery
    */
   private handlePeerDiscovered(peer: PeerInfo): void {
+    if (!this.isRunning) return
+
     console.log(`🔗 New peer discovered: ${peer.nodeName}, initiating sync...`)
 
     // Immediately sync with new peer
@@ -450,7 +452,11 @@ export class SyncEngine extends EventEmitter {
       }
 
       return await response.json()
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        console.warn(`HTTP request timed out to ${peer.ipAddress}:${peer.port}${endpoint}`)
+        return null
+      }
       console.error(`HTTP request failed to ${peer.ipAddress}:${peer.port}${endpoint}:`, error)
       throw error
     }
