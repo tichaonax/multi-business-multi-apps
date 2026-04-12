@@ -106,6 +106,24 @@ Click the **🔔 bell** to open your notifications panel.
 - Click a notification to go directly to the item it relates to.
 - Click **Mark all as read** to clear the list.
 
+### Trusting the Site Certificate on a New Workstation
+
+If your browser shows a **NET::ERR_CERT_AUTHORITY_INVALID** warning when you open the system, it means that workstation doesn't yet trust the server's root certificate. Fix it by running `setup-ssl.bat` on the affected machine:
+
+1. Copy these two files to the workstation (via USB drive or network share):
+   - `rootCA.pem`
+   - `setup-ssl.bat`
+
+   Both files must be in the **same folder**.
+
+2. Double-click **setup-ssl.bat** to run it.
+3. It will install the root CA into the Windows certificate store. When it says **Done!**, close and reopen Chrome — the browser warning will be gone.
+
+> **Where to find the files:** `rootCA.pem` is in the `certs\` folder on the server machine. You only need to copy it once per workstation.
+
+**If the script fails (no admin rights):** the user can install it manually —
+- Open Chrome → go to `chrome://settings/security` → **Manage certificates** → **Trusted Root Certification Authorities** → **Import** → select `rootCA.pem`.
+
 ---
 
 ## 2. POS Cashier — Making Sales
