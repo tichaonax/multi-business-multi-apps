@@ -69,24 +69,28 @@ async function getQz(): Promise<any> {
  */
 function setupQzSecurity(qz: any): void {
   try {
-    qz.security.setCertificatePromise((resolve: any, _reject: any) => {
+    qz.security.setCertificatePromise((resolve: any, reject: any) => {
       fetch('/api/qz/certificate')
-        .then((r) => (r.ok ? r.text() : Promise.resolve('')))
+        .then((r) => r.text())
         .then(resolve)
-        .catch(() => resolve(''))
+        .catch(reject)
     })
 
+    qz.security.setSignatureAlgorithm('SHA512')
+
     qz.security.setSignaturePromise((toSign: any) => {
-      return (resolve: any, _reject: any) => {
-        // Send as plain text to avoid JSON encoding altering the toSign value
+      return (resolve: any, reject: any) => {
         fetch('/api/qz/sign', {
           method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: String(toSign),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request: toSign }),
         })
-          .then((r) => (r.ok ? r.json() : Promise.resolve({ signature: '' })))
-          .then((data) => resolve(data.signature ?? ''))
-          .catch(() => resolve(''))
+          .then((r) => {
+            if (!r.ok) throw new Error('Signing failed')
+            return r.text()
+          })
+          .then(resolve)
+          .catch(reject)
       }
     })
   } catch {

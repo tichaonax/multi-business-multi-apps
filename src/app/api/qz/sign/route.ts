@@ -1,5 +1,4 @@
 import { createSign } from 'crypto'
-import { NextResponse } from 'next/server'
 
 /**
  * POST /api/qz/sign
@@ -8,22 +7,22 @@ import { NextResponse } from 'next/server'
  */
 export async function POST(req: Request) {
   try {
-    // Read as plain text to preserve the exact toSign value QZ Tray expects
-    const toSign = await req.text()
+    const { request } = await req.json()
 
     const privateKeyB64 = process.env.QZ_PRIVATE_KEY
     if (!privateKeyB64) {
-      // No private key configured — fall back to unsigned mode
-      return NextResponse.json({ signature: '' })
+      return new Response('', { status: 200 })
     }
 
     const privateKey = Buffer.from(privateKeyB64, 'base64').toString('utf8')
-    const sign = createSign('SHA512')
-    sign.update(toSign, 'utf8')
+    const sign = createSign('RSA-SHA512')
+    sign.update(request)
     const signature = sign.sign(privateKey, 'base64')
 
-    return NextResponse.json({ signature })
+    return new Response(signature, {
+      headers: { 'Content-Type': 'text/plain' },
+    })
   } catch {
-    return NextResponse.json({ signature: '' })
+    return new Response('', { status: 200 })
   }
 }
