@@ -46,6 +46,8 @@
 23. [Quick Deposit — Income Categorisation](#23-quick-deposit--income-categorisation)
 24. [Payment Vouchers — Creating, Viewing & Locking](#24-payment-vouchers--creating-viewing--locking)
 25. [Eco-Cash to Cash Conversions](#25-eco-cash-to-cash-conversions)
+26. [Printer Setup & QZ Tray](#26-printer-setup--qz-tray)
+27. [Stock Velocity & Reorder Reports](#27-stock-velocity--reorder-reports)
 
 ---
 
@@ -73,7 +75,10 @@
 - **Top bar (left):** Click the business name to switch to a different business.
 - **Top bar (centre):** Main navigation links for your role.
 - **🔔 Bell icon:** Shows pending tasks waiting for your attention. A red number means action is needed.
-- **👤 Your name:** Open your profile or sign out.
+- **👤 Your name:** Open your profile menu. From here you can access:
+  - **Profile Settings** — change your name, photo, password
+  - **Printer Setup** — configure your local QZ Tray receipt printer (available to all users)
+  - **Sign Out**
 
 ### The Dashboard
 
@@ -223,12 +228,16 @@ After selecting the method and entering amounts, click **Complete Sale**.
 
 After payment is processed:
 
-1. A **receipt preview** appears.
-2. Choose your printer from the dropdown.
+1. A **receipt preview modal** appears showing the full receipt.
+2. Choose your print method from the dropdown:
+   - **QZ Tray Printer** — sends directly to your saved local printer (fastest, no dialog). Requires QZ Tray to be running and a printer saved via **Profile → Printer Setup**.
+   - **Browser Print** — opens the browser's print dialog. Works on any machine but may need margin adjustments.
 3. Click **Print Receipt**.
 4. If the sale includes a WiFi token, the token details (username and password) are printed on the receipt automatically.
 
 > **Tip:** If the customer does not need a printed receipt, click **Skip**.
+
+> **First time printing?** Go to **👤 Profile → Printer Setup** to connect QZ Tray and save your printer. See [Section 26 — Printer Setup & QZ Tray](#26-printer-setup--qz-tray) for full instructions.
 
 ### Handling a $0 Sale (Free Items or Fully Discounted Orders)
 
@@ -1394,30 +1403,17 @@ This option requires either:
 - A **network receipt printer** already configured for your business (set up under Settings → Printers), or
 - **QZ Tray** — a free desktop app that lets the system print to any USB or locally-installed printer on the same PC.
 
-**Setting up QZ Tray (one-time, on the PC connected to the printer):**
+**Setting up QZ Tray (one-time per machine):**
 
-1. Download and install QZ Tray from **https://qz.io/download/** (requires Java 8+).
+See **[Section 26 — Printer Setup & QZ Tray](#26-printer-setup--qz-tray)** for the complete step-by-step guide. The short version:
+
+1. Download and install QZ Tray from **https://qz.io/download/** — Java is bundled, no separate install needed.
 2. Start QZ Tray — look for its icon in the system tray (bottom-right of the Windows taskbar).
-3. On the ID Card page, click **⚙ QZ Tray Setup / Bring Online** (below the print buttons).
-4. If QZ Tray is running, it will show **QZ Tray connected** with a green dot.
-5. Select your printer from the dropdown and click **Save Printer**.
-6. Click **Test Print** to confirm it is working.
-7. From now on, **Print Card to Receipt Printer** will use that saved printer automatically.
+3. Open **👤 Profile → Printer Setup** in the app.
+4. On first connection, a QZ Tray security dialog will appear — click **Allow** and select **Always allow from this site** so you are not asked again.
+5. Select your printer from the dropdown, click **Save Printer**, then **Test Print** to confirm.
 
-> If the QZ Tray panel shows "not detected", make sure QZ Tray is running in the system tray and click the refresh icon to retry.
-
-**If the printer list is empty after connecting:**
-
-QZ Tray requires a one-time security approval before it can list printers. If you see "QZ Tray connected" but no printers appear in the dropdown:
-
-1. Check the Windows taskbar for a **QZ Tray dialog** asking for permission — click **Allow**.
-2. Click the **refresh icon** (top-right of the QZ Tray panel) to reload the printer list.
-3. If the list is still empty, enter your printer name manually in the text field provided.
-   - To find the exact name: open Windows **Start → Settings → Printers & scanners** and copy the printer's name exactly as shown.
-   - Example: `EPSON TM-T20III`
-4. Click **Save Printer** — manual names work identically to auto-detected ones.
-
-> QZ Tray can be used from any machine that has it installed — including machines accessing the app remotely (e.g. at `http://192.168.0.108:8080/`). The printer connection runs locally on the machine viewing the page, not on the server.
+> The Printer Setup page is accessible to all users from the profile menu — no admin access needed.
 
 **Updating a card (e.g. name change or new photo):**
 1. Update the employee's details or profile photo on their profile.
@@ -1438,7 +1434,7 @@ If a printer is not responding or is printing garbage, open the **Test Print** p
 
 > Use **Clear Print Queue** first if the printer is online but stuck (e.g. printing the same job repeatedly). Use **Stop QZ** if a QZ Tray job is looping or printing garbage — then reconnect QZ Tray from the ID Card or receipt page.
 
-> **No printers found after connecting QZ Tray?** Click the refresh icon on the QZ Tray panel, then check the Windows taskbar for a QZ Tray security dialog and click **Allow**. If the list remains empty, use the manual printer name entry field (see QZ Tray setup instructions above).
+> **No printers found after connecting QZ Tray?** Check the Windows taskbar for a QZ Tray security dialog and click **Allow**. Then click the refresh icon on the panel. If the list is still empty, enter your printer name manually (find it under Windows **Start → Settings → Printers & scanners**). See [Section 26](#26-printer-setup--qz-tray) for full troubleshooting.
 
 ### How Barcode Scanning Works System-Wide — Full Priority Order
 
@@ -5652,6 +5648,134 @@ Status changes to **REJECTED**. No ledger entries are created.
 - The **Eco-Cash Total Sent** (decimal) and **Cash Tendered** (integer) may differ — fees, rounding, or change. Enter both exactly as they occurred.
 - The eco-cash balance check happens at **Approve** time. If another transaction reduces the balance between approval and completion the system will still allow completion — always verify the balance yourself before sending.
 - Completed conversions appear in the list with a summary: *EcoCash: $66.35 → Cash: $67* and the transaction code for quick reference.
+
+---
+
+## 26. Printer Setup & QZ Tray
+
+Receipt and label printing uses **QZ Tray** — a small desktop application that runs in your Windows system tray and bridges the browser to locally-attached or network printers. Because it runs on your own machine, **every user must install it on their own computer**. Your saved printer is stored in your browser (not on the server), so it stays with your device.
+
+### Who Needs This
+
+Every user who wants to print receipts or ID cards directly from the app — cashiers, managers, HR, stock managers. There are no special permissions required; the **Printer Setup** page is accessible to all users via **👤 Profile → Printer Setup**.
+
+### Step 1 — Install QZ Tray
+
+1. Download QZ Tray from **https://qz.io/download/** — choose the Windows installer. Java is bundled; you do not need to install Java separately.
+2. Run the installer and follow the prompts.
+3. After installation, QZ Tray starts automatically and shows as a **QZ icon in the system tray** (bottom-right corner near the clock). If you don't see it, open it from the Start menu.
+
+> QZ Tray must be running whenever you want to print. If receipts stop printing, check that the QZ icon is visible in your system tray.
+
+### Step 2 — Trust the Site Certificate (first time only)
+
+The system uses a signed certificate so QZ Tray can verify the connection is genuine. The first time you connect from this site, QZ Tray will ask for approval:
+
+1. Go to **👤 Profile → Printer Setup**. The page automatically tries to connect to QZ Tray.
+2. A QZ Tray security dialog will appear — it may open as a separate window or show as a taskbar notification.
+3. The dialog will show the site certificate as **Third-party issued** with a **Trusted** status.
+4. Click **Allow**. To avoid being asked again, select **"Always allow from this site"** or **"Remember this decision"** before clicking Allow.
+
+> **If no dialog appears** and the page shows "QZ Tray not detected": check the system tray — QZ Tray may have an open dialog behind other windows. Right-click the QZ Tray icon → **Open Site Manager** to manually add this site as trusted.
+
+> **HTTPS is required.** QZ Tray will not connect to a plain `http://` address. The app must be accessed via `https://` (e.g. `https://192.168.0.108:8080`) for QZ Tray to work.
+
+### Step 3 — Select and Save Your Printer
+
+1. Once connected, the Printer Setup page shows a green **QZ Tray connected** indicator.
+2. A dropdown lists all printers detected on your machine — select your receipt printer (e.g. `EPSON TM-T20III`).
+3. Click **Save Printer**. Your selection is saved in your browser.
+4. Click **Test Print** to confirm a test receipt prints correctly.
+
+**Printer not listed?** Enter the printer name manually:
+- Open Windows **Start → Settings → Bluetooth & devices → Printers & scanners** and copy the exact printer name.
+- Paste it into the manual entry field and click **Save Printer**.
+
+### Step 4 — Printing Receipts from the POS
+
+After completing a sale:
+1. The **receipt preview modal** opens.
+2. Select **QZ Tray Printer** from the print method dropdown — your saved printer is pre-selected.
+3. Click **Print**.
+
+### Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| "QZ Tray not detected" even though it's running | Make sure the app is accessed over **HTTPS**, not HTTP. Check the system tray for a pending approval dialog and click **Allow**. |
+| Approval dialog appears on every print | When the dialog appears, check **"Always allow from this site"** before clicking Allow. Or open QZ Tray **Site Manager** → set this site to Always allow. |
+| "Invalid Signature" or certificate warning | Right-click the QZ icon → **Open Site Manager** → find this site → click **Trust**. Contact your admin if it persists — the server certificate may need re-generating. |
+| QZ Tray connected but no printers in dropdown | Look for a pending QZ Tray dialog in the taskbar and click **Allow**, then click the refresh icon on the Printer Setup page. If the list is still empty, enter the printer name manually. |
+| Receipt prints only top half or garbled output | Always use the **QZ Tray Printer** option — do not use the browser print dialog for thermal receipts. The system sends raw ESC/POS commands that a browser cannot interpret. |
+| "No printers found" in the receipt modal | QZ Tray may not be running or no printer is saved. Go to **Profile → Printer Setup**, confirm QZ Tray is connected, and save a printer. |
+
+### Clearing Stuck Print Jobs
+
+If a printer is stuck or printing the same job on repeat, open the **Test Print** panel (printer icon in the top bar):
+
+| Button | What it does |
+|---|---|
+| **Bring Online** | Pings the printer to check its network status |
+| **Test** | Sends a short test page |
+| **🗑 Clear Print Queue** | Cancels all stuck jobs and restarts the Windows print spooler |
+| **⏹ Stop QZ** | Disconnects QZ Tray and drops all pending QZ print jobs immediately |
+
+> Use **Clear Print Queue** first for a printer stuck printing the same job. Use **Stop QZ** if a QZ job is looping or printing garbage — reconnect from Printer Setup afterwards.
+
+---
+
+## 27. Stock Velocity & Reorder Reports
+
+These two reports help grocery and retail businesses understand how quickly products are moving and which items need restocking. Both are available to **all salespersons** — no admin permission required. Access them from **Reports → Fast & Slow Moving Stock** or **Reports → Reorder Suggestions**.
+
+### Stock Velocity Report
+
+Shows how fast every product is selling over the selected period, ranked from fastest to slowest.
+
+**How to use:**
+1. Go to **Grocery → Reports → Fast & Slow Moving Stock**.
+2. Select a date range using the standard filter (Today / Last 7 Days / Last 30 Days / Custom).
+3. The report loads automatically.
+
+**What you see:**
+
+| Column | Meaning |
+|---|---|
+| **Product** | Product name, variant, and category |
+| **SKU** | Product code |
+| **Units Sold** | Total units sold in the period |
+| **Avg / Day** | Average units sold per day |
+| **Current Stock** | Stock on hand right now |
+| **Days of Stock Left** | At the current sales rate, how many days until stock runs out |
+
+**Sections:**
+- **🔥 Fast Moving** — top 20 products by daily sales rate. These are your best sellers.
+- **🐌 Slow Moving** — products selling fewer than 0.1 units per day (or no sales at all). Consider markdowns or returns.
+
+**Colour coding for Days of Stock Left:**
+- 🔴 Red (bold) — fewer than 3 days of stock remaining. Urgent.
+- 🟠 Orange — fewer than 7 days. Order soon.
+- Grey — more than 7 days. No immediate action needed.
+
+> **Note:** A product must have had at least one sale during the selected period to appear in the Fast Moving section. Products with no sales appear in Slow Moving.
+
+### Reorder Suggestions Report
+
+Shows only the products that are running low and need to be reordered, based on their sales velocity. Includes a suggested order quantity and estimated cost.
+
+**How to use:**
+1. Go to **Grocery → Reports → Reorder Suggestions**.
+2. Select a date range — use at least **Last 30 Days** for a reliable velocity estimate.
+3. Adjust the thresholds if needed:
+   - **Reorder when stock left ≤** — default 7 days. Items with fewer than this many days of stock appear.
+   - **Order enough for** — default 30 days. Suggested order qty covers this many days of stock.
+4. Click **Export CSV** to download the list for your supplier.
+
+**Urgency levels:**
+- 🔴 **Critical** — fewer than 3 days of stock left. Order immediately.
+- 🟡 **Low** — approaching the threshold. Order within the week.
+
+> **Items that never appear:** If a product has no sales history in the selected period and its reorder level is set to zero, the system cannot calculate velocity. Set a reorder level on the product (in inventory settings) to ensure it always appears when stock is low.
 
 ---
 
