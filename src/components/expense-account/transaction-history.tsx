@@ -628,6 +628,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         <div className="font-medium">
                           {shortDescription(transaction)}
                         </div>
+                        {!isDeposit && transaction.notes && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 italic">
+                            {transaction.notes}
+                          </div>
+                        )}
                         {transaction.receiptNumber && (
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                             {transaction.receiptNumber}
@@ -663,6 +668,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           <span className="text-blue-600 dark:text-blue-400">🏦 Loan Repayment</span>
                         ) : transaction.paymentType === 'PAYROLL_FUNDING' ? (
                           <span className="text-emerald-600 dark:text-emerald-400">💵 Payroll Funding</span>
+                        ) : transaction.paymentType === 'TRANSFER_OUT' ? (
+                          <span className="text-sky-600 dark:text-sky-400">💸 Transfer Out</span>
                         ) : transaction.paymentType === 'TRANSFER_RETURN' ? (
                           <span className="text-purple-600 dark:text-purple-400">🔄 Transfer Return</span>
                         ) : transaction.paymentType === 'PETTY_CASH_RETURN' ? (
