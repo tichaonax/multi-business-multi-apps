@@ -365,6 +365,7 @@ export function QuickPaymentModal({
     domainId: string; domainName: string; domainEmoji: string | null
     categoryId: string; categoryName: string; categoryEmoji: string | null
     subcategoryId: string; subcategoryName: string; subcategoryEmoji: string | null
+    subSubcategoryId: string | null; subSubcategoryName: string | null; subSubcategoryEmoji: string | null
     score: number
   }[]>([])
 
@@ -936,7 +937,14 @@ export function QuickPaymentModal({
       const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}${domainParam}`, { credentials: 'include' })
       if (res.ok) {
         const data = await res.json()
-        setSuggestions(data.suggestions ?? [])
+        let allSuggestions = data.suggestions ?? []
+        // Normal mode only has 3 pickers (Domain/Subcategory/Sub-Subcategory mapped to
+        // domainId/categoryId/subcategoryId). 4-level sub-subcategory results can't be
+        // fully applied there — only show them in domain-override mode where 4 pickers exist.
+        if (!activeDomainOverride) {
+          allSuggestions = allSuggestions.filter((s: typeof suggestions[0]) => !s.subSubcategoryId)
+        }
+        setSuggestions(allSuggestions)
       }
     } catch {
       // Silently fail — user can still pick manually
@@ -953,11 +961,11 @@ export function QuickPaymentModal({
     try {
       if (activeDomainOverride) {
         // ── Domain-override mode ────────────────────────────────────────────────
-        // formData.categoryId = ExpenseCategory.id (s.categoryId)
-        // formData.subcategoryId = ExpenseSubcategory.id (s.subcategoryId)
-        // formData.subSubcategoryId = ExpenseSubSubcategory.id (optional, 4th level)
+        // formData.categoryId    = ExpenseCategory.id       (s.categoryId)
+        // formData.subcategoryId = ExpenseSubcategory.id    (s.subcategoryId)
+        // formData.subSubcategoryId = ExpenseSubSubcategory.id (s.subSubcategoryId, optional)
 
-        // Step 1: pick the Category (load its Subcategories first so the dropdown is ready)
+        // Step 1: pick the Category — load its Subcategories (ExpenseSubcategories)
         const res1 = await fetch(`/api/expense-categories/${s.categoryId}/subcategories`, { credentials: 'include' })
         if (res1.ok) {
           const d = await res1.json()
@@ -965,13 +973,14 @@ export function QuickPaymentModal({
         }
         setFormData(prev => ({ ...prev, categoryId: s.categoryId, subcategoryId: '', subSubcategoryId: '' }))
 
-        // Step 2: pick the Subcategory (load its Sub-items from domain-override API)
+        // Step 2: pick the Subcategory — load its Sub-items (ExpenseSubSubcategories)
         const res2 = await fetch(`/api/expense-categories/sub-subcategories/${s.subcategoryId}/items`, { credentials: 'include' })
         if (res2.ok) {
           const d = await res2.json()
           setDomainOverrideSubItems(d.items ?? [])
         }
-        setFormData(prev => ({ ...prev, subcategoryId: s.subcategoryId, subSubcategoryId: '' }))
+        // Step 3: apply subcategoryId and subSubcategoryId (if suggestion includes it)
+        setFormData(prev => ({ ...prev, subcategoryId: s.subcategoryId, subSubcategoryId: s.subSubcategoryId ?? '' }))
 
       } else {
         // ── Normal mode (domain selected in Domain picker) ──────────────────────
@@ -994,7 +1003,10 @@ export function QuickPaymentModal({
           const d = await res2.json()
           setSubSubcategories(d.subcategories ?? [])
         }
-        setFormData(prev => ({ ...prev, subcategoryId: s.categoryId, subSubcategoryId: s.subcategoryId }))
+        // In normal mode, subcategoryId = ExpenseCategory.id (s.categoryId)
+        // and subSubcategoryId = ExpenseSubcategory.id (s.subcategoryId).
+        // 4-level suggestions are filtered before reaching here, so s.subSubcategoryId is always null.
+        setFormData(prev => ({ ...prev, subcategoryId: s.categoryId, subSubcategoryId: s.subcategoryId ?? '' }))
       }
     } finally {
       setIsApplyingSuggestion(false)
@@ -1041,6 +1053,7 @@ export function QuickPaymentModal({
       categoryName: '', categoryEmoji: null,
       subcategoryId: n.subcategoryId ?? '',
       subcategoryName: '', subcategoryEmoji: null,
+      subSubcategoryId: null, subSubcategoryName: null, subSubcategoryEmoji: null,
       score: 0,
     })
   }
@@ -1995,10 +2008,16 @@ export function QuickPaymentModal({
                         className="w-full text-left px-3 py-2.5 rounded-md border border-border hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                       >
                         <div className="text-xs text-secondary mb-0.5">
-                          {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
+                          {s.subSubcategoryId
+                            ? <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName} › {s.subcategoryEmoji} {s.subcategoryName}</>
+                            : <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}</>
+                          }
                         </div>
                         <div className="text-sm font-medium text-primary">
-                          {s.subcategoryEmoji} {s.subcategoryName}
+                          {s.subSubcategoryId
+                            ? <>{s.subSubcategoryEmoji} {s.subSubcategoryName}</>
+                            : <>{s.subcategoryEmoji} {s.subcategoryName}</>
+                          }
                         </div>
                       </button>
                     </li>
