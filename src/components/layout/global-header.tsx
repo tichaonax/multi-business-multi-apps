@@ -1100,7 +1100,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
                             >
                               <span className="mt-0.5 shrink-0 text-base">
-                                {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : '🔔'}
+                                {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : '🔔'}
                               </span>
                               <div className="min-w-0 flex-1">
                                 <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>

@@ -25,6 +25,7 @@ export type NotificationType =
   | 'CHAT_MESSAGE'
   | 'PAYMENTS_REVERSED_TO_PETTY_CASH'
   | 'INVENTORY_ZERO_OUT'
+  | 'LOW_STOCK'
 
 export interface NotificationPayload {
   userIds: string[]

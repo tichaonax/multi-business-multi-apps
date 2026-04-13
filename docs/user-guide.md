@@ -106,23 +106,51 @@ Click the **🔔 bell** to open your notifications panel.
 - Click a notification to go directly to the item it relates to.
 - Click **Mark all as read** to clear the list.
 
-### Trusting the Site Certificate on a New Workstation
+### Trusting the Site Certificate on a New Device
 
-If your browser shows a **NET::ERR_CERT_AUTHORITY_INVALID** warning when you open the system, it means that workstation doesn't yet trust the server's root certificate. Fix it by running `setup-ssl.bat` on the affected machine:
+If your browser shows a **NET::ERR_CERT_AUTHORITY_INVALID** warning when you open the system, it means that device doesn't yet trust the server's root certificate. The fix depends on the device type. You only need to do this once per device.
 
-1. Copy these two files to the workstation (via USB drive or network share):
+> **Where to find `rootCA.pem`:** It is in the `certs\` folder on the server machine. Copy it to the device before following the steps below.
+
+#### Windows PC
+
+1. Copy these two files to the PC (via USB drive or network share):
    - `rootCA.pem`
    - `setup-ssl.bat`
 
    Both files must be in the **same folder**.
 
 2. Double-click **setup-ssl.bat** to run it.
-3. It will install the root CA into the Windows certificate store. When it says **Done!**, close and reopen Chrome — the browser warning will be gone.
+3. When it says **Done!**, close and reopen Chrome — the warning will be gone.
 
-> **Where to find the files:** `rootCA.pem` is in the `certs\` folder on the server machine. You only need to copy it once per workstation.
-
-**If the script fails (no admin rights):** the user can install it manually —
+**If the script fails (no admin rights):** install manually —
 - Open Chrome → go to `chrome://settings/security` → **Manage certificates** → **Trusted Root Certification Authorities** → **Import** → select `rootCA.pem`.
+
+#### Android Phone or Tablet
+
+1. Transfer `rootCA.pem` to the device (via Google Drive, WhatsApp, USB cable, etc.).
+2. Open the file from the device's file manager — Android will prompt you to install it.
+3. Give it a name (e.g. *Multi-Business App CA*) and set **Used for: CA certificate** (or **VPN and apps** on older Android versions). Tap **OK**.
+4. Open Chrome and navigate to the app — the warning will be gone.
+
+> On Android 11 and newer you may need to go to **Settings → Security → Encryption & credentials → Install a certificate → CA certificate** and select the file from there if tapping it directly doesn't work.
+
+#### iPhone or iPad
+
+1. Transfer `rootCA.pem` to the device (via AirDrop, email, iCloud Drive, etc.) and tap/open it — iOS will show **"Profile Downloaded"**.
+2. Go to **Settings → General → VPN & Device Management** → tap the downloaded profile → tap **Install** (top right) → enter your passcode → tap **Install** again to confirm.
+3. Go to **Settings → General → About → Certificate Trust Settings** → toggle **on** the certificate listed under *Enable Full Trust for Root Certificates*.
+4. Open Safari or Chrome and navigate to the app.
+
+> Step 3 is required — without it iOS installs the certificate but does not trust it for HTTPS, so the warning will persist.
+
+#### Quick Reference
+
+| Device | Script available? | Notes |
+|---|---|---|
+| Windows PC | Yes — `setup-ssl.bat` | Or use Chrome → Manage certificates |
+| Android | No | Install via file manager or Settings → Security |
+| iPhone / iPad | No | Install profile, then enable trust in Settings → About |
 
 ---
 

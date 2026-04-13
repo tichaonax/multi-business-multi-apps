@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin} from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { checkAndNotifyLowStockForBarcodeItem, checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
 
 export async function GET(
   request: NextRequest,
@@ -62,7 +63,7 @@ export async function GET(
             ? [{ id: `barcode-${rawId}`, code: item.barcodeData, type: 'EAN-13', label: 'Product Barcode', isPrimary: true, isUniversal: false, isActive: true, notes: null }]
             : [],
           isInventoryTracked: true,
-          reorderLevel: 0,
+          reorderLevel: (item as any).reorderLevel ?? 0,
           barcodeData: item.barcodeData,
         }
       })
@@ -192,6 +193,7 @@ export async function PUT(
       if (body.isActive !== undefined) updateData.isActive = body.isActive
       if (body.barcodeData !== undefined) updateData.barcodeData = body.barcodeData || null
       if (body.sku !== undefined) updateData.sku = body.sku || null
+      if (body.reorderLevel !== undefined) updateData.reorderLevel = parseInt(body.reorderLevel) || 0
 
       // Enforce SKU uniqueness within the business for barcodeInventoryItems
       if (updateData.sku && updateData.sku !== existing.sku) {
@@ -217,6 +219,9 @@ export async function PUT(
           business: { select: { type: true } },
         }
       })
+
+      // Fire low-stock notification (non-blocking)
+      checkAndNotifyLowStockForBarcodeItem(prisma, rawId, businessId)
 
       return NextResponse.json({
         message: 'Product updated successfully',
@@ -249,7 +254,7 @@ export async function PUT(
             ? [{ id: `barcode-${rawId}`, code: updated.barcodeData, type: 'EAN-13', label: 'Product Barcode', isPrimary: true, isUniversal: false, isActive: true, notes: null }]
             : [],
           isInventoryTracked: true,
-          reorderLevel: 0,
+          reorderLevel: (updated as any).reorderLevel ?? 0,
           barcodeData: updated.barcodeData,
         }
       })
@@ -453,6 +458,11 @@ export async function PUT(
           updatedAt: new Date()
         }
       })
+
+      // Fire low-stock notification if adjustment reduced stock to/below reorder level (non-blocking)
+      if (parseInt(body._stockAdjustment) < 0) {
+        checkAndNotifyLowStockForVariant(prisma, variant.id, businessId)
+      }
     }
 
     // Handle barcodes if provided in the new multi-barcode format

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { checkAndNotifyLowStockForBarcodeItem } from '@/lib/inventory/low-stock-notifier'
 
 /**
  * POST /api/stock-take/drafts/[id]/submit
@@ -158,6 +159,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
               data: { domainId: item.domainId },
             })
           }
+
+          // Fire low-stock notification if new stock is at or below reorder level (non-blocking)
+          checkAndNotifyLowStockForBarcodeItem(prisma, existing.id, draft.businessId)
 
           totalShortfallQty += shortfall
           totalShortfallValue += shortfallValue
