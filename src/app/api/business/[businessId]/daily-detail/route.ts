@@ -70,7 +70,10 @@ export async function GET(
       paymentMethod: o.paymentMethod ?? 'CASH',
       servedBy: o.employees?.fullName ?? o.creator?.name ?? null,
       items: o.business_order_items.map(i => {
-        const productName = i.product_variants?.business_products?.name ?? 'Unknown'
+        const attrs = i.attributes as Record<string, string> | null
+        const productName = i.product_variants?.business_products?.name
+          ?? attrs?.productName
+          ?? 'Unknown'
         const variantName = i.product_variants?.name
         const label = variantName && variantName !== productName
           ? `${productName} – ${variantName}`
