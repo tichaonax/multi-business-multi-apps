@@ -489,7 +489,7 @@ export async function GET(
           where: {
             expenseAccountId: { in: expenseAccountIds },
             paymentDate: { gte: startDate, lte: endDate },
-            status: { not: 'CANCELLED' },
+            status: 'PAID',
           },
           select: { paymentDate: true, amount: true },
         })

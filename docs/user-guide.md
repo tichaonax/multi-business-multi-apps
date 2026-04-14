@@ -1057,6 +1057,29 @@ Go to **Reports** in the top menu to access all available reports.
 | **Top Products** | Best-selling items by quantity and value |
 | **Sales by Employee** | Which staff member processed what sales |
 | **Order History** | Full list of all transactions with details |
+| **Sales Analytics Dashboard** | Daily sales and expense trend chart with drill-down |
+
+#### Sales Analytics Dashboard
+
+Go to **Reports → Sales Analytics** to see your business performance over any date range.
+
+The dashboard shows:
+- **Summary cards** — total sales, expenses, average order value
+- **Top performers** — best products by units and revenue, top categories, top sales reps
+- **Daily Sales chart** — a line graph of daily sales and expenses over the selected period, with a margin indicator in the tooltip
+
+**Drilling down into a day:**
+
+Click any dot on the Daily Sales chart to open the **Daily Detail** report for that specific day. This shows every sale and expense that occurred on that date.
+
+The Daily Detail report includes:
+- **Summary bar** — sales total, expenses total, net profit, and margin for the day
+- **Filter tabs** — switch between All, Sales, and Expenses views
+- **Search** — type any keyword (payee name, product, category, amount, or who recorded it) to filter the list; a match count and filtered total appear automatically above the results; click **Reset** to clear the search
+- **Sales orders** — each order shows time, payment method, server name, and order amount; click a row to expand and see the individual items sold with quantities and unit prices
+- **Expense payments** — each payment shows time, category, payment channel, payee, description, and who recorded the payment; the recorder's name is colour-coded so you can quickly distinguish entries made by different staff members
+
+> **Tip:** The Daily Detail expenses only include payments in **PAID** status, matching exactly what is counted in the Sales Analytics chart. If an expense shows as Pending Approval or Queued it will not appear here until it is marked as paid.
 
 #### Payroll Reports
 

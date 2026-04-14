@@ -13,6 +13,7 @@ interface DailySalesData {
 
 interface DailySalesLineChartProps {
   data: DailySalesData[]
+  onDotClick?: (date: string) => void
 }
 
 // Custom tooltip that shows sales, expenses and margin for the hovered day
@@ -41,7 +42,7 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-export function DailySalesLineChart({ data }: DailySalesLineChartProps) {
+export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartProps) {
   const dateFormat = useDateFormat()
 
   // Determine whether any expense data was supplied
@@ -88,8 +89,16 @@ export function DailySalesLineChart({ data }: DailySalesLineChartProps) {
         )}
       </div>
 
+      {onDotClick && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">
+          Click any dot to see that day&apos;s detail
+        </p>
+      )}
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={formattedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+        <LineChart
+          data={formattedData}
+          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+        >
           <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
           <XAxis
             dataKey="dateFormatted"
@@ -106,8 +115,40 @@ export function DailySalesLineChart({ data }: DailySalesLineChartProps) {
             dataKey="sales"
             stroke="#8b5cf6"
             strokeWidth={2}
-            dot={{ fill: '#8b5cf6', r: 4 }}
-            activeDot={{ r: 6 }}
+            dot={onDotClick
+              ? (props: any) => {
+                  const { cx, cy, payload } = props
+                  return (
+                    <circle
+                      key={`sales-${payload.date}`}
+                      cx={cx} cy={cy} r={5}
+                      fill="#8b5cf6"
+                      stroke="#fff"
+                      strokeWidth={1}
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); onDotClick(payload.date) }}
+                    />
+                  )
+                }
+              : { fill: '#8b5cf6', r: 4 }
+            }
+            activeDot={onDotClick
+              ? (props: any) => {
+                  const { cx, cy, payload } = props
+                  return (
+                    <circle
+                      key={`sales-active-${payload.date}`}
+                      cx={cx} cy={cy} r={7}
+                      fill="#8b5cf6"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); onDotClick(payload.date) }}
+                    />
+                  )
+                }
+              : { r: 6 }
+            }
             name="Daily Sales ($)"
           />
           {hasExpenses && (
@@ -116,8 +157,40 @@ export function DailySalesLineChart({ data }: DailySalesLineChartProps) {
               dataKey="expenses"
               stroke="#ef4444"
               strokeWidth={2}
-              dot={{ fill: '#ef4444', r: 3 }}
-              activeDot={{ r: 5 }}
+              dot={onDotClick
+                ? (props: any) => {
+                    const { cx, cy, payload } = props
+                    return (
+                      <circle
+                        key={`exp-${payload.date}`}
+                        cx={cx} cy={cy} r={4}
+                        fill="#ef4444"
+                        stroke="#fff"
+                        strokeWidth={1}
+                        style={{ cursor: 'pointer' }}
+                        onClick={(e) => { e.stopPropagation(); onDotClick(payload.date) }}
+                      />
+                    )
+                  }
+                : { fill: '#ef4444', r: 3 }
+              }
+              activeDot={onDotClick
+                ? (props: any) => {
+                    const { cx, cy, payload } = props
+                    return (
+                      <circle
+                        key={`exp-active-${payload.date}`}
+                        cx={cx} cy={cy} r={6}
+                        fill="#ef4444"
+                        stroke="#fff"
+                        strokeWidth={2}
+                        style={{ cursor: 'pointer' }}
+                        onClick={(e) => { e.stopPropagation(); onDotClick(payload.date) }}
+                      />
+                    )
+                  }
+                : { r: 5 }
+              }
               strokeDasharray="4 2"
               name="Daily Expenses ($)"
             />

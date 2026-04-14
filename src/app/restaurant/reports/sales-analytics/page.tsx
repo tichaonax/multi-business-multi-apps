@@ -212,7 +212,14 @@ export default function RestaurantSalesAnalytics() {
 
             {/* Daily Sales Trend */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-              {data && <DailySalesLineChart data={data.dailySales} />}
+              {data && (
+                <DailySalesLineChart
+                  data={data.dailySales}
+                  onDotClick={(date) => router.push(
+                    `/reports/daily-detail?businessId=${currentBusinessId}&businessType=${businessType}&date=${date}`
+                  )}
+                />
+              )}
             </div>
 
             {/* Breakdown Charts */}
