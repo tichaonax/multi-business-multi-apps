@@ -16,10 +16,16 @@ interface ReorderRow {
   sku: string
   category: string
   currentStock: number
+  reorderLevel: number
   avgDailySales: number
+  unitsSoldInRange: number
   daysOfStockLeft: number
+  historicalAvgDailySales: number
+  historicalUnitsSold: number
+  historicalDays: number
   urgency: 'critical' | 'low'
   suggestedReorderQty: number
+  suggestionBasis: 'historical' | 'recent' | 'reorder_level'
   costPrice: number | null
   sellingPrice: number | null
   estimatedCost: number | null
@@ -44,7 +50,7 @@ function getDefaultDateRange(): DateRange {
 }
 
 function exportCsv(rows: ReorderRow[]) {
-  const header = 'Product,Variant,SKU,Category,Current Stock,Reorder Qty,Avg/Day,Days Left,Urgency,Est. Cost'
+  const header = 'Product,Variant,SKU,Category,Current Stock,Min Level,Reorder Qty,Basis,90d Avg/Day,90d Sold,Recent Avg/Day,Days Left,Urgency,Est. Cost'
   const lines = rows.map((r) =>
     [
       `"${r.productName}"`,
@@ -52,7 +58,11 @@ function exportCsv(rows: ReorderRow[]) {
       `"${r.sku}"`,
       `"${r.category}"`,
       r.currentStock,
+      r.reorderLevel,
       r.suggestedReorderQty,
+      r.suggestionBasis,
+      r.historicalAvgDailySales,
+      r.historicalUnitsSold,
       r.avgDailySales,
       r.daysOfStockLeft,
       r.urgency,
@@ -118,7 +128,9 @@ export default function ReorderReportPage() {
             <span>Reorder Report</span>
           </div>
           <h1 className="text-xl font-bold text-primary">Reorder Report</h1>
-          <p className="text-sm text-secondary mt-0.5">Items at or below their reorder level — order these now</p>
+          <p className="text-sm text-secondary mt-0.5">
+            Quantities based on 90-day historical sales. Recent velocity from selected {reportData?.dateRange.days ?? 30}-day range.
+          </p>
         </div>
         {reportData && reportData.data.length > 0 && (
           <button
@@ -205,8 +217,9 @@ export default function ReorderReportPage() {
                 <th className="px-3 py-2.5 text-left">Product</th>
                 <th className="px-3 py-2.5 text-left">Category</th>
                 <th className="px-3 py-2.5 text-right">Stock</th>
-                <th className="px-3 py-2.5 text-right">Reorder Qty</th>
-                <th className="px-3 py-2.5 text-right">Avg/Day</th>
+                <th className="px-3 py-2.5 text-right">Order Qty</th>
+                <th className="px-3 py-2.5 text-right">90d Avg/Day</th>
+                <th className="px-3 py-2.5 text-right">90d Sold</th>
                 <th className="px-3 py-2.5 text-right">Days Left</th>
                 <th className="px-3 py-2.5 text-right">Est. Cost</th>
                 <th className="px-3 py-2.5 text-center">Urgency</th>
@@ -232,12 +245,23 @@ export default function ReorderReportPage() {
                     <span className={row.currentStock === 0 ? 'text-red-600 font-bold' : 'text-primary'}>
                       {row.currentStock}
                     </span>
+                    <p className="text-xs text-gray-400">min {row.reorderLevel}</p>
                   </td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-primary">
-                    {row.suggestedReorderQty}
+                  <td className="px-3 py-2.5 text-right">
+                    <span className="font-semibold text-primary">{row.suggestedReorderQty}</span>
+                    <p className="text-xs text-gray-400">
+                      {row.suggestionBasis === 'historical'
+                        ? '90d history'
+                        : row.suggestionBasis === 'recent'
+                        ? 'recent sales'
+                        : 'reorder level'}
+                    </p>
                   </td>
                   <td className="px-3 py-2.5 text-right text-secondary">
-                    {row.avgDailySales > 0 ? row.avgDailySales.toFixed(1) : '—'}
+                    {row.historicalAvgDailySales > 0 ? row.historicalAvgDailySales.toFixed(2) : '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-secondary">
+                    {row.historicalUnitsSold > 0 ? row.historicalUnitsSold : '—'}
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <span
@@ -251,7 +275,7 @@ export default function ReorderReportPage() {
                           : 'text-secondary'
                       }
                     >
-                      {row.currentStock === 0 ? 'Out' : `${row.daysOfStockLeft}d`}
+                      {row.currentStock === 0 ? 'Out' : row.daysOfStockLeft > 0 ? `${row.daysOfStockLeft}d` : '—'}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-right text-secondary">

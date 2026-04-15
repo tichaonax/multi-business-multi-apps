@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
     const reorderThresholdDays = parseInt(searchParams.get('reorderThresholdDays') ?? '7', 10)
     // How many days of stock to aim for when suggesting order quantity (default 30)
     const targetStockDays = parseInt(searchParams.get('targetStockDays') ?? '30', 10)
+    // Historical window used for suggested reorder quantities (default 90 days)
+    const historicalDays = 90
 
     if (!businessId || !startDate || !endDate) {
       return NextResponse.json(
@@ -29,108 +31,246 @@ export async function GET(request: NextRequest) {
     const end = new Date(endDate + 'T23:59:59')
     const dayRange = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
 
-    // Fetch completed sale order items in date range
-    const orderItems = await prisma.businessOrderItems.findMany({
-      where: {
-        business_orders: {
-          businessId,
-          status: 'COMPLETED',
-          orderType: 'SALE',
-          OR: [
-            { transactionDate: { gte: start, lte: end } },
-            { transactionDate: null, createdAt: { gte: start, lte: end } },
-          ],
-        },
-      },
-      select: {
-        productVariantId: true,
-        quantity: true,
-      },
-    })
+    // Historical window — always 90 days back from the end date
+    const historicalStart = new Date(end)
+    historicalStart.setDate(historicalStart.getDate() - historicalDays)
 
-    // Aggregate units sold per variant
+    // ─── SYSTEM 1: product_variants ────────────────────────────────────────────
+    // Run sales queries + variant fetch in parallel
+    const [selectedRangeItems, historicalItems, variants] = await Promise.all([
+      prisma.businessOrderItems.findMany({
+        where: {
+          business_orders: {
+            businessId,
+            status: 'COMPLETED',
+            orderType: 'SALE',
+            OR: [
+              { transactionDate: { gte: start, lte: end } },
+              { transactionDate: null, createdAt: { gte: start, lte: end } },
+            ],
+          },
+        },
+        select: { productVariantId: true, quantity: true },
+      }),
+      prisma.businessOrderItems.findMany({
+        where: {
+          business_orders: {
+            businessId,
+            status: 'COMPLETED',
+            orderType: 'SALE',
+            OR: [
+              { transactionDate: { gte: historicalStart, lte: end } },
+              { transactionDate: null, createdAt: { gte: historicalStart, lte: end } },
+            ],
+          },
+        },
+        select: { productVariantId: true, quantity: true },
+      }),
+      prisma.productVariants.findMany({
+        where: { business_products: { businessId, isActive: true } },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          stockQuantity: true,
+          reorderLevel: true,
+          price: true,
+          business_products: {
+            select: {
+              id: true,
+              name: true,
+              costPrice: true,
+              business_categories: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    ])
+
+    // Aggregate variant sales
     const salesMap = new Map<string, number>()
-    for (const item of orderItems) {
+    const historicalMap = new Map<string, number>()
+    for (const item of selectedRangeItems) {
       if (!item.productVariantId) continue
       salesMap.set(item.productVariantId, (salesMap.get(item.productVariantId) ?? 0) + item.quantity)
     }
+    for (const item of historicalItems) {
+      if (!item.productVariantId) continue
+      historicalMap.set(item.productVariantId, (historicalMap.get(item.productVariantId) ?? 0) + item.quantity)
+    }
 
-    // Fetch all active variants for this business
-    const variants = await prisma.productVariants.findMany({
-      where: {
-        business_products: {
-          businessId,
-          isActive: true,
+    // ─── SYSTEM 2: barcode_inventory_items ─────────────────────────────────────
+    // These items link to sales via attributes->>'inventoryItemId', so we use raw SQL.
+    const [barcodeItems, barcodeSelectedSales, barcodeHistoricalSales] = await Promise.all([
+      prisma.barcodeInventoryItems.findMany({
+        where: { businessId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          category: true,
+          stockQuantity: true,
+          reorderLevel: true,
+          costPrice: true,
+          sellingPrice: true,
+          business_category: { select: { name: true } },
         },
-      },
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        stockQuantity: true,
-        reorderLevel: true,
-        price: true,
-        business_products: {
-          select: {
-            id: true,
-            name: true,
-            costPrice: true,
-            business_categories: { select: { name: true } },
-          },
-        },
-      },
-    })
+      }),
+      // Sales in selected range for barcode items
+      prisma.$queryRaw<{ item_id: string; qty_sold: bigint }[]>`
+        SELECT
+          boi.attributes->>'inventoryItemId' AS item_id,
+          SUM(boi.quantity)::bigint AS qty_sold
+        FROM business_order_items boi
+        JOIN business_orders bo ON boi."orderId" = bo.id
+        WHERE bo."businessId" = ${businessId}
+          AND bo.status = 'COMPLETED'
+          AND bo."orderType" = 'SALE'
+          AND (
+            (bo."transactionDate" >= ${start} AND bo."transactionDate" <= ${end})
+            OR (bo."transactionDate" IS NULL AND bo."createdAt" >= ${start} AND bo."createdAt" <= ${end})
+          )
+          AND boi.attributes->>'inventoryItemId' IS NOT NULL
+        GROUP BY boi.attributes->>'inventoryItemId'
+      `,
+      // Historical 90-day sales for barcode items
+      prisma.$queryRaw<{ item_id: string; qty_sold: bigint }[]>`
+        SELECT
+          boi.attributes->>'inventoryItemId' AS item_id,
+          SUM(boi.quantity)::bigint AS qty_sold
+        FROM business_order_items boi
+        JOIN business_orders bo ON boi."orderId" = bo.id
+        WHERE bo."businessId" = ${businessId}
+          AND bo.status = 'COMPLETED'
+          AND bo."orderType" = 'SALE'
+          AND (
+            (bo."transactionDate" >= ${historicalStart} AND bo."transactionDate" <= ${end})
+            OR (bo."transactionDate" IS NULL AND bo."createdAt" >= ${historicalStart} AND bo."createdAt" <= ${end})
+          )
+          AND boi.attributes->>'inventoryItemId' IS NOT NULL
+        GROUP BY boi.attributes->>'inventoryItemId'
+      `,
+    ])
 
-    // Build reorder rows — include items that need reordering
-    const rows = []
-    for (const variant of variants) {
-      const totalUnitsSold = salesMap.get(variant.id) ?? 0
-      const currentStock = variant.stockQuantity ?? 0
-      const reorderLevel = variant.reorderLevel ?? 0
+    const barcodeSalesMap = new Map<string, number>()
+    const barcodeHistoricalMap = new Map<string, number>()
+    for (const row of barcodeSelectedSales) {
+      barcodeSalesMap.set(row.item_id, Number(row.qty_sold))
+    }
+    for (const row of barcodeHistoricalSales) {
+      barcodeHistoricalMap.set(row.item_id, Number(row.qty_sold))
+    }
 
-      const avgDailySales = totalUnitsSold / dayRange
+    // ─── Build rows (shared logic) ──────────────────────────────────────────────
+    const rows: any[] = []
+
+    function buildRow(
+      id: string,
+      productId: string,
+      productName: string,
+      variantName: string,
+      sku: string,
+      category: string,
+      currentStock: number,
+      reorderLevelRaw: number,
+      costPriceRaw: number | null,
+      sellingPriceRaw: number | null,
+      selectedUnitsSold: number,
+      historicalUnitsSold: number,
+    ) {
+      const avgDailySales = selectedUnitsSold / dayRange
       const daysOfStockLeft = avgDailySales > 0 ? currentStock / avgDailySales : null
+      const historicalAvgDailySales = historicalUnitsSold / historicalDays
 
-      // Determine if this item needs reordering via velocity OR explicit reorder level
-      const belowReorderLevel = reorderLevel > 0 && currentStock <= reorderLevel
+      // Default threshold matches inventory view low-stock highlight (10)
+      const effectiveReorderLevel = reorderLevelRaw || 10
+      const belowReorderLevel = currentStock <= effectiveReorderLevel
       const belowVelocityThreshold = daysOfStockLeft !== null && daysOfStockLeft <= reorderThresholdDays
 
-      if (!belowVelocityThreshold && !belowReorderLevel) continue
+      if (!belowVelocityThreshold && !belowReorderLevel) return
 
-      // Suggested qty: velocity-based if we have sales, reorder-level-based fallback
       let suggestedReorderQty: number
-      let daysOfStockLeftForDisplay: number
-      if (avgDailySales > 0) {
+      let suggestionBasis: 'historical' | 'recent' | 'reorder_level'
+
+      if (historicalAvgDailySales > 0) {
+        suggestedReorderQty = Math.max(0, Math.ceil(historicalAvgDailySales * targetStockDays) - currentStock)
+        suggestionBasis = 'historical'
+      } else if (avgDailySales > 0) {
         suggestedReorderQty = Math.max(0, Math.ceil(avgDailySales * targetStockDays) - currentStock)
-        daysOfStockLeftForDisplay = daysOfStockLeft ?? 0
+        suggestionBasis = 'recent'
       } else {
-        // No sales data — suggest enough to reach reorderLevel * 2 as a rough target
-        suggestedReorderQty = Math.max(0, reorderLevel * 2 - currentStock)
-        daysOfStockLeftForDisplay = 0
+        suggestedReorderQty = Math.max(0, effectiveReorderLevel * 2 - currentStock)
+        suggestionBasis = 'reorder_level'
       }
 
-      const costPrice = variant.business_products.costPrice ? parseFloat(variant.business_products.costPrice.toString()) : null
-      const estimatedCost = costPrice !== null ? Math.round(suggestedReorderQty * costPrice * 100) / 100 : null
-
+      const daysOfStockLeftForDisplay = daysOfStockLeft ?? 0
+      const costPrice = costPriceRaw
+      const estimatedCost = costPrice !== null
+        ? Math.round(suggestedReorderQty * costPrice * 100) / 100
+        : null
       const urgency: 'critical' | 'low' =
         currentStock === 0 || daysOfStockLeftForDisplay < 3 ? 'critical' : 'low'
 
       rows.push({
-        variantId: variant.id,
-        productId: variant.business_products.id,
-        productName: variant.business_products.name,
-        variantName: variant.name ?? 'Default',
-        sku: variant.sku ?? '',
-        category: variant.business_products.business_categories?.name ?? 'Uncategorised',
+        variantId: id,
+        productId,
+        productName,
+        variantName,
+        sku: sku ?? '',
+        category: category ?? 'Uncategorised',
         currentStock,
+        reorderLevel: effectiveReorderLevel,
         avgDailySales: Math.round(avgDailySales * 100) / 100,
+        unitsSoldInRange: selectedUnitsSold,
         daysOfStockLeft: Math.round(daysOfStockLeftForDisplay * 10) / 10,
-        urgency,
+        historicalAvgDailySales: Math.round(historicalAvgDailySales * 100) / 100,
+        historicalUnitsSold,
+        historicalDays,
         suggestedReorderQty,
+        suggestionBasis,
         costPrice,
-        sellingPrice: variant.price ? parseFloat(variant.price.toString()) : null,
+        sellingPrice: sellingPriceRaw,
         estimatedCost,
+        urgency,
       })
+    }
+
+    // System 1 — product variants
+    for (const variant of variants) {
+      buildRow(
+        variant.id,
+        variant.business_products.id,
+        variant.business_products.name,
+        variant.name ?? 'Default',
+        variant.sku ?? '',
+        variant.business_products.business_categories?.name ?? 'Uncategorised',
+        variant.stockQuantity ?? 0,
+        variant.reorderLevel ?? 0,
+        variant.business_products.costPrice
+          ? parseFloat(variant.business_products.costPrice.toString())
+          : null,
+        variant.price ? parseFloat(variant.price.toString()) : null,
+        salesMap.get(variant.id) ?? 0,
+        historicalMap.get(variant.id) ?? 0,
+      )
+    }
+
+    // System 2 — barcode inventory items
+    for (const item of barcodeItems) {
+      buildRow(
+        item.id,
+        item.id,  // no separate productId — use same id
+        item.name,
+        'Default',
+        item.sku ?? '',
+        item.business_category?.name ?? item.category ?? 'Uncategorised',
+        item.stockQuantity ?? 0,
+        item.reorderLevel ?? 0,
+        item.costPrice ? parseFloat(item.costPrice.toString()) : null,
+        item.sellingPrice ? parseFloat(item.sellingPrice.toString()) : null,
+        barcodeSalesMap.get(item.id) ?? 0,
+        barcodeHistoricalMap.get(item.id) ?? 0,
+      )
     }
 
     // Sort: critical first, then by daysOfStockLeft ascending
@@ -145,7 +285,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       dateRange: { startDate, endDate, days: dayRange },
-      config: { reorderThresholdDays, targetStockDays },
+      config: { reorderThresholdDays, targetStockDays, historicalDays },
       summary: {
         itemsNeedingReorder: rows.length,
         criticalItems: criticalCount,

@@ -17,10 +17,16 @@ interface ReorderRow {
   sku: string
   category: string
   currentStock: number
+  reorderLevel: number
   avgDailySales: number
+  unitsSoldInRange: number
   daysOfStockLeft: number
+  historicalAvgDailySales: number
+  historicalUnitsSold: number
+  historicalDays: number
   urgency: 'critical' | 'low'
   suggestedReorderQty: number
+  suggestionBasis: 'historical' | 'recent' | 'reorder_level'
   costPrice: number | null
   sellingPrice: number | null
   estimatedCost: number | null
@@ -92,7 +98,7 @@ export default function ReorderSuggestionsPage() {
 
   function exportCsv() {
     if (!reportData) return
-    const header = 'Product,Variant,SKU,Category,Current Stock,Avg/Day,Days Left,Urgency,Suggested Order Qty,Cost Price,Estimated Cost'
+    const header = 'Product,Variant,SKU,Category,Current Stock,Reorder Level,90-Day Avg/Day,90-Day Units Sold,Recent Avg/Day,Days Left,Urgency,Suggested Order Qty,Basis,Cost Price,Estimated Cost'
     const lines = reportData.data.map((r) =>
       [
         `"${r.productName}"`,
@@ -100,10 +106,14 @@ export default function ReorderSuggestionsPage() {
         `"${r.sku}"`,
         `"${r.category}"`,
         r.currentStock,
+        r.reorderLevel,
+        r.historicalAvgDailySales,
+        r.historicalUnitsSold,
         r.avgDailySales,
         r.daysOfStockLeft,
         r.urgency,
         r.suggestedReorderQty,
+        r.suggestionBasis,
         r.costPrice ?? '',
         r.estimatedCost ?? '',
       ].join(',')
@@ -226,7 +236,7 @@ export default function ReorderSuggestionsPage() {
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Suggested Orders</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Based on {reportData.dateRange.days} days of sales history. Quantities to top up to {targetStockDays} days of stock.
+                  Quantities based on 90-day historical sales. Recent velocity from selected {reportData.dateRange.days}-day range.
                 </p>
               </div>
               {reportData.data.length > 0 && (
@@ -249,12 +259,12 @@ export default function ReorderSuggestionsPage() {
                   <thead>
                     <tr className="bg-gray-100 dark:bg-gray-700 text-left">
                       <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200">Product</th>
-                      <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200">SKU</th>
                       <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-right">Stock</th>
-                      <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-right">Avg / Day</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-right">90d Avg/Day</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-right">90d Sold</th>
                       <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-right">Days Left</th>
                       <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-center">Urgency</th>
-                      <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-right">Suggest Order</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-right">Order Qty</th>
                       <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 text-right">Est. Cost</th>
                     </tr>
                   </thead>
@@ -273,12 +283,20 @@ export default function ReorderSuggestionsPage() {
                           )}
                           <div className="text-xs text-gray-400 dark:text-gray-500">{row.category}</div>
                         </td>
-                        <td className="px-4 py-2 text-gray-600 dark:text-gray-400 font-mono text-xs">{row.sku || '—'}</td>
-                        <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300">
-                          {row.currentStock.toLocaleString()}
+                        <td className="px-4 py-2 text-right">
+                          <div className="font-medium text-gray-700 dark:text-gray-300">{row.currentStock.toLocaleString()}</div>
+                          <div className="text-xs text-gray-400">min {row.reorderLevel}</div>
                         </td>
-                        <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300">
-                          {row.avgDailySales.toFixed(1)}
+                        <td className="px-4 py-2 text-right">
+                          <div className="font-medium text-gray-700 dark:text-gray-300">
+                            {row.historicalAvgDailySales > 0 ? row.historicalAvgDailySales.toFixed(2) : '—'}
+                          </div>
+                          {row.historicalAvgDailySales === 0 && row.avgDailySales > 0 && (
+                            <div className="text-xs text-orange-500">{row.avgDailySales.toFixed(2)} recent</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-400">
+                          {row.historicalUnitsSold > 0 ? row.historicalUnitsSold.toLocaleString() : '—'}
                         </td>
                         <td className={`px-4 py-2 text-right font-semibold ${
                           row.daysOfStockLeft < 3
@@ -287,7 +305,7 @@ export default function ReorderSuggestionsPage() {
                             ? 'text-orange-500'
                             : 'text-gray-700 dark:text-gray-300'
                         }`}>
-                          {row.daysOfStockLeft}d
+                          {row.daysOfStockLeft > 0 ? `${row.daysOfStockLeft}d` : '—'}
                         </td>
                         <td className="px-4 py-2 text-center">
                           {row.urgency === 'critical' ? (
@@ -300,8 +318,13 @@ export default function ReorderSuggestionsPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-2 text-right font-bold text-blue-700 dark:text-blue-400">
-                          {row.suggestedReorderQty.toLocaleString()}
+                        <td className="px-4 py-2 text-right">
+                          <div className="font-bold text-blue-700 dark:text-blue-400 text-base">
+                            {row.suggestedReorderQty.toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {row.suggestionBasis === 'historical' ? '90d history' : row.suggestionBasis === 'recent' ? 'recent sales' : 'reorder level'}
+                          </div>
                         </td>
                         <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300">
                           {formatCurrency(row.estimatedCost)}
