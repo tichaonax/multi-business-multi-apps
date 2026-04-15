@@ -4329,6 +4329,9 @@ model BarcodeInventoryItems {
   location              String?
   stockQuantity         Int                     @default(0)
   reorderLevel          Int                     @default(0)
+  lastOrderQty          Int                     @default(0)
+  maxOrderQty           Int                     @default(0)
+  lastOrderedAt         DateTime?
   businessId            String
   inventoryItemId       String
   barcodeData           String?

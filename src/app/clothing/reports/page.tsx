@@ -89,6 +89,20 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/bale-cost-recovery`,
       icon: '💰',
       color: 'bg-emerald-600 hover:bg-emerald-700'
+    },
+    {
+      title: '🔥 Fast & Slow Moving Stock',
+      description: 'See which products are flying off the shelves and which are barely moving — ranked by daily sales velocity',
+      href: `/${businessType}/reports/stock-velocity`,
+      icon: '🔥',
+      color: 'bg-rose-600 hover:bg-rose-700'
+    },
+    {
+      title: '📦 Reorder Suggestions',
+      description: 'Products running low based on sales history — with suggested order quantities, last order, and estimated costs',
+      href: `/${businessType}/reports/reorder`,
+      icon: '📦',
+      color: 'bg-amber-600 hover:bg-amber-700'
     }
   ]
 

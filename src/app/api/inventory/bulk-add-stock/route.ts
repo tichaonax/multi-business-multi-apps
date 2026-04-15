@@ -66,6 +66,9 @@ export async function POST(request: NextRequest) {
               quantity: newStock,
               sellingPrice: Number(sellingPrice),
               ...(costPrice !== undefined && costPrice !== '' ? { costPrice: Number(costPrice) } : {}),
+              lastOrderQty: Number(quantity),
+              maxOrderQty: Math.max(existing.maxOrderQty ?? 0, Number(quantity)),
+              lastOrderedAt: new Date(),
             },
           })
           updated++
@@ -91,6 +94,9 @@ export async function POST(request: NextRequest) {
               categoryId: categoryId || null,
               supplierId: supplierId || null,
               createdById: user.id,
+              lastOrderQty: Number(quantity),
+              maxOrderQty: Number(quantity),
+              lastOrderedAt: new Date(),
             },
           })
           created++

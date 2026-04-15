@@ -149,6 +149,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
               ...(validSubcategoryId ? { subcategoryId: validSubcategoryId } : {}),
               ...(item.domainId ? { domainId: item.domainId } : {}),
               ...(item.supplierId ? { supplierId: item.supplierId } : {}),
+              // Track order quantities (only when new stock is actually being added)
+              ...(newQty > 0 ? {
+                lastOrderQty: newQty,
+                maxOrderQty: Math.max(existing.maxOrderQty ?? 0, newQty),
+                lastOrderedAt: new Date(),
+              } : {}),
             },
           })
 
@@ -304,6 +310,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
               ...(newItemSubcategoryId ? { subcategoryId: newItemSubcategoryId } : {}),
               ...(item.domainId ? { domainId: item.domainId } : {}),
               ...(item.supplierId ? { supplierId: item.supplierId } : {}),
+              ...(newQty > 0 ? {
+                lastOrderQty: newQty,
+                maxOrderQty: Math.max(existingByBarcode.maxOrderQty ?? 0, newQty),
+                lastOrderedAt: new Date(),
+              } : {}),
             },
           })
         } else {
@@ -328,6 +339,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
               domainId: item.domainId || null,
               supplierId: item.supplierId || null,
               createdById: user.id,
+              lastOrderQty: newQty,
+              maxOrderQty: newQty,
+              lastOrderedAt: new Date(),
             },
           })
         }

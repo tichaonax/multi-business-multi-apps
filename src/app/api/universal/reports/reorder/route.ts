@@ -111,6 +111,9 @@ export async function GET(request: NextRequest) {
           category: true,
           stockQuantity: true,
           reorderLevel: true,
+          lastOrderQty: true,
+          maxOrderQty: true,
+          lastOrderedAt: true,
           costPrice: true,
           sellingPrice: true,
           business_category: { select: { name: true } },
@@ -177,6 +180,9 @@ export async function GET(request: NextRequest) {
       sellingPriceRaw: number | null,
       selectedUnitsSold: number,
       historicalUnitsSold: number,
+      lastOrderQty: number = 0,
+      maxOrderQty: number = 0,
+      lastOrderedAt: Date | null = null,
     ) {
       const avgDailySales = selectedUnitsSold / dayRange
       const daysOfStockLeft = avgDailySales > 0 ? currentStock / avgDailySales : null
@@ -228,6 +234,9 @@ export async function GET(request: NextRequest) {
         historicalDays,
         suggestedReorderQty,
         suggestionBasis,
+        lastOrderQty,
+        maxOrderQty,
+        lastOrderedAt: lastOrderedAt?.toISOString() ?? null,
         costPrice,
         sellingPrice: sellingPriceRaw,
         estimatedCost,
@@ -270,6 +279,9 @@ export async function GET(request: NextRequest) {
         item.sellingPrice ? parseFloat(item.sellingPrice.toString()) : null,
         barcodeSalesMap.get(item.id) ?? 0,
         barcodeHistoricalMap.get(item.id) ?? 0,
+        item.lastOrderQty ?? 0,
+        item.maxOrderQty ?? 0,
+        item.lastOrderedAt ?? null,
       )
     }
 
