@@ -189,7 +189,7 @@ export async function generateAndSellR710Token(
     })
 
     const paymentsSum = await db.expenseAccountPayments.aggregate({
-      where: { expenseAccountId: r710ExpenseAccount.id, status: 'SUBMITTED' },
+      where: { expenseAccountId: r710ExpenseAccount.id, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
       _sum: { amount: true },
     })
 

@@ -112,7 +112,7 @@ export async function getExpenseAccountBalanceSummary(accountId: string) {
     prisma.expenseAccountPayments.aggregate({
       where: {
         expenseAccountId: accountId,
-        status: { in: ['PAID', 'SUBMITTED'] },
+        status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] },
       },
       _sum: { amount: true },
     }),
@@ -120,7 +120,7 @@ export async function getExpenseAccountBalanceSummary(accountId: string) {
     prisma.expenseAccountPayments.count({
       where: {
         expenseAccountId: accountId,
-        status: { in: ['PAID', 'SUBMITTED'] },
+        status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] },
       }
     }),
     prisma.expenseAccountPayments.count({
@@ -434,7 +434,7 @@ export async function validateBatchPaymentTotal(
       _sum: { amount: true },
     }),
     prisma.expenseAccountPayments.aggregate({
-      where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED'] } },
+      where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
       _sum: { amount: true },
     }),
   ])
@@ -492,7 +492,7 @@ export async function getExpenseAccountStats(
     prisma.expenseAccountPayments.aggregate({
       where: {
         expenseAccountId: accountId,
-        status: { in: ['PAID', 'SUBMITTED'] },
+        status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] },
         ...(Object.keys(dateFilter).length > 0 && { paymentDate: dateFilter }),
       },
       _sum: { amount: true },
@@ -502,7 +502,7 @@ export async function getExpenseAccountStats(
       where: { expenseAccountId: accountId, status: 'DRAFT' },
     }),
     prisma.expenseAccountPayments.count({
-      where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED'] } },
+      where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
     }),
   ])
 

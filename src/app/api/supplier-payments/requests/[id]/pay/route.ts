@@ -133,7 +133,7 @@ export async function POST(
           _sum: { amount: true },
         })
         const selPayments = await tx.expenseAccountPayments.aggregate({
-          where: { expenseAccountId: selectedAccountId, status: 'SUBMITTED' },
+          where: { expenseAccountId: selectedAccountId, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
           _sum: { amount: true },
         })
         const selBalance = Number(selDeposits._sum.amount || 0) - Number(selPayments._sum.amount || 0)
@@ -197,7 +197,7 @@ export async function POST(
           _sum: { amount: true },
         })
         const paymentsAgg = await tx.expenseAccountPayments.aggregate({
-          where: { expenseAccountId: primaryAccountId, status: 'SUBMITTED' },
+          where: { expenseAccountId: primaryAccountId, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
           _sum: { amount: true },
         })
         const trueBalance = Number(depositsAgg._sum.amount || 0) - Number(paymentsAgg._sum.amount || 0)

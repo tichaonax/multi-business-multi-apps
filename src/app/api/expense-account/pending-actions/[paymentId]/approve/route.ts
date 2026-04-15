@@ -80,7 +80,7 @@ export async function POST(
         _sum: { amount: true },
       }),
       prisma.expenseAccountPayments.aggregate({
-        where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED'] } },
+        where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
         _sum: { amount: true },
       }),
     ])
