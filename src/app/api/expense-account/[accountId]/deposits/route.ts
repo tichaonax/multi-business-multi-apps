@@ -6,6 +6,7 @@ import {
   debitBusinessAccount,
   generateDepositNote,
   updateExpenseAccountBalance,
+  updateExpenseAccountBalanceTx,
 } from '@/lib/expense-account-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { hasExpenseAccountPermission } from '@/lib/expense-account-utils'
@@ -529,29 +530,9 @@ export async function POST(
         })
       }
 
-      // 6. Update expense account balance (using transaction client)
-      const depositsSum = await tx.expenseAccountDeposits.aggregate({
-        where: { expenseAccountId: accountId },
-        _sum: { amount: true },
-      })
-
-      const paymentsSum = await tx.expenseAccountPayments.aggregate({
-        where: {
-          expenseAccountId: accountId,
-          status: 'SUBMITTED',
-        },
-        _sum: { amount: true },
-      })
-
-      const totalDeposits = Number(depositsSum._sum.amount || 0)
-      const totalPayments = Number(paymentsSum._sum.amount || 0)
-      const newBalance = totalDeposits - totalPayments
-
-      // Update the expense account balance
-      await tx.expenseAccounts.update({
-        where: { id: accountId },
-        data: { balance: newBalance, updatedAt: new Date() },
-      })
+      // 6. Update expense account balance using the shared utility
+      // (counts PAID + SUBMITTED + APPROVED so deposits never lose track of paid amounts)
+      const newBalance = await updateExpenseAccountBalanceTx(tx, accountId)
 
       return { deposit, newBalance, debitResult }
     })

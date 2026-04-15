@@ -722,7 +722,7 @@ export async function POST(
           _sum: { amount: true },
         })
         const paymentsAgg = await tx.expenseAccountPayments.aggregate({
-          where: { expenseAccountId: accountId, status: 'SUBMITTED' },
+          where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
           _sum: { amount: true },
         })
         const trueBalance = Number(depositsAgg._sum.amount || 0) - Number(paymentsAgg._sum.amount || 0)

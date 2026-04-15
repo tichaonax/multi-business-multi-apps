@@ -39,11 +39,12 @@ export async function calculateExpenseAccountBalance(accountId: string): Promise
     _sum: { amount: true },
   })
 
-  // Sum PAID + SUBMITTED payments — both are terminal "spent" states
+  // Sum PAID + SUBMITTED + APPROVED payments — all represent committed/spent funds.
+  // APPROVED: EOD-batch approved (deposit already created); SUBMITTED: directly committed.
   const paymentsSum = await prisma.expenseAccountPayments.aggregate({
     where: {
       expenseAccountId: accountId,
-      status: { in: ['PAID', 'SUBMITTED'] },
+      status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] },
     },
     _sum: { amount: true },
   })
@@ -81,7 +82,7 @@ export async function updateExpenseAccountBalanceTx(tx: any, accountId: string) 
   })
 
   const paymentsSum = await tx.expenseAccountPayments.aggregate({
-    where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED'] } },
+    where: { expenseAccountId: accountId, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
     _sum: { amount: true },
   })
 
