@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
       const paymentsSum = await tx.expenseAccountPayments.aggregate({
         where: {
           expenseAccountId: expenseAccountId,
-          status: 'SUBMITTED',
+          status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] },
         },
         _sum: { amount: true },
       })

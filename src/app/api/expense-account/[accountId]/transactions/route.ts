@@ -139,7 +139,7 @@ export async function GET(
         ? prisma.expenseAccountPayments.findMany({
             where: {
               expenseAccountId: accountId,
-              status: { in: ['PAID', 'SUBMITTED'] }, // Both terminal states appear in the ledger
+              status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] }, // All committed states appear in the ledger
               // Date filter: use paidAt for PAID payments, paymentDate for SUBMITTED payments.
               // paymentDate is the user-entered date and matches what is displayed in the UI (date: paidAt || paymentDate).
               ...(Object.keys(dateFilter).length > 0 && {
@@ -398,7 +398,7 @@ export async function GET(
       const paymentsBeforeSum = await prisma.expenseAccountPayments.aggregate({
         where: {
           expenseAccountId: accountId,
-          status: { in: ['PAID', 'SUBMITTED'] },
+          status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] },
           OR: [
             { paidAt: { lt: paginatedTransactions[0]?.date || new Date() } },
             { paidAt: null, paymentDate: { lt: paginatedTransactions[0]?.date || new Date() } },

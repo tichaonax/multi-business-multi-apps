@@ -180,10 +180,10 @@ export async function GET(request: NextRequest) {
       _max: { amount: true, paymentDate: true }, // Get most recent payment date
       _count: { id: true },
     })
-    // SUBMITTED-only payments — matches the authoritative balance check in the pay API
+    // Committed payments (PAID + SUBMITTED + APPROVED) — used for balance calculation
     const submittedPaymentGroups = await prisma.expenseAccountPayments.groupBy({
       by: ['expenseAccountId'],
-      where: { expenseAccountId: { in: accountIds }, status: 'SUBMITTED' },
+      where: { expenseAccountId: { in: accountIds }, status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] } },
       _sum: { amount: true },
     })
 
