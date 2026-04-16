@@ -19,6 +19,11 @@ interface UmbrellaBusinessData {
   umbrellaBusinessEmail: string
   umbrellaBusinessRegistration: string
   umbrellaBusinessPhoneFormat?: string
+  logoImageId?: string | null
+  invoiceCounter?: number
+  quotationCounter?: number
+  invoiceStartNumber?: number
+  quotationStartNumber?: number
 }
 
 export default function UmbrellaBusinessManagement() {
@@ -27,6 +32,9 @@ export default function UmbrellaBusinessManagement() {
   const [umbrellaData, setUmbrellaData] = useState<UmbrellaBusinessData | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [invoiceStartNumber, setInvoiceStartNumber] = useState('')
+  const [quotationStartNumber, setQuotationStartNumber] = useState('')
   const [formData, setFormData] = useState({
     umbrellaBusinessName: '',
     umbrellaBusinessAddress: '',
@@ -52,6 +60,8 @@ export default function UmbrellaBusinessManagement() {
           umbrellaBusinessEmail: data.umbrellaBusinessEmail || '',
           umbrellaBusinessRegistration: data.umbrellaBusinessRegistration || ''
         })
+        setInvoiceStartNumber(String(data.invoiceStartNumber ?? 0))
+        setQuotationStartNumber(String(data.quotationStartNumber ?? 0))
       }
     } catch (error) {
       console.error('Error fetching umbrella business data:', error)
@@ -73,6 +83,79 @@ export default function UmbrellaBusinessManagement() {
       ...prev,
       umbrellaBusinessPhone: fullPhoneNumber
     }))
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo must be under 2 MB')
+      return
+    }
+    setLogoUploading(true)
+    try {
+      const formPayload = new FormData()
+      formPayload.append('files', file)
+      const uploadRes = await fetch('/api/universal/images', { method: 'POST', body: formPayload })
+      if (!uploadRes.ok) { toast.error('Upload failed'); return }
+      const uploadJson = await uploadRes.json()
+      const logoImageId: string = uploadJson.data?.[0]?.filename
+      const patchRes = await fetch('/api/admin/umbrella-business', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logoImageId }),
+      })
+      if (patchRes.ok) {
+        setUmbrellaData((prev) => prev ? { ...prev, logoImageId } : prev)
+        toast.push('Logo updated successfully!')
+      } else {
+        toast.error('Failed to save logo')
+      }
+    } catch {
+      toast.error('Upload error')
+    } finally {
+      setLogoUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const handleRemoveLogo = async () => {
+    setLogoUploading(true)
+    try {
+      const res = await fetch('/api/admin/umbrella-business', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logoImageId: null }),
+      })
+      if (res.ok) {
+        setUmbrellaData((prev) => prev ? { ...prev, logoImageId: null } : prev)
+        toast.push('Logo removed')
+      }
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  const handleSaveInvoiceSettings = async () => {
+    try {
+      const res = await fetch('/api/admin/umbrella-business', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceStartNumber: parseInt(invoiceStartNumber) || 0,
+          quotationStartNumber: parseInt(quotationStartNumber) || 0,
+        }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setUmbrellaData((prev) => prev ? { ...prev, ...json.data } : prev)
+        toast.push('Invoice settings saved!')
+      } else {
+        toast.error('Failed to save')
+      }
+    } catch {
+      toast.error('Error saving settings')
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -232,6 +315,107 @@ export default function UmbrellaBusinessManagement() {
                   </button>
                 </div>
               </form>
+            </div>
+
+            {/* Company Logo */}
+            <div className="card p-6 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-primary">Company Logo</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">Appears on invoices and quotations. JPG, PNG or WebP, max 2 MB.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-6">
+                {/* Preview */}
+                <div className="w-40 h-24 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-center bg-gray-50 dark:bg-gray-800 shrink-0 overflow-hidden">
+                  {umbrellaData?.logoImageId ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/images/${umbrellaData.logoImageId}`}
+                      alt="Company logo"
+                      className="max-h-20 max-w-36 object-contain"
+                    />
+                  ) : (
+                    <span className="text-gray-300 dark:text-gray-600 text-3xl">🏢</span>
+                  )}
+                </div>
+                {/* Actions */}
+                <div className="space-y-2">
+                  <label className={`inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg cursor-pointer transition-colors ${logoUploading ? 'opacity-50 pointer-events-none' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                    {logoUploading ? 'Uploading…' : '📤 Upload Logo'}
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleLogoUpload} disabled={logoUploading} />
+                  </label>
+                  {umbrellaData?.logoImageId && (
+                    <button
+                      onClick={handleRemoveLogo}
+                      disabled={logoUploading}
+                      className="block text-sm text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                    >
+                      Remove logo
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Invoice / Quotation Settings */}
+            <div className="card p-6 mt-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-primary">Invoice & Quotation Numbering</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Set a starting number if you have existing paper invoices or quotations. The next document will use the next number after the start value.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Invoice start number
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500 font-mono">INV-</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={invoiceStartNumber}
+                      onChange={(e) => setInvoiceStartNumber(e.target.value)}
+                      className="input w-28 px-3 py-2 text-sm font-mono"
+                      placeholder="0"
+                    />
+                  </div>
+                  {umbrellaData?.invoiceCounter !== undefined && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Current counter: {umbrellaData.invoiceCounter} → next will be INV-{String((umbrellaData.invoiceCounter ?? 0) + 1).padStart(4, '0')}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Quotation start number
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500 font-mono">QUO-</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={quotationStartNumber}
+                      onChange={(e) => setQuotationStartNumber(e.target.value)}
+                      className="input w-28 px-3 py-2 text-sm font-mono"
+                      placeholder="0"
+                    />
+                  </div>
+                  {umbrellaData?.quotationCounter !== undefined && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Current counter: {umbrellaData.quotationCounter} → next will be QUO-{String((umbrellaData.quotationCounter ?? 0) + 1).padStart(4, '0')}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={handleSaveInvoiceSettings}
+                className="btn-primary text-sm"
+              >
+                Save Numbering Settings
+              </button>
             </div>
 
             {/* Preview Section */}

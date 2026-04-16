@@ -1644,6 +1644,17 @@ export function Sidebar() {
         )}
         </>)}
 
+        {/* Invoices & Quotations */}
+        {(isSystemAdmin(currentUser) || hasPermission('canManageBusinessSettings') || hasPermission('canManageAllBusinesses') || hasPermission('canAccessFinancialData') || hasPermission('canManageEmployees')) && (
+          <Link
+            href="/admin/invoices"
+            className={getLinkClasses('/admin/invoices')}
+          >
+            <span className="text-lg">📄</span>
+            <span>Invoices & Quotes</span>
+          </Link>
+        )}
+
         <button
           type="button"
           onClick={() => setToolsSectionExpanded(prev => !prev)}

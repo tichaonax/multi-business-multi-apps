@@ -154,6 +154,7 @@ model BusinessCustomers {
   business_orders  BusinessOrders[]
   customer_laybys  CustomerLayby[]
   customer_rewards CustomerRewards[]
+  invoices         Invoices[]
 
   @@map("business_customers")
 }
@@ -443,6 +444,12 @@ model Businesses {
   defaultPage                                                              String?                       @db.VarChar(50)
   slogan                                                                   String?                       @default("Where Customer Is King") @db.VarChar(200)
   showSlogan                                                               Boolean                       @default(true)
+  logoImageId                                                              String?
+  invoiceCounter                                                           Int                           @default(0)
+  quotationCounter                                                         Int                           @default(0)
+  invoiceStartNumber                                                       Int                           @default(0)
+  quotationStartNumber                                                     Int                           @default(0)
+  invoices                                                                 Invoices[]
   barcode_inventory_items                                                  BarcodeInventoryItems[]
   barcode_print_jobs                                                       BarcodePrintJobs[]
   barcode_templates                                                        BarcodeTemplates[]
@@ -6087,4 +6094,69 @@ model PayrollTaxConstants {
   updatedAt        DateTime @updatedAt
 
   @@map("payroll_tax_constants")
+}
+
+// ─── MBM-178: Invoices & Quotations ──────────────────────────────────────────
+
+enum InvoiceType {
+  INVOICE
+  QUOTATION
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model Invoices {
+  id              String            @id @default(uuid())
+  businessId      String
+  type            InvoiceType
+  number          String
+  status          InvoiceStatus     @default(DRAFT)
+  customerId      String?
+  customerName    String
+  customerEmail   String?
+  customerPhone   String?
+  customerAddress String?
+  preparedById    String
+  preparedByName  String
+  issueDate       DateTime          @default(now())
+  validUntilDate  DateTime
+  notes           String?
+  subtotal        Decimal           @default(0) @db.Decimal(12, 2)
+  discountAmount  Decimal           @default(0) @db.Decimal(12, 2)
+  taxAmount       Decimal           @default(0) @db.Decimal(12, 2)
+  total           Decimal           @default(0) @db.Decimal(12, 2)
+  currency        String            @default("USD")
+  currencySymbol  String            @default("$")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  businesses      Businesses        @relation(fields: [businessId], references: [id])
+  business_customers BusinessCustomers? @relation(fields: [customerId], references: [id])
+  invoice_items   InvoiceItems[]
+
+  @@unique([businessId, number])
+  @@index([businessId, type])
+  @@index([businessId, status])
+  @@map("invoices")
+}
+
+model InvoiceItems {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Decimal  @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal  @default(0) @db.Decimal(10, 2)
+  discount    Decimal  @default(0) @db.Decimal(10, 2)
+  total       Decimal  @default(0) @db.Decimal(10, 2)
+  sortOrder   Int      @default(0)
+  invoices    Invoices @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
 }
