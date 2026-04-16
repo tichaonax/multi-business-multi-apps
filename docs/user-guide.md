@@ -48,6 +48,7 @@
 25. [Eco-Cash to Cash Conversions](#25-eco-cash-to-cash-conversions)
 26. [Printer Setup & QZ Tray](#26-printer-setup--qz-tray)
 27. [Stock Velocity & Reorder Reports](#27-stock-velocity--reorder-reports)
+28. [Invoices & Quotations](#28-invoices--quotations)
 
 ---
 
@@ -5845,6 +5846,142 @@ Shows only the products that are running low and need to be reordered, based on 
 - 🟡 **Low** — approaching the threshold. Order within the week.
 
 > **Items that never appear:** If a product has no sales history in the selected period and its reorder level is set to zero, the system cannot calculate velocity. Set a reorder level on the product (in inventory settings) to ensure it always appears when stock is low.
+
+---
+
+## 28. Invoices & Quotations
+
+> **Who this is for:** Managers, business owners, and system administrators who need to create formal invoices or quotations for customers.
+
+Invoices and quotations are professional documents you can create, save, print, and track. They pull your company's name, address, and logo automatically from umbrella business settings.
+
+| Document Type | Number Format | Use When |
+|---------------|--------------|----------|
+| **Invoice** | INV-0001 | Billing a customer for goods or services delivered |
+| **Quotation** | QUO-0001 | Providing a price estimate before work begins |
+
+---
+
+### Finding the Page
+
+Click **Invoices & Quotes** in the left sidebar. If you do not see it, ask your system administrator to check your permissions.
+
+---
+
+### Creating a New Invoice
+
+1. Click **+ New Invoice** (blue button, top right).
+2. The **New Invoice** modal opens.
+
+**Step 1 — Customer details**
+- Type a customer name in the search box. Matching customers from your customer list will appear — click one to auto-fill their name, phone, email, and address.
+- If the customer is not in the system, type their name directly and fill in the remaining fields manually.
+
+**Step 2 — Document details**
+- **Issue Date** — defaults to today. Change if needed.
+- **Valid Until** — the date the invoice expires. Defaults to 60 days from today.
+- **Notes** — optional internal or customer-facing notes.
+
+**Step 3 — Line items**
+- Each row represents one product or service.
+- Fill in **Description**, **Qty**, **Unit Price**, and optionally a **Disc %** (per-line percentage discount).
+- The **Total** column calculates automatically.
+- Click **+ Add line item** to add more rows (maximum 30).
+- Click **×** on a row to remove it.
+- Use the **Document Discount** field (below the table) to apply a flat amount discount to the whole document.
+- If your business has tax enabled, a tax line and the final **Total** are calculated automatically.
+
+**Step 4 — Save**
+- Click **Save & Preview** to save the invoice and immediately view the printable document.
+- Click **Save as Draft** to save without entering preview mode.
+
+---
+
+### Creating a New Quotation
+
+1. Click **+ New Quotation** (amber button, top right).
+2. The process is identical to creating an invoice, with two differences:
+   - The document is labelled **QUOTATION** with a **QUO-** number.
+   - A disclaimer — *"This quotation is subject to change at any time prior to acceptance."* — is printed at the bottom of the document.
+   - Valid-until defaults to **30 days** (shorter than an invoice).
+
+---
+
+### Printing a Document
+
+1. Open an existing invoice or quotation by clicking **View** in the list, or save a new one.
+2. In the preview panel, click **🖨 Print**.
+3. A new browser window opens with the formatted A4 document and the print dialog appears automatically.
+4. Select your printer and click **Print**.
+
+> **Tip:** The printed document includes your company logo, address, and registration number pulled from umbrella business settings. Make sure those are filled in for a professional result.
+
+---
+
+### Viewing & Managing Existing Documents
+
+On the **Invoices & Quotes** list page:
+
+- **Tabs** — switch between *All*, *Invoices*, and *Quotations*.
+- **Status filter** — filter by DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED, or CANCELLED.
+- **Search box** — type a customer name or document number (e.g. `INV-0003`) to filter the list. Typing an **exact** document number opens that document immediately.
+
+Click **View** on any row to open the document in preview mode.
+
+---
+
+### Document Status Lifecycle
+
+| Status | Meaning | Next Actions |
+|--------|---------|-------------|
+| **DRAFT** | Saved but not yet sent | Mark as Sent, or Cancel |
+| **SENT** | Delivered to the customer | Mark as Accepted or Rejected |
+| **ACCEPTED** | Customer agreed | No further transitions |
+| **REJECTED** | Customer declined | No further transitions |
+| **EXPIRED** | Quotation past its valid-until date | No further transitions |
+| **CANCELLED** | Voided | No further transitions |
+
+To update a status, open the document (click **View**) and use the action buttons in the preview header.
+
+> **Note:** Cancelled documents are never deleted — they remain in the history for audit purposes.
+
+---
+
+### Setting Up Company Branding (Administrators)
+
+The logo and company details printed on every invoice come from **Umbrella Business Settings**.
+
+1. In the sidebar, click **Umbrella Business Settings**.
+2. Scroll to the **Company Logo** card.
+3. Click **Upload Logo** and choose a JPG, PNG, or WebP image (max 2 MB).
+4. Click **Remove** to clear the logo.
+
+Company name, address, phone, email, and registration number are taken from the main business details fields on the same settings page.
+
+---
+
+### Setting the Invoice / Quotation Start Number (Administrators)
+
+If your business has existing paper invoices and you want the system to continue from a specific number (e.g. start at INV-0051):
+
+1. Go to **Umbrella Business Settings**.
+2. Scroll to the **Invoice & Quotation Numbering** card.
+3. Enter the desired starting number in the **Invoice Start Number** or **Quotation Start Number** field.
+4. Click **Save Numbering Settings**.
+
+The system will never assign a number lower than the start number you set. Existing numbers already issued will not be changed.
+
+---
+
+### Quick Reference — Keyboard & UI Tips
+
+| Action | How |
+|--------|-----|
+| Add a line item | Click **+ Add line item** or press Tab past the last field |
+| Remove a line item | Click **×** at the end of the row |
+| Find a document by number | Type the exact number in the search box (e.g. `QUO-0007`) |
+| Print | Open the document → click **🖨 Print** |
+| Cancel a document | Open the document → click **Cancel Document** in the preview header |
 
 ---
 
