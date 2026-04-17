@@ -10,15 +10,13 @@ export async function POST(
 )
  {
 
-    const { userId } = await params
   try {
+    const { userId } = await params
     const user = await getServerUser()
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
-
-    const { userId } = await params
     const { reason, notes, deactivatedBy } = await req.json()
 
     if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
@@ -59,12 +57,11 @@ export async function POST(
         deactivatedBy,
         deactivationReason: reason.trim(),
         deactivationNotes: notes?.trim() || null,
-        businessMemberships: {
+        business_memberships: {
           updateMany: {
             where: {},
             data: {
-              isActive: false,
-              updatedAt: new Date()
+              isActive: false
             }
           }
         }

@@ -170,8 +170,8 @@ export async function PUT(
           data: {
             userId: user.id,
             action: 'EMPLOYEE_STATUS_SYNC',
-            resourceType: 'Employee',
-            resourceId: employeeId,
+            entityType: 'Employee',
+            entityId: employeeId,
             changes: {
               employeeId,
               employeeName: employee.fullName,
@@ -186,7 +186,6 @@ export async function PUT(
               reason,
               notes
             },
-            businessId: employee.primaryBusinessId,
             timestamp: new Date(),
           }
         });
