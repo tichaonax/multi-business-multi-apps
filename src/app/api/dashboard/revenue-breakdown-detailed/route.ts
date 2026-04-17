@@ -75,9 +75,11 @@ export async function GET(req: NextRequest) {
     }
 
     // --- Batch fetch sales breakdown by paymentMethod ---
+    // Only count COMPLETED and PENDING orders — same statuses used for totalRevenue,
+    // so the cash/EcoCash split always sums exactly to the Sales figure shown.
     const salesByPaymentRows = await prisma.businessOrders.groupBy({
       by: ['businessId', 'paymentMethod'] as any,
-      where: { businessId: { in: allBusinessIds } },
+      where: { businessId: { in: allBusinessIds }, status: { in: ['COMPLETED', 'PENDING'] } },
       _sum: { totalAmount: true },
     })
     const cashSalesMap = new Map<string, number>()
