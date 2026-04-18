@@ -38,6 +38,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showBusinessSwitcher, setShowBusinessSwitcher] = useState(false)
   const [switchingToBusinessId, setSwitchingToBusinessId] = useState<string | null>(null)
   const [businessSwitcherSearch, setBusinessSwitcherSearch] = useState('')
+  const [brandLogoId, setBrandLogoId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/public/branding')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.logoImageId) setBrandLogoId(d.logoImageId) })
+      .catch(() => {})
+  }, [])
   const { useServerTime, toggleTimeDisplay } = useTimeDisplay()
   const [clockNow, setClockNow] = useState<Date | null>(null)
   const businessMenuOpenedByClick = useRef(false)
@@ -385,11 +393,22 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         <div className="flex justify-between items-center h-14 sm:h-16">
           {/* Left side - Logo and Navigation */}
           <div className="flex items-center space-x-2 sm:space-x-8 min-w-0 shrink">
-            <Link href="/dashboard" className="flex items-center space-x-1 sm:space-x-2 shrink-0">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xs sm:text-sm">BH</span>
-              </div>
-              <span className="hidden sm:inline text-xl font-bold text-gray-900 dark:text-white">Business Hub</span>
+            <Link href="/dashboard" className="hidden sm:flex items-center space-x-2 shrink-0">
+              {brandLogoId ? (
+                <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
+                  <img
+                    src={`/api/images/${brandLogoId}`}
+                    alt="Logo"
+                    className="w-full h-full object-cover"
+                    onError={() => setBrandLogoId(null)}
+                  />
+                </div>
+              ) : (
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">BH</span>
+                </div>
+              )}
+              <span className="hidden lg:inline text-xl font-bold text-gray-900 dark:text-white">Business Hub</span>
             </Link>
 
             {/* Live date & time — desktop only */}
@@ -411,7 +430,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
           </div>
 
           {/* Right side - Business context, Theme toggle and User menu */}
-          <div className="flex items-center space-x-1 sm:space-x-4 shrink-0">
+          <div className="flex items-center space-x-1 sm:space-x-4 shrink-0 pr-1 sm:pr-0">
             {/* Business context indicator for all users */}
             {session?.user && isAuthenticated && currentBusiness && (
               <div className="relative">
@@ -433,7 +452,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       setShowBusinessMenu(true)
                     }
                   }}
-                  className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer ml-2 sm:ml-4"
+                  className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
                   title={
                     rentIndicator.hasRentAccount
                       ? `${currentBusiness.businessName} · Rent fund: $${rentIndicator.balance.toFixed(2)} (${rentIndicator.fundingPercent}% of $${rentIndicator.monthlyRentAmount.toFixed(2)}) · Due day ${rentIndicator.rentDueDay}`
@@ -443,8 +462,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                   onMouseLeave={handleBusinessMenuLeave}
                 >
                   <span className="text-blue-600 dark:text-blue-400 text-sm sm:text-base">🏢</span>
-                  <div className="text-xs sm:text-sm text-left">
-                    <div className="font-medium text-blue-900 dark:text-blue-100 max-w-20 sm:max-w-32 lg:max-w-48 truncate">
+                  <div className="text-left">
+                    <div className="font-medium text-blue-900 dark:text-blue-100 text-[10px] sm:text-sm max-w-[72px] sm:max-w-32 lg:max-w-48 truncate">
                       {currentBusiness.businessName}
                     </div>
                     <div className="hidden sm:block text-xs text-blue-600 dark:text-blue-400 capitalize">
@@ -786,7 +805,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
                     {/* Hover preview dropdown */}
                     {showBellPreview && pendingActions && (
-                      <div className="absolute right-0 top-full mt-1 w-72 rounded-lg border border-border bg-white dark:bg-gray-800 shadow-xl z-50 overflow-hidden">
+                      <div className="fixed left-2 right-2 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-1 sm:w-72 rounded-lg border border-border bg-white dark:bg-gray-800 shadow-xl z-50 overflow-hidden">
                         <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border flex items-center justify-between">
                           <span className="text-xs font-semibold text-primary">Pending Actions</span>
                           <span className="text-xs text-secondary">{pendingCount} total</span>
@@ -1042,7 +1061,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                     </button>
 
                     {showNotifPanel && (
-                      <div className="absolute right-0 top-full mt-1 w-80 rounded-lg border border-border bg-white dark:bg-gray-800 shadow-xl z-50 overflow-hidden">
+                      <div className="fixed left-2 right-2 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-1 sm:w-80 rounded-lg border border-border bg-white dark:bg-gray-800 shadow-xl z-50 overflow-hidden">
                         <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-border flex items-center gap-2">
                           <span className="text-xs font-semibold text-primary">Notifications</span>
                           {/* Quick-action shortcuts — shown only when user has the relevant permission */}
@@ -1126,14 +1145,16 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
                 {/* Mini Cart */}
                 <MiniCart />
-                <ThemeToggle
-                  showMenu={showThemeMenu}
-                  setShowMenu={setShowThemeMenu}
-                />
-                {/* UTC / Local time toggle */}
+                <div className="hidden sm:block">
+                  <ThemeToggle
+                    showMenu={showThemeMenu}
+                    setShowMenu={setShowThemeMenu}
+                  />
+                </div>
+                {/* UTC / Local time toggle — hidden on mobile */}
                 <button
                   onClick={toggleTimeDisplay}
-                  className={`px-2 py-1 text-[11px] font-semibold rounded border transition-colors ${
+                  className={`hidden sm:inline-flex px-2 py-1 text-[11px] font-semibold rounded border transition-colors ${
                     useServerTime
                       ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700'
                       : 'bg-gray-100 text-gray-500 border-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -1408,7 +1429,7 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
   const [hasTransferrableAccounts, setHasTransferrableAccounts] = useState(false)
 
   useEffect(() => {
-    fetch('/api/user/profile', { credentials: 'include' })
+    fetch('/api/employees/my-photo', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.profilePhotoUrl) setProfilePhotoUrl(data.profilePhotoUrl) })
       .catch(() => {})

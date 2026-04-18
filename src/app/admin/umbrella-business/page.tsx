@@ -173,7 +173,8 @@ export default function UmbrellaBusinessManagement() {
 
       if (response.ok) {
         const updatedData = await response.json()
-        setUmbrellaData(updatedData)
+        // Merge so logoImageId and other fields not returned by PUT are preserved
+        setUmbrellaData(prev => prev ? { ...prev, ...updatedData } : updatedData)
         toast.push('Umbrella business information updated successfully!')
       } else {
         toast.error('Failed to update umbrella business information')

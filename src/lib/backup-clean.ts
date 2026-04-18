@@ -234,15 +234,24 @@ export async function createCleanBackup(
     }
   })
 
-  // Collect employee profile photo image IDs and back them up
+  // Collect all image IDs to back up:
+  // 1. Employee profile photos
   const employeeImageIds = (businessData.employees as any[])
     .map((e: any) => e.profilePhotoUrl)
     .filter((url: any) => typeof url === 'string' && url.startsWith('/api/images/'))
     .map((url: string) => url.replace('/api/images/', ''))
+
+  // 2. Business logo images (umbrella business logoImageId)
+  const logoImageIds = (businessData.businesses as any[])
+    .map((b: any) => b.logoImageId)
+    .filter((id: any) => typeof id === 'string' && id.length > 0)
+
+  const allImageIds = [...new Set([...employeeImageIds, ...logoImageIds])]
+
   // Prisma returns Bytes as Uint8Array which JSON.stringify turns into {"0":255,"1":216,...}
   // Converting to Buffer ensures it serializes as {type:"Buffer",data:[...]} which is safe to restore
-  businessData.images = employeeImageIds.length > 0
-    ? (await prisma.images.findMany({ where: { id: { in: employeeImageIds } } })).map((img: any) => ({
+  businessData.images = allImageIds.length > 0
+    ? (await prisma.images.findMany({ where: { id: { in: allImageIds } } })).map((img: any) => ({
         ...img,
         data: Buffer.from(img.data)
       }))
@@ -1290,6 +1299,15 @@ export async function createCleanBackup(
   // 48. Custom Bulk Products
   businessData.customBulkProducts = await prisma.customBulkProducts.findMany({
     where: { businessId: { in: businessIds } }
+  })
+
+  // 49. Invoices & Quotations (MBM-178)
+  businessData.invoices = await prisma.invoices.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const invoiceIds = businessData.invoices.map((i: any) => i.id)
+  businessData.invoiceItems = await prisma.invoiceItems.findMany({
+    where: { invoiceId: { in: invoiceIds } }
   })
 
   // Collect device-specific data (Category B) - only if full-device backup

@@ -349,6 +349,10 @@ const RESTORE_ORDER = [
   // Custom Bulk Products (depends on businesses, categories, suppliers, employees)
   'customBulkProducts',
 
+  // Invoices & Quotations (MBM-178 — depends on businesses, businessCustomers, users)
+  'invoices',           // Depends on businesses, users (preparedById), businessCustomers (optional)
+  'invoiceItems',       // Depends on invoices
+
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs'           // Depends on users
 ]

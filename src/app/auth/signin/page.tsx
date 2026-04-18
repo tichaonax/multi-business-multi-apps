@@ -3,7 +3,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic'
 import { signIn } from 'next-auth/react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import HealthIndicator from '@/components/ui/health-indicator'
 import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
@@ -13,7 +13,15 @@ export default function SignIn() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [logoImageId, setLogoImageId] = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    fetch('/api/public/branding')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.logoImageId) setLogoImageId(data.logoImageId) })
+      .catch(() => {})
+  }, [])
 
   // ── Normal login submit ────────────────────────────────────────────────────
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
@@ -59,9 +67,24 @@ export default function SignIn() {
 
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="mx-auto w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-            <span className="text-4xl text-white">🏢</span>
-          </div>
+          {logoImageId ? (
+            <div className="mx-auto w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-white/20 shadow-lg">
+              <img
+                src={`/api/images/${logoImageId}`}
+                alt="Company logo"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fall back to default icon if image fails to load
+                  const parent = (e.target as HTMLImageElement).parentElement!
+                  parent.outerHTML = '<div class="mx-auto w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-4"><span class="text-4xl text-white">🏢</span></div>'
+                }}
+              />
+            </div>
+          ) : (
+            <div className="mx-auto w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-4">
+              <span className="text-4xl text-white">🏢</span>
+            </div>
+          )}
           <h2 className="text-3xl font-bold text-primary mb-2">Welcome Back</h2>
           <p className="text-secondary">
             Sign in to access your business management platform

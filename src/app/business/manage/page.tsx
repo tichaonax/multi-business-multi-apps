@@ -222,8 +222,8 @@ function BusinessManagePageContent() {
           { label: 'Business', isActive: true }
         ]}
         headerActions={
-          <div className="flex items-center space-x-3">
-            <BusinessSwitcher 
+          <div className="flex flex-wrap items-center gap-2">
+            <BusinessSwitcher
               currentBusiness={currentBusiness}
               businesses={activeBusinesses}
               onSwitch={switchBusiness}
@@ -232,7 +232,7 @@ function BusinessManagePageContent() {
             {isSystemAdmin && (
               <button
                 onClick={() => setShowCreateBusiness(true)}
-                className="btn-secondary"
+                className="btn-secondary text-sm"
               >
                 + Add Business
               </button>
@@ -243,7 +243,7 @@ function BusinessManagePageContent() {
           {/* Admin Quick Links */}
           {isSystemAdmin && (
             <div className="card p-4 mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300">System Administrator</h3>
                   <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
@@ -252,7 +252,7 @@ function BusinessManagePageContent() {
                       : 'Access administrative functions (no inactive businesses)'}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap gap-2">
                   <Link
                     href="/admin/businesses"
                     className="px-3 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
@@ -456,7 +456,61 @@ function BusinessManagePageContent() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile card layout */}
+            <div className="sm:hidden">
+              {membersLoading ? (
+                <p className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">Loading members...</p>
+              ) : members.length === 0 ? (
+                <p className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No members found</p>
+              ) : (
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {members.map((member) => (
+                    <div key={member.id} className="px-4 py-3 flex items-start gap-3">
+                      <div className="w-10 h-10 shrink-0 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                        {member.user?.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {member.user?.name || 'Unknown User'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {member.user?.email || 'No email'}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded capitalize">
+                            {member.role?.replace('-', ' ') || 'No role'}
+                          </span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">
+                            {formatDateByFormat(member.joinedAt, globalDateFormat)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        {hasPermission('canEditUserPermissions') && currentBusiness?.isActive && (
+                          <button
+                            onClick={() => handleEditMember(member)}
+                            className="text-xs text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {hasPermission('canRemoveUsers') && member.role !== 'business-owner' && currentBusiness?.isActive && (
+                          <button
+                            onClick={() => removeMember(member.id, member.user?.name || 'Unknown User')}
+                            className="text-xs text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop table layout */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-neutral-700">
                   <tr>
@@ -518,7 +572,7 @@ function BusinessManagePageContent() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {hasPermission('canEditUserPermissions') && currentBusiness?.isActive && (
-                            <button 
+                            <button
                               onClick={() => handleEditMember(member)}
                               className="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
                             >
@@ -526,7 +580,7 @@ function BusinessManagePageContent() {
                             </button>
                           )}
                           {hasPermission('canRemoveUsers') && member.role !== 'business-owner' && currentBusiness?.isActive && (
-                            <button 
+                            <button
                               onClick={() => removeMember(member.id, member.user?.name || 'Unknown User')}
                               className="text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300"
                             >
