@@ -13,6 +13,7 @@ import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
+import { calcEcocashFee } from '@/lib/ecocash-utils'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
@@ -574,10 +575,11 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
       const customerId = selectedCustomer?.id || null
 
       // Compute EcoCash fee upfront so it's available for both the order and the receipt
-      const ecoFeeType = (config as any)?.ecocashFeeType
-      const ecoFeeValue = (config as any)?.ecocashFeeValue ?? 0
+      const ecoFeeType = (config as any)?.ecocashFeeType ?? 'FIXED'
+      const ecoFeeValue = Number((config as any)?.ecocashFeeValue ?? 0)
+      const ecoFeeMin = Number((config as any)?.ecocashMinimumFee ?? 0)
       const computedEcocashFee = paymentMethod === 'ECOCASH'
-        ? (ecoFeeType === 'PERCENTAGE' ? totalAmount * (ecoFeeValue / 100) : ecoFeeValue)
+        ? calcEcocashFee(totalAmount, ecoFeeType, ecoFeeValue, ecoFeeMin)
         : 0
 
       // Create order
@@ -1005,9 +1007,10 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
               {/* EcoCash Transaction Code + fee breakdown */}
               {paymentMethod === 'ECOCASH' && (() => {
-                const feeType = (config as any)?.ecocashFeeType
-                const feeValue = (config as any)?.ecocashFeeValue ?? 0
-                const fee = feeType === 'PERCENTAGE' ? totalAmount * (feeValue / 100) : feeValue
+                const feeType = (config as any)?.ecocashFeeType ?? 'FIXED'
+                const feeValue = Number((config as any)?.ecocashFeeValue ?? 0)
+                const feeMin = Number((config as any)?.ecocashMinimumFee ?? 0)
+                const fee = calcEcocashFee(totalAmount, feeType, feeValue, feeMin)
                 const ecocashTotal = totalAmount + fee
                 return (
                   <div className="space-y-2">
