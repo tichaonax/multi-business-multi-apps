@@ -185,6 +185,37 @@ const KNOWN_PARTIAL_BACKUP_TABLES = new Set(['images', 'clothingLabelPrintHistor
  */
 const SKIP_BUSINESS_SCOPING = new Set([
   'externalClockIn',
+  // Global reference/lookup tables — no businessId column
+  'systemSettings',
+  'emojiLookup',
+  'jobTitles',
+  'compensationTypes',
+  'benefitTypes',
+  'idFormatTemplates',
+  'driverLicenseTemplates',
+  'projectTypes',
+  'conflictResolutions',
+  'dataSnapshots',
+  'payeTaxBrackets',
+  'payrollTaxConstants',
+  'inventoryDomains',
+  'expenseDomains',
+  'expenseCategories',
+  'expenseSubcategories',
+  'expenseSubSubcategories',
+  // User/permission tables — no businessId column
+  'users',
+  'accounts',
+  'permissions',
+  'userPermissions',
+  'permissionTemplates',
+  'seedDataTemplates',
+  'paymentNotes',
+  'businessMemberships',
+  // Images — no businessId, keyed by id only
+  'images',
+  // Persons — global table
+  'persons',
   // Expense account tables — backed up with findMany() (no business filter)
   'expenseAccounts',
   'expenseAccountGrants',
@@ -195,6 +226,32 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'businessTransferLedger',
   'personalDepositSources',
   'expensePaymentReceipts',
+  // Child tables linked via parent ID, not businessId
+  'invoiceItems',
+  'businessOrderItems',
+  'customerLaybyPayments',
+  'employeeContracts',
+  'contractBenefits',
+  'contractRenewals',
+  'employeeBenefits',
+  'employeeAllowances',
+  'employeeBonuses',
+  'employeeDeductions',
+  'employeeLoans',
+  'employeeSalaryIncreases',
+  'employeeLoanPayments',
+  'employeeDeductionPayments',
+  'productVariants',
+  'productBarcodes',
+  'productImages',
+  'productAttributes',
+  'businessLoanManagers',
+  'businessLoanExpenses',
+  'businessLoanPreLockRepayments',
+  'cashAllocationLineItems',
+  'groupedEODRunDates',
+  'stockTakeDraftItems',
+  'stockTakeReportEmployees',
 ])
 
 /**
@@ -279,6 +336,12 @@ export async function validateBackupRestore(
       status = 'expected-difference'
       notes = `Partial backup by design — backup contains ${backupCount} of ${databaseCount} records`
       expectedDifferences++
+    } else if (databaseCount > backupCount) {
+      // DB has more records than backup — data was added after the backup was taken.
+      // This is always expected and not a cause for concern.
+      status = 'expected-difference'
+      notes = `Database has ${databaseCount - backupCount} record(s) added since backup was taken`
+      expectedDifferences++
     } else if (restoreStats && backupCount === restoreStats.attempted && databaseCount === restoreStats.successful) {
       // Expected: some records were skipped due to foreign key constraints
       status = 'expected-difference'
@@ -290,7 +353,7 @@ export async function validateBackupRestore(
       notes = `Difference matches skipped count (${skipped} skipped)`
       expectedDifferences++
     } else {
-      // Unexpected mismatch
+      // backupCount > databaseCount — backup has more data than the DB, which means data was lost
       status = 'unexpected-mismatch'
       notes = `Unexpected difference: backup=${backupCount}, database=${databaseCount}, skipped=${skipped}`
       unexpectedMismatches++
