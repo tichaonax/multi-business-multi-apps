@@ -13,7 +13,7 @@ import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
-import { calcEcocashFee } from '@/lib/ecocash-utils'
+import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
@@ -575,11 +575,8 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
       const customerId = selectedCustomer?.id || null
 
       // Compute EcoCash fee upfront so it's available for both the order and the receipt
-      const ecoFeeType = (config as any)?.ecocashFeeType ?? 'FIXED'
-      const ecoFeeValue = Number((config as any)?.ecocashFeeValue ?? 0)
-      const ecoFeeMin = Number((config as any)?.ecocashMinimumFee ?? 0)
       const computedEcocashFee = paymentMethod === 'ECOCASH'
-        ? calcEcocashFee(totalAmount, ecoFeeType, ecoFeeValue, ecoFeeMin)
+        ? calcEcocashFeeFromBusiness(totalAmount, config)
         : 0
 
       // Create order
@@ -600,8 +597,8 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           change: paymentMethod === 'CASH' && cashTendered ? parseFloat(cashTendered) - totalAmount : undefined,
           ...(paymentMethod === 'ECOCASH' ? {
             ecocashTransactionCode: ecocashTxCode.trim(),
-            ecocashFeeType: ecoFeeType,
-            ecocashFeeValue: ecoFeeValue,
+            ecocashFeeType: (config as any)?.ecocashFeeType ?? 'FIXED',
+            ecocashFeeValue: Number((config as any)?.ecocashFeeValue ?? 0),
             ecocashFeeAmount: computedEcocashFee,
           } : {}),
         },
@@ -1007,11 +1004,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
               {/* EcoCash Transaction Code + fee breakdown */}
               {paymentMethod === 'ECOCASH' && (() => {
-                const feeType = (config as any)?.ecocashFeeType ?? 'FIXED'
-                const feeValue = Number((config as any)?.ecocashFeeValue ?? 0)
-                const feeMin = Number((config as any)?.ecocashMinimumFee ?? 0)
-                const fee = calcEcocashFee(totalAmount, feeType, feeValue, feeMin)
-                const ecocashTotal = totalAmount + fee
+                const { fee, total: ecocashTotal, feeLabel } = getEcocashSummary(totalAmount, config)
                 return (
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -1026,7 +1019,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
                     />
                     {fee > 0 && (
                       <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1 bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                        <div className="flex justify-between"><span>EcoCash fee ({feeType === 'PERCENTAGE' ? `${feeValue}%` : 'fixed'}):</span><span>+{formatCurrency(fee)}</span></div>
+                        <div className="flex justify-between"><span>EcoCash fee ({feeLabel}):</span><span>+{formatCurrency(fee)}</span></div>
                         <div className="flex justify-between font-bold"><span>Total to charge:</span><span>{formatCurrency(ecocashTotal)}</span></div>
                       </div>
                     )}

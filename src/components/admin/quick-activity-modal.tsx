@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { calcEcocashFeeFromBusiness } from '@/lib/ecocash-utils'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -163,15 +164,10 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
     }
 
     // Fetch business ecocash fee config
-    let ecocashFeeType: string = 'PERCENTAGE'
-    let ecocashFeeValue: number = 0
+    let bizConfig: any = { ecocashFeeType: 'PERCENTAGE', ecocashFeeValue: 0, ecocashMinimumFee: 0 }
     try {
       const bizRes = await fetch(`/api/business/${cfg.businessId}`)
-      if (bizRes.ok) {
-        const bizData = await bizRes.json()
-        ecocashFeeType  = bizData.ecocashFeeType  ?? 'PERCENTAGE'
-        ecocashFeeValue = Number(bizData.ecocashFeeValue ?? 0)
-      }
+      if (bizRes.ok) bizConfig = await bizRes.json()
     } catch { /* use defaults */ }
 
     // Fallback: try barcode inventory items (used by grocery and similar businesses)
@@ -259,7 +255,7 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
         if (orderItems.length === 0) break
 
         const ecocashFee = paymentMethod === 'ECOCASH'
-          ? Math.round((ecocashFeeType === 'PERCENTAGE' ? orderTotal * (ecocashFeeValue / 100) : ecocashFeeValue) * 100) / 100
+          ? calcEcocashFeeFromBusiness(orderTotal, bizConfig)
           : 0
         const ecocashTxCode = paymentMethod === 'ECOCASH'
           ? `ECO${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`

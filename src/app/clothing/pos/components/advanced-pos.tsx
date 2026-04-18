@@ -22,6 +22,7 @@ import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 import type { ReceiptData } from '@/types/printing'
 import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
+import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
 
 interface CartItem {
   id: string
@@ -1401,14 +1402,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       const discount = itemDiscount + couponDiscount
 
       // Compute EcoCash fee upfront so it's available for both the order and the receipt
-      const ecoFeeType = (currentBusiness as any)?.ecocashFeeType
-      const ecoFeeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
-      const ecoMinimumFee = (currentBusiness as any)?.ecocashMinimumFee ?? 0
       const computedEcocashFee = selectedPaymentMethod === 'ECOCASH'
-        ? (() => {
-            const rawFee = ecoFeeType === 'PERCENTAGE' ? total * (ecoFeeValue / 100) : ecoFeeType === 'FIXED' ? ecoFeeValue : 0
-            return ecoFeeType === 'PERCENTAGE' ? Math.max(rawFee, ecoMinimumFee) : rawFee
-          })()
+        ? calcEcocashFeeFromBusiness(total, currentBusiness)
         : 0
 
       const totals = {
@@ -1440,8 +1435,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           couponDiscount: appliedCoupon?.discountAmount || undefined,
           ...(selectedPaymentMethod === 'ECOCASH' ? {
             ecocashTransactionCode: ecocashTxCode.trim(),
-            ecocashFeeType: ecoFeeType,
-            ecocashFeeValue: ecoFeeValue,
+            ecocashFeeType: (currentBusiness as any)?.ecocashFeeType ?? 'FIXED',
+            ecocashFeeValue: Number((currentBusiness as any)?.ecocashFeeValue ?? 0),
             ecocashFeeAmount: computedEcocashFee,
           } : {})
         },
@@ -2390,13 +2385,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
       {/* Payment Modal — styled like restaurant POS */}
       {showPaymentModal && (() => {
-        const _feeType = (currentBusiness as any)?.ecocashFeeType
-        const _feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
-        const _minFee = (currentBusiness as any)?.ecocashMinimumFee ?? 0
-        const _rawFee = _feeType === 'PERCENTAGE' ? calculateTotal() * (_feeValue / 100) : (_feeType === 'FIXED' ? _feeValue : 0)
-        const _ecocashFee = _feeType === 'PERCENTAGE' ? Math.max(_rawFee, _minFee) : _rawFee
-        const _ecocashTotal = calculateTotal() + _ecocashFee
         const isEcocash = selectedPaymentMethod === 'ECOCASH'
+        const { fee: _ecocashFee, total: _ecocashTotal, feeLabel: _feeLabel } = getEcocashSummary(calculateTotal(), currentBusiness)
         const displayTotal = isEcocash ? _ecocashTotal : calculateTotal()
         return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -2453,14 +2443,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                       type="button"
                       onClick={() => {
                         setSelectedPaymentMethod('ECOCASH'); setCashTendered('')
-                        const feeType = (currentBusiness as any)?.ecocashFeeType
-                        const feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
-                        const minFee = (currentBusiness as any)?.ecocashMinimumFee ?? 0
-                        const rawFee = feeType === 'PERCENTAGE' ? calculateTotal() * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
-                        const fee = feeType === 'PERCENTAGE' ? Math.max(rawFee, minFee) : rawFee
+                        const { fee, total: ecocashTotal } = getEcocashSummary(calculateTotal(), currentBusiness)
                         sendToDisplay('PAYMENT_STARTED', {
                           subtotal: calculateTotal(), tax: 0,
-                          total: calculateTotal() + fee,
+                          total: ecocashTotal,
                           ecocashFee: fee,
                           paymentMethod: 'ECOCASH'
                         })
@@ -2525,7 +2511,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   {_ecocashFee > 0 && (
                     <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
                       <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(calculateTotal())}</span></div>
-                      <div className="flex justify-between"><span>EcoCash fee ({_feeType === 'PERCENTAGE' ? `${_feeValue}%` : 'fixed'}):</span><span>{formatCurrency(_ecocashFee)}</span></div>
+                      <div className="flex justify-between"><span>EcoCash fee ({_feeLabel}):</span><span>{formatCurrency(_ecocashFee)}</span></div>
                       <div className="flex justify-between font-bold"><span>Total to charge:</span><span>{formatCurrency(_ecocashTotal)}</span></div>
                     </div>
                   )}

@@ -47,6 +47,7 @@ import { useCoupon } from '@/app/universal/pos/hooks/useCoupon'
 import { SalesPerfBadge, DEFAULT_SALES_PERF_THRESHOLDS } from '@/components/pos/SalesPerfBadge'
 import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
 import type { SalesPerfThresholds } from '@/components/pos/SalesPerfBadge'
+import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 
 interface MenuItem {
@@ -793,12 +794,9 @@ export default function RestaurantPOS() {
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
     const tendered = parseFloat(amountReceived) || 0
-    const _ecoFeeType2 = currentBusiness?.ecocashFeeType
-    const _ecoFeeValue2 = currentBusiness?.ecocashFeeValue ?? 0
-    const _ecoMinFee2 = currentBusiness?.ecocashMinimumFee ?? 0
-    const _ecoRawFee2 = _ecoFeeType2 === 'PERCENTAGE' ? total * (_ecoFeeValue2 / 100) : (_ecoFeeType2 === 'FIXED' ? _ecoFeeValue2 : 0)
-    const _ecoFee2 = _ecoFeeType2 === 'PERCENTAGE' ? Math.max(_ecoRawFee2, _ecoMinFee2) : _ecoRawFee2
-    const displayTotal2 = paymentMethod === 'ECOCASH' ? total + _ecoFee2 : total
+    const displayTotal2 = paymentMethod === 'ECOCASH'
+      ? getEcocashSummary(total, currentBusiness).total
+      : total
 
     sendToDisplay('PAYMENT_AMOUNT', {
       subtotal,
@@ -819,16 +817,13 @@ export default function RestaurantPOS() {
       : subtotal * (taxRate / 100)
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
-    const feeType = currentBusiness?.ecocashFeeType
-    const feeValue = currentBusiness?.ecocashFeeValue ?? 0
-    const minFee = currentBusiness?.ecocashMinimumFee ?? 0
-    const rawFee = feeType === 'PERCENTAGE' ? total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
-    const fee = feeType === 'PERCENTAGE' ? Math.max(rawFee, minFee) : rawFee
-    const displayTotal = paymentMethod === 'ECOCASH' ? total + fee : total
+    const { fee, total: displayTotal } = paymentMethod === 'ECOCASH'
+      ? getEcocashSummary(total, currentBusiness)
+      : { fee: 0, total }
     sendToDisplay('PAYMENT_STARTED', {
       subtotal, tax,
       total: displayTotal,
-      ecocashFee: paymentMethod === 'ECOCASH' ? fee : 0,
+      ecocashFee: fee,
       paymentMethod
     })
   }, [paymentMethod, showPaymentModal])
@@ -2065,19 +2060,16 @@ export default function RestaurantPOS() {
       : subtotal * (taxRate / 100)
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
-    const _ecoFeeType = currentBusiness?.ecocashFeeType
-    const _ecoFeeValue = currentBusiness?.ecocashFeeValue ?? 0
-    const _ecoMinFee = currentBusiness?.ecocashMinimumFee ?? 0
-    const _ecoRawFee = _ecoFeeType === 'PERCENTAGE' ? total * (_ecoFeeValue / 100) : (_ecoFeeType === 'FIXED' ? _ecoFeeValue : 0)
-    const _ecoFee = _ecoFeeType === 'PERCENTAGE' ? Math.max(_ecoRawFee, _ecoMinFee) : _ecoRawFee
-    const displayTotal = paymentMethod === 'ECOCASH' ? total + _ecoFee : total
+    const { fee: _ecoFee, total: displayTotal } = paymentMethod === 'ECOCASH'
+      ? getEcocashSummary(total, currentBusiness)
+      : { fee: 0, total }
 
     // Broadcast payment started to customer display
     sendToDisplay('PAYMENT_STARTED', {
       subtotal,
       tax,
       total: displayTotal,
-      ecocashFee: paymentMethod === 'ECOCASH' ? _ecoFee : 0,
+      ecocashFee: _ecoFee,
       paymentMethod: paymentMethod
     })
 
@@ -2220,13 +2212,7 @@ export default function RestaurantPOS() {
 
         // Compute EcoCash fee client-side (more reliable than reading from API response attributes)
         const ecocashFee = paymentMethod === 'ECOCASH'
-          ? (() => {
-              const feeType = currentBusiness?.ecocashFeeType
-              const feeValue = currentBusiness?.ecocashFeeValue ?? 0
-              const minimumFee = currentBusiness?.ecocashMinimumFee ?? 0
-              const rawFee = feeType === 'PERCENTAGE' ? total * (feeValue / 100) : feeValue
-              return feeType === 'PERCENTAGE' ? Math.max(rawFee, minimumFee) : rawFee
-            })()
+          ? calcEcocashFeeFromBusiness(total, currentBusiness)
           : 0
 
         const orderForReceipt: {
@@ -4011,12 +3997,7 @@ export default function RestaurantPOS() {
 
               {/* EcoCash transaction code input */}
               {mealProgramCashDue === null && paymentMethod === 'ECOCASH' && (() => {
-                const feeType = currentBusiness?.ecocashFeeType
-                const feeValue = currentBusiness?.ecocashFeeValue ?? 0
-                const minimumFee = currentBusiness?.ecocashMinimumFee ?? 0
-                const rawFee = feeType === 'PERCENTAGE' ? total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
-                const fee = feeType === 'PERCENTAGE' ? Math.max(rawFee, minimumFee) : rawFee
-                const ecocashTotal = total + fee
+                const { fee, total: ecocashTotal, feeLabel } = getEcocashSummary(total, currentBusiness)
                 return (
                   <div className="space-y-2">
                     <div>
@@ -4034,7 +4015,7 @@ export default function RestaurantPOS() {
                     {fee > 0 && (
                       <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
                         <div className="flex justify-between"><span>Subtotal:</span><span>${total.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span>EcoCash fee ({feeType === 'PERCENTAGE' ? `${feeValue}%` : 'fixed'}):</span><span>${fee.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span>EcoCash fee ({feeLabel}):</span><span>${fee.toFixed(2)}</span></div>
                         <div className="flex justify-between font-bold"><span>Total to charge:</span><span>${ecocashTotal.toFixed(2)}</span></div>
                       </div>
                     )}

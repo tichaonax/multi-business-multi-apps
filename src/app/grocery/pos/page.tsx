@@ -18,7 +18,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { printReceipt } from '@/lib/printing/print-receipt'
 import type { ReceiptData } from '@/types/printing'
 import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
-import { calcEcocashFee } from '@/lib/ecocash-utils'
+import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
 import { usePrintPreferences } from '@/hooks/use-print-preferences'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
@@ -567,14 +567,11 @@ function GroceryPOSContent() {
     if (!currentBusinessId || cart.length === 0) return
     const totals = calculateTotals()
     if (paymentMethod === 'ecocash') {
-      const feeType = (currentBusiness as any)?.ecocashFeeType ?? 'FIXED'
-      const feeValue = Number((currentBusiness as any)?.ecocashFeeValue ?? 0)
-      const feeMin = Number((currentBusiness as any)?.ecocashMinimumFee ?? 0)
-      const fee = calcEcocashFee(totals.total, feeType, feeValue, feeMin)
+      const { fee, total: ecocashTotal } = getEcocashSummary(totals.total, currentBusiness)
       sendToDisplay('PAYMENT_STARTED', {
         subtotal: totals.total,
         tax: 0,
-        total: totals.total + fee,
+        total: ecocashTotal,
         ecocashFee: fee,
         paymentMethod: 'ECOCASH'
       })
@@ -1739,11 +1736,8 @@ function GroceryPOSContent() {
     const totals = calculateTotals()
 
     // Compute EcoCash fee upfront so it's available for both the order and the receipt
-    const ecoFeeType = (currentBusiness as any)?.ecocashFeeType ?? 'FIXED'
-    const ecoFeeValue = Number((currentBusiness as any)?.ecocashFeeValue ?? 0)
-    const ecoFeeMin = Number((currentBusiness as any)?.ecocashMinimumFee ?? 0)
     const computedEcocashFee = paymentMethod === 'ecocash'
-      ? calcEcocashFee(totals.total, ecoFeeType, ecoFeeValue, ecoFeeMin)
+      ? calcEcocashFeeFromBusiness(totals.total, currentBusiness)
       : 0
 
     try {
@@ -1760,8 +1754,8 @@ function GroceryPOSContent() {
         rewardId: (appliedReward && !skipRewardThisTime) ? appliedReward.id : undefined,
         ...(paymentMethod === 'ecocash' ? {
           ecocashTransactionCode: ecocashTxCode.trim(),
-          ecocashFeeType: ecoFeeType,
-          ecocashFeeValue: ecoFeeValue,
+          ecocashFeeType: (currentBusiness as any)?.ecocashFeeType ?? 'FIXED',
+          ecocashFeeValue: Number((currentBusiness as any)?.ecocashFeeValue ?? 0),
           ecocashFeeAmount: computedEcocashFee,
         } : {}),
         attributes: {
@@ -3395,13 +3389,9 @@ function GroceryPOSContent() {
                   )}
                   <div className="border-t pt-2">
                     {(() => {
-                      const _feeType = (currentBusiness as any)?.ecocashFeeType ?? 'FIXED'
-                      const _feeValue = Number((currentBusiness as any)?.ecocashFeeValue ?? 0)
-                      const _feeMin = Number((currentBusiness as any)?.ecocashMinimumFee ?? 0)
-                      const _fee = paymentMethod === 'ecocash'
-                        ? calcEcocashFee(totals.total, _feeType, _feeValue, _feeMin)
-                        : 0
-                      const _displayTotal = totals.total + _fee
+                      const { fee: _fee, total: _displayTotal } = paymentMethod === 'ecocash'
+                        ? getEcocashSummary(totals.total, currentBusiness)
+                        : { fee: 0, total: totals.total }
                       return (
                         <div className={`flex justify-between font-bold text-lg ${paymentMethod === 'ecocash' ? 'text-green-700 dark:text-green-400' : ''}`}>
                           <span>Total{paymentMethod === 'ecocash' && _fee > 0 ? ' (incl. EcoCash fee):' : ':'}</span>
@@ -3486,10 +3476,7 @@ function GroceryPOSContent() {
 
             {/* EcoCash Transaction Code input */}
             {paymentMethod === 'ecocash' && (() => {
-              const feeType = (currentBusiness as any)?.ecocashFeeType
-              const feeValue = (currentBusiness as any)?.ecocashFeeValue ?? 0
-              const fee = feeType === 'PERCENTAGE' ? totals.total * (feeValue / 100) : (feeType === 'FIXED' ? feeValue : 0)
-              const ecocashTotal = totals.total + fee
+              const { fee, total: ecocashTotal, feeLabel } = getEcocashSummary(totals.total, currentBusiness)
               return (
                 <div className="space-y-2 mb-4">
                   <label className="block text-sm font-medium text-primary">EcoCash Transaction Code</label>
@@ -3505,7 +3492,7 @@ function GroceryPOSContent() {
                   {fee > 0 && (
                     <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
                       <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(totals.total)}</span></div>
-                      <div className="flex justify-between"><span>EcoCash fee ({feeType === 'PERCENTAGE' ? `${feeValue}%` : 'fixed'}):</span><span>{formatCurrency(fee)}</span></div>
+                      <div className="flex justify-between"><span>EcoCash fee ({feeLabel}):</span><span>{formatCurrency(fee)}</span></div>
                       <div className="flex justify-between font-bold"><span>Total to charge:</span><span>{formatCurrency(ecocashTotal)}</span></div>
                     </div>
                   )}
@@ -3519,13 +3506,10 @@ function GroceryPOSContent() {
               className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-base"
             >
               {processingPayment ? 'Processing...' : (() => {
-                const _feeType = (currentBusiness as any)?.ecocashFeeType ?? 'FIXED'
-                const _feeValue = Number((currentBusiness as any)?.ecocashFeeValue ?? 0)
-                const _feeMin = Number((currentBusiness as any)?.ecocashMinimumFee ?? 0)
-                const _fee = paymentMethod === 'ecocash'
-                  ? calcEcocashFee(totals.total, _feeType, _feeValue, _feeMin)
-                  : 0
-                return `Process Payment - ${formatCurrency(totals.total + _fee)}`
+                const { total: buttonTotal } = paymentMethod === 'ecocash'
+                  ? getEcocashSummary(totals.total, currentBusiness)
+                  : { total: totals.total }
+                return `Process Payment - ${formatCurrency(buttonTotal)}`
               })()}
             </button>
           </div>
