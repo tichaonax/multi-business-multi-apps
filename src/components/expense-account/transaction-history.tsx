@@ -254,6 +254,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   }
   const [minAmount, setMinAmount] = useState('')
   const [maxAmount, setMaxAmount] = useState('')
+  const [debouncedMinAmount, setDebouncedMinAmount] = useState('')
+  const [debouncedMaxAmount, setDebouncedMaxAmount] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [activeQuickFilter, setActiveQuickFilter] = useState<string>(
@@ -270,9 +272,20 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current) }
   }, [search])
 
+  // Debounce amount inputs
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedMinAmount(minAmount); setPage(0) }, 600)
+    return () => clearTimeout(t)
+  }, [minAmount])
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedMaxAmount(maxAmount); setPage(0) }, 600)
+    return () => clearTimeout(t)
+  }, [maxAmount])
+
   useEffect(() => {
     loadTransactions()
-  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, minAmount, maxAmount])
+  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, debouncedMinAmount, debouncedMaxAmount])
   // also refetch when sortOrder changes
   useEffect(() => {
     setPage(0)
@@ -288,8 +301,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       if (typeFilter) params.append('transactionType', typeFilter)
       if (sourceTypeFilter) params.append('sourceType', sourceTypeFilter)
       if (debouncedSearch) params.append('search', debouncedSearch)
-      if (minAmount !== '') params.append('minAmount', minAmount)
-      if (maxAmount !== '') params.append('maxAmount', maxAmount)
+      if (debouncedMinAmount !== '') params.append('minAmount', debouncedMinAmount)
+      if (debouncedMaxAmount !== '') params.append('maxAmount', debouncedMaxAmount)
       params.append('limit', limit.toString())
       params.append('offset', (page * limit).toString())
       params.append('sortOrder', sortOrder)
@@ -374,6 +387,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     setDebouncedSearch('')
     setMinAmount('')
     setMaxAmount('')
+    setDebouncedMinAmount('')
+    setDebouncedMaxAmount('')
     setActiveQuickFilter('30 Days')
     setPage(0)
   }
@@ -561,7 +576,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 min="0"
                 step="0.01"
                 value={minAmount}
-                onChange={(e) => { setMinAmount(e.target.value); setPage(0) }}
+                onChange={(e) => setMinAmount(e.target.value)}
                 placeholder="0.00"
                 className="w-20 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
               />
@@ -574,7 +589,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 min="0"
                 step="0.01"
                 value={maxAmount}
-                onChange={(e) => { setMaxAmount(e.target.value); setPage(0) }}
+                onChange={(e) => setMaxAmount(e.target.value)}
                 placeholder="Any"
                 className="w-20 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
               />
