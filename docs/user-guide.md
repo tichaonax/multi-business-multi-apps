@@ -3708,21 +3708,30 @@ A **Custom Bulk Product** is a container of identical items purchased in bulk an
 
 #### Accessing Custom Bulk Products
 
-Navigate to **Inventory → Custom Bulk Products** from the left sidebar. This page shows all active bulk products for your business with their remaining stock, selling price, and container cost.
+There are two ways to reach the Custom Bulk Products management page:
+
+**Option 1 — Sidebar (direct link)**
+Click **📦 Custom Bulk Products** in the left sidebar. This link is visible to any user with inventory management permission and takes you directly to the full management page.
+
+**Option 2 — Via the Bulk Stocking panel**
+Open the Bulk Stocking panel (e.g. Grocery POS → **📦 Bulk Stock**), then click the **📦 Bulk Product** button in the panel header. This opens the Bulk Products modal, which has two tabs: **Register New** and **📋 Manage Existing**.
+
+The sidebar link and the modal cover the same products — use whichever suits your workflow. The sidebar page gives a full table with richer detail; the modal is useful when you are already in the stocking panel.
 
 #### Registering a New Bulk Product
 
-1. From the **Bulk Stocking panel** (Inventory → Bulk Stocking), click the **📦 Bulk Product** button in the header.
+1. Open the Bulk Products modal (sidebar → **📦 Custom Bulk Products** then use the **📦 Bulk Product** button in the Bulk Stocking panel, or go directly via the panel header).
 2. In the **Register New** tab, fill in:
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| **Product Name** | Yes | e.g. "Chocolates", "Hand Sanitiser 500ml" |
+| **Business** | Yes | Shown only when you belong to more than one business. Select the business this product belongs to. |
+| **Product Name** | Yes | e.g. "Chocolates", "Hand Sanitiser 500ml". Type a name and click **✨ Suggest** to auto-fill the expense classification. |
 | **Barcode** | No | Scan an existing barcode on the container, or click **Generate** to auto-create one |
 | **Item Count** | Yes | Total number of individual units in the container |
 | **Container Cost** | No | What you paid for the whole container — shown as guidance only. The system displays the calculated cost per item beneath this field (e.g. "Cost/item: $0.33"). This does **not** auto-fill the selling price. |
 | **Selling Price** | Yes | The price charged to the customer per individual item. Must be entered manually. |
-| **Category** | No | Select from the list. Click **+ New category** to create one on the spot. |
+| **Expense Domain → Category → Sub-category** | No | Three-level hierarchy for expense classification. Use **✨ Suggest** next to the product name to auto-populate these fields. |
 | **Supplier** | No | Select from the list. Click **+ New supplier** to add one inline. |
 | **Notes** | No | Optional internal note |
 
@@ -3735,12 +3744,14 @@ Navigate to **Inventory → Custom Bulk Products** from the left sidebar. This p
 
 > **Selling below cost:** If you enter a selling price lower than the calculated cost per item, the system shows a warning modal displaying the cost/item, the new selling price, and the loss per item. You must explicitly confirm before the price is saved.
 
+> **✨ Suggest:** After typing a product name, click the **✨ Suggest** button next to the name field. The system scores your name against known expense categories and pre-fills the Domain, Category, and Sub-category dropdowns with the best match. You can accept the suggestion or change it manually.
+
 #### Printing a Barcode Label
 
 Labels for custom bulk products use the same print system as bales:
 
 1. Click **🖨 Print Barcode Label** on the success screen after registering, **or**
-2. Go to **Inventory → Custom Bulk Products**, find the product row, and click **🖨 Print** in the Actions column, **or**
+2. Go to **📦 Custom Bulk Products** (sidebar), find the product row, and click **🖨 Print** in the Actions column, **or**
 3. In the Bulk Product modal, switch to the **📋 Manage Existing** tab, find the product, and click **🖨 Print**.
 
 The print modal lets you:
@@ -3773,20 +3784,67 @@ The badge shows the count (e.g. **3 left**) so cashiers know at a glance whether
 
 #### Managing Existing Bulk Products
 
-Go to **Inventory → Custom Bulk Products** (sidebar link). The page shows:
+Go to **📦 Custom Bulk Products** in the left sidebar. The page shows all products — active, low-stock, and deactivated — in a single table:
 
 | Column | What it means |
 |--------|---------------|
-| **Product** | Name and any notes |
+| **Product** | Name, notes, and a **Deactivated** badge if the product is inactive |
 | **Batch / Barcode** | Auto-generated batch number and barcode value |
 | **Category** | Assigned category |
 | **Items Left** | Remaining count with a colour-coded progress bar |
 | **Selling Price** | Per-item price charged to customers |
 | **Container Cost** | Original purchase cost of the full container (read-only guidance) |
 | **Added** | Date registered |
-| **Actions** | Edit · 🖨 Print · Deactivate / Delete |
+| **Actions** | + Top Up · Edit · 🖨 Print · Deactivate |
 
-**Restock Candidates** are shown in an amber panel at the top — these are products with 5 or fewer items remaining or fully sold out.
+Use the **Show inactive / sold-out** toggle to include deactivated products in the table. Use the search box to filter by name, batch number, or barcode.
+
+#### Restock Candidates Panel
+
+Products that are low on stock or fully sold out appear in an **orange panel** at the top of the page. This includes:
+- Active products with 5 or fewer items remaining
+- Products that were automatically deactivated when they reached zero items
+
+Each card shows the product name, batch number, a stock progress bar, and a **+ Top Up** button.
+
+- **Click a card** to jump straight to that product's row in the table below (the row is highlighted in orange for 2 seconds so you can find it instantly).
+- **Click + Top Up** on a card to open the top-up form for that product without scrolling.
+
+#### Topping Up Stock (Restocking a Container)
+
+When a new delivery arrives for an existing bulk product, use **Top Up** to add stock to the same product — the barcode and batch number stay the same, so existing labels remain valid.
+
+**To top up:**
+
+1. Click **+ Top Up** in the Actions column of a table row, or click **+ Top Up** on a Restock Candidates badge card.
+2. The top-up form expands below the row showing the current state:
+   - **Remaining stock** — how many items are left in the existing container
+   - **Current selling price** — the price currently charged per item
+   - **Current cost/item** — the original container cost divided by original item count (shown when a container cost was recorded)
+3. Fill in the new delivery details:
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| **New container item count** | Yes | Number of individual items in the new delivery |
+| **New container cost ($)** | No | What you paid for the new delivery |
+| **New selling price ($/item)** | Yes | Pre-filled with the existing selling price — change it if pricing has changed |
+
+4. As you type, the system calculates and displays a **weighted average cost per item** — this blends the cost of remaining existing stock with the cost of the new delivery:
+
+   > `Weighted avg = (remaining items × old cost/item + new container cost) ÷ (remaining + new items)`
+
+   This is shown in a blue panel and gives you a realistic cost basis for deciding your new selling price. A warning appears if the new selling price is below the weighted average cost.
+
+5. Click **Confirm Top Up** to save.
+
+**What happens after a top-up:**
+- The item count increases by the number of new items added.
+- The remaining count increases by the same amount.
+- If the product was deactivated (stock had hit zero), it is automatically **reactivated** — it reappears in POS barcode lookups immediately.
+- The selling price and container cost are updated to the new values you entered.
+- The existing barcode and batch number are unchanged — no relabelling required.
+
+> **Top Up is also available from the 📋 Manage Existing tab** inside the Bulk Products modal (accessible via the Bulk Stocking panel). The same weighted-average form appears there in compact form, including all three inputs and the calculated average cost guidance.
 
 #### Editing a Bulk Product
 
@@ -3799,7 +3857,7 @@ The **Container Cost** column is shown as read-only guidance during editing, inc
 
 > **Selling below cost warning:** If you set a selling price lower than the cost per item, the system shows a confirmation modal before saving. It displays the cost/item, the new selling price, and the resulting loss per item. You must confirm to proceed.
 
-> Item count cannot be changed after registration. To correct an item count error, deactivate the old product and register a new one.
+> Item count cannot be changed via Edit. Use **+ Top Up** to add stock to an existing product, or deactivate the old product and register a new one to correct a count error.
 
 #### Updating the Price from the Bulk Products Modal
 
@@ -3827,6 +3885,8 @@ Use **Deactivate** when:
 - The container is physically removed from sale before it is fully sold.
 - You registered it with incorrect details but sales have already occurred.
 
+Deactivated products appear in the Restock Candidates panel with a **Deactivated** badge. If new stock arrives, use **+ Top Up** to reactivate the product without creating a new record.
+
 #### Searching in the Manage Tab
 
 The **📋 Manage Existing** tab inside the Bulk Products modal includes a search box. Type any part of the product name or batch number to filter the list in real time. Click the **×** inside the search box to clear it.
@@ -3835,10 +3895,9 @@ The **📋 Manage Existing** tab inside the Bulk Products modal includes a searc
 
 When opening the Bulk Stocking panel with existing saved drafts, a **Your Saved Drafts** screen appears. You can now close this screen by clicking the **×** button in the top-right corner — returning to the panel without selecting or creating a draft.
 
-#### Inline Category and Supplier Creation
+#### Inline Supplier Creation
 
-When registering a new bulk product, if the category or supplier you need does not exist:
-- Click **+ New category** under the Category dropdown — enter the name and save. The new category is immediately selected.
+When registering a new bulk product, if the supplier you need does not exist:
 - Click **+ New supplier** under the Supplier dropdown — fill in the supplier form and save. The new supplier is immediately selected.
 
 ---
@@ -4459,7 +4518,7 @@ REGISTER:  Bulk Stocking → 📦 Bulk Product
 
 PRINT LABEL:
   After register → 🖨 Print Barcode Label
-  OR: Inventory → Custom Bulk Products → 🖨 Print
+  OR: 📦 Custom Bulk Products (sidebar) → 🖨 Print
 
 SELLING: Scan container label at POS
          Remaining count decreases per item sold

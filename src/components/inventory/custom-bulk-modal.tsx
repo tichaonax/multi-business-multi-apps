@@ -7,6 +7,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { BulkPrintModal, ProductData } from '@/components/clothing/bulk-print-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { BulkTopUpForm, TopUpPayload } from '@/components/inventory/bulk-top-up-form'
 
 interface Supplier {
   id: string
@@ -114,6 +115,10 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
   const [editPriceValue, setEditPriceValue] = useState('')
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null)
 
+  // Inline top-up state
+  const [topUpId, setTopUpId] = useState<string | null>(null)
+  const [topUpValue, setTopUpValue] = useState('')
+
   // Inline new supplier
   const [showNewSupplier, setShowNewSupplier] = useState(false)
   const [creatingSupplier, setCreatingSupplier] = useState(false)
@@ -130,7 +135,7 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
 
   const loadExisting = (bizId: string) => {
     setExistingLoading(true)
-    fetch(`/api/custom-bulk?businessId=${bizId}&includeEmpty=true`)
+    fetch(`/api/custom-bulk?businessId=${bizId}&includeInactive=true`)
       .then(r => r.json())
       .then(d => setExisting(Array.isArray(d.data) ? d.data : []))
       .catch(() => {})
@@ -439,6 +444,21 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
     }
   }
 
+  const handleTopUpConfirm = async (product: ExistingBulkProduct, payload: TopUpPayload) => {
+    const res = await fetch(`/api/custom-bulk/${product.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const d = await res.json()
+    if (!res.ok || !d.success) throw new Error(d.error || 'Failed to top up')
+    setExisting(prev => prev.map(p => p.id === product.id ? d.data : p))
+    setTopUpId(null)
+    setTopUpValue('')
+    toast(`Added ${payload.topUpCount} items to ${product.name}`, { type: 'success' })
+    onSaved?.()
+  }
+
   // Businesses dropdown options (exclude umbrella)
   const businessOptions = businesses
     .filter(b => !b.isUmbrellaBusiness)
@@ -561,23 +581,35 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                   // Build classification label if available
                   const domainName = p.expenseDomainId ? domains.find(d => d.id === p.expenseDomainId)?.name : null
                   return (
-                  <div key={p.id} className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg">
+                  <div key={p.id} className={`px-3 py-2.5 border rounded-lg ${p.isActive ? 'border-gray-200 dark:border-gray-700' : 'border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-900/10'}`}>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
+                          {!p.isActive && <span className="shrink-0 text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded font-medium">Out of stock</span>}
+                        </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{p.batchNumber} · {p.remainingCount}/{p.itemCount} remaining · <span className="font-medium text-gray-700 dark:text-gray-300">${Number(p.unitPrice).toFixed(2)}/item</span></p>
                         {domainName && (
                           <p className="text-xs text-indigo-500 dark:text-indigo-400 mt-0.5">{domainName}</p>
                         )}
                       </div>
+                      {/* Top Up button — always visible */}
                       <button
-                        onClick={() => {
-                          setEditPriceId(p.id)
-                          setEditPriceValue(Number(p.unitPrice).toFixed(2))
-                        }}
-                        className="shrink-0 px-2 py-1 text-xs border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20">
-                        ✏ Price
+                        onClick={() => { setTopUpId(p.id); setTopUpValue(''); setEditPriceId(null) }}
+                        className="shrink-0 px-2 py-1 text-xs border border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20">
+                        + Stock
                       </button>
+                      {p.isActive && (
+                        <button
+                          onClick={() => {
+                            setEditPriceId(p.id)
+                            setEditPriceValue(Number(p.unitPrice).toFixed(2))
+                            setTopUpId(null)
+                          }}
+                          className="shrink-0 px-2 py-1 text-xs border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20">
+                          ✏ Price
+                        </button>
+                      )}
                       {p.barcode && (
                         <button
                           onClick={() => {
@@ -596,13 +628,25 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                           🖨 Print
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDelete(p)}
-                        disabled={deletingId === p.id}
-                        className="shrink-0 px-2.5 py-1 text-xs border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40">
-                        {deletingId === p.id ? '…' : p.remainingCount < p.itemCount ? 'Deactivate' : 'Delete'}
-                      </button>
+                      {p.isActive && (
+                        <button
+                          onClick={() => handleDelete(p)}
+                          disabled={deletingId === p.id}
+                          className="shrink-0 px-2.5 py-1 text-xs border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40">
+                          {deletingId === p.id ? '…' : p.remainingCount < p.itemCount ? 'Deactivate' : 'Delete'}
+                        </button>
+                      )}
                     </div>
+                    {/* Inline top-up form */}
+                    {topUpId === p.id && (
+                      <BulkTopUpForm
+                        product={p}
+                        variant="compact"
+                        onConfirm={(payload) => handleTopUpConfirm(p, payload)}
+                        onCancel={() => { setTopUpId(null); setTopUpValue('') }}
+                      />
+                    )}
+
                     {/* Inline price edit row */}
                     {editPriceId === p.id && (
                       <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">

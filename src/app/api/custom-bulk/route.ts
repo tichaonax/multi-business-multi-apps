@@ -8,14 +8,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const barcode    = searchParams.get('barcode')
-    const includeEmpty = searchParams.get('includeEmpty') === 'true'
+    const includeEmpty    = searchParams.get('includeEmpty') === 'true'
+    const includeInactive = searchParams.get('includeInactive') === 'true'
 
     if (!businessId) {
       return NextResponse.json({ success: false, error: 'Business ID is required' }, { status: 400 })
     }
 
-    const where: Record<string, unknown> = { businessId, isActive: true }
-    if (!includeEmpty) where.remainingCount = { gt: 0 }
+    const where: Record<string, unknown> = { businessId }
+    if (!includeInactive) where.isActive = true
+    if (!includeEmpty && !includeInactive) where.remainingCount = { gt: 0 }
     if (barcode) where.barcode = barcode.trim()
 
     const products = await prisma.customBulkProducts.findMany({

@@ -79,16 +79,18 @@ export async function PUT(
       updateData.supplierId = data.supplierId || null
     }
 
-    if (data.isActive !== undefined) {
-      const active = Boolean(data.isActive)
-      // Prevent re-activating a product with 0 remaining items
-      if (active && existing.remainingCount <= 0) {
-        return NextResponse.json({
-          success: false,
-          error: 'Cannot reactivate a product with 0 remaining items',
-        }, { status: 400 })
+    if (data.topUpCount !== undefined) {
+      const count = Number(data.topUpCount)
+      if (!Number.isInteger(count) || count <= 0) {
+        return NextResponse.json({ success: false, error: 'Top-up count must be a positive whole number' }, { status: 400 })
       }
-      updateData.isActive = active
+      updateData.itemCount = existing.itemCount + count
+      updateData.remainingCount = Number(existing.remainingCount) + count
+      updateData.isActive = true
+    }
+
+    if (data.isActive !== undefined) {
+      updateData.isActive = Boolean(data.isActive)
     }
 
     if (Object.keys(updateData).length === 0) {

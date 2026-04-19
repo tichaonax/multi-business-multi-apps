@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { BulkPrintModal, ProductData } from '@/components/clothing/bulk-print-modal'
+import { BulkTopUpForm, TopUpPayload } from '@/components/inventory/bulk-top-up-form'
 
 interface BulkProduct {
   id: string
@@ -47,11 +48,16 @@ export default function CustomBulkInventoryPage() {
   const [printTarget, setPrintTarget] = useState<ProductData | null>(null)
   const [search, setSearch] = useState('')
 
+  const [topUpId, setTopUpId] = useState<string | null>(null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+
   const load = useCallback(async () => {
     if (!businessId) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/custom-bulk?businessId=${businessId}&includeEmpty=true`)
+      const res = await fetch(`/api/custom-bulk?businessId=${businessId}&includeInactive=true`)
       const data = await res.json()
       if (data.success) setProducts(data.data)
     } catch { /* silent */ }
@@ -61,25 +67,54 @@ export default function CustomBulkInventoryPage() {
   useEffect(() => { load() }, [load])
 
   const displayed = products
-    .filter(p => showEmpty || p.remainingCount > 0)
+    .filter(p => showEmpty || (p.isActive && p.remainingCount > 0))
     .filter(p => {
       if (!search.trim()) return true
       const q = search.toLowerCase()
       return p.name.toLowerCase().includes(q) || p.batchNumber.toLowerCase().includes(q) || p.barcode.toLowerCase().includes(q)
     })
 
+  // Include low-stock active AND inactive (auto-deactivated zero-stock) products
   const restockCandidates = products.filter(
-    p => p.isActive && (p.remainingCount <= 0 || p.remainingCount < LOW_STOCK_THRESHOLD)
+    p => !p.isActive || p.remainingCount <= 0 || p.remainingCount < LOW_STOCK_THRESHOLD
   )
+
+  const scrollToRow = (productId: string) => {
+    setShowEmpty(true)
+    setTimeout(() => {
+      const el = rowRefs.current[productId]
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setHighlightId(productId)
+        setTimeout(() => setHighlightId(null), 2000)
+      }
+    }, 50)
+  }
+
+  const openTopUp = (p: BulkProduct, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    setTopUpId(p.id)
+    setEditingId(null)
+    scrollToRow(p.id)
+  }
+
+  const handleTopUpConfirm = async (p: BulkProduct, payload: TopUpPayload) => {
+    const res = await fetch(`/api/custom-bulk/${p.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json()
+    if (!res.ok || !data.success) throw new Error(data.error ?? 'Failed')
+    setProducts(prev => prev.map(pr => pr.id === p.id ? data.data : pr))
+    setTopUpId(null)
+  }
 
   const startEdit = (p: BulkProduct) => {
     setEditingId(p.id)
+    setTopUpId(null)
     setSaveError('')
-    setEditState({
-      name: p.name,
-      unitPrice: String(p.unitPrice),
-      notes: p.notes ?? '',
-    })
+    setEditState({ name: p.name, unitPrice: String(p.unitPrice), notes: p.notes ?? '' })
   }
 
   const cancelEdit = () => { setEditingId(null); setSaveError('') }
@@ -115,11 +150,7 @@ export default function CustomBulkInventoryPage() {
       const res = await fetch(`/api/custom-bulk/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editState.name,
-          unitPrice: editState.unitPrice,
-          notes: editState.notes || null,
-        }),
+        body: JSON.stringify({ name: editState.name, unitPrice: editState.unitPrice, notes: editState.notes || null }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) { setSaveError(data.error ?? 'Save failed'); return }
@@ -183,7 +214,7 @@ export default function CustomBulkInventoryPage() {
                 onChange={e => setShowEmpty(e.target.checked)}
                 className="rounded border-gray-300"
               />
-              Show sold-out items
+              Show inactive / sold-out
             </label>
           </div>
         </div>
@@ -199,9 +230,29 @@ export default function CustomBulkInventoryPage() {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {restockCandidates.map(p => (
-                <div key={p.id} className="bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-700 px-3 py-2.5">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{p.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{p.batchNumber}</p>
+                <div
+                  key={p.id}
+                  className="bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-700 px-3 py-2.5 cursor-pointer hover:border-orange-400 dark:hover:border-orange-500 transition-colors"
+                  onClick={() => scrollToRow(p.id)}
+                  title="Click to jump to this product in the table"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{p.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{p.batchNumber}</p>
+                      {!p.isActive && (
+                        <span className="inline-block mt-0.5 text-xs bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded px-1.5 py-0.5 font-medium">
+                          Deactivated
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => openTopUp(p, e)}
+                      className="shrink-0 px-2 py-1 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded font-medium whitespace-nowrap"
+                    >
+                      + Top Up
+                    </button>
+                  </div>
                   <div className="mt-1.5 flex items-center gap-2">
                     <div className="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                       <div
@@ -254,132 +305,163 @@ export default function CustomBulkInventoryPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {displayed.map(p => (
-                    <tr
-                      key={p.id}
-                      className={`${!p.isActive ? 'opacity-50' : ''} ${p.remainingCount <= 0 ? 'bg-red-50/40 dark:bg-red-900/10' : p.remainingCount < LOW_STOCK_THRESHOLD ? 'bg-orange-50/40 dark:bg-orange-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'}`}
-                    >
-                      <td className="px-4 py-3">
-                        {editingId === p.id ? (
-                          <input
-                            value={editState.name}
-                            onChange={e => setEditState(s => ({ ...s, name: e.target.value }))}
-                            className="w-full px-2 py-1 text-sm border border-indigo-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
-                        ) : (
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-white">{p.name}</p>
-                            {p.notes && <p className="text-xs text-gray-400 truncate max-w-[200px]">{p.notes}</p>}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-mono text-xs text-gray-700 dark:text-gray-300">{p.batchNumber}</p>
-                        <p className="font-mono text-xs text-gray-400">{p.barcode}</p>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                        {p.category?.name ?? <span className="text-gray-300 dark:text-gray-600">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`font-bold ${p.remainingCount <= 0 ? 'text-red-600 dark:text-red-400' : p.remainingCount < LOW_STOCK_THRESHOLD ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}`}>
-                            {p.remainingCount}
-                          </span>
-                          <span className="text-xs text-gray-400">of {p.itemCount}</span>
-                          <div className="w-16 h-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${p.remainingCount <= 0 ? 'bg-red-400' : p.remainingCount < LOW_STOCK_THRESHOLD ? 'bg-orange-400' : 'bg-green-400'}`}
-                              style={{ width: `${pct(p.remainingCount, p.itemCount)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {editingId === p.id ? (
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={editState.unitPrice}
-                            onChange={e => setEditState(s => ({ ...s, unitPrice: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter') saveEdit(p.id); if (e.key === 'Escape') cancelEdit() }}
-                            className="w-24 px-2 py-1 text-sm text-right border border-indigo-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
-                        ) : (
-                          <span className="text-gray-900 dark:text-white">{formatPrice(p.unitPrice)}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400">
-                        {editingId === p.id ? (
-                          <div className="text-right">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {p.costPrice ? formatPrice(p.costPrice) : <span className="text-gray-300 dark:text-gray-600">—</span>}
-                            </p>
-                            {p.costPrice && Number(p.costPrice) > 0 && p.itemCount > 0 && (
-                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                                ${(Number(p.costPrice) / p.itemCount).toFixed(4).replace(/\.?0+$/, '')}/item
-                              </p>
+                  {displayed.map(p => {
+                    const isTopUp = topUpId === p.id
+                    const isHighlighted = highlightId === p.id
+
+                    return (
+                      <Fragment key={p.id}>
+                        <tr
+                          ref={el => { rowRefs.current[p.id] = el }}
+                          className={[
+                            !p.isActive ? 'opacity-60' : '',
+                            isHighlighted ? 'ring-2 ring-orange-400 ring-inset' : '',
+                            p.remainingCount <= 0 ? 'bg-red-50/40 dark:bg-red-900/10' : p.remainingCount < LOW_STOCK_THRESHOLD ? 'bg-orange-50/40 dark:bg-orange-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30',
+                          ].filter(Boolean).join(' ')}
+                        >
+                          <td className="px-4 py-3">
+                            {editingId === p.id ? (
+                              <input
+                                value={editState.name}
+                                onChange={e => setEditState(s => ({ ...s, name: e.target.value }))}
+                                className="w-full px-2 py-1 text-sm border border-indigo-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            ) : (
+                              <div>
+                                <p className="font-medium text-gray-900 dark:text-white">{p.name}</p>
+                                {!p.isActive && <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded px-1.5 py-0.5 font-medium">Deactivated</span>}
+                                {p.notes && <p className="text-xs text-gray-400 truncate max-w-[200px]">{p.notes}</p>}
+                              </div>
                             )}
-                          </div>
-                        ) : (
-                          p.costPrice ? formatPrice(p.costPrice) : <span className="text-gray-300 dark:text-gray-600">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                        {new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {editingId === p.id ? (
-                          <div className="flex flex-col items-center gap-1">
-                            {saveError && <p className="text-xs text-red-500">{saveError}</p>}
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => saveEdit(p.id)}
-                                disabled={saving}
-                                className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded font-medium">
-                                {saving ? '…' : 'Save'}
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                className="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
-                                Cancel
-                              </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-mono text-xs text-gray-700 dark:text-gray-300">{p.batchNumber}</p>
+                            <p className="font-mono text-xs text-gray-400">{p.barcode}</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                            {p.category?.name ?? <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex flex-col items-end gap-1">
+                              <span className={`font-bold ${p.remainingCount <= 0 ? 'text-red-600 dark:text-red-400' : p.remainingCount < LOW_STOCK_THRESHOLD ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}`}>
+                                {p.remainingCount}
+                              </span>
+                              <span className="text-xs text-gray-400">of {p.itemCount}</span>
+                              <div className="w-16 h-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${p.remainingCount <= 0 ? 'bg-red-400' : p.remainingCount < LOW_STOCK_THRESHOLD ? 'bg-orange-400' : 'bg-green-400'}`}
+                                  style={{ width: `${pct(p.remainingCount, p.itemCount)}%` }}
+                                />
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="flex justify-center gap-1">
-                            <button
-                              onClick={() => startEdit(p)}
-                              className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
-                              Edit
-                            </button>
-                            {p.barcode && (
-                              <button
-                                onClick={() => setPrintTarget({ id: p.id, name: p.name, barcodeData: p.barcode, sellingPrice: Number(p.unitPrice), sku: p.sku, batchNumber: p.batchNumber, itemCount: p.itemCount })}
-                                className="px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 rounded text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
-                                🖨 Print
-                              </button>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {editingId === p.id ? (
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={editState.unitPrice}
+                                onChange={e => setEditState(s => ({ ...s, unitPrice: e.target.value }))}
+                                onKeyDown={e => { if (e.key === 'Enter') saveEdit(p.id); if (e.key === 'Escape') cancelEdit() }}
+                                className="w-24 px-2 py-1 text-sm text-right border border-indigo-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            ) : (
+                              <span className="text-gray-900 dark:text-white">{formatPrice(p.unitPrice)}</span>
                             )}
-                            {p.isActive && (
-                              <button
-                                onClick={() => deactivate(p.id)}
-                                className="px-2.5 py-1 text-xs border border-red-300 dark:border-red-700 rounded text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
-                                Deactivate
-                              </button>
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400">
+                            {editingId === p.id ? (
+                              <div className="text-right">
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  {p.costPrice ? formatPrice(p.costPrice) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                                </p>
+                                {p.costPrice && Number(p.costPrice) > 0 && p.itemCount > 0 && (
+                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                    ${(Number(p.costPrice) / p.itemCount).toFixed(4).replace(/\.?0+$/, '')}/item
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              p.costPrice ? formatPrice(p.costPrice) : <span className="text-gray-300 dark:text-gray-600">—</span>
                             )}
-                          </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                            {new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {editingId === p.id ? (
+                              <div className="flex flex-col items-center gap-1">
+                                {saveError && <p className="text-xs text-red-500">{saveError}</p>}
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => saveEdit(p.id)}
+                                    disabled={saving}
+                                    className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded font-medium">
+                                    {saving ? '…' : 'Save'}
+                                  </button>
+                                  <button
+                                    onClick={cancelEdit}
+                                    className="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex justify-center gap-1 flex-wrap">
+                                <button
+                                  onClick={() => openTopUp(p)}
+                                  className="px-2.5 py-1 text-xs border border-orange-300 dark:border-orange-700 rounded text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-medium">
+                                  + Top Up
+                                </button>
+                                <button
+                                  onClick={() => startEdit(p)}
+                                  className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                  Edit
+                                </button>
+                                {p.barcode && (
+                                  <button
+                                    onClick={() => setPrintTarget({ id: p.id, name: p.name, barcodeData: p.barcode, sellingPrice: Number(p.unitPrice), sku: p.sku, batchNumber: p.batchNumber, itemCount: p.itemCount })}
+                                    className="px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 rounded text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                    🖨 Print
+                                  </button>
+                                )}
+                                {p.isActive && (
+                                  <button
+                                    onClick={() => deactivate(p.id)}
+                                    className="px-2.5 py-1 text-xs border border-red-300 dark:border-red-700 rounded text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                    Deactivate
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+
+                        {/* Inline Top-Up Form Row */}
+                        {isTopUp && (
+                          <tr className="bg-orange-50/60 dark:bg-orange-900/10 border-l-4 border-orange-400">
+                            <td colSpan={8} className="px-6 py-4">
+                              <BulkTopUpForm
+                                product={p}
+                                variant="inline"
+                                onConfirm={(payload) => handleTopUpConfirm(p, payload)}
+                                onCancel={() => setTopUpId(null)}
+                              />
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                    </tr>
-                  ))}
+                      </Fragment>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
             <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500">
               {displayed.length} product{displayed.length !== 1 ? 's' : ''} shown
-              {!showEmpty && products.filter(p => p.remainingCount <= 0).length > 0 && (
+              {!showEmpty && products.filter(p => !p.isActive || p.remainingCount <= 0).length > 0 && (
                 <span className="ml-2 text-orange-500">
-                  · {products.filter(p => p.remainingCount <= 0).length} sold-out hidden (enable toggle to show)
+                  · {products.filter(p => !p.isActive || p.remainingCount <= 0).length} inactive/sold-out hidden (enable toggle to show)
                 </span>
               )}
             </div>
