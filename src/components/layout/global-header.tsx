@@ -1474,13 +1474,10 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
     }, 150)
   }
 
-  const handleSignOut = () => {
-    const currentOrigin = window.location.origin
-    signOut({
-      callbackUrl: currentOrigin,  // redirects to homepage (/) after sign out
-      redirect: true
-    })
+  const handleSignOut = async () => {
     closeUserMenu()
+    await signOut({ redirect: false })
+    window.location.href = window.location.origin  // hard redirect to landing page
   }
 
   const getInitials = (name: string) => {
