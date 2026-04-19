@@ -3704,11 +3704,11 @@ If items from one bale are moved to another shop:
 
 A **Custom Bulk Product** is a container of identical items purchased in bulk and sold individually — for example, a box of 300 chocolates sold at $0.35 each, or a crate of 50 shampoo bottles sold at $1.20 each. The system tracks how many items remain in the container and automatically deactivates the product when stock runs out.
 
-> **Custom Bulk vs Bales:** Bales are used for used clothing where the exact item count is estimated. Custom Bulk is for packaged goods where the item count is exact and the per-item price is fixed.
+> **Custom Bulk vs Bales:** Bales are used for used clothing where the exact item count is estimated. Custom Bulk is for packaged goods where the item count is exact and the per-item selling price is fixed.
 
 #### Accessing Custom Bulk Products
 
-Navigate to **Inventory → Custom Bulk Products** from the left sidebar. This page shows all active bulk products for your business with their remaining stock, unit price, and container cost.
+Navigate to **Inventory → Custom Bulk Products** from the left sidebar. This page shows all active bulk products for your business with their remaining stock, selling price, and container cost.
 
 #### Registering a New Bulk Product
 
@@ -3717,11 +3717,11 @@ Navigate to **Inventory → Custom Bulk Products** from the left sidebar. This p
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| **Product Name** | Yes | e.g. "Chockolates", "Hand Sanitiser 500ml" |
+| **Product Name** | Yes | e.g. "Chocolates", "Hand Sanitiser 500ml" |
 | **Barcode** | No | Scan an existing barcode on the container, or click **Generate** to auto-create one |
 | **Item Count** | Yes | Total number of individual units in the container |
-| **Container Cost** | No | What you paid for the whole container — used for profit margin |
-| **Unit Price** | Yes | Auto-calculated as Container Cost ÷ Item Count when both are filled in. You can also set it manually. |
+| **Container Cost** | No | What you paid for the whole container — shown as guidance only. The system displays the calculated cost per item beneath this field (e.g. "Cost/item: $0.33"). This does **not** auto-fill the selling price. |
+| **Selling Price** | Yes | The price charged to the customer per individual item. Must be entered manually. |
 | **Category** | No | Select from the list. Click **+ New category** to create one on the spot. |
 | **Supplier** | No | Select from the list. Click **+ New supplier** to add one inline. |
 | **Notes** | No | Optional internal note |
@@ -3732,6 +3732,8 @@ Navigate to **Inventory → Custom Bulk Products** from the left sidebar. This p
    - A **🖨 Print Barcode Label** button — click this to immediately print a scannable label for the container.
 
 > **Auto-generated barcode:** If you leave the Barcode field empty, the system generates a unique 8-character hex code (e.g. `a3f2b7c9`). This becomes the barcode scanned at the POS.
+
+> **Selling below cost:** If you enter a selling price lower than the calculated cost per item, the system shows a warning modal displaying the cost/item, the new selling price, and the loss per item. You must explicitly confirm before the price is saved.
 
 #### Printing a Barcode Label
 
@@ -3751,7 +3753,7 @@ Stick the printed label on the container or shelf edge. Cashiers scan this label
 #### Selling a Custom Bulk Product at the POS
 
 1. **Scan the barcode** on the container label at any POS terminal.
-2. The product is added to the cart at the unit price (e.g. $0.35).
+2. The product is added to the cart at the selling price (e.g. $0.35).
 3. Adjust the quantity to however many units the customer is buying.
 4. Complete the sale normally.
 
@@ -3767,28 +3769,59 @@ Go to **Inventory → Custom Bulk Products** (sidebar link). The page shows:
 | **Batch / Barcode** | Auto-generated batch number and barcode value |
 | **Category** | Assigned category |
 | **Items Left** | Remaining count with a colour-coded progress bar |
-| **Unit Price** | Per-item selling price |
-| **Container Cost** | Original purchase cost of the full container |
+| **Selling Price** | Per-item price charged to customers |
+| **Container Cost** | Original purchase cost of the full container (read-only guidance) |
 | **Added** | Date registered |
-| **Actions** | Edit · 🖨 Print · Deactivate |
+| **Actions** | Edit · 🖨 Print · Deactivate / Delete |
 
-**Restock Candidates** are shown in an amber panel at the top — these are products with 5 or fewer items remaining or sold out.
+**Restock Candidates** are shown in an amber panel at the top — these are products with 5 or fewer items remaining or fully sold out.
 
 #### Editing a Bulk Product
 
 Click **Edit** on any row. You can update:
 - Product name
-- Unit price
-- Container cost
+- **Selling price** — press **Enter** to save or **Escape** to cancel
 - Notes
+
+The **Container Cost** column is shown as read-only guidance during editing, including the calculated cost per item (e.g. `$0.33/item`) so you can set the selling price with full margin visibility.
+
+> **Selling below cost warning:** If you set a selling price lower than the cost per item, the system shows a confirmation modal before saving. It displays the cost/item, the new selling price, and the resulting loss per item. You must confirm to proceed.
 
 > Item count cannot be changed after registration. To correct an item count error, deactivate the old product and register a new one.
 
-#### Deactivating a Bulk Product
+#### Updating the Price from the Bulk Products Modal
 
-Click **Deactivate** to mark the product as inactive. It will no longer appear at the POS or in barcode scans. Sales history is preserved. Use this when:
+You can also update the selling price directly from the **📋 Manage Existing** tab inside the Bulk Products modal (accessible from the Bulk Stocking panel):
+
+1. Find the product in the list (use the **search box** to filter by name or batch number).
+2. Click **✏ Price** on the product row.
+3. An inline editor expands showing:
+   - **Container cost** and **cost per item** as read-only guidance
+   - A **New price $** input — type the new selling price
+4. Press **Enter** or click **Save**. Press **Escape** or click **Cancel** to dismiss without saving.
+
+The same below-cost warning applies here.
+
+#### Deactivate vs Delete
+
+The action button label changes based on whether any items have been sold:
+
+| Button | When shown | What happens |
+|--------|------------|--------------|
+| **Delete** | No items have been sold yet | Permanently removes the product from the database |
+| **Deactivate** | At least one item has been sold | Marks the product as inactive — it disappears from the POS but sales history is preserved |
+
+Use **Deactivate** when:
 - The container is physically removed from sale before it is fully sold.
-- You registered it with incorrect details.
+- You registered it with incorrect details but sales have already occurred.
+
+#### Searching in the Manage Tab
+
+The **📋 Manage Existing** tab inside the Bulk Products modal includes a search box. Type any part of the product name or batch number to filter the list in real time. Click the **×** inside the search box to clear it.
+
+#### Dismissing the Drafts Modal
+
+When opening the Bulk Stocking panel with existing saved drafts, a **Your Saved Drafts** screen appears. You can now close this screen by clicking the **×** button in the top-right corner — returning to the panel without selecting or creating a draft.
 
 #### Inline Category and Supplier Creation
 

@@ -933,6 +933,33 @@ function GroceryPOSContent() {
               }
             }
 
+            // Add custom bulk products so they appear in search and product grid
+            try {
+              const bulkRes = await fetch(`/api/custom-bulk?businessId=${currentBusinessId}`)
+              const bulkData = await bulkRes.json()
+              if (bulkData.success && Array.isArray(bulkData.data)) {
+                const bulkItems: POSItem[] = bulkData.data
+                  .filter((b: any) => b.remainingCount > 0)
+                  .map((b: any) => ({
+                    id: `cbulk_${b.id}`,
+                    name: b.name,
+                    barcode: b.barcode,
+                    pluCode: b.sku,
+                    category: b.category?.name || 'Bulk Products',
+                    unitType: 'each' as const,
+                    price: Number(b.unitPrice),
+                    unit: 'each',
+                    taxable: false,
+                    weightRequired: false,
+                    customBulkId: b.id,
+                    stockQuantity: b.remainingCount,
+                  }))
+                posItems.push(...bulkItems)
+              }
+            } catch (bulkErr) {
+              console.error('❌ Error loading custom bulk products:', bulkErr)
+            }
+
             setProducts(posItems)
           }
         }
@@ -2881,9 +2908,10 @@ function GroceryPOSContent() {
                     filteredProducts = products.filter((product) => {
                       const isESP32Token = (product as any).wifiToken === true
                       const isR710Token = (product as any).r710Token === true
-                      if (activeWiFiTab === 'esp32') return isESP32Token
-                      else if (activeWiFiTab === 'r710') return isR710Token
-                      return false
+                      const isCustomBulk = !!product.customBulkId
+                      if (activeWiFiTab === 'esp32') return isESP32Token || isCustomBulk
+                      else if (activeWiFiTab === 'r710') return isR710Token || isCustomBulk
+                      return isCustomBulk
                     })
                   }
 
@@ -2896,7 +2924,7 @@ function GroceryPOSContent() {
                       // Specific inventory category
                       filteredProducts = filteredProducts.filter(p => p.categoryId === selectedCategory)
                     }
-                    // Apply search
+                    // Apply search — also include custom bulk products from products[] list
                     if (deskSearchTerm.trim()) {
                       const term = deskSearchTerm.toLowerCase()
                       filteredProducts = filteredProducts.filter(p =>
@@ -2905,6 +2933,15 @@ function GroceryPOSContent() {
                         (p.sku && p.sku.toLowerCase().includes(term)) ||
                         (p.pluCode && p.pluCode.toLowerCase().includes(term))
                       )
+                      // Merge matching custom bulk products (they live in products[], not deskProducts[])
+                      const bulkMatches = products.filter(p =>
+                        p.customBulkId &&
+                        (p.name.toLowerCase().includes(term) ||
+                         (p.barcode && p.barcode.toLowerCase().includes(term)) ||
+                         (p.pluCode && p.pluCode.toLowerCase().includes(term))) &&
+                        !filteredProducts.find(fp => fp.id === p.id)
+                      )
+                      filteredProducts = [...filteredProducts, ...bulkMatches]
                     }
                   }
 
