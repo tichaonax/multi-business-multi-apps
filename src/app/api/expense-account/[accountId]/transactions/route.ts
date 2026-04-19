@@ -60,6 +60,13 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
     const sortOrder = searchParams.get('sortOrder') || 'desc'
+    const minAmount = parseFloat(searchParams.get('minAmount') || '')
+    const maxAmount = parseFloat(searchParams.get('maxAmount') || '')
+
+    // Build amount filter
+    const amountFilter: any = {}
+    if (!isNaN(minAmount)) amountFilter.gte = minAmount
+    if (!isNaN(maxAmount)) amountFilter.lte = maxAmount
 
     // Build date filter
     const dateFilter: any = {}
@@ -113,6 +120,7 @@ export async function GET(
               expenseAccountId: accountId,
               ...(sourceType && { sourceType }),
               ...(Object.keys(dateFilter).length > 0 && { depositDate: dateFilter }),
+              ...(Object.keys(amountFilter).length > 0 && { amount: amountFilter }),
               ...depositSearchFilter,
             },
             include: {
@@ -148,6 +156,7 @@ export async function GET(
                   { paidAt: null, paymentDate: dateFilter },
                 ],
               }),
+              ...(Object.keys(amountFilter).length > 0 && { amount: amountFilter }),
               ...paymentSearchFilter,
             },
             include: {

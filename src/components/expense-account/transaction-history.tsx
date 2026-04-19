@@ -252,6 +252,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       alert('Failed to load voucher')
     }
   }
+  const [minAmount, setMinAmount] = useState('')
+  const [maxAmount, setMaxAmount] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [activeQuickFilter, setActiveQuickFilter] = useState<string>(
@@ -270,7 +272,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
   useEffect(() => {
     loadTransactions()
-  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey])
+  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, minAmount, maxAmount])
   // also refetch when sortOrder changes
   useEffect(() => {
     setPage(0)
@@ -286,6 +288,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       if (typeFilter) params.append('transactionType', typeFilter)
       if (sourceTypeFilter) params.append('sourceType', sourceTypeFilter)
       if (debouncedSearch) params.append('search', debouncedSearch)
+      if (minAmount !== '') params.append('minAmount', minAmount)
+      if (maxAmount !== '') params.append('maxAmount', maxAmount)
       params.append('limit', limit.toString())
       params.append('offset', (page * limit).toString())
       params.append('sortOrder', sortOrder)
@@ -368,6 +372,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     setSourceTypeFilter('')
     setSearch('')
     setDebouncedSearch('')
+    setMinAmount('')
+    setMaxAmount('')
     setActiveQuickFilter('30 Days')
     setPage(0)
   }
@@ -541,6 +547,38 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
               <option value="desc">Newest First</option>
               <option value="asc">Oldest First</option>
             </select>
+          </div>
+
+          {/* Thin divider */}
+          <div className="w-px self-stretch bg-gray-200 dark:bg-gray-600 mx-0.5 hidden sm:block" />
+
+          {/* Amount range */}
+          <div className="flex items-end gap-1">
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 uppercase tracking-wide">Min $</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={minAmount}
+                onChange={(e) => { setMinAmount(e.target.value); setPage(0) }}
+                placeholder="0.00"
+                className="w-20 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <span className="text-gray-400 dark:text-gray-500 text-xs pb-2">→</span>
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 uppercase tracking-wide">Max $</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={maxAmount}
+                onChange={(e) => { setMaxAmount(e.target.value); setPage(0) }}
+                placeholder="Any"
+                className="w-20 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
         </div>
