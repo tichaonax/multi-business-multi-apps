@@ -28,7 +28,7 @@
     "db:generate": "npx prisma generate",
     "db:migrate": "npx prisma migrate dev",
     "db:studio": "npx prisma studio",
-    "db:deploy": "npx prisma migrate deploy",
+    "db:deploy": "node -e \"require('dotenv').config({path:'.env.local'});const {execSync}=require('child_process');execSync('npx prisma migrate deploy',{stdio:'inherit',env:process.env})\"",
     "db:reset": "npx prisma migrate reset",
     "db:clear-locks": "node scripts/clear-migration-locks.js",
     "sync:clear-stuck": "node scripts/cancel-stuck-sync.js",

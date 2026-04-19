@@ -3752,12 +3752,24 @@ Stick the printed label on the container or shelf edge. Cashiers scan this label
 
 #### Selling a Custom Bulk Product at the POS
 
-1. **Scan the barcode** on the container label at any POS terminal.
+1. **Scan the barcode** on the container label at any POS terminal, or search by product name in the POS search bar.
 2. The product is added to the cart at the selling price (e.g. $0.35).
 3. Adjust the quantity to however many units the customer is buying.
 4. Complete the sale normally.
 
 The product's **remaining count decreases** by the quantity sold. When the remaining count reaches zero, the product is automatically deactivated and will no longer appear in barcode lookups.
+
+#### Stock Badge on POS Product Cards
+
+Custom bulk products display a **remaining stock badge** on their product card in the POS grid — the same badge shown for regular inventory items:
+
+| Badge colour | Meaning |
+|---|---|
+| Grey | 5 or more items remaining |
+| Orange | Fewer than 5 items remaining |
+| Red | Out of stock |
+
+The badge shows the count (e.g. **3 left**) so cashiers know at a glance whether a container is nearly empty before adding items to the cart.
 
 #### Managing Existing Bulk Products
 
@@ -5277,7 +5289,11 @@ Payments in the queue are grouped by status, each with a colour-coded badge:
 - **✎ Edit** — change the amount or notes before the batch is submitted.
 - **✕ Cancel** — withdraw the payment request entirely.
 
-> **Live updates:** The queue and account balance refresh automatically when a payment is approved or marked as paid — no browser refresh needed. If an AWAITING CASHIER request is approved or rejected while you have the page open, it moves out of the queue and the transaction list updates within 10 seconds.
+> **Activity banner:** The queue polls for changes every 10 seconds when you have payments awaiting cashier approval. If a payment is approved or rejected while you have the page open, an amber banner appears at the top of the queue:
+>
+> **"Payment activity detected on this account. Refresh now"**
+>
+> Click **Refresh now** to update the transaction list and balance. The page does **not** refresh automatically — this protects any unsaved work (open forms, amounts being typed) from being wiped mid-entry.
 
 ---
 

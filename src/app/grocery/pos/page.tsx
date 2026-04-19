@@ -1920,6 +1920,17 @@ function GroceryPOSContent() {
         setShowCashTenderModal(false)
         setCashTendered('')
         setEcocashTxCode('')
+        setPaymentMethod('cash')
+
+        // Immediately decrement stockQuantity for custom bulk items in local state
+        // so badges reflect the sale before fetchProducts() reloads from the DB
+        const soldCart = cart
+        setProducts(prev => prev.map(p => {
+          if (!p.customBulkId) return p
+          const sold = soldCart.filter(c => c.customBulkId === p.customBulkId).reduce((sum, c) => sum + c.quantity, 0)
+          if (sold === 0) return p
+          return { ...p, stockQuantity: Math.max(0, (p.stockQuantity ?? 0) - sold) }
+        }))
 
         // Show receipt modal
         setShowReceiptModal(true)

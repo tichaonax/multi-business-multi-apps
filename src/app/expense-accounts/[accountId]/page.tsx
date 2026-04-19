@@ -302,6 +302,7 @@ function MyQueuePanel({
   const ecocashSubmittingRef = useRef(false)
   const dismissedIdsRef = useRef<Set<string>>(new Set())
   const mountedRef = useRef(false)
+  const [activityDetected, setActivityDetected] = useState(false)
   const [queueVoucherModal, setQueueVoucherModal] = useState<{ payment: PaymentSummary; existing: any | null } | null>(null)
   const [queueOpen, setQueueOpen] = useState(true)
   const [mealGroupOpen, setMealGroupOpen] = useState(false)
@@ -358,12 +359,12 @@ function MyQueuePanel({
     setPettyRequests(pc)
     setEodSubmissions(eod)
     if (!silent) setLoading(false)
-    // If a pending REQUEST payment was just approved/rejected (count dropped), refresh the
-    // transaction history and balance so the change is visible without a page reload.
+    // If a pending REQUEST payment was just approved/rejected (count dropped), show a
+    // banner instead of auto-refreshing — avoids wiping unsaved work the user may have open.
     if (prevPendingCount > 0 && pa.length < prevPendingCount) {
-      onActionDone()
+      setActivityDetected(true)
     }
-  }, [accountId, businessId, queueUserId, onActionDone])
+  }, [accountId, businessId, queueUserId])
 
   // Initial load (non-silent); subsequent refreshKey or fetchAll changes run silently to avoid panel flash
   useEffect(() => {
@@ -558,6 +559,18 @@ function MyQueuePanel({
 
   return (
     <>
+    {activityDetected && (
+      <div className="flex items-center justify-between gap-2 px-3 py-2 mb-1 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs">
+        <span>Payment activity detected on this account.</span>
+        <button
+          type="button"
+          onClick={() => { setActivityDetected(false); onActionDone() }}
+          className="font-semibold underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-200 whitespace-nowrap"
+        >
+          Refresh now
+        </button>
+      </div>
+    )}
     <div className="border border-border rounded-lg overflow-hidden">
       <button
         type="button"
