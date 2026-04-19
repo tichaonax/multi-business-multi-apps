@@ -5045,6 +5045,10 @@ model CustomBulkProducts {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  expenseDomainId      String?
+  expenseCategoryId    String?
+  expenseSubcategoryId String?
+
   business Businesses          @relation("CustomBulkBusiness", fields: [businessId], references: [id])
   category BusinessCategories? @relation("CustomBulkCategory", fields: [categoryId], references: [id])
   supplier BusinessSuppliers?  @relation("CustomBulkSupplier", fields: [supplierId], references: [id])

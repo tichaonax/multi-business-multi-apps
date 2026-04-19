@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
       costPrice,
       barcode,
       notes,
+      expenseDomainId,
+      expenseCategoryId,
+      expenseSubcategoryId,
     } = data
 
     // Required field validation
@@ -136,6 +139,9 @@ export async function POST(request: NextRequest) {
         sku,
         barcode: finalBarcode,
         notes: notes?.trim() || null,
+        expenseDomainId: expenseDomainId || null,
+        expenseCategoryId: expenseCategoryId || null,
+        expenseSubcategoryId: expenseSubcategoryId || null,
       },
       include: {
         category: { select: { id: true, name: true } },

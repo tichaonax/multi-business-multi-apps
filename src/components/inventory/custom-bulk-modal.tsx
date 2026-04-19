@@ -6,16 +6,30 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { BulkPrintModal, ProductData } from '@/components/clothing/bulk-print-modal'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
-interface Category {
+interface Supplier {
+  id: string
+  name: string
+}
+
+interface DomainItem {
   id: string
   name: string
   emoji?: string
 }
 
-interface Supplier {
-  id: string
-  name: string
+interface Suggestion {
+  domainId: string
+  domainName: string
+  domainEmoji: string | null
+  categoryId: string
+  categoryName: string
+  categoryEmoji: string | null
+  subcategoryId: string
+  subcategoryName: string
+  subcategoryEmoji: string | null
+  score: number
 }
 
 interface CustomBulkModalProps {
@@ -36,6 +50,9 @@ interface ExistingBulkProduct {
   barcode: string
   sku: string
   isActive: boolean
+  expenseDomainId?: string | null
+  expenseCategoryId?: string | null
+  expenseSubcategoryId?: string | null
 }
 
 function generateScanCode() {
@@ -51,7 +68,9 @@ const emptyForm = {
   itemCount: '',
   unitPrice: '',
   costPrice: '',
-  categoryId: '',
+  expenseDomainId: '',
+  expenseCategoryId: '',
+  expenseSubcategoryId: '',
   supplierId: '',
   notes: '',
 }
@@ -59,10 +78,11 @@ const emptyForm = {
 export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: CustomBulkModalProps) {
   const confirm = useConfirm()
   const { push: toast, error: toastError } = useToastContext()
+  const { businesses } = useBusinessPermissionsContext()
 
   const [tab, setTab] = useState<'register' | 'manage'>('register')
+  const [selectedBusinessId, setSelectedBusinessId] = useState(businessId)
   const [form, setForm] = useState(emptyForm)
-  const [categories, setCategories] = useState<Category[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -71,12 +91,22 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
   const [showPrintModal, setShowPrintModal] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
+  // Expense hierarchy state
+  const [domains, setDomains] = useState<DomainItem[]>([])
+  const [domainCategories, setDomainCategories] = useState<DomainItem[]>([])
+  const [domainSubcategories, setDomainSubcategories] = useState<DomainItem[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(false)
+  const [loadingSubcategories, setLoadingSubcategories] = useState(false)
+
+  // Suggest classification state
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [showSuggest, setShowSuggest] = useState(false)
+
   // Manage tab state
   const [existing, setExisting] = useState<ExistingBulkProduct[]>([])
   const [existingLoading, setExistingLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  // Manage tab search
   const [manageSearch, setManageSearch] = useState('')
 
   // Inline price edit state
@@ -84,66 +114,111 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
   const [editPriceValue, setEditPriceValue] = useState('')
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null)
 
-  // Inline new category
-  const [showNewCat, setShowNewCat] = useState(false)
-  const [newCatName, setNewCatName] = useState('')
-  const [newCatLoading, setNewCatLoading] = useState(false)
-
   // Inline new supplier
   const [showNewSupplier, setShowNewSupplier] = useState(false)
   const [creatingSupplier, setCreatingSupplier] = useState(false)
 
-  const loadExisting = () => {
-    setExistingLoading(true)
-    fetch(`/api/custom-bulk?businessId=${businessId}&includeEmpty=true`)
-      .then(r => r.json())
-      .then(d => setExisting(Array.isArray(d.data) ? d.data : []))
-      .catch(() => {})
-      .finally(() => setExistingLoading(false))
-  }
-
-  useEffect(() => {
-    // Load categories flat list
-    fetch(`/api/universal/categories?businessId=${businessId}&businessType=${businessType}`)
-      .then(r => r.json())
-      .then(d => {
-        const raw: Category[] = Array.isArray(d) ? d : (d.data ?? d.categories ?? [])
-        // Deduplicate by name (case-insensitive) — business-specific entries appear first
-        // so we keep those over global/seed duplicates with the same name
-        const seenNames = new Set<string>()
-        const list = raw.filter(c => {
-          const key = (c.name || '').toLowerCase().trim()
-          if (!key || seenNames.has(key)) return false
-          seenNames.add(key)
-          return true
-        })
-        setCategories(list.sort((a, b) => (a.name || '').localeCompare(b.name || '')))
-      })
-      .catch(() => {})
-
-    // Load suppliers
-    fetch(`/api/business/${businessId}/suppliers?isActive=true&limit=100`)
+  const loadSuppliers = (bizId: string) => {
+    fetch(`/api/business/${bizId}/suppliers?isActive=true&limit=100`)
       .then(r => r.json())
       .then(d => {
         const raw = Array.isArray(d) ? d : (d.data ?? d.suppliers ?? [])
         setSuppliers(raw.filter((s: Supplier) => s?.id && s?.name))
       })
       .catch(() => {})
-  }, [businessId, businessType])
+  }
 
+  const loadExisting = (bizId: string) => {
+    setExistingLoading(true)
+    fetch(`/api/custom-bulk?businessId=${bizId}&includeEmpty=true`)
+      .then(r => r.json())
+      .then(d => setExisting(Array.isArray(d.data) ? d.data : []))
+      .catch(() => {})
+      .finally(() => setExistingLoading(false))
+  }
+
+  // Load domains once on mount
   useEffect(() => {
-    if (tab === 'manage') loadExisting()
+    fetch('/api/expense-categories/hierarchical')
+      .then(r => r.json())
+      .then(d => {
+        const items: DomainItem[] = (d.domains?.[0]?.expense_categories ?? []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          ...(c.emoji ? { emoji: c.emoji } : {}),
+        }))
+        setDomains(items)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Load suppliers when selected business changes
+  useEffect(() => {
+    loadSuppliers(selectedBusinessId)
+  }, [selectedBusinessId])
+
+  // Load existing products when manage tab is active or business changes
+  useEffect(() => {
+    if (tab === 'manage') loadExisting(selectedBusinessId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab])
+  }, [tab, selectedBusinessId])
 
   useEffect(() => {
     nameRef.current?.focus()
   }, [])
 
+  // Load domain categories when domain changes
+  useEffect(() => {
+    if (!form.expenseDomainId) {
+      setDomainCategories([])
+      setDomainSubcategories([])
+      return
+    }
+    setLoadingCategories(true)
+    setDomainCategories([])
+    setDomainSubcategories([])
+    fetch(`/api/expense-categories/${form.expenseDomainId}/subcategories`)
+      .then(r => r.json())
+      .then(d => {
+        const items: DomainItem[] = (d.subcategories ?? []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          ...(c.emoji ? { emoji: c.emoji } : {}),
+        }))
+        setDomainCategories(items)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCategories(false))
+  }, [form.expenseDomainId])
+
+  // Load subcategories when category changes
+  useEffect(() => {
+    if (!form.expenseCategoryId) {
+      setDomainSubcategories([])
+      return
+    }
+    setLoadingSubcategories(true)
+    setDomainSubcategories([])
+    fetch(`/api/expense-categories/${form.expenseCategoryId}/subcategories`)
+      .then(r => r.json())
+      .then(d => {
+        const items: DomainItem[] = (d.subcategories ?? []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          ...(c.emoji ? { emoji: c.emoji } : {}),
+        }))
+        setDomainSubcategories(items)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSubcategories(false))
+  }, [form.expenseCategoryId])
+
   const set = (field: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }))
 
-  // Calculate cost per item (guidance only — does NOT auto-fill selling price)
+  const setField = (field: keyof typeof emptyForm, value: string) =>
+    setForm(f => ({ ...f, [field]: value }))
+
   const costPerItem = (() => {
     const count = Number(form.itemCount)
     const cost  = Number(form.costPrice)
@@ -151,40 +226,54 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
     return null
   })()
 
+  const handleBusinessChange = (bizId: string) => {
+    setSelectedBusinessId(bizId)
+    setForm(f => ({ ...f, supplierId: '' }))
+  }
+
+  const handleDomainChange = (domainId: string) => {
+    setForm(f => ({ ...f, expenseDomainId: domainId, expenseCategoryId: '', expenseSubcategoryId: '' }))
+  }
+
+  const handleCategoryChange = (catId: string) => {
+    setForm(f => ({ ...f, expenseCategoryId: catId, expenseSubcategoryId: '' }))
+  }
+
   const handleGenerateBarcode = () => {
     setForm(f => ({ ...f, barcode: generateScanCode() }))
   }
 
-  const handleCreateCategory = async () => {
-    if (!newCatName.trim()) return
-    setNewCatLoading(true)
+  const handleSuggest = async () => {
+    if (form.name.trim().length < 2) return
+    setSuggestLoading(true)
+    setShowSuggest(true)
+    setSuggestions([])
     try {
-      const res = await fetch('/api/universal/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, businessType, name: newCatName.trim() }),
-      })
+      const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(form.name.trim())}`)
       const d = await res.json()
-      if (d.success && d.data?.id) {
-        const newCat: Category = { id: d.data.id, name: d.data.name, emoji: d.data.emoji }
-        setCategories(prev => [...prev, newCat].sort((a, b) => a.name.localeCompare(b.name)))
-        setForm(f => ({ ...f, categoryId: d.data.id }))
-        setShowNewCat(false)
-        setNewCatName('')
-      } else {
-        toastError(d.error || 'Failed to create category')
-      }
+      setSuggestions(d.suggestions ?? [])
     } catch {
-      toastError('Failed to create category')
+      setSuggestions([])
     } finally {
-      setNewCatLoading(false)
+      setSuggestLoading(false)
     }
+  }
+
+  const applySuggestion = (s: Suggestion) => {
+    setForm(f => ({
+      ...f,
+      expenseDomainId: s.domainId,
+      expenseCategoryId: s.categoryId,
+      expenseSubcategoryId: s.subcategoryId,
+    }))
+    setShowSuggest(false)
+    setSuggestions([])
   }
 
   const handleNewSupplierSubmit = async (data: any) => {
     setCreatingSupplier(true)
     try {
-      const res = await fetch(`/api/business/${businessId}/suppliers`, {
+      const res = await fetch(`/api/business/${selectedBusinessId}/suppliers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -193,7 +282,7 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
       if (res.ok && (json.id || json.supplier?.id)) {
         const newSup: Supplier = { id: json.id || json.supplier?.id, name: data.name }
         setSuppliers(prev => [...prev, newSup])
-        setForm(f => ({ ...f, supplierId: newSup.id }))
+        setField('supplierId', newSup.id)
         setShowNewSupplier(false)
         toast('Supplier added', { type: 'success' })
       } else {
@@ -219,16 +308,18 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessId,
+          businessId: selectedBusinessId,
           name: form.name.trim(),
           barcode: form.barcode.trim() || undefined,
           batchNumber: form.batchNumber.trim() || undefined,
           itemCount: Number(form.itemCount),
           unitPrice: Number(form.unitPrice),
           costPrice: form.costPrice !== '' ? Number(form.costPrice) : undefined,
-          categoryId: form.categoryId || undefined,
           supplierId: form.supplierId || undefined,
           notes: form.notes.trim() || undefined,
+          expenseDomainId: form.expenseDomainId || undefined,
+          expenseCategoryId: form.expenseCategoryId || undefined,
+          expenseSubcategoryId: form.expenseSubcategoryId || undefined,
         }),
       })
       const data = await res.json()
@@ -348,9 +439,15 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
     }
   }
 
+  // Businesses dropdown options (exclude umbrella)
+  const businessOptions = businesses
+    .filter(b => !b.isUmbrellaBusiness)
+    .map(b => ({ id: b.businessId, name: b.businessName }))
+
   // ── Success screen ────────────────────────────────────────────────────────
   if (savedBatch) {
     return (
+      <>
       <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6 text-center">
           <div className="text-4xl mb-3">📦</div>
@@ -377,6 +474,18 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
           </div>
         </div>
       </div>
+      {printTarget && (
+        <div className="relative z-[80]">
+          <BulkPrintModal
+            isOpen={showPrintModal}
+            onClose={() => setShowPrintModal(false)}
+            businessId={selectedBusinessId}
+            productData={printTarget}
+            compact
+          />
+        </div>
+      )}
+      </>
     )
   }
 
@@ -400,6 +509,21 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
             </button>
           ))}
         </div>
+
+        {/* Business dropdown — both tabs */}
+        {businessOptions.length > 1 && (
+          <div className="px-5 pt-3 pb-0 shrink-0">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Business</label>
+            <select
+              value={selectedBusinessId}
+              onChange={e => handleBusinessChange(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400">
+              {businessOptions.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Manage tab */}
         {tab === 'manage' && (
@@ -433,12 +557,18 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                   if (!manageSearch.trim()) return true
                   const q = manageSearch.toLowerCase()
                   return p.name.toLowerCase().includes(q) || p.batchNumber.toLowerCase().includes(q)
-                }).map(p => (
+                }).map(p => {
+                  // Build classification label if available
+                  const domainName = p.expenseDomainId ? domains.find(d => d.id === p.expenseDomainId)?.name : null
+                  return (
                   <div key={p.id} className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{p.batchNumber} · {p.remainingCount}/{p.itemCount} remaining · <span className="font-medium text-gray-700 dark:text-gray-300">${Number(p.unitPrice).toFixed(2)}/item</span></p>
+                        {domainName && (
+                          <p className="text-xs text-indigo-500 dark:text-indigo-400 mt-0.5">{domainName}</p>
+                        )}
                       </div>
                       <button
                         onClick={() => {
@@ -476,7 +606,6 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                     {/* Inline price edit row */}
                     {editPriceId === p.id && (
                       <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">
-                        {/* Cost guidance */}
                         {p.costPrice != null && Number(p.costPrice) > 0 && (
                           <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                             <span>Container cost: <span className="font-medium text-gray-700 dark:text-gray-300">${Number(p.costPrice).toFixed(2)}</span></span>
@@ -511,7 +640,8 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                       </div>
                     )}
                   </div>
-                ))}
+                  )
+                })}
                 {manageSearch.trim() && existing.filter(p => {
                   const q = manageSearch.toLowerCase()
                   return p.name.toLowerCase().includes(q) || p.batchNumber.toLowerCase().includes(q)
@@ -526,16 +656,62 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
         {/* Register tab body */}
         {tab === 'register' && <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
 
-          {/* Name */}
+          {/* Name + Suggest button */}
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Product Name <span className="text-red-500">*</span></label>
-            <input
-              ref={nameRef}
-              value={form.name}
-              onChange={set('name')}
-              placeholder="e.g. Box of Mars Bars, Crate of Apples"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
+            <div className="flex gap-2">
+              <input
+                ref={nameRef}
+                value={form.name}
+                onChange={set('name')}
+                placeholder="e.g. Box of Mars Bars, Crate of Apples"
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <button
+                type="button"
+                onClick={handleSuggest}
+                disabled={form.name.trim().length < 2 || suggestLoading}
+                title="Suggest expense classification based on product name"
+                className="px-3 py-2 text-xs border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-40 whitespace-nowrap">
+                {suggestLoading ? '…' : '✨ Suggest'}
+              </button>
+            </div>
+
+            {/* Suggestion list */}
+            {showSuggest && (
+              <div className="mt-1 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 border-b border-indigo-100 dark:border-indigo-800">
+                  <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Classification suggestions</span>
+                  <button onClick={() => { setShowSuggest(false); setSuggestions([]) }}
+                    className="text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-200 text-sm leading-none">&times;</button>
+                </div>
+                {suggestLoading ? (
+                  <div className="px-3 py-3 text-xs text-gray-400">Searching…</div>
+                ) : suggestions.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-gray-400">No suggestions found for &ldquo;{form.name}&rdquo;</div>
+                ) : (
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-40 overflow-y-auto">
+                    {suggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => applySuggestion(s)}
+                        className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                        <div className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                          {s.domainEmoji && <span className="mr-1">{s.domainEmoji}</span>}
+                          {s.domainName}
+                          <span className="text-gray-400 dark:text-gray-500 mx-1">›</span>
+                          {s.categoryEmoji && <span className="mr-1">{s.categoryEmoji}</span>}
+                          {s.categoryName}
+                          <span className="text-gray-400 dark:text-gray-500 mx-1">›</span>
+                          {s.subcategoryEmoji && <span className="mr-1">{s.subcategoryEmoji}</span>}
+                          {s.subcategoryName}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Barcode */}
@@ -601,21 +777,58 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
             </div>
           </div>
 
-          {/* Category */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Category</label>
-              <button type="button" onClick={() => { setNewCatName(''); setShowNewCat(true) }}
-                className="text-xs text-orange-600 dark:text-orange-400 hover:underline">+ New category</button>
-            </div>
+          {/* Expense classification — Domain → Category → Subcategory */}
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">Expense Classification</label>
+
+            {/* Domain */}
             <SearchableSelect
-              options={categories}
-              value={form.categoryId}
-              onChange={v => setForm(f => ({ ...f, categoryId: v }))}
-              placeholder="Select category"
-              allLabel="No category"
-              emptyMessage="No categories found"
+              options={domains}
+              value={form.expenseDomainId}
+              onChange={handleDomainChange}
+              placeholder="Select domain…"
+              allLabel="No domain"
+              emptyMessage="No domains found"
             />
+
+            {/* Category — only shown when domain selected */}
+            {form.expenseDomainId && (
+              loadingCategories ? (
+                <div className="text-xs text-gray-400 px-1">Loading categories…</div>
+              ) : domainCategories.length > 0 ? (
+                <SearchableSelect
+                  options={domainCategories}
+                  value={form.expenseCategoryId}
+                  onChange={handleCategoryChange}
+                  placeholder="Select category…"
+                  allLabel="No category"
+                  emptyMessage="No categories found"
+                />
+              ) : null
+            )}
+
+            {/* Subcategory — only shown when category selected */}
+            {form.expenseCategoryId && (
+              loadingSubcategories ? (
+                <div className="text-xs text-gray-400 px-1">Loading subcategories…</div>
+              ) : domainSubcategories.length > 0 ? (
+                <SearchableSelect
+                  options={domainSubcategories}
+                  value={form.expenseSubcategoryId}
+                  onChange={v => setField('expenseSubcategoryId', v)}
+                  placeholder="Select subcategory…"
+                  allLabel="No subcategory"
+                  emptyMessage="No subcategories found"
+                />
+              ) : null
+            )}
+
+            {/* Show applied classification when all set via suggest */}
+            {form.expenseDomainId && form.expenseCategoryId && form.expenseSubcategoryId && (
+              <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                ✓ Classification set
+              </p>
+            )}
           </div>
 
           {/* Supplier */}
@@ -628,7 +841,7 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
             <SearchableSelect
               options={suppliers}
               value={form.supplierId}
-              onChange={v => setForm(f => ({ ...f, supplierId: v }))}
+              onChange={v => setField('supplierId', v)}
               placeholder="Select supplier"
               allLabel="No supplier"
               emptyMessage="No suppliers found"
@@ -682,40 +895,11 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
       </div>
     </div>
 
-    {/* Inline modals rendered outside main modal so z-index stacks correctly */}
-    {/* New category mini-modal */}
-    {showNewCat && (
-      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">New Category</h3>
-          <input
-            autoFocus
-            type="text"
-            value={newCatName}
-            onChange={e => setNewCatName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleCreateCategory() }}
-            placeholder="Category name"
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400 mb-4"
-          />
-          <div className="flex gap-3">
-            <button onClick={() => setShowNewCat(false)}
-              className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-              Cancel
-            </button>
-            <button onClick={handleCreateCategory} disabled={newCatLoading || !newCatName.trim()}
-              className="flex-1 px-4 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-medium">
-              {newCatLoading ? 'Creating…' : 'Create'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
     {/* New supplier modal */}
     {showNewSupplier && (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
         <UniversalSupplierForm
-          businessId={businessId}
+          businessId={selectedBusinessId}
           businessType={businessType as any}
           onSubmit={handleNewSupplierSubmit}
           onCancel={() => setShowNewSupplier(false)}
@@ -724,13 +908,13 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
       </div>
     )}
 
-    {/* Barcode print modal — wrapped in z-[80] so it renders above the main modal (z-[70]) */}
+    {/* Barcode print modal */}
     {printTarget && (
       <div className="relative z-[80]">
         <BulkPrintModal
           isOpen={showPrintModal}
           onClose={() => setShowPrintModal(false)}
-          businessId={businessId}
+          businessId={selectedBusinessId}
           productData={printTarget}
           compact
         />

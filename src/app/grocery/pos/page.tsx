@@ -1829,7 +1829,10 @@ function GroceryPOSContent() {
         items: cart.map(item => {
           const isInventoryItem = item.id.startsWith('inv_')
           const isBale = !!item.baleId
-          const isCustomBulk = !!item.customBulkId
+          // Detect custom bulk by flag OR by cbulk_-prefixed id (fallback for stale cart items)
+          const isCustomBulkById = item.id.startsWith('cbulk_')
+          const isCustomBulk = !!item.customBulkId || isCustomBulkById
+          const resolvedBulkId = item.customBulkId || (isCustomBulkById ? item.id.replace('cbulk_', '') : undefined)
           return {
             productVariantId: (item.wifiToken || item.r710Token || isInventoryItem || isBale || isCustomBulk) ? null : item.id,
             quantity: item.quantity,
@@ -1859,7 +1862,7 @@ function GroceryPOSContent() {
               baleId: item.baleId || undefined,
               isBale: isBale || undefined,
               // Custom bulk product — triggers customBulkProducts.remainingCount decrement in orders API
-              customBulkId: item.customBulkId || undefined,
+              customBulkId: resolvedBulkId || undefined,
               isCustomBulk: isCustomBulk || undefined,
             }
           }
