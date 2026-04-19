@@ -58,7 +58,8 @@ interface POSItem {
   organicCertified?: boolean
   loyaltyPoints?: number
   imageUrl?: string  // Product image for customer display
-  baleId?: string   // set for bale items transferred from clothing
+  baleId?: string       // set for bale items transferred from clothing
+  customBulkId?: string // set for custom bulk product items
   stockQuantity?: number  // from desk-products API
   categoryEmoji?: string  // from desk-products API
   categoryColor?: string  // hex color from business_category.color
@@ -1646,7 +1647,31 @@ function GroceryPOSContent() {
           })
         }
       } else {
-        void customAlert({ title: 'Not found', description: 'Product not found' })
+        // Try custom bulk product lookup
+        try {
+          const bulkRes = await fetch(`/api/custom-bulk?businessId=${currentBusinessId}&barcode=${encodeURIComponent(barcodeInput.trim())}`)
+          const bulkData = await bulkRes.json()
+          const bulk = bulkData.data?.[0]
+          if (bulk && bulk.remainingCount > 0) {
+            addToCart({
+              id: `cbulk_${bulk.id}`,
+              name: bulk.name,
+              category: bulk.category?.name || 'Bulk',
+              unitType: 'each',
+              price: Number(bulk.unitPrice),
+              unit: 'each',
+              taxable: false,
+              weightRequired: false,
+              customBulkId: bulk.id,
+            })
+          } else if (bulk && bulk.remainingCount <= 0) {
+            void customAlert({ title: 'Out of stock', description: `${bulk.name} has no remaining items.` })
+          } else {
+            void customAlert({ title: 'Not found', description: 'Product not found' })
+          }
+        } catch {
+          void customAlert({ title: 'Not found', description: 'Product not found' })
+        }
       }
     } catch {
       void customAlert({ title: 'Not found', description: 'Product not found' })
@@ -1777,8 +1802,9 @@ function GroceryPOSContent() {
         items: cart.map(item => {
           const isInventoryItem = item.id.startsWith('inv_')
           const isBale = !!item.baleId
+          const isCustomBulk = !!item.customBulkId
           return {
-            productVariantId: (item.wifiToken || item.r710Token || isInventoryItem || isBale) ? null : item.id,
+            productVariantId: (item.wifiToken || item.r710Token || isInventoryItem || isBale || isCustomBulk) ? null : item.id,
             quantity: item.quantity,
             unitPrice: item.price,
             discountAmount: item.discountAmount || 0,
@@ -1805,6 +1831,9 @@ function GroceryPOSContent() {
               // Bale item — triggers ClothingBales.remainingCount decrement in orders API
               baleId: item.baleId || undefined,
               isBale: isBale || undefined,
+              // Custom bulk product — triggers customBulkProducts.remainingCount decrement in orders API
+              customBulkId: item.customBulkId || undefined,
+              isCustomBulk: isCustomBulk || undefined,
             }
           }
         })
@@ -2577,7 +2606,7 @@ function GroceryPOSContent() {
                                 const primaryBarcode = product.barcodes?.find((b: any) => b.isPrimary)?.code
 
                                 const posItem: POSItem = {
-                                  id: variantId || product.id,
+                                  id: product.isCustomBulk ? `cbulk_${product.customBulkId || product.id}` : (variantId || product.id),
                                   name: product.name,
                                   barcode: primaryBarcode, // Use primary barcode, not SKU
                                   category: product.businessType || 'General',
@@ -2585,7 +2614,8 @@ function GroceryPOSContent() {
                                   price,
                                   unit: 'each',
                                   taxable: false,
-                                  weightRequired: false
+                                  weightRequired: false,
+                                  customBulkId: product.customBulkId || undefined,
                                 }
                                 addToCart(posItem)
                               }}

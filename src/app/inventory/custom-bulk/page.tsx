@@ -26,7 +26,6 @@ interface BulkProduct {
 interface EditState {
   name: string
   unitPrice: string
-  costPrice: string
   notes: string
 }
 
@@ -42,10 +41,11 @@ export default function CustomBulkInventoryPage() {
   const [loading, setLoading] = useState(false)
   const [showEmpty, setShowEmpty] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editState, setEditState] = useState<EditState>({ name: '', unitPrice: '', costPrice: '', notes: '' })
+  const [editState, setEditState] = useState<EditState>({ name: '', unitPrice: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [printTarget, setPrintTarget] = useState<ProductData | null>(null)
+  const [search, setSearch] = useState('')
 
   const load = useCallback(async () => {
     if (!businessId) return
@@ -60,9 +60,13 @@ export default function CustomBulkInventoryPage() {
 
   useEffect(() => { load() }, [load])
 
-  const displayed = showEmpty
-    ? products
-    : products.filter(p => p.remainingCount > 0)
+  const displayed = products
+    .filter(p => showEmpty || p.remainingCount > 0)
+    .filter(p => {
+      if (!search.trim()) return true
+      const q = search.toLowerCase()
+      return p.name.toLowerCase().includes(q) || p.batchNumber.toLowerCase().includes(q) || p.barcode.toLowerCase().includes(q)
+    })
 
   const restockCandidates = products.filter(
     p => p.isActive && (p.remainingCount <= 0 || p.remainingCount < LOW_STOCK_THRESHOLD)
@@ -74,7 +78,6 @@ export default function CustomBulkInventoryPage() {
     setEditState({
       name: p.name,
       unitPrice: String(p.unitPrice),
-      costPrice: p.costPrice ?? '',
       notes: p.notes ?? '',
     })
   }
@@ -82,8 +85,32 @@ export default function CustomBulkInventoryPage() {
   const cancelEdit = () => { setEditingId(null); setSaveError('') }
 
   const saveEdit = async (id: string) => {
-    setSaving(true)
     setSaveError('')
+    const product = products.find(p => p.id === id)
+    if (product && product.costPrice && Number(product.costPrice) > 0) {
+      const costPerItem = Number(product.costPrice) / product.itemCount
+      const sellingPrice = Number(editState.unitPrice)
+      if (sellingPrice < costPerItem) {
+        const ok = await confirm({
+          title: '⚠️ Selling Below Cost',
+          description: (
+            <div className="space-y-2">
+              <p>You are setting a selling price that is <strong>below the cost per item</strong>:</p>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-sm space-y-1">
+                <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Cost per item:</span><span className="font-semibold text-red-600 dark:text-red-400">${costPerItem.toFixed(4).replace(/\.?0+$/, '')}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">New selling price:</span><span className="font-semibold text-red-600 dark:text-red-400">${sellingPrice.toFixed(2)}</span></div>
+                <div className="flex justify-between border-t border-red-200 dark:border-red-800 pt-1"><span className="text-gray-600 dark:text-gray-400">Loss per item:</span><span className="font-bold text-red-700 dark:text-red-300">-${(costPerItem - sellingPrice).toFixed(2)}</span></div>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400">Do you want to continue and sell at a loss?</p>
+            </div>
+          ),
+          confirmText: 'Yes, sell at a loss',
+          cancelText: 'Go back',
+        })
+        if (!ok) return
+      }
+    }
+    setSaving(true)
     try {
       const res = await fetch(`/api/custom-bulk/${id}`, {
         method: 'PUT',
@@ -91,7 +118,6 @@ export default function CustomBulkInventoryPage() {
         body: JSON.stringify({
           name: editState.name,
           unitPrice: editState.unitPrice,
-          costPrice: editState.costPrice || null,
           notes: editState.notes || null,
         }),
       })
@@ -133,15 +159,33 @@ export default function CustomBulkInventoryPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{businessName}</p>
             )}
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showEmpty}
-              onChange={e => setShowEmpty(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            Show sold-out items
-          </label>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name, batch or barcode…"
+                className="pl-3 pr-7 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400 w-64"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-base leading-none">
+                  &times;
+                </button>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showEmpty}
+                onChange={e => setShowEmpty(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              Show sold-out items
+            </label>
+          </div>
         </div>
 
         {/* Restock Candidates */}
@@ -181,8 +225,17 @@ export default function CustomBulkInventoryPage() {
         ) : displayed.length === 0 ? (
           <div className="text-center py-16 text-gray-400 dark:text-gray-500">
             <p className="text-4xl mb-3">📦</p>
-            <p className="text-sm">No custom bulk products found.</p>
-            <p className="text-xs mt-1">Use the <strong>📦 Bulk Product</strong> button in the Bulk Stocking panel to register one.</p>
+            {search.trim() ? (
+              <>
+                <p className="text-sm">No products match &ldquo;{search}&rdquo;</p>
+                <button onClick={() => setSearch('')} className="text-xs text-orange-500 hover:underline mt-1">Clear search</button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm">No custom bulk products found.</p>
+                <p className="text-xs mt-1">Use the <strong>📦 Bulk Product</strong> button in the Bulk Stocking panel to register one.</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -194,7 +247,7 @@ export default function CustomBulkInventoryPage() {
                     <th className="px-4 py-3 text-left font-medium">Batch / Barcode</th>
                     <th className="px-4 py-3 text-left font-medium">Category</th>
                     <th className="px-4 py-3 text-right font-medium">Items Left</th>
-                    <th className="px-4 py-3 text-right font-medium">Unit Price</th>
+                    <th className="px-4 py-3 text-right font-medium">Selling Price</th>
                     <th className="px-4 py-3 text-right font-medium">Container Cost</th>
                     <th className="px-4 py-3 text-left font-medium">Added</th>
                     <th className="px-4 py-3 text-center font-medium">Actions</th>
@@ -249,6 +302,7 @@ export default function CustomBulkInventoryPage() {
                             step="0.01"
                             value={editState.unitPrice}
                             onChange={e => setEditState(s => ({ ...s, unitPrice: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter') saveEdit(p.id); if (e.key === 'Escape') cancelEdit() }}
                             className="w-24 px-2 py-1 text-sm text-right border border-indigo-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         ) : (
@@ -257,14 +311,16 @@ export default function CustomBulkInventoryPage() {
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400">
                         {editingId === p.id ? (
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={editState.costPrice}
-                            onChange={e => setEditState(s => ({ ...s, costPrice: e.target.value }))}
-                            className="w-24 px-2 py-1 text-sm text-right border border-indigo-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {p.costPrice ? formatPrice(p.costPrice) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                            </p>
+                            {p.costPrice && Number(p.costPrice) > 0 && p.itemCount > 0 && (
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                ${(Number(p.costPrice) / p.itemCount).toFixed(4).replace(/\.?0+$/, '')}/item
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           p.costPrice ? formatPrice(p.costPrice) : <span className="text-gray-300 dark:text-gray-600">—</span>
                         )}

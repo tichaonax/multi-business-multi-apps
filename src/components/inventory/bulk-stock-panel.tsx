@@ -1490,7 +1490,10 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       {showDraftSelector && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Your Saved Drafts</h3>
+            <div className="flex items-start justify-between mb-1">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Your Saved Drafts</h3>
+              <button onClick={() => setShowDraftSelector(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none ml-2">&times;</button>
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Select a draft to continue, or start a new one.</p>
 
             {/* Existing drafts list */}
