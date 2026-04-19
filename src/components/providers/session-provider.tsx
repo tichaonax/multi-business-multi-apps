@@ -5,7 +5,14 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 
 // Public paths that do NOT require authentication
-const PUBLIC_PATHS = ['/auth/signin', '/auth/register', '/auth/error', '/auth/redirect']
+const PUBLIC_PATHS = [
+  '/',                  // Landing/homepage — unauthenticated users see the sign-in prompt here
+  '/auth/signin',
+  '/auth/register',
+  '/auth/error',
+  '/auth/redirect',
+  '/customer-display',  // Electron customer-facing display — no login required
+]
 
 function SessionWatcher() {
   const { status } = useSession()
@@ -14,9 +21,10 @@ function SessionWatcher() {
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p))
+      const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
       if (!isPublic) {
-        router.replace(`/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`)
+        // Always send unauthenticated users to the landing page, not directly to sign-in
+        router.replace('/')
       }
     }
   }, [status, pathname, router])

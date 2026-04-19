@@ -1477,14 +1477,8 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
   const handleSignOut = () => {
     const currentOrigin = window.location.origin
     signOut({
-      callbackUrl: currentOrigin,
+      callbackUrl: currentOrigin,  // redirects to homepage (/) after sign out
       redirect: true
-    }).then(() => {
-      setTimeout(() => {
-        if (!window.location.pathname.startsWith('/auth')) {
-          window.location.href = `${currentOrigin}/auth/signin`
-        }
-      }, 100)
     })
     closeUserMenu()
   }
