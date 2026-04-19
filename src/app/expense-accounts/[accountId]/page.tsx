@@ -1091,7 +1091,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
   }, [permissionsLoading, canAccessExpenseAccount, router])
 
   useEffect(() => {
-    if (session?.user && accountId) {
+    if (session?.user?.id && accountId) {
       loadAccount()
       fetchCounts()
       // Fetch all accessible accounts for the switcher
@@ -1111,7 +1111,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
         })
         .catch(() => {})
     }
-  }, [session, accountId])
+  }, [session?.user?.id, accountId])
 
   useEffect(() => {
     if (!session?.user) return
@@ -1128,19 +1128,20 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
         }
       })
       .catch(() => {})
-  }, [session, account?.businessId])
+  }, [session?.user?.id, account?.businessId])
 
   // Re-check rent payment status when the user returns to this tab (e.g. after cancelling from another page)
+  // Uses silent mode so the page never blanks out mid-form-entry
   useEffect(() => {
     if (!accountId) return
     const handleVisibility = () => {
       if (!document.hidden && session?.user) {
-        loadAccount()
+        loadAccount(true)
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [accountId, session])
+  }, [accountId, session?.user?.id])
 
   // Close switcher dropdown on outside click
   useEffect(() => {
@@ -1154,9 +1155,9 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
     return () => document.removeEventListener('mousedown', handler)
   }, [switcherOpen])
 
-  const loadAccount = async () => {
+  const loadAccount = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const response = await fetch(`/api/expense-account/${accountId}`, {
         credentials: 'include',
       })
@@ -1183,9 +1184,9 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
       }
     } catch (error) {
       console.error('Error loading account:', error)
-      router.push('/expense-accounts')
+      if (!silent) router.push('/expense-accounts')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
