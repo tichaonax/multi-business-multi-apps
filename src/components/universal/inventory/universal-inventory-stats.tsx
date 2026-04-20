@@ -149,7 +149,13 @@ export function UniversalInventoryStats({
 
     // Basic overview calculations
     const totalItems = items.length
-    const totalValue = report.totalInventoryValue || items.reduce((sum: number, item: any) => sum + (item.costPrice * item.currentStock), 0)
+    // Compute totalValue from items directly — reports API only queries BusinessProducts
+    // and misses BarcodeInventoryItems used by grocery/clothing stores.
+    // Use costPrice when set, fall back to sellingPrice so stock with no cost entry still contributes.
+    const totalValue = items.reduce((sum: number, item: any) => {
+      const price = (item.costPrice ?? 0) > 0 ? (item.costPrice ?? 0) : (item.sellPrice ?? 0)
+      return sum + price * (item.currentStock ?? 0)
+    }, 0)
     const totalCategories = new Set(items.map((item: any) => item.category)).size
 
     // Low/Out of Stock: computed from items directly so BarcodeInventoryItems are included.
