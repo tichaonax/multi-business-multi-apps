@@ -147,15 +147,31 @@ export default function GroceryStorePage() {
     if (!effectiveBusinessId) return
     async function loadData() {
       try {
-        // Inventory value report for metrics
-        const reportRes = await fetch(`/api/inventory/${effectiveBusinessId}/reports?reportType=inventory_value`)
-        if (reportRes.ok) {
-          const json = await reportRes.json()
-          const data = json.report?.data || {}
+        // Compute inventory value directly from items (includes BarcodeInventoryItems for grocery)
+        const itemsRes = await fetch(`/api/inventory/${effectiveBusinessId}/items?limit=2000&isActive=true`)
+        if (itemsRes.ok) {
+          const itemsJson = await itemsRes.json()
+          const items: any[] = itemsJson.data || itemsJson.items || []
+
+          let totalInventoryValue = 0
+          const categoryTotals: Record<string, number> = {}
+
+          for (const item of items) {
+            const price = (item.costPrice ?? 0) > 0 ? (item.costPrice ?? 0) : (item.sellPrice ?? 0)
+            const stock = item.currentStock ?? 0
+            const value = price * stock
+            totalInventoryValue += value
+            const cat = item.category || 'Uncategorized'
+            categoryTotals[cat] = (categoryTotals[cat] || 0) + value
+          }
+
+          const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0]
+          const topCatPct = totalInventoryValue > 0 && topCategory ? Math.round((topCategory[1] / totalInventoryValue) * 100) : 0
+
           const computed = [
-            { title: 'Total Inventory Value', value: data.totalInventoryValue ? `$${data.totalInventoryValue.toLocaleString()}` : '—', change: `${data.trends?.weekOverWeek || 0}%`, icon: '💰', description: 'inventory value' },
-            { title: 'Total Items', value: data.totalItems ? `${data.totalItems}` : '—', change: '', icon: '📦', description: 'distinct items' },
-            { title: 'Top Category', value: data.categories?.[0]?.category || '—', change: `${data.categories?.[0]?.percentage || 0}%`, icon: '🥕', description: 'top value category' }
+            { title: 'Total Inventory Value', value: totalInventoryValue > 0 ? `$${totalInventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', change: '', icon: '💰', description: 'inventory value' },
+            { title: 'Total Items', value: items.length > 0 ? `${items.length}` : '—', change: '', icon: '📦', description: 'distinct items' },
+            { title: 'Top Category', value: topCategory?.[0] || '—', change: `${topCatPct}%`, icon: '🥕', description: 'top value category' }
           ]
           setMetrics(computed)
         }
