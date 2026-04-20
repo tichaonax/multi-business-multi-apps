@@ -85,6 +85,51 @@ interface DataBackupProps {
   canRestore?: boolean;
 }
 
+function RestoreProgressLog({
+  entries,
+  currentModel,
+  isComplete,
+}: {
+  entries: [string, { processed?: number; total?: number }][];
+  currentModel?: string;
+  isComplete: boolean;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [entries.length]);
+
+  return (
+    <div
+      ref={scrollRef}
+      className="max-h-48 overflow-y-auto rounded border border-green-200 dark:border-green-800 bg-green-100 dark:bg-green-900 font-mono text-xs"
+    >
+      {entries.map(([model, stats]) => {
+        const p = stats.processed ?? 0;
+        const t = stats.total ?? 0;
+        const done = t > 0 && p >= t;
+        const isActive = !isComplete && model === currentModel;
+        return (
+          <div
+            key={model}
+            className={`flex items-center justify-between px-3 py-0.5 border-b border-green-200 dark:border-green-800 last:border-0 ${
+              isActive ? 'bg-blue-100 dark:bg-blue-900 border-blue-200 dark:border-blue-700' : ''
+            }`}
+          >
+            <span className={`truncate mr-2 ${isActive ? 'text-blue-900 dark:text-blue-100 font-semibold' : 'text-green-900 dark:text-green-100'}`}>{model}</span>
+            <span className={`shrink-0 ${isActive ? 'text-blue-700 dark:text-blue-300' : done ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
+              {isActive && !done ? '↻ ' : done ? '✓ ' : ''}{p}{t > 0 ? ` / ${t}` : ''}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DataBackup({ canRestore = true }: DataBackupProps) {
   const [loading, setLoading] = useState(false);
   const [backupOptions, setBackupOptions] = useState<BackupOptions>({
@@ -1158,133 +1203,64 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
         )}
 
         {/* Restore Results */}
-        { (restoreResult || restoreProgress) && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-950 dark:border-green-800">
-            <div className="flex items-center gap-2 mb-4">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <h4 className="font-medium text-green-900 dark:text-green-100">
-                {restoreResult ? 'Restore Completed' : 'Restore In Progress'}
-              </h4>
-            </div>
+        { (restoreResult || restoreProgress) && (() => {
+          const isInProgress = restoreProgress && !restoreResult;
+          const counts = restoreProgress?.counts ?? {};
+          const modelEntries = Object.entries(counts) as [string, { processed?: number; total?: number }][];
+          const processed = restoreProgress?.processed ?? 0;
+          const skipped = restoreProgress?.skipped ?? 0;
+          const total = restoreProgress?.total ?? 0;
+          const percent = total > 0 ? Math.min(100, Math.round(((processed + skipped) / total) * 100)) : 0;
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
-              <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Users:</span>{' '}
-                <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreProgress?.modelCounts?.users?.successful ?? 0}
-                  {restoreProgress?.modelCounts?.users?.skipped ? ` (${restoreProgress.modelCounts.users.skipped} skipped)` : ''}
-                </span>
-              </div>
-              <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Businesses:</span>{' '}
-                <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreProgress?.modelCounts?.businesses?.successful ?? 0}
-                  {restoreProgress?.modelCounts?.businesses?.skipped ? ` (${restoreProgress.modelCounts.businesses.skipped} skipped)` : ''}
-                </span>
-              </div>
-              <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Employees:</span>{' '}
-                <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreProgress?.modelCounts?.employees?.successful ?? 0}
-                  {restoreProgress?.modelCounts?.employees?.skipped ? ` (${restoreProgress.modelCounts.employees.skipped} skipped)` : ''}
-                </span>
-              </div>
-              <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Products:</span>{' '}
-                <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreProgress?.modelCounts?.businessProducts?.successful ?? 0}
-                  {restoreProgress?.modelCounts?.businessProducts?.skipped ? ` (${restoreProgress.modelCounts.businessProducts.skipped} skipped)` : ''}
-                </span>
-              </div>
-              <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Customers:</span>{' '}
-                <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreProgress?.modelCounts?.businessCustomers?.successful ?? 0}
-                  {restoreProgress?.modelCounts?.businessCustomers?.skipped ? ` (${restoreProgress.modelCounts.businessCustomers.skipped} skipped)` : ''}
-                </span>
-              </div>
-              <div className="text-green-800 dark:text-green-200">
-                <span className="font-medium">Orders:</span>{' '}
-                <span className="font-bold text-green-900 dark:text-green-100">
-                  {restoreProgress?.modelCounts?.businessOrders?.successful ?? 0}
-                  {restoreProgress?.modelCounts?.businessOrders?.skipped ? ` (${restoreProgress.modelCounts.businessOrders.skipped} skipped)` : ''}
-                </span>
-              </div>
-              {restoreProgress?.modelCounts?.images && (
-                <div className="text-green-800 dark:text-green-200">
-                  <span className="font-medium">Employee Photos:</span>{' '}
-                  <span className="font-bold text-green-900 dark:text-green-100">
-                    {restoreProgress.modelCounts.images.successful ?? 0}
-                    {restoreProgress.modelCounts.images.skipped ? ` (${restoreProgress.modelCounts.images.skipped} skipped)` : ''}
+          return (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-950 dark:border-green-800">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <h4 className="font-medium text-green-900 dark:text-green-100">
+                    {restoreResult ? 'Restore Completed' : 'Restore In Progress'}
+                  </h4>
+                </div>
+                {isInProgress && total > 0 && (
+                  <span className="text-xs font-medium text-green-700 dark:text-green-300">
+                    {processed.toLocaleString()} / {total.toLocaleString()} records ({percent}%)
                   </span>
-                </div>
-              )}
-            </div>
-
-            {/* If progress exists, show overall processed/total and model */}
-            {restoreProgress && !restoreResult && (
-              <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">
-                <div>
-                  <span className="font-medium">Processed:</span> {restoreProgress.processed ?? 0} / {restoreProgress.total ?? '...'} records
-                  {restoreProgress.skipped > 0 && (
-                    <span className="ml-2 text-amber-600 dark:text-amber-400">
-                      ({restoreProgress.skipped} skipped)
-                    </span>
-                  )}
-                </div>
-                {restoreProgress.skippedReasons && (restoreProgress.skippedReasons.foreignKeyErrors > 0 || restoreProgress.skippedReasons.validationErrors > 0 || restoreProgress.skippedReasons.otherErrors > 0) && (
-                  <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                    Skip reasons:
-                    {restoreProgress.skippedReasons.foreignKeyErrors > 0 && ` Foreign Keys: ${restoreProgress.skippedReasons.foreignKeyErrors}`}
-                    {restoreProgress.skippedReasons.validationErrors > 0 && `, Validation: ${restoreProgress.skippedReasons.validationErrors}`}
-                    {restoreProgress.skippedReasons.otherErrors > 0 && `, Other: ${restoreProgress.skippedReasons.otherErrors}`}
-                  </div>
                 )}
-                <div>Last activity: {restoreProgress.model ?? 'N/A'} {restoreProgress.model !== 'completed' && restoreProgress.recordId ? `(record ${restoreProgress.recordId})` : ''}</div>
               </div>
-            )}
 
-            {restoreProgress && !restoreResult && restoreProgress.total > 0 && (() => {
-              // Include skipped records in progress to reach 100%
-              const processed = restoreProgress.processed ?? 0;
-              const skipped = restoreProgress.skipped ?? 0;
-              const effectiveProgress = processed + skipped;
-              const total = restoreProgress.total || 1;
-              const percent = Math.min(100, Math.round((effectiveProgress / total) * 100));
-              return (
-                <div className="mt-2">
+              {/* Progress bar */}
+              {isInProgress && total > 0 && (
+                <div className="mb-3">
                   <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                     <div
                       className="h-2 bg-green-600 dark:bg-green-400 transition-all duration-300"
                       style={{ width: `${percent}%` }}
                     />
                   </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 text-right mt-1">
-                    {percent}% complete{skipped > 0 ? ` (${skipped} skipped)` : ''}
+                </div>
+              )}
+
+              {/* Scrolling table-by-table progress log — only show tables that have started restoring */}
+              {modelEntries.filter(([, s]) => (s.processed ?? 0) > 0).length > 0 && (
+                <RestoreProgressLog entries={modelEntries.filter(([, s]) => (s.processed ?? 0) > 0)} currentModel={restoreProgress?.model} isComplete={!isInProgress} />
+              )}
+
+              {/* Errors */}
+              {(restoreProgress?.errors?.length ?? 0) > 0 && (
+                <div className="mt-3">
+                  <h5 className="font-medium text-red-900 dark:text-red-100 mb-1 text-sm">
+                    Errors ({restoreProgress!.errors!.length}):
+                  </h5>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {restoreProgress!.errors!.map((error: string, index: number) => (
+                      <div key={index} className="text-xs text-red-800 dark:text-red-200">{error}</div>
+                    ))}
                   </div>
                 </div>
-              );
-            })()}
-
-            {(restoreResult?.results?.errors?.length > 0 || (restoreProgress?.errors?.length ?? 0) > 0) && (
-              <div>
-                <h5 className="font-medium text-red-900 dark:text-red-100 mb-2">
-                  Errors ({restoreResult?.results?.errors?.length ?? restoreProgress?.errors?.length ?? 0}):
-                </h5>
-                <div className="max-h-32 overflow-y-auto space-y-1">
-                  {(restoreResult?.results?.errors ?? restoreProgress?.errors ?? []).map((error, index) => (
-                    <div
-                      key={index}
-                      className="text-xs text-red-800 dark:text-red-200"
-                    >
-                      {error}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
       </div>}
 
       {/* Divider */}
