@@ -142,7 +142,7 @@ export function UniversalInventoryStats({
   }
 
   const calculateStats = (itemsData: any, reportsData: any, alertsData: any, movementsData: any): InventoryStats => {
-    const items = itemsData.items || []
+    const items = itemsData.data || itemsData.items || []
     const report = reportsData.report?.data || {}
     const alerts = alertsData.alerts || []
     const movements = movementsData.movements || []
