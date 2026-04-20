@@ -169,6 +169,9 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'stockTakeReportEmployees': 'stockTakeReportEmployees',
   // Custom Bulk Products
   'customBulkProducts': 'customBulkProducts',
+  // Restaurant Prep Inventory Tracking (MBM-183)
+  'menuItemInventoryConfigs': 'menuItemInventoryConfig',
+  'menuItemInventoryBatches': 'menuItemInventoryBatch',
 }
 
 /**
