@@ -598,12 +598,12 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
 
             // Mark as finished
             setRestoreProgressId(null);
-            // Show completion alert then redirect
-            await customAlert({
+            // Show floating completion alert — reload fires synchronously on OK click
+            customAlert({
               title: totalSkipped > 0 ? '⚠️ Restore Complete (with warnings)' : '✅ Restore Complete!',
-              description: summary
+              description: summary,
+              onOK: () => { window.location.reload() },
             });
-            window.location.href = '/dashboard';
           } else if (isError) {
             if (pollingRef.current) {
               window.clearInterval(pollingRef.current);
@@ -1210,18 +1210,32 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
           const total = restoreProgress?.total ?? 0;
           const percent = total > 0 ? Math.min(100, Math.round(((processed + skipped) / total) * 100)) : 0;
 
+          const activeModel = isInProgress ? restoreProgress?.model : undefined;
+          const activeStats = activeModel && activeModel !== 'completed' ? counts[activeModel] : undefined;
+
           return (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-950 dark:border-green-800">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
                   <h4 className="font-medium text-green-900 dark:text-green-100">
                     {restoreResult ? 'Restore Completed' : 'Restore In Progress'}
                   </h4>
+                  {activeModel && activeModel !== 'completed' && (
+                    <span className="flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full font-mono">
+                      <span className="animate-pulse">↻</span>
+                      <span className="font-semibold">{activeModel}</span>
+                      {activeStats && (
+                        <span className="text-blue-600 dark:text-blue-400">
+                          {(activeStats.processed ?? 0).toLocaleString()}{activeStats.total ? ` / ${activeStats.total.toLocaleString()}` : ''}
+                        </span>
+                      )}
+                    </span>
+                  )}
                 </div>
                 {isInProgress && total > 0 && (
-                  <span className="text-xs font-medium text-green-700 dark:text-green-300">
-                    {processed.toLocaleString()} / {total.toLocaleString()} records ({percent}%)
+                  <span className="text-xs font-medium text-green-700 dark:text-green-300 shrink-0">
+                    {processed.toLocaleString()} / {total.toLocaleString()} ({percent}%)
                   </span>
                 )}
               </div>

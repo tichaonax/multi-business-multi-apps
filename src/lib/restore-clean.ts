@@ -392,7 +392,6 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'benefitTypes': 'name',
   'compensationTypes': 'name',
   'expenseDomains': 'name',
-  'inventoryDomains': 'name',
   'expensePaymentVouchers': 'paymentId',
   'permissions': 'name',
   'jobTitles': 'title',
@@ -633,7 +632,6 @@ export async function restoreCleanBackup(
 
     // Build remap for tables with single-field unique constraints (name-based)
     const SINGLE_UNIQUE_REMAP: Record<string, string> = {
-      'inventoryDomains': 'name',
       'expenseDomains': 'name',
       'projectTypes': 'name',
       'benefitTypes': 'name',
@@ -666,6 +664,7 @@ export async function restoreCleanBackup(
 
     // Build remap for tables with composite unique constraints
     const COMPOSITE_UNIQUE_REMAP: Record<string, string[]> = {
+      'inventoryDomains': ['name', 'businessType'],    // @@unique([name, businessType])
       'businessCategories': ['businessType', 'name'],  // domainId excluded — it may itself be remapped
       'expenseCategories': ['name'],                    // domainId excluded — may be remapped
       'inventorySubcategories': ['name'],               // categoryId excluded — may be remapped
@@ -678,6 +677,7 @@ export async function restoreCleanBackup(
 
     // Process in dependency order so parent remaps are available for children
     const REMAP_ORDER = [
+      'inventoryDomains',
       'businessCategories', 'expenseCategories', 'inventorySubcategories', 'expenseSubcategories', 'expenseSubSubcategories',
       'mealProgramParticipants', 'mealProgramEligibleItems',
     ]
