@@ -351,9 +351,9 @@ export async function restoreBackupData(
     'benefitTypes',
     'permission_templates',
     'users',
+    'images',      // Must come before businesses (businesses.logoImageId FK) and employees (profilePhotoUrl FK)
     'businesses',
     'businessMemberships',
-    'images',      // Must come before employees (employees reference images via profilePhotoUrl)
     'employees',
     'employeeContracts',
     'businessProducts',
