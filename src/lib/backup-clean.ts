@@ -1301,7 +1301,15 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
-  // 49. Invoices & Quotations (MBM-178)
+  // 49. Restaurant Prep Inventory Tracking (MBM-183)
+  businessData.menuItemInventoryConfigs = await prisma.menuItemInventoryConfig.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.menuItemInventoryBatches = await prisma.menuItemInventoryBatch.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 50. Invoices & Quotations (MBM-178)
   businessData.invoices = await prisma.invoices.findMany({
     where: { businessId: { in: businessIds } }
   })

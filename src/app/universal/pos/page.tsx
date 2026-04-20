@@ -579,9 +579,11 @@ export default function UniversalPOS() {
           ecocashFeeValue={currentBusiness?.ecocashFeeValue}
           ecocashMinimumFee={currentBusiness?.ecocashMinimumFee}
           businessId={currentBusinessId || undefined}
+          businessType={businessType}
           businessName={currentBusiness?.businessName || undefined}
           businessPhone={currentBusiness?.phone || undefined}
           onProductsReload={reloadProducts}
+          prepRefreshKey={financialRefreshKey}
           {...(config.features.coupons && currentBusiness?.couponsEnabled ? {
             appliedCoupon,
             isValidatingCoupon,

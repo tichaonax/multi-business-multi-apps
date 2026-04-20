@@ -49,6 +49,7 @@
 26. [Printer Setup & QZ Tray](#26-printer-setup--qz-tray)
 27. [Stock Velocity & Reorder Reports](#27-stock-velocity--reorder-reports)
 28. [Invoices & Quotations](#28-invoices--quotations)
+29. [Restaurant Prep Inventory Tracking](#29-restaurant-prep-inventory-tracking)
 
 ---
 
@@ -6094,4 +6095,133 @@ The system will never assign a number lower than the start number you set. Exist
 ---
 
 *Last updated: April 2026*
+
+---
+
+## 29. Restaurant Prep Inventory Tracking
+
+> **Who reads this:** Restaurant managers and owners who prepare food in advance and want to track how many portions are available throughout the day.
+
+This feature lets you record how many portions of each menu item were prepared at the start of each day. The system tracks remaining counts in real time as orders are placed, shows live "N left" badges on the POS, and provides a revenue-vs-cost report.
+
+---
+
+### How It Works — Overview
+
+```
+Morning: Manager initialises stock
+  → "We prepared 20 portions of Grilled Chicken today, cost $3.50 each"
+
+During the day: POS shows live counts
+  → "12 left" badge on the Grilled Chicken card
+
+Orders reduce the count automatically (FIFO)
+  → Each sale deducts from the oldest batch first
+
+Evening: Report shows profit per item
+  → Revenue, cost, margin for every tracked item
+```
+
+---
+
+### Step 1 — Configure Which Items Are Tracked
+
+Before initialising stock, a manager must mark which menu items should be tracked.
+
+1. In the sidebar, click **Restaurant → Prep Track Config** (or **Configure Tracked Items**).
+2. The page lists all active menu items with prices.
+3. Use the **toggle switch** on the right to enable or disable tracking for each item:
+   - **Toggle ON (teal)** — item appears on the Initialization page; a "N left" badge shows on the POS.
+   - **Toggle OFF (grey)** — item is hidden from initialization; no badge shown. All historical batch data is preserved.
+4. Items with **No price set** cannot be tracked (toggle is disabled until a price is added).
+
+**Tips:**
+- Use the search box to quickly find an item by name or category.
+- Use the **Tracked only** button to see only the items currently being tracked.
+- Click the **Product** or **Price** column headers to sort.
+
+---
+
+### Step 2 — Daily Initialization (Adding Today's Prepared Stock)
+
+Each morning (or whenever a batch is prepared), a manager enters the day's quantities.
+
+1. In the sidebar, click **Restaurant → Prep Initialization** (or **Daily Initialization**).
+2. Each tracked item appears as a card.
+3. For each item, fill in:
+
+| Field | What to Enter |
+|-------|--------------|
+| **Portions today** | How many portions were prepared (e.g., 20) |
+| **Cost per unit ($)** | Price paid for one full raw unit (e.g., $14.00 for one whole chicken) |
+| **Portions per unit** | How many portions come from that unit (e.g., 4 chicken portions) |
+| **Total cost** | Calculated automatically — no entry needed |
+
+4. The **Cost/portion** figure (top right of each card) is calculated automatically: Cost per unit ÷ Portions per unit.
+5. Click **Add Batch** to save. The carried-over count from previous days is shown in amber — no action required, it is already counted.
+
+> **Carry-over:** If portions were left over from yesterday's batch, they are shown with an amber left border and "X carried over" label. You do not need to re-enter them — they are already in stock.
+
+> **Permissions:** Only users with the **Manager**, **Owner**, or **Admin** role can add batches.
+
+---
+
+### POS — Live "N left" Badges
+
+Once stock is initialized, the POS automatically shows remaining counts on tracked item cards:
+
+| Badge colour | Meaning |
+|-------------|---------|
+| **Orange** | More than 5 portions remaining |
+| **Amber** | 5 or fewer portions remaining — consider preparing more |
+| **Red "Out of prep"** | 0 portions remaining — the card stays enabled; selling is still allowed |
+
+Badges update automatically after each order is completed. If an item shows "Out of prep" but food was prepared, a manager can add a new batch on the Initialization page and counts will update immediately.
+
+---
+
+### Reports — Revenue vs Cost
+
+1. In the sidebar, click **Restaurant → Reports → Prep Inventory**.
+2. Set a **Start Date** and **End Date** and click **Load Report**.
+3. The summary cards show totals across all tracked items:
+   - **Units Initialized** — total portions prepared in the date range
+   - **Units Sold** — portions actually sold
+   - **Total Revenue** — units sold × selling price
+   - **Total Cost** — sum of batch costs
+   - **Net Profit** — Revenue − Cost
+4. The detail table breaks down each item individually with a **Margin %** column.
+
+---
+
+### Backup & Restore — New Tables
+
+The following tables are included in all system backups automatically:
+
+| Table | Contents |
+|-------|----------|
+| `menu_item_inventory_config` | Which menu items have tracking enabled |
+| `menu_item_inventory_batches` | Every batch ever initialized (quantity, cost, remaining count) |
+
+**Verification after restore:** Confirm both tables are present and populated:
+
+```sql
+SELECT COUNT(*) FROM menu_item_inventory_config;
+SELECT COUNT(*) FROM menu_item_inventory_batches;
+```
+
+Both counts should match the source system. If either returns 0 but the source had data, re-run the restore — these tables are near the end of the restore order and may have been skipped due to a prior FK error on `businessProducts`.
+
+---
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|---------|
+| Item not appearing on Initialization page | Go to **Prep Track Config** and ensure the toggle is ON for that item |
+| Badge not showing on POS | Item may not have any initialized batches for today. Add a batch on the Initialization page |
+| Cost/portion shows nothing | Enter both "Cost per unit" and "Portions per unit" — both fields are required for the calculation |
+| "Add Batch" button greyed out | Fill in all required fields: Portions today, Cost per unit, Portions per unit |
+| Counts not updating after an order | Refresh the POS page — counts update on each checkout completion |
+| Report shows 0 revenue | No batches were initialized in the selected date range, or no sales matched tracked items |
 *For technical support, contact your system administrator.*

@@ -75,6 +75,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/reorder`,
       icon: '📦',
       color: 'bg-amber-600 hover:bg-amber-700'
+    },
+    {
+      title: '🍳 Prep Inventory Report',
+      description: 'Revenue vs. cost for tracked prepared items — units initialized, units sold, profit and margin by product',
+      href: `/${businessType}/reports/prep-inventory`,
+      icon: '🍳',
+      color: 'bg-teal-600 hover:bg-teal-700'
     }
   ]
 

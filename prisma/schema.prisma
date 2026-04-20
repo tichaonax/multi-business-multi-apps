@@ -288,7 +288,9 @@ model BusinessProducts {
   product_price_changes       product_price_changes[]
   product_variants            ProductVariants[]
   supplier_products           SupplierProducts[]
-  meal_program_eligible_items MealProgramEligibleItems[]
+  meal_program_eligible_items  MealProgramEligibleItems[]
+  menu_item_inventory_configs  MenuItemInventoryConfig[]
+  menu_item_inventory_batches  MenuItemInventoryBatch[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -551,6 +553,8 @@ model Businesses {
   stock_take_reports                                                       StockTakeReports[]            @relation("StockTakeReportBusiness")
   customBulkProducts                                                       CustomBulkProducts[]          @relation("CustomBulkBusiness")
   ecocash_conversions                                                      EcocashConversion[]           @relation("BusinessEcocashConversions")
+  menu_item_inventory_configs                                              MenuItemInventoryConfig[]
+  menu_item_inventory_batches                                              MenuItemInventoryBatch[]
 
   @@map("businesses")
 }
@@ -6163,4 +6167,39 @@ model InvoiceItems {
 
   @@index([invoiceId])
   @@map("invoice_items")
+}
+
+model MenuItemInventoryConfig {
+  id                String           @id @default(uuid())
+  businessProductId String
+  businessId        String
+  isTracked         Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  business_product  BusinessProducts @relation(fields: [businessProductId], references: [id])
+  businesses        Businesses       @relation(fields: [businessId], references: [id])
+
+  @@unique([businessProductId, businessId])
+  @@index([businessId])
+  @@map("menu_item_inventory_config")
+}
+
+model MenuItemInventoryBatch {
+  id                String           @id @default(uuid())
+  businessProductId String
+  businessId        String
+  quantity          Int
+  remaining         Int
+  costPerUnit       Decimal          @db.Decimal(10, 2)
+  totalCost         Decimal          @db.Decimal(10, 2)
+  batchDate         DateTime         @default(now())
+  createdBy         String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  business_product  BusinessProducts @relation(fields: [businessProductId], references: [id])
+  businesses        Businesses       @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([businessProductId, remaining])
+  @@map("menu_item_inventory_batches")
 }

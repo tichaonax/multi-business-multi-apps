@@ -349,6 +349,10 @@ const RESTORE_ORDER = [
   // Custom Bulk Products (depends on businesses, categories, suppliers, employees)
   'customBulkProducts',
 
+  // Restaurant Prep Inventory Tracking (MBM-183 — depends on businesses, businessProducts, users)
+  'menuItemInventoryConfigs',   // @@unique([businessProductId, businessId])
+  'menuItemInventoryBatches',   // depends on menuItemInventoryConfigs (via businessProductId)
+
   // Invoices & Quotations (MBM-178 — depends on businesses, businessCustomers, users)
   'invoices',           // Depends on businesses, users (preparedById), businessCustomers (optional)
   'invoiceItems',       // Depends on invoices
@@ -423,6 +427,8 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // POS Terminal Config: unique on terminalId
   'posTerminalConfigs': 'terminalId',
 
+  // Prep Inventory Config: unique on (businessProductId, businessId)
+  'menuItemInventoryConfigs': { fields: ['businessProductId', 'businessId'] },
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
@@ -458,6 +464,9 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'ecocashConversions': 'ecocashConversion',
   // Notifications
   'appNotifications': 'appNotification',
+  // Prep Inventory (MBM-183)
+  'menuItemInventoryConfigs': 'menuItemInventoryConfig',
+  'menuItemInventoryBatches': 'menuItemInventoryBatch',
   // Chicken Run
   'chickenBatches': 'chickenBatch',
   'chickenFeedLogs': 'chickenFeedLog',

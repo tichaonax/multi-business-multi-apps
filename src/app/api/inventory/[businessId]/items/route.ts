@@ -549,10 +549,68 @@ export async function POST(
         const categoryName = categoryId
           ? (await prisma.businessCategories.findUnique({ where: { id: categoryId }, select: { name: true } }))?.name ?? null
           : null
-        const result = await prisma.$queryRaw<Array<{ generate_next_sku: string }>>`
-          SELECT generate_next_sku(${businessId}::TEXT, ${categoryName}::VARCHAR, NULL::VARCHAR)
-        `
-        sku = result[0]?.generate_next_sku ?? null
+
+        // Generate SKU and verify it doesn't already exist.
+        // generate_next_sku() increments the DB sequence on every call, so each retry
+        // produces the next value in order.
+        const MAX_ATTEMPTS = 10
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          const result = await prisma.$queryRaw<Array<{ generate_next_sku: string }>>`
+            SELECT generate_next_sku(${businessId}::TEXT, ${categoryName}::VARCHAR, NULL::VARCHAR)
+          `
+          const candidate = result[0]?.generate_next_sku ?? null
+          if (!candidate) break
+
+          const existing = await prisma.businessProducts.findFirst({
+            where: { businessId, sku: candidate },
+            select: { id: true }
+          })
+          if (!existing) {
+            sku = candidate
+            break
+          }
+          console.log(`[SKU] ${candidate} already exists, advancing sequence (attempt ${attempt + 1}/${MAX_ATTEMPTS})`)
+        }
+
+        // Hard fallback: if all attempts were duplicates, sync the sequence to the actual
+        // max used in the DB then generate once more — guarantees a unique value.
+        if (!sku) {
+          console.warn(`[SKU] Sequence still behind after ${MAX_ATTEMPTS} attempts — force-syncing sequence`)
+          const bizSettings = await prisma.businesses.findUnique({
+            where: { id: businessId },
+            select: { sku_prefix: true, sku_digits: true }
+          })
+          const prefix = bizSettings?.sku_prefix ?? 'GRC'
+          const digits = bizSettings?.sku_digits ?? 5
+
+          // Find the highest sequence number currently used for this prefix
+          const maxProduct = await prisma.businessProducts.findFirst({
+            where: { businessId, sku: { startsWith: `${prefix}-` } },
+            orderBy: { sku: 'desc' },
+            select: { sku: true }
+          })
+          const maxSeq = maxProduct?.sku
+            ? parseInt(maxProduct.sku.replace(`${prefix}-`, ''), 10) || 0
+            : 0
+
+          // Advance the DB sequence past the max in use
+          await prisma.$executeRaw`
+            INSERT INTO sku_sequences ("businessId", prefix, "currentSequence", "updatedAt")
+            VALUES (${businessId}::TEXT, ${prefix}::VARCHAR, ${maxSeq}, NOW())
+            ON CONFLICT ("businessId", prefix)
+            DO UPDATE SET
+              "currentSequence" = GREATEST(sku_sequences."currentSequence", ${maxSeq}),
+              "updatedAt" = NOW()
+          `
+
+          // Now generate — sequence is guaranteed to be past all existing SKUs
+          const result = await prisma.$queryRaw<Array<{ generate_next_sku: string }>>`
+            SELECT generate_next_sku(${businessId}::TEXT, ${categoryName}::VARCHAR, NULL::VARCHAR)
+          `
+          sku = result[0]?.generate_next_sku ?? `${prefix}-${String(maxSeq + 1).padStart(digits, '0')}`
+          console.log(`[SKU] Force-synced and generated: ${sku}`)
+        }
+
         console.log(`[SKU Auto-generated] ${sku} for product "${body.name}"`)
       } catch (error) {
         console.error('Failed to auto-generate SKU, falling back to provided value:', error)
@@ -716,13 +774,12 @@ export async function POST(
     // Handle Prisma unique constraint violation
     if (error.code === 'P2002') {
       const fields = error.meta?.target || []
-      const skuValue = requestBody?.sku || 'unknown'
 
       if (fields.includes('sku')) {
         return NextResponse.json(
           {
             error: 'Duplicate SKU',
-            message: `A product with SKU "${skuValue}" already exists in this business. Please use a different SKU.`
+            message: `A product with SKU "${requestBody?.sku || 'unknown'}" already exists in this business. Please use a different SKU.`
           },
           { status: 409 }
         )

@@ -138,6 +138,8 @@ export function MobileSidebar() {
             {canReport && navLink('/restaurant/reports', '📊', 'Sales Reports')}
             {canCashAlloc && navLink('/restaurant/reports/cash-allocation', '💰', 'Cash Allocation')}
             {navLink('/restaurant/inventory', '📦', 'Inventory')}
+            {(isAdmin || hasBusinessPermission('canManageInventory')) && navLink('/restaurant/inventory/initialize', '🍳', 'Prep Initialization')}
+            {(isAdmin || hasBusinessPermission('canManageInventory')) && navLink('/restaurant/inventory/config', '⚙️', 'Prep Track Config')}
             {canManageMenuPerm && navLink('/restaurant/menu', '📋', 'Menu Management')}
             {(isAdmin || hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canManageMenu') || hasBusinessPermission('canManageInventory')) && (
               <>

@@ -43,6 +43,8 @@ const NEW_TABLE_KEYS = [
   'stockTakeDrafts', 'stockTakeDraftItems', 'stockTakeReports', 'stockTakeReportEmployees',
   // Custom Bulk Products
   'customBulkProducts',
+  // Restaurant Prep Inventory Tracking (MBM-183)
+  'menuItemInventoryConfigs', 'menuItemInventoryBatches',
 ]
 
 async function main() {

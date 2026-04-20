@@ -363,6 +363,9 @@ export interface RestaurantPermissions {
   canViewHealthReports: boolean;
   canManageAllergenInfo: boolean;
   canViewComplianceReports: boolean;
+
+  // Prep Inventory
+  canInitializeInventory: boolean;
 }
 
 export interface ConstructionPermissions {
@@ -502,6 +505,9 @@ export const RESTAURANT_ASSOCIATE_PERMISSIONS: RestaurantPermissions = {
   canViewHealthReports: false,  // ❌ NO REPORTS
   canManageAllergenInfo: false,
   canViewComplianceReports: false,  // ❌ NO REPORTS
+
+  // Prep Inventory
+  canInitializeInventory: false,
 };
 
 export const RESTAURANT_EMPLOYEE_PERMISSIONS: RestaurantPermissions = {
@@ -540,6 +546,9 @@ export const RESTAURANT_EMPLOYEE_PERMISSIONS: RestaurantPermissions = {
   canViewHealthReports: false,
   canManageAllergenInfo: false,
   canViewComplianceReports: false,
+
+  // Prep Inventory
+  canInitializeInventory: false,
 };
 
 export const RESTAURANT_MANAGER_PERMISSIONS: RestaurantPermissions = {
@@ -578,6 +587,9 @@ export const RESTAURANT_MANAGER_PERMISSIONS: RestaurantPermissions = {
   canViewHealthReports: true,
   canManageAllergenInfo: true,
   canViewComplianceReports: true,
+
+  // Prep Inventory
+  canInitializeInventory: true,
 };
 
 export const RESTAURANT_OWNER_PERMISSIONS: RestaurantPermissions = {
@@ -616,6 +628,9 @@ export const RESTAURANT_OWNER_PERMISSIONS: RestaurantPermissions = {
   canViewHealthReports: true,
   canManageAllergenInfo: true,
   canViewComplianceReports: true,
+
+  // Prep Inventory
+  canInitializeInventory: true,
 };
 
 // Restaurant permission presets mapping

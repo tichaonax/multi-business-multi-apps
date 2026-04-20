@@ -1416,6 +1416,40 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Deduct from prep inventory batches (FIFO — oldest batch first)
+    try {
+      const regularItems = items.filter((item: any) => !item.wifiToken && !item.r710Token)
+      if (regularItems.length > 0) {
+        const productIds = regularItems.map((item: any) => item.id)
+        const trackedConfigs = await prisma.menuItemInventoryConfig.findMany({
+          where: { businessId, businessProductId: { in: productIds }, isTracked: true },
+          select: { businessProductId: true },
+        })
+        const trackedIds = new Set(trackedConfigs.map(c => c.businessProductId))
+
+        for (const item of regularItems) {
+          if (!trackedIds.has(item.id)) continue
+          let toDeduct = Number(item.quantity)
+          const batches = await prisma.menuItemInventoryBatch.findMany({
+            where: { businessProductId: item.id, businessId, remaining: { gt: 0 } },
+            orderBy: { batchDate: 'asc' },
+          })
+          for (const batch of batches) {
+            if (toDeduct <= 0) break
+            const deduct = Math.min(batch.remaining, toDeduct)
+            await prisma.menuItemInventoryBatch.update({
+              where: { id: batch.id },
+              data: { remaining: batch.remaining - deduct },
+            })
+            toDeduct -= deduct
+          }
+          // If toDeduct > 0 the remaining goes negative conceptually — we allow this (see plan decision Q2)
+        }
+      }
+    } catch (fifoError) {
+      console.warn('Failed to update prep inventory batches:', fifoError)
+    }
+
     // Fetch business details (address, phone) to include in response for receipt
     let businessInfo = null
     try {

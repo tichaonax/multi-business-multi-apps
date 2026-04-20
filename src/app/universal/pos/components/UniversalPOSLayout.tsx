@@ -45,9 +45,11 @@ interface UniversalPOSLayoutProps {
 
   // Business info
   businessId?: string
+  businessType?: string
   businessName?: string
   businessPhone?: string
   onProductsReload?: () => void
+  prepRefreshKey?: number
 
   // Coupon (optional)
   appliedCoupon?: AppliedCoupon | null
@@ -87,9 +89,11 @@ export function UniversalPOSLayout({
   ecocashFeeValue,
   ecocashMinimumFee,
   businessId,
+  businessType,
   businessName,
   businessPhone,
   onProductsReload,
+  prepRefreshKey,
   appliedCoupon,
   isValidatingCoupon,
   couponError,
@@ -119,8 +123,10 @@ export function UniversalPOSLayout({
           loading={productsLoading}
           cart={cart}
           businessId={businessId}
+          businessType={businessType}
           onAddToCart={onAddToCart}
           onProductsReload={onProductsReload}
+          prepRefreshKey={prepRefreshKey}
         />
       </div>
 

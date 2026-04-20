@@ -13,8 +13,10 @@ interface ProductPanelProps {
   loading: boolean
   cart: UniversalCartItem[]
   businessId?: string
+  businessType?: string
   onAddToCart: (item: Omit<UniversalCartItem, 'totalPrice'>) => void
   onProductsReload?: () => void
+  prepRefreshKey?: number
 }
 
 /**
@@ -27,14 +29,17 @@ export function ProductPanel({
   loading,
   cart,
   businessId,
+  businessType,
   onAddToCart,
-  onProductsReload
+  onProductsReload,
+  prepRefreshKey = 0
 }: ProductPanelProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [barcodeInput, setBarcodeInput] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [prepRemaining, setPrepRemaining] = useState<Map<string, number>>(new Map())
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -44,6 +49,23 @@ export function ProductPanel({
       if (stored) setFavorites(new Set(JSON.parse(stored)))
     } catch { /* ignore */ }
   }, [businessId])
+
+  // Fetch prep inventory remaining counts for restaurant POS
+  useEffect(() => {
+    if (!businessId || businessType !== 'restaurant') return
+    fetch(`/api/restaurant/inventory-batches?businessId=${businessId}`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.success) {
+          const map = new Map<string, number>()
+          json.data.forEach((item: { businessProductId: string; totalRemaining: number }) => {
+            map.set(item.businessProductId, item.totalRemaining)
+          })
+          setPrepRemaining(map)
+        }
+      })
+      .catch(() => { /* non-critical */ })
+  }, [businessId, businessType, prepRefreshKey])
 
   const toggleFavorite = (productId: string) => {
     setFavorites(prev => {
@@ -363,6 +385,18 @@ export function ProductPanel({
                         }`}>
                           <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
                         </span>
+                        {/* Prep inventory remaining badge */}
+                        {prepRemaining.has(product.id) && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 ml-1 inline-block ${
+                            prepRemaining.get(product.id)! <= 0
+                              ? 'text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/50'
+                              : prepRemaining.get(product.id)! <= 5
+                              ? 'text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50'
+                              : 'text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/50'
+                          }`}>
+                            {prepRemaining.get(product.id)! <= 0 ? 'Out' : `${prepRemaining.get(product.id)} left`}
+                          </span>
+                        )}
                       </button>
                       {/* Request more tokens button - show when quantity < 5 */}
                       {product.isWiFiToken && (product.availableQuantity || 0) < 5 && businessId && (

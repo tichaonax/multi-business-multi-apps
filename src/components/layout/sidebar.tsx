@@ -714,6 +714,19 @@ export function Sidebar() {
                     <span className="text-lg">📋</span>
                     <span>Menu Management</span>
                   </Link>
+                {/* Prep Inventory */}
+                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
+                  <Link href="/restaurant/inventory/initialize" className={getLinkClasses('/restaurant/inventory/initialize')}>
+                    <span className="text-lg">🍳</span>
+                    <span>Prep Initialization</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
+                  <Link href="/restaurant/inventory/config" className={getLinkClasses('/restaurant/inventory/config')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>Prep Track Config</span>
+                  </Link>
+                )}
                 {/* Business Services */}
                 <Link href="/services/list" className={getLinkClasses('/services/list')}>
                   <span className="text-lg">🔧</span>

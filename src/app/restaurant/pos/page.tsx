@@ -178,6 +178,7 @@ export default function RestaurantPOS() {
   const [loadingRecent, setLoadingRecent] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
   const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
+  const [prepRemaining, setPrepRemaining] = useState<Map<string, number>>(new Map())
   const { data: session, status } = useSession()
   const router = useRouter()
   const { preferences, isLoaded: preferencesLoaded, setAutoPrint, setDefaultPrinter } = usePrintPreferences()
@@ -956,6 +957,21 @@ export default function RestaurantPOS() {
     }
   }
 
+  const loadPrepInventory = async () => {
+    if (!currentBusinessId) return
+    try {
+      const res = await fetch(`/api/restaurant/inventory-batches?businessId=${currentBusinessId}`)
+      const json = await res.json()
+      if (json.success) {
+        const map = new Map<string, number>()
+        json.data.forEach((item: { businessProductId: string; totalRemaining: number }) => {
+          map.set(item.businessProductId, item.totalRemaining)
+        })
+        setPrepRemaining(map)
+      }
+    } catch { /* non-critical */ }
+  }
+
   // Load menu items (defined early so hooks order is stable).
   const loadMenuItems = async () => {
     try {
@@ -1323,6 +1339,7 @@ export default function RestaurantPOS() {
     // 2) Restaurant business is selected
     if (isAdmin || isRestaurantBusiness) {
       loadMenuItems()
+      loadPrepInventory()
     }
   }, [currentBusinessId, isRestaurantBusiness, status, businessLoading, isAuthenticated, isAdmin, useServerTime])
 
@@ -1725,6 +1742,7 @@ export default function RestaurantPOS() {
       setTimeout(() => {
         loadDailySales()
         loadMenuItems() // Refresh WiFi token availability badges
+        loadPrepInventory()
         loadRecentTransactions()
         setFinancialRefreshKey(k => k + 1)
 
@@ -3506,6 +3524,20 @@ export default function RestaurantPOS() {
                       } else {
                         return <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 mt-1 block">{stock} in stock</span>
                       }
+                    })()}
+
+                    {/* Prep inventory remaining badge */}
+                    {prepRemaining.has(item.id) && (() => {
+                      const rem = prepRemaining.get(item.id)!
+                      if (rem <= 0) return (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 mt-1 block">Out of prep</span>
+                      )
+                      if (rem <= 5) return (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 mt-1 block">{rem} left</span>
+                      )
+                      return (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 mt-1 block">{rem} left</span>
+                      )
                     })()}
 
                     {/* Performance comparison bar — all users, whenever soldToday > 0 */}

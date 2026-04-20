@@ -151,8 +151,13 @@ export function UniversalInventoryStats({
     const totalItems = items.length
     const totalValue = report.totalInventoryValue || items.reduce((sum: number, item: any) => sum + (item.costPrice * item.currentStock), 0)
     const totalCategories = new Set(items.map((item: any) => item.category)).size
-    const lowStockItems = alerts.filter((alert: any) => alert.alertType === 'low_stock').length
-    const outOfStockItems = alerts.filter((alert: any) => alert.alertType === 'out_of_stock').length
+
+    // Low/Out of Stock: computed from items directly so BarcodeInventoryItems are included.
+    // The alerts API only checks BusinessProducts with isInventoryTracked=true and misses
+    // barcode-based inventory items that always have isInventoryTracked=true in the API response.
+    const LOW_STOCK_THRESHOLD = 5
+    const lowStockItems = items.filter((item: any) => item.isInventoryTracked && item.currentStock > 0 && item.currentStock <= LOW_STOCK_THRESHOLD).length
+    const outOfStockItems = items.filter((item: any) => item.isInventoryTracked && item.currentStock === 0).length
     const expiringItems = alerts.filter((alert: any) => alert.alertType === 'expiring_soon' || alert.alertType === 'expired').length
 
     // Calculate real trends from historical data

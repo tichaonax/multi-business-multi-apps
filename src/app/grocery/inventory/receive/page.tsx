@@ -209,7 +209,7 @@ export default function ReceiveGroceryInventoryPage() {
                         <div key={item.id} className="grid grid-cols-8 gap-4 items-center py-3 border-b border-gray-100">
                           <div>
                             <div className="font-medium text-primary">{item.name}</div>
-                            <div className="text-sm text-secondary">${item.basePrice.toFixed(2)}/unit</div>
+                            <div className="text-sm text-secondary">${(item.basePrice ?? 0).toFixed(2)}/unit</div>
                           </div>
                           <div className="text-sm text-secondary">{item.sku || '-'}</div>
                           <div className="text-sm text-secondary">{item.category}</div>
