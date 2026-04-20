@@ -19,38 +19,61 @@ interface InventoryReport {
 // Generate real report data from database
 async function generateInventoryValueReport(businessId: string, startDate: string, endDate: string) {
   try {
-    // Get all products with variants for this business
-    const products = await prisma.businessProducts.findMany({
-      where: {
-        businessId,
-        isActive: true
-      },
-      include: {
-        product_variants: true,
-        business_categories: true
-      }
-    })
-
     let totalInventoryValue = 0
     let totalItems = 0
     const categoryMap = new Map<string, { value: number; items: number }>()
 
-    // Calculate values from real data
-    for (const product of products) {
-      for (const variant of product.product_variants) {
-        const price = parseFloat(variant.price?.toString() || '0')
-        const stock = variant.stockQuantity || 0
+    // Check if this business uses BarcodeInventoryItems (grocery/clothing)
+    const barcodeItemCount = await prisma.barcodeInventoryItems.count({ where: { businessId, isActive: true } })
+
+    if (barcodeItemCount > 0) {
+      // Grocery/clothing: use BarcodeInventoryItems
+      // Use costPrice when set, fall back to sellingPrice
+      const barcodeItems = await prisma.barcodeInventoryItems.findMany({
+        where: { businessId, isActive: true },
+        include: { business_category: true }
+      })
+
+      for (const item of barcodeItems) {
+        const costPrice = parseFloat(item.costPrice?.toString() || '0')
+        const sellPrice = parseFloat(item.sellingPrice?.toString() || '0')
+        const price = costPrice > 0 ? costPrice : sellPrice
+        const stock = item.stockQuantity || 0
         const value = price * stock
 
         totalInventoryValue += value
         totalItems++
 
-        // Group by category
-        const categoryName = product.business_categories?.name || 'Uncategorized'
+        const categoryName = (item as any).business_category?.name || 'Uncategorized'
         const categoryData = categoryMap.get(categoryName) || { value: 0, items: 0 }
         categoryData.value += value
         categoryData.items++
         categoryMap.set(categoryName, categoryData)
+      }
+    } else {
+      // Other business types: use BusinessProducts with variants
+      const products = await prisma.businessProducts.findMany({
+        where: { businessId, isActive: true },
+        include: { product_variants: true, business_categories: true }
+      })
+
+      for (const product of products) {
+        for (const variant of product.product_variants) {
+          const costPrice = parseFloat(product.costPrice?.toString() || '0')
+          const sellPrice = parseFloat(variant.price?.toString() || '0')
+          const price = costPrice > 0 ? costPrice : sellPrice
+          const stock = variant.stockQuantity || 0
+          const value = price * stock
+
+          totalInventoryValue += value
+          totalItems++
+
+          const categoryName = product.business_categories?.name || 'Uncategorized'
+          const categoryData = categoryMap.get(categoryName) || { value: 0, items: 0 }
+          categoryData.value += value
+          categoryData.items++
+          categoryMap.set(categoryName, categoryData)
+        }
       }
     }
 
