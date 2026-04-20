@@ -94,19 +94,16 @@ function RestoreProgressLog({
   currentModel?: string;
   isComplete: boolean;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const activeRowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (activeRowRef.current) {
+      activeRowRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  }, [entries.length]);
+  }, [currentModel]);
 
   return (
-    <div
-      ref={scrollRef}
-      className="max-h-48 overflow-y-auto rounded border border-green-200 dark:border-green-800 bg-green-100 dark:bg-green-900 font-mono text-xs"
-    >
+    <div className="max-h-48 overflow-y-auto rounded border border-green-200 dark:border-green-800 bg-green-100 dark:bg-green-900 font-mono text-xs">
       {entries.map(([model, stats]) => {
         const p = stats.processed ?? 0;
         const t = stats.total ?? 0;
@@ -115,6 +112,7 @@ function RestoreProgressLog({
         return (
           <div
             key={model}
+            ref={isActive ? activeRowRef : undefined}
             className={`flex items-center justify-between px-3 py-0.5 border-b border-green-200 dark:border-green-800 last:border-0 ${
               isActive ? 'bg-blue-100 dark:bg-blue-900 border-blue-200 dark:border-blue-700' : ''
             }`}
