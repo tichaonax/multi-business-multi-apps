@@ -75,9 +75,10 @@ export function InventoryDashboardWidget({
 
       // Calculate dashboard statistics
       const totalItems = items.length
-      const totalValue = items.reduce((sum: number, item: any) =>
-        sum + (item.costPrice * item.currentStock), 0
-      )
+      const totalValue = items.reduce((sum: number, item: any) => {
+        const price = (item.costPrice ?? 0) > 0 ? (item.costPrice ?? 0) : (item.sellPrice ?? 0)
+        return sum + price * (item.currentStock ?? 0)
+      }, 0)
 
       const lowStockAlerts = alerts.filter((alert: any) => alert.alertType === 'low_stock')
       const outOfStockAlerts = alerts.filter((alert: any) => alert.alertType === 'out_of_stock')
