@@ -10,6 +10,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Building2, Wrench, Users, DollarSign, FolderKanban, Package, TrendingUp } from 'lucide-react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 
 interface Stats {
   totalProjects: number
@@ -114,6 +115,15 @@ export default function ConstructionDashboard() {
           { label: 'Construction', isActive: true }
         ]}
       >
+        {currentBusiness?.businessId && (
+          <InventoryDashboardWidget
+            businessId={currentBusiness.businessId}
+            businessType="construction"
+            showDetails={true}
+            maxAlerts={3}
+          />
+        )}
+
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Link href={`/projects?businessType=construction&businessId=${currentBusiness?.businessId || ''}`}>

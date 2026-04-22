@@ -10,6 +10,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatDate, formatCurrency } from '@/lib/date-format'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 
 const STATUS_STYLES: Record<string, string> = {
   GROWING:   'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
@@ -111,6 +112,15 @@ export default function ChickenRunDashboard() {
   return (
     <ContentLayout>
       <div className="max-w-6xl mx-auto space-y-6">
+        {currentBusinessId && (
+          <InventoryDashboardWidget
+            businessId={currentBusinessId}
+            businessType="chicken-run"
+            showDetails={true}
+            maxAlerts={3}
+          />
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

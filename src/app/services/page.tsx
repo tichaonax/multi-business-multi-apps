@@ -10,6 +10,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 
 interface ServiceProduct {
   id: string
@@ -87,6 +88,15 @@ export default function ServicesPage() {
             { label: 'Services', isActive: true }
           ]}
         >
+          {currentBusiness?.businessId && (
+            <InventoryDashboardWidget
+              businessId={currentBusiness.businessId}
+              businessType="services"
+              showDetails={true}
+              maxAlerts={3}
+            />
+          )}
+
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Link href="/services/list" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">

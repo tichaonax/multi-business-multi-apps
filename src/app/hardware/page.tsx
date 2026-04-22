@@ -15,6 +15,7 @@ import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { HomeStatBadge } from '@/components/universal/home/HomeStatBadge'
 import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
+import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 
 function HardwareContent({ session, businessId, canViewFinancials }: { session: any; businessId: string; canViewFinancials: boolean }) {
   const currentUser = session?.user as any
@@ -108,6 +109,12 @@ function HardwareContent({ session, businessId, canViewFinancials }: { session: 
 
   return (
     <div className="space-y-6">
+      <InventoryDashboardWidget
+        businessId={businessId}
+        businessType="hardware"
+        showDetails={true}
+        maxAlerts={3}
+      />
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {metrics.map((metric, index) => (

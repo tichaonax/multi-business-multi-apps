@@ -12,6 +12,7 @@ import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { HomeStatBadge, type OrderSummary } from '@/components/universal/home/HomeStatBadge'
 import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
+import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 
 export default function ClothingPage() {
   const { data: session } = useSession()
@@ -52,6 +53,15 @@ export default function ClothingPage() {
           { label: 'Clothing', isActive: true }
         ]}
       >
+
+        {!permLoading && effectiveBusinessId && (
+          <InventoryDashboardWidget
+            businessId={effectiveBusinessId}
+            businessType="clothing"
+            showDetails={true}
+            maxAlerts={3}
+          />
+        )}
 
         {!permLoading && canViewFinancials && effectiveBusinessId && (
           <div className="mb-6">
