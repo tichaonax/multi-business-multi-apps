@@ -25,6 +25,7 @@ import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { LoanPendingActionsWidget } from '@/components/loans/loan-pending-actions-widget'
 import { BusinessLoansWidget } from '@/components/loans/business-loans-widget'
 import { EodAccountsWidget } from '@/components/dashboard/eod-accounts-widget'
+import { ExpiryAlertsWidget } from '@/components/inventory/expiry-alerts-widget'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -1025,6 +1026,11 @@ function DashboardContent() {
         <div className="mt-6">
           <LaybyAlertsWidget businessId={businessId} />
         </div>
+
+        {/* Expiry Alerts Widget — shown when user can view stock alerts or manage expiry actions */}
+        {(hasPermission('canViewStockAlerts') || hasPermission('canManageExpiryActions')) && (
+          <ExpiryAlertsWidget businessId={businessId} />
+        )}
 
         {/* R710 WiFi Portal Alerts */}
         <div className="mt-6">

@@ -35,6 +35,7 @@ interface BulkStockRow {
   currentStock: number | null   // systemQuantity from DB at time of scan/sync
   physicalCount: string         // actual physical shelf count entered by user
   needsReview: boolean          // true when a sale occurred for this item during stock take
+  expiryDate: string            // ISO date string e.g. "2026-06-30", optional
   status: 'pending' | 'saving' | 'saved' | 'error'
   errorMessage?: string
 }
@@ -109,6 +110,7 @@ function makeRow(overrides: Partial<BulkStockRow> = {}): BulkStockRow {
     currentStock: null,
     physicalCount: '',
     needsReview: false,
+    expiryDate: '',
     status: 'pending',
     ...overrides,
   }
@@ -1032,6 +1034,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             costPrice: r.costPrice ? Number(r.costPrice) : undefined,
             sku: r.sku.trim() || undefined,
             physicalCount: r.isExistingItem && r.physicalCount !== '' ? Number(r.physicalCount) : undefined,
+            expiryDate: r.expiryDate || undefined,
           })),
         }),
       })
@@ -1433,6 +1436,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                 <th className="px-2 py-2 text-center w-14">Free?</th>
                 <th className="px-2 py-2 text-center w-28">Cost</th>
                 <th className="px-2 py-2 text-left w-32">SKU</th>
+                <th className="px-2 py-2 text-center w-36">Expiry Date</th>
                 <th className="px-2 py-2 w-8"></th>
               </tr>
             </thead>
@@ -2097,6 +2101,14 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
         <input type="text" value={row.sku} readOnly={row.isExistingItem}
           onChange={e => onChange({ sku: e.target.value })}
           className={`${row.isExistingItem ? roClass : inputClass} min-w-[8rem]`} placeholder="Auto" />
+      </td>
+
+      {/* Expiry Date */}
+      <td className="px-2 py-1.5">
+        <input type="date" value={row.expiryDate}
+          onChange={e => onChange({ expiryDate: e.target.value })}
+          min={new Date().toISOString().split('T')[0]}
+          className={`${inputClass} w-full text-center text-xs`} />
       </td>
 
       {/* Remove */}

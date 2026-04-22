@@ -563,6 +563,10 @@ export function MobileSidebar() {
                     <Link href="/business/laybys" className={sectionLinkClass} onClick={close}>🛍️ Layby Management</Link>
                   )}
 
+                  {(isAdmin || hasBusinessPermission('canViewStockAlerts') || hasBusinessPermission('canManageExpiryActions')) && (
+                    <Link href="/expiry" className={sectionLinkClass} onClick={close}>🗓️ Expiry Management</Link>
+                  )}
+
                   {(isAdmin || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
                     <Link href="/projects" className={sectionLinkClass} onClick={close}>📋 Projects</Link>
                   )}

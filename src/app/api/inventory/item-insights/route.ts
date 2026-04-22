@@ -430,8 +430,11 @@ export async function GET(request: NextRequest) {
     }
 
     // type === 'inventory'
+    // Strip inv_ prefix if present (UniversalInventoryGrid prefixes IDs with inv_)
+    const rawItemId = id.startsWith('inv_') ? id.replace(/^inv_/, '') : id
+
     const item = await prisma.barcodeInventoryItems.findFirst({
-      where: { id, businessId },
+      where: { id: rawItemId, businessId },
       include: {
         business_category: { select: { name: true } },
         business_supplier: { select: { name: true } },
@@ -441,6 +444,21 @@ export async function GET(request: NextRequest) {
     if (!item) {
       return NextResponse.json({ success: false, error: 'Item not found' }, { status: 404 })
     }
+
+    // Fetch expiry batches for this item
+    const expiryBatches = await prisma.itemExpiryBatch.findMany({
+      where: { inventoryItemId: rawItemId },
+      orderBy: { receivedDate: 'desc' },
+      select: {
+        id: true,
+        quantity: true,
+        expiryDate: true,
+        receivedDate: true,
+        batchNote: true,
+        isResolved: true,
+        resolvedAt: true,
+      },
+    })
 
     let soldPaid = 0
     let revenue = 0
@@ -518,6 +536,17 @@ export async function GET(request: NextRequest) {
         bogoActive: false,
         bogoHistory: [],
         salesByDay,
+        isExpiryDiscount: item.isExpiryDiscount,
+        originalItemId: item.originalItemId ?? null,
+        expiryBatches: expiryBatches.map(b => ({
+          id: b.id,
+          quantity: b.quantity,
+          expiryDate: b.expiryDate?.toISOString() ?? null,
+          receivedDate: b.receivedDate.toISOString(),
+          batchNote: b.batchNote ?? null,
+          isResolved: b.isResolved,
+          resolvedAt: b.resolvedAt?.toISOString() ?? null,
+        })),
       },
     })
   } catch (error) {

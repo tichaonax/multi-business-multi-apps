@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     for (const item of items) {
       try {
-        const { name, categoryId, supplierId, description, quantity, sellingPrice, costPrice, sku, barcode, physicalCount } = item
+        const { name, categoryId, supplierId, description, quantity, sellingPrice, costPrice, sku, barcode, physicalCount, expiryDate } = item
 
         if (!name?.trim()) throw new Error('Name is required')
         if (!quantity || Number(quantity) < 1) throw new Error('Quantity must be >= 1')
@@ -71,6 +71,17 @@ export async function POST(request: NextRequest) {
               lastOrderedAt: new Date(),
             },
           })
+          if (expiryDate) {
+            await prisma.itemExpiryBatch.create({
+              data: {
+                businessId,
+                inventoryItemId: existing.id,
+                quantity: Number(quantity),
+                expiryDate: new Date(expiryDate),
+                createdBy: user.id,
+              },
+            })
+          }
           updated++
           results.push({ success: true, itemId: updatedRecord.id, action: 'updated' })
         } else {
@@ -99,6 +110,17 @@ export async function POST(request: NextRequest) {
               lastOrderedAt: new Date(),
             },
           })
+          if (expiryDate) {
+            await prisma.itemExpiryBatch.create({
+              data: {
+                businessId,
+                inventoryItemId: record.id,
+                quantity: Number(quantity),
+                expiryDate: new Date(expiryDate),
+                createdBy: user.id,
+              },
+            })
+          }
           created++
           results.push({ success: true, itemId: record.id, action: 'created' })
         }

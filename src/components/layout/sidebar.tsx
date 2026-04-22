@@ -1101,6 +1101,14 @@ export function Sidebar() {
               </Link>
             )}
 
+            {/* Expiry Management — shown for users who can view stock alerts or manage expiry actions */}
+            {(isSystemAdmin(currentUser) || hasPermission('canViewStockAlerts') || hasPermission('canManageExpiryActions')) && (
+              <Link href="/expiry" className={getLinkClasses('/expiry')}>
+                <span className="text-lg">🗓️</span>
+                <span>Expiry Management</span>
+              </Link>
+            )}
+
             {/* Petty Cash — shown for users with petty_cash.approve OR petty_cash.request permission */}
             {(canApprovePettyCashSys || canRequestPettyCashSys) && (
               <Link
@@ -1176,6 +1184,17 @@ export function Sidebar() {
               </>
             )}
             </>)}
+
+            {/* Asset Management */}
+            {(isSystemAdmin(currentUser) || hasPermission('canManageAssets')) && (
+              <Link
+                href="/assets"
+                className={getLinkClasses('/assets')}
+              >
+                <span className="text-lg">🏷️</span>
+                <span>Assets</span>
+              </Link>
+            )}
           </>
         )}
 

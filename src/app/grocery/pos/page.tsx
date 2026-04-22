@@ -65,6 +65,7 @@ interface POSItem {
   categoryColor?: string  // hex color from business_category.color
   subcategoryEmoji?: string
   domainEmoji?: string
+  isExpiryDiscount?: boolean
 }
 
 interface CartItem extends POSItem {
@@ -3011,6 +3012,11 @@ function GroceryPOSContent() {
                       {(product.name === 'Default' || product.name === 'default' || !product.name)
                         ? (product.barcode && !product.barcode.startsWith('inv_') ? product.barcode : product.pluCode || product.barcode || 'Item')
                         : product.name}
+                      {product.isExpiryDiscount && (
+                        <span className="ml-1 inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 align-middle">
+                          🏷️ Deal
+                        </span>
+                      )}
                     </div>
                     {/* Only show PLU/Barcode for non-WiFi products (compact mode only) */}
                     {!deskMode && !(product as any).wifiToken && !(product as any).r710Token && (

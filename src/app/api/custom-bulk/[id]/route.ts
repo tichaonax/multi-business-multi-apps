@@ -35,6 +35,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+
     const { id } = await params
     const data = await request.json()
 
@@ -79,11 +82,13 @@ export async function PUT(
       updateData.supplierId = data.supplierId || null
     }
 
+    let topUpCount: number | undefined
     if (data.topUpCount !== undefined) {
       const count = Number(data.topUpCount)
       if (!Number.isInteger(count) || count <= 0) {
         return NextResponse.json({ success: false, error: 'Top-up count must be a positive whole number' }, { status: 400 })
       }
+      topUpCount = count
       updateData.itemCount = existing.itemCount + count
       updateData.remainingCount = Number(existing.remainingCount) + count
       updateData.isActive = true
@@ -97,7 +102,23 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'No valid fields to update' }, { status: 400 })
     }
 
-    const product = await prisma.customBulkProducts.update({ where: { id }, data: updateData, include })
+    const product = await prisma.$transaction(async (tx) => {
+      const updated = await tx.customBulkProducts.update({ where: { id }, data: updateData, include })
+
+      if (topUpCount !== undefined && data.expiryDate) {
+        await tx.itemExpiryBatch.create({
+          data: {
+            businessId: existing.businessId,
+            customBulkProductId: id,
+            quantity: topUpCount,
+            expiryDate: new Date(data.expiryDate),
+            createdBy: user.id,
+          },
+        })
+      }
+
+      return updated
+    })
 
     return NextResponse.json({ success: true, data: product })
   } catch (error) {

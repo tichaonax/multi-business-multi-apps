@@ -16,6 +16,7 @@ export interface TopUpPayload {
   topUpCount: number
   unitPrice: number
   costPrice?: number
+  expiryDate?: string // ISO date string e.g. "2026-06-30"
 }
 
 interface BulkTopUpFormProps {
@@ -31,6 +32,7 @@ export function BulkTopUpForm({ product: p, onConfirm, onCancel, variant = 'inli
   const [newCount, setNewCount] = useState('')
   const [newContainerCost, setNewContainerCost] = useState('')
   const [newUnitPrice, setNewUnitPrice] = useState(Number(p.unitPrice).toFixed(2))
+  const [expiryDate, setExpiryDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -60,6 +62,7 @@ export function BulkTopUpForm({ product: p, onConfirm, onCancel, variant = 'inli
       if (existingCostPerItem > 0 || containerCost > 0) {
         payload.costPrice = p.remainingCount * existingCostPerItem + containerCost
       }
+      if (expiryDate) payload.expiryDate = expiryDate
       await onConfirm(payload)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to top up')
@@ -113,6 +116,15 @@ export function BulkTopUpForm({ product: p, onConfirm, onCancel, variant = 'inli
               type="number" min="0.01" step="0.01"
               value={newUnitPrice} onChange={e => setNewUnitPrice(e.target.value)}
               className="w-28 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 dark:text-gray-400">Expiry date (optional)</label>
+            <input
+              type="date"
+              value={expiryDate} onChange={e => setExpiryDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-36 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
         </div>
@@ -209,19 +221,37 @@ export function BulkTopUpForm({ product: p, onConfirm, onCancel, variant = 'inli
         </div>
       )}
 
-      {/* New selling price */}
-      <div className="mb-3">
-        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-          New selling price ($/item) *
-        </label>
-        <input
-          type="number" min="0.01" step="0.01"
-          value={newUnitPrice} onChange={e => setNewUnitPrice(e.target.value)}
-          className="w-40 px-3 py-2 text-sm border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-        />
-        {weightedAvg !== null && Number(newUnitPrice) > 0 && Number(newUnitPrice) < weightedAvg && (
-          <p className="text-xs text-red-500 mt-1">⚠️ Selling price is below weighted average cost</p>
-        )}
+      {/* New selling price + expiry date */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            New selling price ($/item) *
+          </label>
+          <input
+            type="number" min="0.01" step="0.01"
+            value={newUnitPrice} onChange={e => setNewUnitPrice(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          {weightedAvg !== null && Number(newUnitPrice) > 0 && Number(newUnitPrice) < weightedAvg && (
+            <p className="text-xs text-red-500 mt-1">⚠️ Selling price is below weighted average cost</p>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Expiry date <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="date"
+            value={expiryDate} onChange={e => setExpiryDate(e.target.value)}
+            min={new Date().toISOString().split('T')[0]}
+            className="w-full px-3 py-2 text-sm border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          {expiryDate && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              This batch will be tracked for expiry alerts
+            </p>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-500 mb-2">{error}</p>}

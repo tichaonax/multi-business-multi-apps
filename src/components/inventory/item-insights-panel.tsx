@@ -30,6 +30,17 @@ interface InsightsData {
     changedBy: string
   }>
   salesByDay: Array<{ date: string; units: number; revenue: number }>
+  isExpiryDiscount?: boolean
+  originalItemId?: string | null
+  expiryBatches?: Array<{
+    id: string
+    quantity: number
+    expiryDate: string | null
+    receivedDate: string
+    batchNote: string | null
+    isResolved: boolean
+    resolvedAt: string | null
+  }>
 }
 
 interface ItemInsightsPanelProps {
@@ -320,6 +331,20 @@ export function ItemInsightsPanel({ type, itemId, businessId, onClose, productId
                 </div>
               )}
 
+              {/* Expiry Discount Banner */}
+              {data.isExpiryDiscount && (
+                <div className="flex items-start gap-3 px-4 py-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-xl">
+                  <span className="text-xl flex-shrink-0">🏷️</span>
+                  <div>
+                    <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">Expiry Deal Product</p>
+                    <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
+                      This product was created from near-expiry or expired stock via the Expiry Management workflow.
+                      {data.originalItemId && ' It is linked to the original inventory item.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Section 5 — Breakdown Table */}
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
@@ -366,6 +391,67 @@ export function ItemInsightsPanel({ type, itemId, businessId, onClose, productId
                   </tbody>
                 </table>
               </div>
+
+              {/* Section 6 — Expiry Batches */}
+              {data.expiryBatches && data.expiryBatches.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                    Expiry Batches
+                  </h3>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+                          <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Received</th>
+                          <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">Qty</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Expiry Date</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {data.expiryBatches.map(batch => {
+                          const expiry = batch.expiryDate ? new Date(batch.expiryDate) : null
+                          const now = new Date()
+                          const isExpired = expiry && expiry < now
+                          const daysLeft = expiry ? Math.floor((expiry.getTime() - now.getTime()) / 86400000) : null
+                          return (
+                            <tr key={batch.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                                {new Date(batch.receivedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </td>
+                              <td className="px-3 py-2 text-center font-medium text-gray-900 dark:text-white">{batch.quantity}</td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                                {expiry ? expiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                              </td>
+                              <td className="px-3 py-2">
+                                {batch.isResolved ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    Resolved
+                                  </span>
+                                ) : isExpired ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+                                    Expired {Math.abs(daysLeft!)}d ago
+                                  </span>
+                                ) : daysLeft !== null && daysLeft <= 7 ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                                    {daysLeft === 0 ? 'Expires today' : `${daysLeft}d left`}
+                                  </span>
+                                ) : daysLeft !== null ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
+                                    {daysLeft}d left
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">No expiry</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

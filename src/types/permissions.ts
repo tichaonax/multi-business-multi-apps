@@ -34,6 +34,12 @@ export interface UserLevelPermissions {
   canViewVehicleReports: boolean;
   canExportVehicleData: boolean;
 
+  // Asset Management (User-level - cross-business access to /assets register)
+  canManageAssets: boolean;
+
+  // Expiry Management (User-level - take action on expiring/expired inventory)
+  canManageExpiryActions: boolean;
+
   // System Administration (User-level - global capabilities)
   canManageSystemSettings: boolean;
   canViewSystemLogs: boolean;
@@ -296,6 +302,12 @@ export interface CoreBusinessPermissions {
   canViewDeliveryReports: boolean;
   canPrintDeliveryMarketing: boolean;
   canUpdateOdometer: boolean;
+
+  // Asset Management (Business-level - write access within this business)
+  canManageAssets: boolean;
+
+  // Expiry Management (Business-level - dispose or discount expiring inventory)
+  canManageExpiryActions: boolean;
 }
 
 // Business-Type-Specific Permission Modules
@@ -1432,7 +1444,13 @@ export const CORE_PERMISSIONS = {
     { key: 'canExportPayroll', label: 'Export Payroll' },
     { key: 'canResetExportedPayrollToPreview', label: 'Reset Exported → Preview (7 days)' },
     { key: 'canDeletePayroll', label: 'Delete Payroll' },
-  ]
+  ],
+  assetManagement: [
+    { key: 'canManageAssets', label: 'Manage Assets' },
+  ],
+  expiryManagement: [
+    { key: 'canManageExpiryActions', label: 'Manage Expiry Actions (Dispose / Discount)' },
+  ],
 }
 
 // Business-level role presets (Core permissions only)
@@ -1598,6 +1616,8 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canViewDeliveryReports: true,
   canPrintDeliveryMarketing: true,
   canUpdateOdometer: true,
+  canManageAssets: true,
+  canManageExpiryActions: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1764,6 +1784,8 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canViewDeliveryReports: true,
   canPrintDeliveryMarketing: true,
   canUpdateOdometer: true,
+  canManageAssets: true,
+  canManageExpiryActions: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -1930,6 +1952,8 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canViewDeliveryReports: false,
   canPrintDeliveryMarketing: false,
   canUpdateOdometer: true,
+  canManageAssets: false,
+  canManageExpiryActions: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -2094,6 +2118,8 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewDeliveryReports: false,
   canPrintDeliveryMarketing: false,
   canUpdateOdometer: false,
+  canManageAssets: false,
+  canManageExpiryActions: false,
 };
 
 // Delivery Driver permissions - Delivery queue and status updates only
@@ -2263,6 +2289,8 @@ export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
   canViewDeliveryReports: false,
   canPrintDeliveryMarketing: false,
   canUpdateOdometer: true,
+  canManageAssets: false,
+  canManageExpiryActions: false,
 };
 
 // Restaurant Associate permissions - Food prep and POS operations
@@ -2430,6 +2458,8 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canViewDeliveryReports: false,
   canPrintDeliveryMarketing: false,
   canUpdateOdometer: false,
+  canManageAssets: false,
+  canManageExpiryActions: false,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
@@ -2597,6 +2627,8 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canViewDeliveryReports: false,
   canPrintDeliveryMarketing: false,
   canUpdateOdometer: false,
+  canManageAssets: false,
+  canManageExpiryActions: false,
 };
 
 // System admin permissions (cross-business)
@@ -2761,6 +2793,8 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canViewDeliveryReports: true,
   canPrintDeliveryMarketing: true,
   canUpdateOdometer: true,
+  canManageAssets: true,
+  canManageExpiryActions: true,
 };
 
 // User-Level Permission Presets
@@ -2866,6 +2900,8 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   // Inventory Management - No access by default
   canManageInventory: false,
   canZeroOutInventory: false,
+  canManageAssets: false,
+  canManageExpiryActions: false,
 };
 
 export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
@@ -2874,6 +2910,8 @@ export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
   canManagePersonalContractors: true,
   canManagePersonalCategories: true,
   canDeletePersonalExpenses: true,
+  canManageAssets: true,
+  canManageExpiryActions: true,
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
@@ -2978,6 +3016,8 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   // Inventory Management - Full access for admins
   canManageInventory: true,
   canZeroOutInventory: true,
+  canManageAssets: true,
+  canManageExpiryActions: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only
@@ -3068,6 +3108,8 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   // Inventory Management - No access for drivers
   canManageInventory: false,
   canZeroOutInventory: false,
+  canManageAssets: false,
+  canManageExpiryActions: false,
 };
 
 // Restaurant Associate Permission Preset - Minimal permissions with receipt printing for POS operations
@@ -3158,6 +3200,8 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
   // Inventory Management - No access
   canManageInventory: false,
   canZeroOutInventory: false,
+  canManageAssets: false,
+  canManageExpiryActions: false,
 };
 
 // Permission presets for easy management

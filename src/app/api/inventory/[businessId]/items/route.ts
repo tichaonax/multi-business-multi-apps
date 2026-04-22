@@ -325,6 +325,7 @@ export async function GET(
       attributes: { isInventoryItem: true },
       isInventoryTracked: true,
       barcodeData: item.barcodeData,
+      isExpiryDiscount: item.isExpiryDiscount,
     }))
 
     // Merge barcodeItems into filteredItems (apply domainId filter only to businessProducts)

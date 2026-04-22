@@ -2885,6 +2885,7 @@ model ProductVariants {
   product_barcodes         ProductBarcodes[]
   business_products        BusinessProducts         @relation(fields: [productId], references: [id])
   inventory_transfer_items InventoryTransferItems[]
+  expiryBatches            ItemExpiryBatch[]        @relation("ProductVariantExpiryBatches")
 
   @@map("product_variants")
 }
@@ -4372,9 +4373,59 @@ model BarcodeInventoryItems {
   business_supplier     BusinessSuppliers?      @relation("InventoryItemSupplier", fields: [supplierId], references: [id])
   inventory_subcategory InventorySubcategories? @relation(fields: [subcategoryId], references: [id])
   business_location     BusinessLocations?      @relation(fields: [locationId], references: [id])
+  isExpiryDiscount      Boolean                 @default(false)
+  originalItemId        String?
+  originalItem          BarcodeInventoryItems?  @relation("ExpiryDiscountSource", fields: [originalItemId], references: [id])
+  discountedItems       BarcodeInventoryItems[] @relation("ExpiryDiscountSource")
+  expiryBatches         ItemExpiryBatch[]
   printJobs             BarcodePrintJobs[]
 
   @@map("barcode_inventory_items")
+}
+
+model ItemExpiryBatch {
+  id                  String                 @id @default(cuid())
+  inventoryItemId     String?
+  customBulkProductId String?
+  productVariantId    String?
+  businessId          String
+  quantity            Int
+  expiryDate          DateTime?
+  receivedDate        DateTime               @default(now())
+  batchNote           String?
+  isResolved          Boolean                @default(false)
+  resolvedAt          DateTime?
+  createdAt           DateTime               @default(now())
+  createdBy           String
+  inventoryItem       BarcodeInventoryItems? @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  customBulkProduct   CustomBulkProducts?    @relation("CustomBulkExpiryBatches", fields: [customBulkProductId], references: [id], onDelete: Cascade)
+  productVariant      ProductVariants?       @relation("ProductVariantExpiryBatches", fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryItemId])
+  @@index([customBulkProductId])
+  @@index([productVariantId])
+  @@index([businessId])
+  @@index([expiryDate])
+  @@map("item_expiry_batches")
+}
+
+model ExpiryAction {
+  id          String   @id @default(cuid())
+  businessId  String
+  batchId     String
+  actionType  String
+  actionDate  DateTime @default(now())
+  quantity    Int
+  notes       String?
+  newItemId   String?
+  newPrice    Decimal? @db.Decimal(10, 2)
+  discountPct Decimal? @db.Decimal(5, 2)
+  createdAt   DateTime @default(now())
+  createdBy   String
+
+  @@index([businessId])
+  @@index([batchId])
+  @@map("expiry_actions")
 }
 
 model sku_sequences {
@@ -5059,10 +5110,11 @@ model CustomBulkProducts {
   expenseCategoryId    String?
   expenseSubcategoryId String?
 
-  business Businesses          @relation("CustomBulkBusiness", fields: [businessId], references: [id])
-  category BusinessCategories? @relation("CustomBulkCategory", fields: [categoryId], references: [id])
-  supplier BusinessSuppliers?  @relation("CustomBulkSupplier", fields: [supplierId], references: [id])
-  employee Employees?          @relation("CustomBulkStockedBy", fields: [employeeId], references: [id])
+  business      Businesses          @relation("CustomBulkBusiness", fields: [businessId], references: [id])
+  category      BusinessCategories? @relation("CustomBulkCategory", fields: [categoryId], references: [id])
+  supplier      BusinessSuppliers?  @relation("CustomBulkSupplier", fields: [supplierId], references: [id])
+  employee      Employees?          @relation("CustomBulkStockedBy", fields: [employeeId], references: [id])
+  expiryBatches ItemExpiryBatch[]   @relation("CustomBulkExpiryBatches")
 
   @@unique([businessId, batchNumber])
   @@index([businessId])
@@ -6294,4 +6346,108 @@ model DeliveryRuns {
   @@index([businessId])
   @@index([runDate])
   @@map("delivery_runs")
+}
+
+model AssetCategory {
+  id                        String   @id @default(uuid())
+  businessId                String?
+  name                      String
+  description               String?
+  defaultDepreciationMethod String   @default("STRAIGHT_LINE")
+  defaultUsefulLifeYears    Int?
+  defaultSalvageValuePct    Decimal? @db.Decimal(5, 2)
+  icon                      String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  assets BusinessAsset[]
+
+  @@map("asset_categories")
+}
+
+model BusinessAsset {
+  id                 String    @id @default(uuid())
+  businessId         String
+  categoryId         String?
+  assetTag           String    @unique
+  name               String
+  description        String?
+  serialNumber       String?
+  manufacturer       String?
+  model              String?
+  location           String?
+  purchaseDate       DateTime
+  purchasePrice      Decimal   @db.Decimal(10, 2)
+  currentBookValue   Decimal   @db.Decimal(10, 2)
+  salvageValue       Decimal   @default(0) @db.Decimal(10, 2)
+  depreciationMethod String    @default("STRAIGHT_LINE")
+  usefulLifeYears    Int?
+  status             String    @default("ACTIVE")
+  notes              String?
+  disposedAt         DateTime?
+  disposalMethod     String?
+  disposalValue      Decimal?  @db.Decimal(10, 2)
+  disposalRecipient  String?
+  disposalNotes      String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          String
+
+  category            AssetCategory?           @relation(fields: [categoryId], references: [id])
+  depreciationEntries AssetDepreciationEntry[]
+  maintenanceLogs     AssetMaintenanceLog[]
+  images              AssetImage[]
+
+  @@index([businessId])
+  @@index([status])
+  @@map("business_assets")
+}
+
+model AssetDepreciationEntry {
+  id             String   @id @default(uuid())
+  assetId        String
+  periodDate     DateTime
+  amount         Decimal  @db.Decimal(10, 2)
+  bookValueAfter Decimal  @db.Decimal(10, 2)
+  notes          String?
+  createdAt      DateTime @default(now())
+  createdBy      String
+
+  asset BusinessAsset @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@map("asset_depreciation_entries")
+}
+
+model AssetMaintenanceLog {
+  id                  String    @id @default(uuid())
+  assetId             String
+  maintenanceDate     DateTime
+  maintenanceType     String
+  description         String
+  cost                Decimal?  @db.Decimal(10, 2)
+  vendor              String?
+  nextMaintenanceDate DateTime?
+  notes               String?
+  createdAt           DateTime  @default(now())
+  createdBy           String
+
+  asset BusinessAsset @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@map("asset_maintenance_logs")
+}
+
+model AssetImage {
+  id        String   @id @default(uuid())
+  assetId   String
+  imageId   String
+  isPrimary Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  asset BusinessAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@map("asset_images")
 }

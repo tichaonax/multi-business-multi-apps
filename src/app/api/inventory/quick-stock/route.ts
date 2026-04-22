@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       initialQuantity,
       sku: skuInput,
       attributes,
+      expiryDate,
     } = body
 
     // ── Validate required fields ──────────────────────────────────────────────
@@ -262,6 +263,18 @@ export async function POST(request: NextRequest) {
           businessType,
         },
       })
+
+      if (expiryDate) {
+        await tx.itemExpiryBatch.create({
+          data: {
+            businessId,
+            productVariantId: variant.id,
+            quantity: parsedInitialQty,
+            expiryDate: new Date(expiryDate),
+            createdBy: user.id,
+          },
+        })
+      }
 
       return { product, variant }
     })

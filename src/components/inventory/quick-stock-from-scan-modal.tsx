@@ -130,6 +130,7 @@ export function QuickStockFromScanModal({
   const [sku, setSku] = useState('')
   const [size, setSize] = useState('')
   const [color, setColor] = useState('')
+  const [expiryDate, setExpiryDate] = useState('')
 
   // ── Domain filter (Level 1 – clothing and any type with domains) ─────────
   const [domainId, setDomainId] = useState('')
@@ -480,6 +481,7 @@ export function QuickStockFromScanModal({
           costPrice: costPrice ? parseFloat(costPrice) : undefined,
           initialQuantity: parseInt(initialQuantity, 10),
           sku: sku.trim() || undefined,
+          expiryDate: expiryDate || undefined,
           attributes:
             isClothing && (size || color)
               ? { size: size || undefined, color: color || undefined }
@@ -1048,6 +1050,23 @@ export function QuickStockFromScanModal({
                 placeholder="Leave blank to auto-generate"
                 className={inputClass()}
               />
+            </div>
+
+            {/* Expiry date (optional) */}
+            <div>
+              <label className={labelClass()}>Expiry Date <span className="text-gray-400 text-xs">(optional)</span></label>
+              <input
+                type="date"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className={inputClass()}
+              />
+              {expiryDate && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  This batch will be tracked for expiry alerts
+                </p>
+              )}
             </div>
 
             </div>{/* end right column */}

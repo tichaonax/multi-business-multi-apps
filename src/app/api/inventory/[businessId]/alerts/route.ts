@@ -161,10 +161,26 @@ export async function GET(
     const endIndex = startIndex + limit
     const paginatedAlerts = alerts.slice(startIndex, endIndex)
 
+    // Expiry batch counts (from item_expiry_batches)
+    const now = new Date()
+    const warningCutoff = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+    const [expiredBatchCount, nearExpiryBatchCount] = await Promise.all([
+      prisma.itemExpiryBatch.count({
+        where: { businessId, isResolved: false, expiryDate: { not: null, lt: now } },
+      }),
+      prisma.itemExpiryBatch.count({
+        where: { businessId, isResolved: false, expiryDate: { gte: now, lte: warningCutoff } },
+      }),
+    ])
+
     // Calculate summary statistics
     const summary = {
       total: alerts.length,
       unacknowledged: alerts.filter(a => !a.isAcknowledged).length,
+      expiryAlerts: {
+        expiredCount: expiredBatchCount,
+        nearExpiryCount: nearExpiryBatchCount,
+      },
       byPriority: {
         critical: alerts.filter(a => a.priority === 'critical').length,
         high: alerts.filter(a => a.priority === 'high').length,
@@ -215,6 +231,7 @@ export async function GET(
       summary: {
         total: 0,
         unacknowledged: 0,
+        expiryAlerts: { expiredCount: 0, nearExpiryCount: 0 },
         byPriority: {
           critical: 0,
           high: 0,

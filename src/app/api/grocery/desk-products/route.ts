@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
         taxable: false,
         weightRequired: false,
         pluCode: item.sku ?? undefined,
+        isExpiryDiscount: item.isExpiryDiscount,
       }))
       .filter(item => item.price > 0)
 
