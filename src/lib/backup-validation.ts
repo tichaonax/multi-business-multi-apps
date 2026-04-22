@@ -172,6 +172,8 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Restaurant Prep Inventory Tracking (MBM-183)
   'menuItemInventoryConfigs': 'menuItemInventoryConfig',
   'menuItemInventoryBatches': 'menuItemInventoryBatch',
+  // Salesperson EOD Reports (MBM-187)
+  'salespersonEodReports': 'salespersonEodReport',
 }
 
 /**

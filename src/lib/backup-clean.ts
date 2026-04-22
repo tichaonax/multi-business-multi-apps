@@ -1318,6 +1318,11 @@ export async function createCleanBackup(
     where: { invoiceId: { in: invoiceIds } }
   })
 
+  // 51. Salesperson EOD Reports (MBM-187)
+  businessData.salespersonEodReports = await prisma.salespersonEodReport.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined
 
@@ -1376,7 +1381,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.21.0',
+    schemaVersion: '6.22.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

@@ -45,6 +45,10 @@ const NEW_TABLE_KEYS = [
   'customBulkProducts',
   // Restaurant Prep Inventory Tracking (MBM-183)
   'menuItemInventoryConfigs', 'menuItemInventoryBatches',
+  // Invoices & Quotations (MBM-178)
+  'invoices', 'invoiceItems',
+  // Salesperson EOD Reports (MBM-187)
+  'salespersonEodReports',
 ]
 
 async function main() {

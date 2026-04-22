@@ -357,6 +357,9 @@ const RESTORE_ORDER = [
   'invoices',           // Depends on businesses, users (preparedById), businessCustomers (optional)
   'invoiceItems',       // Depends on invoices
 
+  // Salesperson EOD Reports (MBM-187 — depends on businesses + users)
+  'salespersonEodReports',  // Depends on businesses, users (salespersonId, submittedById)
+
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs'           // Depends on users
 ]
@@ -466,6 +469,8 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Prep Inventory (MBM-183)
   'menuItemInventoryConfigs': 'menuItemInventoryConfig',
   'menuItemInventoryBatches': 'menuItemInventoryBatch',
+  // Salesperson EOD Reports (MBM-187)
+  'salespersonEodReports': 'salespersonEodReport',
   // Chicken Run
   'chickenBatches': 'chickenBatch',
   'chickenFeedLogs': 'chickenFeedLog',
