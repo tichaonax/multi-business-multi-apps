@@ -114,6 +114,10 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
   const [scannedDeliveryOrder, setScannedDeliveryOrder] = useState<{ meta: any; order: any } | null>(null)
   const [showDeliveryModal, setShowDeliveryModal] = useState(false)
   const [updatingDeliveryStatus, setUpdatingDeliveryStatus] = useState(false)
+  const [showPaymentCapture, setShowPaymentCapture] = useState(false)
+  const [paymentCaptureAmount, setPaymentCaptureAmount] = useState('')
+  const [showReturnCapture, setShowReturnCapture] = useState(false)
+  const [returnReason, setReturnReason] = useState('')
 
   // Clothing no-match workflow state
   const [showAddStockPanel, setShowAddStockPanel] = useState(false)
@@ -820,28 +824,31 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
   if (showDeliveryModal && scannedDeliveryOrder) {
     const { meta, order } = scannedDeliveryOrder
     const customer = order?.business_customers
-    const items: { quantity: number; unitPrice: number; totalPrice: number }[] = order?.business_order_items || []
+    const items: any[] = order?.business_order_items || []
     const orderNum = order?.orderNumber || meta.orderId?.slice(-8) || '—'
     const STATUS_NEXT: Record<string, string> = { PENDING: 'READY', READY: 'DISPATCHED', DISPATCHED: 'DELIVERED' }
-    const STATUS_LABEL: Record<string, string> = { PENDING: 'Pending', READY: 'Ready', DISPATCHED: 'Dispatched', DELIVERED: 'Delivered', CANCELLED: 'Cancelled' }
+    const STATUS_LABEL: Record<string, string> = { PENDING: 'Pending', READY: 'Ready', DISPATCHED: 'Dispatched', DELIVERED: 'Delivered', RETURNED: 'Returned', CANCELLED: 'Cancelled' }
     const STATUS_COLOR: Record<string, string> = {
       PENDING: 'bg-yellow-100 text-yellow-800', READY: 'bg-blue-100 text-blue-800',
       DISPATCHED: 'bg-purple-100 text-purple-800', DELIVERED: 'bg-green-100 text-green-800',
-      CANCELLED: 'bg-gray-100 text-gray-500',
+      RETURNED: 'bg-orange-100 text-orange-800', CANCELLED: 'bg-gray-100 text-gray-500',
     }
     const nextStatus = STATUS_NEXT[meta.status]
+    const canReturn = meta.status === 'DISPATCHED'
+    const orderTotal = items.reduce((s: number, it: any) => s + Number(it.totalPrice || 0), 0)
+    const amountDue = Math.max(0, orderTotal - Number(meta.creditUsed || 0))
 
-    const handleUpdateStatus = async (newStatus: string) => {
+    const handleUpdateStatus = async (newStatus: string, extra?: { paymentCollected?: number; returnReason?: string }) => {
       setUpdatingDeliveryStatus(true)
       try {
         const res = await fetch(`/api/restaurant/delivery/orders/${meta.orderId}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify({ status: newStatus, ...extra }),
         })
         const data = await res.json()
         if (!res.ok || !data.success) { showToast(data.error || 'Update failed', { type: 'error' }); return }
-        setScannedDeliveryOrder(prev => prev ? { ...prev, meta: { ...prev.meta, status: newStatus } } : null)
+        setScannedDeliveryOrder(prev => prev ? { ...prev, meta: { ...prev.meta, status: newStatus, ...extra } } : null)
         showToast(`Order marked ${STATUS_LABEL[newStatus]}`)
       } catch {
         showToast('Failed to update status', { type: 'error' })
@@ -850,12 +857,143 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
       }
     }
 
+    const closeDelivery = () => { setShowDeliveryModal(false); setScannedDeliveryOrder(null); setShowPaymentCapture(false); setShowReturnCapture(false); setPaymentCaptureAmount(''); setReturnReason(''); onClose() }
+
+    // ── Payment capture sub-dialog ──
+    if (showPaymentCapture) {
+      const collected = parseFloat(paymentCaptureAmount) || 0
+      const shortfall = amountDue - collected
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+            <div className="px-6 py-4 bg-green-600 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">💵 Payment Received</h3>
+              <button onClick={() => setShowPaymentCapture(false)} className="text-white/70 hover:text-white text-xl leading-none">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Order <span className="font-semibold font-mono">{orderNum}</span> — enter the cash received from the customer.
+              </p>
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg px-4 py-3 text-sm space-y-1">
+                <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                  <span>Order total</span><span>${orderTotal.toFixed(2)}</span>
+                </div>
+                {Number(meta.creditUsed) > 0 && (
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>Credit used</span><span>-${Number(meta.creditUsed).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold text-gray-800 dark:text-gray-200 border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
+                  <span>Amount due</span><span>${amountDue.toFixed(2)}</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Amount collected ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={paymentCaptureAmount}
+                  onChange={e => setPaymentCaptureAmount(e.target.value)}
+                  placeholder={amountDue.toFixed(2)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  autoFocus
+                />
+                {paymentCaptureAmount && shortfall > 0.005 && (
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Shortfall: ${shortfall.toFixed(2)}</p>
+                )}
+                {paymentCaptureAmount && shortfall <= 0 && collected > 0 && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">Fully paid</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowPaymentCapture(false)}
+                  className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowPaymentCapture(false)
+                    await handleUpdateStatus('DELIVERED', { paymentCollected: collected > 0 ? collected : undefined })
+                  }}
+                  disabled={updatingDeliveryStatus}
+                  className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
+                >
+                  {updatingDeliveryStatus ? 'Saving…' : 'Confirm Delivered'}
+                </button>
+              </div>
+              <button
+                onClick={async () => {
+                  setShowPaymentCapture(false)
+                  await handleUpdateStatus('DELIVERED')
+                }}
+                className="w-full text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 py-1"
+              >
+                Skip payment entry
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // ── Return reason sub-dialog ──
+    if (showReturnCapture) {
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+            <div className="px-6 py-4 bg-orange-500 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">📦 Order Returned</h3>
+              <button onClick={() => setShowReturnCapture(false)} className="text-white/70 hover:text-white text-xl leading-none">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Why could order <span className="font-semibold font-mono">{orderNum}</span> not be delivered?
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Reason</label>
+                <textarea
+                  value={returnReason}
+                  onChange={e => setReturnReason(e.target.value)}
+                  placeholder="e.g. Customer not home, wrong address, customer refused..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowReturnCapture(false)}
+                  className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowReturnCapture(false)
+                    await handleUpdateStatus('RETURNED', { returnReason: returnReason.trim() || undefined })
+                    setReturnReason('')
+                  }}
+                  disabled={updatingDeliveryStatus}
+                  className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {updatingDeliveryStatus ? 'Saving…' : 'Mark Returned'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
           <div className="px-6 py-4 bg-indigo-600 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white">🛵 Delivery Order</h3>
-            <button onClick={() => { setShowDeliveryModal(false); setScannedDeliveryOrder(null); onClose() }} className="text-white/70 hover:text-white text-xl leading-none">✕</button>
+            <button onClick={closeDelivery} className="text-white/70 hover:text-white text-xl leading-none">✕</button>
           </div>
           <div className="p-5 space-y-4">
             {/* Order info */}
@@ -891,24 +1029,54 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
               </div>
             )}
 
-            {/* Payment */}
-            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
-              <div>💳 Payment: <span className="font-medium">{meta.paymentMode?.replace(/_/g, ' ')}</span></div>
+            {/* Payment summary */}
+            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5 border-t border-gray-100 dark:border-gray-700 pt-2">
+              <div className="flex justify-between">
+                <span>💳 {meta.paymentMode?.replace(/_/g, ' ')}</span>
+                <span className="font-medium">Due: ${amountDue.toFixed(2)}</span>
+              </div>
               {Number(meta.creditUsed) > 0 && <div>Credit used: ${Number(meta.creditUsed).toFixed(2)}</div>}
+              {meta.paymentCollected !== undefined && meta.paymentCollected !== null && (
+                <div className={`flex justify-between font-medium ${Number(meta.paymentCollected) >= amountDue ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                  <span>Collected</span><span>${Number(meta.paymentCollected).toFixed(2)}</span>
+                </div>
+              )}
+              {meta.returnReason && (
+                <div className="text-orange-600 dark:text-orange-400 mt-1">Return reason: {meta.returnReason}</div>
+              )}
             </div>
 
-            {/* Status action */}
+            {/* Primary action — advance status */}
             {nextStatus && (
               <button
-                onClick={() => handleUpdateStatus(nextStatus)}
+                onClick={() => {
+                  if (nextStatus === 'DELIVERED') {
+                    setPaymentCaptureAmount(amountDue.toFixed(2))
+                    setShowPaymentCapture(true)
+                  } else {
+                    handleUpdateStatus(nextStatus)
+                  }
+                }}
                 disabled={updatingDeliveryStatus}
                 className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
               >
                 {updatingDeliveryStatus ? 'Updating…' : `Mark ${STATUS_LABEL[nextStatus]}`}
               </button>
             )}
+
+            {/* Return button — only when dispatched */}
+            {canReturn && (
+              <button
+                onClick={() => { setReturnReason(''); setShowReturnCapture(true) }}
+                disabled={updatingDeliveryStatus}
+                className="w-full py-2 border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg text-sm font-medium hover:bg-orange-50 dark:hover:bg-orange-900/20"
+              >
+                📦 Could Not Deliver — Return Order
+              </button>
+            )}
+
             <button
-              onClick={() => { setShowDeliveryModal(false); setScannedDeliveryOrder(null); onClose() }}
+              onClick={closeDelivery}
               className="w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               Close

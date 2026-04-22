@@ -6255,11 +6255,14 @@ model DeliveryOrderMeta {
   deliveryNote  String?
   creditUsed    Decimal  @default(0) @db.Decimal(10, 2)
   creditBalance Decimal  @default(0) @db.Decimal(10, 2)
-  paymentMode   String   @default("ON_DELIVERY")
-  status        String   @default("PENDING")
-  runId         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  paymentMode          String   @default("ON_DELIVERY")
+  status               String   @default("PENDING")
+  paymentCollected     Decimal? @db.Decimal(10, 2)
+  paymentCollectedAt   DateTime?
+  returnReason         String?
+  runId                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   run DeliveryRuns? @relation(fields: [runId], references: [id])
 

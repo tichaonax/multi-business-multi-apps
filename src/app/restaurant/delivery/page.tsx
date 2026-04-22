@@ -14,7 +14,7 @@ import type { DeliveryReceiptData, DeliveryRunSheetData } from '@/lib/printing/r
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrderStatus = 'PENDING' | 'READY' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED'
+type OrderStatus = 'PENDING' | 'READY' | 'DISPATCHED' | 'DELIVERED' | 'RETURNED' | 'CANCELLED'
 
 type DeliveryOrder = {
   id: string
@@ -77,10 +77,11 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   READY: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   DISPATCHED: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
   DELIVERED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  RETURNED: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
   CANCELLED: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
 }
 
-const QUEUE_STATUSES: OrderStatus[] = ['PENDING', 'READY', 'DISPATCHED', 'DELIVERED']
+const QUEUE_STATUSES: OrderStatus[] = ['PENDING', 'READY', 'DISPATCHED', 'DELIVERED', 'RETURNED']
 
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   PENDING: 'READY',
@@ -421,6 +422,14 @@ export default function DeliveryManagementPage() {
               Today
             </button>
             <div className="flex-1" />
+            {canViewReports && (
+              <Link
+                href="/restaurant/delivery/payments"
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Payments
+              </Link>
+            )}
             {canViewReports && (
               <Link
                 href="/restaurant/delivery/reports"

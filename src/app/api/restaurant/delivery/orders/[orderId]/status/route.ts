@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 
-const VALID_STATUSES = ['PENDING', 'READY', 'DISPATCHED', 'DELIVERED', 'CANCELLED']
-// Statuses where the order is considered prepared — no credit refund on cancel
+const VALID_STATUSES = ['PENDING', 'READY', 'DISPATCHED', 'DELIVERED', 'RETURNED', 'CANCELLED']
 const PREPARED_STATUSES = ['READY', 'DISPATCHED', 'DELIVERED']
 
-// PATCH — update delivery order status
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { orderId: string } }
@@ -16,7 +14,8 @@ export async function PATCH(
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { orderId } = params
-    const { status } = await request.json()
+    const body = await request.json()
+    const { status, paymentCollected, returnReason } = body
 
     if (!status || !VALID_STATUSES.includes(status)) {
       return NextResponse.json(
@@ -33,20 +32,15 @@ export async function PATCH(
     let creditRestored = false
 
     await prisma.$transaction(async (tx) => {
-      // If cancelling a PENDING order that used credit — restore balance
+      // Restore credit if cancelling a PENDING order that used credit
       if (status === 'CANCELLED' && existing.status === 'PENDING' && Number(existing.creditUsed) > 0) {
         const account = await tx.deliveryCustomerAccounts.findFirst({
-          where: {
-            transactions: { some: { orderId } },
-          },
+          where: { transactions: { some: { orderId } } },
         })
         if (account) {
           await tx.deliveryCustomerAccounts.update({
             where: { id: account.id },
-            data: {
-              balance: { increment: Number(existing.creditUsed) },
-              updatedAt: new Date(),
-            },
+            data: { balance: { increment: Number(existing.creditUsed) }, updatedAt: new Date() },
           })
           await tx.deliveryAccountTransactions.create({
             data: {
@@ -62,10 +56,18 @@ export async function PATCH(
         }
       }
 
-      await tx.deliveryOrderMeta.update({
-        where: { orderId },
-        data: { status, updatedAt: new Date() },
-      })
+      const updateData: any = { status, updatedAt: new Date() }
+
+      if (status === 'DELIVERED' && paymentCollected !== undefined && paymentCollected !== null) {
+        updateData.paymentCollected = paymentCollected
+        updateData.paymentCollectedAt = new Date()
+      }
+
+      if (status === 'RETURNED' && returnReason) {
+        updateData.returnReason = returnReason
+      }
+
+      await tx.deliveryOrderMeta.update({ where: { orderId }, data: updateData })
     })
 
     const wasPrepared = PREPARED_STATUSES.includes(existing.status)
@@ -74,6 +76,8 @@ export async function PATCH(
         ? 'Order cancelled. Order was already prepared — credit was NOT refunded. Review manually if needed.'
         : status === 'CANCELLED' && creditRestored
         ? 'Order cancelled and credit restored to customer account.'
+        : status === 'RETURNED'
+        ? 'Order marked as returned.'
         : `Order status updated to ${status}.`
 
     return NextResponse.json({ success: true, status, creditRestored, message })
