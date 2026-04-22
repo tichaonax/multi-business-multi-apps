@@ -435,6 +435,8 @@ model Businesses {
   ecocashFeeType                                                           String?                       @default("FIXED") @map("ecocash_fee_type")
   ecocashFeeValue                                                          Decimal?                      @default(0) @map("ecocash_fee_value") @db.Decimal(10, 2)
   ecocashMinimumFee                                                        Decimal?                      @default(0) @map("ecocash_minimum_fee") @db.Decimal(10, 2)
+  requireSalespersonEod                                                    Boolean                       @default(false)
+  eodDeadlineTime                                                          String?                       @default("20:00") @db.VarChar(5)
   couponsEnabled                                                           Boolean                       @default(false)
   promosEnabled                                                            Boolean                       @default(false)
   receiptReturnPolicy                                                      String?
@@ -558,6 +560,7 @@ model Businesses {
   menu_item_inventory_batches                                              MenuItemInventoryBatch[]
   delivery_customer_accounts                                               DeliveryCustomerAccounts[]
   delivery_runs                                                            DeliveryRuns[]
+  salesperson_eod_reports                                                  SalespersonEodReport[]        @relation("BusinessSalespersonEodReports")
 
   @@map("businesses")
 }
@@ -590,10 +593,12 @@ model SavedReports {
   signedAt      DateTime
 
   // Till reconciliation (for day reports)
-  expectedCash           Decimal? @db.Decimal(10, 2)
-  cashCounted            Decimal? @db.Decimal(10, 2)
-  variance               Decimal? @db.Decimal(10, 2)
-  confirmedEcocashAmount Decimal? @map("confirmed_ecocash_amount") @db.Decimal(10, 2)
+  expectedCash              Decimal? @db.Decimal(10, 2)
+  cashCounted               Decimal? @db.Decimal(10, 2)
+  variance                  Decimal? @db.Decimal(10, 2)
+  confirmedEcocashAmount    Decimal? @map("confirmed_ecocash_amount") @db.Decimal(10, 2)
+  salespersonCashTotal      Decimal? @db.Decimal(10, 2)
+  salespersonEcocashTotal   Decimal? @db.Decimal(10, 2)
 
   // Summary metrics (for quick queries)
   totalSales     Decimal @db.Decimal(10, 2)
@@ -3396,6 +3401,8 @@ model Users {
   ecocash_conversions_approved                                    EcocashConversion[]              @relation("EcocashConversionApprover")
   ecocash_conversions_completed                                   EcocashConversion[]              @relation("EcocashConversionCompleter")
   ecocash_conversions_rejected                                    EcocashConversion[]              @relation("EcocashConversionRejecter")
+  salesperson_eod_reports_as_salesperson                          SalespersonEodReport[]           @relation("SalespersonEodReports")
+  salesperson_eod_reports_submitted                               SalespersonEodReport[]           @relation("SalespersonEodSubmitter")
 
   @@map("users")
 }
@@ -3418,6 +3425,40 @@ model AppNotification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("app_notifications")
+}
+
+// ============================================================
+// Salesperson EOD Reporting (MBM-187)
+// ============================================================
+
+model SalespersonEodReport {
+  id               String    @id @default(cuid())
+  businessId       String
+  salespersonId    String
+  reportDate       DateTime  @db.Date
+  cashAmount       Decimal   @default(0) @db.Decimal(12, 2)
+  ecocashAmount    Decimal   @default(0) @db.Decimal(12, 2)
+  notes            String?
+  status           String    @default("PENDING")
+  // PENDING = not yet submitted
+  // SUBMITTED = salesperson submitted themselves
+  // OVERRIDDEN = manager submitted on their behalf
+  submittedAt      DateTime?
+  submittedById    String?
+  isManagerOverride Boolean  @default(false)
+  overrideReason   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  business    Businesses @relation("BusinessSalespersonEodReports", fields: [businessId], references: [id], onDelete: Cascade)
+  salesperson Users      @relation("SalespersonEodReports", fields: [salespersonId], references: [id], onDelete: Cascade)
+  submittedBy Users?     @relation("SalespersonEodSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, salespersonId, reportDate])
+  @@index([businessId, reportDate])
+  @@index([salespersonId])
+  @@index([status])
+  @@map("salesperson_eod_reports")
 }
 
 model VehicleDrivers {

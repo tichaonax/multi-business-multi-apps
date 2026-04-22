@@ -38,6 +38,8 @@ export async function GET() {
           ecocashFeeType: true,
           ecocashFeeValue: true,
           ecocashMinimumFee: true,
+          requireSalespersonEod: true,
+          eodDeadlineTime: true,
           expense_accounts: {
             select: { id: true, accountName: true },
             where: { isActive: true, isSibling: false },
@@ -60,6 +62,8 @@ export async function GET() {
         ecocashFeeType: (business as any).ecocashFeeType ?? 'FIXED',
         ecocashFeeValue: (business as any).ecocashFeeValue != null ? Number((business as any).ecocashFeeValue) : 0,
         ecocashMinimumFee: (business as any).ecocashMinimumFee != null ? Number((business as any).ecocashMinimumFee) : 0,
+        requireSalespersonEod: (business as any).requireSalespersonEod ?? false,
+        eodDeadlineTime: (business as any).eodDeadlineTime ?? '20:00',
         role: 'admin' as any,
         permissions: {
           // Grant all permissions for system admins
@@ -119,6 +123,8 @@ export async function GET() {
             ecocashFeeType: true,
             ecocashFeeValue: true,
             ecocashMinimumFee: true,
+            requireSalespersonEod: true,
+            eodDeadlineTime: true,
             expense_accounts: {
               select: { id: true, accountName: true },
               where: { isActive: true, isSibling: false },
@@ -151,6 +157,8 @@ export async function GET() {
       ecocashFeeType: (membership.businesses as any).ecocashFeeType ?? 'FIXED',
       ecocashFeeValue: (membership.businesses as any).ecocashFeeValue != null ? Number((membership.businesses as any).ecocashFeeValue) : 0,
       ecocashMinimumFee: (membership.businesses as any).ecocashMinimumFee != null ? Number((membership.businesses as any).ecocashMinimumFee) : 0,
+      requireSalespersonEod: (membership.businesses as any).requireSalespersonEod ?? false,
+      eodDeadlineTime: (membership.businesses as any).eodDeadlineTime ?? '20:00',
       role: membership.role as any,
       permissions: mergeWithBusinessPermissions({
         ...(membership.permissions as any),

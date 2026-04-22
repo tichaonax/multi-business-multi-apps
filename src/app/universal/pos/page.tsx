@@ -26,6 +26,7 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { getBusinessTypeConfig, getSupportedBusinessTypes } from './config/business-type-config'
 import { toast } from 'sonner'
 import type { ReceiptData } from '@/types/printing'
+import { SalespersonEodModal } from '@/components/eod/salesperson-eod-modal'
 
 /**
  * Universal POS Page
@@ -56,6 +57,24 @@ export default function UniversalPOS() {
 
   // BOGO promotion state
   const [bogoPromotion, setBogoPromotion] = useState<{ isActive: boolean; value: number } | null>(null)
+
+  // EOD gate state (Phase 4 / Phase 8)
+  const [eodGate, setEodGate] = useState<{
+    hasPending: boolean
+    pendingDate: string | null
+    deadlinePassed: boolean
+    deadlineTime: string | null
+    todayStatus: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    if (!currentBusinessId || !currentBusiness?.requireSalespersonEod) return
+    if (currentBusiness?.role !== 'salesperson') return
+    fetch(`/api/eod/salesperson/pending?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(json => { if (json.success) setEodGate(json) })
+      .catch(() => {})
+  }, [currentBusinessId, currentBusiness?.requireSalespersonEod, currentBusiness?.role])
 
   // Initialize cart
   const {
@@ -539,10 +558,58 @@ export default function UniversalPOS() {
 
   return (
     <BusinessTypeRoute allowedTypes={getSupportedBusinessTypes()}>
+      {/* EOD blocking overlay */}
+      {eodGate?.hasPending && currentBusinessId && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-5 py-4 border-b border-gray-200 dark:border-neutral-700">
+              <h2 className="text-base font-semibold text-red-700 dark:text-red-400">⛔ Action Required</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                You must submit your EOD report for{' '}
+                <span className="font-medium">
+                  {eodGate.pendingDate
+                    ? new Date(eodGate.pendingDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long' })
+                    : 'a previous day'}
+                </span>{' '}
+                before you can process new sales.
+              </p>
+            </div>
+            <SalespersonEodModal
+              businessId={currentBusinessId}
+              reportDate={eodGate.pendingDate ?? undefined}
+              onClose={() => {}}
+              onSuccess={() => {
+                fetch(`/api/eod/salesperson/pending?businessId=${currentBusinessId}`)
+                  .then(r => r.json())
+                  .then(json => { if (json.success) setEodGate(json) })
+                  .catch(() => {})
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <ContentLayout
         title={`${config.displayName} POS`}
         description={`Point of Sale system for ${config.displayName.toLowerCase()}`}
       >
+        {/* EOD deadline warning banner */}
+        {!eodGate?.hasPending && eodGate?.deadlinePassed && eodGate?.todayStatus === 'PENDING' && currentBusinessId && (
+          <div className="mb-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg flex items-center justify-between gap-3">
+            <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">
+              ⚠️ EOD submission overdue — please submit your end-of-day report before leaving.
+            </p>
+            <button
+              onClick={() => {
+                const today = new Date().toISOString().split('T')[0]
+                setEodGate(prev => prev ? { ...prev, hasPending: true, pendingDate: today } : prev)
+              }}
+              className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-md bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+            >
+              Submit Now
+            </button>
+          </div>
+        )}
         {/* Salesperson selector — persists across sales on shared terminals */}
         {currentBusinessId && session?.user?.id && (
           <div className="mb-3">

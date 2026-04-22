@@ -1109,6 +1109,30 @@ export function Sidebar() {
               </Link>
             )}
 
+            {/* Salesperson EOD — Daily Report link for salespersons */}
+            {currentBusiness?.requireSalespersonEod && currentBusiness?.role === 'salesperson' && (
+              <Link href="/eod/history" className={getLinkClasses('/eod/history')}>
+                <span className="text-lg">📋</span>
+                <span>My EOD History</span>
+              </Link>
+            )}
+
+            {/* Staff EOD Status — manager/admin view */}
+            {(isSystemAdmin(currentUser) || hasPermission('canCloseBooks')) && currentBusiness?.requireSalespersonEod && (
+              <Link href="/eod/manager" className={getLinkClasses('/eod/manager')}>
+                <span className="text-lg">📋</span>
+                <span>Staff EOD Status</span>
+              </Link>
+            )}
+
+            {/* EOD Discrepancy Report */}
+            {(isSystemAdmin(currentUser) || hasPermission('canCloseBooks') || hasPermission('canAccessFinancialData')) && currentBusiness?.requireSalespersonEod && (
+              <Link href="/reports/eod-discrepancy" className={getLinkClasses('/reports/eod-discrepancy')}>
+                <span className="text-lg">📊</span>
+                <span>EOD Discrepancy</span>
+              </Link>
+            )}
+
             {/* Petty Cash — shown for users with petty_cash.approve OR petty_cash.request permission */}
             {(canApprovePettyCashSys || canRequestPettyCashSys) && (
               <Link

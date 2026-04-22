@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
       managerName,
       cashCounted,
       confirmedEcocashAmount,
+      salespersonCashTotal,
+      salespersonEcocashTotal,
       reportData
     } = body
 
@@ -171,6 +173,8 @@ export async function POST(req: NextRequest) {
         expectedCash: expectedCash,
         cashCounted: cashCounted !== undefined && cashCounted !== null ? parseFloat(cashCounted.toString()) : null,
         confirmedEcocashAmount: confirmedEcocashAmount !== undefined && confirmedEcocashAmount !== null ? parseFloat(confirmedEcocashAmount.toString()) : null,
+        salespersonCashTotal: salespersonCashTotal !== undefined && salespersonCashTotal !== null ? parseFloat(salespersonCashTotal.toString()) : null,
+        salespersonEcocashTotal: salespersonEcocashTotal !== undefined && salespersonEcocashTotal !== null ? parseFloat(salespersonEcocashTotal.toString()) : null,
         variance: variance,
         totalSales: totalSales,
         totalOrders: totalOrders,

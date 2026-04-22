@@ -567,6 +567,18 @@ export function MobileSidebar() {
                     <Link href="/expiry" className={sectionLinkClass} onClick={close}>🗓️ Expiry Management</Link>
                   )}
 
+                  {currentBusiness?.requireSalespersonEod && currentBusiness?.role === 'salesperson' && (
+                    <Link href="/eod/history" className={sectionLinkClass} onClick={close}>📋 My EOD History</Link>
+                  )}
+
+                  {(isAdmin || hasBusinessPermission('canCloseBooks')) && currentBusiness?.requireSalespersonEod && (
+                    <Link href="/eod/manager" className={sectionLinkClass} onClick={close}>📋 Staff EOD Status</Link>
+                  )}
+
+                  {(isAdmin || hasBusinessPermission('canCloseBooks') || hasBusinessPermission('canAccessFinancialData')) && currentBusiness?.requireSalespersonEod && (
+                    <Link href="/reports/eod-discrepancy" className={sectionLinkClass} onClick={close}>📊 EOD Discrepancy</Link>
+                  )}
+
                   {(isAdmin || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
                     <Link href="/projects" className={sectionLinkClass} onClick={close}>📋 Projects</Link>
                   )}

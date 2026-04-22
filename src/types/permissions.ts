@@ -3249,6 +3249,8 @@ export interface BusinessMembership {
   couponsEnabled?: boolean; // Whether coupons are enabled for this business
   promosEnabled?: boolean; // Whether campaign promos are enabled for this business
   ecocashEnabled?: boolean; // Whether EcoCash payments are accepted
+  requireSalespersonEod?: boolean; // Whether salesperson EOD reports are required
+  eodDeadlineTime?: string; // HH:MM 24-hr deadline for EOD submission (e.g. "20:00")
   ecocashFeeType?: string; // 'FIXED' | 'PERCENTAGE'
   ecocashFeeValue?: number; // Fee amount or percentage
   ecocashMinimumFee?: number; // Minimum fee floor for PERCENTAGE type

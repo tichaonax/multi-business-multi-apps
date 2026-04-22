@@ -50,6 +50,8 @@ function BusinessManagePageContent() {
     ecocashFeeType?: string
     ecocashFeeValue?: string
     ecocashMinimumFee?: string
+    requireSalespersonEod?: boolean
+    eodDeadlineTime?: string
     couponsEnabled?: boolean
     promosEnabled?: boolean
     receiptReturnPolicy?: string
@@ -400,6 +402,8 @@ function BusinessManagePageContent() {
                               ecocashFeeType: biz?.ecocashFeeType || 'FIXED',
                               ecocashFeeValue: biz?.ecocashFeeValue !== undefined ? String(biz.ecocashFeeValue) : '',
                               ecocashMinimumFee: biz?.ecocashMinimumFee !== undefined ? String(biz.ecocashMinimumFee) : '',
+                              requireSalespersonEod: biz?.requireSalespersonEod ?? false,
+                              eodDeadlineTime: biz?.eodDeadlineTime ?? '20:00',
                               couponsEnabled: biz?.couponsEnabled !== undefined ? biz.couponsEnabled : false,
                               promosEnabled: biz?.promosEnabled !== undefined ? biz.promosEnabled : false,
                               receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',

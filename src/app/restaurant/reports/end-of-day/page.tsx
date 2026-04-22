@@ -49,6 +49,9 @@ export default function EndOfDayReport() {
   // Grouped EOD catch-up wizard
   const [showCatchupWizard, setShowCatchupWizard] = useState(false)
 
+  // Salesperson EOD data for manager gate (Phase 6)
+  const [salespersonEodData, setSalespersonEodData] = useState<{ data: any[], totals: { cashTotal: number, ecocashTotal: number }, counts: any } | null>(null)
+
   // EcoCash verification checklist
   const [ecocashTxns, setEcocashTxns] = useState<{ orderId: string; transactionCode: string | null; grossAmount: number; feeAmount: number; netAmount: number; createdAt: string }[]>([])
   const [checkedTxnIds, setCheckedTxnIds] = useState<Set<string>>(new Set())
@@ -141,6 +144,15 @@ export default function EndOfDayReport() {
       setCheckedTxnIds(new Set())
     }
   }, [showSaveModal])
+
+  // Load salesperson EOD records for manager gate (Phase 6)
+  useEffect(() => {
+    if (!currentBusinessId || !currentBusiness?.requireSalespersonEod || !dailySales) return
+    fetch(`/api/eod/salesperson/all?businessId=${currentBusinessId}&date=${dailySales.businessDay.date}`)
+      .then(r => r.json())
+      .then(json => { if (json.success) setSalespersonEodData({ data: json.data, totals: json.totals, counts: json.counts }) })
+      .catch(() => {})
+  }, [currentBusinessId, currentBusiness?.requireSalespersonEod, dailySales])
 
   // Load EcoCash transactions for verification when save modal opens
   useEffect(() => {
@@ -249,6 +261,8 @@ export default function EndOfDayReport() {
           managerName: confirmName,
           cashCounted: parseFloat(cashCounted || '0'),
           confirmedEcocashAmount: confirmedEcocashTotal > 0 ? confirmedEcocashTotal : null,
+          salespersonCashTotal: salespersonEodData?.totals?.cashTotal ?? null,
+          salespersonEcocashTotal: salespersonEodData?.totals?.ecocashTotal ?? null,
           reportData: reportData
         })
       })
@@ -297,6 +311,9 @@ export default function EndOfDayReport() {
   const mealProgramCashCollected = dailySales?.expenseAccountSales?.cashTotal || 0
   const deliveryPrepaymentsCash = dailySales?.deliveryPrepayments?.cashTotal || 0
   const expectedCash = (dailySales?.paymentMethods?.CASH?.total || 0) + mealProgramCashCollected + deliveryPrepaymentsCash
+
+  // Block save if any salesperson EOD is still PENDING
+  const spBlocksSave = !!(salespersonEodData && salespersonEodData.counts.pending > 0)
 
   // Calculate variance when cash counted changes
   useEffect(() => {
@@ -474,7 +491,9 @@ export default function EndOfDayReport() {
             {!existingReport && (
               <button
                 onClick={openSaveModal}
-                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm whitespace-nowrap"
+                disabled={spBlocksSave}
+                title={spBlocksSave ? 'All salesperson EOD reports must be submitted first' : undefined}
+                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 💾 Save & Lock Report
               </button>
@@ -881,6 +900,57 @@ export default function EndOfDayReport() {
             </div>
           )}
 
+          {/* Salesperson EOD Reports (Phase 6) — manager gate panel */}
+          {currentBusiness?.requireSalespersonEod && salespersonEodData && salespersonEodData.data.length > 0 && (
+            <div className="mb-8 no-print">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600">
+                👥 SALESPERSON EOD REPORTS
+              </h3>
+              {salespersonEodData.counts.pending > 0 && (
+                <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                    ⚠️ {salespersonEodData.counts.pending} salesperson{salespersonEodData.counts.pending !== 1 ? 's have' : ' has'} not yet submitted their EOD report. The books cannot be closed until all reports are submitted.
+                  </p>
+                </div>
+              )}
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 dark:bg-gray-700">
+                  <tr>
+                    <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100">Salesperson</th>
+                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100">Cash</th>
+                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100">EcoCash</th>
+                    <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100">Notes</th>
+                    <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salespersonEodData.data.map((r: any) => (
+                    <tr key={r.id} className="border-b border-gray-200 dark:border-gray-600">
+                      <td className="p-3 text-gray-900 dark:text-gray-100">{r.salesperson?.name || '—'}</td>
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100">{r.status === 'PENDING' ? '—' : formatCurrency(Number(r.cashAmount))}</td>
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100">{r.status === 'PENDING' ? '—' : formatCurrency(Number(r.ecocashAmount))}</td>
+                      <td className="p-3 text-gray-600 dark:text-gray-400 max-w-[180px] truncate">{r.notes || '—'}</td>
+                      <td className="p-3 text-center">
+                        {r.status === 'PENDING' && <span className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 rounded text-xs font-semibold">PENDING</span>}
+                        {r.status === 'SUBMITTED' && <span className="px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 rounded text-xs font-semibold">SUBMITTED</span>}
+                        {r.status === 'OVERRIDDEN' && <span className="px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 rounded text-xs font-semibold">OVERRIDDEN</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  {(salespersonEodData.counts.submitted + salespersonEodData.counts.overridden) > 0 && (
+                    <tr className="bg-gray-100 dark:bg-gray-700 font-bold">
+                      <td className="p-3 text-gray-900 dark:text-gray-100">TOTAL (submitted)</td>
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100">{formatCurrency(salespersonEodData.totals.cashTotal)}</td>
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100">{formatCurrency(salespersonEodData.totals.ecocashTotal)}</td>
+                      <td className="p-3" />
+                      <td className="p-3" />
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Till Reconciliation */}
           <div className="mb-8">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
@@ -1001,7 +1071,9 @@ export default function EndOfDayReport() {
             <div className="no-print mt-6 flex justify-center">
               <button
                 onClick={openSaveModal}
-                className="inline-flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold shadow"
+                disabled={spBlocksSave}
+                title={spBlocksSave ? 'All salesperson EOD reports must be submitted first' : undefined}
+                className="inline-flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold shadow disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 💾 Save & Lock Report
               </button>

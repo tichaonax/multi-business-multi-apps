@@ -26,6 +26,8 @@ import { LoanPendingActionsWidget } from '@/components/loans/loan-pending-action
 import { BusinessLoansWidget } from '@/components/loans/business-loans-widget'
 import { EodAccountsWidget } from '@/components/dashboard/eod-accounts-widget'
 import { ExpiryAlertsWidget } from '@/components/inventory/expiry-alerts-widget'
+import { SalespersonEodStatusCard } from '@/components/eod/salesperson-eod-status-card'
+import { ManagerEodStatusWidget } from '@/components/eod/manager-eod-status-widget'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -1019,6 +1021,18 @@ function DashboardContent() {
         {hasPermission('canAccessFinancialData') && (
           <div className="mt-6">
             <LowBalanceAlert />
+          </div>
+        )}
+
+        {/* Salesperson EOD Status Card — shown for salespersons when feature is enabled */}
+        {businessId && currentBusiness?.role === 'salesperson' && currentBusiness?.requireSalespersonEod && (
+          <SalespersonEodStatusCard businessId={businessId} />
+        )}
+
+        {/* Manager EOD Status Widget — shown for canCloseBooks users when feature is enabled */}
+        {businessId && (hasPermission('canCloseBooks') || isSysAdmin) && currentBusiness?.requireSalespersonEod && currentBusiness?.role !== 'salesperson' && (
+          <div className="mt-4">
+            <ManagerEodStatusWidget businessId={businessId} deadlineTime={currentBusiness?.eodDeadlineTime} />
           </div>
         )}
 

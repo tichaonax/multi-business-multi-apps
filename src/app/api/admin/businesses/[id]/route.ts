@@ -61,6 +61,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('ecocashMinimumFee')) {
       updateData.ecocashMinimumFee = payload.ecocashMinimumFee !== undefined && payload.ecocashMinimumFee !== '' ? parseFloat(payload.ecocashMinimumFee) : 0
     }
+    if (payload.hasOwnProperty('requireSalespersonEod')) {
+      updateData.requireSalespersonEod = !!payload.requireSalespersonEod
+    }
+    if (payload.hasOwnProperty('eodDeadlineTime')) {
+      updateData.eodDeadlineTime = payload.eodDeadlineTime?.trim() || '20:00'
+    }
     if (payload.hasOwnProperty('couponsEnabled')) {
       updateData.couponsEnabled = !!payload.couponsEnabled
     }

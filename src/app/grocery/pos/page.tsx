@@ -39,6 +39,7 @@ import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
 import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
+import { SalespersonEodModal } from '@/components/eod/salesperson-eod-modal'
 
 interface POSItem {
   id: string
@@ -129,6 +130,15 @@ function GroceryPOSContent() {
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
   const [scaleVisible, setScaleVisible] = useState(false)
   const [deskMode, setDeskMode] = useState(true)
+  // EOD gate state (Phase 4 / Phase 8)
+  const [eodGate, setEodGate] = useState<{
+    hasPending: boolean
+    pendingDate: string | null
+    deadlinePassed: boolean
+    deadlineTime: string | null
+    todayStatus: string | null
+  } | null>(null)
+  const [eodGateLoading, setEodGateLoading] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [productStatsMap, setProductStatsMap] = useState<Map<string, { soldToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>>(new Map())
   const [deskSearchTerm, setDeskSearchTerm] = useState('')
@@ -421,6 +431,20 @@ function GroceryPOSContent() {
     const stored = localStorage.getItem(`grocery-pos-deskmode-${currentBusinessId}`)
     setDeskMode(stored !== null ? stored === 'true' : true)
   }, [currentBusinessId])
+
+  // EOD gate check — runs when business loads for salesperson role
+  useEffect(() => {
+    if (!currentBusinessId || !currentBusiness?.requireSalespersonEod) return
+    if (currentBusiness?.role !== 'salesperson') return
+    setEodGateLoading(true)
+    fetch(`/api/eod/salesperson/pending?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.success) setEodGate(json)
+      })
+      .catch(() => {})
+      .finally(() => setEodGateLoading(false))
+  }, [currentBusinessId, currentBusiness?.requireSalespersonEod, currentBusiness?.role])
 
   useEffect(() => {
     if (!currentBusinessId) return
@@ -2436,6 +2460,58 @@ function GroceryPOSContent() {
             }
           }}
         />
+      )}
+
+      {/* EOD blocking overlay — salesperson must submit prior-day report before selling */}
+      {eodGate?.hasPending && currentBusinessId && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-5 py-4 border-b border-gray-200 dark:border-neutral-700">
+              <h2 className="text-base font-semibold text-red-700 dark:text-red-400">⛔ Action Required</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                You must submit your EOD report for{' '}
+                <span className="font-medium">
+                  {eodGate.pendingDate
+                    ? new Date(eodGate.pendingDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long' })
+                    : 'a previous day'}
+                </span>{' '}
+                before you can process new sales.
+              </p>
+            </div>
+            <SalespersonEodModal
+              businessId={currentBusinessId}
+              reportDate={eodGate.pendingDate ?? undefined}
+              onClose={() => {}} // cannot dismiss — no close button shown
+              onSuccess={() => {
+                // Re-check — if no more pending days, clear the gate
+                fetch(`/api/eod/salesperson/pending?businessId=${currentBusinessId}`)
+                  .then(r => r.json())
+                  .then(json => { if (json.success) setEodGate(json) })
+                  .catch(() => {})
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* EOD deadline warning banner — shown after deadline passes but today not yet submitted */}
+      {!eodGate?.hasPending && eodGate?.deadlinePassed && eodGate?.todayStatus === 'PENDING' && currentBusinessId && (
+        <div className="mb-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg flex items-center justify-between gap-3">
+          <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">
+            ⚠️ EOD submission overdue — please submit your end-of-day report before leaving.
+          </p>
+          <button
+            onClick={() => {
+              // Open modal by triggering a state that shows modal inline
+              const today = new Date().toISOString().split('T')[0]
+              // Reuse gate by creating a fake pending so modal shows — refresh after submit
+              setEodGate(prev => prev ? { ...prev, hasPending: true, pendingDate: today } : prev)
+            }}
+            className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-md bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+          >
+            Submit Now
+          </button>
+        </div>
       )}
 
       <ContentLayout
