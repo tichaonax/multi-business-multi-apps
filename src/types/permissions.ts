@@ -285,6 +285,17 @@ export interface CoreBusinessPermissions {
 
   // Chicken Run Management
   canManageChickenRun: boolean;
+
+  // Delivery Service (Restaurant)
+  canViewDeliveryQueue: boolean;
+  canCreateDeliveryOrders: boolean;
+  canUpdateDeliveryStatus: boolean;
+  canManageDeliveryRuns: boolean;
+  canManageDeliveryCredit: boolean;
+  canManageDeliveryBlacklist: boolean;
+  canViewDeliveryReports: boolean;
+  canPrintDeliveryMarketing: boolean;
+  canUpdateOdometer: boolean;
 }
 
 // Business-Type-Specific Permission Modules
@@ -366,6 +377,17 @@ export interface RestaurantPermissions {
 
   // Prep Inventory
   canInitializeInventory: boolean;
+
+  // Delivery Service
+  canViewDeliveryQueue: boolean;
+  canCreateDeliveryOrders: boolean;
+  canUpdateDeliveryStatus: boolean;
+  canManageDeliveryRuns: boolean;
+  canManageDeliveryCredit: boolean;
+  canManageDeliveryBlacklist: boolean;
+  canViewDeliveryReports: boolean;
+  canPrintDeliveryMarketing: boolean;
+  canUpdateOdometer: boolean;
 }
 
 export interface ConstructionPermissions {
@@ -508,6 +530,17 @@ export const RESTAURANT_ASSOCIATE_PERMISSIONS: RestaurantPermissions = {
 
   // Prep Inventory
   canInitializeInventory: false,
+
+  // Delivery Service - cashier can view queue + create orders + update status
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: true,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: false,
+  canManageDeliveryCredit: false,
+  canManageDeliveryBlacklist: false,
+  canViewDeliveryReports: false,
+  canPrintDeliveryMarketing: false,
+  canUpdateOdometer: false,
 };
 
 export const RESTAURANT_EMPLOYEE_PERMISSIONS: RestaurantPermissions = {
@@ -549,6 +582,17 @@ export const RESTAURANT_EMPLOYEE_PERMISSIONS: RestaurantPermissions = {
 
   // Prep Inventory
   canInitializeInventory: false,
+
+  // Delivery Service - driver-level (view + status update + odometer)
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: false,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: false,
+  canManageDeliveryCredit: false,
+  canManageDeliveryBlacklist: false,
+  canViewDeliveryReports: false,
+  canPrintDeliveryMarketing: false,
+  canUpdateOdometer: true,
 };
 
 export const RESTAURANT_MANAGER_PERMISSIONS: RestaurantPermissions = {
@@ -590,6 +634,17 @@ export const RESTAURANT_MANAGER_PERMISSIONS: RestaurantPermissions = {
 
   // Prep Inventory
   canInitializeInventory: true,
+
+  // Delivery Service - full management
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: true,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: true,
+  canManageDeliveryCredit: true,
+  canManageDeliveryBlacklist: true,
+  canViewDeliveryReports: true,
+  canPrintDeliveryMarketing: true,
+  canUpdateOdometer: true,
 };
 
 export const RESTAURANT_OWNER_PERMISSIONS: RestaurantPermissions = {
@@ -631,6 +686,69 @@ export const RESTAURANT_OWNER_PERMISSIONS: RestaurantPermissions = {
 
   // Prep Inventory
   canInitializeInventory: true,
+
+  // Delivery Service - full access
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: true,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: true,
+  canManageDeliveryCredit: true,
+  canManageDeliveryBlacklist: true,
+  canViewDeliveryReports: true,
+  canPrintDeliveryMarketing: true,
+  canUpdateOdometer: true,
+};
+
+export const RESTAURANT_DRIVER_PERMISSIONS: RestaurantPermissions = {
+  // Project Management - No access
+  canViewProjects: false,
+  canCreateProjects: false,
+  canEditProjects: false,
+  canDeleteProjects: false,
+  canManageProjectTypes: false,
+  canViewProjectReports: false,
+
+  // Menu Management - No access
+  canViewMenu: false,
+  canManageMenu: false,
+  canManageMenuCategories: false,
+  canManageRecipes: false,
+  canManageIngredients: false,
+  canViewMenuAnalytics: false,
+
+  // Kitchen Operations - No access
+  canViewKitchenOrders: false,
+  canManageKitchenOrders: false,
+  canManageKitchenStaff: false,
+  canViewKitchenReports: false,
+  canManageKitchenInventory: false,
+
+  // Front of House - No access
+  canManageReservations: false,
+  canManageTables: false,
+  canProcessOrders: false,
+  canManageCustomers: false,
+  canViewTableTurnover: false,
+
+  // Food Safety & Compliance - No access
+  canManageFoodSafety: false,
+  canViewHealthReports: false,
+  canManageAllergenInfo: false,
+  canViewComplianceReports: false,
+
+  // Prep Inventory
+  canInitializeInventory: false,
+
+  // Delivery Service - driver only: view queue, update status, record odometer
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: false,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: false,
+  canManageDeliveryCredit: false,
+  canManageDeliveryBlacklist: false,
+  canViewDeliveryReports: false,
+  canPrintDeliveryMarketing: false,
+  canUpdateOdometer: true,
 };
 
 // Restaurant permission presets mapping
@@ -639,6 +757,7 @@ export const RESTAURANT_PERMISSION_PRESETS = {
   'business-manager': RESTAURANT_MANAGER_PERMISSIONS,
   'employee': RESTAURANT_EMPLOYEE_PERMISSIONS,
   'restaurant-associate': RESTAURANT_ASSOCIATE_PERMISSIONS,
+  'delivery-driver': RESTAURANT_DRIVER_PERMISSIONS,
   'salesperson': RESTAURANT_EMPLOYEE_PERMISSIONS,  // Same as employee
   'read-only': RESTAURANT_EMPLOYEE_PERMISSIONS,    // Same as employee (view only)
   'system-admin': RESTAURANT_OWNER_PERMISSIONS,    // Same as owner
@@ -1470,6 +1589,15 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canManageInventory: true,
   canZeroOutInventory: false,
   canManageChickenRun: true,
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: true,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: true,
+  canManageDeliveryCredit: true,
+  canManageDeliveryBlacklist: true,
+  canViewDeliveryReports: true,
+  canPrintDeliveryMarketing: true,
+  canUpdateOdometer: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1627,6 +1755,15 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canManageInventory: true,
   canZeroOutInventory: false,
   canManageChickenRun: true,
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: true,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: true,
+  canManageDeliveryCredit: true,
+  canManageDeliveryBlacklist: true,
+  canViewDeliveryReports: true,
+  canPrintDeliveryMarketing: true,
+  canUpdateOdometer: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -1784,6 +1921,15 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canManageInventory: false,
   canZeroOutInventory: false,
   canManageChickenRun: false,
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: true,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: false,
+  canManageDeliveryCredit: false,
+  canManageDeliveryBlacklist: false,
+  canViewDeliveryReports: false,
+  canPrintDeliveryMarketing: false,
+  canUpdateOdometer: true,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -1939,6 +2085,184 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageInventory: false,
   canZeroOutInventory: false,
   canManageChickenRun: false,
+  canViewDeliveryQueue: false,
+  canCreateDeliveryOrders: false,
+  canUpdateDeliveryStatus: false,
+  canManageDeliveryRuns: false,
+  canManageDeliveryCredit: false,
+  canManageDeliveryBlacklist: false,
+  canViewDeliveryReports: false,
+  canPrintDeliveryMarketing: false,
+  canUpdateOdometer: false,
+};
+
+// Delivery Driver permissions - Delivery queue and status updates only
+// Can: view delivery queue, update order status, enter odometer
+// Cannot: create orders, manage credit/blacklist, access any other business feature
+export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
+  // Business Management - View only
+  canViewBusiness: true,
+  canEditBusiness: false,
+  canDeleteBusiness: false,
+  canManageBusinessUsers: false,
+  canManageBusinessSettings: false,
+  canChangeDefaultPage: false,
+
+  // User Management - No access
+  canViewUsers: false,
+  canInviteUsers: false,
+  canEditUserPermissions: false,
+  canRemoveUsers: false,
+  canViewAuditLogs: false,
+
+  // Data Management - No access
+  canExportBusinessData: false,
+  canImportBusinessData: false,
+  canBackupBusiness: false,
+  canRestoreBusiness: false,
+
+  // Employee Management - No access
+  canViewEmployees: false,
+  canCreateEmployees: false,
+  canEditEmployees: false,
+  canDeleteEmployees: false,
+  canManageEmployees: false,
+  canViewEmployeeContracts: false,
+  canCreateEmployeeContracts: false,
+  canEditEmployeeContracts: false,
+  canApproveEmployeeContracts: false,
+  canDeleteEmployeeContracts: false,
+  canManageJobTitles: false,
+  canManageBenefitTypes: false,
+  canManageCompensationTypes: false,
+  canManageDisciplinaryActions: false,
+  canViewEmployeeReports: false,
+  canExportEmployeeData: false,
+  canApproveSalaryIncreases: false,
+  canProcessSalaryIncreases: false,
+
+  // Financial Management - No access
+  canAccessFinancialData: false,
+  canManageProjectBudgets: false,
+  canManageProjectPayments: false,
+  canViewCostReports: false,
+  canApproveBudgetChanges: false,
+  canViewProfitabilityReports: false,
+
+  // Customer Management - No access
+  canAccessCustomers: false,
+  canViewCustomers: false,
+  canManageCustomers: false,
+  canCreateCustomers: false,
+  canEditCustomers: false,
+  canDeleteCustomers: false,
+  canManageDivisionAccounts: false,
+  canManageLaybys: false,
+  canManageCredit: false,
+  canViewCustomerReports: false,
+  canExportCustomerData: false,
+  canLinkCustomerAccounts: false,
+
+  // Per Diem
+  canAccessPerDiem: false,
+
+  // Payroll Management - No access
+  canAccessPayroll: false,
+  canManagePayroll: false,
+  canCreatePayrollPeriod: false,
+  canEditPayrollEntry: false,
+  canApprovePayroll: false,
+  canExportPayroll: false,
+  canResetExportedPayrollToPreview: false,
+  canDeletePayroll: false,
+  canPrintPayrollEntryDetails: false,
+  canEnterPaySlips: false,
+  canReconcilePayroll: false,
+  canViewPayrollReports: false,
+  canManageAdvances: false,
+
+  // Payroll Account Management - No access
+  canAccessPayrollAccount: false,
+  canViewPayrollAccountBalance: false,
+  canMakePayrollDeposits: false,
+  canMakePayrollPayments: false,
+  canAdjustPaymentAmounts: false,
+  canIssuePaymentVouchers: false,
+  canCompletePayments: false,
+  canViewPayrollHistory: false,
+  canExportPayrollPayments: false,
+
+  // Expense Account Management - No access
+  canAccessExpenseAccount: false,
+  canCreateExpenseAccount: false,
+  canMakeExpenseDeposits: false,
+  canMakeExpensePayments: false,
+  canViewExpenseReports: false,
+  canCreateIndividualPayees: false,
+  canDeleteExpenseAccounts: false,
+  canAdjustExpensePayments: false,
+  canEditExpenseTransactions: false,
+  canCreateSiblingAccounts: false,
+  canEnterHistoricalData: false,
+  canMergeSiblingAccounts: false,
+  canManageLending: false,
+  canManageAutoDeposits: false,
+  canManageBusinessLoans: false,
+  canRunCashAllocationReport: false,
+  canApproveCashAllocationReport: false,
+  canCreateExpenseSubcategories: false,
+  canTransferBetweenAccounts: false,
+
+  // Supplier Management - No access
+  canViewSuppliers: false,
+  canCreateSuppliers: false,
+  canEditSuppliers: false,
+  canDeleteSuppliers: false,
+  canManageSupplierCatalog: false,
+  canSubmitSupplierPaymentRequests: false,
+  canApproveSupplierPayments: false,
+  canViewSupplierPaymentQueue: false,
+  canViewSupplierPaymentReports: false,
+  canViewCrossBusinessReports: false,
+
+  // Location Management - No access
+  canViewLocations: false,
+  canCreateLocations: false,
+  canEditLocations: false,
+  canDeleteLocations: false,
+
+  // WiFi Portal Integration - No access
+  canSetupPortalIntegration: false,
+  canConfigureWifiTokens: false,
+  canSellWifiTokens: false,
+  canViewWifiReports: false,
+  canManageBusinessWifiMenu: false,
+
+  // Menu Management - No access
+  canManageMenu: false,
+  canManageMenuCategories: false,
+
+  canManageCoupons: false,
+  canEnterManualOrders: false,
+  canCloseBooks: false,
+  canSubmitPaymentBatch: false,
+  canViewCashBucketReport: false,
+  canDeleteCashBucketEntry: false,
+  canReversePaymentsToPettyCash: false,
+  canManageInventory: false,
+  canZeroOutInventory: false,
+  canManageChickenRun: false,
+
+  // Delivery - driver access only
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: false,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: false,
+  canManageDeliveryCredit: false,
+  canManageDeliveryBlacklist: false,
+  canViewDeliveryReports: false,
+  canPrintDeliveryMarketing: false,
+  canUpdateOdometer: true,
 };
 
 // Restaurant Associate permissions - Food prep and POS operations
@@ -2097,6 +2421,15 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canManageInventory: false,
   canZeroOutInventory: false,
   canManageChickenRun: false,
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: true,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: false,
+  canManageDeliveryCredit: false,
+  canManageDeliveryBlacklist: false,
+  canViewDeliveryReports: false,
+  canPrintDeliveryMarketing: false,
+  canUpdateOdometer: false,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
@@ -2255,6 +2588,15 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canManageInventory: false,
   canZeroOutInventory: false,
   canManageChickenRun: false,
+  canViewDeliveryQueue: false,
+  canCreateDeliveryOrders: false,
+  canUpdateDeliveryStatus: false,
+  canManageDeliveryRuns: false,
+  canManageDeliveryCredit: false,
+  canManageDeliveryBlacklist: false,
+  canViewDeliveryReports: false,
+  canPrintDeliveryMarketing: false,
+  canUpdateOdometer: false,
 };
 
 // System admin permissions (cross-business)
@@ -2410,6 +2752,15 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canManageInventory: true,
   canZeroOutInventory: true,
   canManageChickenRun: true,
+  canViewDeliveryQueue: true,
+  canCreateDeliveryOrders: true,
+  canUpdateDeliveryStatus: true,
+  canManageDeliveryRuns: true,
+  canManageDeliveryCredit: true,
+  canManageDeliveryBlacklist: true,
+  canViewDeliveryReports: true,
+  canPrintDeliveryMarketing: true,
+  canUpdateOdometer: true,
 };
 
 // User-Level Permission Presets
@@ -2817,6 +3168,7 @@ export const BUSINESS_PERMISSION_PRESETS = {
   'restaurant-associate': BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS,
   'grocery-associate': BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS,  // Same core business perms as restaurant
   'clothing-associate': BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS, // Same core business perms as restaurant
+  'delivery-driver': BUSINESS_DELIVERY_DRIVER_PERMISSIONS,
   'salesperson': BUSINESS_SALESPERSON_PERMISSIONS,
   'read-only': BUSINESS_READ_ONLY_PERMISSIONS,
   'system-admin': SYSTEM_ADMIN_PERMISSIONS,
@@ -2832,6 +3184,7 @@ export const USER_LEVEL_PERMISSION_PRESETS = {
   'restaurant-associate': RESTAURANT_ASSOCIATE_USER_PERMISSIONS,
   'grocery-associate': RESTAURANT_ASSOCIATE_USER_PERMISSIONS,   // Same user perms (print receipts)
   'clothing-associate': RESTAURANT_ASSOCIATE_USER_PERMISSIONS,  // Same user perms (print receipts)
+  'delivery-driver': DEFAULT_USER_PERMISSIONS,
   'salesperson': DEFAULT_USER_PERMISSIONS,
   'read-only': DEFAULT_USER_PERMISSIONS,
   'system-admin': ADMIN_USER_PERMISSIONS,

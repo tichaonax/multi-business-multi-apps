@@ -82,6 +82,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/prep-inventory`,
       icon: '🍳',
       color: 'bg-teal-600 hover:bg-teal-700'
+    },
+    {
+      title: 'Delivery Reports',
+      description: 'Delivery sales, customer credit balances, blacklist log, and driver run history',
+      href: `/${businessType}/delivery/reports`,
+      icon: '🛵',
+      color: 'bg-sky-600 hover:bg-sky-700'
     }
   ]
 

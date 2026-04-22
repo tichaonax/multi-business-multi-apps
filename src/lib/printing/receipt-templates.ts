@@ -43,6 +43,7 @@ const GS = '\x1D'; // GS
 const LF = '\x0A'; // Line feed
 const CUT = GS + 'V' + '\x41' + String.fromCharCode(3); // Partial cut paper
 
+
 // Alignment commands
 const ALIGN_LEFT = ESC + 'a' + String.fromCharCode(0);
 const ALIGN_CENTER = ESC + 'a' + String.fromCharCode(1);
@@ -435,7 +436,7 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
     if (data.customerName) {
       receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
       if (data.customerPhone) {
-        receipt += centerText(data.customerPhone) + LF;
+        receipt += centerText(formatPhoneNumberForDisplay(data.customerPhone)) + LF;
       }
     } else {
       receipt += centerText('Thank you for your business!') + LF;
@@ -699,7 +700,7 @@ function generateHardwareReceipt(data: ReceiptData): string {
   }
   if (data.customerName) {
     receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
-    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+    if (data.customerPhone) { receipt += centerText(formatPhoneNumberForDisplay(data.customerPhone)) + LF; }
   } else {
     receipt += centerText('Thank you for your business!') + LF;
   }
@@ -811,7 +812,7 @@ function generateConstructionReceipt(data: ReceiptData): string {
   }
   if (data.customerName) {
     receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
-    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+    if (data.customerPhone) { receipt += centerText(formatPhoneNumberForDisplay(data.customerPhone)) + LF; }
   } else {
     receipt += centerText('Thank you for your business!') + LF;
   }
@@ -937,7 +938,7 @@ function generateVehiclesReceipt(data: ReceiptData): string {
   }
   if (data.customerName) {
     receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
-    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+    if (data.customerPhone) { receipt += centerText(formatPhoneNumberForDisplay(data.customerPhone)) + LF; }
   } else {
     receipt += centerText('Thank you for your business!') + LF;
   }
@@ -1041,7 +1042,7 @@ function generateConsultingReceipt(data: ReceiptData): string {
   }
   if (data.customerName) {
     receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
-    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+    if (data.customerPhone) { receipt += centerText(formatPhoneNumberForDisplay(data.customerPhone)) + LF; }
   } else {
     receipt += centerText('Thank you for your business!') + LF;
   }
@@ -1143,7 +1144,7 @@ function generateRetailReceipt(data: ReceiptData): string {
   }
   if (data.customerName) {
     receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
-    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+    if (data.customerPhone) { receipt += centerText(formatPhoneNumberForDisplay(data.customerPhone)) + LF; }
   } else {
     receipt += centerText('Thank you for shopping!') + LF;
   }
@@ -1273,7 +1274,7 @@ function generateGenericReceipt(data: ReceiptData): string {
   }
   if (data.customerName) {
     receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
-    if (data.customerPhone) { receipt += centerText(data.customerPhone) + LF; }
+    if (data.customerPhone) { receipt += centerText(formatPhoneNumberForDisplay(data.customerPhone)) + LF; }
   } else {
     receipt += centerText(data.footerMessage || 'Thank you!') + LF;
   }
@@ -1305,9 +1306,24 @@ function line(char: string = '='): string {
  * For EcoCash: shows ref, sub-total, fee, total paid.
  * For other methods: shows amount paid and change.
  */
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'Cash',
+  CARD: 'Card',
+  MOBILE: 'Mobile Money',
+  MOBILE_MONEY: 'Mobile Money',
+  ECOCASH: 'EcoCash',
+  ON_DELIVERY: 'Pay on Delivery',
+  ON_PICKUP: 'Pay on Pickup',
+  EXPENSE_ACCOUNT: 'Expense Account',
+  BANK_TRANSFER: 'Bank Transfer',
+  STORE_CREDIT: 'Store Credit',
+}
+
 function formatPaymentLines(data: ReceiptData): string {
-  let out = `Payment: ${data.paymentMethod.toUpperCase()}` + LF;
-  if (data.paymentMethod.toUpperCase() === 'ECOCASH') {
+  const method = data.paymentMethod.toUpperCase()
+  const label = PAYMENT_METHOD_LABELS[method] || data.paymentMethod
+  let out = `Payment: ${label}` + LF;
+  if (method === 'ECOCASH') {
     if (data.ecocashTransactionCode) {
       out += `EcoCash Ref: ${data.ecocashTransactionCode}` + LF;
     }
@@ -1317,6 +1333,10 @@ function formatPaymentLines(data: ReceiptData): string {
       out += formatTotal('EcoCash Fee', fee);
       out += formatTotal('Total Paid', data.total + fee);
     }
+  } else if (method === 'ON_DELIVERY') {
+    out += formatTotal('Due on Delivery', data.total);
+  } else if (method === 'ON_PICKUP') {
+    out += formatTotal('Due on Pickup', data.total);
   } else {
     if (data.amountPaid) {
       out += formatTotal('Amount Paid', data.amountPaid);
@@ -1380,4 +1400,253 @@ function wrapText(text: string, width: number = RECEIPT_WIDTH): string {
 // Delegates to formatDurationSmart for consistent MB→GB, mins→hours/days formatting
 function formatDuration(minutes: number): string {
   return formatDurationSmart(minutes);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MBM-184: DELIVERY RECEIPT TEMPLATES
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DeliveryReceiptItem {
+  name: string
+  quantity: number
+}
+
+export interface DeliveryReceiptData {
+  businessName: string
+  businessAddress?: string
+  businessPhone?: string
+  orderNumber: string
+  orderId: string
+  customerName: string
+  customerPhone?: string
+  items: DeliveryReceiptItem[]
+  deliveryNote?: string
+  transactionDate: Date
+  barcodeEscPos?: string   // pre-rendered GS v 0 raster from generateBarcodeEscPos()
+  dailyDeliveryCount?: number  // today's delivery order sequence count
+  // Credit / payment fields (customer copy only)
+  orderTotal?: number
+  creditUsed?: number
+  creditBalance?: number  // remaining after this order
+  paymentMode?: 'PREPAID' | 'PARTIAL' | 'ON_DELIVERY'
+}
+
+export interface DeliveryRunSheetData {
+  businessName: string
+  runDate: Date
+  driverName: string
+  vehiclePlate?: string
+  odometerStart?: number
+  orders: Array<{
+    orderNumber: string
+    customerName: string
+    deliveryNote?: string   // address / instructions
+    amountDue: number       // cash to collect (total - creditUsed)
+    paymentMode: string
+  }>
+}
+
+/**
+ * Kitchen copy — no prices, bold DELIVERY COPY header, items + qty only.
+ * Printed immediately when a delivery order is placed.
+ */
+export function generateDeliveryKitchenReceipt(data: DeliveryReceiptData): string {
+  let r = ''
+  r += ESC + '@'  // initialise printer
+
+  r += ALIGN_CENTER
+  r += centerText(stripEmojis(data.businessName)) + LF
+  if (data.businessAddress) r += centerText(stripEmojis(data.businessAddress)) + LF
+  r += LF
+  r += line('=') + LF
+  const kitchenHeader = data.dailyDeliveryCount !== undefined
+    ? (() => {
+        const left = 'KITCHEN COPY -- DELIVERY'
+        const right = `#${data.dailyDeliveryCount}`
+        const pad = RECEIPT_WIDTH - left.length - right.length
+        return left + ' '.repeat(Math.max(1, pad)) + right
+      })()
+    : centerText('KITCHEN COPY -- DELIVERY')
+  r += kitchenHeader + LF
+  r += line('=') + LF
+
+  r += ALIGN_LEFT
+  r += `Order : ${data.orderNumber}` + LF
+  r += `Date  : ${formatDateTime(data.transactionDate)}` + LF
+  r += `Name  : ${stripEmojis(data.customerName)}` + LF
+  if (data.customerPhone) r += `Phone : ${formatPhoneNumberForDisplay(data.customerPhone)}` + LF
+
+  if (data.deliveryNote) {
+    r += line('-') + LF
+    r += `Note: ${stripEmojis(data.deliveryNote)}` + LF
+  }
+
+  r += line('-') + LF
+  r += ALIGN_CENTER
+  r += 'ITEMS' + LF
+  r += ALIGN_LEFT
+  r += line('-') + LF
+
+  data.items.forEach((item) => {
+    // qty right-aligned against name, no price
+    const name = stripEmojis(item.name).substring(0, 30)
+    const qty = `x${item.quantity}`
+    const pad = RECEIPT_WIDTH - name.length - qty.length
+    r += name + ' '.repeat(Math.max(1, pad)) + qty + LF
+  })
+
+  r += line('=') + LF
+
+  // Barcode raster — pre-rendered via generateBarcodeEscPos() in the browser
+  if (data.barcodeEscPos) {
+    r += ALIGN_CENTER
+    r += LF
+    r += data.barcodeEscPos
+    r += LF + LF
+  }
+
+  r += CUT
+  return r
+}
+
+/**
+ * Customer copy — full receipt with delivery note + credit/payment section + barcode.
+ * Barcode encodes "DEL-{orderId}" for global scan handler.
+ */
+export function generateDeliveryCustomerReceipt(data: DeliveryReceiptData): string {
+  let r = ''
+  r += ESC + '@'
+
+  r += ALIGN_CENTER
+  r += centerText(stripEmojis(data.businessName)) + LF
+  if (data.businessAddress) r += centerText(stripEmojis(data.businessAddress)) + LF
+  if (data.businessPhone)   r += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF
+  r += LF
+  r += line('=') + LF
+  const deliveryHeader = data.dailyDeliveryCount !== undefined
+    ? (() => {
+        const left = 'DELIVERY ORDER'
+        const right = `#${data.dailyDeliveryCount}`
+        const pad = RECEIPT_WIDTH - left.length - right.length
+        return left + ' '.repeat(Math.max(1, pad)) + right
+      })()
+    : centerText('DELIVERY ORDER')
+  r += deliveryHeader + LF
+  r += line('=') + LF
+
+  r += ALIGN_LEFT
+  r += `Order  : ${data.orderNumber}` + LF
+  r += `Date   : ${formatDateTime(data.transactionDate)}` + LF
+  r += `Name   : ${stripEmojis(data.customerName)}` + LF
+  if (data.customerPhone) r += `Phone  : ${formatPhoneNumberForDisplay(data.customerPhone)}` + LF
+
+  if (data.deliveryNote) {
+    r += line('-') + LF
+    r += wrapText(`Delivery note: ${stripEmojis(data.deliveryNote)}`, RECEIPT_WIDTH) + LF
+  }
+
+  r += line('-') + LF
+  data.items.forEach((item) => {
+    const name = stripEmojis(item.name).substring(0, 30)
+    const qty = `x${item.quantity}`
+    const pad = RECEIPT_WIDTH - name.length - qty.length
+    r += name + ' '.repeat(Math.max(1, pad)) + qty + LF
+  })
+  r += line('-') + LF
+
+  // Payment / credit section
+  if (data.orderTotal !== undefined) {
+    r += formatTotal('Order Total', data.orderTotal)
+  }
+  if (data.creditUsed && data.creditUsed > 0) {
+    r += formatTotal('Credit Used', -data.creditUsed)
+  }
+
+  const balanceDue = (data.orderTotal || 0) - (data.creditUsed || 0)
+  r += formatTotal('Balance Due', balanceDue, true)
+
+  r += line('-') + LF
+
+  if (data.paymentMode === 'PREPAID') {
+    r += ALIGN_CENTER
+    r += 'PAID IN FULL (prepaid credit)' + LF
+    if (data.creditBalance !== undefined) {
+      r += `Remaining credit: $${data.creditBalance.toFixed(2)}` + LF
+    }
+  } else if (data.paymentMode === 'PARTIAL') {
+    r += ALIGN_CENTER
+    r += 'PARTIAL PREPAY -- balance due on delivery' + LF
+    if (data.creditBalance !== undefined) {
+      r += `Remaining credit: $${data.creditBalance.toFixed(2)}` + LF
+    }
+  } else {
+    r += ALIGN_CENTER
+    r += 'PAYMENT DUE ON DELIVERY' + LF
+  }
+
+  // Barcode raster — pre-rendered via generateBarcodeEscPos() in the browser
+  if (data.barcodeEscPos) {
+    r += LF
+    r += ALIGN_CENTER
+    r += data.barcodeEscPos
+    r += LF
+  }
+
+  r += ALIGN_CENTER
+  r += centerText('Thank you for your order!') + LF
+  r += CUT
+  return r
+}
+
+/**
+ * Driver run sheet — single long printout listing all orders in a delivery run.
+ * Driver uses as a physical checklist; printed before dispatch.
+ */
+export function generateDeliveryRunSheet(data: DeliveryRunSheetData): string {
+  let r = ''
+  r += ESC + '@'
+
+  r += ALIGN_CENTER
+  r += centerText(stripEmojis(data.businessName)) + LF
+  r += line('=') + LF
+  r += centerText('DELIVERY RUN SHEET') + LF
+  r += line('=') + LF
+
+  r += ALIGN_LEFT
+  r += `Date   : ${formatDateTime(data.runDate)}` + LF
+  r += `Driver : ${stripEmojis(data.driverName)}` + LF
+  if (data.vehiclePlate) r += `Vehicle: ${data.vehiclePlate}` + LF
+  if (data.odometerStart != null) r += `Odo Out: ${data.odometerStart} km` + LF
+  r += `Odo In : ____________` + LF
+  r += line('=') + LF
+
+  r += ALIGN_CENTER
+  r += `${data.orders.length} ORDERS` + LF
+  r += ALIGN_LEFT
+  r += line('=') + LF
+
+  data.orders.forEach((order, i) => {
+    r += `[${i + 1}] Order: ${order.orderNumber}` + LF
+    r += `    Name : ${stripEmojis(order.customerName)}` + LF
+    if (order.deliveryNote) {
+      r += wrapText(`    Addr : ${stripEmojis(order.deliveryNote)}`, RECEIPT_WIDTH) + LF
+    }
+    if (order.paymentMode === 'PREPAID') {
+      r += `    Pay  : PREPAID (no cash)` + LF
+    } else {
+      r += `    Pay  : COLLECT $${order.amountDue.toFixed(2)}` + LF
+    }
+    r += `    Done : [ ]` + LF
+    r += line('-') + LF
+  })
+
+  const cashOrders = data.orders.filter(o => o.paymentMode !== 'PREPAID')
+  const totalCash = cashOrders.reduce((s, o) => s + o.amountDue, 0)
+  r += ALIGN_RIGHT
+  r += `Total to collect: $${totalCash.toFixed(2)}` + LF
+  r += ALIGN_LEFT
+  r += LF
+  r += `Signature: _______________________` + LF
+  r += CUT
+  return r
 }

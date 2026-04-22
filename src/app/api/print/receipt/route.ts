@@ -71,6 +71,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // rawEscPos shortcut: pre-built ESC/POS bytes (base64), skips template generation
+    if (data.rawEscPos) {
+      const { printRawData } = await import('@/lib/printing/windows-raw-printer');
+      const { checkPrinterConnectivity } = await import('@/lib/printing/printer-service');
+      const { prisma } = await import('@/lib/prisma');
+      const { queuePrintJob, markJobAsProcessing, markJobAsCompleted, markJobAsFailed } = await import('@/lib/printing/print-job-queue');
+
+      const printer = await prisma.networkPrinters.findUnique({ where: { id: data.printerId } });
+      if (!printer) return NextResponse.json({ error: 'Printer not found' }, { status: 404 });
+
+      const printJob = await queuePrintJob({ printerId: data.printerId, jobType: 'receipt', jobData: { rawEscPos: data.rawEscPos }, copies: 1 }, data.businessId, data.businessType || 'restaurant', user.id);
+      await markJobAsProcessing(printJob.id);
+
+      try {
+        const isOnline = await checkPrinterConnectivity(printer.id);
+        if (!isOnline) throw new Error(`Printer "${printer.printerName}" is offline`);
+        const printContent = Buffer.from(data.rawEscPos, 'base64').toString('binary');
+        await printRawData(printContent, { printerName: printer.printerName, copies: 1 });
+        await markJobAsCompleted(printJob.id);
+        return NextResponse.json({ success: true, jobId: printJob.id });
+      } catch (err: any) {
+        await markJobAsFailed(printJob.id, err.message);
+        return NextResponse.json({ success: false, error: err.message }, { status: 503 });
+      }
+    }
+
     if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
       return NextResponse.json(
         { error: 'Missing required field: items (must be non-empty array)' },

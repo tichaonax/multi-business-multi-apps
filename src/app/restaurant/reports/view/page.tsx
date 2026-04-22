@@ -103,7 +103,9 @@ function HistoricalReportViewContent() {
     )
   }
 
-  const expectedCash = dailySales.paymentMethods?.CASH?.total || 0
+  const mealProgramCashCollected = dailySales.expenseAccountSales?.cashTotal || 0
+  const deliveryPrepaymentsCash = dailySales.deliveryPrepayments?.cashTotal || 0
+  const expectedCash = (dailySales.paymentMethods?.CASH?.total || 0) + mealProgramCashCollected + deliveryPrepaymentsCash
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4 print:p-0">
@@ -322,6 +324,22 @@ function HistoricalReportViewContent() {
               TILL RECONCILIATION
             </h3>
             <div className="space-y-3">
+              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded print:bg-gray-50">
+                <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Cash Sales (from POS):</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(dailySales.paymentMethods?.CASH?.total || 0)}</span>
+              </div>
+              {mealProgramCashCollected > 0 && (
+                <div className="flex justify-between items-center p-3 bg-amber-50 dark:bg-amber-900/20 rounded print:bg-amber-50">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Add: 🍱 Meal Program Cash:</span>
+                  <span className="text-xl font-bold text-green-600 dark:text-green-400 print:text-green-600">+{formatCurrency(mealProgramCashCollected)}</span>
+                </div>
+              )}
+              {deliveryPrepaymentsCash > 0 && (
+                <div className="flex justify-between items-center p-3 bg-sky-50 dark:bg-sky-900/20 rounded print:bg-sky-50">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Add: 🛵 Delivery Prepayments ({dailySales.deliveryPrepayments?.count || 0} top-ups):</span>
+                  <span className="text-xl font-bold text-green-600 dark:text-green-400 print:text-green-600">+{formatCurrency(deliveryPrepaymentsCash)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded print:bg-gray-50">
                 <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">
                   Expected Cash in Drawer:

@@ -697,6 +697,12 @@ export function Sidebar() {
                   <span className="text-lg">🍽️</span>
                   <span>POS System</span>
                 </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewDeliveryQueue')) && (
+                  <Link href="/restaurant/delivery" className={getLinkClasses('/restaurant/delivery')}>
+                    <span className="text-lg">🛵</span>
+                    <span>Delivery Orders</span>
+                  </Link>
+                )}
                 {/* Sales Reports - Only for managers/admins, not salespersons */}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>

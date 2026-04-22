@@ -351,6 +351,20 @@ export async function GET(request: NextRequest) {
         legacyExpenseOrders.reduce((s: number, o: any) => s + Number(o.totalAmount || 0), 0),
     }
 
+    // Delivery prepayments (credit top-ups) received today — these are cash in the till
+    const deliveryPrepaymentTxns = await prisma.deliveryAccountTransactions.findMany({
+      where: {
+        type: 'CREDIT',
+        createdAt: { gte: start, lt: end },
+        account: { businessId },
+      },
+      select: { amount: true },
+    })
+    const deliveryPrepayments = {
+      count: deliveryPrepaymentTxns.length,
+      cashTotal: deliveryPrepaymentTxns.reduce((s, t) => s + Number(t.amount), 0),
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -369,6 +383,7 @@ export async function GET(request: NextRequest) {
         paymentMethods,
         ecocashBreakdown,
         expenseAccountSales,
+        deliveryPrepayments,
         employeeSales: Object.values(employeeSales).sort(
           (a, b) => b.sales - a.sales
         ),

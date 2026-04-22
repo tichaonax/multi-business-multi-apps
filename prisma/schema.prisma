@@ -150,11 +150,12 @@ model BusinessCustomers {
   photoUrl         String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime
-  businesses       Businesses        @relation(fields: [businessId], references: [id])
-  business_orders  BusinessOrders[]
-  customer_laybys  CustomerLayby[]
-  customer_rewards CustomerRewards[]
-  invoices         Invoices[]
+  businesses                 Businesses                 @relation(fields: [businessId], references: [id])
+  business_orders            BusinessOrders[]
+  customer_laybys            CustomerLayby[]
+  customer_rewards           CustomerRewards[]
+  invoices                   Invoices[]
+  delivery_customer_account  DeliveryCustomerAccounts?
 
   @@map("business_customers")
 }
@@ -555,6 +556,8 @@ model Businesses {
   ecocash_conversions                                                      EcocashConversion[]           @relation("BusinessEcocashConversions")
   menu_item_inventory_configs                                              MenuItemInventoryConfig[]
   menu_item_inventory_batches                                              MenuItemInventoryBatch[]
+  delivery_customer_accounts                                               DeliveryCustomerAccounts[]
+  delivery_runs                                                            DeliveryRuns[]
 
   @@map("businesses")
 }
@@ -1314,6 +1317,7 @@ model Employees {
   payroll_slips                                                             PayrollSlips[]
   per_diem_entries                                                          PerDiemEntries[]              @relation("PerDiemEmployee")
   stock_take_report_employees                                               StockTakeReportEmployees[]    @relation("StockTakeReportEmployee")
+  delivery_runs                                                             DeliveryRuns[]
 
   @@map("employees")
 }
@@ -4605,6 +4609,8 @@ enum PaymentMethod {
   CHECK
   EXPENSE_ACCOUNT
   ECOCASH
+  ON_DELIVERY
+  ON_PICKUP
 }
 
 enum PaymentStatus {
@@ -6202,4 +6208,87 @@ model MenuItemInventoryBatch {
   @@index([businessId])
   @@index([businessProductId, remaining])
   @@map("menu_item_inventory_batches")
+}
+
+// ─── MBM-184: Restaurant Delivery Service ────────────────────────────────────
+
+model DeliveryCustomerAccounts {
+  id              String    @id @default(uuid())
+  customerId      String    @unique
+  businessId      String
+  balance         Decimal   @default(0) @db.Decimal(10, 2)
+  isBlacklisted   Boolean   @default(false)
+  blacklistReason String?
+  blacklistedAt   DateTime?
+  blacklistedBy   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  customer     BusinessCustomers             @relation(fields: [customerId], references: [id])
+  business     Businesses                    @relation(fields: [businessId], references: [id])
+  transactions DeliveryAccountTransactions[]
+
+  @@index([businessId])
+  @@map("delivery_customer_accounts")
+}
+
+model DeliveryAccountTransactions {
+  id        String   @id @default(uuid())
+  accountId String
+  type      String
+  amount    Decimal  @db.Decimal(10, 2)
+  orderId   String?
+  notes     String?
+  createdBy String
+  createdAt DateTime @default(now())
+
+  account DeliveryCustomerAccounts @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([createdAt])
+  @@map("delivery_account_transactions")
+}
+
+model DeliveryOrderMeta {
+  id            String   @id @default(uuid())
+  orderId       String   @unique
+  deliveryNote  String?
+  creditUsed    Decimal  @default(0) @db.Decimal(10, 2)
+  creditBalance Decimal  @default(0) @db.Decimal(10, 2)
+  paymentMode   String   @default("ON_DELIVERY")
+  status        String   @default("PENDING")
+  runId         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  run DeliveryRuns? @relation(fields: [runId], references: [id])
+
+  @@index([status])
+  @@index([runId])
+  @@map("delivery_order_meta")
+}
+
+model DeliveryRuns {
+  id            String    @id @default(uuid())
+  businessId    String
+  driverId      String
+  vehicleId     String?
+  vehiclePlate  String?
+  odometerStart Decimal?  @db.Decimal(10, 1)
+  odometerEnd   Decimal?  @db.Decimal(10, 1)
+  runDate       DateTime
+  dispatchedAt  DateTime?
+  completedAt   DateTime?
+  notes         String?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  business Businesses          @relation(fields: [businessId], references: [id])
+  driver   Employees           @relation(fields: [driverId], references: [id])
+  orders   DeliveryOrderMeta[]
+
+  @@index([businessId])
+  @@index([runDate])
+  @@map("delivery_runs")
 }

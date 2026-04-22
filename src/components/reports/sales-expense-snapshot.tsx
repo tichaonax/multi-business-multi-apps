@@ -89,7 +89,7 @@ export function SalesExpenseSnapshot({ businessId, businessType }: SalesExpenseS
   const minus7    = getLocalDateString(new Date(Date.now() - 6  * 86400000))
   const minus30   = getLocalDateString(new Date(Date.now() - 29 * 86400000))
 
-  const [period,           setPeriod]           = useState<Period>('today')
+  const [period,           setPeriod]           = useState<Period>('30d')
   const [customStart,      setCustomStart]      = useState(minus30)
   const [customEnd,        setCustomEnd]        = useState(today)
   const [chartData,        setChartData]        = useState<DayData[]>([])

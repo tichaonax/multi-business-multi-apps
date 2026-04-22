@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { useRouter } from 'next/navigation'
 import { ClockInModal } from '@/components/clock-in/clock-in-modal'
 import { AddStockPanel } from '@/components/clothing/add-stock-panel'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 interface BusinessInventory {
   businessId: string
@@ -108,6 +109,11 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
   // Customer card scan state (Step 2 — between employee check and product lookup)
   const [scannedCustomer, setScannedCustomer] = useState<ScannedCustomer | null>(null)
   const [showCustomerConfirm, setShowCustomerConfirm] = useState(false)
+
+  // Delivery order scan state (Step 2b — DEL-{orderId} barcodes)
+  const [scannedDeliveryOrder, setScannedDeliveryOrder] = useState<{ meta: any; order: any } | null>(null)
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false)
+  const [updatingDeliveryStatus, setUpdatingDeliveryStatus] = useState(false)
 
   // Clothing no-match workflow state
   const [showAddStockPanel, setShowAddStockPanel] = useState(false)
@@ -248,6 +254,26 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
         } catch { /* non-fatal — fall through to product lookup */ }
       }
       // --- End customer card check ---
+
+      // --- Step 2b: Delivery order barcode check (DEL-{orderId}) ---
+      if (/^DEL-/i.test(barcodeToLookup)) {
+        const orderId = barcodeToLookup.replace(/^DEL-/i, '')
+        try {
+          const delRes = await fetch(`/api/restaurant/delivery/orders/${encodeURIComponent(orderId)}/barcode-lookup`)
+          if (delRes.ok) {
+            const delData = await delRes.json()
+            if (delData.success && delData.meta) {
+              setScannedDeliveryOrder({ meta: delData.meta, order: delData.order })
+              setShowDeliveryModal(true)
+              setCardScanHandled(true)
+              setIsLoading(false)
+              setIsIdentifying(false)
+              return
+            }
+          }
+        } catch { /* non-fatal — fall through */ }
+      }
+      // --- End delivery order barcode check ---
 
       // Not a card — proceed to product lookup
       setIsIdentifying(false)
@@ -784,6 +810,109 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
                 Go to POS
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Route: delivery order scan modal ─────────────────────────────────────
+  if (showDeliveryModal && scannedDeliveryOrder) {
+    const { meta, order } = scannedDeliveryOrder
+    const customer = order?.business_customers
+    const items: { quantity: number; unitPrice: number; totalPrice: number }[] = order?.business_order_items || []
+    const orderNum = order?.orderNumber || meta.orderId?.slice(-8) || '—'
+    const STATUS_NEXT: Record<string, string> = { PENDING: 'READY', READY: 'DISPATCHED', DISPATCHED: 'DELIVERED' }
+    const STATUS_LABEL: Record<string, string> = { PENDING: 'Pending', READY: 'Ready', DISPATCHED: 'Dispatched', DELIVERED: 'Delivered', CANCELLED: 'Cancelled' }
+    const STATUS_COLOR: Record<string, string> = {
+      PENDING: 'bg-yellow-100 text-yellow-800', READY: 'bg-blue-100 text-blue-800',
+      DISPATCHED: 'bg-purple-100 text-purple-800', DELIVERED: 'bg-green-100 text-green-800',
+      CANCELLED: 'bg-gray-100 text-gray-500',
+    }
+    const nextStatus = STATUS_NEXT[meta.status]
+
+    const handleUpdateStatus = async (newStatus: string) => {
+      setUpdatingDeliveryStatus(true)
+      try {
+        const res = await fetch(`/api/restaurant/delivery/orders/${meta.orderId}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.success) { showToast(data.error || 'Update failed', { type: 'error' }); return }
+        setScannedDeliveryOrder(prev => prev ? { ...prev, meta: { ...prev.meta, status: newStatus } } : null)
+        showToast(`Order marked ${STATUS_LABEL[newStatus]}`)
+      } catch {
+        showToast('Failed to update status', { type: 'error' })
+      } finally {
+        setUpdatingDeliveryStatus(false)
+      }
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+          <div className="px-6 py-4 bg-indigo-600 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">🛵 Delivery Order</h3>
+            <button onClick={() => { setShowDeliveryModal(false); setScannedDeliveryOrder(null); onClose() }} className="text-white/70 hover:text-white text-xl leading-none">✕</button>
+          </div>
+          <div className="p-5 space-y-4">
+            {/* Order info */}
+            <div className="flex items-center justify-between">
+              <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">{orderNum}</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_COLOR[meta.status] || 'bg-gray-100 text-gray-500'}`}>
+                {STATUS_LABEL[meta.status] || meta.status}
+              </span>
+            </div>
+
+            {customer && (
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                <div className="font-medium">👤 {customer.name}</div>
+                {customer.phone && <div className="text-gray-500">📞 {formatPhoneNumberForDisplay(customer.phone)}</div>}
+              </div>
+            )}
+
+            {meta.deliveryNote && (
+              <div className="text-sm italic text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded px-3 py-2">
+                📍 {meta.deliveryNote}
+              </div>
+            )}
+
+            {/* Items */}
+            {items.length > 0 && (
+              <div className="text-sm space-y-1 border-t border-gray-100 dark:border-gray-700 pt-3">
+                {items.map((it: any, i: number) => (
+                  <div key={i} className="flex justify-between text-gray-700 dark:text-gray-300">
+                    <span>🍽️ {it.attributes?.productName || it.attributes?.itemName || 'Item'} ×{it.quantity}</span>
+                    <span className="text-gray-500">${Number(it.totalPrice).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Payment */}
+            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+              <div>💳 Payment: <span className="font-medium">{meta.paymentMode?.replace(/_/g, ' ')}</span></div>
+              {Number(meta.creditUsed) > 0 && <div>Credit used: ${Number(meta.creditUsed).toFixed(2)}</div>}
+            </div>
+
+            {/* Status action */}
+            {nextStatus && (
+              <button
+                onClick={() => handleUpdateStatus(nextStatus)}
+                disabled={updatingDeliveryStatus}
+                className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {updatingDeliveryStatus ? 'Updating…' : `Mark ${STATUS_LABEL[nextStatus]}`}
+              </button>
+            )}
+            <button
+              onClick={() => { setShowDeliveryModal(false); setScannedDeliveryOrder(null); onClose() }}
+              className="w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

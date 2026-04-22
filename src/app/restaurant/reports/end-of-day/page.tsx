@@ -232,6 +232,8 @@ export default function EndOfDayReport() {
         ecocashBreakdown: dailySales.ecocashBreakdown || null,
         employeeSales: dailySales.employeeSales || [],
         categoryBreakdown: dailySales.categoryBreakdown || [],
+        expenseAccountSales: dailySales.expenseAccountSales || null,
+        deliveryPrepayments: dailySales.deliveryPrepayments || null,
         businessDay: dailySales.businessDay
       }
 
@@ -293,7 +295,8 @@ export default function EndOfDayReport() {
   // - The subsidy is paid by the expense account and was NEVER in the cash total, so no subtraction needed
   const mealProgramSubsidy = dailySales?.expenseAccountSales?.subsidyTotal || 0
   const mealProgramCashCollected = dailySales?.expenseAccountSales?.cashTotal || 0
-  const expectedCash = (dailySales?.paymentMethods?.CASH?.total || 0) + mealProgramCashCollected
+  const deliveryPrepaymentsCash = dailySales?.deliveryPrepayments?.cashTotal || 0
+  const expectedCash = (dailySales?.paymentMethods?.CASH?.total || 0) + mealProgramCashCollected + deliveryPrepaymentsCash
 
   // Calculate variance when cash counted changes
   useEffect(() => {
@@ -896,6 +899,17 @@ export default function EndOfDayReport() {
                   </span>
                   <span className="text-xl font-bold text-green-600 dark:text-green-400 print:text-green-600">
                     +{formatCurrency(mealProgramCashCollected)}
+                  </span>
+                </div>
+              )}
+
+              {deliveryPrepaymentsCash > 0 && (
+                <div className="flex justify-between items-center p-3 bg-sky-50 dark:bg-sky-900/20 rounded print:bg-sky-50">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">
+                    Add: 🛵 Delivery Prepayments ({dailySales?.deliveryPrepayments?.count || 0} top-ups):
+                  </span>
+                  <span className="text-xl font-bold text-green-600 dark:text-green-400 print:text-green-600">
+                    +{formatCurrency(deliveryPrepaymentsCash)}
                   </span>
                 </div>
               )}

@@ -445,8 +445,8 @@ export async function POST(req: NextRequest) {
           attributes: {
             ...(tableNumber ? { tableNumber } : {}),
             employeeName: employeeName,
-            amountReceived: amountReceived || total,
-            changeDue: amountReceived ? amountReceived - total : 0,
+            amountReceived: (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0 : (amountReceived || total),
+            changeDue: (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0 : (amountReceived ? amountReceived - total : 0),
             ...(paymentMethod === 'ECOCASH' && ecocashTxCode ? {
               ecocashTransactionCode: ecocashTxCode,
               ecocashFeeAmount: ecocashFeeAmount,

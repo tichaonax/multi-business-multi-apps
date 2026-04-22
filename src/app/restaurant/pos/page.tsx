@@ -49,6 +49,9 @@ import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
 import type { SalesPerfThresholds } from '@/components/pos/SalesPerfBadge'
 import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
+import { generateDeliveryKitchenReceipt, generateDeliveryCustomerReceipt } from '@/lib/printing/receipt-templates'
+import type { DeliveryReceiptData } from '@/lib/printing/receipt-templates'
+import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
 
 interface MenuItem {
   id: string
@@ -147,12 +150,13 @@ export default function RestaurantPOS() {
   const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE' | 'ECOCASH'>('CASH')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE' | 'ECOCASH' | 'ON_DELIVERY' | 'ON_PICKUP'>('CASH')
   const [ecocashTxCode, setEcocashTxCode] = useState('')
   const [amountReceived, setAmountReceived] = useState('')
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
+  const [pendingDeliveryEscPos, setPendingDeliveryEscPos] = useState<string[]>([])
   const [completedOrder, setCompletedOrder] = useState<any>(null)
   // When non-null: cash amount to collect for a meal program order
   const [mealProgramCashDue, setMealProgramCashDue] = useState<number | null>(null)
@@ -160,6 +164,10 @@ export default function RestaurantPOS() {
   const [pendingMealTransaction, setPendingMealTransaction] = useState<any>(null)
   // Increment to force-remount MealProgramPanel (resets its internal state)
   const [mealPanelKey, setMealPanelKey] = useState(0)
+  const [orderType, setOrderType] = useState<'dine-in' | 'takeaway' | 'delivery'>('dine-in')
+  const [deliveryNote, setDeliveryNote] = useState('')
+  const [deliveryAccount, setDeliveryAccount] = useState<{ balance: number; isBlacklisted: boolean; blacklistReason?: string } | null>(null)
+  const [deliveryAccountLoading, setDeliveryAccountLoading] = useState(false)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [taxIncludedInPrice, setTaxIncludedInPrice] = useState(true) // Default: tax included
   const [taxRate, setTaxRate] = useState(0) // Default: 0% - businesses configure their own tax rate
@@ -211,6 +219,30 @@ export default function RestaurantPOS() {
   // Global UTC/Local time toggle — determines "today" window for sold-today badge counts
   const { useServerTime } = useTimeDisplay()
   const statsTimezone = useServerTime ? 'UTC' : Intl.DateTimeFormat().resolvedOptions().timeZone
+
+  // Auto-select deferred payment method when order type changes
+  useEffect(() => {
+    if (orderType === 'delivery') setPaymentMethod('ON_DELIVERY')
+    else if (orderType === 'takeaway') setPaymentMethod('ON_PICKUP')
+    else setPaymentMethod('CASH')
+  }, [orderType])
+
+  // Fetch delivery account when order type is delivery and a customer is selected
+  useEffect(() => {
+    if (orderType !== 'delivery' || !selectedCustomer) {
+      setDeliveryAccount(null)
+      return
+    }
+    setDeliveryAccountLoading(true)
+    fetch(`/api/restaurant/delivery/accounts/${selectedCustomer.id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) setDeliveryAccount({ balance: Number(d.account.balance), isBlacklisted: d.account.isBlacklisted, blacklistReason: d.account.blacklistReason })
+      })
+      .catch(() => {})
+      .finally(() => setDeliveryAccountLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderType, selectedCustomer?.id])
 
   // Toast context (hook) must be called unconditionally to preserve hooks order
   const toast = useToastContext()
@@ -2071,6 +2103,16 @@ export default function RestaurantPOS() {
       return
     }
 
+    // Delivery validations
+    if (orderType === 'delivery' && !selectedCustomer) {
+      toast.error('Please select a customer for delivery orders')
+      return
+    }
+    if (orderType === 'delivery' && deliveryAccount?.isBlacklisted) {
+      toast.error(`Delivery blocked: ${deliveryAccount.blacklistReason || 'Customer is blacklisted from delivery'}`)
+      return
+    }
+
     // Calculate totals for payment broadcast (must match component-level total with discounts)
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     const tax = taxIncludedInPrice
@@ -2188,7 +2230,9 @@ export default function RestaurantPOS() {
         } : {}),
         businessId: businessId,
         paymentMethod: paymentMethod,
-        amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
+        amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived)
+          : (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0
+          : total,
         ...(paymentMethod === 'ECOCASH' ? {
           ecocashTxCode: ecocashTxCode.trim(),
           ecocashFeeType: currentBusiness?.ecocashFeeType,
@@ -2241,6 +2285,7 @@ export default function RestaurantPOS() {
           customerName?: string; customerPhone?: string;
           ecocashFeeAmount?: number; ecocashTransactionCode?: string;
           customerAddress?: string; customerCity?: string;
+          orderId?: string; orderType?: string; deliveryNote?: string;
         } = {
           orderNumber: result.orderNumber,
           items: receiptItems,
@@ -2249,8 +2294,10 @@ export default function RestaurantPOS() {
           discountAmount: rewardCredit > 0 ? rewardCredit : undefined,
           rewardCouponCode: (appliedReward && !skipRewardThisTime) ? appliedReward.couponCode : undefined,
           paymentMethod: paymentMethod,
-          amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
-          change: paymentMethod === 'CASH' ? parseFloat(amountReceived) - total : 0,
+          amountReceived: (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0
+            : paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
+          change: (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0
+            : paymentMethod === 'CASH' ? parseFloat(amountReceived) - total : 0,
           ecocashFeeAmount: paymentMethod === 'ECOCASH' ? ecocashFee : undefined,
           ecocashTransactionCode: paymentMethod === 'ECOCASH' ? ecocashTxCode.trim() : undefined,
           date: formatDateTime(new Date()),
@@ -2260,7 +2307,10 @@ export default function RestaurantPOS() {
           customerName: selectedCustomer?.name,
           customerPhone: selectedCustomer?.phone,
           customerAddress: selectedCustomer?.address,
-          customerCity: selectedCustomer?.city
+          customerCity: selectedCustomer?.city,
+          orderId: result.id,
+          orderType: orderType,
+          deliveryNote: deliveryNote || undefined,
         }
 
         // Post-checkout: run campaign eligibility for attached customer
@@ -2289,6 +2339,53 @@ export default function RestaurantPOS() {
         }
 
         setCompletedOrder(orderForReceipt)
+
+        // Delivery: pre-generate ESC/POS strings for kitchen + customer copies
+        if (orderType === 'delivery') {
+          const biz = businessDetails || currentBusiness
+          // Use short sequence only (e.g. DEL-0009) — same char count as inventory barcodes → fat scannable bars
+          const seq = orderForReceipt.orderNumber.split('-').pop() || '0000'
+          const barcodeText = `DEL-${seq}`
+          const barcodeEscPos = await generateBarcodeEscPos(barcodeText).catch(() => undefined)
+          const bizId = businessDetails?.id || currentBusiness?.id || ''
+          const dailyCountRes = await fetch(`/api/restaurant/delivery/daily-count?businessId=${bizId}`).catch(() => null)
+          const dailyCountData = dailyCountRes?.ok ? await dailyCountRes.json().catch(() => null) : null
+          const dailyDeliveryCount: number | undefined = dailyCountData?.deliveryCount
+          const deliveryPrintData: DeliveryReceiptData = {
+            businessName: biz?.businessName || orderForReceipt.businessInfo?.businessName || '',
+            businessAddress: biz?.address || orderForReceipt.businessInfo?.address || undefined,
+            businessPhone: biz?.phone || orderForReceipt.businessInfo?.phone || undefined,
+            orderNumber: orderForReceipt.orderNumber,
+            orderId: result.id,
+            customerName: selectedCustomer?.name || '',
+            customerPhone: selectedCustomer?.phone || undefined,
+            items: cart.map(i => ({ name: i.name, quantity: i.quantity })),
+            deliveryNote: deliveryNote || undefined,
+            transactionDate: new Date(),
+            orderTotal: total,
+            barcodeEscPos,
+            dailyDeliveryCount,
+          }
+          const toB64 = (s: string) => {
+            const bytes = new Uint8Array(s.length)
+            for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff
+            let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b) }); return btoa(bin)
+          }
+          const kitchenEsc = generateDeliveryKitchenReceipt(deliveryPrintData)
+          const customerEsc = generateDeliveryCustomerReceipt(deliveryPrintData)
+          setPendingDeliveryEscPos([toB64(kitchenEsc), toB64(customerEsc)])
+        } else {
+          setPendingDeliveryEscPos([])
+        }
+
+        // Delivery: attach delivery meta
+        if (orderType === 'delivery' && selectedCustomer) {
+          fetch('/api/restaurant/delivery/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: result.id, customerId: selectedCustomer.id, deliveryNote: deliveryNote || undefined }),
+          }).catch(() => {})
+        }
 
         // Close payment modal
         setShowPaymentModal(false)
@@ -2331,6 +2428,9 @@ export default function RestaurantPOS() {
         setShowRewardHistory(false)
         autoAppliedForRef.current = null
         setShowQuickRegister(false)
+        setOrderType('dine-in')
+        setDeliveryNote('')
+        setDeliveryAccount(null)
 
         // Reset payment fields
         setPaymentMethod('CASH')
@@ -3676,6 +3776,37 @@ export default function RestaurantPOS() {
               )}
             </div>
 
+            {/* Order Type Toggle */}
+            <div className="mb-3">
+              <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                {(['dine-in', 'takeaway', 'delivery'] as const).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setOrderType(type)}
+                    className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${orderType === type ? 'bg-white dark:bg-gray-600 text-primary shadow' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                  >
+                    {type === 'dine-in' ? 'Dine-In' : type === 'takeaway' ? 'Takeaway' : 'Delivery'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Delivery Address / Note — shown immediately when delivery selected */}
+            {orderType === 'delivery' && (
+              <div className="mb-3">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                  📍 Delivery Address / Note
+                </label>
+                <textarea
+                  value={deliveryNote}
+                  onChange={e => setDeliveryNote(e.target.value)}
+                  placeholder="e.g. 12 Main St, ring bell at gate..."
+                  rows={2}
+                  className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
+                />
+              </div>
+            )}
+
             {/* Customer Section */}
             {currentBusinessId && (
               <div className="mb-4 space-y-2">
@@ -3720,6 +3851,44 @@ export default function RestaurantPOS() {
                     />
                   </div>
                 )}
+
+                {/* Delivery account info */}
+                {orderType === 'delivery' && selectedCustomer && (
+                  deliveryAccountLoading ? (
+                    <div className="p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs text-gray-500">
+                      Loading account...
+                    </div>
+                  ) : deliveryAccount?.isBlacklisted ? (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/30 border-2 border-red-400 dark:border-red-600 rounded-lg">
+                      <p className="text-sm font-bold text-red-700 dark:text-red-300">🚫 Delivery Blocked</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                        This customer is blacklisted from delivery.
+                        {deliveryAccount.blacklistReason && (
+                          <span className="block mt-0.5 font-medium">Reason: {deliveryAccount.blacklistReason}</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-red-500 dark:text-red-400 mt-1 italic">
+                        The customer may still purchase in-store for cash.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-xs">
+                      <span className="text-blue-700 dark:text-blue-300">
+                        Credit balance: <span className="font-semibold">${(deliveryAccount?.balance ?? 0).toFixed(2)}</span>
+                      </span>
+                    </div>
+                  )
+                )}
+
+                {/* Outside delivery window warning */}
+                {orderType === 'delivery' && (() => {
+                  const h = new Date().getHours()
+                  return (h < 12 || h >= 14) ? (
+                    <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+                      Outside delivery window (12:00–14:00)
+                    </div>
+                  ) : null
+                })()}
 
                 {/* Applied Reward */}
                 {appliedReward && (
@@ -3861,10 +4030,35 @@ export default function RestaurantPOS() {
                 <span className="font-bold text-lg">Total:</span>
                 <span className="font-bold text-xl text-green-600">${total.toFixed(2)}</span>
               </div>
-              
+
+              {orderType === 'delivery' && selectedCustomer && !deliveryAccount?.isBlacklisted && (
+                <div className="mb-4 px-3 py-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-700 rounded-lg text-sm space-y-1">
+                  {(() => {
+                    const credit = Math.min(deliveryAccount?.balance ?? 0, total)
+                    const due = total - credit
+                    return credit > 0 ? (
+                      <>
+                        <div className="flex justify-between text-sky-700 dark:text-sky-300">
+                          <span>Credit applied:</span>
+                          <span className="font-semibold">-${credit.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between font-semibold">
+                          <span>{due === 0 ? 'Fully prepaid' : 'Due on delivery:'}  </span>
+                          <span className={due === 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}>
+                            ${due.toFixed(2)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-gray-500 dark:text-gray-400">No credit — payment due on delivery</div>
+                    )
+                  })()}
+                </div>
+              )}
+
               <button
                 onClick={handleProcessOrderClick}
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || (orderType === 'delivery' && !!deliveryAccount?.isBlacklisted)}
                 className="w-full py-4 sm:py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation text-lg sm:text-base"
               >
                 Process Order
@@ -3951,37 +4145,43 @@ export default function RestaurantPOS() {
               {/* Payment Method — hidden for meal-program tender (always cash) */}
               {mealProgramCashDue === null && <div>
                 <label className="block text-sm font-medium text-primary mb-2">Payment Method</label>
-                <div className={`grid gap-2 ${currentBusiness?.ecocashEnabled ? 'grid-cols-4' : 'grid-cols-3'}`}>
-                  <button
-                    onClick={() => setPaymentMethod('CASH')}
-                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${
-                      paymentMethod === 'CASH'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    💵 Cash
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('CARD')}
-                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${
-                      paymentMethod === 'CARD'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    💳 Card
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('MOBILE')}
-                    className={`py-3 px-4 rounded-lg font-medium transition-colors ${
-                      paymentMethod === 'MOBILE'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    📱 Mobile
-                  </button>
+                <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
+                  {orderType !== 'delivery' && orderType !== 'takeaway' && (
+                    <button
+                      onClick={() => setPaymentMethod('CASH')}
+                      className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                        paymentMethod === 'CASH'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      💵 Cash
+                    </button>
+                  )}
+                  {orderType !== 'delivery' && orderType !== 'takeaway' && (
+                    <button
+                      onClick={() => setPaymentMethod('CARD')}
+                      className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                        paymentMethod === 'CARD'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      💳 Card
+                    </button>
+                  )}
+                  {orderType !== 'delivery' && orderType !== 'takeaway' && (
+                    <button
+                      onClick={() => setPaymentMethod('MOBILE')}
+                      className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                        paymentMethod === 'MOBILE'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      📱 Mobile
+                    </button>
+                  )}
                   {currentBusiness?.ecocashEnabled && (
                     <button
                       onClick={() => setPaymentMethod('ECOCASH')}
@@ -3994,8 +4194,44 @@ export default function RestaurantPOS() {
                       <img src="/images/ecocash-logo.png" alt="" className="h-4 w-auto inline-block mr-1" />EcoCash
                     </button>
                   )}
+                  {orderType === 'delivery' && (
+                    <button
+                      onClick={() => setPaymentMethod('ON_DELIVERY')}
+                      className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                        paymentMethod === 'ON_DELIVERY'
+                          ? 'bg-sky-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      🛵 Pay on Delivery
+                    </button>
+                  )}
+                  {orderType === 'takeaway' && (
+                    <button
+                      onClick={() => setPaymentMethod('ON_PICKUP')}
+                      className={`py-3 px-4 rounded-lg font-medium transition-colors ${
+                        paymentMethod === 'ON_PICKUP'
+                          ? 'bg-sky-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      🛍️ Pay on Pickup
+                    </button>
+                  )}
                 </div>
               </div>}
+
+              {/* Deferred payment notice */}
+              {(paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') && (
+                <div className="p-4 bg-sky-50 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 rounded-lg">
+                  <div className="font-semibold text-sky-800 dark:text-sky-200 text-lg">
+                    {paymentMethod === 'ON_DELIVERY' ? '🛵 Pay on Delivery' : '🛍️ Pay on Pickup'}
+                  </div>
+                  <div className="text-sky-700 dark:text-sky-300 mt-1">
+                    Collect <span className="font-bold">${total.toFixed(2)}</span> when {paymentMethod === 'ON_DELIVERY' ? 'delivering to customer' : 'customer picks up'}.
+                  </div>
+                </div>
+              )}
 
               {/* Amount Received — shown for cash (regular or meal-program tender) */}
               {(mealProgramCashDue !== null || (paymentMethod === 'CASH' && total > 0)) && (() => {
@@ -4096,6 +4332,7 @@ export default function RestaurantPOS() {
                     mealProgramCashDue !== null
                       ? (mealProgramCashDue > 0 && (!amountReceived || parseFloat(amountReceived) < mealProgramCashDue))
                       : paymentMethod === 'ECOCASH' ? !ecocashTxCode.trim()
+                      : paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP' ? false
                       : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total))
                   )}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -4324,12 +4561,48 @@ export default function RestaurantPOS() {
                       </div>
                     </>
                   )}
+                  {completedOrder.paymentMethod === 'ON_DELIVERY' && (
+                    <div className="mt-2 p-3 bg-sky-50 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-600 rounded-lg">
+                      <div className="flex justify-between font-bold text-sky-800 dark:text-sky-200">
+                        <span>🛵 Collect on Delivery:</span>
+                        <span>${Number(completedOrder.total).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                  {completedOrder.paymentMethod === 'ON_PICKUP' && (
+                    <div className="mt-2 p-3 bg-sky-50 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-600 rounded-lg">
+                      <div className="flex justify-between font-bold text-sky-800 dark:text-sky-200">
+                        <span>🛍️ Collect on Pickup:</span>
+                        <span>${Number(completedOrder.total).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Print Button */}
                 <button
                   onClick={() => {
-                    if (currentBusiness || businessDetails) {
+                    if (completedOrder.orderType === 'delivery' && completedOrder.orderId && printerId && currentBusinessId) {
+                      const biz = businessDetails || currentBusiness
+                      const deliveryPrintData: import('@/lib/printing/receipt-templates').DeliveryReceiptData = {
+                        businessName: biz?.businessName || '',
+                        businessAddress: biz?.address || undefined,
+                        businessPhone: biz?.phone || undefined,
+                        orderNumber: completedOrder.orderNumber,
+                        orderId: completedOrder.orderId,
+                        customerName: completedOrder.customerName || '',
+                        customerPhone: completedOrder.customerPhone || undefined,
+                        items: completedOrder.items.map((i: any) => ({ name: i.name, quantity: i.quantity })),
+                        deliveryNote: completedOrder.deliveryNote,
+                        transactionDate: new Date(completedOrder.date),
+                        orderTotal: completedOrder.total,
+                      }
+                      const esc = generateDeliveryCustomerReceipt(deliveryPrintData)
+                      const bytes = new Uint8Array(esc.length)
+                      for (let i = 0; i < esc.length; i++) bytes[i] = esc.charCodeAt(i) & 0xff
+                      let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b) })
+                      fetch('/api/print/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ printerId, businessId: currentBusinessId, businessType: 'restaurant', rawEscPos: btoa(bin) }) }).catch(() => {})
+                    } else if (currentBusiness || businessDetails) {
                       const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, businessDetails || currentBusiness)
                       handlePrintReceipt(receiptData)
                     }
@@ -4360,6 +4633,7 @@ export default function RestaurantPOS() {
       {/* Unified Receipt Preview Modal */}
       <UnifiedReceiptPreviewModal
         isOpen={showReceiptPreview}
+        extraEscPosJobs={pendingDeliveryEscPos}
         onClose={() => {
           setShowReceiptPreview(false)
           setPendingReceiptData(null)
@@ -4393,9 +4667,41 @@ export default function RestaurantPOS() {
 
             console.log('✅ [Restaurant POS] onPrintConfirm completed successfully')
 
+            // After standard receipts: print delivery kitchen + customer copies
+            if (completedOrder?.orderType === 'delivery' && completedOrder?.orderId && options.printerId && currentBusinessId) {
+              const biz = businessDetails || currentBusiness
+              const deliveryPrintData: DeliveryReceiptData = {
+                businessName: biz?.businessName || pendingReceiptData?.businessName || '',
+                businessAddress: biz?.address || pendingReceiptData?.businessAddress || undefined,
+                businessPhone: biz?.phone || pendingReceiptData?.businessPhone || undefined,
+                orderNumber: completedOrder.orderNumber,
+                orderId: completedOrder.orderId,
+                customerName: completedOrder.customerName || '',
+                customerPhone: completedOrder.customerPhone || undefined,
+                items: completedOrder.items.map((i: any) => ({ name: i.name, quantity: i.quantity })),
+                deliveryNote: completedOrder.deliveryNote,
+                transactionDate: new Date(),
+                orderTotal: completedOrder.total,
+              }
+              const toB64 = (s: string) => {
+                const bytes = new Uint8Array(s.length)
+                for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff
+                let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b) }); return btoa(bin)
+              }
+              const kitchenEsc = generateDeliveryKitchenReceipt(deliveryPrintData)
+              const customerEsc = generateDeliveryCustomerReceipt(deliveryPrintData)
+              ;(async () => {
+                const printDelivery = (rawEscPos: string) => fetch('/api/print/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ printerId: options.printerId, businessId: currentBusinessId, businessType: 'restaurant', rawEscPos }) })
+                try { await printDelivery(toB64(kitchenEsc)) } catch { /* non-critical */ }
+                await new Promise(r => setTimeout(r, 2000))
+                try { await printDelivery(toB64(customerEsc)) } catch { /* non-critical */ }
+              })()
+            }
+
             // Close preview and completed order modal
             setShowReceiptPreview(false)
             setPendingReceiptData(null)
+            setPendingDeliveryEscPos([])
             setShowReceiptModal(false)
             setCompletedOrder(null)
             // Reset auto-print tracker for next order

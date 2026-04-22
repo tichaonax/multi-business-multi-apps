@@ -88,6 +88,50 @@ function buildFoldLine(widthDots: number): Uint8Array {
 const QZ_PRINTER_PREFIX = 'qz::'
 
 /**
+ * Render a barcode using JsBarcode on an off-screen canvas, convert to GS v 0 raster,
+ * and return as an ESC/POS binary string ready to embed in a receipt template.
+ */
+export async function generateBarcodeEscPos(
+  text: string,
+  printerWidthDots = 576,
+): Promise<string> {
+  const JsBarcode = (await import('jsbarcode')).default
+
+  // Step 1: render barcode — width=2 gives ~302px natural canvas for 8-char CODE128
+  const barcodeCanvas = document.createElement('canvas')
+  JsBarcode(barcodeCanvas, text, {
+    format: 'CODE128',
+    width: 2,
+    height: 50,
+    displayValue: true,
+    fontSize: 20,
+    fontOptions: '',
+    textMargin: 6,
+    margin: 8,
+    background: '#ffffff',
+    lineColor: '#000000',
+  })
+
+  // Step 2: scale barcode to ~55% of printer width (matches employee card physical size)
+  // Natural canvas (~302px) → target (~317px) is only ~5% upscale → no visible artifacts
+  const targetW = Math.round(printerWidthDots * 0.55)
+  const targetH = Math.round(barcodeCanvas.height * targetW / barcodeCanvas.width)
+  const offsetX = Math.floor((printerWidthDots - targetW) / 2)
+
+  const printCanvas = document.createElement('canvas')
+  printCanvas.width = printerWidthDots
+  printCanvas.height = targetH
+  const ctx = printCanvas.getContext('2d')!
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, printerWidthDots, targetH)
+  ctx.drawImage(barcodeCanvas, offsetX, 0, targetW, targetH) // scaled + centered
+
+  // Step 3: convert to GS v 0 raster (scale=1, already printer width)
+  const raster = canvasToEscPosRaster(printCanvas, printerWidthDots)
+  return Array.from(raster).map(b => String.fromCharCode(b)).join('')
+}
+
+/**
  * Capture a DOM card element and send TWO stacked copies to the receipt printer
  * with a fold/cut separator between them.
  *

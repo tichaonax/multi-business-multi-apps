@@ -55,6 +55,8 @@ interface UnifiedReceiptPreviewModalProps {
     copies: number
     printCustomerCopy: boolean
   }) => Promise<void>
+  /** Extra raw ESC/POS jobs to print sequentially after the main receipt (e.g. delivery copies) */
+  extraEscPosJobs?: string[]
 }
 
 export function UnifiedReceiptPreviewModal({
@@ -62,6 +64,7 @@ export function UnifiedReceiptPreviewModal({
   onClose,
   receiptData,
   businessType,
+  extraEscPosJobs,
   onPrintConfirm,
 }: UnifiedReceiptPreviewModalProps) {
   const [printers, setPrinters] = useState<NetworkPrinter[]>(() => printerCache?.printers || [])
@@ -271,6 +274,13 @@ export function UnifiedReceiptPreviewModal({
           console.log('✅ Customer copy printed locally (' + copies + ' copies)')
         }
 
+        // Extra jobs (e.g. delivery kitchen + customer copies) — stored as base64, decode first
+        if (extraEscPosJobs?.length) {
+          for (const job of extraEscPosJobs) {
+            await new Promise(r => setTimeout(r, 1500))
+            await printToLocalPrinter(atob(job), 1)
+          }
+        }
         toast.push('Receipt printed to local USB printer')
         onClose()
         return
@@ -295,6 +305,13 @@ export function UnifiedReceiptPreviewModal({
           console.log('✅ Customer copy printed via QZ Tray (' + copies + ' copies)')
         }
 
+        // Extra jobs (e.g. delivery kitchen + customer copies) — stored as base64, decode first
+        if (extraEscPosJobs?.length) {
+          for (const job of extraEscPosJobs) {
+            await new Promise(r => setTimeout(r, 1500))
+            await printToQzPrinter(printerName, atob(job))
+          }
+        }
         toast.push('Receipt printed via QZ Tray')
         onClose()
         return
