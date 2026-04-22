@@ -29,6 +29,7 @@ interface UniversalInventoryItem {
   createdAt: string
   updatedAt: string
   attributes?: Record<string, any>
+  isExpiryDiscount?: boolean
   barcodes?: Array<{
     id: string
     code: string
@@ -753,6 +754,14 @@ export function UniversalInventoryGrid({
                               📦 POS tracked
                             </span>
                           )}
+                          {item.isExpiryDiscount && (
+                            <span
+                              title="Expiry discount — created from near-expiry stock"
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 whitespace-nowrap"
+                            >
+                              🏷️ Expiry Deal
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-secondary">
                           {item.categoryEmoji && <span className="mr-1">{item.categoryEmoji}</span>}
@@ -920,7 +929,17 @@ export function UniversalInventoryGrid({
                   {/* Header */}
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-primary truncate">{item.name}</h3>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="font-medium text-primary truncate">{item.name}</h3>
+                        {item.isExpiryDiscount && (
+                          <span
+                            title="Expiry discount — created from near-expiry stock"
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 whitespace-nowrap"
+                          >
+                            🏷️ Expiry Deal
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-secondary mt-1">
                         {item.categoryEmoji && <span className="mr-1">{item.categoryEmoji}</span>}
                         {item.category}

@@ -3028,7 +3028,8 @@ function GroceryPOSContent() {
 
                     {/* Desk mode: price row + sold count badge + revenue */}
                     {deskMode && !((product as any).wifiToken) && !((product as any).r710Token) && (() => {
-                      const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+                      const isSalesperson = currentBusiness?.role === 'salesperson'
+                      const canSeeFinancials = !isSalesperson
                       const stats = productStatsMap.get(product.id)
                       const soldToday = stats?.soldToday ?? 0
                       const soldYesterday = stats?.soldYesterday ?? 0
@@ -3064,21 +3065,19 @@ function GroceryPOSContent() {
                           {/* Price + sold badge + revenue */}
                           <div className="flex items-center justify-between gap-1 flex-wrap">
                             <span className="font-semibold text-green-700 dark:text-green-300 text-sm bg-green-100 dark:bg-green-950/60 px-1.5 py-0.5 rounded-md">{formatCurrency(product.price)}/{product.unit}</span>
-                            {showBar && (
+                            {showBar && canSeeFinancials && (
                               <div className="flex items-center gap-1">
-                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300`}>
+                                <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300">
                                   {soldToday} sold
                                 </span>
-                                {canSeeFinancials && (
-                                  <span className={`text-xs font-semibold ${barTextColorClass}`}>
-                                    {formatCurrency(product.price * soldToday)}
-                                  </span>
-                                )}
+                                <span className={`text-xs font-semibold ${barTextColorClass}`}>
+                                  {formatCurrency(product.price * soldToday)}
+                                </span>
                               </div>
                             )}
                           </div>
-                          {/* Performance bar */}
-                          {showBar && (
+                          {/* Performance bar — only for users who can see financials */}
+                          {showBar && canSeeFinancials && (
                             <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5 overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all ${barColorClass}`}
@@ -3086,9 +3085,9 @@ function GroceryPOSContent() {
                               />
                             </div>
                           )}
-                          {/* Yesterday context + stock count */}
+                          {/* Yesterday context (financials only) + stock count (always) */}
                           <div className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500">
-                            {showBar && soldYesterday > 0 ? (
+                            {canSeeFinancials && showBar && soldYesterday > 0 ? (
                               <span>yesterday: {soldYesterday}{soldDayBefore > 0 ? ` · 2d: ${soldDayBefore}` : ''}</span>
                             ) : <span />}
                             {product.stockQuantity !== undefined && (
