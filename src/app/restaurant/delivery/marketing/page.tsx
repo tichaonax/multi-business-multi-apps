@@ -166,6 +166,7 @@ export default function DeliveryMarketingPage() {
                         .filter(i => !i.category?.name?.toUpperCase().includes('WIFI'))
                         .filter(i => !showSelectedOnly || selectedItems.has(i.id))
                         .filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()))
+                        .sort((a, b) => (selectedItems.has(b.id) ? 1 : 0) - (selectedItems.has(a.id) ? 1 : 0))
                         .map(item => (
                           <label key={item.id} className="flex items-center gap-2 cursor-pointer text-sm p-1 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
                             <input
@@ -381,12 +382,12 @@ function BusinessCardsTemplate({
   const card = (
     <div
       style={{
-        width: '88mm',
-        height: '53mm',
+        width: '85mm',
+        height: '50mm',
         background: '#fff',
         color: '#111',
-        border: '1.5px solid #111',
-        padding: '5mm 7mm',
+        border: '1px solid #111',
+        padding: '4mm 6mm',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
@@ -395,26 +396,26 @@ function BusinessCardsTemplate({
       }}
     >
       <div>
-        <div style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '0.04em', color: '#111', marginBottom: '1.5mm' }}>
+        <div style={{ fontSize: '12pt', fontWeight: 'bold', letterSpacing: '0.04em', color: '#111', marginBottom: '1mm' }}>
           {businessName}
         </div>
-        <div style={{ fontSize: '8.5pt', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#555' }}>
+        <div style={{ fontSize: '7.5pt', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#555' }}>
           Phone-in Delivery Service
         </div>
       </div>
 
-      <div style={{ textAlign: 'center', lineHeight: '1.4', borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd', padding: '2mm 0' }}>
-        <div style={{ fontSize: '8pt', color: '#666', marginBottom: '1mm' }}>Order by phone &amp; get it delivered</div>
-        <div style={{ fontSize: '9pt', color: '#111', fontWeight: 'bold' }}>12:00 PM – 2:00 PM daily</div>
+      <div style={{ textAlign: 'center', lineHeight: '1.4', borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd', padding: '1.5mm 0' }}>
+        <div style={{ fontSize: '7.5pt', color: '#666', marginBottom: '0.5mm' }}>Order by phone &amp; get it delivered</div>
+        <div style={{ fontSize: '8.5pt', color: '#111', fontWeight: 'bold' }}>12:00 PM – 2:00 PM daily</div>
       </div>
 
       <div>
         {phone && (
-          <div style={{ fontSize: '13pt', fontWeight: 'bold', letterSpacing: '0.06em', color: '#111' }}>
+          <div style={{ fontSize: '12pt', fontWeight: 'bold', letterSpacing: '0.04em', color: '#111' }}>
             📞 {phone}
           </div>
         )}
-        <div style={{ fontSize: '7.5pt', color: '#888', marginTop: '1mm' }}>
+        <div style={{ fontSize: '7pt', color: '#888', marginTop: '0.5mm' }}>
           Call before noon to place your order
         </div>
       </div>
@@ -427,27 +428,25 @@ function BusinessCardsTemplate({
         width: '210mm',
         minHeight: '297mm',
         background: '#fff',
-        padding: '10mm',
+        padding: '8mm 10mm',
         boxSizing: 'border-box',
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <div style={{ marginBottom: '4mm', fontSize: '9pt', color: '#aaa', textAlign: 'center' }}>
-        Cut along the dotted lines · 4 cards per sheet
+      <div style={{ marginBottom: '3mm', fontSize: '8pt', color: '#aaa', textAlign: 'center' }}>
+        Cut along the dotted lines · 10 cards per sheet
       </div>
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: '5mm',
+          gap: '3mm',
           width: 'fit-content',
           margin: '0 auto',
-          border: '1px dashed #ccc',
-          padding: '3mm',
         }}
       >
-        {[0, 1, 2, 3].map(i => (
-          <div key={i} style={{ border: '1px dashed #ccc' }}>
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div key={i} style={{ border: '1px dashed #bbb' }}>
             {card}
           </div>
         ))}
