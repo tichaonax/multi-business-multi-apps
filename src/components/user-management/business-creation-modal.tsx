@@ -24,6 +24,8 @@ interface BusinessCreationModalProps {
     ecocashFeeType?: string
     ecocashFeeValue?: string
     ecocashMinimumFee?: string
+    requireSalespersonEod?: boolean
+    eodDeadlineTime?: string
     couponsEnabled?: boolean
     promosEnabled?: boolean
     receiptReturnPolicy?: string
@@ -72,6 +74,8 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     ecocashFeeType: initial?.ecocashFeeType || 'FIXED',
     ecocashFeeValue: initial?.ecocashFeeValue || '',
     ecocashMinimumFee: initial?.ecocashMinimumFee || '',
+    requireSalespersonEod: initial?.requireSalespersonEod !== undefined ? initial.requireSalespersonEod : false,
+    eodDeadlineTime: initial?.eodDeadlineTime || '20:00',
     couponsEnabled: initial?.couponsEnabled !== undefined ? initial.couponsEnabled : false,
     promosEnabled: initial?.promosEnabled !== undefined ? initial.promosEnabled : false,
     receiptReturnPolicy: initial?.receiptReturnPolicy || 'All sales are final, returns not accepted',
@@ -371,6 +375,42 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                           {formData.ecocashFeeType === 'FIXED'
                             ? `A fixed $${formData.ecocashFeeValue || '0.00'} fee is added to every EcoCash transaction.`
                             : `${formData.ecocashFeeValue || '0'}% of the sale total is added as an EcoCash fee${formData.ecocashMinimumFee ? `, minimum $${formData.ecocashMinimumFee}` : ''}.`}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="requireSalespersonEod" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Require Salesperson EOD Report
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Salespersons must submit a cash &amp; EcoCash total before leaving each day
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="requireSalespersonEod"
+                        checked={formData.requireSalespersonEod}
+                        onChange={(e) => setFormData({ ...formData, requireSalespersonEod: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+
+                    {/* EOD deadline time — shown only when requireSalespersonEod */}
+                    {formData.requireSalespersonEod && (
+                      <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800 ml-4">
+                        <label className="block text-xs font-medium text-amber-800 dark:text-amber-300 mb-1.5">
+                          EOD Submission Deadline
+                        </label>
+                        <input
+                          type="time"
+                          value={formData.eodDeadlineTime}
+                          onChange={(e) => setFormData({ ...formData, eodDeadlineTime: e.target.value })}
+                          className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-amber-300 dark:border-amber-700 text-primary"
+                        />
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                          After this time, salespersons see an overdue warning at the POS.
                         </p>
                       </div>
                     )}
