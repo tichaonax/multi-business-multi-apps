@@ -50,6 +50,10 @@
 27. [Stock Velocity & Reorder Reports](#27-stock-velocity--reorder-reports)
 28. [Invoices & Quotations](#28-invoices--quotations)
 29. [Restaurant Prep Inventory Tracking](#29-restaurant-prep-inventory-tracking)
+30. [Salesperson EOD Reporting](#30-salesperson-eod-reporting)
+31. [Restaurant Delivery Service](#31-restaurant-delivery-service)
+32. [Business Asset Management](#32-business-asset-management)
+33. [Inventory Expiry Tracking](#33-inventory-expiry-tracking)
 
 ---
 
@@ -6224,4 +6228,729 @@ Both counts should match the source system. If either returns 0 but the source h
 | "Add Batch" button greyed out | Fill in all required fields: Portions today, Cost per unit, Portions per unit |
 | Counts not updating after an order | Refresh the POS page — counts update on each checkout completion |
 | Report shows 0 revenue | No batches were initialized in the selected date range, or no sales matched tracked items |
+
+*For technical support, contact your system administrator.*
+
+---
+
+## 30. Salesperson EOD Reporting
+
+> **Who reads this:** Salespersons who submit daily cash/EcoCash reports, and managers who review those reports and reconcile them against the system's End-of-Day figures.
+
+When **Salesperson EOD** is enabled for a business, every salesperson must submit a daily report declaring how much cash and EcoCash they collected. Managers see those reports alongside the system EOD figures to quickly spot discrepancies.
+
+---
+
+### Overview — How It Works
+
+```
+Each day (before the deadline):
+  Salesperson submits their cash + EcoCash totals
+    → Status: PENDING → SUBMITTED
+
+Manager runs End of Day:
+  System compares submitted totals against POS records
+  If any salesperson hasn't submitted → Save is blocked
+
+Manager can override a missing submission:
+  → Status becomes OVERRIDDEN (with a reason)
+
+Discrepancy report shows variance history over time
+```
+
+---
+
+### Salesperson — Submitting Your Daily Report
+
+**Where:** Sidebar → **EOD → Submit Daily Report**
+
+1. Select today's date (defaults to today).
+2. Enter the **Cash Total** — total cash you collected during the day.
+3. Enter the **EcoCash Total** — total EcoCash transactions you processed.
+4. Click **Submit Report**.
+
+**Rules:**
+- You can only submit once per date. After submission the fields become read-only.
+- If the deadline has passed and you haven't submitted, your status shows as **Overdue**.
+- A manager can override an overdue or missing submission on your behalf.
+
+**Status badges:**
+
+| Badge | Meaning |
+|-------|---------|
+| **Submitted** (green) | Report accepted for this date |
+| **Pending** (amber) | Saved as draft — not yet submitted |
+| **Overdue** (red) | Deadline passed and no report submitted |
+| **Overridden** (purple) | Manager entered figures on your behalf |
+
+---
+
+### Salesperson — Viewing Your History
+
+**Where:** Sidebar → **EOD → My EOD History**
+
+The history page shows all your past reports in card format:
+- **Date**, **Cash Total**, **EcoCash Total**, **Status**, and the time you submitted.
+- If a report was **Overridden**, the override reason appears in a highlighted callout box.
+- Use the **From / To** date filters to narrow the list.
+- Pagination (20 per page) — use **Previous / Next** at the bottom to browse older records.
+
+---
+
+### Manager — Reviewing Salesperson Reports
+
+**Where:** Sidebar → **EOD → Manager EOD View** (or **Staff EOD Status**)
+
+The manager page shows all salespersons' statuses for a selected date:
+
+| Column | Meaning |
+|--------|---------|
+| **Name** | Salesperson's display name |
+| **Cash Total** | Amount they declared |
+| **EcoCash Total** | EcoCash amount they declared |
+| **Status** | SUBMITTED / PENDING / OVERDUE |
+| **Submitted At** | Timestamp of submission |
+
+**Filtering:**
+- Use the **Date** picker to view any past date.
+- Use the **Status** filter to show only Pending, Submitted, or Overdue.
+
+**Overriding a missing submission:**
+1. Find the salesperson with status **Pending** or **Overdue**.
+2. Click **Override**.
+3. Enter the correct **Cash** and **EcoCash** amounts.
+4. Enter a short **Reason** (e.g. "Staff forgot to submit — figures confirmed from till").
+5. Click **Save Override**.
+
+The record changes to **Overridden** and both the salesperson and manager can see the reason.
+
+---
+
+### Manager — Dashboard Widget
+
+On the main **Dashboard**, managers see a compact **Salesperson EOD Status** widget showing:
+
+- **X / Y submitted** — how many salespersons have submitted out of the total required.
+- A progress bar: green (all submitted), amber (some pending), red (deadline passed with missing reports).
+- A **View all →** link that opens the full Manager EOD View.
+
+The widget only appears when **Salesperson EOD** is enabled for the business and the logged-in user has the **Can Close Books** permission.
+
+---
+
+### Manager — EOD Integration (Blocking Save)
+
+When salesperson EOD is enabled, the system End-of-Day **Save** and **Lock** buttons are blocked if any salesperson has not submitted their report.
+
+On the EOD page, a **Salesperson EOD Reports** table appears above the Till Reconciliation section showing each salesperson's status. Once all statuses show **Submitted** (or **Overridden**), the buttons unlock.
+
+**To unblock:** Either wait for the salesperson to submit, or use the **Override** button on the Manager EOD View page.
+
+---
+
+### Manager — Discrepancy Report
+
+**Where:** Sidebar → **Reports → EOD Discrepancy**
+
+This report compares what salespersons declared against what the POS system recorded.
+
+**Daily Tab:**
+
+| Column | Meaning |
+|--------|---------|
+| **Date** | Report date |
+| **Salesperson** | Name of the staff member |
+| **SP Cash** | Cash total from the salesperson's submission |
+| **SP EcoCash** | EcoCash total from the salesperson's submission |
+| **System Cash** | Cash recorded in the system EOD for that day |
+| **System EcoCash** | EcoCash recorded in the system EOD |
+| **Cash Variance** | SP Cash − System Cash (red if negative, green if positive) |
+| **EcoCash Variance** | SP EcoCash − System EcoCash |
+
+**Colour coding:**
+- **Green** — Salesperson declared more than the system recorded (over-declaration).
+- **Red** — Salesperson declared less than the system recorded (shortfall).
+- **No highlight** — Figures match exactly.
+
+**Filtering:**
+- Use **From / To** date pickers to select a date range.
+- Click **Export CSV** to download the data for further analysis.
+
+---
+
+**Summary Tab (Weekly / Monthly):**
+
+Switch to the **Summary** tab and choose **Weekly** or **Monthly** grouping to see aggregated variances over time.
+
+Each row shows:
+- **Period** — week starting date or month name.
+- **Reports** — number of individual daily reports in that period.
+- **Total SP Cash / SP EcoCash** — sum of declared amounts.
+- **Total Sys Cash / Sys EcoCash** — sum of system amounts.
+- **Cash Variance / EcoCash Variance** — total difference for the period.
+- **Trend arrow** — ↑ variance increased vs prior period, ↓ decreased, → unchanged.
+
+Summary stat cards at the top show totals for the selected date range.
+
+---
+
+### Admin — Enabling Salesperson EOD
+
+**Where:** Business Settings → EOD Settings (or Admin → Business Config)
+
+| Setting | Description |
+|---------|-------------|
+| **Require Salesperson EOD** | Toggle ON to activate the feature for this business |
+| **EOD Deadline Time** | The cut-off time by which reports must be submitted (e.g. `18:00`). Reports submitted after this time on the same day are flagged as overdue. |
+
+Once enabled, the Submit Daily Report link appears in salespersons' sidebars and the Manager EOD View / EOD Discrepancy links appear for managers.
+
+---
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|---------|
+| "Submit Daily Report" not in sidebar | Feature may not be enabled for this business. Ask your admin to turn on **Require Salesperson EOD** in Business Settings |
+| Report already submitted — can't change figures | Ask a manager to override the entry with the correct amounts |
+| EOD Save button blocked | Open Manager EOD View and check which salesperson is still Pending. Either wait for them to submit or use Override |
+| Discrepancy report shows no data | Ensure the date range includes dates where both salesperson reports AND system EOD saves exist |
+| Dashboard widget not visible | Widget only shows for users with **Can Close Books** permission when the feature is enabled |
+
+---
+
+*For technical support, contact your system administrator.*
+
+---
+
+## 31. Restaurant Delivery Service
+
+> **Who reads this:** Restaurant cashiers who take phone-in orders, managers who dispatch drivers and review delivery reports, and delivery drivers who fulfil runs.
+
+The Restaurant Delivery Service lets the restaurant accept phone-in orders, track delivery status from Pending through to Delivered, manage per-customer prepaid credit accounts, dispatch named drivers with vehicle and odometer tracking, and print kitchen + customer receipts automatically.
+
+**Delivery window:** 12:00 PM – 2:00 PM daily (informational — orders outside this window show a warning but are not blocked).
+
+---
+
+### Overview — How It Works
+
+```
+Customer calls in → Cashier creates delivery order in POS
+  → Credit deducted automatically (if available)
+  → Two receipts auto-print: Kitchen copy + Customer copy (with barcode)
+
+Manager assigns orders to a delivery run
+  → Selects driver + vehicle, records odometer start
+  → Prints Run Sheet for driver
+
+Driver delivers orders
+  → Scans barcode on receipt to update status (or uses delivery queue page)
+  → Records odometer end on return
+
+Manager closes run → odometer end saved, run marked complete
+```
+
+---
+
+### Cashier — Taking a Delivery Order
+
+1. Open the restaurant POS.
+2. Select **Delivery** as the order type (alongside Dine-In / Takeaway).
+3. A customer must be selected before checkout — search by name or phone number.
+4. Add items to the cart as normal.
+5. (Optional) Enter a **Delivery Note** — address or special instructions.
+6. The customer panel shows their **delivery credit balance** and blacklist status:
+   - If blacklisted → checkout is blocked; reason is shown.
+   - If outside 12–2 PM → amber warning banner (order is not blocked).
+7. At checkout, the credit deduction preview shows: **"Credit: −$X.XX | Due on delivery: $X.XX"**
+8. Complete the sale. Two receipts print automatically:
+   - **Kitchen copy** — items and quantities only, no prices, "DELIVERY" header.
+   - **Customer copy** — full receipt with credit used, balance due, remaining credit, and a barcode for status scanning.
+
+---
+
+### Manager — Customer Credit Accounts
+
+**Where:** Sidebar → **Delivery → Customer Accounts**
+
+Each customer can have a delivery credit account. Credit is pre-loaded by management and deducted automatically at checkout.
+
+**Adding credit:**
+1. Search for the customer.
+2. Click **Add Credit**.
+3. Enter the amount and optional notes.
+4. Save. The credit is immediately available for delivery orders.
+
+**Partial credit:** If a customer's credit is less than their order total, available credit is deducted and the remainder is collected on delivery.
+
+**Blacklisting a customer:**
+1. Open the customer's account page.
+2. Click **Blacklist Customer**.
+3. Enter the reason (required).
+4. Save. The customer is immediately blocked from placing delivery orders.
+
+To lift a ban: click **Remove from Blacklist** on the same page.
+
+---
+
+### Manager — Delivery Queue
+
+**Where:** Sidebar → **Delivery → Delivery Queue**
+
+Shows all delivery orders for today grouped by status:
+
+| Status | Meaning |
+|--------|---------|
+| **Pending** | Order received, not yet prepared |
+| **Ready** | Kitchen has prepared the order |
+| **Dispatched** | Order is with the driver on a run |
+| **Delivered** | Driver has delivered the order |
+| **Cancelled** | Order was cancelled |
+
+Click any status button on an order row to advance its status. Cashiers can mark Ready; only managers can cancel.
+
+**Viewing past orders:** Use the date filter to see historical orders and runs.
+
+---
+
+### Manager — Creating a Delivery Run
+
+1. On the Delivery Queue page, click **Create Run**.
+2. Select the **Driver** (from registered employees).
+3. Select the **Vehicle** (from vehicle management) or enter the plate number manually.
+4. Enter the **Odometer Start** reading.
+5. Assign orders to the run — tick the orders the driver will deliver.
+6. Click **Dispatch**. The orders move to **Dispatched** status.
+7. (Optional) Click **Print Run Sheet** — prints a single long receipt listing all orders with customer name, address/note, amount due, and a checkbox for each delivery.
+
+**Closing a run:**
+1. When the driver returns, open the run.
+2. Enter the **Odometer End** reading.
+3. Click **Complete Run**.
+
+---
+
+### Driver — Updating Delivery Status
+
+Drivers can update order status in two ways:
+
+**Via barcode scan (any screen):**
+- Scan the barcode on the customer's receipt.
+- A **Delivery Status Modal** pops up showing the order details.
+- Tap the appropriate action: **Mark Delivered**, **Flag Issue**, etc.
+
+**Via Delivery Queue page:**
+- Drivers only see orders assigned to their current run.
+- Click the status button to advance each order.
+
+Drivers can also enter odometer readings for their own runs but cannot create orders, manage credit, or access financial reports.
+
+---
+
+### Manager — Delivery Reports
+
+**Where:** Sidebar → **Delivery → Reports**
+
+Four report types available:
+
+| Report | What it shows |
+|--------|--------------|
+| **Delivery Sales** | Orders, revenue, credit used, cash to collect — by date range |
+| **Customer Credit** | Per-customer top-up and deduction history, current balance |
+| **Blacklist** | All bans — customer, reason, banned by, date, lifted date |
+| **Driver Runs** | Per run: driver, vehicle, odometer start/end, distance, orders delivered, cash collected |
+
+---
+
+### EOD Integration — Delivery Prepayments
+
+When a customer tops up their delivery credit account with cash, that cash goes into the till. The End-of-Day cash reconciliation automatically includes **Delivery Prepayments** as a separate line item in the expected cash calculation.
+
+On days with no credit top-ups the line is hidden to keep the EOD clean.
+
+---
+
+### Permissions
+
+| Permission | What it controls |
+|------------|-----------------|
+| `canViewDeliveryQueue` | See the delivery management page |
+| `canCreateDeliveryOrders` | Place delivery orders at the POS |
+| `canUpdateDeliveryStatus` | Change order status (Ready / Dispatched / Delivered) |
+| `canManageDeliveryRuns` | Create runs, assign driver + vehicle, enter odometer |
+| `canManageDeliveryCredit` | Top up customer delivery credit accounts |
+| `canManageDeliveryBlacklist` | Ban or unban customers from delivery |
+| `canViewDeliveryReports` | Access delivery reports |
+| `canUpdateOdometer` | Enter odometer readings on assigned runs (driver only) |
+
+The **delivery-driver** role preset grants only: view queue, update status, update odometer, and barcode scanning. Drivers cannot see POS, reports, customer accounts, or financial screens.
+
+---
+
+### Marketing Materials
+
+**Where:** Sidebar → **Delivery → Marketing**
+
+Two printable templates for promoting the delivery service:
+- **A5 Flyer** — featured menu items (live from the active menu), delivery hours, restaurant name and phone number.
+- **Business Card** (4-up on A4 for cutting) — bold "Order by phone" call-to-action with delivery hours and contact details.
+
+Click **Print** on either template to send directly to your printer. Navigation is hidden in print mode.
+
+---
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|---------|
+| Delivery order type not showing in POS | Feature requires the restaurant business type — contact your admin |
+| Customer cannot be selected for delivery | Customer must exist in the system first (create via Customers page) |
+| Checkout blocked — "Customer is blacklisted" | Management must lift the ban on the Customer Accounts page before the order can proceed |
+| Receipts didn't print automatically | Check printer connection and QZ Tray status; use "Reprint" on the order detail page |
+| Barcode scan didn't open status modal | Ensure the barcode is a `DEL-` delivery barcode, not a product or customer barcode |
+| Run Sheet not printing | Confirm orders have been assigned to the run before clicking Print Run Sheet |
+
+---
+
+## 32. Business Asset Management
+
+> **Who reads this:** Business owners and managers who want to track physical and digital assets, record depreciation, log maintenance history, and manage asset disposal.
+
+Asset Management is available to all business types. It tracks every asset from purchase through to disposal, calculates book value over time using straight-line or declining-balance depreciation, and produces financial reports on asset values, maintenance costs, and disposals.
+
+**Access:** Sidebar → **Assets**. Requires the **Manage Assets** permission.
+
+---
+
+### Overview — Asset Lifecycle
+
+```
+Add Asset → Record Depreciation (monthly / annually) → Log Maintenance
+                                                    ↓
+                                              Dispose Asset
+                                  (Sale | Gift | Trade-In | Scrap | Write-Off)
+```
+
+---
+
+### Adding an Asset
+
+1. Go to **Assets** in the sidebar.
+2. Click **Add Asset**.
+3. Fill in the details:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Descriptive name (e.g. "HP LaserJet 4015") |
+| **Category** | Select from the list (Vehicles, Office Equipment, Furniture, IT Equipment, Machinery & Tools, Land & Buildings, or any custom category) |
+| **Serial Number** | Optional — useful for warranty and insurance claims |
+| **Location** | Where the asset is kept (e.g. "Head Office", "Store Room") |
+| **Purchase Date** | Date acquired |
+| **Purchase Price** | Amount paid |
+| **Depreciation Method** | Straight-Line, Double-Declining Balance, or None |
+| **Useful Life (years)** | How many years before the asset reaches its salvage value |
+| **Salvage Value** | Estimated residual value at end of useful life |
+
+4. Click **Save**. The system auto-generates a unique **Asset Tag** (e.g. `RST-AST-0001`) for labelling.
+
+---
+
+### Depreciation Methods
+
+| Method | How it works | Best for |
+|--------|-------------|---------|
+| **Straight-Line** | Equal amount each year: (Purchase − Salvage) ÷ Useful Life | Furniture, equipment with steady wear |
+| **Double-Declining Balance** | 2× straight-line rate on current book value each year; front-loads depreciation | Vehicles, IT equipment (lose value quickly) |
+| **None** | Book value never changes | Land, collectibles |
+
+Depreciation is **manually triggered** — the system calculates the amount but you choose when to record each period. This keeps your records under your control.
+
+---
+
+### Recording Depreciation
+
+1. Open the asset detail page (click any asset in the list).
+2. Click **Record Depreciation** (in the footer action bar or on the Depreciation History tab).
+3. Select the **Period Date** (typically the last day of the month or year).
+4. The calculated amount is pre-filled — override it if needed.
+5. Add optional notes.
+6. Click **Save**. The book value updates immediately.
+
+The **Depreciation History** tab shows all past entries. Entries cannot be edited or deleted — they are an append-only audit trail.
+
+The **Details** tab shows a projected depreciation schedule for future periods.
+
+---
+
+### Logging Maintenance
+
+1. Open the asset detail page.
+2. Click **Log Maintenance** (or go to the **Maintenance** tab and click **Add Maintenance**).
+3. Fill in:
+
+| Field | Description |
+|-------|-------------|
+| **Date** | When maintenance was performed |
+| **Type** | Preventive / Corrective / Inspection |
+| **Description** | What was done |
+| **Cost** | Optional — what was paid |
+| **Vendor** | Who performed the work |
+| **Next Maintenance Date** | Optional reminder for next scheduled service |
+
+---
+
+### Asset Photos
+
+The **Photos** tab on the asset detail page lets you attach photos of the asset (useful for insurance and audits).
+
+- Click **Upload Photo** to add an image.
+- Click **Set as Primary** to make a photo the main display image.
+- Click the bin icon to delete a photo.
+- Click any photo to open a full-size lightbox view.
+
+---
+
+### Disposing of an Asset
+
+When an asset is sold, gifted, traded in, scrapped, or written off:
+
+1. Open the asset detail page.
+2. Click **Dispose Asset**.
+3. Select the **Disposal Method**: Sale / Gift / Trade-In / Scrap / Write-Off.
+4. Enter the **Disposal Date** and **Sale/Trade Value** (for Sale or Trade-In).
+5. Enter the **Recipient** (for Gift or Sale).
+6. Review the **Gain/Loss on Disposal** (disposal value vs current book value).
+7. Click **Confirm Dispose**.
+
+> **This action cannot be undone.** The asset status changes to Disposed and it no longer appears in the active asset list.
+
+---
+
+### Asset Register Page
+
+The main `/assets` page shows:
+
+- **Summary bar**: Total assets, total book value, assets with low book value, assets disposed this year.
+- **Filters**: Business (multi-business users), Category, Status (Active / Maintenance / Disposed / Written Off).
+- **Search**: by name, asset tag, or serial number.
+- **Table**: Asset Tag | Name | Category | Purchase Price | Book Value | Status | Purchase Date.
+
+Click any row to open the asset detail page.
+
+---
+
+### Reports
+
+**Where:** Assets page → **Reports** tab
+
+| Report | What it shows |
+|--------|--------------|
+| **Asset Value by Category** | Total book value grouped by asset category |
+| **Depreciation Summary** | Total depreciation charged YTD and cumulative since purchase |
+| **Disposal Report** | All disposed assets with gain/loss calculation — filter by date range |
+| **Maintenance Cost Report** | Total maintenance spend per asset and per category |
+
+---
+
+### Managing Categories
+
+**Where:** Sidebar → **Assets → Manage Categories**
+
+Six system-wide default categories are provided (read-only). You can create custom categories specific to your business with default depreciation settings so new assets in that category are pre-configured.
+
+---
+
+### Permissions
+
+The **Manage Assets** permission controls full access to the Assets module (view, create, edit, depreciate, dispose). Owners and Managers have this permission by default. It can be enabled per employee via the Permissions editor.
+
+---
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|---------|
+| Assets link not visible in sidebar | Account needs the **Manage Assets** permission — ask your admin |
+| "Record Depreciation" button greyed out | Asset may already be disposed, or depreciation method is set to "None" |
+| Book value went below salvage value | The system warns if an entry would do this — override only if intentional |
+| Asset tag not printing | Use the barcode label printing feature (reuse existing barcode templates) — tag format: `{BUS-TYPE}-AST-NNNN` |
+| Photos tab not showing | Photos feature requires the asset to be saved first |
+
+---
+
+## 33. Inventory Expiry Tracking
+
+> **Who reads this:** Stock managers, purchasing officers, and any staff responsible for managing perishable inventory. Also relevant to managers who authorize disposing of or discounting expired stock.
+
+Expiry Tracking lets you record the expiry date for each batch of stock received, see real-time alerts when batches are near expiry or have expired, and take action — either dispose of the stock (records an EXPIRED movement) or create a discounted product that appears in the POS with an "Expiry Deal" or "BOGO" badge.
+
+---
+
+### Overview — How It Works
+
+```
+Stock received → Record batch with optional expiry date
+                  (Custom Bulk Top-Up, Quick Stock Modal, or Bulk Stocking Panel)
+
+System monitors expiry dates:
+  → Within 7 days: 🟡 Near Expiry alert
+  → Past expiry: 🔴 Expired alert
+
+Manager takes action per batch:
+  → Dispose: records EXPIRED stock movement, reduces qty
+  → Price Reduction: creates new product at discounted price with "Expiry Deal" badge
+  → BOGO: creates new product at 50% price with "BOGO" badge
+```
+
+---
+
+### Recording Expiry Dates at Intake
+
+Expiry dates are entered when stocking inventory. They are **optional** — if omitted, a batch row is still created (for intake history) but no expiry alert is generated.
+
+**Custom Bulk Top-Up:**
+- The bulk entry table has an **Expiry Date** column per row.
+- Each line item creates its own batch. The same product can have multiple batches with different expiry dates.
+
+**Quick Stock Modal:**
+- An **Expiry Date** date field is available alongside the quantity field.
+
+**Bulk Stocking Panel:**
+- An **Expiry Date** column is available in the stocking table rows.
+
+---
+
+### Dashboard Alert Widget
+
+When any batches are near expiry or expired, a widget appears on the main **Dashboard**:
+
+```
+🔴  X batches EXPIRED — Requires action
+🟡  Y batches EXPIRING WITHIN 7 DAYS — Review soon
+                [View All Expiring Items →]
+```
+
+- Counts are batch-level (one product with two expiring batches counts as 2).
+- Widget is hidden when both counts are zero.
+- Visible to users with **Can View Stock Alerts** or **Can Manage Expiry Actions** permission.
+- Click the link to open the Expiry Management page.
+
+---
+
+### Expiry Management Page
+
+**Where:** Sidebar → **Expiry**
+
+**Needs Action tab** shows all unresolved batches that are expired or expiring within 7 days:
+
+| Column | Meaning |
+|--------|---------|
+| **Barcode** | Product barcode |
+| **Name** | Product name |
+| **Batch Qty** | Units in this specific batch |
+| **Expiry Date** | When the batch expires |
+| **Status** | 🔴 "X days ago" (expired) or 🟡 "X days" (near expiry) |
+| **Actions** | Dispose / Apply Discount buttons |
+
+Row background: red for expired, amber for near-expiry.
+
+**Resolved tab** shows the full action history — what was disposed or discounted, by whom, and when.
+
+**Filters:** Filter by All / Expired / Expiring This Week, or search by product name or barcode.
+
+---
+
+### Taking Action on Expired Stock
+
+#### Dispose
+
+Use when the stock must be destroyed.
+
+1. Click **Dispose** on the batch row.
+2. Enter the **Quantity to Dispose** (up to the full batch quantity).
+3. Add optional notes.
+4. Click **Confirm Dispose**.
+
+The system records an **EXPIRED** stock movement and reduces the product's inventory count by the disposed quantity. If the full batch quantity is disposed, the batch is marked Resolved.
+
+---
+
+#### Apply Expiry Discount — Price Reduction
+
+Creates a new product at a reduced price that appears in the POS with an **"Expiry Deal"** badge.
+
+1. Click **Discount** on the batch row.
+2. Choose **Price Reduction**.
+3. Enter:
+   - **Quantity to move** — units to transfer to the discounted product.
+   - **New price per unit** — the discounted selling price.
+   - **New product name** — defaults to "{Original Name} - Expiry Deal".
+4. The system auto-generates a new barcode (e.g. `EXP-2604-7291`).
+5. Click **Apply**.
+
+The source product's stock quantity reduces by the moved quantity. The new discounted product appears in inventory and the POS immediately.
+
+---
+
+#### Apply Expiry Discount — BOGO (Buy 1 Get 1)
+
+Creates a new product at 50% of the original price with a **"BOGO"** badge.
+
+1. Click **Discount** → **BOGO (Buy 1 Get 1)**.
+2. Enter the quantity to move.
+3. The price is calculated automatically at 50%.
+4. Click **Apply**.
+
+---
+
+### Expiry Deal Indicators in the POS and Inventory
+
+Products created via a discount action carry a visible badge throughout the system:
+
+| Location | Badge |
+|----------|-------|
+| **Universal POS card** | Teal ribbon at the bottom: "Expiry Deal" or "BOGO" |
+| **Grocery POS card** | Same teal ribbon |
+| **Inventory list** | Teal pill badge next to the product name |
+| **Product detail** | Info banner: "⚠️ Expiry-discounted product. [View original →]" |
+
+These badges render only on discounted items; no change to the appearance of normal products.
+
+---
+
+### Inventory Item Batches View
+
+On the **Inventory Item Detail** page (the insights panel), a **Batch History** section shows:
+- All batches received for that item.
+- Receipt date, quantity, expiry date (if set), and status (Active / Near Expiry / Expired / Resolved).
+
+This gives a full picture of stock intake and expiry status without leaving the product record.
+
+---
+
+### Permissions
+
+| Permission | What it controls |
+|------------|-----------------|
+| `canViewStockAlerts` | See expiry alerts on the dashboard and Expiry Management page |
+| `canManageExpiryActions` | Take action — dispose or create discounted products |
+
+Owners and Managers have both permissions by default. Supervisors and below do not — enable per employee via the Permissions editor if needed.
+
+---
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|---------|
+| Expiry date field not visible in bulk entry | Ensure you are on the Custom Bulk Top-Up, Quick Stock, or Bulk Stocking Panel — not an older entry form |
+| Alert widget not on dashboard | User needs `canViewStockAlerts` or `canManageExpiryActions` permission; also hidden when no batches are near/past expiry |
+| "Dispose" / "Discount" buttons not showing | Requires the `canManageExpiryActions` permission |
+| New discounted product not appearing in POS | Products sync on page refresh — reload the POS after creating the discount product |
+| Batch shows as expired but stock was already sold | The batch quantity reflects what was received; sold units reduce the parent product's total stock, not individual batch quantities. Use Dispose to write off remaining physical stock |
+| Expiry deal badge not showing on POS card | Confirm the product was created via the Discount action (has `isExpiryDiscount = true`). Manually created products will not have this flag |
+
+---
+
 *For technical support, contact your system administrator.*

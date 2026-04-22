@@ -174,6 +174,15 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'menuItemInventoryBatches': 'menuItemInventoryBatch',
   // Salesperson EOD Reports (MBM-187)
   'salespersonEodReports': 'salespersonEodReport',
+  // Asset Management (MBM-185)
+  'assetCategories': 'assetCategory',
+  'businessAssets': 'businessAsset',
+  'assetDepreciationEntries': 'assetDepreciationEntry',
+  'assetMaintenanceLogs': 'assetMaintenanceLog',
+  'assetImages': 'assetImage',
+  // Expiry Tracking (MBM-186)
+  'itemExpiryBatches': 'itemExpiryBatch',
+  'expiryActions': 'expiryAction',
 }
 
 /**
@@ -257,6 +266,14 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'groupedEODRunDates',
   'stockTakeDraftItems',
   'stockTakeReportEmployees',
+  // Delivery (MBM-184) — child tables without businessId
+  'deliveryAccountTransactions', // linked via accountId
+  'deliveryOrderMeta',           // linked via orderId (no businessId field)
+  // Asset Management (MBM-185) — child tables without businessId; assetCategories has nullable businessId
+  'assetCategories',             // businessId is nullable (system-wide defaults have null)
+  'assetDepreciationEntries',    // linked via assetId
+  'assetMaintenanceLogs',        // linked via assetId
+  'assetImages',                 // linked via assetId
 ])
 
 /**

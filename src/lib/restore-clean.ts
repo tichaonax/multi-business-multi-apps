@@ -360,6 +360,23 @@ const RESTORE_ORDER = [
   // Salesperson EOD Reports (MBM-187 — depends on businesses + users)
   'salespersonEodReports',  // Depends on businesses, users (salespersonId, submittedById)
 
+  // Restaurant Delivery Service (MBM-184)
+  'deliveryCustomerAccounts',    // Depends on businesses, businessCustomers
+  'deliveryAccountTransactions', // Depends on deliveryCustomerAccounts
+  'deliveryRuns',                // Depends on businesses, employees
+  'deliveryOrderMeta',           // Depends on businessOrders, deliveryRuns (optional)
+
+  // Business Asset Management (MBM-185)
+  'assetCategories',             // System-wide (businessId nullable) — no hard deps
+  'businessAssets',              // Depends on businesses, assetCategories (optional)
+  'assetDepreciationEntries',    // Depends on businessAssets
+  'assetMaintenanceLogs',        // Depends on businessAssets
+  'assetImages',                 // Depends on businessAssets
+
+  // Inventory Expiry Tracking (MBM-186)
+  'itemExpiryBatches',           // Depends on businesses, barcodeInventoryItems
+  'expiryActions',               // Depends on businesses, itemExpiryBatches
+
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs'           // Depends on users
 ]
@@ -471,6 +488,15 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'menuItemInventoryBatches': 'menuItemInventoryBatch',
   // Salesperson EOD Reports (MBM-187)
   'salespersonEodReports': 'salespersonEodReport',
+  // Restaurant Delivery (MBM-184) — plural model names, direct match via fallback; child tables need explicit mapping
+  'assetCategories': 'assetCategory',
+  'businessAssets': 'businessAsset',
+  'assetDepreciationEntries': 'assetDepreciationEntry',
+  'assetMaintenanceLogs': 'assetMaintenanceLog',
+  'assetImages': 'assetImage',
+  // Expiry Tracking (MBM-186)
+  'itemExpiryBatches': 'itemExpiryBatch',
+  'expiryActions': 'expiryAction',
   // Chicken Run
   'chickenBatches': 'chickenBatch',
   'chickenFeedLogs': 'chickenFeedLog',

@@ -1323,6 +1323,53 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // 52. Restaurant Delivery Service (MBM-184)
+  businessData.deliveryCustomerAccounts = await prisma.deliveryCustomerAccounts.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const deliveryAccountIds = businessData.deliveryCustomerAccounts.map((a: any) => a.id)
+  businessData.deliveryAccountTransactions = await prisma.deliveryAccountTransactions.findMany({
+    where: { accountId: { in: deliveryAccountIds } }
+  })
+  businessData.deliveryRuns = await prisma.deliveryRuns.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  // DeliveryOrderMeta has no businessId — filter via business orders
+  const _deliveryOrderIds = await prisma.businessOrders.findMany({
+    where: { businessId: { in: businessIds } },
+    select: { id: true }
+  })
+  businessData.deliveryOrderMeta = await prisma.deliveryOrderMeta.findMany({
+    where: { orderId: { in: _deliveryOrderIds.map((o: any) => o.id) } }
+  })
+
+  // 53. Business Asset Management (MBM-185)
+  // Include system-wide categories (businessId: null) + business-specific ones
+  businessData.assetCategories = await prisma.assetCategory.findMany({
+    where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
+  })
+  businessData.businessAssets = await prisma.businessAsset.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const assetIds = businessData.businessAssets.map((a: any) => a.id)
+  businessData.assetDepreciationEntries = await prisma.assetDepreciationEntry.findMany({
+    where: { assetId: { in: assetIds } }
+  })
+  businessData.assetMaintenanceLogs = await prisma.assetMaintenanceLog.findMany({
+    where: { assetId: { in: assetIds } }
+  })
+  businessData.assetImages = await prisma.assetImage.findMany({
+    where: { assetId: { in: assetIds } }
+  })
+
+  // 54. Inventory Expiry Tracking (MBM-186)
+  businessData.itemExpiryBatches = await prisma.itemExpiryBatch.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.expiryActions = await prisma.expiryAction.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined
 
@@ -1381,7 +1428,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.22.0',
+    schemaVersion: '6.23.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

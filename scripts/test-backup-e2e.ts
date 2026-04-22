@@ -49,6 +49,12 @@ const NEW_TABLE_KEYS = [
   'invoices', 'invoiceItems',
   // Salesperson EOD Reports (MBM-187)
   'salespersonEodReports',
+  // Restaurant Delivery Service (MBM-184)
+  'deliveryCustomerAccounts', 'deliveryAccountTransactions', 'deliveryRuns', 'deliveryOrderMeta',
+  // Business Asset Management (MBM-185)
+  'assetCategories', 'businessAssets', 'assetDepreciationEntries', 'assetMaintenanceLogs', 'assetImages',
+  // Inventory Expiry Tracking (MBM-186)
+  'itemExpiryBatches', 'expiryActions',
 ]
 
 async function main() {
