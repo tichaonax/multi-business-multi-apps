@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 
 interface InventoryStats {
   overview: {
@@ -94,12 +95,14 @@ export function UniversalInventoryStats({
   refreshInterval = 300000, // 5 minutes
   customMetrics = []
 }: UniversalInventoryStatsProps) {
+  const { status } = useSession()
   const [stats, setStats] = useState<InventoryStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const fetchStats = async () => {
+    if (status !== 'authenticated') return
     setLoading(true)
     setError(null)
 
@@ -501,10 +504,10 @@ export function UniversalInventoryStats({
   }
 
   useEffect(() => {
-    if (businessId) {
+    if (businessId && status === 'authenticated') {
       fetchStats()
     }
-  }, [businessId, dateRange])
+  }, [businessId, dateRange, status])
 
   useEffect(() => {
     if (refreshInterval > 0) {
@@ -603,20 +606,29 @@ export function UniversalInventoryStats({
           <div className="text-xl sm:text-2xl font-bold text-primary">{stats.overview.totalCategories}</div>
         </div>
 
-        <div className="card p-3 sm:p-4">
+        <button
+          className="card p-3 sm:p-4 text-left hover:ring-2 hover:ring-orange-400 transition-all cursor-pointer"
+          onClick={() => { window.location.href = `/${businessType}/inventory?tab=inventory&stockStatus=low` }}
+        >
           <div className="text-xs sm:text-sm text-secondary">Low Stock</div>
           <div className="text-xl sm:text-2xl font-bold text-orange-600">{stats.overview.lowStockItems}</div>
-        </div>
+        </button>
 
-        <div className="card p-3 sm:p-4">
+        <button
+          className="card p-3 sm:p-4 text-left hover:ring-2 hover:ring-red-400 transition-all cursor-pointer"
+          onClick={() => { window.location.href = `/${businessType}/inventory?tab=inventory&stockStatus=out` }}
+        >
           <div className="text-xs sm:text-sm text-secondary">Out of Stock</div>
           <div className="text-xl sm:text-2xl font-bold text-red-600">{stats.overview.outOfStockItems}</div>
-        </div>
+        </button>
 
-        <div className="card p-3 sm:p-4">
+        <button
+          className="card p-3 sm:p-4 text-left hover:ring-2 hover:ring-yellow-400 transition-all cursor-pointer"
+          onClick={() => { window.location.href = `/expiry` }}
+        >
           <div className="text-xs sm:text-sm text-secondary">Expiring</div>
           <div className="text-xl sm:text-2xl font-bold text-yellow-600">{stats.overview.expiringItems}</div>
-        </div>
+        </button>
       </div>
 
       {layout === 'detailed' && (
@@ -625,22 +637,22 @@ export function UniversalInventoryStats({
           <div className="card p-6">
             <h3 className="text-lg font-semibold mb-4">Stock Health Overview</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
+              <button className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors" onClick={() => { window.location.href = `/${businessType}/inventory?tab=inventory&stockStatus=healthy` }}>
                 <div className="text-3xl font-bold text-green-600">{stats.stockHealth.healthyStock}</div>
                 <div className="text-sm text-secondary">Healthy Stock</div>
-              </div>
-              <div className="text-center">
+              </button>
+              <button className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors" onClick={() => { window.location.href = `/${businessType}/inventory?tab=inventory&stockStatus=low` }}>
                 <div className="text-3xl font-bold text-orange-600">{stats.stockHealth.lowStock}</div>
                 <div className="text-sm text-secondary">Low Stock</div>
-              </div>
-              <div className="text-center">
+              </button>
+              <button className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors" onClick={() => { window.location.href = `/${businessType}/inventory?tab=inventory&stockStatus=out` }}>
                 <div className="text-3xl font-bold text-red-600">{stats.stockHealth.outOfStock}</div>
                 <div className="text-sm text-secondary">Out of Stock</div>
-              </div>
-              <div className="text-center">
+              </button>
+              <button className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors" onClick={() => { window.location.href = `/${businessType}/inventory?tab=inventory&stockStatus=overstock` }}>
                 <div className="text-3xl font-bold text-purple-600">{stats.stockHealth.overstock}</div>
                 <div className="text-sm text-secondary">Overstock</div>
-              </div>
+              </button>
             </div>
           </div>
 

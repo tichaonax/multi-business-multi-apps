@@ -567,6 +567,10 @@ export function MobileSidebar() {
                     <Link href="/expiry" className={sectionLinkClass} onClick={close}>🗓️ Expiry Management</Link>
                   )}
 
+                  {(isAdmin || hasBusinessPermission('canManageAssets')) && (
+                    <Link href="/assets" className={sectionLinkClass} onClick={close}>🏷️ Assets</Link>
+                  )}
+
                   {currentBusiness?.requireSalespersonEod && currentBusiness?.role === 'salesperson' && (
                     <Link href="/eod/history" className={sectionLinkClass} onClick={close}>📋 My EOD History</Link>
                   )}

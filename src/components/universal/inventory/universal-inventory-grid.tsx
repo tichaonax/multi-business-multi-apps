@@ -51,6 +51,7 @@ interface UniversalInventoryGridProps {
   menuOnlyFilter?: boolean   // Only show items on the menu (have a sell price)
   posTrackedFilter?: boolean  // Only show items tracked for POS stock badge
   priceFilter?: 'all' | 'with' | 'without'  // Filter by whether prices are set
+  stockStatusFilter?: 'low' | 'out' | 'healthy' | 'overstock'  // Filter by stock level
   onItemEdit?: (item: UniversalInventoryItem) => void
   onItemView?: (item: UniversalInventoryItem) => void
   onItemDelete?: (item: UniversalInventoryItem) => void
@@ -79,6 +80,7 @@ export function UniversalInventoryGrid({
   menuOnlyFilter,    // External menu-only filter from parent
   posTrackedFilter,  // External POS-tracked filter from parent
   priceFilter,       // External price filter from parent
+  stockStatusFilter, // External stock status filter from parent
   onItemEdit,
   onItemView,
   onItemDelete,
@@ -144,9 +146,13 @@ export function UniversalInventoryGrid({
       setError(null)
 
       try {
+        // When filtering by stock status, fetch all items (filtering is client-side)
+        const effectivePage = stockStatusFilter ? '1' : currentPage.toString()
+        const effectiveLimit = stockStatusFilter ? '2000' : pageSize.toString()
+
         const params = new URLSearchParams({
-          page: currentPage.toString(),
-          limit: pageSize.toString(),
+          page: effectivePage,
+          limit: effectiveLimit,
           ...(businessType && { businessType }),
           ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
           ...(effectiveCategory !== 'all' && { category: effectiveCategory }),
@@ -194,16 +200,16 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, showTemplates, refreshTrigger])
+  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, showTemplates, refreshTrigger, stockStatusFilter])
 
-  // Filter items by supplier and location
+  // Filter items by supplier, location, and stock status
   const filteredItems = items.filter(item => {
-    if (selectedSupplier !== 'all' && item.supplier !== selectedSupplier) {
-      return false
-    }
-    if (selectedLocation !== 'all' && item.location !== selectedLocation) {
-      return false
-    }
+    if (selectedSupplier !== 'all' && item.supplier !== selectedSupplier) return false
+    if (selectedLocation !== 'all' && item.location !== selectedLocation) return false
+    if (stockStatusFilter === 'out' && item.currentStock !== 0) return false
+    if (stockStatusFilter === 'low' && !(item.currentStock > 0 && item.currentStock <= 5)) return false
+    if (stockStatusFilter === 'healthy' && !(item.currentStock > 10 && item.currentStock <= 100)) return false
+    if (stockStatusFilter === 'overstock' && item.currentStock <= 100) return false
     return true
   })
 

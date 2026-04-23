@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
@@ -144,19 +143,16 @@ export default function ExpiryManagementPage() {
   const canView = isSystemAdmin || hasPermission('canViewStockAlerts') || hasPermission('canManageExpiryActions')
   if (!canView) {
     return (
-      <MainLayout>
-        <ContentLayout title="Expiry Management">
-          <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-            You don&apos;t have permission to view expiry alerts.
-          </div>
-        </ContentLayout>
-      </MainLayout>
+      <ContentLayout title="Expiry Management">
+        <div className="text-center py-20 text-gray-500 dark:text-gray-400">
+          You don&apos;t have permission to view expiry alerts.
+        </div>
+      </ContentLayout>
     )
   }
 
   return (
-    <MainLayout>
-      <ContentLayout title="Expiry Management">
+    <ContentLayout title="Expiry Management">
         <div className="max-w-5xl mx-auto">
 
           {/* Page header */}
@@ -318,7 +314,6 @@ export default function ExpiryManagementPage() {
 
         </div>
       </ContentLayout>
-    </MainLayout>
   )
 }
 

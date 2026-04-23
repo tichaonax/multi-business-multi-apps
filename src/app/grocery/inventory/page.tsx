@@ -125,16 +125,18 @@ function GroceryInventoryContent() {
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
+  const [showDepartments, setShowDepartments] = useState(false)
   const [filterCount, setFilterCount] = useState<number | null>(null)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
 
   useEffect(() => {
+    if (!isSystemAdmin) return
     fetch('/api/admin/seed-categories?businessType=grocery')
       .then(r => r.json())
       .then(d => { if (d.seeded) setCategoriesSeeded(true) })
       .catch(() => {})
-  }, [])
+  }, [isSystemAdmin])
 
   const handleSeedCategories = async () => {
     setSeedingCategories(true)
@@ -186,6 +188,8 @@ function GroceryInventoryContent() {
         })
     }
   }, [searchParams, currentBusinessId, router])
+
+  const stockStatusFilter = (searchParams?.get('stockStatus') as 'low' | 'out' | 'healthy' | 'overstock' | null) ?? undefined
 
   useEffect(() => {
     if (searchParams?.get('bulkStock') === '1') setShowBulkStockPanel(true)
@@ -431,21 +435,25 @@ function GroceryInventoryContent() {
                         🛒 Grocery Store Inventory Features
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="card p-3 border border-green-200 dark:border-green-800">
-                          <div className="text-green-700 dark:text-green-300 font-medium text-sm break-words">📅 Expiration Tracking</div>
+                        <Link href="/expiry" className="card p-3 border border-green-400 dark:border-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors group">
+                          <div className="text-green-700 dark:text-green-300 font-medium text-sm break-words group-hover:underline">📅 Expiration Tracking</div>
                           <div className="text-xs text-green-600 dark:text-green-400 break-words">FIFO rotation & automatic alerts</div>
-                        </div>
-                        <div className="card p-3 border border-green-200 dark:border-green-800">
+                          <div className="text-xs text-green-500 dark:text-green-500 mt-1">→ Open</div>
+                        </Link>
+                        <div className="card p-3 border border-green-200 dark:border-green-800 opacity-60">
                           <div className="text-green-700 dark:text-green-300 font-medium text-sm break-words">🏷️ PLU Code Management</div>
                           <div className="text-xs text-green-600 dark:text-green-400 break-words">Produce codes & weight-based pricing</div>
+                          <div className="text-xs text-gray-400 mt-1">Coming soon</div>
                         </div>
-                        <div className="card p-3 border border-green-200 dark:border-green-800">
+                        <div className="card p-3 border border-green-200 dark:border-green-800 opacity-60">
                           <div className="text-green-700 dark:text-green-300 font-medium text-sm break-words">🌡️ Temperature Zones</div>
                           <div className="text-xs text-green-600 dark:text-green-400 break-words">Cold chain monitoring</div>
+                          <div className="text-xs text-gray-400 mt-1">Coming soon</div>
                         </div>
-                        <div className="card p-3 border border-green-200 dark:border-green-800">
+                        <div className="card p-3 border border-green-200 dark:border-green-800 opacity-60">
                           <div className="text-green-700 dark:text-green-300 font-medium text-sm break-words">🌱 Organic Tracking</div>
                           <div className="text-xs text-green-600 dark:text-green-400 break-words">Certification & compliance</div>
+                          <div className="text-xs text-gray-400 mt-1">Coming soon</div>
                         </div>
                       </div>
                     </div>
@@ -492,30 +500,36 @@ function GroceryInventoryContent() {
 
                     {/* Department Quick Navigation */}
                     {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
-                      <div className="card p-4 sm:p-6">
-                        <div className="flex items-center justify-between mb-4">
+                      <div className="card">
+                        <button
+                          onClick={() => setShowDepartments(p => !p)}
+                          className="w-full flex items-center justify-between p-4 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors rounded-lg"
+                        >
                           <h3 className="text-lg font-semibold">Browse by Department</h3>
-                          <span className="text-sm text-secondary">
-                            {Object.keys(stats.byDepartment).length} departments • Click to filter
+                          <span className="flex items-center gap-3 text-sm text-secondary">
+                            {Object.keys(stats.byDepartment).length} departments
+                            <span className="text-xs">{showDepartments ? '▲' : '▼'}</span>
                           </span>
-                        </div>
-                        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-                          {Object.entries(stats.byDepartment)
-                            .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
-                            .map(([id, dept]: [string, any]) => (
-                              <button
-                                key={id}
-                                onClick={() => setSelectedDepartment(id)}
-                                className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 hover:border-green-500 dark:hover:border-green-400 transition-all text-center group"
-                              >
-                                <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{dept.emoji}</span>
-                                <span className="text-sm font-medium mb-1">{dept.name}</span>
-                                <span className="text-xs text-secondary">
-                                  {dept.count} product{dept.count !== 1 ? 's' : ''}
-                                </span>
-                              </button>
-                            ))}
-                        </div>
+                        </button>
+                        {showDepartments && (
+                          <div className="px-4 sm:px-6 pb-4 sm:pb-6 grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+                            {Object.entries(stats.byDepartment)
+                              .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
+                              .map(([id, dept]: [string, any]) => (
+                                <button
+                                  key={id}
+                                  onClick={() => setSelectedDepartment(id)}
+                                  className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 hover:border-green-500 dark:hover:border-green-400 transition-all text-center group"
+                                >
+                                  <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{dept.emoji}</span>
+                                  <span className="text-sm font-medium mb-1">{dept.name}</span>
+                                  <span className="text-xs text-secondary">
+                                    {dept.count} product{dept.count !== 1 ? 's' : ''}
+                                  </span>
+                                </button>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -523,6 +537,7 @@ function GroceryInventoryContent() {
                       businessId={businessId}
                       businessType="grocery"
                       departmentFilter={selectedDepartment}
+                      stockStatusFilter={stockStatusFilter}
                       onItemEdit={handleItemEdit}
                       onItemView={handleItemView}
                       onItemDelete={handleItemDelete}

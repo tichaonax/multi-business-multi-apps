@@ -4,7 +4,6 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
@@ -234,24 +233,23 @@ export default function ManagerEodPage() {
   useEffect(() => { if (tab === 'overrides') fetchOverrides() }, [fetchOverrides, tab])
 
   if (bizLoading) return (
-    <MainLayout><ContentLayout title="Staff EOD Status"><div className="text-sm text-gray-500 py-8 text-center">Loading…</div></ContentLayout></MainLayout>
+    <ContentLayout title="Staff EOD Status"><div className="text-sm text-gray-500 py-8 text-center">Loading…</div></ContentLayout>
   )
 
   if (!canAccess) return (
-    <MainLayout><ContentLayout title="Staff EOD Status">
+    <ContentLayout title="Staff EOD Status">
       <div className="text-sm text-red-600 py-8 text-center">You do not have permission to view this page.</div>
-    </ContentLayout></MainLayout>
+    </ContentLayout>
   )
 
   if (!currentBusiness?.requireSalespersonEod) return (
-    <MainLayout><ContentLayout title="Staff EOD Status">
+    <ContentLayout title="Staff EOD Status">
       <div className="text-sm text-gray-500 py-8 text-center">Salesperson EOD reporting is not enabled for this business.</div>
-    </ContentLayout></MainLayout>
+    </ContentLayout>
   )
 
   return (
-    <MainLayout>
-      <ContentLayout
+    <ContentLayout
         title="Staff EOD Status"
         breadcrumb={[
           { label: 'Dashboard', href: '/dashboard' },
@@ -427,6 +425,6 @@ export default function ManagerEodPage() {
           onSuccess={fetchRecords}
         />
       )}
-    </MainLayout>
+    </ContentLayout>
   )
 }

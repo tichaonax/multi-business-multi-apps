@@ -80,8 +80,9 @@ export function InventoryDashboardWidget({
         return sum + price * (item.currentStock ?? 0)
       }, 0)
 
-      const lowStockAlerts = alerts.filter((alert: any) => alert.alertType === 'low_stock')
-      const outOfStockAlerts = alerts.filter((alert: any) => alert.alertType === 'out_of_stock')
+      const LOW_STOCK_THRESHOLD = 5
+      const lowStockCount = items.filter((item: any) => item.isInventoryTracked && item.currentStock > 0 && item.currentStock <= LOW_STOCK_THRESHOLD).length
+      const outOfStockCount = items.filter((item: any) => item.isInventoryTracked && item.currentStock === 0).length
       const expiringAlerts = alerts.filter((alert: any) =>
         alert.alertType === 'expiring_soon' || alert.alertType === 'expired'
       )
@@ -100,8 +101,8 @@ export function InventoryDashboardWidget({
       setStats({
         totalItems,
         totalValue,
-        lowStockCount: lowStockAlerts.length,
-        outOfStockCount: outOfStockAlerts.length,
+        lowStockCount,
+        outOfStockCount,
         expiringCount: expiringAlerts.length,
         criticalAlerts
       })
@@ -237,14 +238,14 @@ export function InventoryDashboardWidget({
             <div className="text-2xl font-bold text-primary">{formatCurrency(stats.totalValue)}</div>
             <div className="text-sm text-secondary">Total Value</div>
           </div>
-          <div className="text-center">
+          <Link href={`/${businessType}/inventory?tab=inventory&stockStatus=low`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
             <div className="text-2xl font-bold text-orange-600">{stats.lowStockCount}</div>
             <div className="text-sm text-secondary">Low Stock</div>
-          </div>
-          <div className="text-center">
+          </Link>
+          <Link href={`/${businessType}/inventory?tab=inventory&stockStatus=out`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
             <div className="text-2xl font-bold text-red-600">{stats.outOfStockCount}</div>
             <div className="text-sm text-secondary">Out of Stock</div>
-          </div>
+          </Link>
         </div>
 
         {/* Alerts Summary */}
