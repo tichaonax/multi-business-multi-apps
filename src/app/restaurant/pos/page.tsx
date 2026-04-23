@@ -4586,27 +4586,8 @@ export default function RestaurantPOS() {
                 {/* Print Button */}
                 <button
                   onClick={() => {
-                    if (completedOrder.orderType === 'delivery' && completedOrder.orderId && printerId && currentBusinessId) {
-                      const biz = businessDetails || currentBusiness
-                      const deliveryPrintData: import('@/lib/printing/receipt-templates').DeliveryReceiptData = {
-                        businessName: biz?.businessName || '',
-                        businessAddress: biz?.address || undefined,
-                        businessPhone: biz?.phone || undefined,
-                        orderNumber: completedOrder.orderNumber,
-                        orderId: completedOrder.orderId,
-                        customerName: completedOrder.customerName || '',
-                        customerPhone: completedOrder.customerPhone || undefined,
-                        items: completedOrder.items.map((i: any) => ({ name: i.name, quantity: i.quantity })),
-                        deliveryNote: completedOrder.deliveryNote,
-                        transactionDate: new Date(completedOrder.date),
-                        orderTotal: completedOrder.total,
-                      }
-                      const esc = generateDeliveryCustomerReceipt(deliveryPrintData)
-                      const bytes = new Uint8Array(esc.length)
-                      for (let i = 0; i < esc.length; i++) bytes[i] = esc.charCodeAt(i) & 0xff
-                      let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b) })
-                      fetch('/api/print/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ printerId, businessId: currentBusinessId, businessType: 'restaurant', rawEscPos: btoa(bin) }) }).catch(() => {})
-                    } else if (currentBusiness || businessDetails) {
+                    if (currentBusiness || businessDetails) {
+                      printInFlightRef.current = false // reset guard so manual click always works
                       const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, businessDetails || currentBusiness)
                       handlePrintReceipt(receiptData)
                     }
