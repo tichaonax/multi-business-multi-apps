@@ -388,6 +388,92 @@ export default function DeliveryManagementPage() {
     }
   }
 
+  const printDriverSheet = () => {
+    const activeOrders = orders.filter(o => ['PENDING', 'READY', 'DISPATCHED'].includes(o.status))
+    if (activeOrders.length === 0) { toast.error('No active orders to print'); return }
+
+    const businessName = currentBusiness?.businessName || 'Restaurant'
+    const dateStr = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    const totalDue = activeOrders.reduce((sum, o) => {
+      if (o.paymentMode === 'PREPAID') return sum
+      return sum + Math.max(0, Number(o.order?.totalAmount || 0) - Number(o.creditUsed || 0))
+    }, 0)
+
+    const rows = activeOrders.map((o, i) => {
+      const amountDue = o.paymentMode === 'PREPAID' ? 0 : Math.max(0, Number(o.order?.totalAmount || 0) - Number(o.creditUsed || 0))
+      return `
+        <tr>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:14px;">${i + 1}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:13px;">${o.order?.orderNumber || o.orderId.slice(-8)}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;">
+            <div style="font-weight:600;font-size:13px;">${o.order?.business_customers?.name || '—'}</div>
+            ${o.order?.business_customers?.phone ? `<div style="font-size:11px;color:#6b7280;">${o.order.business_customers.phone}</div>` : ''}
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#374151;">${o.deliveryNote || '—'}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:${amountDue > 0 ? '#dc2626' : '#16a34a'};">
+            ${amountDue > 0 ? `$${amountDue.toFixed(2)}` : 'PREPAID'}
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">
+            <div style="width:20px;height:20px;border:2px solid #374151;border-radius:3px;display:inline-block;"></div>
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;">
+            <div style="border-bottom:1px solid #9ca3af;width:80px;height:20px;"></div>
+          </td>
+        </tr>`
+    }).join('')
+
+    const html = `<!DOCTYPE html><html><head><title>Delivery Driver Sheet — ${dateStr}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #111827; }
+      @media print { body { padding: 10px; } }
+      table { width: 100%; border-collapse: collapse; }
+      th { background: #f3f4f6; padding: 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; border-bottom: 2px solid #d1d5db; }
+      th:last-child, th:nth-child(6) { text-align: center; }
+      th:nth-child(5) { text-align: right; }
+    </style></head><body>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+      <div>
+        <h1 style="margin:0;font-size:22px;font-weight:700;">${businessName}</h1>
+        <h2 style="margin:4px 0 0;font-size:16px;font-weight:600;color:#4b5563;">Delivery Driver Sheet</h2>
+        <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">${dateStr}</p>
+      </div>
+      <div style="text-align:right;font-size:13px;color:#374151;">
+        <div><strong>Driver:</strong> _______________________</div>
+        <div style="margin-top:6px;"><strong>Vehicle / Plate:</strong> _____________</div>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:32px;">#</th>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Notes</th>
+        <th style="text-align:right;">Amount Due</th>
+        <th style="width:40px;text-align:center;">Done</th>
+        <th>Collected $</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="margin-top:24px;display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="font-size:13px;color:#374151;">
+        <strong>${activeOrders.length} orders</strong> &nbsp;|&nbsp; Total due: <strong style="color:#dc2626;">$${totalDue.toFixed(2)}</strong>
+      </div>
+      <div style="font-size:13px;color:#374151;text-align:right;">
+        Total collected: $________ &nbsp;&nbsp; Shortfall: $________
+      </div>
+    </div>
+    <div style="margin-top:32px;display:flex;gap:80px;">
+      <div style="font-size:12px;color:#6b7280;">Driver signature: _______________________</div>
+      <div style="font-size:12px;color:#6b7280;">Manager signature: _______________________</div>
+    </div>
+    <script>window.onload = () => window.print()</script>
+    </body></html>`
+
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close() }
+    else toast.error('Allow pop-ups to print the driver sheet')
+  }
+
   // ── Derived data ───────────────────────────────────────────────────────────
 
   const ordersByStatus = QUEUE_STATUSES.reduce((acc, status) => {
@@ -445,6 +531,14 @@ export default function DeliveryManagementPage() {
               >
                 Marketing
               </Link>
+            )}
+            {isManager && (
+              <button
+                onClick={printDriverSheet}
+                className="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+              >
+                Print Driver Sheet
+              </button>
             )}
             {isManager && (
               <button
@@ -554,7 +648,7 @@ export default function DeliveryManagementPage() {
                           {customer && <div className="text-xs text-gray-600 dark:text-gray-400">{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</div>}
                           {o.deliveryNote && <div className="text-xs text-gray-500 italic truncate">{o.deliveryNote}</div>}
                           {o.runId && <div className="text-xs text-purple-500 dark:text-purple-400">In run</div>}
-                          {canUpdateStatus && next && (
+                          {next && (canUpdateStatus || isManager) && (next !== 'DELIVERED' || isManager) && (
                             <button
                               onClick={() => updateStatus(o.orderId, next)}
                               disabled={updatingStatus === o.orderId}
