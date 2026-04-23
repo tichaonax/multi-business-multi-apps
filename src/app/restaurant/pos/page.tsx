@@ -3356,6 +3356,8 @@ export default function RestaurantPOS() {
                 const cartItem = cart.find(c => c.id === item.id)
                 const cartQuantity = cartItem?.quantity || 0
                 const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+                const canSeeSoldCount = canSeeFinancials || hasPermission('canViewPOSSoldCount')
+                const canSeeStockCount = canSeeFinancials || hasPermission('canViewPOSStockCount')
 
                 // Performance bar metrics — computed once, shared by badge color and bar
                 const soldToday = item.soldToday || 0
@@ -3453,8 +3455,8 @@ export default function RestaurantPOS() {
                       )}
                     </h3>
 
-                    {/* Price row + revenue — two-column when financial user has sold items */}
-                    {canSeeFinancials && soldToday > 0 ? (
+                    {/* Price row + revenue — two-column when user can see sold count */}
+                    {canSeeSoldCount && soldToday > 0 ? (
                       <div className="flex items-stretch gap-2 mt-1">
                         {/* Left column: price on top, sold badge below */}
                         <div className="flex flex-col justify-between">
@@ -3470,12 +3472,14 @@ export default function RestaurantPOS() {
                             <span className="text-yellow-400 font-bold">{soldToday}</span> sold
                           </span>
                         </div>
-                        {/* Right column: large revenue in bar color, vertically centered */}
-                        <div className="flex items-center justify-end flex-1">
-                          <span className={`text-lg sm:text-xl font-black leading-none ${barTextColorClass}`}>
-                            ${(Number(item.price) * soldToday).toFixed(2)}
-                          </span>
-                        </div>
+                        {/* Right column: large revenue in bar color — only for financial users */}
+                        {canSeeFinancials && (
+                          <div className="flex items-center justify-end flex-1">
+                            <span className={`text-lg sm:text-xl font-black leading-none ${barTextColorClass}`}>
+                              ${(Number(item.price) * soldToday).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 mt-1">
@@ -3613,8 +3617,8 @@ export default function RestaurantPOS() {
                       <p className="text-xs text-red-500 mt-1 font-medium">Unavailable</p>
                     )}
 
-                    {/* Stock badge — only for inventory-tracked items */}
-                    {item.isInventoryTracked && (() => {
+                    {/* Stock badge — only for inventory-tracked items with permission */}
+                    {canSeeStockCount && item.isInventoryTracked && (() => {
                       const stock = item.stockQuantity ?? 0
                       const reorder = item.reorderLevel ?? 0
                       if (stock === 0) {
@@ -3627,7 +3631,7 @@ export default function RestaurantPOS() {
                     })()}
 
                     {/* Prep inventory remaining badge */}
-                    {prepRemaining.has(item.id) && (() => {
+                    {canSeeStockCount && prepRemaining.has(item.id) && (() => {
                       const rem = prepRemaining.get(item.id)!
                       if (rem <= 0) return (
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 mt-1 block">Out of prep</span>

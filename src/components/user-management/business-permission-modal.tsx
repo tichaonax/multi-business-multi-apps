@@ -165,7 +165,11 @@ export function BusinessPermissionModal({
             {Object.entries(CORE_PERMISSIONS).map(([category, categoryPermissions]) => (
               <div key={category} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <h3 className="font-medium text-gray-900 dark:text-white mb-3 capitalize">
-                  {category.replace(/([A-Z])/g, ' $1').trim()} Permissions
+                  {({
+                    posBadgeVisibility: 'POS Badge Visibility',
+                    wifiPortalIntegration: 'WiFi Portal Integration',
+                    expiryManagement: 'Expiry Management',
+                  } as Record<string, string>)[category] || `${category.replace(/([A-Z])/g, ' $1').trim()} Permissions`}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {categoryPermissions.map((permission) => (

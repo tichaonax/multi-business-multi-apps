@@ -17,6 +17,8 @@ interface ProductPanelProps {
   onAddToCart: (item: Omit<UniversalCartItem, 'totalPrice'>) => void
   onProductsReload?: () => void
   prepRefreshKey?: number
+  canViewPOSSoldCount?: boolean
+  canViewPOSStockCount?: boolean
 }
 
 /**
@@ -32,7 +34,9 @@ export function ProductPanel({
   businessType,
   onAddToCart,
   onProductsReload,
-  prepRefreshKey = 0
+  prepRefreshKey = 0,
+  canViewPOSSoldCount = true,
+  canViewPOSStockCount = true
 }: ProductPanelProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [barcodeInput, setBarcodeInput] = useState('')
@@ -358,7 +362,7 @@ export function ProductPanel({
                             BOGO {product.bogoRatio === 2 ? '1+2' : '1+1'}
                           </span>
                         )}
-                        {product.isBale && product.stockQuantity !== undefined && (
+                        {canViewPOSStockCount && product.isBale && product.stockQuantity !== undefined && (
                           <span className={`text-xs font-medium block mt-1 ${
                             product.stockQuantity <= 3 ? 'text-orange-500' : 'text-green-600'
                           }`}>
@@ -366,27 +370,29 @@ export function ProductPanel({
                           </span>
                         )}
                         {/* WiFi token availability indicator */}
-                        {product.isWiFiToken && remaining !== undefined && (
+                        {canViewPOSStockCount && product.isWiFiToken && remaining !== undefined && (
                           <span className={`text-xs font-medium block mt-1 ${
                             remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'
                           }`}>
                             {remaining} available
                           </span>
                         )}
-                        {!product.isWiFiToken && !product.isService && product.stockQuantity !== undefined && product.stockQuantity <= 0 && (
+                        {canViewPOSStockCount && !product.isWiFiToken && !product.isService && product.stockQuantity !== undefined && product.stockQuantity <= 0 && (
                           <span className="inline-block px-2 py-1 text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded mt-2">
                             Out of Stock
                           </span>
                         )}
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
-                          (product.soldToday || 0) > 0
-                            ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
-                            : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
-                        }`}>
-                          <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
-                        </span>
+                        {canViewPOSSoldCount && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                            (product.soldToday || 0) > 0
+                              ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
+                              : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                          }`}>
+                            <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
+                          </span>
+                        )}
                         {/* Prep inventory remaining badge */}
-                        {prepRemaining.has(product.id) && (
+                        {canViewPOSStockCount && prepRemaining.has(product.id) && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 ml-1 inline-block ${
                             prepRemaining.get(product.id)! <= 0
                               ? 'text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/50'
@@ -447,13 +453,15 @@ export function ProductPanel({
                       <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">
                         ${product.basePrice.toFixed(2)}
                       </p>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
-                        (product.soldToday || 0) > 0
-                          ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
-                          : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
-                      }`}>
-                        <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
-                      </span>
+                      {canViewPOSSoldCount && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                          (product.soldToday || 0) > 0
+                            ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
+                            : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                        }`}>
+                          <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={() => handleAddToCart(product)}
@@ -509,13 +517,15 @@ export function ProductPanel({
                               {remaining} available
                             </span>
                           )}
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
-                            (product.soldToday || 0) > 0
-                              ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
-                              : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
-                          }`}>
-                            <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
-                          </span>
+                          {canViewPOSSoldCount && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                              (product.soldToday || 0) > 0
+                                ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
+                                : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                            }`}>
+                              <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
+                            </span>
+                          )}
                           </div>
                         </div>
                         <div className="ml-3 flex flex-col items-end gap-2">

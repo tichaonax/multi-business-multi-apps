@@ -50,6 +50,11 @@ export default function UniversalPOS() {
     ? { ...baseConfig, paymentMethods: [...baseConfig.paymentMethods.filter(m => m !== 'ecocash'), 'ecocash' as const] }
     : baseConfig
 
+  // POS badge visibility permissions
+  const canSeeFinancials = hasPermission('canAccessFinancialData')
+  const canSeeSoldCount = canSeeFinancials || hasPermission('canViewPOSSoldCount')
+  const canSeeStockCount = canSeeFinancials || hasPermission('canViewPOSStockCount')
+
   // Receipt preview modal state (modal handles its own printer selection)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
@@ -666,6 +671,8 @@ export default function UniversalPOS() {
           onSelectCustomer={handleSelectCustomer}
           onApplyReward={handleApplyReward}
           onRemoveReward={handleRemoveReward}
+          canViewPOSSoldCount={canSeeSoldCount}
+          canViewPOSStockCount={canSeeStockCount}
         />
 
         {/* Receipt Preview Modal - same pattern as restaurant POS */}

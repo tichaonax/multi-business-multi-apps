@@ -40,6 +40,10 @@ export interface UserLevelPermissions {
   // Expiry Management (User-level - take action on expiring/expired inventory)
   canManageExpiryActions: boolean;
 
+  // POS Badge Visibility (User-level - global override for all businesses)
+  canViewPOSSoldCount: boolean;   // Show "X sold today" badge on POS product cards
+  canViewPOSStockCount: boolean;  // Show "X left" stock remaining badge on POS product cards
+
   // System Administration (User-level - global capabilities)
   canManageSystemSettings: boolean;
   canViewSystemLogs: boolean;
@@ -328,6 +332,8 @@ export interface ClothingPermissions {
   canViewStockLevels: boolean;
   canReceiveStock: boolean;
   canTransferStock: boolean;
+  canViewPOSSoldCount: boolean;   // Show "X sold today" badge on POS product cards
+  canViewPOSStockCount: boolean;  // Show "X left" stock remaining badge on POS product cards
 
   // Sales & Retail
   canProcessSales: boolean;
@@ -937,6 +943,8 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
         { key: 'canManageDiscounts', label: 'Manage Discounts' },
         { key: 'canViewSalesReports', label: 'View Sales Reports' },
         { key: 'canViewCustomerAnalytics', label: 'View Customer Analytics' },
+        { key: 'canViewPOSSoldCount', label: 'POS: Show Sold Count Badge ("X sold today")' },
+        { key: 'canViewPOSStockCount', label: 'POS: Show Stock Remaining Badge ("X left")' },
       ]
     },
     {
@@ -991,6 +999,8 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
         { key: 'canProcessOrders', label: 'Process Orders' },
         { key: 'canManageCustomers', label: 'Manage Customers' },
         { key: 'canViewTableTurnover', label: 'View Table Turnover' },
+        { key: 'canViewPOSSoldCount', label: 'POS: Show Sold Count Badge ("X sold today")' },
+        { key: 'canViewPOSStockCount', label: 'POS: Show Stock Remaining Badge ("X left")' },
       ]
     }
   ],
@@ -1060,6 +1070,8 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
         { key: 'canManagePromos', label: 'Manage Promotions' },
         { key: 'canViewSalesReports', label: 'View Sales Reports' },
         { key: 'canManageCustomerLoyalty', label: 'Manage Loyalty Programs' },
+        { key: 'canViewPOSSoldCount', label: 'POS: Show Sold Count Badge ("X sold today")' },
+        { key: 'canViewPOSStockCount', label: 'POS: Show Stock Remaining Badge ("X left")' },
       ]
     }
   ],
@@ -1082,6 +1094,8 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
         { key: 'canProcessReturns', label: 'Process Returns' },
         { key: 'canManageDiscounts', label: 'Manage Discounts' },
         { key: 'canViewSalesReports', label: 'View Sales Reports' },
+        { key: 'canViewPOSSoldCount', label: 'POS: Show Sold Count Badge ("X sold today")' },
+        { key: 'canViewPOSStockCount', label: 'POS: Show Stock Remaining Badge ("X left")' },
       ]
     },
     {
@@ -1115,8 +1129,24 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
       ]
     }
   ],
-  retail: [], // Similar to clothing but more generic
-  services: [], // Similar to consulting but more generic
+  retail: [
+    {
+      title: 'Sales & Retail',
+      permissions: [
+        { key: 'canViewPOSSoldCount', label: 'POS: Show Sold Count Badge ("X sold today")' },
+        { key: 'canViewPOSStockCount', label: 'POS: Show Stock Remaining Badge ("X left")' },
+      ]
+    }
+  ],
+  services: [
+    {
+      title: 'Sales Operations',
+      permissions: [
+        { key: 'canViewPOSSoldCount', label: 'POS: Show Sold Count Badge ("X sold today")' },
+        { key: 'canViewPOSStockCount', label: 'POS: Show Stock Remaining Badge ("X left")' },
+      ]
+    }
+  ],
   other: [] // No specific modules, only core permissions
 };
 
@@ -1618,6 +1648,8 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1786,6 +1818,8 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -1954,6 +1988,8 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -2120,6 +2156,8 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canViewPOSSoldCount: false,
+  canViewPOSStockCount: false,
 };
 
 // Delivery Driver permissions - Delivery queue and status updates only
@@ -2291,6 +2329,8 @@ export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canViewPOSSoldCount: false,
+  canViewPOSStockCount: false,
 };
 
 // Restaurant Associate permissions - Food prep and POS operations
@@ -2460,6 +2500,8 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canUpdateOdometer: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
@@ -2629,6 +2671,8 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 // System admin permissions (cross-business)
@@ -2795,6 +2839,8 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 // User-Level Permission Presets
@@ -2902,6 +2948,8 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
@@ -2912,6 +2960,8 @@ export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
   canDeletePersonalExpenses: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
@@ -3018,6 +3068,8 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+  canViewPOSSoldCount: true,
+  canViewPOSStockCount: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only

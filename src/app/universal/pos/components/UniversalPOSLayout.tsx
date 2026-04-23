@@ -67,6 +67,8 @@ interface UniversalPOSLayoutProps {
   onSelectCustomer?: (customer: SelectedCustomer | null) => void
   onApplyReward?: (reward: CustomerReward) => void
   onRemoveReward?: () => void
+  canViewPOSSoldCount?: boolean
+  canViewPOSStockCount?: boolean
 }
 
 /**
@@ -106,7 +108,9 @@ export function UniversalPOSLayout({
   appliedReward,
   onSelectCustomer,
   onApplyReward,
-  onRemoveReward
+  onRemoveReward,
+  canViewPOSSoldCount = true,
+  canViewPOSStockCount = true
 }: UniversalPOSLayoutProps) {
   const [showQuickRegister, setShowQuickRegister] = useState(false)
   const [showRewardHistory, setShowRewardHistory] = useState(false)
@@ -127,6 +131,8 @@ export function UniversalPOSLayout({
           onAddToCart={onAddToCart}
           onProductsReload={onProductsReload}
           prepRefreshKey={prepRefreshKey}
+          canViewPOSSoldCount={canViewPOSSoldCount}
+          canViewPOSStockCount={canViewPOSStockCount}
         />
       </div>
 
