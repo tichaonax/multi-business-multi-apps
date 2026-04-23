@@ -308,6 +308,15 @@ export interface CoreBusinessPermissions {
 
   // Expiry Management (Business-level - dispose or discount expiring inventory)
   canManageExpiryActions: boolean;
+
+  // Policy Management (Business-level - create, publish, assign policies)
+  canManagePolicies: boolean;
+
+  // Inventory Reports (Business-level - view Stock Movements, Alerts, Analytics, Transfer History tabs)
+  canViewInventoryReports: boolean;
+
+  // Services (Business-level - access Services link in sidebar)
+  canViewServices: boolean;
 }
 
 // Business-Type-Specific Permission Modules
@@ -1477,6 +1486,15 @@ export const CORE_PERMISSIONS = {
   expiryManagement: [
     { key: 'canManageExpiryActions', label: 'Manage Expiry Actions (Dispose / Discount)' },
   ],
+  policyManagement: [
+    { key: 'canManagePolicies', label: 'Create, Publish & Assign Policies' },
+  ],
+  inventoryReports: [
+    { key: 'canViewInventoryReports', label: 'View Inventory Reports (Movements, Alerts, Analytics, Transfers)' },
+  ],
+  servicesAccess: [
+    { key: 'canViewServices', label: 'View Services Link' },
+  ],
 }
 
 // Business-level role presets (Core permissions only)
@@ -1644,6 +1662,9 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+  canManagePolicies: true,
+  canViewInventoryReports: true,
+  canViewServices: true,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
 };
@@ -1814,6 +1835,9 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+  canManagePolicies: true,
+  canViewInventoryReports: true,
+  canViewServices: true,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
 };
@@ -1984,6 +2008,9 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canManagePolicies: false,
+  canViewInventoryReports: true,
+  canViewServices: true,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
 };
@@ -2152,6 +2179,9 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canManagePolicies: false,
+  canViewInventoryReports: true,
+  canViewServices: true,
   canViewPOSSoldCount: false,
   canViewPOSStockCount: false,
 };
@@ -2325,6 +2355,9 @@ export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canManagePolicies: false,
+  canViewInventoryReports: false,
+  canViewServices: false,
   canViewPOSSoldCount: false,
   canViewPOSStockCount: false,
 };
@@ -2496,6 +2529,9 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canUpdateOdometer: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canManagePolicies: false,
+  canViewInventoryReports: false,
+  canViewServices: false,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
 };
@@ -2667,6 +2703,9 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+  canManagePolicies: false,
+  canViewInventoryReports: false,
+  canViewServices: false,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
 };
@@ -2835,6 +2874,9 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canUpdateOdometer: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+  canManagePolicies: true,
+  canViewInventoryReports: true,
+  canViewServices: true,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
 };

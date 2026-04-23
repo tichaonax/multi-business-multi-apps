@@ -870,16 +870,18 @@ export function UniversalInventoryGrid({
                           >
                             👁️
                           </button>
+                          {onItemEdit && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              onItemEdit?.(item)
+                              onItemEdit(item)
                             }}
                             className="text-orange-600 hover:text-orange-800 text-xs w-8 h-8 flex items-center justify-center rounded"
                             title="Edit item"
                           >
                             ✏️
                           </button>
+                          )}
                           {onItemZeroOut && (
                             <button
                               onClick={(e) => {
@@ -904,16 +906,18 @@ export function UniversalInventoryGrid({
                               🏷️
                             </button>
                           )}
+                          {onItemDelete && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              onItemDelete?.(item)
+                              onItemDelete(item)
                             }}
                             className="text-red-600 hover:text-red-800 text-xs w-8 h-8 flex items-center justify-center rounded"
                             title="Delete item"
                           >
                             🗑️
                           </button>
+                          )}
                         </div>
                       </td>
                     )}
@@ -1072,15 +1076,17 @@ export function UniversalInventoryGrid({
                             🔢 Edit Values
                           </button>
                         )}
+                        {onItemEdit && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            onItemEdit?.(item)
+                            onItemEdit(item)
                           }}
                           className="px-3 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-md hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
                         >
                           Edit
                         </button>
+                        )}
                         {canPrintInventoryLabels && (
                           <button
                             onClick={(e) => {
@@ -1092,15 +1098,17 @@ export function UniversalInventoryGrid({
                             Print
                           </button>
                         )}
+                        {onItemDelete && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            onItemDelete?.(item)
+                            onItemDelete(item)
                           }}
                           className="px-3 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                         >
                           Delete
                         </button>
+                        )}
                       </div>
                     </div>
                   )}

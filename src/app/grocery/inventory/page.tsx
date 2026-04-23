@@ -124,6 +124,8 @@ function GroceryInventoryContent() {
     hasPermission,
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const canManageInventory = isSystemAdmin || hasPermission('canManageInventory')
+  const canViewInventoryReports = isSystemAdmin || hasPermission('canViewInventoryReports')
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [showDepartments, setShowDepartments] = useState(false)
   const [filterCount, setFilterCount] = useState<number | null>(null)
@@ -265,10 +267,12 @@ function GroceryInventoryContent() {
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'inventory', label: 'Items', icon: '📦' },
     { id: 'bales', label: 'Bales', icon: '📦' },
-    { id: 'movements', label: 'Stock Movements', icon: '🔄' },
-    { id: 'alerts', label: 'Alerts & Expiration', icon: '⚠️' },
-    { id: 'reports', label: 'Analytics', icon: '📈' },
-    { id: 'transfers', label: 'Transfer History', icon: '🔀' }
+    ...(canViewInventoryReports ? [
+      { id: 'movements', label: 'Stock Movements', icon: '🔄' },
+      { id: 'alerts', label: 'Alerts & Expiration', icon: '⚠️' },
+      { id: 'reports', label: 'Analytics', icon: '📈' },
+      { id: 'transfers', label: 'Transfer History', icon: '🔀' },
+    ] : []),
   ]
 
   const handleItemAddToCart = async (item: any) => {
@@ -429,8 +433,8 @@ function GroceryInventoryContent() {
                 {/* Overview Tab */}
                 {activeTab === 'overview' && (
                   <div className="space-y-6">
-                    {/* Grocery-specific banner */}
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 sm:p-6">
+                    {/* Grocery-specific banner — managers only */}
+                    {canManageInventory && <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 sm:p-6">
                       <h3 className="text-lg font-semibold text-green-900 dark:text-green-100 mb-3">
                         🛒 Grocery Store Inventory Features
                       </h3>
@@ -456,7 +460,7 @@ function GroceryInventoryContent() {
                           <div className="text-xs text-gray-400 mt-1">Coming soon</div>
                         </div>
                       </div>
-                    </div>
+                    </div>}
 
                     {/* Universal Inventory Stats */}
                     <UniversalInventoryStats
@@ -538,26 +542,30 @@ function GroceryInventoryContent() {
                       businessType="grocery"
                       departmentFilter={selectedDepartment}
                       stockStatusFilter={stockStatusFilter}
-                      onItemEdit={handleItemEdit}
+                      onItemEdit={canManageInventory ? handleItemEdit : undefined}
                       onItemView={handleItemView}
-                      onItemDelete={handleItemDelete}
+                      onItemDelete={canManageInventory ? handleItemDelete : undefined}
                       onItemAddToCart={handleItemAddToCart}
                       onTotalChange={selectedDepartment ? setFilterCount : undefined}
                       refreshTrigger={refreshKey}
                       headerActions={(
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
-                            className="px-3 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
-                          >
-                            📦 Bulk Stock
-                          </button>
-                          <button
-                            onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
-                            className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
-                          >
-                            📋 Stock Take
-                          </button>
+                          {canManageInventory && (
+                            <>
+                              <button
+                                onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
+                                className="px-3 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
+                              >
+                                📦 Bulk Stock
+                              </button>
+                              <button
+                                onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
+                                className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                              >
+                                📋 Stock Take
+                              </button>
+                            </>
+                          )}
                           {canAccessFinancialData && (
                             <button
                               onClick={() => setShowStockTakeReports(true)}
@@ -566,16 +574,18 @@ function GroceryInventoryContent() {
                               📋 Stock Take Reports
                             </button>
                           )}
-                          <button
-                            onClick={() => {
-                              setSelectedItem(null)
-                              setFormReady(false)
-                              setShowAddForm(true)
-                            }}
-                            className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
-                          >
-                            Add New Item
-                          </button>
+                          {canManageInventory && (
+                            <button
+                              onClick={() => {
+                                setSelectedItem(null)
+                                setFormReady(false)
+                                setShowAddForm(true)
+                              }}
+                              className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                            >
+                              Add New Item
+                            </button>
+                          )}
                         </div>
                       )}
                       showActions={true}

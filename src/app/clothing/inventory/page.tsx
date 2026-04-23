@@ -161,6 +161,8 @@ function ClothingInventoryContent() {
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
   const canZeroOut = isSystemAdmin || hasPermission('canZeroOutInventory') || (permissions?.canZeroOutInventory ?? false)
+  const canManageInventory = isSystemAdmin || hasPermission('canManageInventory')
+  const canViewInventoryReports = isSystemAdmin || hasPermission('canViewInventoryReports')
   const [zeroOutItem, setZeroOutItem] = useState<any>(null)
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [seedingCategories, setSeedingCategories] = useState(false)
@@ -679,10 +681,12 @@ function ClothingInventoryContent() {
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'inventory', label: 'Items', icon: '👕' },
     ...(isClothingBusiness ? [{ id: 'bales', label: 'Bales', icon: '📦' }] : []),
-    { id: 'movements', label: 'Stock Movements', icon: '🔄' },
-    { id: 'alerts', label: 'Low Stock & Alerts', icon: '⚠️' },
-    { id: 'reports', label: 'Analytics', icon: '📈' },
-    { id: 'transfers', label: 'Transfer History', icon: '🔀' }
+    ...(canViewInventoryReports ? [
+      { id: 'movements', label: 'Stock Movements', icon: '🔄' },
+      { id: 'alerts', label: 'Low Stock & Alerts', icon: '⚠️' },
+      { id: 'reports', label: 'Analytics', icon: '📈' },
+      { id: 'transfers', label: 'Transfer History', icon: '🔀' },
+    ] : []),
   ]
 
   const handleItemEdit = (item: any) => {
@@ -1191,33 +1195,37 @@ function ClothingInventoryContent() {
                         >
                           {checkingSeedStatus ? '⏳ Checking...' : isSeeding ? '⏳ Seeding...' : hasSeededProducts ? '✅ Products Seeded' : '🌱 Seed Products'}
                         </button>
-                        <button
-                          onClick={() => {
-                            setSelectedItem(null)
-                            setShowAddForm(true)
-                          }}
-                          className="btn-primary bg-purple-600 hover:bg-purple-700"
-                        >
-                          ➕ Add Item
-                        </button>
-                        <button
-                          onClick={() => setShowAddStockPanel('product')}
-                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors"
-                        >
-                          + Add Stock
-                        </button>
-                        <button
-                          onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
-                          className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-sm font-medium transition-colors"
-                        >
-                          📦 Bulk Stock
-                        </button>
-                        <button
-                          onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium transition-colors"
-                        >
-                          📋 Stock Take
-                        </button>
+                        {canManageInventory && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedItem(null)
+                                setShowAddForm(true)
+                              }}
+                              className="btn-primary bg-purple-600 hover:bg-purple-700"
+                            >
+                              ➕ Add Item
+                            </button>
+                            <button
+                              onClick={() => setShowAddStockPanel('product')}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors"
+                            >
+                              + Add Stock
+                            </button>
+                            <button
+                              onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
+                              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-sm font-medium transition-colors"
+                            >
+                              📦 Bulk Stock
+                            </button>
+                            <button
+                              onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium transition-colors"
+                            >
+                              📋 Stock Take
+                            </button>
+                          </>
+                        )}
                         {canAccessFinancialData && (
                           <button
                             onClick={() => setShowStockTakeReports(true)}
@@ -1236,7 +1244,7 @@ function ClothingInventoryContent() {
                             {repairingDomains ? '🔧 Repairing…' : '🔧 Repair Domains'}
                           </button>
                         )}
-                        {selectedCondition === 'USED' && (
+                        {canManageInventory && selectedCondition === 'USED' && (
                           <button
                             onClick={() => router.push('/clothing/inventory/transfer')}
                             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
@@ -1244,13 +1252,15 @@ function ClothingInventoryContent() {
                             📦 Transfer Used
                           </button>
                         )}
-                        <button
-                          onClick={() => router.push('/clothing/inventory/transfer?endOfSale=true')}
-                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-medium transition-colors"
-                          title="Transfer all remaining used inventory and deactivate BOGO"
-                        >
-                          🏁 End of Sale
-                        </button>
+                        {canManageInventory && (
+                          <button
+                            onClick={() => router.push('/clothing/inventory/transfer?endOfSale=true')}
+                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-medium transition-colors"
+                            title="Transfer all remaining used inventory and deactivate BOGO"
+                          >
+                            🏁 End of Sale
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -1329,9 +1339,9 @@ function ClothingInventoryContent() {
                       businessType="clothing"
                       departmentFilter={selectedDepartment}
                       conditionFilter={selectedCondition}
-                      onItemEdit={handleItemEdit}
+                      onItemEdit={canManageInventory ? handleItemEdit : undefined}
                       onItemView={handleItemView}
-                      onItemDelete={handleItemDelete}
+                      onItemDelete={canManageInventory ? handleItemDelete : undefined}
                       onItemAddToCart={handleItemAddToCart}
                       onResetExternalFilters={handleResetExternalFilters}
                       onTotalChange={selectedDepartment ? setFilterCount : undefined}

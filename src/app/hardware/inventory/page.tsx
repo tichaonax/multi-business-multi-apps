@@ -57,6 +57,8 @@ function HardwareInventoryContent() {
     hasPermission,
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const canManageInventory = isSystemAdmin || hasPermission('canManageInventory')
+  const canViewInventoryReports = isSystemAdmin || hasPermission('canViewInventoryReports')
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
@@ -214,9 +216,11 @@ function HardwareInventoryContent() {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'inventory', label: 'Items', icon: '🔧' },
-    { id: 'movements', label: 'Stock Movements', icon: '🔄' },
-    { id: 'alerts', label: 'Alerts & Reorders', icon: '⚠️' },
-    { id: 'reports', label: 'Analytics', icon: '📈' }
+    ...(canViewInventoryReports ? [
+      { id: 'movements', label: 'Stock Movements', icon: '🔄' },
+      { id: 'alerts', label: 'Alerts & Reorders', icon: '⚠️' },
+      { id: 'reports', label: 'Analytics', icon: '📈' },
+    ] : []),
   ]
 
   const handleItemAddToCart = async (item: any) => {
@@ -434,18 +438,22 @@ function HardwareInventoryContent() {
                       <h3 className="text-lg font-semibold">Inventory Items</h3>
                       <div className="flex gap-2">
 
-                        <button
-                          onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
-                          className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
-                        >
-                          📦 Bulk Stock
-                        </button>
-                        <button
-                          onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
-                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
-                        >
-                          📋 Stock Take
-                        </button>
+                        {canManageInventory && (
+                          <>
+                            <button
+                              onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
+                              className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
+                            >
+                              📦 Bulk Stock
+                            </button>
+                            <button
+                              onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
+                              className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                            >
+                              📋 Stock Take
+                            </button>
+                          </>
+                        )}
                         {canAccessFinancialData && (
                           <button
                             onClick={() => setShowStockTakeReports(true)}
@@ -454,15 +462,17 @@ function HardwareInventoryContent() {
                             📋 Stock Take Reports
                           </button>
                         )}
-                        <button
-                          onClick={() => {
-                            setSelectedItem(null)
-                            setShowAddForm(true)
-                          }}
-                          className="btn-primary bg-orange-600 hover:bg-orange-700"
-                        >
-                          ➕ Add Hardware Item
-                        </button>
+                        {canManageInventory && (
+                          <button
+                            onClick={() => {
+                              setSelectedItem(null)
+                              setShowAddForm(true)
+                            }}
+                            className="btn-primary bg-orange-600 hover:bg-orange-700"
+                          >
+                            ➕ Add Hardware Item
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -509,9 +519,9 @@ function HardwareInventoryContent() {
                       businessId={businessId}
                       businessType="hardware"
                       departmentFilter={selectedDepartment}
-                      onItemEdit={handleItemEdit}
+                      onItemEdit={canManageInventory ? handleItemEdit : undefined}
                       onItemView={handleItemView}
-                      onItemDelete={handleItemDelete}
+                      onItemDelete={canManageInventory ? handleItemDelete : undefined}
                       onItemAddToCart={handleItemAddToCart}
                       onTotalChange={selectedDepartment ? setFilterCount : undefined}
                       refreshTrigger={refreshKey}

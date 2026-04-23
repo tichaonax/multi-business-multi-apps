@@ -19,6 +19,7 @@ import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
 import { CartProvider } from '@/contexts/global-cart-context'
 import { NotificationProvider } from '@/components/providers/notification-provider'
 import { FloatingChat } from '@/components/chat/floating-chat'
+import { PolicyGuard } from '@/components/policies/PolicyGuard'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -74,9 +75,11 @@ export default function RootLayout({
                           <div className="min-h-screen w-full [overflow-x:clip]">
                             <ConditionalGlobalHeader />
                             <ConfirmProvider>
+                              <PolicyGuard>
                               <main className="min-w-0 w-full">
                                 {children}
                               </main>
+                              </PolicyGuard>
                             </ConfirmProvider>
                             <GlobalLoadingSpinner />
                           </div>

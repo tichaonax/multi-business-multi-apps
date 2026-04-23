@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { HomeStatBadge, type OrderSummary } from '@/components/universal/home/HomeStatBadge'
@@ -15,6 +16,7 @@ import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapsho
 import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 
 export default function ClothingPage() {
+  const router = useRouter()
   const { data: session } = useSession()
   const currentUser = session?.user as any
   const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
@@ -22,6 +24,10 @@ export default function ClothingPage() {
   const { currentBusinessId, hasPermission: hasBizPermission, isSystemAdmin: isSysAdmin, businesses, loading: permLoading } = useBusinessPermissionsContext()
   const canViewOrders = isSysAdmin || hasBizPermission('canEnterManualOrders') || hasBizPermission('canAccessFinancialData')
   const canViewFinancials = isSysAdmin || hasBizPermission('canAccessFinancialData')
+  const canManageInv = isSysAdmin || hasBizPermission('canManageInventory')
+  const canViewInvReports = isSysAdmin || hasBizPermission('canViewInventoryReports')
+  const canManageEmployees = isSysAdmin || hasBizPermission('canManageEmployees')
+  const canViewSupp = isSysAdmin || hasBizPermission('canViewSuppliers')
 
   // For admin users, fall back to any active clothing business if currentBusinessId is null
   const effectiveBusinessId = currentBusinessId ||
@@ -29,6 +35,13 @@ export default function ClothingPage() {
 
   const [homeStats, setHomeStats] = useState<OrderSummary | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
+
+  useEffect(() => {
+    if (permLoading) return
+    if (!canViewFinancials && !canManageInv && !canViewInvReports) {
+      router.replace('/clothing/pos')
+    }
+  }, [permLoading, canViewFinancials, canManageInv, canViewInvReports, router])
 
   useEffect(() => {
     if (!effectiveBusinessId || !canViewOrders) return
@@ -44,6 +57,16 @@ export default function ClothingPage() {
     return () => { cancelled = true }
   }, [effectiveBusinessId, canViewOrders])
 
+  if (permLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100" />
+      </div>
+    )
+  }
+
+  if (!canViewFinancials && !canManageInv && !canViewInvReports) return null
+
   return (
     <BusinessTypeRoute requiredBusinessType="clothing">
       <ContentLayout
@@ -54,7 +77,7 @@ export default function ClothingPage() {
         ]}
       >
 
-        {!permLoading && effectiveBusinessId && (
+        {canManageInv && effectiveBusinessId && (
           <InventoryDashboardWidget
             businessId={effectiveBusinessId}
             businessType="clothing"
@@ -83,26 +106,28 @@ export default function ClothingPage() {
               <p className="text-secondary">Fashion POS with size/color variants</p>
             </div>
           </Link>
-          
-          <Link href="/clothing/orders" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">📋</div>
-              <h3 className="text-lg font-semibold mb-1 text-primary">Orders</h3>
-              {canViewOrders && (
+
+          {canViewOrders && (
+            <Link href="/clothing/orders" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">📋</div>
+                <h3 className="text-lg font-semibold mb-1 text-primary">Orders</h3>
                 <HomeStatBadge summary={homeStats} loading={loadingStats} variant="orders" canViewFinancials={canViewFinancials} />
-              )}
-              <p className="text-secondary">Manage customer orders and fulfillment</p>
-            </div>
-          </Link>
-          
-          <Link href="/clothing/inventory" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">👗</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Inventory</h3>
-              <p className="text-secondary">Size/color matrix inventory</p>
-            </div>
-          </Link>
-          
+                <p className="text-secondary">Manage customer orders and fulfillment</p>
+              </div>
+            </Link>
+          )}
+
+          {canManageInv && (
+            <Link href="/clothing/inventory" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">👗</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Inventory</h3>
+                <p className="text-secondary">Size/color matrix inventory</p>
+              </div>
+            </Link>
+          )}
+
           <Link href="/clothing/customers" className="block">
             <div className="card p-6 hover:shadow-lg transition-shadow">
               <div className="text-4xl mb-4">👤</div>
@@ -121,45 +146,55 @@ export default function ClothingPage() {
             </Link>
           )}
 
-          <Link href="/business/suppliers" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">🚚</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Suppliers</h3>
-              <p className="text-secondary">Manage vendors and suppliers</p>
-            </div>
-          </Link>
+          {canViewSupp && (
+            <Link href="/business/suppliers" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">🚚</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Suppliers</h3>
+                <p className="text-secondary">Manage vendors and suppliers</p>
+              </div>
+            </Link>
+          )}
 
-          <Link href="/business/locations" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">📍</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Locations</h3>
-              <p className="text-secondary">Storage locations and warehouses</p>
-            </div>
-          </Link>
+          {canManageInv && (
+            <Link href="/business/locations" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">📍</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Locations</h3>
+                <p className="text-secondary">Storage locations and warehouses</p>
+              </div>
+            </Link>
+          )}
 
-          <Link href="/clothing/discounts" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">🏷️</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Discounts</h3>
-              <p className="text-secondary">Manage pricing and promotions</p>
-            </div>
-          </Link>
-          
-          <Link href="/clothing/employees" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">👥</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Employees</h3>
-              <p className="text-secondary">Staff and commission tracking</p>
-            </div>
-          </Link>
-          
-          <Link href="/clothing/reports" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">📊</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Reports</h3>
-              <p className="text-secondary">Sales analytics and trends</p>
-            </div>
-          </Link>
+          {canManageInv && (
+            <Link href="/clothing/discounts" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">🏷️</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Discounts</h3>
+                <p className="text-secondary">Manage pricing and promotions</p>
+              </div>
+            </Link>
+          )}
+
+          {canManageEmployees && (
+            <Link href="/clothing/employees" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">👥</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Employees</h3>
+                <p className="text-secondary">Staff and commission tracking</p>
+              </div>
+            </Link>
+          )}
+
+          {canViewFinancials && (
+            <Link href="/clothing/reports" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">📊</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Reports</h3>
+                <p className="text-secondary">Sales analytics and trends</p>
+              </div>
+            </Link>
+          )}
 
           {canViewFinancials && (
             <Link href="/clothing/reports/financial-insights" className="block">

@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -27,7 +28,12 @@ interface ServiceProduct {
 }
 
 export default function ServicesPage() {
-  const { currentBusiness } = useBusinessPermissionsContext()
+  const router = useRouter()
+  const { currentBusiness, hasPermission, isSystemAdmin, loading: permLoading } = useBusinessPermissionsContext()
+  const canViewFinancials = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const canManageInv = isSystemAdmin || hasPermission('canManageInventory')
+  const canViewInvReports = isSystemAdmin || hasPermission('canViewInventoryReports')
+  const canViewSupp = isSystemAdmin || hasPermission('canViewSuppliers')
   const customAlert = useAlert()
   const [services, setServices] = useState<ServiceProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,6 +43,13 @@ export default function ServicesPage() {
     categories: 0,
     suppliers: 0
   })
+
+  useEffect(() => {
+    if (permLoading) return
+    if (!canViewFinancials && !canManageInv && !canViewInvReports) {
+      router.replace('/dashboard')
+    }
+  }, [permLoading, canViewFinancials, canManageInv, canViewInvReports, router])
 
   useEffect(() => {
     if (currentBusiness?.businessId) {
@@ -77,6 +90,16 @@ export default function ServicesPage() {
     }
   }
 
+  if (permLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100" />
+      </div>
+    )
+  }
+
+  if (!canViewFinancials && !canManageInv && !canViewInvReports) return null
+
   return (
     <ProtectedRoute>
       <MainLayout>
@@ -88,7 +111,7 @@ export default function ServicesPage() {
             { label: 'Services', isActive: true }
           ]}
         >
-          {currentBusiness?.businessId && (
+          {canManageInv && currentBusiness?.businessId && (
             <InventoryDashboardWidget
               businessId={currentBusiness.businessId}
               businessType="services"
@@ -98,6 +121,7 @@ export default function ServicesPage() {
           )}
 
           {/* Stats Cards */}
+          {canViewFinancials && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Link href="/services/list" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <div className="flex items-center">
@@ -135,6 +159,7 @@ export default function ServicesPage() {
               </div>
             </Link>
 
+            {canViewSupp && (
             <Link href="/services/suppliers" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <div className="flex items-center">
                 <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-lg">
@@ -146,37 +171,47 @@ export default function ServicesPage() {
                 </div>
               </div>
             </Link>
+            )}
           </div>
+          )}
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {canManageInv && (
             <Link href="/services/list" className="card p-6 hover:shadow-lg transition-shadow text-center">
               <div className="text-4xl mb-3">📋</div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Services List</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">View and manage all services</p>
             </Link>
+            )}
 
+            {canManageInv && (
             <Link href="/services/add" className="card p-6 hover:shadow-lg transition-shadow text-center">
               <div className="text-4xl mb-3">➕</div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Add Service</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">Create new service offering</p>
             </Link>
+            )}
 
+            {canManageInv && (
             <Link href="/services/categories" className="card p-6 hover:shadow-lg transition-shadow text-center">
               <div className="text-4xl mb-3">📂</div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Categories</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">Manage service categories</p>
             </Link>
+            )}
 
+            {canViewSupp && (
             <Link href="/services/suppliers" className="card p-6 hover:shadow-lg transition-shadow text-center">
               <div className="text-4xl mb-3">🏢</div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Suppliers</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">Manage suppliers</p>
             </Link>
+            )}
           </div>
 
           {/* Recent Services */}
-          <div className="card p-6">
+          {canViewFinancials && <div className="card p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Recent Services</h3>
             {loading ? (
               <p className="text-slate-600 dark:text-slate-400">Loading services...</p>
@@ -228,7 +263,7 @@ export default function ServicesPage() {
                 </table>
               </div>
             )}
-          </div>
+          </div>}
         </ContentLayout>
       </MainLayout>
     </ProtectedRoute>

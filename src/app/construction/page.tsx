@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Building2, Wrench, Users, DollarSign, FolderKanban, Package, TrendingUp } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 
@@ -33,7 +34,12 @@ interface Project {
 }
 
 export default function ConstructionDashboard() {
-  const { currentBusiness } = useBusinessPermissionsContext()
+  const router = useRouter()
+  const { currentBusiness, hasPermission, isSystemAdmin, loading: permLoading } = useBusinessPermissionsContext()
+  const canViewFinancials = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const canManageInv = isSystemAdmin || hasPermission('canManageInventory')
+  const canViewInvReports = isSystemAdmin || hasPermission('canViewInventoryReports')
+  const canViewSupp = isSystemAdmin || hasPermission('canViewSuppliers')
 
   const [stats, setStats] = useState<Stats>({
     totalProjects: 0,
@@ -45,6 +51,13 @@ export default function ConstructionDashboard() {
   })
   const [recentProjects, setRecentProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (permLoading) return
+    if (!canViewFinancials && !canManageInv && !canViewInvReports) {
+      router.replace('/dashboard')
+    }
+  }, [permLoading, canViewFinancials, canManageInv, canViewInvReports, router])
 
   useEffect(() => {
     // Fetch data when currentBusiness is available
@@ -95,7 +108,7 @@ export default function ConstructionDashboard() {
     }
   }
 
-  if (loading) {
+  if (permLoading || loading) {
     return (
       <BusinessTypeRoute requiredBusinessType="construction">
         <div className="flex justify-center items-center h-64">
@@ -104,6 +117,8 @@ export default function ConstructionDashboard() {
       </BusinessTypeRoute>
     )
   }
+
+  if (!canViewFinancials && !canManageInv && !canViewInvReports) return null
 
   return (
     <BusinessTypeRoute requiredBusinessType="construction">
@@ -115,7 +130,7 @@ export default function ConstructionDashboard() {
           { label: 'Construction', isActive: true }
         ]}
       >
-        {currentBusiness?.businessId && (
+        {canManageInv && currentBusiness?.businessId && (
           <InventoryDashboardWidget
             businessId={currentBusiness.businessId}
             businessType="construction"
@@ -125,6 +140,7 @@ export default function ConstructionDashboard() {
         )}
 
         {/* Stats Overview */}
+        {canViewFinancials && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Link href={`/projects?businessType=construction&businessId=${currentBusiness?.businessId || ''}`}>
             <Card className="hover:shadow-lg transition-shadow cursor-pointer">
@@ -182,81 +198,88 @@ export default function ConstructionDashboard() {
             </Card>
           </Link>
         </div>
+        )}
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Project Management
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/projects/new" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">Create New Project</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Start a new construction project</div>
-              </Link>
-              <Link href="/projects?businessType=construction" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">View All Projects</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Manage all your projects</div>
-              </Link>
-              <Link href="/projects?businessType=construction&status=active" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">Active Projects</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">View ongoing work</div>
-              </Link>
-            </CardContent>
-          </Card>
+          {canViewFinancials && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Project Management
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Link href="/projects/new" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">Create New Project</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Start a new construction project</div>
+                </Link>
+                <Link href="/projects?businessType=construction" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">View All Projects</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Manage all your projects</div>
+                </Link>
+                <Link href="/projects?businessType=construction&status=active" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">Active Projects</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">View ongoing work</div>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wrench className="h-5 w-5" />
-                Services & Offerings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/services/add" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">Add New Service</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Create a new service offering</div>
-              </Link>
-              <Link href="/services/list" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">Manage Services</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">View and edit all services</div>
-              </Link>
-              <Link href="/services/categories" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">Service Categories</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Organize service types</div>
-              </Link>
-            </CardContent>
-          </Card>
+          {canManageInv && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="h-5 w-5" />
+                  Services & Offerings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Link href="/services/add" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">Add New Service</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Create a new service offering</div>
+                </Link>
+                <Link href="/services/list" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">Manage Services</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">View and edit all services</div>
+                </Link>
+                <Link href="/services/categories" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">Service Categories</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Organize service types</div>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Resources & Suppliers
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/services/suppliers" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">Manage Suppliers</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">View supplier directory</div>
-              </Link>
-              <Link href="/construction/suppliers" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">Materials & Equipment</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Track construction materials</div>
-              </Link>
-              <Link href="/employees?businessType=construction" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <div className="font-medium">Crew Management</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Manage construction workers</div>
-              </Link>
-            </CardContent>
-          </Card>
+          {canViewSupp && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Resources & Suppliers
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Link href="/services/suppliers" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">Manage Suppliers</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">View supplier directory</div>
+                </Link>
+                <Link href="/construction/suppliers" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">Materials & Equipment</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Track construction materials</div>
+                </Link>
+                <Link href="/employees?businessType=construction" className="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="font-medium">Crew Management</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Manage construction workers</div>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Recent Projects */}
-        {recentProjects.length > 0 && (
+        {canViewFinancials && recentProjects.length > 0 && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -305,7 +328,7 @@ export default function ConstructionDashboard() {
           </Card>
         )}
 
-        {recentProjects.length === 0 && (
+        {canViewFinancials && recentProjects.length === 0 && (
           <Card>
             <CardContent className="py-12">
               <div className="text-center">

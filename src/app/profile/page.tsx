@@ -8,6 +8,23 @@ import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { SessionUser } from '@/lib/permission-utils'
 import { EmployeeContractViewer } from '@/components/contracts/employee-contract-viewer'
+import { PolicyViewer } from '@/components/policies/PolicyViewer'
+
+const CATEGORY_LABELS: Record<string, string> = {
+  HR: 'HR', SAFETY: 'Safety', IT: 'IT', FINANCE: 'Finance', CODE_OF_CONDUCT: 'Code of Conduct', OTHER: 'Other',
+}
+
+interface PolicyAck {
+  id: string
+  policyId: string
+  policyVersion: number
+  acknowledgedAt: string
+  disclaimerSnapshot: string | null
+  business: { id: string; name: string }
+  policy: { id: string; title: string; category: string; contentType: string } | null
+  versionContent: string | null
+  versionFileId: string | null
+}
 
 interface UserProfile {
   id: string
@@ -43,6 +60,8 @@ export default function ProfilePage() {
   })
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
+  const [policyAcks, setPolicyAcks] = useState<PolicyAck[]>([])
+  const [viewingAck, setViewingAck] = useState<PolicyAck | null>(null)
 
   useEffect(() => {
     loadProfile()
@@ -68,6 +87,49 @@ export default function ProfilePage() {
     } finally {
       setLoading(false)
     }
+
+    try {
+      const res = await fetch(`/api/policies/user/${session.user.id}`)
+      if (res.ok) setPolicyAcks(await res.json())
+    } catch {}
+  }
+
+  const handlePrintSignedSummary = (ack: PolicyAck) => {
+    const win = window.open('', '_blank')
+    if (!win) return
+    const title = ack.policy?.title ?? 'Policy'
+    const date = new Date(ack.acknowledgedAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })
+    const disclaimer = ack.disclaimerSnapshot ?? ''
+    win.document.write(`
+      <!DOCTYPE html><html><head><title>Policy Acknowledgment — ${title}</title>
+      <style>
+        body { font-family: Georgia, serif; max-width: 700px; margin: 40px auto; color: #111; line-height: 1.6; }
+        h1 { font-size: 20px; margin-bottom: 4px; }
+        .meta { font-size: 13px; color: #555; margin-bottom: 24px; }
+        .divider { border-top: 1px solid #ccc; margin: 20px 0; }
+        .label { font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+        .value { font-size: 15px; margin-bottom: 16px; }
+        .disclaimer { background: #f5f5f5; border: 1px solid #ddd; padding: 16px; font-size: 13px; font-style: italic; border-radius: 4px; }
+        .footer { margin-top: 40px; font-size: 12px; color: #888; }
+        @media print { body { margin: 20mm; } }
+      </style></head><body>
+      <h1>Policy Acknowledgment Record</h1>
+      <p class="meta">This document confirms that the employee named below has read and acknowledged the policy.</p>
+      <div class="divider"></div>
+      <div class="label">Policy</div><div class="value">${title} (Version ${ack.policyVersion})</div>
+      <div class="label">Category</div><div class="value">${CATEGORY_LABELS[ack.policy?.category ?? ''] ?? ack.policy?.category ?? '—'}</div>
+      <div class="label">Business</div><div class="value">${ack.business?.name ?? '—'}</div>
+      <div class="label">Employee</div><div class="value">${(session as any)?.user?.name ?? '—'}</div>
+      <div class="label">Date &amp; Time Acknowledged</div><div class="value">${date}</div>
+      <div class="divider"></div>
+      <div class="label">Acknowledgment Statement</div>
+      <div class="disclaimer">${disclaimer}</div>
+      <div class="footer">Generated ${new Date().toLocaleString('en-GB')} · Multi-Business Management Platform</div>
+      </body></html>
+    `)
+    win.document.close()
+    win.focus()
+    win.print()
   }
 
   const handleSave = async () => {
@@ -302,6 +364,101 @@ export default function ProfilePage() {
 
         {/* Employee Contracts */}
         <EmployeeContractViewer />
+
+        {/* My Policy Agreements */}
+        <div className="card">
+          <div className="p-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              My Policy Agreements
+            </h3>
+
+            {policyAcks.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-sm">No policy acknowledgments on record.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Policy</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Business</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Version</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Date Acknowledged</th>
+                      <th className="px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {policyAcks.map(ack => (
+                      <tr key={ack.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{ack.policy?.title ?? '—'}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{CATEGORY_LABELS[ack.policy?.category ?? ''] ?? ack.policy?.category}</div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{ack.business?.name ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400">v{ack.policyVersion}</td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">
+                          {new Date(ack.acknowledgedAt).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2 justify-end">
+                            {(ack.versionContent || ack.versionFileId) && (
+                              <button
+                                onClick={() => setViewingAck(ack)}
+                                className="text-xs px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                              >
+                                View
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handlePrintSignedSummary(ack)}
+                              className="text-xs px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                            >
+                              Print Summary
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Policy view modal */}
+        {viewingAck && (
+          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+              <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{viewingAck.policy?.title}</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {CATEGORY_LABELS[viewingAck.policy?.category ?? ''] ?? viewingAck.policy?.category} · Version {viewingAck.policyVersion} · {viewingAck.business?.name}
+                  </p>
+                </div>
+                <button onClick={() => setViewingAck(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold ml-4">×</button>
+              </div>
+              <PolicyViewer
+                content={viewingAck.versionContent}
+                fileId={viewingAck.versionFileId}
+                contentType={viewingAck.policy?.contentType as any}
+                onScrolledToEnd={() => {}}
+                hasScrolledToEnd={true}
+              />
+              <div className="p-5 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <button
+                  onClick={() => handlePrintSignedSummary(viewingAck)}
+                  className="text-sm px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                >
+                  Print Signed Summary
+                </button>
+                <button onClick={() => setViewingAck(null)} className="text-sm px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Account Information */}
         <div className="card">

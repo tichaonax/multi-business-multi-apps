@@ -9,14 +9,19 @@ import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { HomeStatBadge, type OrderSummary } from '@/components/universal/home/HomeStatBadge'
 import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
 
 export default function RestaurantPage() {
+  const router = useRouter()
   const { currentBusinessId, hasPermission, isSystemAdmin, businesses, loading: permLoading } = useBusinessPermissionsContext()
   const canViewOrders = isSystemAdmin || hasPermission('canEnterManualOrders') || hasPermission('canAccessFinancialData')
   const canViewFinancials = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const canManageInv = isSystemAdmin || hasPermission('canManageInventory')
+  const canViewInvReports = isSystemAdmin || hasPermission('canViewInventoryReports')
+  const canManageEmployees = isSystemAdmin || hasPermission('canManageEmployees')
 
   // For admin users, if currentBusinessId is null fall back to any active restaurant business
   const effectiveBusinessId = currentBusinessId ||
@@ -24,6 +29,13 @@ export default function RestaurantPage() {
 
   const [homeStats, setHomeStats] = useState<OrderSummary | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
+
+  useEffect(() => {
+    if (permLoading) return
+    if (!canViewFinancials && !canManageInv && !canViewInvReports) {
+      router.replace('/restaurant/pos')
+    }
+  }, [permLoading, canViewFinancials, canManageInv, canViewInvReports, router])
 
   useEffect(() => {
     if (!effectiveBusinessId || !canViewOrders) return
@@ -39,6 +51,16 @@ export default function RestaurantPage() {
     return () => { cancelled = true }
   }, [effectiveBusinessId, canViewOrders])
 
+  if (permLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100" />
+      </div>
+    )
+  }
+
+  if (!canViewFinancials && !canManageInv && !canViewInvReports) return null
+
   return (
     <ProtectedRoute>
       <BusinessTypeRoute requiredBusinessType="restaurant">
@@ -50,7 +72,7 @@ export default function RestaurantPage() {
         ]}
       >
         {/* Inventory Overview Widget */}
-        {!permLoading && effectiveBusinessId && (
+        {canManageInv && effectiveBusinessId && (
           <div className="mb-8">
             <InventoryDashboardWidget
               businessId={effectiveBusinessId}
@@ -82,49 +104,57 @@ export default function RestaurantPage() {
               <p className="text-secondary">Process orders and payments</p>
             </div>
           </Link>
-          
-          <Link href="/restaurant/menu" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">📋</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Menu Management</h3>
-              <p className="text-secondary">Manage menu items and pricing</p>
-            </div>
-          </Link>
-          
-          <Link href="/restaurant/orders" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">📦</div>
-              <h3 className="text-lg font-semibold mb-1 text-primary">Orders</h3>
-              {canViewOrders && (
+
+          {canManageInv && (
+            <Link href="/restaurant/menu" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">📋</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Menu Management</h3>
+                <p className="text-secondary">Manage menu items and pricing</p>
+              </div>
+            </Link>
+          )}
+
+          {canViewOrders && (
+            <Link href="/restaurant/orders" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">📦</div>
+                <h3 className="text-lg font-semibold mb-1 text-primary">Orders</h3>
                 <HomeStatBadge summary={homeStats} loading={loadingStats} variant="orders" canViewFinancials={canViewFinancials} />
-              )}
-              <p className="text-secondary">View and manage orders</p>
-            </div>
-          </Link>
-          
-          <Link href="/restaurant/inventory" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">🥬</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Inventory Management</h3>
-              <p className="text-secondary">Ingredients, recipes, prep tracking, and food costs</p>
-            </div>
-          </Link>
-          
-          <Link href="/restaurant/employees" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">👥</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Employees</h3>
-              <p className="text-secondary">Staff management</p>
-            </div>
-          </Link>
-          
-          <Link href="/restaurant/reports" className="block">
-            <div className="card p-6 hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">📈</div>
-              <h3 className="text-lg font-semibold mb-2 text-primary">Reports</h3>
-              <p className="text-secondary">Sales and financial reports</p>
-            </div>
-          </Link>
+                <p className="text-secondary">View and manage orders</p>
+              </div>
+            </Link>
+          )}
+
+          {canManageInv && (
+            <Link href="/restaurant/inventory" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">🥬</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Inventory Management</h3>
+                <p className="text-secondary">Ingredients, recipes, prep tracking, and food costs</p>
+              </div>
+            </Link>
+          )}
+
+          {canManageEmployees && (
+            <Link href="/restaurant/employees" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">👥</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Employees</h3>
+                <p className="text-secondary">Staff management</p>
+              </div>
+            </Link>
+          )}
+
+          {canViewFinancials && (
+            <Link href="/restaurant/reports" className="block">
+              <div className="card p-6 hover:shadow-lg transition-shadow">
+                <div className="text-4xl mb-4">📈</div>
+                <h3 className="text-lg font-semibold mb-2 text-primary">Reports</h3>
+                <p className="text-secondary">Sales and financial reports</p>
+              </div>
+            </Link>
+          )}
 
           {canViewFinancials && (
             <Link href="/restaurant/reports/financial-insights" className="block">

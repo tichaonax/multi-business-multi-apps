@@ -59,6 +59,7 @@ function RestaurantInventoryContent() {
     hasPermission,
   } = useBusinessPermissionsContext()
   const canAccessFinancialData = isSystemAdmin || hasPermission('canAccessFinancialData')
+  const canManageInventory = isSystemAdmin || hasPermission('canManageInventory')
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
@@ -363,18 +364,22 @@ function RestaurantInventoryContent() {
                 {seedingCategories ? 'Seeding...' : categoriesSeeded ? '✅ Categories Seeded' : '🌱 Seed Categories'}
               </button>
             )}
-            <button
-              onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
-              className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
-            >
-              📦 Bulk Stock
-            </button>
-            <button
-              onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
-              className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
-            >
-              📋 Stock Take
-            </button>
+            {canManageInventory && (
+              <>
+                <button
+                  onClick={() => { setBulkStockInitialMode('bulkStock'); setShowBulkStockPanel(true) }}
+                  className="px-3 py-1.5 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm font-medium"
+                >
+                  📦 Bulk Stock
+                </button>
+                <button
+                  onClick={() => { setBulkStockInitialMode('stockTake'); setShowBulkStockPanel(true) }}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                >
+                  📋 Stock Take
+                </button>
+              </>
+            )}
             {canAccessFinancialData && (
               <button
                 onClick={() => setShowStockTakeReports(true)}
@@ -383,18 +388,22 @@ function RestaurantInventoryContent() {
                 📋 Stock Take Reports
               </button>
             )}
-            <button
-              onClick={() => router.push('/restaurant/inventory/receive')}
-              className="btn-secondary"
-            >
-              📥 Receive Stock
-            </button>
-            <button
-              onClick={() => router.push('/restaurant/inventory/add')}
-              className="btn-primary"
-            >
-              ➕ Add Item
-            </button>
+            {canManageInventory && (
+              <>
+                <button
+                  onClick={() => router.push('/restaurant/inventory/receive')}
+                  className="btn-secondary"
+                >
+                  📥 Receive Stock
+                </button>
+                <button
+                  onClick={() => router.push('/restaurant/inventory/add')}
+                  className="btn-primary"
+                >
+                  ➕ Add Item
+                </button>
+              </>
+            )}
           </div>
         }
       >
@@ -632,10 +641,10 @@ function RestaurantInventoryContent() {
                     posTrackedFilter={posTrackedFilter}
                     priceFilter={priceFilter}
                     refreshTrigger={refreshTrigger}
-                    onItemEdit={(item) => {
+                    onItemEdit={canManageInventory ? (item) => {
                       setSelectedItem(item)
                       setShowAddForm(true)
-                    }}
+                    } : undefined}
                     onItemView={(item) => setInsightsTarget({ type: 'inventory', id: item.id })}
                     onItemAddToCart={async (item) => {
                       try {

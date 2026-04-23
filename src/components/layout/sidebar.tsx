@@ -734,10 +734,12 @@ export function Sidebar() {
                   </Link>
                 )}
                 {/* Business Services */}
-                <Link href="/services/list" className={getLinkClasses('/services/list')}>
-                  <span className="text-lg">🔧</span>
-                  <span>Services</span>
-                </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewServices')) && (
+                  <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                    <span className="text-lg">🔧</span>
+                    <span>Services</span>
+                  </Link>
+                )}
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/restaurant/wifi-tokens" className={getLinkClasses('/restaurant/wifi-tokens')}>
@@ -817,10 +819,12 @@ export function Sidebar() {
                   <span>Bales Inventory</span>
                 </Link>
                 {/* Business Services */}
-                <Link href="/services/list" className={getLinkClasses('/services/list')}>
-                  <span className="text-lg">🔧</span>
-                  <span>Services</span>
-                </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewServices')) && (
+                  <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                    <span className="text-lg">🔧</span>
+                    <span>Services</span>
+                  </Link>
+                )}
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/grocery/wifi-tokens" className={getLinkClasses('/grocery/wifi-tokens')}>
@@ -887,10 +891,12 @@ export function Sidebar() {
                   <span>Bales Inventory</span>
                 </Link>
                 {/* Business Services */}
-                <Link href="/services/list" className={getLinkClasses('/services/list')}>
-                  <span className="text-lg">🔧</span>
-                  <span>Services</span>
-                </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewServices')) && (
+                  <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                    <span className="text-lg">🔧</span>
+                    <span>Services</span>
+                  </Link>
+                )}
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/clothing/wifi-tokens" className={getLinkClasses('/clothing/wifi-tokens')}>
@@ -953,10 +959,12 @@ export function Sidebar() {
                   <span>Products</span>
                 </Link>
                 {/* Business Services */}
-                <Link href="/services/list" className={getLinkClasses('/services/list')}>
-                  <span className="text-lg">🔧</span>
-                  <span>Services</span>
-                </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewServices')) && (
+                  <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                    <span className="text-lg">🔧</span>
+                    <span>Services</span>
+                  </Link>
+                )}
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/hardware/wifi-tokens" className={getLinkClasses('/hardware/wifi-tokens')}>
@@ -1008,18 +1016,22 @@ export function Sidebar() {
                     <span>Sales Reports</span>
                   </Link>
                 )}
-                <Link href="/services/list" className={getLinkClasses('/services/list')}>
-                  <span className="text-lg">📋</span>
-                  <span>Services List</span>
-                </Link>
-                <Link href="/services/categories" className={getLinkClasses('/services/categories')}>
-                  <span className="text-lg">📂</span>
-                  <span>Categories</span>
-                </Link>
-                <Link href="/services/suppliers" className={getLinkClasses('/services/suppliers')}>
-                  <span className="text-lg">🤝</span>
-                  <span>Suppliers</span>
-                </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewServices')) && (
+                  <>
+                    <Link href="/services/list" className={getLinkClasses('/services/list')}>
+                      <span className="text-lg">📋</span>
+                      <span>Services List</span>
+                    </Link>
+                    <Link href="/services/categories" className={getLinkClasses('/services/categories')}>
+                      <span className="text-lg">📂</span>
+                      <span>Categories</span>
+                    </Link>
+                    <Link href="/services/suppliers" className={getLinkClasses('/services/suppliers')}>
+                      <span className="text-lg">🤝</span>
+                      <span>Suppliers</span>
+                    </Link>
+                  </>
+                )}
                 {/* ESP32 Menu Config - Requires canConfigureWifiTokens */}
                 {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && esp32IntegrationEnabled && (
                   <Link href="/services/wifi-tokens" className={getLinkClasses('/services/wifi-tokens')}>
@@ -1217,6 +1229,17 @@ export function Sidebar() {
               >
                 <span className="text-lg">🏷️</span>
                 <span>Assets</span>
+              </Link>
+            )}
+
+            {/* Policy Management */}
+            {(isSystemAdmin(currentUser) || hasPermission('canManagePolicies')) && (
+              <Link
+                href="/policies"
+                className={getLinkClasses('/policies')}
+              >
+                <span className="text-lg">📋</span>
+                <span>Policies</span>
               </Link>
             )}
           </>

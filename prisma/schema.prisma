@@ -561,6 +561,9 @@ model Businesses {
   delivery_customer_accounts                                               DeliveryCustomerAccounts[]
   delivery_runs                                                            DeliveryRuns[]
   salesperson_eod_reports                                                  SalespersonEodReport[]        @relation("BusinessSalespersonEodReports")
+  policies                                                                 Policy[]                      @relation("BusinessPolicies")
+  policy_assignments                                                       PolicyAssignment[]             @relation("BusinessPolicyAssignments")
+  policy_acknowledgments                                                   PolicyAcknowledgment[]         @relation("BusinessPolicyAcknowledgments")
 
   @@map("businesses")
 }
@@ -3403,6 +3406,13 @@ model Users {
   ecocash_conversions_rejected                                    EcocashConversion[]              @relation("EcocashConversionRejecter")
   salesperson_eod_reports_as_salesperson                          SalespersonEodReport[]           @relation("SalespersonEodReports")
   salesperson_eod_reports_submitted                               SalespersonEodReport[]           @relation("SalespersonEodSubmitter")
+  policies_created                                                Policy[]                         @relation("PolicyCreator")
+  policy_versions_created                                         PolicyVersion[]                  @relation("PolicyVersionCreator")
+  policy_versions_published                                       PolicyVersion[]                  @relation("PolicyVersionPublisher")
+  policy_assignments_created                                      PolicyAssignment[]               @relation("PolicyAssignmentCreator")
+  policy_assignments_assigned_to                                  PolicyAssignment[]               @relation("PolicyAssignmentUser")
+  policy_acknowledgments                                          PolicyAcknowledgment[]           @relation("PolicyAcknowledgmentUser")
+  policy_acknowledgments_waived                                   PolicyAcknowledgment[]           @relation("PolicyAcknowledgmentWaiver")
 
   @@map("users")
 }
@@ -6491,4 +6501,151 @@ model AssetImage {
 
   @@index([assetId])
   @@map("asset_images")
+}
+
+// ============================================================
+// Policy Management (MBM-189)
+// ============================================================
+
+enum PolicyCategory {
+  HR
+  SAFETY
+  IT
+  FINANCE
+  CODE_OF_CONDUCT
+  OTHER
+}
+
+enum PolicyContentType {
+  RICH_TEXT
+  PDF
+}
+
+enum PolicyStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PolicyVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PolicyAssignmentScope {
+  ALL_EMPLOYEES
+  BY_ROLE
+  INDIVIDUAL
+}
+
+model PolicyTemplate {
+  id          String          @id @default(cuid())
+  title       String
+  category    PolicyCategory
+  description String?
+  content     String          @db.Text
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+
+  @@map("policy_templates")
+}
+
+model Policy {
+  id             String            @id @default(cuid())
+  businessId     String
+  title          String
+  description    String?
+  category       PolicyCategory
+  contentType    PolicyContentType @default(RICH_TEXT)
+  status         PolicyStatus      @default(DRAFT)
+  currentVersion Int               @default(0)
+  isPublic       Boolean           @default(false)
+  createdById    String
+  publishedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  business    Businesses      @relation("BusinessPolicies", fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy   Users           @relation("PolicyCreator", fields: [createdById], references: [id])
+  versions    PolicyVersion[]
+  assignments PolicyAssignment[]
+
+  @@index([businessId, status])
+  @@index([businessId, category])
+  @@map("policies")
+}
+
+model PolicyVersion {
+  id          String              @id @default(cuid())
+  policyId    String
+  version     Int
+  status      PolicyVersionStatus @default(DRAFT)
+  content     String?             @db.Text
+  fileId      String?
+  changeNote  String?
+  createdById String
+  publishedById String?
+  publishedAt DateTime?
+  createdAt   DateTime            @default(now())
+
+  policy      Policy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  createdBy   Users   @relation("PolicyVersionCreator", fields: [createdById], references: [id])
+  publishedBy Users?  @relation("PolicyVersionPublisher", fields: [publishedById], references: [id])
+
+  @@unique([policyId, version])
+  @@index([policyId, status])
+  @@map("policy_versions")
+}
+
+model PolicyAssignment {
+  id            String                @id @default(cuid())
+  policyId      String
+  policyVersion Int
+  businessId    String
+  scope         PolicyAssignmentScope @default(INDIVIDUAL)
+  roleTarget    String?
+  userId        String?
+  dueDate       DateTime?
+  notes         String?
+  assignedById  String
+  assignedAt    DateTime              @default(now())
+  isActive      Boolean               @default(true)
+
+  policy        Policy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  business      Businesses @relation("BusinessPolicyAssignments", fields: [businessId], references: [id], onDelete: Cascade)
+  assignedTo    Users?    @relation("PolicyAssignmentUser", fields: [userId], references: [id])
+  assignedBy    Users     @relation("PolicyAssignmentCreator", fields: [assignedById], references: [id])
+  acknowledgments PolicyAcknowledgment[]
+
+  @@index([policyId, businessId])
+  @@index([userId, isActive])
+  @@index([businessId, scope])
+  @@map("policy_assignments")
+}
+
+model PolicyAcknowledgment {
+  id                   String   @id @default(cuid())
+  policyAssignmentId   String
+  policyId             String
+  policyVersion        Int
+  userId               String
+  businessId           String
+  disclaimerText       String   @db.Text
+  scrolledToEnd        Boolean  @default(false)
+  ipAddress            String?
+  userAgent            String?
+  waivedById           String?
+  waivedReason         String?
+  acknowledgedAt       DateTime @default(now())
+
+  assignment  PolicyAssignment @relation(fields: [policyAssignmentId], references: [id], onDelete: Cascade)
+  business    Businesses       @relation("BusinessPolicyAcknowledgments", fields: [businessId], references: [id], onDelete: Cascade)
+  user        Users            @relation("PolicyAcknowledgmentUser", fields: [userId], references: [id])
+  waivedBy    Users?           @relation("PolicyAcknowledgmentWaiver", fields: [waivedById], references: [id])
+
+  @@unique([policyAssignmentId, userId])
+  @@index([userId, businessId])
+  @@index([policyId, policyVersion])
+  @@map("policy_acknowledgments")
 }

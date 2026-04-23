@@ -17,7 +17,7 @@ import { HomeStatBadge } from '@/components/universal/home/HomeStatBadge'
 import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
 import { InventoryDashboardWidget } from '@/components/universal/inventory/inventory-dashboard-widget'
 
-function HardwareContent({ session, businessId, canViewFinancials }: { session: any; businessId: string; canViewFinancials: boolean }) {
+function HardwareContent({ session, businessId, canViewFinancials, canManageInv, canViewOrders, canManageEmployees, canViewSupp }: { session: any; businessId: string; canViewFinancials: boolean; canManageInv: boolean; canViewOrders: boolean; canManageEmployees: boolean; canViewSupp: boolean }) {
   const currentUser = session?.user as any
   const canManageLaybys = isSystemAdmin(currentUser) || hasPermission(currentUser, 'canManageLaybys')
   const [stats, setStats] = React.useState<{
@@ -52,16 +52,16 @@ function HardwareContent({ session, businessId, canViewFinancials }: { session: 
 
   const actions = [
     { label: 'Point of Sale', href: '/hardware/pos', icon: '🛒', description: 'Process customer sales with barcode scanner' },
-    { label: 'Orders', href: '/hardware/orders', icon: '📋', description: 'Manage customer orders and project fulfillment' },
-    { label: 'Reports', href: '/hardware/reports', icon: '📊', description: 'View sales analytics and business reports' },
-    { label: 'Inventory', href: '/hardware/inventory', icon: '📦', description: 'Manage stock levels and bulk orders' },
-    { label: 'Cut-to-Size', href: '/hardware/cut-to-size', icon: '✂️', description: 'Custom cutting and measurement orders' },
-    { label: 'Suppliers', href: '/business/suppliers', icon: '🚛', description: 'Manage vendor relationships and supplier contacts' },
-    { label: 'Locations', href: '/business/locations', icon: '📍', description: 'Storage locations and warehouse organization' },
-    { label: 'Projects', href: '/hardware/projects', icon: '🏗️', description: 'Track contractor and bulk projects' },
-    { label: 'Tools & Equipment', href: '/hardware/tools', icon: '🔧', description: 'Tool rentals and equipment sales' },
+    ...(canViewOrders ? [{ label: 'Orders', href: '/hardware/orders', icon: '📋', description: 'Manage customer orders and project fulfillment' }] : []),
+    ...(canViewFinancials ? [{ label: 'Reports', href: '/hardware/reports', icon: '📊', description: 'View sales analytics and business reports' }] : []),
+    ...(canManageInv ? [{ label: 'Inventory', href: '/hardware/inventory', icon: '📦', description: 'Manage stock levels and bulk orders' }] : []),
+    ...(canManageInv ? [{ label: 'Cut-to-Size', href: '/hardware/cut-to-size', icon: '✂️', description: 'Custom cutting and measurement orders' }] : []),
+    ...(canViewSupp ? [{ label: 'Suppliers', href: '/business/suppliers', icon: '🚛', description: 'Manage vendor relationships and supplier contacts' }] : []),
+    ...(canManageInv ? [{ label: 'Locations', href: '/business/locations', icon: '📍', description: 'Storage locations and warehouse organization' }] : []),
+    ...(canManageInv ? [{ label: 'Projects', href: '/hardware/projects', icon: '🏗️', description: 'Track contractor and bulk projects' }] : []),
+    ...(canManageInv ? [{ label: 'Tools & Equipment', href: '/hardware/tools', icon: '🔧', description: 'Tool rentals and equipment sales' }] : []),
     ...(canManageLaybys ? [{ label: 'Layby Management', href: '/business/laybys', icon: '🛍️', description: 'Customer layby agreements and payments' }] : []),
-    { label: 'Employee Management', href: '/hardware/employees', icon: '👥', description: 'Manage hardware store staff and schedules' }
+    ...(canManageEmployees ? [{ label: 'Employee Management', href: '/hardware/employees', icon: '👥', description: 'Manage hardware store staff and schedules' }] : []),
   ]
 
   // Format currency
@@ -109,26 +109,30 @@ function HardwareContent({ session, businessId, canViewFinancials }: { session: 
 
   return (
     <div className="space-y-6">
-      <InventoryDashboardWidget
-        businessId={businessId}
-        businessType="hardware"
-        showDetails={true}
-        maxAlerts={3}
-      />
+      {canManageInv && (
+        <InventoryDashboardWidget
+          businessId={businessId}
+          businessType="hardware"
+          showDetails={true}
+          maxAlerts={3}
+        />
+      )}
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {metrics.map((metric, index) => (
-          <div key={index} className="card p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-secondary">{metric.label}</p>
-                <p className={`text-2xl font-bold ${metric.color}`}>{metric.value}</p>
+      {canViewFinancials && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {metrics.map((metric, index) => (
+            <div key={index} className="card p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-secondary">{metric.label}</p>
+                  <p className={`text-2xl font-bold ${metric.color}`}>{metric.value}</p>
+                </div>
+                <div className="text-2xl">{metric.icon}</div>
               </div>
-              <div className="text-2xl">{metric.icon}</div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Quick Actions */}
       {canViewFinancials && (
@@ -232,8 +236,17 @@ export default function HardwarePage() {
     currentBusinessId,
     isAuthenticated,
     loading: businessLoading,
-    businesses
+    businesses,
+    hasPermission: hasBizPermission,
+    isSystemAdmin: isSysAdmin
   } = useBusinessPermissionsContext()
+
+  const canViewFinancialsCtx = isSysAdmin || hasBizPermission('canAccessFinancialData')
+  const canManageInv = isSysAdmin || hasBizPermission('canManageInventory')
+  const canViewInvReports = isSysAdmin || hasBizPermission('canViewInventoryReports')
+  const canViewOrders = isSysAdmin || hasBizPermission('canEnterManualOrders') || hasBizPermission('canAccessFinancialData')
+  const canManageEmployees = isSysAdmin || hasBizPermission('canManageEmployees')
+  const canViewSupp = isSysAdmin || hasBizPermission('canViewSuppliers')
 
   // Check if current business is a hardware business
   const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
@@ -245,6 +258,14 @@ export default function HardwarePage() {
       router.push('/auth/signin')
     }
   }, [session, status, router])
+
+  // Redirect salesperson/restricted roles to POS
+  React.useEffect(() => {
+    if (businessLoading) return
+    if (!canViewFinancialsCtx && !canManageInv && !canViewInvReports) {
+      router.replace('/hardware/pos')
+    }
+  }, [businessLoading, canViewFinancialsCtx, canManageInv, canViewInvReports, router])
 
   // Show loading while session or business context is loading
   if (status === 'loading' || businessLoading) {
@@ -318,7 +339,6 @@ export default function HardwarePage() {
 
   // At this point, we have a valid hardware business selected
   const businessId = currentBusinessId!
-  const canViewFinancials = isAuthenticated && (businesses.find(b => b.businessId === businessId)?.permissions?.canAccessFinancialData || session?.user?.role === 'admin' || false)
 
   return (
     <BusinessProvider businessId={businessId}>
@@ -330,7 +350,7 @@ export default function HardwarePage() {
             { label: 'Hardware Store', isActive: true }
           ]}
         >
-          <HardwareContent session={session} businessId={businessId} canViewFinancials={canViewFinancials} />
+          <HardwareContent session={session} businessId={businessId} canViewFinancials={canViewFinancialsCtx} canManageInv={canManageInv} canViewOrders={canViewOrders} canManageEmployees={canManageEmployees} canViewSupp={canViewSupp} />
         </ContentLayout>
       </BusinessTypeRoute>
     </BusinessProvider>
