@@ -40,10 +40,6 @@ export interface UserLevelPermissions {
   // Expiry Management (User-level - take action on expiring/expired inventory)
   canManageExpiryActions: boolean;
 
-  // POS Badge Visibility (User-level - global override for all businesses)
-  canViewPOSSoldCount: boolean;   // Show "X sold today" badge on POS product cards
-  canViewPOSStockCount: boolean;  // Show "X left" stock remaining badge on POS product cards
-
   // System Administration (User-level - global capabilities)
   canManageSystemSettings: boolean;
   canViewSystemLogs: boolean;
@@ -2948,8 +2944,6 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: false,
   canManageAssets: false,
   canManageExpiryActions: false,
-  canViewPOSSoldCount: true,
-  canViewPOSStockCount: true,
 };
 
 export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
@@ -2960,8 +2954,6 @@ export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
   canDeletePersonalExpenses: true,
   canManageAssets: true,
   canManageExpiryActions: true,
-  canViewPOSSoldCount: true,
-  canViewPOSStockCount: true,
 };
 
 export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
@@ -3068,8 +3060,6 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: true,
   canManageAssets: true,
   canManageExpiryActions: true,
-  canViewPOSSoldCount: true,
-  canViewPOSStockCount: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only

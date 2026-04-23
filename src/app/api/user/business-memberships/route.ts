@@ -140,10 +140,12 @@ export async function GET() {
 
     // Merge user-level permissions so that permissions granted at user level
     // (Users.permissions JSON) are also visible in the business context.
-    // mergeWithBusinessPermissions only elevates (only applies true values), so this is safe.
+    // POS badge visibility keys are business-level only — exclude them from user-level elevations
+    // so a business-level false cannot be overridden by a stale user-level true.
+    const POS_BADGE_KEYS = new Set(['canViewPOSSoldCount', 'canViewPOSStockCount']);
     const userLevelPerms = (user.permissions || {}) as Record<string, any>;
     const userLevelElevations = Object.fromEntries(
-      Object.entries(userLevelPerms).filter(([, v]) => v === true)
+      Object.entries(userLevelPerms).filter(([k, v]) => v === true && !POS_BADGE_KEYS.has(k))
     );
 
     // Transform to match BusinessMembership interface
