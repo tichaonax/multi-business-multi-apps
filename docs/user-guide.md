@@ -54,6 +54,8 @@
 31. [Restaurant Delivery Service](#31-restaurant-delivery-service)
 32. [Business Asset Management](#32-business-asset-management)
 33. [Inventory Expiry Tracking](#33-inventory-expiry-tracking)
+34. [Policy Management & Employee Acknowledgment](#34-policy-management--employee-acknowledgment)
+35. [Salesperson Role — Access & Restrictions](#35-salesperson-role--access--restrictions)
 
 ---
 
@@ -6950,6 +6952,200 @@ Owners and Managers have both permissions by default. Supervisors and below do n
 | New discounted product not appearing in POS | Products sync on page refresh — reload the POS after creating the discount product |
 | Batch shows as expired but stock was already sold | The batch quantity reflects what was received; sold units reduce the parent product's total stock, not individual batch quantities. Use Dispose to write off remaining physical stock |
 | Expiry deal badge not showing on POS card | Confirm the product was created via the Discount action (has `isExpiryDiscount = true`). Manually created products will not have this flag |
+
+---
+
+## 34. Policy Management & Employee Acknowledgment
+
+> **Who reads this:** Business owners, managers (creating and publishing policies), and all employees (reading and acknowledging policies).
+
+---
+
+### Overview
+
+The Policy Management system lets you create, version, assign, and track employee acknowledgment of workplace policies — HR policies, safety rules, conduct standards, and any other documents that require a sign-off trail.
+
+---
+
+### Key Concepts
+
+| Term | Meaning |
+|------|---------|
+| **Policy** | A document belonging to a specific business (e.g., Leave Policy, Code of Conduct) |
+| **Version** | Each edit to a policy creates a new numbered version; previous versions are preserved |
+| **Assignment** | A directive that tells one or more employees to read and acknowledge a specific version by a due date |
+| **Acknowledgment** | The employee's recorded sign-off: timestamp, IP address, and confirmation they scrolled to the end |
+| **Policy Template** | A pre-written starting-point (system-wide) you can copy from when creating a new policy |
+
+---
+
+### Manager — Creating and Publishing a Policy
+
+1. Go to **Policies** in the sidebar (under your business section).
+2. Click **New Policy**.
+3. Fill in:
+   - **Title** — e.g., "Leave & Absence Policy"
+   - **Category** — HR, Safety, Conduct, Financial, IT, Operational, or Other
+   - **Content** — write directly in the rich-text editor, or start from a **Template**
+4. Click **Save as Draft** to keep it private, or **Publish** to make it live.
+
+> Saving as Draft lets you review before employees can be assigned.
+
+---
+
+### Manager — Assigning a Policy
+
+After a policy is published:
+
+1. Open the policy and click **Assign**.
+2. Choose the scope:
+   - **Individual** — pick one specific employee or user
+   - **Role** — all users with a given role (e.g., all Salespersons)
+   - **All Staff** — everyone in the business
+3. Set a **Due Date** (optional but recommended — triggers overdue tracking).
+4. Click **Assign**.
+
+Employees included in the assignment immediately see a banner on their dashboard and a **Policy** badge in the header.
+
+---
+
+### Manager — Tracking Acknowledgments
+
+On the Policy detail page, the **Assignments** tab shows:
+
+| Column | Meaning |
+|--------|---------|
+| Assigned To | Employee name / role target |
+| Due Date | When acknowledgment is required by |
+| Status | Pending / Acknowledged / Overdue |
+| Acknowledged At | Timestamp of sign-off |
+
+Export or print the acknowledgment list for compliance records.
+
+---
+
+### Manager — Waiving an Acknowledgment
+
+If an employee cannot acknowledge (e.g., no system access), a manager can:
+
+1. Open the assignment.
+2. Click **Waive** next to the employee.
+3. Enter a reason.
+
+This records a waiver instead of leaving the item as overdue.
+
+---
+
+### Employee — Acknowledging a Policy
+
+When a policy is assigned to you:
+
+1. A red **Policy** badge appears in the top navigation bar showing the number of pending acknowledgments.
+2. Click the badge or go to **My Profile → Policy Agreements**.
+3. Open the policy — you must scroll to the bottom before the **Acknowledge** button activates.
+4. Click **Acknowledge**. Your name, timestamp, and device details are recorded.
+
+---
+
+### Employee — Viewing Past Acknowledgments
+
+In **My Profile → Policy Agreements**:
+
+| Column | Meaning |
+|--------|---------|
+| Policy | Document title |
+| Category | HR, Safety, etc. |
+| Version | Which version you acknowledged |
+| Acknowledged At | Date and time |
+| Actions | View the document, Print signed summary |
+
+**Print Signed Summary** opens a formatted page showing the policy title, your name, acknowledgment time, and a disclaimer — suitable for filing.
+
+---
+
+### Overdue Reminders
+
+- If a policy has a due date **3 days away or less** and you have not yet acknowledged it, the system automatically sends a bell notification reminding you.
+- Reminders are sent at most once per 24 hours per policy to avoid noise.
+
+---
+
+### Permissions
+
+| Permission | Who has it by default | What it controls |
+|------------|-----------------------|-----------------|
+| `canManagePolicies` | Owner, Manager | Create, edit, publish, assign, and waive policies |
+| *(all users)* | Everyone | View and acknowledge policies assigned to them |
+
+---
+
+### Policy Templates
+
+System-wide policy templates are pre-written starting points. When creating a new policy:
+
+1. Click **Use Template**.
+2. Browse templates by category.
+3. Select one — its content is copied into your new policy for editing.
+
+Templates are managed by system administrators. Your customised copy is entirely separate from the template.
+
+---
+
+## 35. Salesperson Role — Access & Restrictions
+
+> **Who reads this:** Business owners and managers setting up salesperson accounts.
+
+---
+
+### What a Salesperson Can and Cannot Do
+
+The **Salesperson** role is designed for front-of-house staff who should access the POS but not management areas.
+
+#### Business Homepage
+
+When a salesperson navigates to a business homepage (grocery, restaurant, clothing, hardware, etc.), they are **automatically redirected to the POS** for that business. No financial summaries, inventory widgets, or management dashboards are shown.
+
+#### Inventory
+
+Salespersons can view the inventory list (read-only) but:
+
+| Blocked | Why |
+|---------|-----|
+| ✏️ Edit and 🗑️ Delete buttons | Requires `canManageInventory` |
+| Bulk Stock / Stock Take / Add New Item buttons | Requires `canManageInventory` |
+| Stock Movements, Alerts, Analytics, Transfer History tabs | Requires `canViewInventoryReports` |
+| Grocery Store Inventory Features panel | Requires `canManageInventory` |
+
+#### Sidebar Links
+
+| Link | Visible to Salesperson? |
+|------|------------------------|
+| Services | No — requires `canViewServices` |
+| All management areas | Only what their permissions grant |
+
+---
+
+### Unlocking Individual Permissions
+
+Every restriction above can be individually overridden per employee in the **Business Permission Modal**:
+
+1. Go to **Business Settings → Members**.
+2. Click the employee.
+3. Open the **Permissions** tab.
+4. Toggle the specific permission on.
+
+| Permission Key | What it unlocks |
+|----------------|-----------------|
+| `canManageInventory` | Edit/delete items, Bulk Stock, Stock Take, Add Item |
+| `canViewInventoryReports` | Movements, Alerts, Analytics, Transfer History tabs |
+| `canViewServices` | Services link in the sidebar |
+| `canAccessFinancialData` | Financial reports, metrics, snapshots |
+
+---
+
+### Other Restricted Roles
+
+The same inventory restrictions apply to **Delivery Driver** and **Restaurant Associate** roles — they also default to `canViewInventoryReports: false` and `canViewServices: false`.
 
 ---
 

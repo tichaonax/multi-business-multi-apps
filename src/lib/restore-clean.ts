@@ -377,6 +377,13 @@ const RESTORE_ORDER = [
   'itemExpiryBatches',           // Depends on businesses, barcodeInventoryItems
   'expiryActions',               // Depends on businesses, itemExpiryBatches
 
+  // Policy Management (MBM-189)
+  'policyTemplates',             // No FK dependencies (global reference table)
+  'policies',                    // Depends on businesses, users (createdById)
+  'policyVersions',              // Depends on policies, users (createdById, publishedById)
+  'policyAssignments',           // Depends on policies, businesses, users
+  'policyAcknowledgments',       // Depends on policyAssignments, businesses, users
+
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs'           // Depends on users
 ]
@@ -448,6 +455,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Prep Inventory Config: unique on (businessProductId, businessId)
   'menuItemInventoryConfigs': { fields: ['businessProductId', 'businessId'] },
+
+  // Policy Management: composite unique constraints
+  'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])
+  'policyAcknowledgments': { fields: ['policyAssignmentId', 'userId'] }, // @@unique([policyAssignmentId, userId])
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
@@ -497,6 +508,12 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Expiry Tracking (MBM-186)
   'itemExpiryBatches': 'itemExpiryBatch',
   'expiryActions': 'expiryAction',
+  // Policy Management (MBM-189)
+  'policyTemplates': 'policyTemplate',
+  'policies': 'policy',
+  'policyVersions': 'policyVersion',
+  'policyAssignments': 'policyAssignment',
+  'policyAcknowledgments': 'policyAcknowledgment',
   // Chicken Run
   'chickenBatches': 'chickenBatch',
   'chickenFeedLogs': 'chickenFeedLog',

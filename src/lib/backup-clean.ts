@@ -1370,6 +1370,24 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // 55. Policy Management (MBM-189)
+  // policyTemplates are global (no businessId) — back up all
+  businessData.policyTemplates = await prisma.policyTemplate.findMany()
+  businessData.policies = await prisma.policy.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const policyIds = businessData.policies.map((p: any) => p.id)
+  businessData.policyVersions = await prisma.policyVersion.findMany({
+    where: { policyId: { in: policyIds } }
+  })
+  businessData.policyAssignments = await prisma.policyAssignment.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const policyAssignmentIds = businessData.policyAssignments.map((a: any) => a.id)
+  businessData.policyAcknowledgments = await prisma.policyAcknowledgment.findMany({
+    where: { policyAssignmentId: { in: policyAssignmentIds } }
+  })
+
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined
 
@@ -1428,7 +1446,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.23.0',
+    schemaVersion: '6.24.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

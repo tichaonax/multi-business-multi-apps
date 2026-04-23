@@ -183,6 +183,12 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Expiry Tracking (MBM-186)
   'itemExpiryBatches': 'itemExpiryBatch',
   'expiryActions': 'expiryAction',
+  // Policy Management (MBM-189)
+  'policyTemplates': 'policyTemplate',
+  'policies': 'policy',
+  'policyVersions': 'policyVersion',
+  'policyAssignments': 'policyAssignment',
+  'policyAcknowledgments': 'policyAcknowledgment',
 }
 
 /**
@@ -274,6 +280,10 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'assetDepreciationEntries',    // linked via assetId
   'assetMaintenanceLogs',        // linked via assetId
   'assetImages',                 // linked via assetId
+  // Policy Management (MBM-189) — child tables without businessId
+  'policyTemplates',             // global reference table, no businessId
+  'policyVersions',              // linked via policyId
+  'policyAcknowledgments',       // linked via policyAssignmentId
 ])
 
 /**
