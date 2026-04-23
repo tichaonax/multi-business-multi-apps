@@ -414,8 +414,6 @@ export default function ManagerEodPage() {
             )}
           </div>
         )}
-      </ContentLayout>
-
       {/* Override modal */}
       {overrideModal && currentBusinessId && (
         <OverrideModal
@@ -425,6 +423,6 @@ export default function ManagerEodPage() {
           onSuccess={fetchRecords}
         />
       )}
-    </ContentLayout>
+      </ContentLayout>
   )
 }

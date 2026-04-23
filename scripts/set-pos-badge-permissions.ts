@@ -1,69 +1,73 @@
 /**
- * MBM-188: Backfill canViewPOSSoldCount and canViewPOSStockCount permissions
- * into existing business_memberships and users rows based on current role.
+ * MBM-188: Backfill canViewPOSSoldCount and canViewPOSStockCount
+ * into all business_memberships rows based on their role preset.
  *
  * Run: npx ts-node --env-file .env.local scripts/set-pos-badge-permissions.ts
  *
- * Roles that get TRUE: owner, manager, employee, salesperson, restaurant_associate
- * Roles that get FALSE: read_only, delivery_driver
- * Users: all existing users get TRUE in their global permissions
+ * This script OVERWRITES any existing value for these two keys with the
+ * correct preset value, fixing rows that were saved with wrong data.
  */
 
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-const TRUE_ROLES = new Set(['owner', 'manager', 'employee', 'salesperson', 'restaurant_associate'])
-const FALSE_ROLES = new Set(['read_only', 'delivery_driver'])
+// These must match the exact role strings stored in business_memberships.role
+const TRUE_ROLES = new Set([
+  'business-owner',
+  'business-manager',
+  'employee',
+  'salesperson',
+  'restaurant-associate',
+  'grocery-associate',
+  'clothing-associate',
+  'system-admin',
+])
+
+const FALSE_ROLES = new Set([
+  'read-only',
+  'delivery-driver',
+])
 
 async function main() {
-  // --- Business memberships ---
-  const memberships = await prisma.businessMembership.findMany({
-    select: { id: true, role: true, permissions: true }
+  const memberships = await prisma.businessMemberships.findMany({
+    select: { id: true, role: true, permissions: true, businesses: { select: { name: true } } }
   })
 
-  let membershipUpdated = 0
+  let updated = 0
+  let skipped = 0
+
   for (const m of memberships) {
     const role = (m.role || '').toLowerCase()
-    if (!TRUE_ROLES.has(role) && !FALSE_ROLES.has(role)) continue
+    let canView: boolean
 
-    const canView = TRUE_ROLES.has(role)
+    if (TRUE_ROLES.has(role)) {
+      canView = true
+    } else if (FALSE_ROLES.has(role)) {
+      canView = false
+    } else {
+      console.log(`  SKIP unknown role "${role}" on membership ${m.id}`)
+      skipped++
+      continue
+    }
+
     const existing = (m.permissions as Record<string, unknown>) || {}
-    const updated = {
+    const updatedPerms = {
       ...existing,
       canViewPOSSoldCount: canView,
-      canViewPOSStockCount: canView
+      canViewPOSStockCount: canView,
     }
-    await prisma.businessMembership.update({
+
+    await prisma.businessMemberships.update({
       where: { id: m.id },
-      data: { permissions: updated }
+      data: { permissions: updatedPerms }
     })
-    membershipUpdated++
+
+    console.log(`  SET ${canView ? 'true ' : 'false'} → ${m.businesses?.name || m.id} (${role})`)
+    updated++
   }
-  console.log(`Updated ${membershipUpdated} / ${memberships.length} business memberships`)
 
-  // --- Users (global permissions) ---
-  const users = await prisma.user.findMany({
-    select: { id: true, permissions: true }
-  })
-
-  let userUpdated = 0
-  for (const u of users) {
-    const existing = (u.permissions as Record<string, unknown>) || {}
-    const updated = {
-      ...existing,
-      canViewPOSSoldCount: true,
-      canViewPOSStockCount: true
-    }
-    await prisma.user.update({
-      where: { id: u.id },
-      data: { permissions: updated }
-    })
-    userUpdated++
-  }
-  console.log(`Updated ${userUpdated} / ${users.length} users`)
-
-  console.log('Done.')
+  console.log(`\nDone. Updated: ${updated}, Skipped: ${skipped}, Total: ${memberships.length}`)
 }
 
 main()

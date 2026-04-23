@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/lib/permission-utils'
-import { BusinessPermissions, BusinessType, CORE_PERMISSIONS, BUSINESS_TYPE_MODULES } from '@/types/permissions'
+import { BusinessPermissions, BusinessType, CORE_PERMISSIONS, BUSINESS_TYPE_MODULES, BUSINESS_PERMISSION_PRESETS } from '@/types/permissions'
 
 interface BusinessMembership {
   businessId: string
@@ -40,7 +40,13 @@ export function BusinessPermissionModal({
   onError 
 }: BusinessPermissionModalProps) {
   const [loading, setLoading] = useState(false)
-  const [permissions, setPermissions] = useState<Partial<BusinessPermissions>>(membership.permissions)
+  // Initialize with the role preset as base, then overlay DB values.
+  // This ensures every key has an explicit true/false when saved — preventing
+  // absent keys from silently falling back to the preset on the next load.
+  const [permissions, setPermissions] = useState<Partial<BusinessPermissions>>(() => {
+    const preset = BUSINESS_PERMISSION_PRESETS[membership.role as keyof typeof BUSINESS_PERMISSION_PRESETS] || {}
+    return { ...preset, ...membership.permissions }
+  })
   const [hasChanges, setHasChanges] = useState(false)
 
   const updatePermission = (key: string, value: boolean) => {
@@ -49,6 +55,12 @@ export function BusinessPermissionModal({
       [key]: value
     }
     setPermissions(newPermissions)
+    setHasChanges(true)
+  }
+
+  const resetToRoleDefaults = () => {
+    const preset = BUSINESS_PERMISSION_PRESETS[membership.role as keyof typeof BUSINESS_PERMISSION_PRESETS] || {}
+    setPermissions({ ...preset })
     setHasChanges(true)
   }
 
@@ -147,16 +159,22 @@ export function BusinessPermissionModal({
                 </span>
               )}
             </div>
-            {membership.template && (
-              <div className="mt-2">
+            <div className="mt-2 flex gap-4">
+              <button
+                onClick={resetToRoleDefaults}
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+              >
+                Reset to role defaults
+              </button>
+              {membership.template && (
                 <button
                   onClick={resetToTemplate}
                   className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                 >
                   Reset to template defaults
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Permission Categories */}

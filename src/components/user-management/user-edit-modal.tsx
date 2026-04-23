@@ -151,14 +151,18 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
 
     // Initialize business memberships from user data
     const initialMemberships = (user.businessMemberships || []).map((membership, index) => {
-      const roleKey = membership.role as keyof typeof BUSINESS_PERMISSION_PRESETS
-      const defaultPermissions = BUSINESS_PERMISSION_PRESETS[roleKey] || BUSINESS_PERMISSION_PRESETS.employee
+      // Normalize legacy/unknown roles to 'employee' so the dropdown always shows a valid option
+      const rawRole = membership.role as string
+      const roleKey = (rawRole in BUSINESS_PERMISSION_PRESETS)
+        ? rawRole as keyof typeof BUSINESS_PERMISSION_PRESETS
+        : 'employee'
+      const defaultPermissions = BUSINESS_PERMISSION_PRESETS[roleKey]
       const currentPermissions = membership.permissions as Partial<BusinessPermissions>
 
-      // Check if current permissions differ from default role permissions
-      // or if a template is assigned (which indicates custom permissions)
+      // Only treat as custom if a template is assigned OR if there are non-empty explicit permissions
       const hasCustomPermissions = !!membership.templateId ||
-        JSON.stringify(currentPermissions) !== JSON.stringify(defaultPermissions)
+        (Object.keys(currentPermissions || {}).length > 0 &&
+         JSON.stringify(currentPermissions) !== JSON.stringify(defaultPermissions))
 
       return {
         businessId: membership.businessId,
