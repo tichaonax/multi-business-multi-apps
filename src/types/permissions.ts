@@ -3313,8 +3313,10 @@ export interface BusinessMembership {
 }
 
 // Helper function to merge permissions with role-based defaults
-// Role preset provides the base, DB custom permissions can only ELEVATE (grant additional access)
-// This ensures preset changes (e.g. granting managers deposit access) propagate automatically
+// Role preset provides the base; absent DB keys inherit from preset automatically.
+// Explicit true/false values saved by an admin always override the preset.
+// This means: new preset grants propagate to users who never had the key set,
+// while an admin's explicit decision (grant or revoke) is always respected.
 export function mergeWithBusinessPermissions(
   userPermissions?: Partial<CoreBusinessPermissions>,
   role?: string
@@ -3324,16 +3326,16 @@ export function mergeWithBusinessPermissions(
   if (!userPermissions || Object.keys(userPermissions).length === 0) {
     return { ...basePermissions }
   }
-  // Only apply true values from DB — custom permissions elevate, never restrict
-  const elevated: Partial<CoreBusinessPermissions> = {}
+  // Apply any explicitly saved true/false; absent keys inherit from preset
+  const overrides: Partial<CoreBusinessPermissions> = {}
   for (const [key, value] of Object.entries(userPermissions)) {
-    if (value === true) {
-      (elevated as any)[key] = true
+    if (value === true || value === false) {
+      (overrides as any)[key] = value
     }
   }
   return {
     ...basePermissions,
-    ...elevated,
+    ...overrides,
   };
 }
 
