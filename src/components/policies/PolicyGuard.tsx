@@ -67,6 +67,7 @@ export function PolicyGuard({ children }: { children: React.ReactNode }) {
           pending={pending}
           onAllDone={handleAllDone}
           onError={setError}
+          onClose={() => setPending([])}
         />
       )}
       {error && (

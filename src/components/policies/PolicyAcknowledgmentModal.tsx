@@ -18,6 +18,7 @@ interface Props {
   pending: PendingPolicy[]
   onAllDone: () => void
   onError: (msg: string) => void
+  onClose?: () => void
 }
 
 const DISCLAIMER = (title: string, version: number) =>
@@ -27,7 +28,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   HR: 'HR', SAFETY: 'Safety', IT: 'IT', FINANCE: 'Finance', CODE_OF_CONDUCT: 'Code of Conduct', OTHER: 'Other',
 }
 
-export function PolicyAcknowledgmentModal({ pending, onAllDone, onError }: Props) {
+export function PolicyAcknowledgmentModal({ pending, onAllDone, onError, onClose }: Props) {
   const [index, setIndex] = useState(0)
   const [scrolledToEnd, setScrolledToEnd] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -37,6 +38,7 @@ export function PolicyAcknowledgmentModal({ pending, onAllDone, onError }: Props
 
   const total = pending.length
   const isLast = index === total - 1
+  const canClose = onClose && current.dueDate !== null && !current.isOverdue
 
   const handleAcknowledge = async () => {
     setSaving(true)
@@ -67,9 +69,18 @@ export function PolicyAcknowledgmentModal({ pending, onAllDone, onError }: Props
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
+      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+          {canClose && (
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              title="Close — you can acknowledge this later before the due date"
+            >
+              ✕
+            </button>
+          )}
           {/* Progress */}
           {total > 1 && (
             <div className="flex items-center gap-2 mb-3">

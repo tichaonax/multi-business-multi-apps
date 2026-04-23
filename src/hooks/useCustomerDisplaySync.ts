@@ -348,7 +348,7 @@ export function useOpenCustomerDisplay(businessId: string, terminalId: string) {
       console.log('[useOpenCustomerDisplay] Display opened (drag to secondary monitor and press F11 for fullscreen)')
       return displayWindow
     } catch (error) {
-      console.error('[useOpenCustomerDisplay] Error:', error)
+      console.warn('[useOpenCustomerDisplay] Could not open display window:', error)
       throw error
     }
   }, [businessId, terminalId])

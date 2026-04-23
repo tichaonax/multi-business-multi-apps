@@ -9,6 +9,8 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { SessionUser } from '@/lib/permission-utils'
 import { EmployeeContractViewer } from '@/components/contracts/employee-contract-viewer'
 import { PolicyViewer } from '@/components/policies/PolicyViewer'
+import { PolicyAcknowledgmentModal } from '@/components/policies/PolicyAcknowledgmentModal'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 const CATEGORY_LABELS: Record<string, string> = {
   HR: 'HR', SAFETY: 'Safety', IT: 'IT', FINANCE: 'Finance', CODE_OF_CONDUCT: 'Code of Conduct', OTHER: 'Other',
@@ -49,8 +51,20 @@ interface UserProfile {
   }>
 }
 
+interface PendingPolicy {
+  assignmentId: string
+  policyId: string
+  policyVersion: number
+  dueDate: string | null
+  isOverdue: boolean
+  policy: { id: string; title: string; category: string; contentType: string; currentVersion: number }
+  content: string | null
+  fileId: string | null
+}
+
 export default function ProfilePage() {
-  const { data: session, update } = useSession()
+  const { data: session, status, update } = useSession()
+  const { currentBusinessId } = useBusinessPermissionsContext()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -62,10 +76,15 @@ export default function ProfilePage() {
   const [error, setError] = useState('')
   const [policyAcks, setPolicyAcks] = useState<PolicyAck[]>([])
   const [viewingAck, setViewingAck] = useState<PolicyAck | null>(null)
+  const [pendingPolicies, setPendingPolicies] = useState<PendingPolicy[]>([])
+  const [acknowledgingPolicies, setAcknowledgingPolicies] = useState(false)
+  const [policyAgreementsOpen, setPolicyAgreementsOpen] = useState(false)
 
   useEffect(() => {
-    loadProfile()
-  }, [])
+    if (status === 'loading') return
+    if (status === 'unauthenticated') { setLoading(false); return }
+    if (session?.user?.id) loadProfile()
+  }, [status, session?.user?.id, currentBusinessId])
 
   const loadProfile = async () => {
     if (!session?.user?.id) return
@@ -92,6 +111,13 @@ export default function ProfilePage() {
       const res = await fetch(`/api/policies/user/${session.user.id}`)
       if (res.ok) setPolicyAcks(await res.json())
     } catch {}
+
+    if (currentBusinessId) {
+      try {
+        const res = await fetch(`/api/policies/pending?businessId=${currentBusinessId}`)
+        if (res.ok) setPendingPolicies(await res.json())
+      } catch {}
+    }
   }
 
   const handlePrintSignedSummary = (ack: PolicyAck) => {
@@ -331,10 +357,10 @@ export default function ProfilePage() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
                         <h4 className="font-medium text-gray-900 dark:text-white">
-                          {membership.businesses.name}
+                          {membership.business?.name}
                         </h4>
                         <span className="px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                          {membership.businesses.type}
+                          {membership.business?.type}
                         </span>
                         <span className={`px-2 py-1 text-xs rounded ${
                           membership.isActive 
@@ -365,13 +391,68 @@ export default function ProfilePage() {
         {/* Employee Contracts */}
         <EmployeeContractViewer />
 
+        {/* Pending Policy Acknowledgments */}
+        {pendingPolicies.length > 0 && (
+          <div className="card border-2 border-amber-400 dark:border-amber-500">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                  Pending Policy Acknowledgments
+                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    {pendingPolicies.length} pending
+                  </span>
+                </h3>
+                <button
+                  onClick={() => setAcknowledgingPolicies(true)}
+                  className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                >
+                  Review &amp; Acknowledge
+                </button>
+              </div>
+              <div className="space-y-2">
+                {pendingPolicies.map(p => (
+                  <div key={p.assignmentId} className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <div>
+                      <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{p.policy.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {CATEGORY_LABELS[p.policy.category] ?? p.policy.category} · v{p.policyVersion}
+                        {p.dueDate && (
+                          <span className={`ml-2 ${p.isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-amber-600 dark:text-amber-400'}`}>
+                            {p.isOverdue ? 'Overdue' : `Due ${new Date(p.dueDate).toLocaleDateString()}`}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* My Policy Agreements */}
         <div className="card">
-          <div className="p-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              My Policy Agreements
-            </h3>
+          <button
+            onClick={() => setPolicyAgreementsOpen(o => !o)}
+            className="w-full flex items-center justify-between p-6 text-left"
+          >
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">My Policy Agreements</h3>
+              {pendingPolicies.length > 0 && (
+                <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-medium">
+                  {pendingPolicies.length} action required
+                </span>
+              )}
+              {policyAcks.length > 0 && (
+                <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                  {policyAcks.length} acknowledged
+                </span>
+              )}
+            </div>
+            <span className="text-gray-400 dark:text-gray-500 text-sm">{policyAgreementsOpen ? '▲' : '▼'}</span>
+          </button>
 
+          {policyAgreementsOpen && <div className="px-6 pb-6">
             {policyAcks.length === 0 ? (
               <p className="text-gray-500 dark:text-gray-400 text-sm">No policy acknowledgments on record.</p>
             ) : (
@@ -422,7 +503,7 @@ export default function ProfilePage() {
                 </table>
               </div>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Policy view modal */}
@@ -434,6 +515,9 @@ export default function ProfilePage() {
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{viewingAck.policy?.title}</h2>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {CATEGORY_LABELS[viewingAck.policy?.category ?? ''] ?? viewingAck.policy?.category} · Version {viewingAck.policyVersion} · {viewingAck.business?.name}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                    ✓ Acknowledged {new Date(viewingAck.acknowledgedAt).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </p>
                 </div>
                 <button onClick={() => setViewingAck(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold ml-4">×</button>
@@ -494,6 +578,24 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {acknowledgingPolicies && pendingPolicies.length > 0 && (
+        <PolicyAcknowledgmentModal
+          pending={pendingPolicies}
+          onClose={() => setAcknowledgingPolicies(false)}
+          onAllDone={() => {
+            setAcknowledgingPolicies(false)
+            setPendingPolicies([])
+            if (session?.user?.id) {
+              fetch(`/api/policies/user/${session.user.id}`)
+                .then(r => r.ok ? r.json() : [])
+                .then(setPolicyAcks)
+                .catch(() => {})
+            }
+          }}
+          onError={(msg) => setError(msg)}
+        />
+      )}
     </ContentLayout>
   )
 }

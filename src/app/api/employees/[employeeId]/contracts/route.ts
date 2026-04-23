@@ -18,29 +18,39 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { employeeId } = await params
 
-    const contracts = await prisma.employeeContracts.findMany({
+    const rows = await prisma.employeeContracts.findMany({
       where: { employeeId },
-      select: {
-        id: true,
-        contractNumber: true,
-        version: true,
-        baseSalary: true,
-        startDate: true,
-        endDate: true,
-        status: true,
-        employeeSignedAt: true,
-        createdAt: true,
-        pdfGenerationData: true,
-        isRenewal: true,
-        renewalCount: true,
-        workDaysPerWeek: true,
-        dailyStartTime: true,
-        dailyEndTime: true,
-        annualVacationDays: true,
-        contractDurationMonths: true,
+      include: {
+        job_titles: { select: { title: true } },
+        compensation_types: { select: { name: true, type: true } },
+        businesses_employee_contracts_primaryBusinessIdTobusinesses: { select: { id: true, name: true, type: true } },
+        employees_employee_contracts_supervisorIdToemployees: { select: { id: true, fullName: true } },
       },
       orderBy: { createdAt: 'desc' }
     })
+
+    // Map Prisma relation keys to viewer-friendly shape
+    const contracts = rows.map((c: any) => ({
+      id: c.id,
+      contractNumber: c.contractNumber,
+      version: c.version,
+      baseSalary: c.baseSalary,
+      livingAllowance: c.livingAllowance,
+      commissionAmount: c.commissionAmount,
+      startDate: c.startDate,
+      endDate: c.endDate,
+      status: c.status,
+      isActive: c.status === 'active',
+      isRenewal: c.isRenewal,
+      renewalCount: c.renewalCount,
+      contractDurationMonths: c.contractDurationMonths,
+      employeeSignedAt: c.employeeSignedAt,
+      pdfGenerationData: c.pdfGenerationData,
+      jobTitle: c.job_titles ?? null,
+      compensationType: c.compensation_types ?? null,
+      businesses: c.businesses_employee_contracts_primaryBusinessIdTobusinesses ?? null,
+      supervisor: c.employees_employee_contracts_supervisorIdToemployees ?? null,
+    }))
 
     // Debug: Log retrieved contracts
     console.log('📋 Retrieved contracts:', contracts.map(c => ({
