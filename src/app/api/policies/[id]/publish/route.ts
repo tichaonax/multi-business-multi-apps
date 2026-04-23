@@ -35,9 +35,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const now = new Date()
 
   if (policy.status === 'DRAFT') {
-    // First publish — no existing versions; create version 1
-    const newVersion = await prisma.policyVersion.create({
-      data: {
+    // First publish — upsert version 1 to handle double-submit / retry
+    const newVersion = await prisma.policyVersion.upsert({
+      where: { policyId_version: { policyId: id, version: 1 } },
+      create: {
         policyId: id,
         version: 1,
         status: 'PUBLISHED',
@@ -45,6 +46,14 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         fileId: fileId ?? null,
         changeNote: changeNote ?? null,
         createdById: user.id,
+        publishedById: user.id,
+        publishedAt: now,
+      },
+      update: {
+        status: 'PUBLISHED',
+        content: content ?? undefined,
+        fileId: fileId ?? undefined,
+        changeNote: changeNote ?? undefined,
         publishedById: user.id,
         publishedAt: now,
       },

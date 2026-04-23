@@ -62,6 +62,7 @@ export default function PoliciesPage() {
   const [assigningPolicy, setAssigningPolicy] = useState<Policy | null>(null)
   const [reportPolicy, setReportPolicy] = useState<Policy | null>(null)
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null)
 
   const canManage = isSystemAdmin || hasPermission('canManagePolicies')
 
@@ -192,7 +193,8 @@ export default function PoliciesPage() {
           </button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-visible">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
@@ -236,17 +238,27 @@ export default function PoliciesPage() {
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">
                     {new Date(policy.updatedAt).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3 relative">
+                  <td className="px-4 py-3">
                     <button
-                      onClick={() => setActionMenuOpen(actionMenuOpen === policy.id ? null : policy.id)}
+                      onClick={(e) => {
+                        if (actionMenuOpen === policy.id) {
+                          setActionMenuOpen(null)
+                          setMenuPos(null)
+                        } else {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          setMenuPos({ top: rect.bottom + window.scrollY, right: window.innerWidth - rect.right })
+                          setActionMenuOpen(policy.id)
+                        }
+                      }}
                       className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
                     >
                       ⋯
                     </button>
-                    {actionMenuOpen === policy.id && (
+                    {actionMenuOpen === policy.id && menuPos && (
                       <div
-                        className="absolute right-0 top-8 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[160px] py-1"
-                        onClick={() => setActionMenuOpen(null)}
+                        style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+                        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[160px] py-1"
+                        onClick={() => { setActionMenuOpen(null); setMenuPos(null) }}
                       >
                         <button onClick={() => setPreviewPolicy(policy)} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
                           Preview
@@ -292,12 +304,13 @@ export default function PoliciesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
       {/* Close action menus when clicking outside */}
       {actionMenuOpen && (
-        <div className="fixed inset-0 z-10" onClick={() => setActionMenuOpen(null)} />
+        <div className="fixed inset-0 z-[9998]" onClick={() => { setActionMenuOpen(null); setMenuPos(null) }} />
       )}
 
       {/* Modals */}
