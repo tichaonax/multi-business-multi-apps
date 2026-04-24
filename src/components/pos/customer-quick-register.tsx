@@ -38,6 +38,27 @@ export function CustomerQuickRegister({ businessId, businessName, businessPhone,
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const formatPhoneInput = (raw: string): string => {
+    const hasPlus = raw.startsWith('+')
+    const digits = raw.replace(/\D/g, '')
+    if (hasPlus) {
+      if (digits.length <= 3) return '+' + digits
+      if (digits.length <= 5) return `+${digits.slice(0,3)} ${digits.slice(3)}`
+      if (digits.length <= 8) return `+${digits.slice(0,3)} ${digits.slice(3,5)} ${digits.slice(5)}`
+      return `+${digits.slice(0,3)} ${digits.slice(3,5)} ${digits.slice(5,8)} ${digits.slice(8,12)}`
+    } else if (digits.startsWith('0')) {
+      if (digits.length <= 3) return digits
+      if (digits.length <= 6) return `${digits.slice(0,3)} ${digits.slice(3)}`
+      if (digits.length <= 9) return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6)}`
+      return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,10)}`
+    } else {
+      if (digits.length <= 2) return digits
+      if (digits.length <= 5) return `${digits.slice(0,2)} ${digits.slice(2)}`
+      if (digits.length <= 8) return `${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5)}`
+      return `${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5,9)}`
+    }
+  }
   const [error, setError] = useState<string | null>(null)
   // After creation: show card preview before handing off
   const [createdCustomer, setCreatedCustomer] = useState<QuickRegisterCustomer | null>(null)
@@ -146,7 +167,7 @@ export function CustomerQuickRegister({ businessId, businessName, businessPhone,
         type="tel"
         placeholder="Phone number *"
         value={phone}
-        onChange={e => setPhone(e.target.value)}
+        onChange={e => setPhone(formatPhoneInput(e.target.value))}
         className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       />
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}

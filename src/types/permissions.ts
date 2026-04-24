@@ -1007,6 +1007,19 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, PermissionModule[]> = {
         { key: 'canViewPOSSoldCount', label: 'POS: Show Sold Count Badge ("X sold today")' },
         { key: 'canViewPOSStockCount', label: 'POS: Show Stock Remaining Badge ("X left")' },
       ]
+    },
+    {
+      title: 'Delivery Service',
+      permissions: [
+        { key: 'canViewDeliveryQueue', label: 'View Delivery Queue' },
+        { key: 'canCreateDeliveryOrders', label: 'Create Delivery Orders' },
+        { key: 'canUpdateDeliveryStatus', label: 'Update Order Status (Mark Ready / Dispatched)' },
+        { key: 'canManageDeliveryRuns', label: 'Manage Delivery Runs & Mark Delivered' },
+        { key: 'canManageDeliveryCredit', label: 'Manage Customer Delivery Credit' },
+        { key: 'canManageDeliveryBlacklist', label: 'Manage Delivery Blacklist' },
+        { key: 'canViewDeliveryReports', label: 'View Delivery Reports & Payments' },
+        { key: 'canPrintDeliveryMarketing', label: 'Print Delivery Marketing Materials' },
+      ]
     }
   ],
   construction: [

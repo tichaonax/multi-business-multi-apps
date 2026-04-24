@@ -6362,6 +6362,7 @@ model DeliveryOrderMeta {
   status               String   @default("PENDING")
   paymentCollected     Decimal? @db.Decimal(10, 2)
   paymentCollectedAt   DateTime?
+  paymentCollectedBy   String?
   returnReason         String?
   runId                String?
   createdAt            DateTime @default(now())
@@ -6372,6 +6373,19 @@ model DeliveryOrderMeta {
   @@index([status])
   @@index([runId])
   @@map("delivery_order_meta")
+}
+
+model DeliveryStatusHistory {
+  id         String   @id @default(uuid())
+  orderId    String
+  fromStatus String
+  toStatus   String
+  changedBy  String
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+  @@map("delivery_status_history")
 }
 
 model DeliveryRuns {

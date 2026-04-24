@@ -581,6 +581,9 @@ export default function EmployeesPage() {
                             </div>
                           )}
                           <p className="text-xs text-secondary">{employee.employeeNumber}</p>
+                          {employee.phone && (
+                            <p className="text-xs text-secondary">{employee.phone}</p>
+                          )}
                           {employee.email && (
                             <p className="text-xs text-secondary truncate">{employee.email}</p>
                           )}

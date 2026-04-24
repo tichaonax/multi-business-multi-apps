@@ -1440,6 +1440,7 @@ export interface DeliveryRunSheetData {
   orders: Array<{
     orderNumber: string
     customerName: string
+    customerPhone?: string
     deliveryNote?: string   // address / instructions
     amountDue: number       // cash to collect (total - creditUsed)
     paymentMode: string
@@ -1625,19 +1626,23 @@ export function generateDeliveryRunSheet(data: DeliveryRunSheetData): string {
   r += ALIGN_LEFT
   r += line('=') + LF
 
+  const foldLine = centerText('- - - - - FOLD HERE - - - - -')
+
   data.orders.forEach((order, i) => {
     r += `[${i + 1}] Order: ${order.orderNumber}` + LF
     r += `    Name : ${stripEmojis(order.customerName)}` + LF
+    if (order.customerPhone) r += `    Phone: ${formatPhoneNumberForDisplay(order.customerPhone)}` + LF
     if (order.deliveryNote) {
-      r += wrapText(`    Addr : ${stripEmojis(order.deliveryNote)}`, RECEIPT_WIDTH) + LF
+      r += wrapText(`    Note : ${stripEmojis(order.deliveryNote)}`, RECEIPT_WIDTH) + LF
     }
     if (order.paymentMode === 'PREPAID') {
       r += `    Pay  : PREPAID (no cash)` + LF
     } else {
       r += `    Pay  : COLLECT $${order.amountDue.toFixed(2)}` + LF
+      r += `    Rcvd : $____________` + LF
     }
     r += `    Done : [ ]` + LF
-    r += line('-') + LF
+    r += LF + ALIGN_CENTER + foldLine + LF + ALIGN_LEFT
   })
 
   const cashOrders = data.orders.filter(o => o.paymentMode !== 'PREPAID')

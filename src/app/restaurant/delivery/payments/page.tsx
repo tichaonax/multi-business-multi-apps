@@ -15,6 +15,7 @@ type Row = {
   paymentMode: string
   paymentCollected: string | null
   paymentCollectedAt: string | null
+  collectedByName: string | null
   returnReason: string | null
   creditUsed: string
   customerName: string | null
@@ -50,6 +51,28 @@ export default function DeliveryPaymentsPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editingPayment, setEditingPayment] = useState<string | null>(null) // orderId being edited
+  const [editValue, setEditValue] = useState('')
+  const [savingPayment, setSavingPayment] = useState<string | null>(null)
+
+  const saveCollected = async (orderId: string) => {
+    const amount = parseFloat(editValue)
+    if (isNaN(amount) || amount < 0) return
+    setSavingPayment(orderId)
+    try {
+      const res = await fetch(`/api/restaurant/delivery/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentCollected: amount }),
+      })
+      if (res.ok) {
+        setEditingPayment(null)
+        load()
+      }
+    } finally {
+      setSavingPayment(null)
+    }
+  }
 
   const load = useCallback(async () => {
     if (!currentBusinessId) return
@@ -153,9 +176,34 @@ export default function DeliveryPaymentsPage() {
                         <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300 font-medium">{row.status === 'DELIVERED' ? fmt(due) : '—'}</td>
                         <td className="px-4 py-3 text-right">
                           {row.status === 'DELIVERED' ? (
-                            collected != null
-                              ? <span className={collected >= due ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}>{fmt(collected)}</span>
-                              : <span className="text-gray-400 italic text-xs">Not captured</span>
+                            editingPayment === row.orderId ? (
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="text-gray-400 text-xs">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  autoFocus
+                                  value={editValue}
+                                  onChange={e => setEditValue(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') saveCollected(row.orderId); if (e.key === 'Escape') setEditingPayment(null) }}
+                                  className="w-20 px-1.5 py-0.5 text-sm border border-blue-400 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-right focus:outline-none"
+                                />
+                                <button onClick={() => saveCollected(row.orderId)} disabled={savingPayment === row.orderId} className="text-xs text-green-600 hover:text-green-700 font-bold disabled:opacity-50">✓</button>
+                                <button onClick={() => setEditingPayment(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingPayment(row.orderId); setEditValue(collected != null ? collected.toFixed(2) : '') }}
+                                className="group text-right w-full"
+                                title="Click to record collected amount"
+                              >
+                                {collected != null
+                                  ? <span className={`${collected >= due ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'} group-hover:underline`}>{fmt(collected)}</span>
+                                  : <span className="text-blue-500 dark:text-blue-400 italic text-xs group-hover:underline">+ Record</span>
+                                }
+                              </button>
+                            )
                           ) : '—'}
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -165,9 +213,14 @@ export default function DeliveryPaymentsPage() {
                             ? <span className="text-green-600 dark:text-green-400 text-xs">✓</span>
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-400 max-w-[180px]">
-                          {row.returnReason && <span className="text-orange-500">Return: {row.returnReason}</span>}
-                          {Number(row.creditUsed) > 0 && <span>Credit: ${Number(row.creditUsed).toFixed(2)}</span>}
+                        <td className="px-4 py-3 text-xs text-gray-400 max-w-[200px] space-y-0.5">
+                          {row.returnReason && <div className="text-orange-500">Return: {row.returnReason}</div>}
+                          {Number(row.creditUsed) > 0 && <div>Credit: ${Number(row.creditUsed).toFixed(2)}</div>}
+                          {row.collectedByName && collected != null && (
+                            <div className="text-gray-500 dark:text-gray-400">
+                              Recorded by: <span className="font-medium text-gray-600 dark:text-gray-300">{row.collectedByName}</span>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )

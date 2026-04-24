@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { randomUUID } from 'crypto'
 
 const VALID_STATUSES = ['PENDING', 'READY', 'DISPATCHED', 'DELIVERED', 'RETURNED', 'CANCELLED']
 const PREPARED_STATUSES = ['READY', 'DISPATCHED', 'DELIVERED']
+const PREV_STATUS: Record<string, string> = {
+  DELIVERED: 'DISPATCHED',
+  DISPATCHED: 'READY',
+  READY: 'PENDING',
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -15,7 +21,28 @@ export async function PATCH(
 
     const { orderId } = params
     const body = await request.json()
-    const { status, paymentCollected, returnReason } = body
+    const { status, paymentCollected, returnReason, reason } = body
+
+    const existing = await prisma.deliveryOrderMeta.findUnique({ where: { orderId } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 })
+    }
+
+    // Payment-only update — no status change
+    if (status === undefined && paymentCollected !== undefined && paymentCollected !== null) {
+      if (existing.status !== 'DELIVERED') {
+        return NextResponse.json({ error: 'Can only record payment for delivered orders' }, { status: 400 })
+      }
+      await prisma.deliveryOrderMeta.update({
+        where: { orderId },
+        data: { paymentCollected, paymentCollectedAt: new Date(), paymentCollectedBy: user.id, updatedAt: new Date() },
+      })
+      await prisma.$executeRaw`
+        INSERT INTO delivery_status_history (id, "orderId", "fromStatus", "toStatus", "changedBy", reason, "createdAt")
+        VALUES (${randomUUID()}, ${orderId}, ${existing.status}, ${existing.status}, ${user.id}, ${'Payment recorded: $' + Number(paymentCollected).toFixed(2)}, NOW())
+      `
+      return NextResponse.json({ success: true, status: existing.status, message: 'Payment recorded.' })
+    }
 
     if (!status || !VALID_STATUSES.includes(status)) {
       return NextResponse.json(
@@ -24,9 +51,20 @@ export async function PATCH(
       )
     }
 
-    const existing = await prisma.deliveryOrderMeta.findUnique({ where: { orderId } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 })
+    // Block reverting DELIVERED if payment already collected
+    if (existing.status === 'DELIVERED' && existing.paymentCollected != null && status !== 'DELIVERED') {
+      return NextResponse.json(
+        { error: 'Cannot change status — payment has already been collected for this order.' },
+        { status: 409 }
+      )
+    }
+
+    // Block cancelling a prepared order without explicit override
+    if (status === 'CANCELLED' && PREPARED_STATUSES.includes(existing.status)) {
+      return NextResponse.json(
+        { error: 'Cannot cancel an order that has already been prepared. Revert status first.' },
+        { status: 409 }
+      )
     }
 
     let creditRestored = false
@@ -61,6 +99,7 @@ export async function PATCH(
       if (status === 'DELIVERED' && paymentCollected !== undefined && paymentCollected !== null) {
         updateData.paymentCollected = paymentCollected
         updateData.paymentCollectedAt = new Date()
+        updateData.paymentCollectedBy = user.id
       }
 
       if (status === 'RETURNED' && returnReason) {
@@ -68,13 +107,17 @@ export async function PATCH(
       }
 
       await tx.deliveryOrderMeta.update({ where: { orderId }, data: updateData })
+
+      // Record status history
+      await tx.$executeRaw`
+        INSERT INTO delivery_status_history (id, "orderId", "fromStatus", "toStatus", "changedBy", reason, "createdAt")
+        VALUES (${randomUUID()}, ${orderId}, ${existing.status}, ${status}, ${user.id}, ${reason || null}, NOW())
+      `
     })
 
     const wasPrepared = PREPARED_STATUSES.includes(existing.status)
     const message =
-      status === 'CANCELLED' && wasPrepared
-        ? 'Order cancelled. Order was already prepared — credit was NOT refunded. Review manually if needed.'
-        : status === 'CANCELLED' && creditRestored
+      status === 'CANCELLED' && creditRestored
         ? 'Order cancelled and credit restored to customer account.'
         : status === 'RETURNED'
         ? 'Order marked as returned.'
@@ -84,5 +127,29 @@ export async function PATCH(
   } catch (error) {
     console.error('Error updating delivery status:', error)
     return NextResponse.json({ error: 'Failed to update status' }, { status: 500 })
+  }
+}
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: { orderId: string } }
+) {
+  try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { orderId } = params
+    const history = await prisma.$queryRaw<any[]>`
+      SELECT h.id, h."fromStatus", h."toStatus", h.reason, h."createdAt",
+             u.name AS "changedByName"
+      FROM delivery_status_history h
+      LEFT JOIN users u ON u.id = h."changedBy"
+      WHERE h."orderId" = ${orderId}
+      ORDER BY h."createdAt" ASC
+    `
+    return NextResponse.json({ success: true, history })
+  } catch (error) {
+    console.error('Error fetching delivery status history:', error)
+    return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 })
   }
 }

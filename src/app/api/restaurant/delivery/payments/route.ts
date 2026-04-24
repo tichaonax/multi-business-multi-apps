@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         dom."paymentMode",
         dom."paymentCollected",
         dom."paymentCollectedAt",
+        dom."paymentCollectedBy",
         dom."returnReason",
         dom."creditUsed",
         bc.name AS "customerName",
@@ -34,10 +35,12 @@ export async function GET(request: NextRequest) {
         COALESCE(
           (SELECT SUM(boi."totalPrice") FROM business_order_items boi WHERE boi."orderId" = bo.id),
           0
-        ) AS "orderTotal"
+        ) AS "orderTotal",
+        u."name" AS "collectedByName"
       FROM delivery_order_meta dom
       JOIN business_orders bo ON bo.id = dom."orderId"
       LEFT JOIN business_customers bc ON bc.id = bo."customerId"
+      LEFT JOIN users u ON u.id = dom."paymentCollectedBy"
       WHERE bo."businessId" = ${businessId}
         AND bo."createdAt" >= ${startOfDay}
         AND bo."createdAt" <= ${endOfDay}

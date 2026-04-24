@@ -163,7 +163,14 @@ export async function GET(request: NextRequest) {
       },
       include: {
         business_customers: { select: { id: true, name: true, phone: true } },
-        business_order_items: { select: { quantity: true, unitPrice: true, totalPrice: true } },
+        business_order_items: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            product_variants: { select: { name: true, business_products: { select: { name: true } } } },
+          },
+        },
       },
     })
 

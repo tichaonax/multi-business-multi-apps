@@ -11,10 +11,20 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
 import { generateDeliveryKitchenReceipt, generateDeliveryRunSheet } from '@/lib/printing/receipt-templates'
 import type { DeliveryReceiptData, DeliveryRunSheetData } from '@/lib/printing/receipt-templates'
+import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrderStatus = 'PENDING' | 'READY' | 'DISPATCHED' | 'DELIVERED' | 'RETURNED' | 'CANCELLED'
+
+type StatusHistoryEntry = {
+  id: string
+  fromStatus: string
+  toStatus: string
+  changedByName: string | null
+  reason: string | null
+  createdAt: string
+}
 
 type DeliveryOrder = {
   id: string
@@ -23,6 +33,7 @@ type DeliveryOrder = {
   paymentMode: string
   creditUsed: number
   creditBalance: number
+  paymentCollected?: number | null
   deliveryNote?: string | null
   runId?: string | null
   createdAt: string
@@ -31,7 +42,12 @@ type DeliveryOrder = {
     orderNumber: string
     totalAmount: number
     business_customers?: { id: string; name: string; phone?: string } | null
-    business_order_items: { quantity: number; unitPrice: number; totalPrice: number }[]
+    business_order_items: {
+      quantity: number
+      unitPrice: number
+      totalPrice: number
+      product_variants?: { name?: string | null; business_products?: { name: string } | null } | null
+    }[]
   }
 }
 
@@ -89,6 +105,12 @@ const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   DISPATCHED: 'DELIVERED',
 }
 
+const PREV_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
+  DELIVERED: 'DISPATCHED',
+  DISPATCHED: 'READY',
+  READY: 'PENDING',
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DeliveryManagementPage() {
@@ -144,6 +166,15 @@ export default function DeliveryManagementPage() {
 
   // Updating status
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
+
+  // Revert / cancel with reason
+  const [reasonModal, setReasonModal] = useState<{ orderId: string; targetStatus: OrderStatus; label: string } | null>(null)
+  const [reasonInput, setReasonInput] = useState('')
+
+  // Status history viewer
+  const [historyOrderId, setHistoryOrderId] = useState<string | null>(null)
+  const [historyData, setHistoryData] = useState<StatusHistoryEntry[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   // ── Load data ──────────────────────────────────────────────────────────────
 
@@ -221,13 +252,13 @@ export default function DeliveryManagementPage() {
 
   // ── Status update ──────────────────────────────────────────────────────────
 
-  const updateStatus = async (orderId: string, newStatus: OrderStatus) => {
+  const updateStatus = async (orderId: string, newStatus: OrderStatus, reason?: string) => {
     setUpdatingStatus(orderId)
     try {
       const res = await fetch(`/api/restaurant/delivery/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, reason: reason || null }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) { toast.error(data.error || 'Failed to update status'); return }
@@ -237,6 +268,25 @@ export default function DeliveryManagementPage() {
     } finally {
       setUpdatingStatus(null)
     }
+  }
+
+  const confirmReasonAndUpdate = async () => {
+    if (!reasonModal) return
+    if (!reasonInput.trim()) { toast.error('Please enter a reason'); return }
+    await updateStatus(reasonModal.orderId, reasonModal.targetStatus, reasonInput.trim())
+    setReasonModal(null)
+    setReasonInput('')
+  }
+
+  const loadHistory = async (orderId: string) => {
+    setHistoryOrderId(orderId)
+    setLoadingHistory(true)
+    try {
+      const res = await fetch(`/api/restaurant/delivery/orders/${orderId}/status`)
+      const data = await res.json()
+      if (res.ok && data.success) setHistoryData(data.history)
+    } catch {}
+    setLoadingHistory(false)
   }
 
   // ── Create run ─────────────────────────────────────────────────────────────
@@ -373,16 +423,22 @@ export default function DeliveryManagementPage() {
     const pendingOrders = orders.filter(o => o.status === 'PENDING')
     if (pendingOrders.length === 0) { toast.error('No pending orders to print'); return }
     for (const o of pendingOrders) {
+      const seq = o.order?.orderNumber?.split('-').pop() || o.orderId.slice(-4)
+      const barcodeEscPos = await generateBarcodeEscPos(`DEL-${seq}`).catch(() => undefined)
       const receiptData: DeliveryReceiptData = {
         businessName: currentBusiness?.businessName || '',
         orderNumber: o.order?.orderNumber || o.orderId.slice(-8),
         orderId: o.orderId,
         customerName: o.order?.business_customers?.name || 'Customer',
         customerPhone: o.order?.business_customers?.phone,
-        items: (o.order?.business_order_items || []).map(i => ({ name: `Item`, quantity: i.quantity })),
+        items: (o.order?.business_order_items || []).map(i => ({
+          name: i.product_variants?.name || i.product_variants?.business_products?.name || 'Item',
+          quantity: i.quantity,
+        })),
         deliveryNote: o.deliveryNote || undefined,
         transactionDate: new Date(o.createdAt),
         orderTotal: Number(o.order?.totalAmount || 0),
+        barcodeEscPos,
       }
       await sendRawPrint(generateDeliveryKitchenReceipt(receiptData))
     }
@@ -425,12 +481,16 @@ export default function DeliveryManagementPage() {
     const html = `<!DOCTYPE html><html><head><title>Delivery Driver Sheet — ${dateStr}</title>
     <style>
       body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #111827; }
-      @media print { body { padding: 10px; } }
+      .no-print { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+      @media print { .no-print { display: none !important; } body { padding: 10px; } }
       table { width: 100%; border-collapse: collapse; }
       th { background: #f3f4f6; padding: 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; border-bottom: 2px solid #d1d5db; }
       th:last-child, th:nth-child(6) { text-align: center; }
       th:nth-child(5) { text-align: right; }
     </style></head><body>
+    <div class="no-print">
+      <button onclick="window.print()" style="padding:8px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;">Print</button>
+    </div>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
       <div>
         <h1 style="margin:0;font-size:22px;font-weight:700;">${businessName}</h1>
@@ -466,12 +526,30 @@ export default function DeliveryManagementPage() {
       <div style="font-size:12px;color:#6b7280;">Driver signature: _______________________</div>
       <div style="font-size:12px;color:#6b7280;">Manager signature: _______________________</div>
     </div>
-    <script>window.onload = () => window.print()</script>
     </body></html>`
 
     const w = window.open('', '_blank')
     if (w) { w.document.write(html); w.document.close() }
     else toast.error('Allow pop-ups to print the driver sheet')
+  }
+
+  const printDriverSheetThermal = () => {
+    const activeOrders = orders.filter(o => ['PENDING', 'READY', 'DISPATCHED'].includes(o.status))
+    if (activeOrders.length === 0) { toast.error('No active orders to print'); return }
+    const sheetData: DeliveryRunSheetData = {
+      businessName: currentBusiness?.businessName || '',
+      runDate: new Date(selectedDate + 'T00:00:00'),
+      driverName: '___________________',
+      orders: activeOrders.map(o => ({
+        orderNumber: o.order?.orderNumber || o.orderId.slice(-8),
+        customerName: o.order?.business_customers?.name || 'Customer',
+        customerPhone: o.order?.business_customers?.phone || undefined,
+        deliveryNote: o.deliveryNote || undefined,
+        amountDue: o.paymentMode === 'PREPAID' ? 0 : Math.max(0, Number(o.order?.totalAmount || 0) - Number(o.creditUsed || 0)),
+        paymentMode: o.paymentMode,
+      })),
+    }
+    sendRawPrint(generateDeliveryRunSheet(sheetData))
   }
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -532,12 +610,20 @@ export default function DeliveryManagementPage() {
                 Marketing
               </Link>
             )}
-            {isManager && (
+            {(isManager || canUpdateStatus) && (
               <button
-                onClick={printDriverSheet}
+                onClick={printDriverSheetThermal}
                 className="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700"
               >
-                Print Driver Sheet
+                Driver Sheet (Thermal)
+              </button>
+            )}
+            {(isManager || canUpdateStatus) && (
+              <button
+                onClick={printDriverSheet}
+                className="px-4 py-2 text-sm bg-amber-700 text-white rounded-lg hover:bg-amber-800"
+              >
+                Driver Sheet (A4)
               </button>
             )}
             {isManager && (
@@ -635,19 +721,31 @@ export default function DeliveryManagementPage() {
                       const total = Number(o.order?.totalAmount || 0)
                       const due = o.paymentMode === 'PREPAID' ? 0 : total - Number(o.creditUsed || 0)
                       const next = NEXT_STATUS[status]
+                      const prev = PREV_STATUS[status]
+                      const paymentLocked = status === 'DELIVERED' && o.paymentCollected != null
                       return (
                         <div key={o.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-2 text-sm space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-xs font-medium text-gray-700 dark:text-gray-300">{orderNum}</span>
-                            {o.paymentMode === 'ON_DELIVERY' || o.paymentMode === 'PARTIAL' ? (
-                              <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">${due.toFixed(2)} due</span>
-                            ) : (
-                              <span className="text-xs text-green-600 dark:text-green-400">Prepaid</span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {o.paymentMode === 'ON_DELIVERY' || o.paymentMode === 'PARTIAL' ? (
+                                <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">${due.toFixed(2)} due</span>
+                              ) : (
+                                <span className="text-xs text-green-600 dark:text-green-400">Prepaid</span>
+                              )}
+                              <button
+                                onClick={() => loadHistory(o.orderId)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
+                                title="View status history"
+                              >
+                                🕐
+                              </button>
+                            </div>
                           </div>
                           {customer && <div className="text-xs text-gray-600 dark:text-gray-400">{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</div>}
                           {o.deliveryNote && <div className="text-xs text-gray-500 italic truncate">{o.deliveryNote}</div>}
                           {o.runId && <div className="text-xs text-purple-500 dark:text-purple-400">In run</div>}
+                          {paymentLocked && <div className="text-xs text-green-600 dark:text-green-400">✓ Payment collected</div>}
                           {next && (canUpdateStatus || isManager) && (next !== 'DELIVERED' || isManager) && (
                             <button
                               onClick={() => updateStatus(o.orderId, next)}
@@ -655,6 +753,24 @@ export default function DeliveryManagementPage() {
                               className="w-full mt-1 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-300 disabled:opacity-50"
                             >
                               {updatingStatus === o.orderId ? '...' : `Mark ${STATUS_LABELS[next]}`}
+                            </button>
+                          )}
+                          {prev && isManager && !paymentLocked && (
+                            <button
+                              onClick={() => { setReasonModal({ orderId: o.orderId, targetStatus: prev as OrderStatus, label: `Revert to ${STATUS_LABELS[prev as OrderStatus]}` }); setReasonInput('') }}
+                              disabled={updatingStatus === o.orderId}
+                              className="w-full py-1 text-xs bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 rounded hover:bg-amber-100 disabled:opacity-50"
+                            >
+                              ↩ Revert to {STATUS_LABELS[prev as OrderStatus]}
+                            </button>
+                          )}
+                          {status === 'PENDING' && isManager && (
+                            <button
+                              onClick={() => { setReasonModal({ orderId: o.orderId, targetStatus: 'CANCELLED', label: 'Cancel Order' }); setReasonInput('') }}
+                              disabled={updatingStatus === o.orderId}
+                              className="w-full py-1 text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 rounded hover:bg-red-100 disabled:opacity-50"
+                            >
+                              Cancel Order
                             </button>
                           )}
                         </div>
@@ -669,6 +785,68 @@ export default function DeliveryManagementPage() {
         </div>
 
         {/* ── Modals ──────────────────────────────────────────────────────── */}
+
+        {/* Reason modal — revert / cancel */}
+        {reasonModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 space-y-4">
+              <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">{reasonModal.label}</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason <span className="text-red-500">*</span></label>
+                <textarea
+                  autoFocus
+                  rows={3}
+                  value={reasonInput}
+                  onChange={e => setReasonInput(e.target.value)}
+                  placeholder="Enter reason for this change..."
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary resize-none"
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setReasonModal(null)} className="px-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+                <button
+                  onClick={confirmReasonAndUpdate}
+                  disabled={!reasonInput.trim() || !!updatingStatus}
+                  className={`px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 ${reasonModal.targetStatus === 'CANCELLED' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                >
+                  {updatingStatus ? '...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* History modal */}
+        {historyOrderId && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">Status History</h3>
+                <button onClick={() => setHistoryOrderId(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg">✕</button>
+              </div>
+              {loadingHistory ? (
+                <p className="text-sm text-gray-400 text-center py-4">Loading…</p>
+              ) : historyData.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No history recorded for this order.</p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {historyData.map(h => (
+                    <div key={h.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-3 text-sm">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{h.fromStatus}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{h.toStatus}</span>
+                        {h.changedByName && <span className="text-xs text-gray-500 ml-auto">by {h.changedByName}</span>}
+                      </div>
+                      {h.reason && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">"{h.reason}"</p>}
+                      <p className="text-xs text-gray-400 mt-0.5">{new Date(h.createdAt).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Create Run Modal */}
         {showCreateRun && (
