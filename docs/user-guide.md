@@ -6427,9 +6427,9 @@ Once enabled, the Submit Daily Report link appears in salespersons' sidebars and
 
 ## 31. Restaurant Delivery Service
 
-> **Who reads this:** Restaurant cashiers who take phone-in orders, managers who dispatch drivers and review delivery reports, and delivery drivers who fulfil runs.
+> **Who reads this:** Restaurant cashiers and sales staff who take phone-in orders, managers who dispatch drivers and review delivery reports, and delivery drivers who fulfil runs.
 
-The Restaurant Delivery Service lets the restaurant accept phone-in orders, track delivery status from Pending through to Delivered, manage per-customer prepaid credit accounts, dispatch named drivers with vehicle and odometer tracking, and print kitchen + customer receipts automatically.
+The Restaurant Delivery Service lets the restaurant accept phone-in orders, track delivery status from Pending through to Delivered, manage per-customer prepaid credit accounts, dispatch named drivers with vehicle and odometer tracking, print kitchen + customer receipts, and fully reconcile cash collected by drivers.
 
 **Delivery window:** 12:00 PM – 2:00 PM daily (informational — orders outside this window show a warning but are not blocked).
 
@@ -6438,28 +6438,29 @@ The Restaurant Delivery Service lets the restaurant accept phone-in orders, trac
 ### Overview — How It Works
 
 ```
-Customer calls in → Cashier creates delivery order in POS
+Customer calls in → Staff creates delivery order in POS
+  → New customer created on the fly if needed
   → Credit deducted automatically (if available)
-  → Two receipts auto-print: Kitchen copy + Customer copy (with barcode)
+  → Two receipts auto-print: Kitchen copy (with items + barcode) + Customer copy
 
-Manager assigns orders to a delivery run
-  → Selects driver + vehicle, records odometer start
-  → Prints Run Sheet for driver
+Manager prints Driver Sheet before dispatch
+  → Staff or manager assigns orders to a delivery run
+  → Driver takes the sheet, leaves customer receipt at each stop, collects cash
 
-Driver delivers orders
-  → Scans barcode on receipt to update status (or uses delivery queue page)
-  → Records odometer end on return
+Driver returns → Manager marks orders Delivered
+  → Staff or manager records cash collected per order
+  → Payments page reconciles total due vs collected
 
 Manager closes run → odometer end saved, run marked complete
 ```
 
 ---
 
-### Cashier — Taking a Delivery Order
+### Cashier / Staff — Taking a Delivery Order
 
 1. Open the restaurant POS.
 2. Select **Delivery** as the order type (alongside Dine-In / Takeaway).
-3. A customer must be selected before checkout — search by name or phone number.
+3. Search for the customer by name or phone number, **or** click **New Customer** to register them on the spot — enter their name and phone number, then click **Create & Select**. Phone numbers are formatted automatically as you type.
 4. Add items to the cart as normal.
 5. (Optional) Enter a **Delivery Note** — address or special instructions.
 6. The customer panel shows their **delivery credit balance** and blacklist status:
@@ -6467,8 +6468,8 @@ Manager closes run → odometer end saved, run marked complete
    - If outside 12–2 PM → amber warning banner (order is not blocked).
 7. At checkout, the credit deduction preview shows: **"Credit: −$X.XX | Due on delivery: $X.XX"**
 8. Complete the sale. Two receipts print automatically:
-   - **Kitchen copy** — items and quantities only, no prices, "DELIVERY" header.
-   - **Customer copy** — full receipt with credit used, balance due, remaining credit, and a barcode for status scanning.
+   - **Kitchen copy** — full item names and quantities, no prices, "DELIVERY" header, plus a scannable barcode (`DEL-XXXX`) matching the order.
+   - **Customer copy** — full receipt with credit used, balance due, remaining credit, and the barcode. This receipt stays with the customer.
 
 ---
 
@@ -6507,12 +6508,67 @@ Shows all delivery orders for today grouped by status:
 | **Pending** | Order received, not yet prepared |
 | **Ready** | Kitchen has prepared the order |
 | **Dispatched** | Order is with the driver on a run |
-| **Delivered** | Driver has delivered the order |
-| **Cancelled** | Order was cancelled |
+| **Delivered** | Driver has returned and delivery is confirmed |
+| **Cancelled** | Order was cancelled before preparation |
 
-Click any status button on an order row to advance its status. Cashiers can mark Ready; only managers can cancel.
+**Who can advance status:**
+
+| Transition | Who can do it |
+|------------|--------------|
+| Pending → Ready | Staff with `canUpdateDeliveryStatus` or manager |
+| Ready → Dispatched | Staff with `canUpdateDeliveryStatus` or manager |
+| Dispatched → Delivered | **Managers only** (`canManageDeliveryRuns`) |
+| Cancel (Pending only) | **Managers only** |
 
 **Viewing past orders:** Use the date filter to see historical orders and runs.
+
+---
+
+### Reverting Status (Correcting Errors)
+
+Managers can reverse a status change if a mistake was made:
+
+1. Find the order card on the Delivery Queue page.
+2. Click **↩ Revert to [Previous Status]** (amber button, managers only).
+3. Enter a **reason** — this is mandatory and is recorded in the audit log.
+4. Click **Confirm**.
+
+The status steps back one level: Delivered → Dispatched → Ready → Pending.
+
+> **Lock rule:** If a Delivered order already has payment collected recorded, the revert button is hidden and the status is permanently locked. This prevents altering records after cash has been reconciled.
+
+**Cancelling an order** (Pending only):
+- Click **Cancel Order** (red button, managers only) on any Pending order.
+- Enter a reason. If the customer had credit applied, it is automatically restored to their account.
+
+---
+
+### Status History & Audit Trail
+
+Every status change — including who made it, when, and the reason — is permanently recorded.
+
+To view the history of any order:
+1. Click the **🕐 clock icon** on the order card.
+2. A history panel opens showing each transition: `FROM → TO`, the staff member's name, the timestamp, and the reason given.
+
+This log cannot be edited or deleted.
+
+---
+
+### Printing — Driver Sheet & Kitchen Batch
+
+Three print options are available on the Delivery Queue toolbar:
+
+| Button | Who can use | What it prints |
+|--------|------------|---------------|
+| **Driver Sheet (A4)** | Staff + Managers | A4 browser-printable sheet: all active orders with customer names, phones, notes, amount due, checkbox column, and collected $ lines. Includes driver/vehicle blank fields and signature lines. |
+| **Driver Sheet (Thermal)** | Staff + Managers | Same content printed to the receipt printer as a single continuous roll. Orders are separated by a `- - - FOLD HERE - - -` fold line (no paper cut between orders). Driver tears off the roll and folds at each line for easy handling. |
+| **Print Kitchen Batch** | Managers | Sends a kitchen receipt for every Pending order — each showing the full item names, quantities, delivery note, and order barcode. |
+
+**Recommended workflow:**
+1. Print the **Driver Sheet (Thermal)** before dispatch — driver carries the roll.
+2. At each stop the driver leaves the **customer receipt** (printed at POS), collects cash, and marks the order as done on the sheet.
+3. On return the manager marks each order **Delivered** and records cash collected.
 
 ---
 
@@ -6524,7 +6580,7 @@ Click any status button on an order row to advance its status. Cashiers can mark
 4. Enter the **Odometer Start** reading.
 5. Assign orders to the run — tick the orders the driver will deliver.
 6. Click **Dispatch**. The orders move to **Dispatched** status.
-7. (Optional) Click **Print Run Sheet** — prints a single long receipt listing all orders with customer name, address/note, amount due, and a checkbox for each delivery.
+7. A run sheet is sent to the receipt printer automatically on dispatch.
 
 **Closing a run:**
 1. When the driver returns, open the run.
@@ -6533,20 +6589,25 @@ Click any status button on an order row to advance its status. Cashiers can mark
 
 ---
 
-### Driver — Updating Delivery Status
+### Collecting & Recording Cash — Payments Page
 
-Drivers can update order status in two ways:
+**Where:** Delivery Queue → **Payments** button (green, top right)
 
-**Via barcode scan (any screen):**
-- Scan the barcode on the customer's receipt.
-- A **Delivery Status Modal** pops up showing the order details.
-- Tap the appropriate action: **Mark Delivered**, **Flag Issue**, etc.
+After orders are marked Delivered, managers or staff record the cash actually collected from each order:
 
-**Via Delivery Queue page:**
-- Drivers only see orders assigned to their current run.
-- Click the status button to advance each order.
+1. Open the Payments page and select the date.
+2. Find any order showing **"+ Record"** in the Collected column.
+3. Click **+ Record** to open an inline input field.
+4. Type the amount received and press **Enter** (or click ✓).
+5. The amount is saved and the person who recorded it is stored against the order.
 
-Drivers can also enter odometer readings for their own runs but cannot create orders, manage credit, or access financial reports.
+The page shows:
+- **Total Due** — sum of all delivered ON_DELIVERY orders
+- **Collected** — cash recorded so far
+- **Shortfall** — difference (shown in red if > $0)
+- **Recorded by** — the staff member who entered each collection amount (shown in the Notes column)
+
+Previously recorded amounts can be updated by clicking on the displayed amount.
 
 ---
 
@@ -6575,18 +6636,26 @@ On days with no credit top-ups the line is hidden to keep the EOD clean.
 
 ### Permissions
 
+All delivery permissions are individually toggleable in **User Management → Edit Permissions → Delivery Service** for any restaurant staff member.
+
 | Permission | What it controls |
 |------------|-----------------|
 | `canViewDeliveryQueue` | See the delivery management page |
 | `canCreateDeliveryOrders` | Place delivery orders at the POS |
-| `canUpdateDeliveryStatus` | Change order status (Ready / Dispatched / Delivered) |
-| `canManageDeliveryRuns` | Create runs, assign driver + vehicle, enter odometer |
+| `canUpdateDeliveryStatus` | Mark Ready / Dispatched; print driver sheets; create customers on the fly |
+| `canManageDeliveryRuns` | Create runs, assign driver + vehicle, enter odometer; **mark Delivered**; revert / cancel orders |
 | `canManageDeliveryCredit` | Top up customer delivery credit accounts |
 | `canManageDeliveryBlacklist` | Ban or unban customers from delivery |
-| `canViewDeliveryReports` | Access delivery reports |
-| `canUpdateOdometer` | Enter odometer readings on assigned runs (driver only) |
+| `canViewDeliveryReports` | Access delivery reports and Payments page |
+| `canPrintDeliveryMarketing` | Print delivery marketing materials |
 
-The **delivery-driver** role preset grants only: view queue, update status, update odometer, and barcode scanning. Drivers cannot see POS, reports, customer accounts, or financial screens.
+> **Key distinction:** Only users with `canManageDeliveryRuns` (managers) can mark an order Delivered or revert/cancel status changes. Staff with `canUpdateDeliveryStatus` (e.g. salesperson/cashier) can move orders from Pending → Ready → Dispatched and print driver sheets, but the final delivery confirmation belongs to the manager.
+
+To grant or change individual permissions:
+1. Go to **Business Settings → Members**.
+2. Click the employee.
+3. Open the **Permissions** tab.
+4. Scroll to **Delivery Service** and toggle the required permissions.
 
 ---
 
@@ -6607,9 +6676,13 @@ Click **Print** on either template to send directly to your printer. Navigation 
 | Issue | Solution |
 |-------|---------|
 | Delivery order type not showing in POS | Feature requires the restaurant business type — contact your admin |
-| Customer cannot be selected for delivery | Customer must exist in the system first (create via Customers page) |
+| "Insufficient permissions" when creating a new customer | User needs `canUpdateDeliveryStatus` or higher delivery permission |
 | Checkout blocked — "Customer is blacklisted" | Management must lift the ban on the Customer Accounts page before the order can proceed |
 | Receipts didn't print automatically | Check printer connection and QZ Tray status; use "Reprint" on the order detail page |
+| Kitchen copy shows "Item x2" with no name | The product may not be linked to a menu item — check the product variant in the menu |
+| "Mark Delivered" button not showing | Only managers with `canManageDeliveryRuns` see this button |
+| Revert button not showing on Delivered order | Payment has already been collected — the status is locked to protect financial records |
+| Driver Sheet (Thermal) not printing | No printer configured — set up your receipt printer via QZ Tray Setup on the delivery page or your profile |
 | Barcode scan didn't open status modal | Ensure the barcode is a `DEL-` delivery barcode, not a product or customer barcode |
 | Run Sheet not printing | Confirm orders have been assigned to the run before clicking Print Run Sheet |
 
