@@ -6540,6 +6540,7 @@ The status steps back one level: Delivered → Dispatched → Ready → Pending.
 **Cancelling an order** (Pending only):
 - Click **Cancel Order** (red button, managers only) on any Pending order.
 - Enter a reason. If the customer had credit applied, it is automatically restored to their account.
+- A cancelled delivery order is **excluded from all sales and EOD reports** — the underlying sale record is voided automatically so it does not inflate revenue figures or appear in end-of-day totals.
 
 ---
 
