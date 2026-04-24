@@ -11,6 +11,7 @@ import ReceiptDetailModal from '@/components/receipts/receipt-detail-modal'
 import CrossBusinessAlert from '@/components/receipts/cross-business-alert'
 import { getLocalDateString } from '@/lib/utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
+import { ContentLayout } from '@/components/layout/content-layout'
 
 interface ReceiptListItem {
   id: string
@@ -269,17 +270,8 @@ function ReceiptHistoryPageContent() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <ContentLayout title="Receipt History" subtitle="Search and reprint past receipts">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Receipt History
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Search and reprint past receipts
-          </p>
-        </div>
 
         {/* Search Bar */}
         <div className="mb-4">
@@ -510,5 +502,6 @@ function ReceiptHistoryPageContent() {
         />
       )}
     </div>
+    </ContentLayout>
   )
 }

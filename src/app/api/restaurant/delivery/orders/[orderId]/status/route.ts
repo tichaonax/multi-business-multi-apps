@@ -108,6 +108,14 @@ export async function PATCH(
 
       await tx.deliveryOrderMeta.update({ where: { orderId }, data: updateData })
 
+      // Mirror cancellation to the underlying BusinessOrders record so it is excluded from sales/EOD reports
+      if (status === 'CANCELLED') {
+        await tx.businessOrders.update({
+          where: { id: orderId },
+          data: { status: 'CANCELLED', paymentStatus: 'REFUNDED', updatedAt: new Date() },
+        })
+      }
+
       // Record status history
       await tx.$executeRaw`
         INSERT INTO delivery_status_history (id, "orderId", "fromStatus", "toStatus", "changedBy", reason, "createdAt")

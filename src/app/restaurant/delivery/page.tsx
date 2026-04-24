@@ -46,6 +46,7 @@ type DeliveryOrder = {
       quantity: number
       unitPrice: number
       totalPrice: number
+      attributes?: any
       product_variants?: { name?: string | null; business_products?: { name: string } | null } | null
     }[]
   }
@@ -432,7 +433,7 @@ export default function DeliveryManagementPage() {
         customerName: o.order?.business_customers?.name || 'Customer',
         customerPhone: o.order?.business_customers?.phone,
         items: (o.order?.business_order_items || []).map(i => ({
-          name: i.product_variants?.name || i.product_variants?.business_products?.name || 'Item',
+          name: i.product_variants?.name || i.product_variants?.business_products?.name || (i.attributes as any)?.productName || (i.attributes as any)?.name || 'Item',
           quantity: i.quantity,
         })),
         deliveryNote: o.deliveryNote || undefined,

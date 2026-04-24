@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       const orders = await prisma.businessOrders.findMany({
         where: {
           businessId,
+          status: { not: 'CANCELLED' },
           ...(dateFilter ? { createdAt: dateFilter } : {}),
         },
         select: { id: true, totalAmount: true, createdAt: true },

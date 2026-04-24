@@ -168,6 +168,7 @@ export async function GET(request: NextRequest) {
             quantity: true,
             unitPrice: true,
             totalPrice: true,
+            attributes: true,
             product_variants: { select: { name: true, business_products: { select: { name: true } } } },
           },
         },
