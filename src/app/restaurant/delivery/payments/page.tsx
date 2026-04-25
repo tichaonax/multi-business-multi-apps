@@ -46,7 +46,10 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function DeliveryPaymentsPage() {
   const { currentBusinessId } = useBusinessPermissionsContext()
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
   const [rows, setRows] = useState<Row[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(false)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { getUserRoleInBusiness } from '@/lib/permission-utils'
 import { randomUUID } from 'crypto'
 
 const VALID_STATUSES = ['PENDING', 'READY', 'DISPATCHED', 'DELIVERED', 'RETURNED', 'CANCELLED']
@@ -26,6 +27,25 @@ export async function PATCH(
     const existing = await prisma.deliveryOrderMeta.findUnique({ where: { orderId } })
     if (!existing) {
       return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 })
+    }
+
+    // Date restriction: non-managers can only update today's orders; managers up to 5 days back
+    const businessOrder = await prisma.businessOrders.findUnique({ where: { id: orderId }, select: { businessId: true, createdAt: true } })
+    if (businessOrder) {
+      const role = user.role === 'admin' ? 'admin' : getUserRoleInBusiness(user, businessOrder.businessId)
+      const isManager = role === 'admin' || role === 'business-owner' || role === 'business-manager'
+      const orderDate = new Date(businessOrder.createdAt)
+      const today = new Date()
+      // Normalise both to local midnight for day comparison
+      const orderDay = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate())
+      const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+      const diffDays = Math.floor((todayDay.getTime() - orderDay.getTime()) / 86400000)
+      if (!isManager && diffDays > 0) {
+        return NextResponse.json({ error: 'You can only update status for orders placed today.' }, { status: 403 })
+      }
+      if (isManager && diffDays > 5) {
+        return NextResponse.json({ error: 'Order is too old — status changes are restricted to orders within the last 5 days.' }, { status: 403 })
+      }
     }
 
     // Payment-only update — no status change

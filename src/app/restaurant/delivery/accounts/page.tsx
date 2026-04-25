@@ -8,6 +8,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 type DeliveryAccount = {
   id: string | null
@@ -197,10 +198,15 @@ export default function DeliveryAccountsPage() {
       const data = await res.json()
       if (!res.ok || !data.success) { toast.error(data.error || 'Failed to add credit'); return }
       toast.push(`Added $${amount.toFixed(2)} to ${quickTopup.customer.name}`)
+      // Update only the affected row without reloading the list
+      setAccountsList(prev => prev.map(a =>
+        a.customerId === quickTopup.customerId
+          ? { ...a, balance: Number(data.account.balance) }
+          : a
+      ))
       setQuickTopup(null)
       setQuickAmount('')
       setQuickNotes('')
-      loadAccountsList()
       // Refresh detail panel if open
       if (selectedAccount?.customerId === quickTopup.customerId) {
         await loadAccount({ id: quickTopup.customerId, name: quickTopup.customer.name, phone: quickTopup.customer.phone || undefined, customerNumber: '' })
@@ -261,7 +267,7 @@ export default function DeliveryAccountsPage() {
                         {acc.isBlacklisted && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 font-medium">Blacklisted</span>
                         )}
-                        {acc.customer.phone && <span className="text-xs text-gray-400">{acc.customer.phone}</span>}
+                        {acc.customer.phone && <span className="text-xs text-gray-400">{formatPhoneNumberForDisplay(acc.customer.phone)}</span>}
                       </div>
                     </button>
                     <span className="text-sm font-bold text-green-600 dark:text-green-400 whitespace-nowrap">${Number(acc.balance).toFixed(2)}</span>
@@ -303,7 +309,7 @@ export default function DeliveryAccountsPage() {
                         {knownBlacklist[c.id] && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 font-medium">Blacklisted</span>
                         )}
-                        {c.phone && <span className="text-gray-400">{c.phone}</span>}
+                        {c.phone && <span className="text-gray-400">{formatPhoneNumberForDisplay(c.phone)}</span>}
                         <span className="text-gray-400 font-mono text-xs">{c.customerNumber}</span>
                       </div>
                     </button>
@@ -331,7 +337,7 @@ export default function DeliveryAccountsPage() {
                     )}
                   </div>
                   {selectedAccount.customerPhone && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{selectedAccount.customerPhone}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{formatPhoneNumberForDisplay(selectedAccount.customerPhone)}</p>
                   )}
                 </div>
                 <div className="text-right">

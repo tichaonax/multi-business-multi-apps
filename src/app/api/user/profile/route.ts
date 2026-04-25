@@ -58,7 +58,16 @@ export async function GET() {
     // Transform snake_case to camelCase for frontend
     const responseData = {
       ...user,
-      businessMemberships: user.businessMemberships,
+      businessMemberships: (dbUser?.business_memberships ?? []).map((m) => ({
+        businessId: m.businessId,
+        role: m.role,
+        isActive: m.isActive,
+        templateId: m.templateId,
+        template: m.permission_templates ?? null,
+        business: m.businesses
+          ? { id: m.businesses.id, name: m.businesses.name, type: m.businesses.type }
+          : null,
+      })),
       profilePhotoUrl: linkedEmployee?.profilePhotoUrl ?? null,
     }
 

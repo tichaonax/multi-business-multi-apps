@@ -245,26 +245,6 @@ export function EmployeeContractViewer() {
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-600 dark:text-gray-400">Base Salary</p>
-                          <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(contract.baseSalary)}</p>
-                        </div>
-                        {contract.livingAllowance && (
-                          <div>
-                            <p className="text-gray-600 dark:text-gray-400">Living Allowance</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(contract.livingAllowance)}</p>
-                          </div>
-                        )}
-                        {contract.commissionAmount && (
-                          <div>
-                            <p className="text-gray-600 dark:text-gray-400">Commission</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(contract.commissionAmount)}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
                     {contract.supervisor && (
                       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 text-sm">
