@@ -365,6 +365,7 @@ const RESTORE_ORDER = [
   'deliveryAccountTransactions', // Depends on deliveryCustomerAccounts
   'deliveryRuns',                // Depends on businesses, employees
   'deliveryOrderMeta',           // Depends on businessOrders, deliveryRuns (optional)
+  'deliveryStatusHistory',       // Depends on deliveryOrderMeta (orderId FK)
 
   // Business Asset Management (MBM-185)
   'assetCategories',             // System-wide (businessId nullable) — no hard deps

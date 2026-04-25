@@ -50,7 +50,7 @@ const NEW_TABLE_KEYS = [
   // Salesperson EOD Reports (MBM-187)
   'salespersonEodReports',
   // Restaurant Delivery Service (MBM-184)
-  'deliveryCustomerAccounts', 'deliveryAccountTransactions', 'deliveryRuns', 'deliveryOrderMeta',
+  'deliveryCustomerAccounts', 'deliveryAccountTransactions', 'deliveryRuns', 'deliveryOrderMeta', 'deliveryStatusHistory',
   // Business Asset Management (MBM-185)
   'assetCategories', 'businessAssets', 'assetDepreciationEntries', 'assetMaintenanceLogs', 'assetImages',
   // Inventory Expiry Tracking (MBM-186)

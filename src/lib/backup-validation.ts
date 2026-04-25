@@ -275,6 +275,7 @@ const SKIP_BUSINESS_SCOPING = new Set([
   // Delivery (MBM-184) — child tables without businessId
   'deliveryAccountTransactions', // linked via accountId
   'deliveryOrderMeta',           // linked via orderId (no businessId field)
+  'deliveryStatusHistory',       // linked via orderId (no businessId field)
   // Asset Management (MBM-185) — child tables without businessId; assetCategories has nullable businessId
   'assetCategories',             // businessId is nullable (system-wide defaults have null)
   'assetDepreciationEntries',    // linked via assetId

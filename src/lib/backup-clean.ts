@@ -1339,8 +1339,12 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } },
     select: { id: true }
   })
+  const _deliveryOrderIdList = _deliveryOrderIds.map((o: any) => o.id)
   businessData.deliveryOrderMeta = await prisma.deliveryOrderMeta.findMany({
-    where: { orderId: { in: _deliveryOrderIds.map((o: any) => o.id) } }
+    where: { orderId: { in: _deliveryOrderIdList } }
+  })
+  businessData.deliveryStatusHistory = await prisma.deliveryStatusHistory.findMany({
+    where: { orderId: { in: _deliveryOrderIdList } }
   })
 
   // 53. Business Asset Management (MBM-185)

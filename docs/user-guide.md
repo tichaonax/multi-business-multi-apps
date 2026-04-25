@@ -6479,16 +6479,23 @@ Manager closes run → odometer end saved, run marked complete
 
 Each customer can have a delivery credit account. Credit is pre-loaded by management and deducted automatically at checkout.
 
-**Adding credit:**
-1. Search for the customer.
-2. Click **Add Credit**.
-3. Enter the amount and optional notes.
-4. Save. The credit is immediately available for delivery orders.
+The page opens with a **Customer Balances** list showing all customers who currently have a credit balance, sorted highest first. Each row shows name, phone, and balance.
+
+**Quick top-up from the list:**
+1. Find the customer in the Customer Balances list.
+2. Click **+ Top Up** next to their row.
+3. Enter the amount and optional notes, then click **Add Credit**.
+4. The balance on the row updates immediately — no page reload.
+
+**Adding credit via search (for any customer):**
+1. Use the **Find Customer** search box to look up by name or phone.
+2. Click the customer to open their account detail.
+3. Click **Add Credit**, enter the amount and notes, then save.
 
 **Partial credit:** If a customer's credit is less than their order total, available credit is deducted and the remainder is collected on delivery.
 
 **Blacklisting a customer:**
-1. Open the customer's account page.
+1. Open the customer's account page (via Find Customer).
 2. Click **Blacklist Customer**.
 3. Enter the reason (required).
 4. Save. The customer is immediately blocked from placing delivery orders.
@@ -6519,6 +6526,15 @@ Shows all delivery orders for today grouped by status:
 | Ready → Dispatched | Staff with `canUpdateDeliveryStatus` or manager |
 | Dispatched → Delivered | **Managers only** (`canManageDeliveryRuns`) |
 | Cancel (Pending only) | **Managers only** |
+
+**Date restrictions on status changes:**
+
+| Role | Allowed date range |
+|------|--------------------|
+| Staff | **Today only** — cannot change status on orders from a previous day |
+| Manager / Owner | Up to **5 days back** — older orders are locked |
+
+If you try to update a status outside your allowed range, the system will return an error with a clear message. This prevents accidental late edits or back-dated changes.
 
 **Viewing past orders:** Use the date filter to see historical orders and runs.
 
