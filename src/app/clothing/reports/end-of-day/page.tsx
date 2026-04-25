@@ -14,6 +14,7 @@ import { CategoryPerformanceBarChart } from '@/components/reports/category-perfo
 import { EodRentTransferSection } from '@/components/reports/eod-rent-transfer-section'
 import { AutoDepositEodSummary, type ConfirmedEntry } from '@/components/reports/auto-deposit-eod-summary'
 import { GroupedEODCatchup } from '@/components/eod/grouped-eod-catchup'
+import { SalespersonEodReportSection } from '@/components/eod/salesperson-eod-report-section'
 import '@/styles/print-report.css'
 
 export default function EndOfDayReport() {
@@ -794,6 +795,9 @@ export default function EndOfDayReport() {
               </table>
             </div>
           )}
+
+          {/* Salesperson EOD Reports */}
+          {currentBusinessId && <SalespersonEodReportSection businessId={currentBusinessId} />}
 
           {/* Till Reconciliation */}
           <div className="mb-8">

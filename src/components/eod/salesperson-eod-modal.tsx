@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface Props {
   businessId: string
@@ -10,14 +10,25 @@ interface Props {
 }
 
 export function SalespersonEodModal({ businessId, reportDate, onClose, onSuccess }: Props) {
-  const today = reportDate ?? new Date().toISOString().split('T')[0]
+  const today = reportDate ?? (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
 
   const [cashAmount, setCashAmount] = useState('')
-  const [ecocashAmount, setEcocashAmount] = useState('')
+  const [ecocashAmount, setEcocashAmount] = useState('0.00')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/eod/salesperson/pending?businessId=${businessId}`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.todayEcocashAmount != null) {
+          setEcocashAmount(Number(json.todayEcocashAmount).toFixed(2))
+        }
+      })
+      .catch(() => {/* silent */})
+  }, [businessId])
 
   const dateLabel = new Date(today + 'T00:00:00').toLocaleDateString('en-GB', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
@@ -73,7 +84,7 @@ export function SalespersonEodModal({ businessId, reportDate, onClose, onSuccess
         ) : (
           <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              Enter the total cash and EcoCash you collected today for this business.
+              Enter the total cash you collected today. EcoCash is automatically calculated from system records.
             </p>
 
             {/* Cash amount */}
@@ -96,22 +107,20 @@ export function SalespersonEodModal({ businessId, reportDate, onClose, onSuccess
               </div>
             </div>
 
-            {/* EcoCash amount */}
+            {/* EcoCash amount — readonly, auto-filled from system */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                EcoCash Collected <span className="text-red-500">*</span>
+                EcoCash Collected
+                <span className="ml-1.5 text-xs font-normal text-gray-400">(auto-filled from system)</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
                 <input
                   type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
+                  readOnly
+                  tabIndex={-1}
                   value={ecocashAmount}
-                  onChange={e => setEcocashAmount(e.target.value)}
-                  required
-                  className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50 dark:bg-neutral-800 text-gray-500 dark:text-neutral-400 cursor-default"
                 />
               </div>
             </div>

@@ -63,6 +63,11 @@ const CreateOrderSchema = z.object({
   businessType: z.string().min(1),
   attributes: z.record(z.string(), z.any()).optional(), // Business-specific order data
   notes: z.string().optional(),
+  // EcoCash top-level fields (sent by POS as top-level, merged into attributes before save)
+  ecocashTransactionCode: z.string().optional(),
+  ecocashFeeAmount: z.number().optional(),
+  ecocashFeeType: z.string().optional(),
+  ecocashFeeValue: z.number().optional(),
   items: z.array(CreateOrderItemSchema).min(1)
 })
 
@@ -507,7 +512,15 @@ export async function POST(request: NextRequest) {
           discountAmount: effectiveDiscount,
           taxAmount: orderData.taxAmount,
           businessType: orderData.businessType || business.type,
-          attributes: orderData.attributes,
+          attributes: {
+            ...orderData.attributes,
+            ...(orderData.paymentMethod === 'ECOCASH' && orderData.ecocashTransactionCode ? {
+              ecocashTransactionCode: orderData.ecocashTransactionCode,
+              ecocashFeeAmount: orderData.ecocashFeeAmount,
+              ecocashFeeType: orderData.ecocashFeeType,
+              ecocashFeeValue: orderData.ecocashFeeValue,
+            } : {}),
+          },
           notes: orderData.notes,
           orderNumber,
           subtotal,

@@ -270,8 +270,8 @@ export async function GET(request: NextRequest) {
           let category = product?.business_categories
 
           // Fallback: resolve from attributes.productId if no variant link
+          const attrs = item.attributes as any
           if (!product) {
-            const attrs = item.attributes as any
             const resolvedProduct = attrs?.productId ? noVariantProductMap.get(attrs.productId) : null
             if (resolvedProduct) {
               product = resolvedProduct
@@ -279,8 +279,10 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          const categoryId = category?.id || item.notes?.toLowerCase().replace(/\s+/g, '-') || 'uncategorized'
-          const categoryName = category?.name || item.notes || 'Uncategorized'
+          // Final fallback: category name stored directly in item attributes (e.g. grocery inventory items)
+          const attrCategory = !category ? (attrs?.category as string | undefined) : undefined
+          const categoryId = category?.id || (attrCategory ? attrCategory.toLowerCase().replace(/\s+/g, '-') : null) || item.notes?.toLowerCase().replace(/\s+/g, '-') || 'uncategorized'
+          const categoryName = category?.name || attrCategory || item.notes || 'Uncategorized'
 
           if (!categoryBreakdown[categoryId]) {
             categoryBreakdown[categoryId] = {

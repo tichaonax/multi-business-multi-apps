@@ -88,6 +88,19 @@ export async function POST(request: NextRequest) {
     const parsedDate = new Date(reportDate)
     parsedDate.setHours(0, 0, 0, 0)
 
+    // Block re-submission unless this is a manager override
+    if (!isManagerOverride) {
+      const existing = await prisma.salespersonEodReport.findUnique({
+        where: {
+          businessId_salespersonId_reportDate: { businessId, salespersonId, reportDate: parsedDate },
+        },
+        select: { status: true },
+      })
+      if (existing?.status === 'SUBMITTED' || existing?.status === 'OVERRIDDEN') {
+        return NextResponse.json({ error: 'EOD report already submitted for this date' }, { status: 409 })
+      }
+    }
+
     const record = await prisma.salespersonEodReport.upsert({
       where: {
         businessId_salespersonId_reportDate: {

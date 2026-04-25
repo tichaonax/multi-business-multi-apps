@@ -86,8 +86,33 @@ export async function GET(request: NextRequest) {
           reportDate: today,
         },
       },
-      select: { status: true },
+      select: { status: true, submittedAt: true },
     })
+
+    // Compute EcoCash since the last submitted EOD — only new sales since last submit
+    // No createdBy filter: captures all staff who processed EcoCash on behalf of the business
+    const lastSubmission = await prisma.salespersonEodReport.findFirst({
+      where: {
+        businessId,
+        salespersonId: user.id,
+        status: { in: ['SUBMITTED', 'OVERRIDDEN'] },
+        submittedAt: { not: null },
+      },
+      orderBy: { submittedAt: 'desc' },
+      select: { submittedAt: true },
+    })
+    const ecocashFrom = lastSubmission?.submittedAt ?? today
+
+    const todayEcocashAgg = await prisma.businessOrders.aggregate({
+      _sum: { totalAmount: true },
+      where: {
+        businessId,
+        paymentMethod: 'ECOCASH',
+        paymentStatus: 'PAID',
+        createdAt: { gte: ecocashFrom },
+      },
+    })
+    const todayEcocashAmount = Number(todayEcocashAgg._sum.totalAmount ?? 0)
 
     // Check if deadline has passed
     let deadlinePassed = false
@@ -105,6 +130,8 @@ export async function GET(request: NextRequest) {
       deadlinePassed,
       deadlineTime,
       todayStatus: todayRecord?.status ?? 'PENDING',
+      todaySubmittedAt: todayRecord?.submittedAt ?? null,
+      todayEcocashAmount,
     })
   } catch (error: any) {
     console.error('[eod/salesperson/pending GET]', error)

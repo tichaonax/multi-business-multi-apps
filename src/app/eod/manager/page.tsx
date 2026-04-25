@@ -4,6 +4,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
@@ -30,6 +31,16 @@ interface Counts { total: number; pending: number; submitted: number; overridden
 type Tab = 'status' | 'overrides'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getEodReportUrl(businessType?: string) {
+  switch (businessType) {
+    case 'restaurant': return '/restaurant/reports/end-of-day'
+    case 'grocery':    return '/grocery/reports/end-of-day'
+    case 'clothing':   return '/clothing/reports/end-of-day'
+    case 'hardware':   return '/hardware/reports/end-of-day'
+    default:           return '/dashboard'
+  }
+}
 
 function fmt(n: number) { return `$${Number(n).toFixed(2)}` }
 
@@ -256,6 +267,16 @@ export default function ManagerEodPage() {
           { label: 'Staff EOD Status', isActive: true },
         ]}
       >
+        {/* Back link */}
+        <div className="mb-4">
+          <Link
+            href={getEodReportUrl(currentBusiness?.businessType)}
+            className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
+          >
+            ← Back to EOD Report
+          </Link>
+        </div>
+
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-neutral-700">
           {(['status', 'overrides'] as Tab[]).map(t => (
@@ -322,12 +343,10 @@ export default function ManagerEodPage() {
                           </td>
                           <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-[180px] truncate">{r.notes ?? '—'}</td>
                           <td className="px-4 py-3 text-right">
-                            {r.status === 'PENDING' && (
-                              <button onClick={() => setOverrideModal(r)}
-                                className="text-xs font-medium px-2.5 py-1 rounded-md bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/60 transition-colors">
-                                Submit on behalf
-                              </button>
-                            )}
+                            <button onClick={() => setOverrideModal(r)}
+                              className="text-xs font-medium px-2.5 py-1 rounded-md bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/60 transition-colors">
+                              {r.status === 'PENDING' ? 'Submit on behalf' : 'Override'}
+                            </button>
                           </td>
                         </tr>
                       ))}

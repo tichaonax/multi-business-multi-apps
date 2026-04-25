@@ -3155,8 +3155,8 @@ function GroceryPOSContent() {
                               </div>
                             )}
                           </div>
-                          {/* Performance bar — only for users who can see sold count */}
-                          {showBar && canSeeSoldCount && (
+                          {/* Performance bar — visible to all; numbers stay gated */}
+                          {showBar && (
                             <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5 overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all ${barColorClass}`}

@@ -572,7 +572,10 @@ export function MobileSidebar() {
                   )}
 
                   {currentBusiness?.requireSalespersonEod && currentBusiness?.role === 'salesperson' && (
-                    <Link href="/eod/history" className={sectionLinkClass} onClick={close}>📋 My EOD History</Link>
+                    <>
+                      <Link href="/eod/submit" className={sectionLinkClass} onClick={close}>📤 Submit EOD Report</Link>
+                      <Link href="/eod/history" className={sectionLinkClass} onClick={close}>📋 My EOD History</Link>
+                    </>
                   )}
 
                   {(isAdmin || hasBusinessPermission('canCloseBooks')) && currentBusiness?.requireSalespersonEod && (

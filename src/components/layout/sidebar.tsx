@@ -1133,12 +1133,18 @@ export function Sidebar() {
               </Link>
             )}
 
-            {/* Salesperson EOD — Daily Report link for salespersons */}
+            {/* Salesperson EOD — submit + history links */}
             {currentBusiness?.requireSalespersonEod && currentBusiness?.role === 'salesperson' && (
-              <Link href="/eod/history" className={getLinkClasses('/eod/history')}>
-                <span className="text-lg">📋</span>
-                <span>My EOD History</span>
-              </Link>
+              <>
+                <Link href="/eod/submit" className={getLinkClasses('/eod/submit')}>
+                  <span className="text-lg">📤</span>
+                  <span>Submit EOD Report</span>
+                </Link>
+                <Link href="/eod/history" className={getLinkClasses('/eod/history')}>
+                  <span className="text-lg">📋</span>
+                  <span>My EOD History</span>
+                </Link>
+              </>
             )}
 
             {/* Staff EOD Status — manager/admin view */}
