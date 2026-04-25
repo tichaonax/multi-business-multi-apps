@@ -434,7 +434,26 @@ The variance is saved in the report. Managers review it — small variances are 
 
 #### Step 5 — Save and Lock the EOD Report
 
-Click **Save EOD Report** (or **Close Day**).
+Click **Save EOD Report** (or **Close Day**). A two-step confirmation modal appears:
+
+**Step 1 — Manager confirmation:**
+- Enter the **Manager Name** (your electronic signature on the record).
+- Enter the **Cash Counted** (optional) — the physical till count. The system calculates the variance automatically.
+
+**Step 2 — EcoCash Transaction Verification:**
+All EcoCash orders for the day are listed with checkboxes:
+
+| Field | Meaning |
+|-------|---------|
+| **Time** | When the EcoCash payment was processed |
+| **Amount** | Gross amount charged to the customer (including fee) |
+| **Reference code** | The EcoCash transaction code entered at the POS |
+
+Check off each transaction you have confirmed against your EcoCash merchant statement. The **Confirmed EcoCash total** updates as you tick. You can also **Deselect All** and re-check individually.
+
+> **Note:** EcoCash reference codes are captured at the point of sale. If a transaction shows "—" instead of a code, it was processed before this feature was fully enabled — go forward all new sales will capture the code automatically.
+
+Click **Save & Lock** to finalise.
 
 **What happens:**
 - The report is saved as a **locked snapshot** — the figures cannot be changed after this point.
@@ -6267,12 +6286,16 @@ Discrepancy report shows variance history over time
 **Where:** Sidebar → **EOD → Submit Daily Report**
 
 1. Select today's date (defaults to today).
-2. Enter the **Cash Total** — total cash you collected during the day.
-3. Enter the **EcoCash Total** — total EcoCash transactions you processed.
-4. Click **Submit Report**.
+2. Enter the **Cash Total** — total cash you physically collected during the day.
+3. The **EcoCash Total** is **automatically calculated** from POS system records (all EcoCash orders since your last submission) and shown as a read-only field. You do not enter this — it is pulled directly from the system.
+4. Add any **Notes** (optional).
+5. Click **Submit Report**.
+
+After submission you are taken directly back to the **POS** to continue serving customers.
 
 **Rules:**
-- You can only submit once per date. After submission the fields become read-only.
+- **One report per date.** Once submitted for a date, the figures cannot be changed.
+- To catch up a missed day: select the past date, enter that day's cash total, and submit — the system will fill EcoCash automatically for that period.
 - If the deadline has passed and you haven't submitted, your status shows as **Overdue**.
 - A manager can override an overdue or missing submission on your behalf.
 
@@ -6317,14 +6340,18 @@ The manager page shows all salespersons' statuses for a selected date:
 - Use the **Date** picker to view any past date.
 - Use the **Status** filter to show only Pending, Submitted, or Overdue.
 
-**Overriding a missing submission:**
-1. Find the salesperson with status **Pending** or **Overdue**.
-2. Click **Override**.
-3. Enter the correct **Cash** and **EcoCash** amounts.
-4. Enter a short **Reason** (e.g. "Staff forgot to submit — figures confirmed from till").
-5. Click **Save Override**.
+**Overriding any submission:**
+
+The **Override** button appears on every record regardless of status (Pending, Submitted, or already Overridden). Use it to correct wrong figures or submit on behalf of a salesperson who didn't submit.
+
+1. Click **Override** next to the salesperson's row.
+2. Enter the correct **Cash** and **EcoCash** amounts.
+3. Enter a short **Reason** (e.g. "Staff forgot to submit — figures confirmed from till" or "Correcting wrong cash figure").
+4. Click **Submit Override**.
 
 The record changes to **Overridden** and both the salesperson and manager can see the reason.
+
+**Back to EOD Report:** A **← Back to EOD Report** link at the top of this page takes you directly back to the business End-of-Day report page.
 
 ---
 
@@ -6344,9 +6371,15 @@ The widget only appears when **Salesperson EOD** is enabled for the business and
 
 When salesperson EOD is enabled, the system End-of-Day **Save** and **Lock** buttons are blocked if any salesperson has not submitted their report.
 
-On the EOD page, a **Salesperson EOD Reports** table appears above the Till Reconciliation section showing each salesperson's status. Once all statuses show **Submitted** (or **Overridden**), the buttons unlock.
+On the EOD report page, a **Salesperson EOD Reports** section appears above the Till Reconciliation section. It shows:
+- A progress bar (green = all done, amber = some pending).
+- Each salesperson's name, status, cash total, EcoCash total, and submission time.
+- An **Open EOD Manager →** link to jump directly to the Manager EOD View.
+- An **Override** button for any salesperson whose report is overdue from a past date.
 
-**To unblock:** Either wait for the salesperson to submit, or use the **Override** button on the Manager EOD View page.
+Once all statuses show **Submitted** or **Overridden**, the Save & Lock buttons unlock.
+
+**To unblock:** Either wait for the salesperson to submit, or click **Open EOD Manager →** and use the **Override** button.
 
 ---
 
@@ -6414,8 +6447,10 @@ Once enabled, the Submit Daily Report link appears in salespersons' sidebars and
 | Issue | Solution |
 |-------|---------|
 | "Submit Daily Report" not in sidebar | Feature may not be enabled for this business. Ask your admin to turn on **Require Salesperson EOD** in Business Settings |
-| Report already submitted — can't change figures | Ask a manager to override the entry with the correct amounts |
-| EOD Save button blocked | Open Manager EOD View and check which salesperson is still Pending. Either wait for them to submit or use Override |
+| EcoCash field shows $0.00 | No EcoCash sales were recorded since your last submission. If you believe there were EcoCash sales, ask a manager to check the POS records |
+| Report already submitted — can't change figures | Ask a manager to use the **Override** button on the Manager EOD View page to correct the amounts |
+| EOD Save button blocked | The Salesperson EOD section on the EOD report page shows who is still Pending. Click **Open EOD Manager →** and use Override to unblock |
+| EcoCash codes show "—" in the Save modal | Those transactions were processed before automatic code capture was enabled. All new transactions will show their codes correctly |
 | Discrepancy report shows no data | Ensure the date range includes dates where both salesperson reports AND system EOD saves exist |
 | Dashboard widget not visible | Widget only shows for users with **Can Close Books** permission when the feature is enabled |
 
