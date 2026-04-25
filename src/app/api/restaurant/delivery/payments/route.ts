@@ -14,9 +14,10 @@ export async function GET(request: NextRequest) {
     if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
     const dateParam = searchParams.get('date')
-    const date = dateParam ? new Date(dateParam) : new Date()
-    const startOfDay = new Date(date); startOfDay.setHours(0, 0, 0, 0)
-    const endOfDay = new Date(date); endOfDay.setHours(23, 59, 59, 999)
+    // Parse as local date (YYYY-MM-DD) to avoid UTC midnight shifting the day
+    const dateParts = (dateParam || new Date().toLocaleDateString('en-CA')).split('-').map(Number)
+    const startOfDay = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 0, 0, 0, 0)
+    const endOfDay = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 23, 59, 59, 999)
 
     const rows = await prisma.$queryRaw<any[]>`
       SELECT

@@ -5,13 +5,13 @@ import { getServerUser } from '@/lib/get-server-user'
 // GET — fetch account balance, blacklist status, and transaction history
 export async function GET(
   request: NextRequest,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { customerId } = params
+    const { customerId } = await params
 
     const account = await prisma.deliveryCustomerAccounts.findUnique({
       where: { customerId },

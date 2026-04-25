@@ -37,8 +37,16 @@ type Customer = {
   customerNumber: string
 }
 
+type AccountSummary = {
+  id: string
+  customerId: string
+  balance: number
+  isBlacklisted: boolean
+  customer: { id: string; name: string; phone?: string | null; customerNumber: string }
+}
+
 export default function DeliveryAccountsPage() {
-  const { currentBusinessId, isSystemAdmin, hasPermission } = useBusinessPermissionsContext()
+  const { currentBusinessId, isSystemAdmin, hasPermission, loading: contextLoading } = useBusinessPermissionsContext()
   const toast = useToastContext()
   const router = useRouter()
 
@@ -47,8 +55,9 @@ export default function DeliveryAccountsPage() {
   const canBlacklist = isSystemAdmin || hasPermission('canManageDeliveryBlacklist')
 
   useEffect(() => {
+    if (contextLoading) return
     if (!canViewQueue) router.replace('/restaurant')
-  }, [canViewQueue, router])
+  }, [canViewQueue, router, contextLoading])
 
   // Customer search
   const [search, setSearch] = useState('')
@@ -71,6 +80,33 @@ export default function DeliveryAccountsPage() {
   const [showBlacklist, setShowBlacklist] = useState(false)
   const [blacklistReason, setBlacklistReason] = useState('')
   const [submittingBlacklist, setSubmittingBlacklist] = useState(false)
+
+  // Accounts list (customers with balance)
+  const [accountsList, setAccountsList] = useState<AccountSummary[]>([])
+  const [loadingList, setLoadingList] = useState(false)
+  // Quick top-up: accountId → open
+  const [quickTopup, setQuickTopup] = useState<AccountSummary | null>(null)
+  const [quickAmount, setQuickAmount] = useState('')
+  const [quickNotes, setQuickNotes] = useState('')
+  const [submittingQuick, setSubmittingQuick] = useState(false)
+
+  const loadAccountsList = useCallback(async () => {
+    if (!currentBusinessId) return
+    setLoadingList(true)
+    try {
+      const res = await fetch(`/api/restaurant/delivery/accounts?businessId=${currentBusinessId}`)
+      const data = await res.json()
+      if (data.success) setAccountsList(data.accounts)
+    } catch {
+      // silent
+    } finally {
+      setLoadingList(false)
+    }
+  }, [currentBusinessId])
+
+  useEffect(() => {
+    loadAccountsList()
+  }, [loadAccountsList])
 
   const searchCustomers = useCallback(async () => {
     if (!currentBusinessId || search.trim().length < 2) {
@@ -147,6 +183,35 @@ export default function DeliveryAccountsPage() {
     }
   }
 
+  const handleQuickTopup = async () => {
+    if (!quickTopup || !currentBusinessId) return
+    const amount = parseFloat(quickAmount)
+    if (!amount || amount <= 0) { toast.error('Enter a valid amount'); return }
+    setSubmittingQuick(true)
+    try {
+      const res = await fetch('/api/restaurant/delivery/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: quickTopup.customerId, businessId: currentBusinessId, amount, notes: quickNotes || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { toast.error(data.error || 'Failed to add credit'); return }
+      toast.push(`Added $${amount.toFixed(2)} to ${quickTopup.customer.name}`)
+      setQuickTopup(null)
+      setQuickAmount('')
+      setQuickNotes('')
+      loadAccountsList()
+      // Refresh detail panel if open
+      if (selectedAccount?.customerId === quickTopup.customerId) {
+        await loadAccount({ id: quickTopup.customerId, name: quickTopup.customer.name, phone: quickTopup.customer.phone || undefined, customerNumber: '' })
+      }
+    } catch {
+      toast.error('Failed to add credit')
+    } finally {
+      setSubmittingQuick(false)
+    }
+  }
+
   const handleBlacklist = async (action: 'ban' | 'unban') => {
     if (!selectedAccount) return
     if (action === 'ban' && !blacklistReason.trim()) { toast.error('Reason is required to ban a customer'); return }
@@ -174,6 +239,45 @@ export default function DeliveryAccountsPage() {
     <BusinessTypeRoute requiredBusinessType="restaurant">
       <ContentLayout title="Delivery Accounts">
         <div className="max-w-4xl mx-auto space-y-6">
+
+          {/* Accounts with balance */}
+          <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Customer Balances</h2>
+              {loadingList && <span className="text-xs text-gray-400">Loading...</span>}
+            </div>
+            {!loadingList && accountsList.length === 0 ? (
+              <p className="text-sm text-gray-400">No customers have a credit balance.</p>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {accountsList.map(acc => (
+                  <div key={acc.id} className="flex items-center justify-between py-2.5 gap-3">
+                    <button
+                      onClick={() => loadAccount({ id: acc.customerId, name: acc.customer.name, phone: acc.customer.phone || undefined, customerNumber: acc.customer.customerNumber })}
+                      className="flex-1 text-left min-w-0"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm text-gray-800 dark:text-gray-200">{acc.customer.name}</span>
+                        {acc.isBlacklisted && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 font-medium">Blacklisted</span>
+                        )}
+                        {acc.customer.phone && <span className="text-xs text-gray-400">{acc.customer.phone}</span>}
+                      </div>
+                    </button>
+                    <span className="text-sm font-bold text-green-600 dark:text-green-400 whitespace-nowrap">${Number(acc.balance).toFixed(2)}</span>
+                    {canAddCredit && (
+                      <button
+                        onClick={() => { setQuickTopup(acc); setQuickAmount(''); setQuickNotes('') }}
+                        className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 whitespace-nowrap"
+                      >
+                        + Top Up
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Customer search */}
           <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow">
@@ -359,6 +463,47 @@ export default function DeliveryAccountsPage() {
                   <button onClick={() => { setShowBlacklist(false); setBlacklistReason('') }} className="flex-1 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
                   <button onClick={() => handleBlacklist('ban')} disabled={submittingBlacklist || !blacklistReason.trim()} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">
                     {submittingBlacklist ? 'Saving...' : 'Confirm Blacklist'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick top-up modal (from accounts list) */}
+          {quickTopup && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Top Up — {quickTopup.customer.name}</h3>
+                <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                  <span>Current balance</span>
+                  <span className="font-semibold text-green-600 dark:text-green-400">${Number(quickTopup.balance).toFixed(2)}</span>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={quickAmount}
+                    onChange={e => setQuickAmount(e.target.value)}
+                    className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
+                  <input
+                    type="text"
+                    value={quickNotes}
+                    onChange={e => setQuickNotes(e.target.value)}
+                    placeholder="e.g. Cash top-up"
+                    className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => { setQuickTopup(null); setQuickAmount(''); setQuickNotes('') }} className="flex-1 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
+                  <button onClick={handleQuickTopup} disabled={submittingQuick || !quickAmount} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                    {submittingQuick ? 'Adding...' : 'Add Credit'}
                   </button>
                 </div>
               </div>

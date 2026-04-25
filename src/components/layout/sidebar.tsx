@@ -698,9 +698,21 @@ export function Sidebar() {
                   <span>POS System</span>
                 </Link>
                 {(isSystemAdmin(currentUser) || hasPermission('canViewDeliveryQueue')) && (
-                  <Link href="/restaurant/delivery" className={getLinkClasses('/restaurant/delivery')}>
+                  <Link href="/restaurant/delivery" className={pathname === '/restaurant/delivery' ? 'sidebar-link flex items-center space-x-3 bg-blue-600 text-white border-l-4 border-blue-400' : 'sidebar-link flex items-center space-x-3 text-gray-300 hover:text-white hover:bg-gray-800'}>
                     <span className="text-lg">🛵</span>
                     <span>Delivery Orders</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canManageDeliveryCredit') || hasPermission('canManageDeliveryBlacklist')) && (
+                  <Link href="/restaurant/delivery/accounts" className={getLinkClasses('/restaurant/delivery/accounts')}>
+                    <span className="text-lg">👥</span>
+                    <span>Delivery Accounts</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewDeliveryReports')) && (
+                  <Link href="/restaurant/delivery/payments" className={getLinkClasses('/restaurant/delivery/payments')}>
+                    <span className="text-lg">💰</span>
+                    <span>Delivery Payments</span>
                   </Link>
                 )}
                 {/* Sales Reports - Only for managers/admins, not salespersons */}

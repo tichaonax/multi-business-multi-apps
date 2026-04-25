@@ -6,13 +6,13 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 // PATCH — ban or unban a customer from delivery (management only)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { customerId } = params
+    const { customerId } = await params
     const body = await request.json()
     const { action, reason, businessId } = body // action: 'ban' | 'unban'
 

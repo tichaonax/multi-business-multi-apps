@@ -13,13 +13,13 @@ const PREV_STATUS: Record<string, string> = {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { orderId } = params
+    const { orderId } = await params
     const body = await request.json()
     const { status, paymentCollected, returnReason, reason } = body
 
@@ -140,13 +140,13 @@ export async function PATCH(
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { orderId } = params
+    const { orderId } = await params
     const history = await prisma.$queryRaw<any[]>`
       SELECT h.id, h."fromStatus", h."toStatus", h.reason, h."createdAt",
              u.name AS "changedByName"

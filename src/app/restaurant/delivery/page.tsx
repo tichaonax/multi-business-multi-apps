@@ -177,6 +177,14 @@ export default function DeliveryManagementPage() {
   const [historyData, setHistoryData] = useState<StatusHistoryEntry[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
+  // Mark Delivered — payment collection dialog
+  const [deliverModal, setDeliverModal] = useState<{
+    orderId: string; orderNumber: string; customerName: string
+    amountDue: number; paymentMode: string
+  } | null>(null)
+  const [deliverAmount, setDeliverAmount] = useState('')
+  const [confirmingDeliver, setConfirmingDeliver] = useState(false)
+
   // ── Load data ──────────────────────────────────────────────────────────────
 
   const loadOrders = useCallback(async () => {
@@ -277,6 +285,36 @@ export default function DeliveryManagementPage() {
     await updateStatus(reasonModal.orderId, reasonModal.targetStatus, reasonInput.trim())
     setReasonModal(null)
     setReasonInput('')
+  }
+
+  const confirmDeliver = async (skip: boolean) => {
+    if (!deliverModal) return
+    setConfirmingDeliver(true)
+    const amount = skip ? undefined : parseFloat(deliverAmount)
+    try {
+      const res = await fetch(`/api/restaurant/delivery/orders/${deliverModal.orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'DELIVERED',
+          ...(amount != null && !isNaN(amount) ? { paymentCollected: amount } : {}),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { toast.error(data.error || 'Failed'); return }
+      setOrders(prev => prev.map(o =>
+        o.orderId === deliverModal.orderId
+          ? { ...o, status: 'DELIVERED', paymentCollected: amount ?? null }
+          : o
+      ))
+      setDeliverModal(null)
+      setDeliverAmount('')
+      toast.push(skip ? 'Order marked as delivered. Record payment from the Payments page.' : 'Order delivered and payment recorded.')
+    } catch {
+      toast.error('Failed to update status')
+    } finally {
+      setConfirmingDeliver(false)
+    }
   }
 
   const loadHistory = async (orderId: string) => {
@@ -749,7 +787,21 @@ export default function DeliveryManagementPage() {
                           {paymentLocked && <div className="text-xs text-green-600 dark:text-green-400">✓ Payment collected</div>}
                           {next && (canUpdateStatus || isManager) && (next !== 'DELIVERED' || isManager) && (
                             <button
-                              onClick={() => updateStatus(o.orderId, next)}
+                              onClick={() => {
+                                if (next === 'DELIVERED') {
+                                  const amountDue = o.paymentMode === 'PREPAID' ? 0 : Math.max(0, Number(o.order?.totalAmount || 0) - Number(o.creditUsed || 0))
+                                  setDeliverModal({
+                                    orderId: o.orderId,
+                                    orderNumber: o.order?.orderNumber || o.orderId.slice(-8),
+                                    customerName: o.order?.business_customers?.name || 'Customer',
+                                    amountDue,
+                                    paymentMode: o.paymentMode,
+                                  })
+                                  setDeliverAmount(amountDue > 0 ? amountDue.toFixed(2) : '0')
+                                } else {
+                                  updateStatus(o.orderId, next)
+                                }
+                              }}
                               disabled={updatingStatus === o.orderId}
                               className="w-full mt-1 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-300 disabled:opacity-50"
                             >
@@ -786,6 +838,63 @@ export default function DeliveryManagementPage() {
         </div>
 
         {/* ── Modals ──────────────────────────────────────────────────────── */}
+
+        {/* Mark Delivered — payment collection dialog */}
+        {deliverModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 space-y-4">
+              <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">Confirm Delivery</h3>
+              <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                <div><span className="font-medium">{deliverModal.orderNumber}</span> — {deliverModal.customerName}</div>
+                {deliverModal.paymentMode === 'PREPAID'
+                  ? <div className="text-green-600 dark:text-green-400 font-medium">This order is fully prepaid — no cash to collect.</div>
+                  : <div>Amount due: <span className="font-semibold text-gray-900 dark:text-white">${deliverModal.amountDue.toFixed(2)}</span></div>
+                }
+              </div>
+              {deliverModal.paymentMode !== 'PREPAID' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Amount Collected <span className="text-gray-400 text-xs">(leave blank to record later)</span>
+                  </label>
+                  <input
+                    autoFocus
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={deliverAmount}
+                    onChange={e => setDeliverAmount(e.target.value)}
+                    placeholder={deliverModal.amountDue.toFixed(2)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => { setDeliverModal(null); setDeliverAmount('') }}
+                  className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                >
+                  Cancel
+                </button>
+                {deliverModal.paymentMode !== 'PREPAID' && (
+                  <button
+                    onClick={() => confirmDeliver(true)}
+                    disabled={confirmingDeliver}
+                    className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 disabled:opacity-50"
+                  >
+                    Skip
+                  </button>
+                )}
+                <button
+                  onClick={() => confirmDeliver(deliverModal.paymentMode === 'PREPAID')}
+                  disabled={confirmingDeliver}
+                  className="flex-1 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {confirmingDeliver ? '...' : deliverModal.paymentMode === 'PREPAID' ? 'Confirm Delivery' : 'Confirm & Record'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Reason modal — revert / cancel */}
         {reasonModal && (

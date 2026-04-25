@@ -501,7 +501,6 @@ function ReceiptHistoryPageContent() {
           onClose={() => setShowCrossBusinessAlert(false)}
         />
       )}
-    </div>
     </ContentLayout>
   )
 }
