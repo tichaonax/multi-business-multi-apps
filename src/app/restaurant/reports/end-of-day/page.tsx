@@ -53,6 +53,9 @@ export default function EndOfDayReport() {
   // Salesperson EOD data for manager gate (Phase 6)
   const [salespersonEodData, setSalespersonEodData] = useState<{ data: any[], totals: { cashTotal: number, ecocashTotal: number }, counts: any } | null>(null)
 
+  // WiFi token sales for EOD
+  const [wifiSales, setWifiSales] = useState<any>(null)
+
   // EcoCash verification checklist
   const [ecocashTxns, setEcocashTxns] = useState<{ orderId: string; transactionCode: string | null; grossAmount: number; feeAmount: number; netAmount: number; createdAt: string }[]>([])
   const [checkedTxnIds, setCheckedTxnIds] = useState<Set<string>>(new Set())
@@ -154,6 +157,16 @@ export default function EndOfDayReport() {
       .then(json => { if (json.success) setSalespersonEodData({ data: json.data, totals: json.totals, counts: json.counts }) })
       .catch(() => {})
   }, [currentBusinessId, currentBusiness?.requireSalespersonEod, dailySales])
+
+  // Load WiFi token sales for today's business day
+  useEffect(() => {
+    if (!currentBusinessId || !dailySales?.businessDay) return
+    const { start, end } = dailySales.businessDay
+    fetch(`/api/business/${currentBusinessId}/wifi-token-sales?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&limit=100`)
+      .then(r => r.json())
+      .then(json => { if (json.success) setWifiSales(json) })
+      .catch(() => {})
+  }, [currentBusinessId, dailySales?.businessDay?.date])
 
   // Load EcoCash transactions for verification when save modal opens
   useEffect(() => {
@@ -898,6 +911,55 @@ export default function EndOfDayReport() {
                   </tr>
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* WiFi Token Sales Summary — only shown when there are WiFi sales */}
+          {wifiSales && wifiSales.summary?.total?.count > 0 && (
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
+                📶 WIFI TOKEN SALES
+              </h3>
+              <table className="w-full mb-4">
+                <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
+                  <tr>
+                    <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Channel</th>
+                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Tokens Sold</th>
+                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wifiSales.summary.byChannel?.POS?.count > 0 && (
+                    <tr className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
+                      <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">POS Sales</td>
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{wifiSales.summary.byChannel.POS.count}</td>
+                      <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(wifiSales.summary.byChannel.POS.totalAmount)}</td>
+                    </tr>
+                  )}
+                  {wifiSales.summary.byChannel?.DIRECT?.count > 0 && (
+                    <tr className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
+                      <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">Direct / Counter Sales</td>
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{wifiSales.summary.byChannel.DIRECT.count}</td>
+                      <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(wifiSales.summary.byChannel.DIRECT.totalAmount)}</td>
+                    </tr>
+                  )}
+                  {Object.entries(wifiSales.summary.byPaymentMethod || {}).map(([method, data]: [string, any]) => (
+                    <tr key={method} className="border-b border-gray-200 dark:border-gray-600 print:border-gray-200">
+                      <td className="p-3 pl-6 text-gray-600 dark:text-gray-400 print:text-gray-600 text-sm">↳ {method}</td>
+                      <td className="p-3 text-right text-gray-600 dark:text-gray-400 print:text-gray-600 text-sm">{data.count}</td>
+                      <td className="p-3 text-right text-gray-600 dark:text-gray-400 print:text-gray-600 text-sm">{formatCurrency(data.totalAmount)}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-100 dark:bg-gray-700 font-bold print:bg-gray-100">
+                    <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900">TOTAL WiFi Sales</td>
+                    <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{wifiSales.summary.total.count}</td>
+                    <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(wifiSales.summary.total.amount)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="text-xs text-gray-500 dark:text-gray-400 print:text-gray-500">
+                ⚠️ WiFi token sales are non-refundable. These orders cannot be cancelled or reversed.
+              </p>
             </div>
           )}
 

@@ -2389,23 +2389,29 @@ function GroceryPOSContent() {
                   🖨️ Print Receipt
                 </button>
 
-                {/* Cancel Order Button */}
-                <button
-                  onClick={() => {
-                    if (!completedOrder?.orderId) return
-                    setCancelTarget({
-                      orderId: completedOrder.orderId,
-                      orderNumber: completedOrder.orderNumber,
-                      totalAmount: completedOrder.total,
-                      paymentMethod: completedOrder.paymentMethod,
-                      createdAt: new Date().toISOString(),
-                    })
-                    setShowCancelModal(true)
-                  }}
-                  className="w-full py-2 text-red-600 border border-red-300 font-medium rounded-lg hover:bg-red-50 transition-colors"
-                >
-                  Cancel Order
-                </button>
+                {/* Cancel Order Button — hidden for orders with WiFi tokens */}
+                {(completedOrder?.wifiTokens?.length > 0 || completedOrder?.r710Tokens?.length > 0) ? (
+                  <p className="w-full py-2 text-center text-xs text-gray-400 border border-gray-200 rounded-lg">
+                    📶 Orders with WiFi tokens cannot be cancelled
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (!completedOrder?.orderId) return
+                      setCancelTarget({
+                        orderId: completedOrder.orderId,
+                        orderNumber: completedOrder.orderNumber,
+                        totalAmount: completedOrder.total,
+                        paymentMethod: completedOrder.paymentMethod,
+                        createdAt: new Date().toISOString(),
+                      })
+                      setShowCancelModal(true)
+                    }}
+                    className="w-full py-2 text-red-600 border border-red-300 font-medium rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    Cancel Order
+                  </button>
+                )}
 
                 {/* Close Button */}
                 <button

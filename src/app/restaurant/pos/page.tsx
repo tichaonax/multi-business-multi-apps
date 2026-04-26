@@ -1,25 +1,5 @@
 'use client'
 
-// Handler for re-ordering items from a previous order
-function handleReorder(orderItems: any[]) {
-  setCart(prev => {
-    const next = [...prev]
-    for (const item of orderItems) {
-      const name = item.product_variants?.business_products?.name || item.attributes?.productName || item.notes || 'Item'
-      const variantId = item.productVariantId || item.id
-      const price = Number(item.unitPrice) || 0
-      const qty = Number(item.quantity) || 1
-      const idx = next.findIndex(c => c.id === variantId)
-      if (idx >= 0) {
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + qty, subtotal: (next[idx].quantity + qty) * price }
-      } else {
-        next.push({ id: variantId, name, price, quantity: qty, subtotal: qty * price } as any)
-      }
-    }
-    return next
-  })
-  toast.push('Items added to cart', { type: 'success' })
-}
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 
@@ -4663,29 +4643,35 @@ export default function RestaurantPOS() {
                   🖨️ Print Receipt
                 </button>
 
-                {/* Cancel Order Button */}
-                <button
-                  onClick={() => {
-                    if (!completedOrder?.orderId) return
-                    const _isEco = (completedOrder.paymentMethod || '').toUpperCase() === 'ECOCASH'
-                    const _fee = completedOrder.ecocashFeeAmount ?? 0
-                    setCancelTarget({
-                      orderId: completedOrder.orderId,
-                      orderNumber: completedOrder.orderNumber,
-                      totalAmount: completedOrder.total,
-                      paymentMethod: completedOrder.paymentMethod,
-                      createdAt: new Date().toISOString(),
-                      isEcocash: _isEco,
-                      grossAmount: _isEco ? completedOrder.total : undefined,
-                      feeDeducted: _isEco ? _fee : undefined,
-                      refundAmount: _isEco ? completedOrder.total - _fee : completedOrder.total,
-                    })
-                    setShowCancelModal(true)
-                  }}
-                  className="w-full py-2 text-red-600 border border-red-300 font-medium rounded-lg hover:bg-red-50 transition-colors"
-                >
-                  Cancel Order
-                </button>
+                {/* Cancel Order Button — hidden for orders with WiFi tokens */}
+                {(completedOrder?.wifiTokens?.length > 0 || completedOrder?.r710Tokens?.length > 0) ? (
+                  <p className="w-full py-2 text-center text-xs text-gray-400 border border-gray-200 rounded-lg">
+                    📶 Orders with WiFi tokens cannot be cancelled
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (!completedOrder?.orderId) return
+                      const _isEco = (completedOrder.paymentMethod || '').toUpperCase() === 'ECOCASH'
+                      const _fee = completedOrder.ecocashFeeAmount ?? 0
+                      setCancelTarget({
+                        orderId: completedOrder.orderId,
+                        orderNumber: completedOrder.orderNumber,
+                        totalAmount: completedOrder.total,
+                        paymentMethod: completedOrder.paymentMethod,
+                        createdAt: new Date().toISOString(),
+                        isEcocash: _isEco,
+                        grossAmount: _isEco ? completedOrder.total : undefined,
+                        feeDeducted: _isEco ? _fee : undefined,
+                        refundAmount: _isEco ? completedOrder.total - _fee : completedOrder.total,
+                      })
+                      setShowCancelModal(true)
+                    }}
+                    className="w-full py-2 text-red-600 border border-red-300 font-medium rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    Cancel Order
+                  </button>
+                )}
 
                 {/* Close Button */}
                 <button

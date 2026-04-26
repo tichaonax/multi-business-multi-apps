@@ -27,10 +27,17 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, onRefund, can
       orderDate.getDate() === today.getDate()
   })()
 
+  const hasWifiToken = order.items?.some((item: any) =>
+    item.attributes?.wifiToken || item.attributes?.r710Token
+  ) || (order as any).business_order_items?.some((item: any) =>
+    (item.attributes as any)?.wifiToken || (item.attributes as any)?.r710Token
+  )
+
   const canCancel = onCancel &&
     order.status === 'COMPLETED' &&
     (order as any).paymentStatus === 'PAID' &&
-    isSameDay
+    isSameDay &&
+    !hasWifiToken
 
   const handleStatusChange = (newStatus: string) => {
     onStatusUpdate(order.id, newStatus)
@@ -210,6 +217,15 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, onRefund, can
           >
             Cancel Order
           </button>
+        )}
+
+        {hasWifiToken && onCancel && order.status === 'COMPLETED' && isSameDay && (
+          <span
+            title="Orders containing WiFi tokens cannot be cancelled or refunded"
+            className="px-4 py-2 text-xs text-gray-400 border border-gray-200 rounded-md cursor-not-allowed"
+          >
+            📶 Not cancellable
+          </span>
         )}
 
         <button

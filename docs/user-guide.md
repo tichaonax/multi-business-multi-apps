@@ -8,6 +8,7 @@
 
 1. [Getting Started — All Users](#1-getting-started--all-users)
 2. [POS Cashier — Making Sales](#2-pos-cashier--making-sales)
+    - [Re-ordering from Recent Orders](#re-ordering-from-recent-orders)
 3. [Cash Office — Cash Handling & End of Day](#3-cash-office--cash-handling--end-of-day)
 4. [Manager — Approvals, Payroll & Reports](#4-manager--approvals-payroll--reports)
 5. [HR & Employee Management](#5-hr--employee-management)
@@ -56,6 +57,11 @@
 33. [Inventory Expiry Tracking](#33-inventory-expiry-tracking)
 34. [Policy Management & Employee Acknowledgment](#34-policy-management--employee-acknowledgment)
 35. [Salesperson Role — Access & Restrictions](#35-salesperson-role--access--restrictions)
+36. [Manager Override Code](#36-manager-override-code)
+37. [Order Cancellation](#37-order-cancellation)
+    - [Re-ordering from Recent Orders (POS)](#re-ordering-from-recent-orders)
+    - [Receipt Watermarks — Reprints & Cancelled Orders](#receipt-watermarks--reprints--cancelled-orders)
+38. [Cancellation Reports](#38-cancellation-reports)
 
 ---
 
@@ -304,6 +310,21 @@ If a discount brings the total to $0.00:
 If you need to cancel before payment is complete:
 - Click **Clear Cart** to remove all items and start over.
 - If you need to cancel a completed sale, contact your manager — completed sales need to be voided by a manager.
+
+### Re-ordering from Recent Orders
+
+Every POS user (admin and non-admin alike) can quickly repeat a previous order using the **Recent Orders** panel in the POS sidebar.
+
+**How it works:**
+
+1. In the left-hand sidebar, find the **📋 Recent Orders** collapsible section. It shows today's last 5 orders.
+2. Click on any order row to expand it. You will see the full list of items and the order total.
+3. Click **+ Re-order** to add all items from that order to the current cart.
+4. Items are merged into the cart — if an item is already in the cart, its quantity is increased rather than creating a duplicate line.
+
+> **Tip:** The most recent order is labelled **latest** and is always at the top of the list.
+
+This works in both the **Restaurant POS** and **Grocery POS**. Admins and managers see the same panel in their financial summary section; salespeople see it as a standalone collapsible card at the top of the product area.
 
 ### Customer Display Screen
 
@@ -7338,12 +7359,24 @@ A modal opens showing the order details and refund amount. If the order was paid
 
 ### Manager Flow — Authorising the Request
 
-**Step 2 — Enter override code:**
+**Step 2 — Select manager and enter override code:**
 
-The modal switches to the authorisation screen. The staff reason is shown read-only so the manager can review it. The manager enters their 6-character override code in the password field (or scans their employee card), then presses **Enter** or clicks **OK**.
+The modal switches to the authorisation screen. The staff reason is shown read-only so the manager can review it. Two options to identify the manager:
 
-- If the code is valid, the manager's name appears and they see two buttons: **Approve Cancellation** and **Deny Request**.
-- If the code is invalid, an error appears and the manager can retry. After **3 failed attempts** the input locks.
+**Option A — Manager name + code (keyboard entry):**
+1. Click the **Select manager** search box and type the manager's name. A dropdown lists all eligible managers for this business.
+2. Click the correct manager name to select them (the box turns green and shows "Manager selected").
+3. Click the **Override code** field and type the 6-character code, then press **Enter** or click **OK**.
+   - The OK button stays disabled until both a manager is selected and a code has been entered.
+
+**Option B — Employee card scan:**
+1. Have the manager scan their employee card using the barcode scanner. The system detects the scan automatically and identifies the manager without needing to use the dropdown or type anything.
+
+After a successful code or card scan:
+- The manager's name appears confirmed on screen.
+- Two buttons appear: **Approve Cancellation** and **Deny Request**.
+
+If the code is invalid, an error appears and the manager can retry. After **3 failed attempts** the input locks for the session.
 
 **Step 3a — Approve:**
 
@@ -7391,6 +7424,34 @@ For Cash and Card orders, the full order total is refunded (no deduction).
 ### Customer Display
 
 If a customer-facing display screen is connected, it automatically shows a cancellation confirmation when the order is cancelled — including the refund amount and EcoCash fee breakdown where applicable. The display clears after 10 seconds and returns to the normal idle screen.
+
+---
+
+## Receipt Watermarks — Reprints & Cancelled Orders
+
+When a receipt is reprinted or belongs to a cancelled order, clear watermarks are added so the receipt cannot be confused with an original.
+
+### Reprinted Receipts
+
+Every time a receipt is reprinted from the **Orders** page or the receipt detail modal, a **RE-PRINT** watermark is added automatically:
+
+- **Thermal printer (paper):** A header `*** RE-PRINT ***` is printed at the top of the receipt showing the reprint date/time and who reprinted it. A matching footer `*** RE-PRINT ***` followed by **THIS IS A REPRINTED RECEIPT — NOT VALID FOR RETURNS/EXCHANGES** appears at the bottom.
+- **Screen preview:** A large diagonal red **RE-PRINT** watermark is overlaid on the receipt preview.
+
+The receipt detail modal also shows a **Reprint History** section listing every reprint event — who did it and when.
+
+### Cancelled Order Receipts
+
+If a receipt is viewed or reprinted for an order that has been **cancelled and refunded**, an additional notice is printed at the top:
+
+```
+** ORDER CANCELLED / REFUNDED **
+Refund amount: $XX.XX
+Requested by: [Staff name]
+Approved by: [Manager name]
+```
+
+This notice appears on both the thermal print-out and the screen preview so it is immediately clear to anyone reading the receipt that the order was voided.
 
 ---
 

@@ -28,7 +28,7 @@ interface EodRecord {
 interface Totals { cashTotal: number; ecocashTotal: number }
 interface Counts { total: number; pending: number; submitted: number; overridden: number }
 
-type Tab = 'status' | 'overrides'
+type Tab = 'status' | 'overrides' | 'wifi'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -203,6 +203,9 @@ export default function ManagerEodPage() {
 
   const [overrideModal, setOverrideModal] = useState<EodRecord | null>(null)
 
+  const [wifiSales, setWifiSales] = useState<any>(null)
+  const [wifiLoading, setWifiLoading] = useState(false)
+
   const canAccess = isSystemAdmin || hasPermission('canCloseBooks')
 
   // Deadline passed check — past dates are always overdue; today checks against configured deadline time
@@ -240,8 +243,22 @@ export default function ManagerEodPage() {
     } finally { setOverridesLoading(false) }
   }, [currentBusinessId, overrideFromDate, overrideToDate])
 
+  const fetchWifiSales = useCallback(async () => {
+    if (!currentBusinessId) return
+    setWifiLoading(true)
+    try {
+      const today = selectedDate
+      const startDate = `${today}T00:00:00`
+      const endDate = `${today}T23:59:59`
+      const res = await fetch(`/api/business/${currentBusinessId}/wifi-token-sales?startDate=${startDate}&endDate=${endDate}&limit=100`)
+      const json = await res.json()
+      if (json.success) setWifiSales(json)
+    } finally { setWifiLoading(false) }
+  }, [currentBusinessId, selectedDate])
+
   useEffect(() => { if (tab === 'status') fetchRecords() }, [fetchRecords, tab])
   useEffect(() => { if (tab === 'overrides') fetchOverrides() }, [fetchOverrides, tab])
+  useEffect(() => { if (tab === 'wifi') fetchWifiSales() }, [fetchWifiSales, tab])
 
   if (bizLoading) return (
     <ContentLayout title="Staff EOD Status"><div className="text-sm text-gray-500 py-8 text-center">Loading…</div></ContentLayout>
@@ -279,12 +296,12 @@ export default function ManagerEodPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-neutral-700">
-          {(['status', 'overrides'] as Tab[]).map(t => (
+          {(['status', 'wifi', 'overrides'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
-              {t === 'status' ? "Today's Status" : 'Override Log'}
+              {t === 'status' ? "Today's Status" : t === 'wifi' ? '📶 WiFi Sales' : 'Override Log'}
             </button>
           ))}
         </div>
@@ -370,6 +387,104 @@ export default function ManagerEodPage() {
                   <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-800 dark:text-amber-300">
                     ⚠ {counts.pending} salesperson{counts.pending > 1 ? 's have' : ' has'} not submitted their EOD report.
                     The manager EOD cannot be closed until all reports are submitted.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── WIFI SALES TAB ── */}
+        {tab === 'wifi' && (
+          <div className="space-y-5">
+            {/* Date picker */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 dark:text-gray-400">Date:</label>
+              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-primary" />
+              <button onClick={fetchWifiSales}
+                className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                Refresh
+              </button>
+            </div>
+
+            {wifiLoading ? (
+              <div className="text-sm text-gray-500 py-8 text-center">Loading…</div>
+            ) : !wifiSales || wifiSales.summary?.total?.count === 0 ? (
+              <div className="text-sm text-gray-500 py-8 text-center">No WiFi token sales for this date.</div>
+            ) : (
+              <>
+                {/* Summary cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Tokens Sold</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-neutral-100">{wifiSales.summary.total.count}</p>
+                  </div>
+                  <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Revenue</p>
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{fmt(wifiSales.summary.total.amount)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">POS Sales</p>
+                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{wifiSales.summary.byChannel?.POS?.count ?? 0} · {fmt(wifiSales.summary.byChannel?.POS?.totalAmount ?? 0)}</p>
+                  </div>
+                  <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Direct Sales</p>
+                    <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{wifiSales.summary.byChannel?.DIRECT?.count ?? 0} · {fmt(wifiSales.summary.byChannel?.DIRECT?.totalAmount ?? 0)}</p>
+                  </div>
+                </div>
+
+                {/* Payment method breakdown */}
+                {wifiSales.summary.byPaymentMethod && Object.keys(wifiSales.summary.byPaymentMethod).length > 0 && (
+                  <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Payment Method Breakdown</h3>
+                    <div className="flex flex-wrap gap-4">
+                      {Object.entries(wifiSales.summary.byPaymentMethod).map(([method, data]: [string, any]) => (
+                        <div key={method} className="flex items-center gap-2 text-sm">
+                          <span className="font-medium text-gray-700 dark:text-gray-300">{method}:</span>
+                          <span className="text-gray-600 dark:text-gray-400">{data.count} tokens · {fmt(data.totalAmount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Individual sales table */}
+                {wifiSales.sales?.length > 0 && (
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-neutral-700">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-neutral-800/60 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Time</th>
+                          <th className="px-4 py-3 text-left">Token / Package</th>
+                          <th className="px-4 py-3 text-left">Channel</th>
+                          <th className="px-4 py-3 text-left">Payment</th>
+                          <th className="px-4 py-3 text-right">Amount</th>
+                          <th className="px-4 py-3 text-left">Sold By</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
+                        {wifiSales.sales.map((s: any) => (
+                          <tr key={s.id} className="bg-white dark:bg-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-750">
+                            <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap text-xs">{fmtTime(s.soldAt)}</td>
+                            <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                              <div className="font-medium">{s.token?.configName ?? 'WiFi Token'}</div>
+                              {s.token?.durationMinutes && (
+                                <div className="text-xs text-gray-400">{s.token.durationMinutes >= 60 ? `${s.token.durationMinutes / 60}h` : `${s.token.durationMinutes}m`}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${s.saleChannel === 'POS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                                {s.saleChannel}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{s.paymentMethod}</td>
+                            <td className="px-4 py-3 text-right font-medium text-green-600 dark:text-green-400">{fmt(s.saleAmount)}</td>
+                            <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{s.soldBy?.name ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </>
