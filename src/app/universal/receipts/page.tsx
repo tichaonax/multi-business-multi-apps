@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import ReceiptSearchBar from '@/components/receipts/receipt-search-bar'
 import ReceiptDetailModal from '@/components/receipts/receipt-detail-modal'
 import CrossBusinessAlert from '@/components/receipts/cross-business-alert'
+import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 import { getLocalDateString } from '@/lib/utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -29,6 +30,8 @@ interface ReceiptListItem {
   paymentMethod: string | null
   status: string
   createdAt: string
+  cancellationOutcome: 'CANCELLED' | 'DENIED' | null
+  refundAmount: number | null
 }
 
 interface PaginationInfo {
@@ -61,6 +64,10 @@ function ReceiptHistoryPageContent() {
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [crossBusinessResults, setCrossBusinessResults] = useState<any[]>([])
   const [showCrossBusinessAlert, setShowCrossBusinessAlert] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
+  const [cancelBusinessId, setCancelBusinessId] = useState<string>('')
+  const [cancelError, setCancelError] = useState<string | null>(null)
+  const [cancelLoading, setCancelLoading] = useState<string | null>(null) // receiptId being loaded
   const [dateFrom, setDateFrom] = useState('')       // ISO yyyy-mm-dd for API
   const [dateTo, setDateTo] = useState('')         // ISO yyyy-mm-dd for API
   const [dateFromDisplay, setDateFromDisplay] = useState('') // dd/mm/yyyy for input
@@ -216,6 +223,30 @@ function ReceiptHistoryPageContent() {
     setShowDetailModal(true)
   }
 
+  // Fetch order details and open cancel modal directly
+  const handleCancelClick = useCallback(async (receiptId: string) => {
+    setCancelError(null)
+    setCancelLoading(receiptId)
+    try {
+      const res = await fetch(`/api/universal/receipts/${receiptId}`)
+      const data = await res.json()
+      if (!res.ok) { setCancelError(data.error || 'Failed to load order'); return }
+      const order = data.order
+      const isEcocash = (order.paymentMethod || '').toUpperCase() === 'ECOCASH'
+      const ecocashFee = isEcocash ? Number(order.attributes?.ecocashFeeAmount ?? 0) : 0
+      setCancelBusinessId(order.businessId || '')
+      setCancelTarget({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        totalAmount: Number(order.totalAmount),
+        paymentMethod: order.paymentMethod || 'CASH',
+        createdAt: order.createdAt,
+        isEcocash,
+        refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee * 2 : Number(order.totalAmount),
+      })
+    } catch { setCancelError('Connection error') } finally { setCancelLoading(null) }
+  }, [])
+
   // Handle cross-business selection
   const handleCrossBusinessSelect = (result: any) => {
     setShowCrossBusinessAlert(false)
@@ -232,6 +263,13 @@ function ReceiptHistoryPageContent() {
       style: 'currency',
       currency: 'USD',
     }).format(num)
+  }
+
+  // Returns true if the order was placed today (local date)
+  const isSameDayOrder = (createdAt: string) => {
+    const d = new Date(createdAt)
+    const t = new Date()
+    return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
   }
 
   // Format date — server time shows UTC, local shows workstation timezone
@@ -382,6 +420,9 @@ function ReceiptHistoryPageContent() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -389,7 +430,13 @@ function ReceiptHistoryPageContent() {
                   <tr
                     key={receipt.id}
                     onClick={() => handleReceiptClick(receipt.id)}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                    className={`cursor-pointer transition-colors ${
+                      receipt.cancellationOutcome === 'CANCELLED'
+                        ? 'bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20'
+                        : receipt.cancellationOutcome === 'DENIED'
+                        ? 'bg-orange-50 dark:bg-orange-900/10 hover:bg-orange-100 dark:hover:bg-orange-900/20'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
                   >
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {receipt.orderNumber}
@@ -405,6 +452,11 @@ function ReceiptHistoryPageContent() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
                       <div>{formatCurrency(receipt.totalAmount)}</div>
+                      {receipt.cancellationOutcome === 'CANCELLED' && receipt.refundAmount != null && (
+                        <div className="text-xs text-red-600 dark:text-red-400 font-normal">
+                          Refunded: {formatCurrency(receipt.refundAmount)}
+                        </div>
+                      )}
                       {receipt.mealProgram && (
                         <div className="text-xs text-amber-600 dark:text-amber-400 font-normal">🍱 Meal Program</div>
                       )}
@@ -435,6 +487,25 @@ function ReceiptHistoryPageContent() {
                       >
                         {receipt.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      {receipt.cancellationOutcome === 'CANCELLED' ? (
+                        <span className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded-lg">
+                          Refunded
+                        </span>
+                      ) : receipt.cancellationOutcome === 'DENIED' ? (
+                        <span className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400 rounded-lg">
+                          Denied
+                        </span>
+                      ) : receipt.status === 'COMPLETED' && isSameDayOrder(receipt.createdAt) ? (
+                        <button
+                          onClick={() => handleCancelClick(receipt.id)}
+                          disabled={cancelLoading === receipt.id}
+                          className="px-3 py-1 text-xs font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                        >
+                          {cancelLoading === receipt.id ? '…' : 'Cancel / Refund'}
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -482,6 +553,36 @@ function ReceiptHistoryPageContent() {
           </div>
         )}
       </div>
+
+      {/* Cancel error toast */}
+      {cancelError && (
+        <div className="fixed bottom-4 right-4 z-[200] bg-red-600 text-white px-4 py-2 rounded-lg text-sm shadow-lg">
+          {cancelError}
+          <button onClick={() => setCancelError(null)} className="ml-2 font-bold">×</button>
+        </div>
+      )}
+
+      {/* Manager Override / Cancel modal */}
+      {cancelTarget && (
+        <ManagerOverrideModal
+          order={cancelTarget}
+          businessId={cancelBusinessId}
+          onApproved={async (managerId, _managerName, finalRefundAmount, staffReason) => {
+            try {
+              const res = await fetch(`/api/orders/${cancelTarget.orderId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ managerId, staffReason, finalRefundAmount, businessId: cancelBusinessId }),
+              })
+              const data = await res.json()
+              if (!res.ok) { setCancelError(data.error || 'Could not cancel order'); setCancelTarget(null); return }
+              setCancelTarget(null)
+              fetchReceipts(searchQuery, 0) // Refresh list to show CANCELLED status
+            } catch { setCancelError('Connection error'); setCancelTarget(null) }
+          }}
+          onAborted={() => setCancelTarget(null)}
+        />
+      )}
 
       {/* Modals */}
       {showDetailModal && selectedReceiptId && (

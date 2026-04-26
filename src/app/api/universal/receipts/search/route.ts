@@ -105,6 +105,23 @@ export async function GET(request: NextRequest) {
       where: whereClause,
     })
 
+    // Check which orders have a DENIED cancellation attempt or are CANCELLED (with refund amount)
+    const orderIds = orders.map(o => o.id)
+    const [deniedLogs, cancellations] = orderIds.length > 0
+      ? await Promise.all([
+          prisma.managerOverrideLog.findMany({
+            where: { targetId: { in: orderIds }, action: 'ORDER_CANCELLATION', outcome: 'DENIED' },
+            select: { targetId: true },
+          }),
+          prisma.orderCancellation.findMany({
+            where: { orderId: { in: orderIds } },
+            select: { orderId: true, refundAmount: true },
+          }),
+        ])
+      : [[], []]
+    const deniedOrderIds = new Set(deniedLogs.map((l: any) => l.targetId))
+    const refundMap = new Map((cancellations as any[]).map(c => [c.orderId, Number(c.refundAmount)]))
+
     return NextResponse.json({
       success: true,
       orders: orders.map(order => ({
@@ -126,6 +143,8 @@ export async function GET(request: NextRequest) {
         paymentMethod: order.paymentMethod,
         status: order.status,
         createdAt: order.createdAt,
+        cancellationOutcome: order.status === 'CANCELLED' ? 'CANCELLED' : deniedOrderIds.has(order.id) ? 'DENIED' : null,
+        refundAmount: refundMap.get(order.id) ?? null,
       })),
       pagination: {
         total: totalCount,

@@ -61,6 +61,8 @@ export default function ReceiptSearchBar({ onSearch, loading = false }: ReceiptS
         {/* Input */}
         <input
           type="text"
+          autoComplete="off"
+          name="receipt-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}

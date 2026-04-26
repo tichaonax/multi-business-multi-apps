@@ -27,7 +27,7 @@ import type {
   GroceryReceiptItem,
   HardwareReceiptItem
 } from '@/types/printing';
-import { addReprintWatermark } from '@/lib/receipts/watermark';
+import { addReprintWatermark, addCancelledWatermark } from '@/lib/receipts/watermark';
 import { formatDataAmount, formatDuration as formatDurationSmart } from './format-utils';
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes';
 import { formatDateTime, formatDate as formatDateOnly } from '@/lib/date-format';
@@ -130,9 +130,16 @@ export function generateReceipt(data: ReceiptData): string {
       receipt = generateGenericReceipt(data);
   }
 
-  // Add watermark if this is a reprint
-  if (data.isReprint) {
-    receipt = addReprintWatermark(receipt, data.reprintedBy, data.originalPrintDate);
+  // Add cancelled watermark for void/refund receipts
+  if (data.isCancelled) {
+    receipt = addCancelledWatermark(
+      receipt,
+      data.cancellation?.refundAmount,
+      data.cancellation?.requestedBy,
+      data.cancellation?.approvedBy
+    )
+  } else if (data.isReprint) {
+    receipt = addReprintWatermark(receipt, data.reprintedBy, data.originalPrintDate)
   }
 
   return receipt;

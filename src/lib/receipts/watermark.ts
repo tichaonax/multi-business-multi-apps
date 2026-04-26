@@ -53,7 +53,7 @@ function buildWatermarkHeader(
 
   // Top separator line
   header += ALIGN_CENTER
-  header += '━'.repeat(42) + NEWLINE
+  header += '-'.repeat(42) + NEWLINE
   header += NEWLINE
 
   // RE-PRINT banner in large, bold text
@@ -76,7 +76,7 @@ function buildWatermarkHeader(
   }
 
   header += NEWLINE
-  header += '━'.repeat(42) + NEWLINE
+  header += '-'.repeat(42) + NEWLINE
   header += NEWLINE + NEWLINE
 
   // Reset to left alignment for receipt content
@@ -95,7 +95,7 @@ function buildWatermarkFooter(): string {
 
   // Bottom separator line
   footer += ALIGN_CENTER
-  footer += '━'.repeat(42) + NEWLINE
+  footer += '-'.repeat(42) + NEWLINE
   footer += NEWLINE
 
   // RE-PRINT banner again
@@ -107,12 +107,35 @@ function buildWatermarkFooter(): string {
   footer += 'THIS IS A REPRINTED RECEIPT' + NEWLINE
   footer += 'NOT VALID FOR RETURNS/EXCHANGES' + NEWLINE
   footer += NEWLINE
-  footer += '━'.repeat(42) + NEWLINE
+  footer += '-'.repeat(42) + NEWLINE
 
-  // Reset alignment
+  // Reset alignment + final cut
   footer += ALIGN_LEFT
+  footer += NEWLINE + NEWLINE + NEWLINE
+  footer += `${GS}V\x41\x03`
 
   return footer
+}
+
+/**
+ * Add a simple CANCELLED/REFUND notice to a reprinted cancelled receipt.
+ * Inserts a short header before the receipt content — no big fonts, no extra dashes.
+ * The receipt's own CUT command handles paper cutting.
+ */
+export function addCancelledWatermark(
+  receiptText: string,
+  refundAmount?: number,
+  cancelledBy?: string,
+  approvedBy?: string
+): string {
+  let h = ALIGN_CENTER
+  h += BOLD_ON + '** ORDER CANCELLED / REFUNDED **' + BOLD_OFF + NEWLINE
+  if (refundAmount != null) h += `Refund amount: $${refundAmount.toFixed(2)}` + NEWLINE
+  if (cancelledBy) h += `Requested by: ${cancelledBy}` + NEWLINE
+  if (approvedBy)  h += `Approved by:  ${approvedBy}` + NEWLINE
+  h += NEWLINE + ALIGN_LEFT
+
+  return h + receiptText
 }
 
 /**

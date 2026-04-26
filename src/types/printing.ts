@@ -213,6 +213,14 @@ export interface ReceiptData {
   isReprint?: boolean;
   originalPrintDate?: Date;
   reprintedBy?: string;
+
+  // Cancellation fields
+  isCancelled?: boolean;
+  cancellation?: {
+    refundAmount?: number;
+    requestedBy?: string;
+    approvedBy?: string;
+  };
   // Umbrella/umbrella business-level phone number (optional)
   umbrellaPhone?: string;
 

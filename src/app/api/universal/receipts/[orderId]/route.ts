@@ -34,15 +34,14 @@ export async function GET(
         employees: true,
         reprint_logs: {
           include: {
-            user: {
-              select: {
-                name: true,
-                email: true,
-              },
-            },
+            user: { select: { name: true, email: true } },
           },
-          orderBy: {
-            reprintedAt: 'desc',
+          orderBy: { reprintedAt: 'desc' },
+        },
+        order_cancellation: {
+          include: {
+            requestedByUser: { select: { name: true } },
+            approvedByUser:  { select: { name: true } },
           },
         },
       },
@@ -147,6 +146,13 @@ export async function GET(
           reprintedBy: log.user.name,
           notes: log.notes,
         })),
+        cancellation: order.order_cancellation ? {
+          refundAmount: Number(order.order_cancellation.refundAmount),
+          feeDeducted: Number(order.order_cancellation.feeDeducted),
+          requestedBy: order.order_cancellation.requestedByUser.name,
+          approvedBy: order.order_cancellation.approvedByUser.name,
+          cancelledAt: order.order_cancellation.createdAt,
+        } : null,
       },
     })
   } catch (error) {

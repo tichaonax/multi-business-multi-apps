@@ -53,15 +53,23 @@ export function ManagerOverrideModal({
   const [refundError, setRefundError] = useState('')
 
   const codeInputRef = useRef<HTMLInputElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
+  const scanBufRef = useRef('')
+  const lastScanKeyRef = useRef(0)
+  const isScanningRef = useRef(false)
+  // Keep resolveValue stable ref so scan listener always calls the latest version
+  const resolveValueRef = useRef<(val: string) => Promise<void>>(async () => {})
 
   const LOCK_AFTER = 3
 
-  // Disable global barcode scanning while code-entry step is active
+  // Disable global barcode scanning while code-entry step is active; reset state and anchor focus
   useEffect(() => {
     if (step === 'CODE_ENTRY') {
       globalBarcodeService.disable()
-      // Auto-focus the password input so CardScanOverlay is also naturally blocked
-      setTimeout(() => codeInputRef.current?.focus(), 50)
+      setCodeValue('')
+      setCodeError('')
+      scanBufRef.current = ''
+      setTimeout(() => modalRef.current?.focus(), 0)
     }
     return () => {
       if (step === 'CODE_ENTRY') {
@@ -77,8 +85,59 @@ export function ManagerOverrideModal({
     }
   }, [])
 
-  const handleResolveCode = useCallback(async () => {
-    if (!codeValue.trim() || isResolving || failedAttempts >= LOCK_AFTER) return
+  // Capture-phase scan listener — intercepts rapid card-scanner sequences.
+  // Key insight: scanner chars arrive < 80ms apart. We detect this even when the input has focus.
+  // First char may leak into the input; char 2+ are intercepted. On Enter we clear the input
+  // and resolve from the buffer (not from codeValue).
+  useEffect(() => {
+    if (step !== 'CODE_ENTRY') return
+
+    const GAP_MS = 80
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const now = Date.now()
+      const gap = now - lastScanKeyRef.current
+      lastScanKeyRef.current = now
+
+      // Slow gap — reset; treat as start of a new (possibly manual) sequence
+      if (gap > GAP_MS) {
+        scanBufRef.current = ''
+        isScanningRef.current = false
+      }
+
+      if (e.key === 'Enter') {
+        if (isScanningRef.current) {
+          const code = scanBufRef.current.trim()
+          scanBufRef.current = ''
+          isScanningRef.current = false
+          if (code.length >= 4) {
+            e.stopImmediatePropagation()
+            e.preventDefault()
+            setCodeValue('') // clear any char(s) that leaked into the input
+            resolveValueRef.current(code)
+          }
+        }
+        return
+      }
+
+      if (e.key && e.key.length === 1) {
+        scanBufRef.current += e.key
+        // Once 2+ rapid chars accumulated — confirmed scanner, intercept from here
+        if (scanBufRef.current.length >= 2) {
+          isScanningRef.current = true
+          e.stopImmediatePropagation()
+          e.preventDefault() // prevent remaining chars entering the input
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown, true) // capture phase — fires first
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [step])
+
+  // Core resolve logic — used by both scan path (direct value) and manual input path (codeValue)
+  const resolveValue = useCallback(async (val: string) => {
+    if (!val.trim() || isResolving || failedAttempts >= LOCK_AFTER) return
 
     setIsResolving(true)
     setCodeError('')
@@ -87,7 +146,7 @@ export function ManagerOverrideModal({
       const res = await fetch('/api/manager-override/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: codeValue.trim(), businessId }),
+        body: JSON.stringify({ value: val.trim(), businessId }),
       })
       const data = await res.json()
 
@@ -100,15 +159,11 @@ export function ManagerOverrideModal({
             ? 'Too many failed attempts — input locked.'
             : data.error || 'Invalid code or unrecognised card'
         )
-        // Log FAILED_CODE
+        setTimeout(() => modalRef.current?.focus(), 50)
         await fetch(`/api/orders/${order.orderId}/cancel/log`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            outcome: 'FAILED_CODE',
-            staffReason,
-            businessId,
-          }),
+          body: JSON.stringify({ outcome: 'FAILED_CODE', staffReason, businessId }),
         }).catch(() => {})
       } else {
         setManager({ id: data.managerId, name: data.managerName })
@@ -119,7 +174,14 @@ export function ManagerOverrideModal({
     } finally {
       setIsResolving(false)
     }
-  }, [codeValue, isResolving, failedAttempts, businessId, order.orderId, staffReason])
+  }, [isResolving, failedAttempts, businessId, order.orderId, staffReason])
+
+  // Keep ref in sync so scan listener always uses latest closured state
+  resolveValueRef.current = resolveValue
+
+  const handleResolveCode = useCallback(async () => {
+    await resolveValue(codeValue)
+  }, [codeValue, resolveValue])
 
   const handleApprove = () => {
     if (!manager) return
@@ -185,7 +247,7 @@ export function ManagerOverrideModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div ref={modalRef} tabIndex={-1} className="bg-white rounded-2xl shadow-2xl w-full max-w-md outline-none">
 
         {/* ── Step 1: Staff Reason ─────────────────────────────────── */}
         {step === 'REASON' && (
@@ -272,8 +334,14 @@ export function ManagerOverrideModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Manager override code or scan card:
+              <p className="text-sm text-gray-600 mb-3">
+                <span className="font-medium">Scan card</span> — or click the field below to type the override code manually.
+              </p>
+              {isResolving && (
+                <p className="text-blue-600 text-xs mb-2 animate-pulse">Verifying…</p>
+              )}
+              <label className="block text-xs text-gray-500 mb-1">
+                Type override code:
               </label>
               <div className="flex gap-2">
                 <input
@@ -303,7 +371,7 @@ export function ManagerOverrideModal({
                 <p className="text-red-600 text-xs mt-1">{codeError}</p>
               )}
               {failedAttempts < LOCK_AFTER && !codeError && (
-                <p className="text-gray-400 text-xs mt-1">Press Enter or click OK to submit</p>
+                <p className="text-gray-400 text-xs mt-1">Press Enter or click OK to submit code</p>
               )}
             </div>
 

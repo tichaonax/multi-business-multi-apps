@@ -85,6 +85,11 @@ interface OrderData {
     }
   }>
   attributes?: any
+  cancellation?: {
+    refundAmount?: number
+    requestedBy?: string
+    approvedBy?: string
+  }
 }
 
 interface ReceiptBuilderOptions {
@@ -249,7 +254,9 @@ export function buildReceiptData(
     // Reprint fields
     isReprint: options.isReprint,
     originalPrintDate: options.originalPrintDate,
-    reprintedBy: options.reprintedBy
+    reprintedBy: options.reprintedBy,
+    isCancelled: order.status === 'CANCELLED' || order.paymentStatus === 'REFUNDED',
+    cancellation: order.cancellation
   }
 
   return receiptData

@@ -8,7 +8,10 @@ import { getServerUser } from '@/lib/get-server-user'
 // Function to recursively remove null characters from strings in an object
 function sanitizeForDatabase(obj: any): any {
   if (typeof obj === 'string') {
-    return obj.replace(/\u0000/g, '') // Remove null characters
+    return obj.replace(/\u0000/g, '')
+  }
+  if (obj instanceof Date) {
+    return obj.toISOString()
   }
   if (Array.isArray(obj)) {
     return obj.map(sanitizeForDatabase)
@@ -55,6 +58,12 @@ export async function POST(
         businesses: true,
         business_customers: true,
         employees: true,
+        order_cancellation: {
+          include: {
+            requestedByUser: { select: { name: true } },
+            approvedByUser:  { select: { name: true } },
+          },
+        },
       },
     })
 
@@ -120,18 +129,31 @@ export async function POST(
       businessType: order.businessType,
       attributes: order.attributes as any,
       notes: order.notes || undefined,
+      orderDate: order.processedAt || order.createdAt,
       processedAt: order.processedAt || order.createdAt,
       createdAt: order.createdAt,
-      items: order.business_order_items.map(item => ({
-        id: item.id,
-        productVariantId: item.productVariantId || undefined,
-        productName: item.product_variants?.business_products?.name || 'Unknown Product',
-        quantity: parseFloat(item.quantity.toString()),
-        unitPrice: parseFloat(item.unitPrice.toString()),
-        discountAmount: parseFloat(item.discountAmount.toString()),
-        totalPrice: parseFloat(item.totalPrice.toString()),
-        attributes: item.attributes as any,
-      })),
+      cancellation: (order as any).order_cancellation ? {
+        refundAmount: Number((order as any).order_cancellation.refundAmount),
+        requestedBy: (order as any).order_cancellation.requestedByUser?.name,
+        approvedBy: (order as any).order_cancellation.approvedByUser?.name,
+      } : undefined,
+      items: order.business_order_items.map(item => {
+        const productName = item.product_variants?.business_products?.name || (item.attributes as any)?.productName || 'Unknown Product'
+        const variantName = (item.product_variants as any)?.name
+        const fullName = variantName && variantName !== productName
+          ? `${productName} (${variantName})`
+          : productName
+        return {
+          id: item.id,
+          productVariantId: item.productVariantId || undefined,
+          name: fullName,
+          quantity: parseFloat(item.quantity.toString()),
+          unitPrice: parseFloat(item.unitPrice.toString()),
+          discountAmount: parseFloat(item.discountAmount.toString()),
+          totalPrice: parseFloat(item.totalPrice.toString()),
+          attributes: item.attributes as any,
+        }
+      }),
     }
 
     // Build receipt data with reprint flag (pass current user as fallback salesperson)

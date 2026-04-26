@@ -52,14 +52,11 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
       setReprinting(true)
       setError(null)
 
+      // Log the reprint event
       const response = await fetch(`/api/universal/receipts/${receiptId}/reprint`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          notes: 'Reprinted from receipt history',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: 'Reprinted from receipt history' }),
       })
 
       const data = await response.json()
@@ -68,11 +65,20 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
         throw new Error(data.error || 'Failed to reprint receipt')
       }
 
-      // Open receipt preview modal for printer selection and close detail modal
-      if (data.receiptData) {
-        setReprintReceiptData(data.receiptData)
-        onClose() // Close the detail modal, go back to receipt list
-      }
+      // Use already-loaded receipt data (correct item names) + add reprint/cancel metadata
+      setReprintReceiptData({
+        ...receipt,
+        isReprint: true,
+        originalPrintDate: order?.createdAt ? new Date(order.createdAt) : new Date(),
+        isCancelled: order?.status === 'CANCELLED' || order?.paymentStatus === 'REFUNDED',
+        cancellation: order?.cancellation
+          ? {
+              refundAmount: order.cancellation.refundAmount,
+              requestedBy: order.cancellation.requestedBy,
+              approvedBy: order.cancellation.approvedBy,
+            }
+          : undefined,
+      })
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -80,14 +86,16 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
     }
   }
 
+  const isSameDayOrder = order
+    ? (() => {
+        const d = new Date(order.createdAt)
+        const t = new Date()
+        return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
+      })()
+    : false
+
   const handleOpenCancel = () => {
     if (!order) return
-    const isSameDay = (() => {
-      const d = new Date(order.createdAt)
-      const t = new Date()
-      return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
-    })()
-    if (!isSameDay) { setCancelError('Same-day cancellations only'); return }
     const isEcocash = (order.paymentMethod || '').toUpperCase() === 'ECOCASH'
     const ecocashFee = isEcocash ? Number((order.attributes as any)?.ecocashFeeAmount ?? 0) : 0
     setCancelError(null)
@@ -315,6 +323,37 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                   </dl>
                 </div>
 
+                {/* Cancellation Info */}
+                {order.cancellation && (
+                  <div className="border border-red-200 dark:border-red-800 rounded-lg p-4 bg-red-50 dark:bg-red-900/10 space-y-2">
+                    <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">Order Cancelled</h4>
+                    <dl className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Refund Amount</dt>
+                        <dd className="font-semibold text-red-700 dark:text-red-400">{formatCurrency(order.cancellation.refundAmount)}</dd>
+                      </div>
+                      {order.cancellation.feeDeducted > 0 && (
+                        <div>
+                          <dt className="text-xs text-gray-500 dark:text-gray-400">Fee Deducted</dt>
+                          <dd className="text-red-600 dark:text-red-400">{formatCurrency(order.cancellation.feeDeducted)}</dd>
+                        </div>
+                      )}
+                      <div>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Requested By</dt>
+                        <dd className="font-medium text-gray-900 dark:text-white">{order.cancellation.requestedBy}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Approved By</dt>
+                        <dd className="font-medium text-gray-900 dark:text-white">{order.cancellation.approvedBy}</dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Cancelled At</dt>
+                        <dd className="text-gray-700 dark:text-gray-300">{new Date(order.cancellation.cancelledAt).toLocaleString()}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                )}
+
                 {/* Reprint History */}
                 {order.reprintHistory && order.reprintHistory.length > 0 && (
                   <div>
@@ -341,7 +380,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
           {/* Footer */}
           <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div className="flex-1">
-              {order?.status === 'COMPLETED' && order?.paymentStatus === 'PAID' && (
+              {order?.status === 'COMPLETED' && order?.paymentStatus === 'PAID' && isSameDayOrder && (
                 <button
                   onClick={handleOpenCancel}
                   disabled={reprinting || loading}
@@ -416,10 +455,15 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
       {/* Receipt Preview Modal for reprinting */}
       {reprintReceiptData && (
         <UnifiedReceiptPreviewModal
+          isOpen={true}
           receiptData={reprintReceiptData}
+          businessType={(order?.businessType || 'restaurant') as any}
           onClose={() => setReprintReceiptData(null)}
-          onPrintConfirm={async (printer) => {
-            await ReceiptPrintManager.printReceipt(reprintReceiptData, printer)
+          onPrintConfirm={async (options) => {
+            await ReceiptPrintManager.printReceipt(reprintReceiptData, order?.businessType || 'restaurant', {
+              ...options,
+              autoPrint: true,
+            })
             setReprintReceiptData(null)
           }}
         />

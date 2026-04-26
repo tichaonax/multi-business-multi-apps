@@ -204,8 +204,10 @@ export async function printToQzPrinter(
   // Sending via format:'command' causes QZ Tray to UTF-8 encode the string, turning
   // each byte > 127 into a 2-byte sequence — this corrupts the raster stream and the
   // printer only prints the first few rows before byte offsets go wrong ("top half only").
-  // base64 encoding ensures the binary payload is transmitted byte-perfect.
-  const data = [{ type: 'raw', format: 'base64', data: btoa(escPosString) }]
+  // btoa() only handles Latin1 (0x00-0xFF); replace any codepoints > 0xFF with '-'
+  // so ESC/POS binary bytes are preserved exactly while stray Unicode chars are stripped.
+  const safeStr = escPosString.split('').map(c => c.charCodeAt(0) > 0xFF ? '-' : c).join('')
+  const data = [{ type: 'raw', format: 'base64', data: btoa(safeStr) }]
   await qz.print(config, data)
 }
 

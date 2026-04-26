@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { PolicyAcknowledgmentModal } from './PolicyAcknowledgmentModal'
+import { invalidatePolicyOverdueCache } from '@/hooks/use-policy-overdue'
 
 // Paths where the guard should never block (auth, public)
 const EXEMPT_PATHS = ['/login', '/register', '/api', '/customer-display', '/kiosk']
@@ -56,6 +57,7 @@ export function PolicyGuard({ children }: { children: React.ReactNode }) {
   }, [status, checkPending, pathname])
 
   const handleAllDone = () => {
+    invalidatePolicyOverdueCache()
     setPending([])
   }
 
