@@ -25,17 +25,28 @@ const NEWLINE = '\n'
 
 /**
  * Add RE-PRINT watermark to receipt text (thermal printer)
- * Inserts watermark banner at top and bottom of receipt
+ * Simple header only — no extra CUT, no large fonts, no dashes
  */
 export function addReprintWatermark(
   receiptText: string,
   reprintedBy?: string,
   originalPrintDate?: Date
 ): string {
-  const watermarkTop = buildWatermarkHeader(reprintedBy, originalPrintDate)
-  const watermarkBottom = buildWatermarkFooter()
+  const now = new Date()
+  const dateStr = now.toLocaleDateString()
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-  return watermarkTop + receiptText + watermarkBottom
+  let h = ALIGN_CENTER
+  h += '** RE-PRINT **' + NEWLINE
+  h += `Reprinted: ${dateStr} ${timeStr}` + NEWLINE
+  if (reprintedBy) h += `By: ${reprintedBy}` + NEWLINE
+  if (originalPrintDate) {
+    const orig = new Date(originalPrintDate)
+    h += `Original: ${orig.toLocaleDateString()}` + NEWLINE
+  }
+  h += NEWLINE + ALIGN_LEFT
+
+  return h + receiptText
 }
 
 /**
@@ -129,7 +140,7 @@ export function addCancelledWatermark(
   approvedBy?: string
 ): string {
   let h = ALIGN_CENTER
-  h += BOLD_ON + '** ORDER CANCELLED / REFUNDED **' + BOLD_OFF + NEWLINE
+  h += '** ORDER CANCELLED / REFUNDED **' + NEWLINE
   if (refundAmount != null) h += `Refund amount: $${refundAmount.toFixed(2)}` + NEWLINE
   if (cancelledBy) h += `Requested by: ${cancelledBy}` + NEWLINE
   if (approvedBy)  h += `Approved by:  ${approvedBy}` + NEWLINE

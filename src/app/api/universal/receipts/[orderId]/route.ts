@@ -89,6 +89,11 @@ export async function GET(
       notes: order.notes || undefined,
       processedAt: order.processedAt || order.createdAt,
       createdAt: order.createdAt,
+      cancellation: order.order_cancellation ? {
+        refundAmount: Number(order.order_cancellation.refundAmount),
+        requestedBy: order.order_cancellation.requestedByUser?.name,
+        approvedBy: order.order_cancellation.approvedByUser?.name,
+      } : undefined,
       items: order.business_order_items.map(item => {
         const productName = item.product_variants?.business_products?.name || (item.attributes as any)?.productName || 'Unknown Product'
         const variantName = (item.product_variants as any)?.name
