@@ -182,6 +182,10 @@ export default function EndOfDayReport() {
       setSaveError('Manager signature is required')
       return
     }
+    if (!cashCounted.trim() || isNaN(parseFloat(cashCounted))) {
+      setSaveError('Cash counted is required before saving')
+      return
+    }
 
     try {
       setSaving(true)
@@ -1045,7 +1049,7 @@ export default function EndOfDayReport() {
 
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Cash Counted (Optional):
+                  Cash Counted: <span className="text-red-500">*</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-lg text-gray-700 dark:text-gray-300">$</span>
@@ -1155,7 +1159,7 @@ export default function EndOfDayReport() {
                 </button>
                 <button
                   onClick={handleSaveReport}
-                  disabled={saving || !confirmName.trim()}
+                  disabled={saving || !confirmName.trim() || !cashCounted.trim()}
                   className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
                 >
                   {saving ? '💾 Saving...' : '💾 Save & Lock'}
