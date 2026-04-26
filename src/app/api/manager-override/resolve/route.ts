@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   const rawValue = String(body.value ?? '').trim()
   const upperValue = rawValue.toUpperCase()
   const businessId = String(body.businessId ?? '').trim()
+  const selectedManagerId = body.managerId ? String(body.managerId).trim() : null
 
   if (!rawValue) return NextResponse.json({ error: 'value is required' }, { status: 400 })
   if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
@@ -50,9 +51,10 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Step 2: Check override code hash
+  // Step 2: Check override code hash — scoped to selected manager if provided
   const now = new Date()
   const allCodes = await prisma.managerOverrideCodes.findMany({
+    where: selectedManagerId ? { userId: selectedManagerId } : undefined,
     select: { userId: true, codeHash: true, expiresAt: true },
   })
 

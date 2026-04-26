@@ -106,6 +106,8 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
       paymentMethod: order.paymentMethod || 'CASH',
       createdAt: order.createdAt,
       isEcocash,
+      grossAmount: isEcocash ? Number(order.totalAmount) : undefined,
+      feeDeducted: isEcocash ? ecocashFee : undefined,
       refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee : Number(order.totalAmount),
     })
   }

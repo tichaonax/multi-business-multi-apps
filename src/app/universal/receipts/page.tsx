@@ -242,6 +242,8 @@ function ReceiptHistoryPageContent() {
         paymentMethod: order.paymentMethod || 'CASH',
         createdAt: order.createdAt,
         isEcocash,
+        grossAmount: isEcocash ? Number(order.totalAmount) : undefined,
+        feeDeducted: isEcocash ? ecocashFee : undefined,
         refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee : Number(order.totalAmount),
       })
     } catch { setCancelError('Connection error') } finally { setCancelLoading(null) }

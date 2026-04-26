@@ -44,6 +44,11 @@ export function ManagerOverrideModal({
   const [failedAttempts, setFailedAttempts] = useState(0)
   const [isResolving, setIsResolving] = useState(false)
   const [manager, setManager] = useState<{ id: string; name: string } | null>(null)
+  const [managers, setManagers] = useState<{ id: string; name: string }[]>([])
+  const [managersLoading, setManagersLoading] = useState(false)
+  const [selectedManagerId, setSelectedManagerId] = useState('')
+  const [managerSearch, setManagerSearch] = useState('')
+  const [showManagerDropdown, setShowManagerDropdown] = useState(false)
   const [denialReason, setDenialReason] = useState('')
   const [isSubmittingDenial, setIsSubmittingDenial] = useState(false)
   // For non-EcoCash: manager can adjust the refund downward
@@ -68,8 +73,17 @@ export function ManagerOverrideModal({
       globalBarcodeService.disable()
       setCodeValue('')
       setCodeError('')
+      setSelectedManagerId('')
+      setManagerSearch('')
       scanBufRef.current = ''
       setTimeout(() => modalRef.current?.focus(), 0)
+      // Fetch managers for this business
+      setManagersLoading(true)
+      fetch(`/api/manager-override/managers?businessId=${encodeURIComponent(businessId)}`)
+        .then(r => r.json())
+        .then(d => setManagers(d.managers || []))
+        .catch(() => {})
+        .finally(() => setManagersLoading(false))
     }
     return () => {
       if (step === 'CODE_ENTRY') {
@@ -146,7 +160,7 @@ export function ManagerOverrideModal({
       const res = await fetch('/api/manager-override/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: val.trim(), businessId }),
+        body: JSON.stringify({ value: val.trim(), businessId, managerId: selectedManagerId || undefined }),
       })
       const data = await res.json()
 
@@ -174,7 +188,7 @@ export function ManagerOverrideModal({
     } finally {
       setIsResolving(false)
     }
-  }, [isResolving, failedAttempts, businessId, order.orderId, staffReason])
+  }, [isResolving, failedAttempts, businessId, order.orderId, staffReason, selectedManagerId])
 
   // Keep ref in sync so scan listener always uses latest closured state
   resolveValueRef.current = resolveValue
@@ -333,25 +347,80 @@ export function ManagerOverrideModal({
               <p>{staffReason}</p>
             </div>
 
+            {/* Manager selection dropdown */}
+            <div className="relative">
+              <label className="block text-xs text-gray-500 mb-1 font-medium">
+                Select manager <span className="text-red-500">*</span>
+              </label>
+              {managersLoading ? (
+                <p className="text-xs text-gray-400 py-2">Loading managers…</p>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Search manager name…"
+                    value={managerSearch}
+                    onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true) }}
+                    onFocus={() => setShowManagerDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowManagerDropdown(false), 150)}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      selectedManagerId ? 'border-green-400 bg-green-50' : 'border-gray-300'
+                    }`}
+                  />
+                  {showManagerDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-44 overflow-y-auto">
+                      {managers
+                        .filter(m => m.name.toLowerCase().includes(managerSearch.toLowerCase()))
+                        .map(m => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onMouseDown={() => {
+                              setSelectedManagerId(m.id)
+                              setManagerSearch(m.name)
+                              setShowManagerDropdown(false)
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${
+                              selectedManagerId === m.id ? 'bg-blue-100 font-medium' : ''
+                            }`}
+                          >
+                            {m.name}
+                          </button>
+                        ))}
+                      {managers.filter(m => m.name.toLowerCase().includes(managerSearch.toLowerCase())).length === 0 && (
+                        <p className="px-3 py-2 text-xs text-gray-400">No managers found</p>
+                      )}
+                    </div>
+                  )}
+                  {selectedManagerId && (
+                    <p className="text-xs text-green-600 mt-1">Manager selected</p>
+                  )}
+                </>
+              )}
+            </div>
+
             <div>
               <p className="text-sm text-gray-600 mb-3">
-                <span className="font-medium">Scan card</span> — or click the field below to type the override code manually.
+                <span className="font-medium">Scan card</span> — or select manager above then type the override code.
               </p>
               {isResolving && (
                 <p className="text-blue-600 text-xs mb-2 animate-pulse">Verifying…</p>
               )}
               <label className="block text-xs text-gray-500 mb-1">
-                Type override code:
+                Override code:
               </label>
               <div className="flex gap-2">
                 <input
                   ref={codeInputRef}
-                  type="password"
+                  type="text"
                   autoComplete="off"
+                  style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
                   value={codeValue}
                   onChange={(e) => {
                     if (failedAttempts < LOCK_AFTER) setCodeValue(e.target.value)
                   }}
+                  onFocus={() => setCodeValue('')}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleResolveCode()
                   }}
@@ -361,16 +430,19 @@ export function ManagerOverrideModal({
                 />
                 <button
                   onClick={handleResolveCode}
-                  disabled={!codeValue.trim() || failedAttempts >= LOCK_AFTER || isResolving}
+                  disabled={!codeValue.trim() || !selectedManagerId || failedAttempts >= LOCK_AFTER || isResolving}
                   className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isResolving ? '…' : 'OK'}
                 </button>
               </div>
+              {!selectedManagerId && codeValue.trim() && (
+                <p className="text-amber-600 text-xs mt-1">Please select a manager first</p>
+              )}
               {codeError && (
                 <p className="text-red-600 text-xs mt-1">{codeError}</p>
               )}
-              {failedAttempts < LOCK_AFTER && !codeError && (
+              {selectedManagerId && failedAttempts < LOCK_AFTER && !codeError && (
                 <p className="text-gray-400 text-xs mt-1">Press Enter or click OK to submit code</p>
               )}
             </div>
