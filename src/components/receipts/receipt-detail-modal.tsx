@@ -97,7 +97,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
   const handleOpenCancel = () => {
     if (!order) return
     const isEcocash = (order.paymentMethod || '').toUpperCase() === 'ECOCASH'
-    const ecocashFee = isEcocash ? Number((order.attributes as any)?.ecocashFeeAmount ?? 0) : 0
+    const ecocashFee = isEcocash ? Number(order.ecocashFeeAmount ?? 0) : 0
     setCancelError(null)
     setCancelTarget({
       orderId: order.id,
@@ -106,7 +106,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
       paymentMethod: order.paymentMethod || 'CASH',
       createdAt: order.createdAt,
       isEcocash,
-      refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee * 2 : Number(order.totalAmount),
+      refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee : Number(order.totalAmount),
     })
   }
 

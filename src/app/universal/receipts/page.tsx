@@ -233,7 +233,7 @@ function ReceiptHistoryPageContent() {
       if (!res.ok) { setCancelError(data.error || 'Failed to load order'); return }
       const order = data.order
       const isEcocash = (order.paymentMethod || '').toUpperCase() === 'ECOCASH'
-      const ecocashFee = isEcocash ? Number(order.attributes?.ecocashFeeAmount ?? 0) : 0
+      const ecocashFee = isEcocash ? Number(order.ecocashFeeAmount ?? 0) : 0
       setCancelBusinessId(order.businessId || '')
       setCancelTarget({
         orderId: order.id,
@@ -242,7 +242,7 @@ function ReceiptHistoryPageContent() {
         paymentMethod: order.paymentMethod || 'CASH',
         createdAt: order.createdAt,
         isEcocash,
-        refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee * 2 : Number(order.totalAmount),
+        refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee : Number(order.totalAmount),
       })
     } catch { setCancelError('Connection error') } finally { setCancelLoading(null) }
   }, [])
@@ -576,8 +576,14 @@ function ReceiptHistoryPageContent() {
               })
               const data = await res.json()
               if (!res.ok) { setCancelError(data.error || 'Could not cancel order'); setCancelTarget(null); return }
+              // Immediately remove button from UI before the refresh completes
+              setReceipts(prev => prev.map(r =>
+                r.id === cancelTarget.orderId
+                  ? { ...r, status: 'CANCELLED', cancellationOutcome: 'CANCELLED' }
+                  : r
+              ))
               setCancelTarget(null)
-              fetchReceipts(searchQuery, 0) // Refresh list to show CANCELLED status
+              fetchReceipts(searchQuery, 0)
             } catch { setCancelError('Connection error'); setCancelTarget(null) }
           }}
           onAborted={() => setCancelTarget(null)}
