@@ -84,7 +84,12 @@ export default function EodSubmitPage() {
         }),
       })
       const json = await res.json()
-      if (!res.ok) { setError(json.error ?? 'Failed to submit EOD report'); setStep('form'); return }
+      if (!res.ok) {
+        setError(json.error ?? 'Failed to submit EOD report')
+        setStep('form')
+        checkStatus()
+        return
+      }
       setStep('done')
     } catch {
       setError('Network error — please try again')
@@ -258,7 +263,14 @@ export default function EodSubmitPage() {
               </div>
 
               {error && (
-                <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>
+                <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
+                  <p>{error}</p>
+                  {error.toLowerCase().includes('already submitted') && (
+                    <Link href="/eod/history" className="mt-1 inline-block underline text-red-700 dark:text-red-300">
+                      View submitted report →
+                    </Link>
+                  )}
+                </div>
               )}
 
               <div className="flex gap-3 pt-1">
