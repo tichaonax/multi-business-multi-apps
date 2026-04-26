@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { getEffectivePermissions } from '@/lib/permission-utils'
 
 // GET /api/manager-override/managers?businessId=xxx
 // Returns all managers eligible to approve an override for the given business.
+// Eligible = admin role, OR business-manager / business-owner membership for the business.
 export async function GET(req: NextRequest) {
   const user = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -12,47 +12,43 @@ export async function GET(req: NextRequest) {
   const businessId = req.nextUrl.searchParams.get('businessId') || ''
   if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
 
-  // Fetch all active users who have a membership in this business
+  const MANAGER_ROLES = ['business-owner', 'business-manager']
+
+  // Fetch memberships with manager-level roles for this business
   const memberships = await prisma.businessMemberships.findMany({
-    where: { businessId, isActive: true },
+    where: {
+      businessId,
+      isActive: true,
+      role: { in: MANAGER_ROLES },
+    },
     select: {
-      userId: true,
       users: {
-        select: { id: true, name: true, isActive: true, role: true, permissions: true },
+        select: { id: true, name: true, isActive: true },
       },
     },
   })
 
-  // Also include admins (they can override in any business)
+  // Also fetch system admins (they can override in any business)
   const admins = await prisma.users.findMany({
     where: { role: 'admin', isActive: true },
-    select: { id: true, name: true, isActive: true, role: true, permissions: true },
+    select: { id: true, name: true },
   })
 
   const seen = new Set<string>()
   const managers: { id: string; name: string }[] = []
 
-  const addIfManager = (u: { id: string; name: string | null; isActive: boolean; role: string; permissions: any }) => {
-    if (!u.isActive || seen.has(u.id)) return
-    if (u.role === 'admin') {
-      seen.add(u.id)
-      managers.push({ id: u.id, name: u.name || 'Admin' })
-      return
-    }
-    // Build a minimal user object for getEffectivePermissions
-    const memberships = (u as any).business_memberships ?? []
-    const perms = getEffectivePermissions({ ...u, businessMemberships: memberships } as any, businessId)
-    if (perms.canCloseBooks) {
-      seen.add(u.id)
-      managers.push({ id: u.id, name: u.name || 'Manager' })
+  for (const a of admins) {
+    if (!seen.has(a.id)) {
+      seen.add(a.id)
+      managers.push({ id: a.id, name: a.name || 'Admin' })
     }
   }
 
   for (const m of memberships) {
-    if (m.users) addIfManager(m.users as any)
-  }
-  for (const a of admins) {
-    addIfManager(a as any)
+    if (m.users && m.users.isActive && !seen.has(m.users.id)) {
+      seen.add(m.users.id)
+      managers.push({ id: m.users.id, name: m.users.name || 'Manager' })
+    }
   }
 
   managers.sort((a, b) => a.name.localeCompare(b.name))

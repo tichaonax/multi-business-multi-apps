@@ -144,6 +144,7 @@ export async function GET(
         paymentMethod: order.paymentMethod || null,
         paymentStatus: order.paymentStatus || null,
         ecocashFeeAmount: (order.attributes as any)?.ecocashFeeAmount ?? null,
+        ecocashTransactionCode: (order.attributes as any)?.ecocashTransactionCode ?? null,
         discountAmount: parseFloat(order.discountAmount.toString()),
         rewardCouponCode: (order.attributes as any)?.rewardCouponCode || null,
         createdAt: order.createdAt,

@@ -97,6 +97,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
   const handleOpenCancel = () => {
     if (!order) return
     const isEcocash = (order.paymentMethod || '').toUpperCase() === 'ECOCASH'
+      || !!(order.ecocashTransactionCode)
     const ecocashFee = isEcocash ? Number(order.ecocashFeeAmount ?? 0) : 0
     setCancelError(null)
     setCancelTarget({

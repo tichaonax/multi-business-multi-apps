@@ -1,6 +1,25 @@
 'use client'
 
-
+// Handler for re-ordering items from a previous order
+function handleReorder(orderItems: any[]) {
+  setCart(prev => {
+    const next = [...prev]
+    for (const item of orderItems) {
+      const name = item.product_variants?.business_products?.name || item.attributes?.productName || item.notes || 'Item'
+      const variantId = item.productVariantId || item.id
+      const price = Number(item.unitPrice) || 0
+      const qty = Number(item.quantity) || 1
+      const idx = next.findIndex(c => c.id === variantId)
+      if (idx >= 0) {
+        next[idx] = { ...next[idx], quantity: next[idx].quantity + qty, subtotal: (next[idx].quantity + qty) * price }
+      } else {
+        next.push({ id: variantId, name, price, quantity: qty, subtotal: qty * price } as any)
+      }
+    }
+    return next
+  })
+  toast.push('Items added to cart', { type: 'success' })
+}
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 
@@ -1954,6 +1973,26 @@ export default function RestaurantPOS() {
   // Keep ref current on every render so pos:add-to-cart event handler is never null
   addToCartRef.current = addToCart
 
+  const handleReorder = (orderItems: any[]) => {
+    setCart(prev => {
+      const next = [...prev]
+      for (const item of orderItems) {
+        const name = item.product_variants?.business_products?.name || item.attributes?.productName || item.notes || 'Item'
+        const variantId = item.productVariantId || item.id
+        const price = Number(item.unitPrice) || 0
+        const qty = Number(item.quantity) || 1
+        const idx = next.findIndex(c => c.id === variantId)
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], quantity: next[idx].quantity + qty }
+        } else {
+          next.push({ id: variantId, name, price, category: '', quantity: qty })
+        }
+      }
+      return next
+    })
+    toast.push('Items added to cart', { type: 'success' })
+  }
+
   const handleProductScanned = (product: any, variantId?: string) => {
     // Check if product is available
     if (!(product as any).isAvailable) {
@@ -2889,9 +2928,9 @@ export default function RestaurantPOS() {
                             const items = order.business_order_items || []
                             return (
                               <div key={order.id}>
-                                <button
+                                <div
                                   onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                                  className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                                  className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
                                 >
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 min-w-0">
@@ -2904,6 +2943,14 @@ export default function RestaurantPOS() {
                                             ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                             : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                                       }`}>{order.status}</span>
+                                      {isExpanded && items.length > 0 && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleReorder(items) }}
+                                          className="flex-shrink-0 px-2 py-0.5 text-[10px] font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                        >
+                                          + Re-order
+                                        </button>
+                                      )}
                                       {!isExpanded && items.length > 0 && (() => {
                                         const fi = items[0]
                                         const fn = fi?.product_variants?.business_products?.name || fi?.attributes?.productName || fi?.notes
@@ -2924,7 +2971,7 @@ export default function RestaurantPOS() {
                                   <div className="text-sm font-bold text-green-600 dark:text-green-400 whitespace-nowrap">
                                     ${Number(order.totalAmount || 0).toFixed(2)}
                                   </div>
-                                </button>
+                                </div>
 
                                 {isExpanded && items.length > 0 && (
                                   <div className="px-3 pb-3 pl-8">
@@ -2965,6 +3012,14 @@ export default function RestaurantPOS() {
                                       <div className="border-t border-gray-200 dark:border-gray-600 pt-1 mt-1 flex justify-between text-xs font-bold text-gray-900 dark:text-white">
                                         <span>Total</span>
                                         <span>${Number(order.totalAmount || 0).toFixed(2)}</span>
+                                      </div>
+                                      <div className="pt-2">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleReorder(items) }}
+                                          className="w-full py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                        >
+                                          + Re-order
+                                        </button>
                                       </div>
                                     </div>
                                   </div>
@@ -3245,6 +3300,14 @@ export default function RestaurantPOS() {
                                     <div className="border-t border-gray-200 dark:border-gray-600 pt-1 mt-1 flex justify-between text-xs font-bold text-gray-900 dark:text-white">
                                       <span>Total</span>
                                       <span>${Number(order.totalAmount || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div className="pt-2">
+                                      <button
+                                        onClick={() => handleReorder(items)}
+                                        className="w-full py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                      >
+                                        + Re-order
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
@@ -4604,12 +4667,18 @@ export default function RestaurantPOS() {
                 <button
                   onClick={() => {
                     if (!completedOrder?.orderId) return
+                    const _isEco = (completedOrder.paymentMethod || '').toUpperCase() === 'ECOCASH'
+                    const _fee = completedOrder.ecocashFeeAmount ?? 0
                     setCancelTarget({
                       orderId: completedOrder.orderId,
                       orderNumber: completedOrder.orderNumber,
                       totalAmount: completedOrder.total,
                       paymentMethod: completedOrder.paymentMethod,
                       createdAt: new Date().toISOString(),
+                      isEcocash: _isEco,
+                      grossAmount: _isEco ? completedOrder.total : undefined,
+                      feeDeducted: _isEco ? _fee : undefined,
+                      refundAmount: _isEco ? completedOrder.total - _fee : completedOrder.total,
                     })
                     setShowCancelModal(true)
                   }}

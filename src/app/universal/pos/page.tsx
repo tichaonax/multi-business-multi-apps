@@ -758,7 +758,9 @@ export default function UniversalPOS() {
               paymentMethod,
               createdAt: new Date().toISOString(),
               isEcocash,
-              refundAmount: isEcocash ? pendingReceiptData.total - (pendingReceiptData.ecocashFeeAmount ?? 0) * 2 : pendingReceiptData.total,
+              grossAmount: isEcocash ? pendingReceiptData.total : undefined,
+              feeDeducted: isEcocash ? (pendingReceiptData.ecocashFeeAmount ?? 0) : undefined,
+              refundAmount: isEcocash ? pendingReceiptData.total - (pendingReceiptData.ecocashFeeAmount ?? 0) : pendingReceiptData.total,
             })
             setShowCancelModal(true)
           } : undefined}

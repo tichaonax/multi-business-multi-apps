@@ -186,6 +186,8 @@ function GroceryPOSContent() {
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
   const [skipRewardThisTime, setSkipRewardThisTime] = useState(false)
   const autoAppliedForRef = useRef<string | null>(null)
+  const [showRecentTransactions, setShowRecentTransactions] = useState(false)
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
 
   // Close "more categories" dropdown on click outside
   useEffect(() => {
@@ -2595,12 +2597,141 @@ function GroceryPOSContent() {
             businessId={currentBusinessId || undefined}
             canCloseBooks={isAdmin || hasPermission('canCloseBooks')}
             managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
+            onReorder={(orderItems) => {
+              setCart(prev => {
+                const next = [...prev]
+                for (const item of orderItems) {
+                  const name = item.product_variants?.business_products?.name || item.attributes?.productName || item.notes || 'Item'
+                  const variantId = item.productVariantId || item.id
+                  const price = Number(item.unitPrice) || 0
+                  const qty = Number(item.quantity) || 1
+                  const idx = next.findIndex(c => c.id === variantId)
+                  if (idx >= 0) {
+                    next[idx] = { ...next[idx], quantity: next[idx].quantity + qty, subtotal: (next[idx].quantity + qty) * price }
+                  } else {
+                    next.push({ id: variantId, name, price, quantity: qty, subtotal: qty * price } as any)
+                  }
+                }
+                return next
+              })
+              toast.push('Items added to cart', { type: 'success' })
+            }}
           />
           {currentBusinessId && (
             <TodayExpensesWidget
               businessId={currentBusinessId}
               refreshKey={financialRefreshKey}
             />
+          )}
+        </div>
+      )}
+
+      {/* Recent Orders — for non-financial users (salespeople) */}
+      {!isAdmin && !hasPermission('canAccessFinancialData') && recentTransactions.length > 0 && (
+        <div className="mb-4 card bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <button
+            onClick={() => setShowRecentTransactions(v => !v)}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          >
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">📋 Recent Orders</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400">{recentTransactions.length} orders</span>
+              <span className={`text-xs text-gray-400 transition-transform duration-200 ${showRecentTransactions ? 'rotate-180' : ''}`}>▼</span>
+            </div>
+          </button>
+          {showRecentTransactions && (
+            <div className="divide-y divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
+              {recentTransactions.map((order: any, index: number) => {
+                const isExpanded = expandedOrderId === order.id
+                const items = order.business_order_items || []
+                return (
+                  <div key={order.id}>
+                    <button
+                      onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                      className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`flex-shrink-0 text-xs text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
+                          <span className="flex-shrink-0 text-sm font-medium text-gray-900 dark:text-white">#{order.orderNumber}</span>
+                          <span className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded ${
+                            order.status === 'COMPLETED'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              : order.status === 'REFUNDED'
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                          }`}>{order.status}</span>
+                          {index === 0 && <span className="flex-shrink-0 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">latest</span>}
+                          {!isExpanded && items.length > 0 && (() => {
+                            const fi = items[0]
+                            const fn = fi?.product_variants?.business_products?.name || fi?.attributes?.productName || fi?.notes
+                            return fn ? <span className="text-xs text-gray-400 dark:text-gray-500 truncate">· {fi.quantity}× {fn}</span> : null
+                          })()}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 pl-5">
+                          {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {order.paymentMethod && <span className="ml-2">{order.paymentMethod}</span>}
+                          {items.length > 0 && <span className="ml-2">{items.length} item{items.length > 1 ? 's' : ''}</span>}
+                        </div>
+                      </div>
+                      <div className="text-sm font-bold text-green-600 dark:text-green-400 whitespace-nowrap">
+                        ${Number(order.totalAmount || 0).toFixed(2)}
+                      </div>
+                    </button>
+                    {isExpanded && items.length > 0 && (
+                      <div className="px-4 pb-3 pl-9">
+                        <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2 space-y-1">
+                          {items.map((item: any, idx: number) => {
+                            const name = item.product_variants?.business_products?.name || item.attributes?.productName || item.notes || 'Item'
+                            return (
+                              <div key={item.id || idx} className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                                  <span className="text-gray-400">{item.quantity}×</span>
+                                  <span>{name}</span>
+                                </div>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  ${Number(item.totalPrice || 0).toFixed(2)}
+                                </span>
+                              </div>
+                            )
+                          })}
+                          <div className="border-t border-gray-200 dark:border-gray-600 pt-1 mt-1 flex justify-between text-xs font-bold text-gray-900 dark:text-white">
+                            <span>Total</span>
+                            <span>${Number(order.totalAmount || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="pt-2">
+                            <button
+                              onClick={() => {
+                                setCart(prev => {
+                                  const next = [...prev]
+                                  for (const item of items) {
+                                    const name = item.product_variants?.business_products?.name || item.attributes?.productName || item.notes || 'Item'
+                                    const variantId = item.productVariantId || item.id
+                                    const price = Number(item.unitPrice) || 0
+                                    const qty = Number(item.quantity) || 1
+                                    const idx = next.findIndex(c => c.id === variantId)
+                                    if (idx >= 0) {
+                                      next[idx] = { ...next[idx], quantity: next[idx].quantity + qty, subtotal: (next[idx].quantity + qty) * price }
+                                    } else {
+                                      next.push({ id: variantId, name, price, quantity: qty, subtotal: qty * price } as any)
+                                    }
+                                  }
+                                  return next
+                                })
+                                toast.push('Items added to cart', { type: 'success' })
+                              }}
+                              className="w-full py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                            >
+                              + Re-order
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       )}

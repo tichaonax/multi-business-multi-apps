@@ -276,7 +276,13 @@ export function usePaymentProcessor(
               success: token.success !== false,
               error: token.error
             })),
-            attributes: checkoutData.attributes
+            attributes: {
+              ...checkoutData.attributes,
+              ...(checkoutData.paymentMethod === 'ecocash' ? {
+                ecocashTransactionCode: checkoutData.ecocashTransactionCode,
+                ecocashFeeAmount: checkoutData.ecocashFeeAmount,
+              } : {})
+            }
           },
           {
             id: businessInfo.businessId,

@@ -50,9 +50,10 @@ interface DailySalesWidgetProps {
   businessId?: string
   canCloseBooks?: boolean
   managerName?: string
+  onReorder?: (items: any[]) => void
 }
 
-export function DailySalesWidget({ dailySales, yesterdaySales, dayBeforeYesterdaySales, recentTransactions = [], loadingRecent = false, businessType = 'retail', onRefresh, businessId, canCloseBooks = false, managerName }: DailySalesWidgetProps) {
+export function DailySalesWidget({ dailySales, yesterdaySales, dayBeforeYesterdaySales, recentTransactions = [], loadingRecent = false, businessType = 'retail', onRefresh, businessId, canCloseBooks = false, managerName, onReorder }: DailySalesWidgetProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [showRecentTransactions, setShowRecentTransactions] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
@@ -279,6 +280,16 @@ export function DailySalesWidget({ dailySales, yesterdaySales, dayBeforeYesterda
                               <span>Total</span>
                               <span>${Number(order.totalAmount || 0).toFixed(2)}</span>
                             </div>
+                            {onReorder && (
+                              <div className="pt-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onReorder(items) }}
+                                  className="w-full py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                >
+                                  + Re-order
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}

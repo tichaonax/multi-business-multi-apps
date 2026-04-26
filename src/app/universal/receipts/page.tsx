@@ -233,6 +233,7 @@ function ReceiptHistoryPageContent() {
       if (!res.ok) { setCancelError(data.error || 'Failed to load order'); return }
       const order = data.order
       const isEcocash = (order.paymentMethod || '').toUpperCase() === 'ECOCASH'
+        || !!(order.ecocashTransactionCode)
       const ecocashFee = isEcocash ? Number(order.ecocashFeeAmount ?? 0) : 0
       setCancelBusinessId(order.businessId || '')
       setCancelTarget({
@@ -400,29 +401,32 @@ function ReceiptHistoryPageContent() {
 
         {/* Receipts List */}
         {!loading && receipts.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed w-full">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Receipt #
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Customer
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Salesperson
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Payment
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Amount
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -440,19 +444,24 @@ function ReceiptHistoryPageContent() {
                         : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {receipt.orderNumber}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       <div>{receipt.customerName}</div>
                       {receipt.customerPhone && receipt.customerName !== 'Walk-in Customer' && (
                         <div className="text-xs text-gray-400 dark:text-gray-500">{receipt.customerPhone}</div>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {receipt.salespersonName || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                      {receipt.paymentMethod
+                        ? receipt.paymentMethod.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+                        : '-'}
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
                       <div>{formatCurrency(receipt.totalAmount)}</div>
                       {receipt.cancellationOutcome === 'CANCELLED' && receipt.refundAmount != null && (
                         <div className="text-xs text-red-600 dark:text-red-400 font-normal">
@@ -476,10 +485,10 @@ function ReceiptHistoryPageContent() {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {formatDate(receipt.createdAt)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           receipt.status === 'COMPLETED'
@@ -490,7 +499,7 @@ function ReceiptHistoryPageContent() {
                         {receipt.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       {receipt.cancellationOutcome === 'CANCELLED' ? (
                         <span className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded-lg">
                           Refunded
@@ -578,14 +587,12 @@ function ReceiptHistoryPageContent() {
               })
               const data = await res.json()
               if (!res.ok) { setCancelError(data.error || 'Could not cancel order'); setCancelTarget(null); return }
-              // Immediately remove button from UI before the refresh completes
               setReceipts(prev => prev.map(r =>
                 r.id === cancelTarget.orderId
-                  ? { ...r, status: 'CANCELLED', cancellationOutcome: 'CANCELLED' }
+                  ? { ...r, status: 'CANCELLED', cancellationOutcome: 'CANCELLED', refundAmount: finalRefundAmount }
                   : r
               ))
               setCancelTarget(null)
-              fetchReceipts(searchQuery, 0)
             } catch { setCancelError('Connection error'); setCancelTarget(null) }
           }}
           onAborted={() => setCancelTarget(null)}
