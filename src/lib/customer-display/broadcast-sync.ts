@@ -20,6 +20,7 @@ export type CartMessageType =
   | 'PAYMENT_AMOUNT'       // Amount tendered updated
   | 'PAYMENT_COMPLETE'     // Payment successful, sale complete
   | 'PAYMENT_CANCELLED'    // Payment cancelled, return to cart
+  | 'ORDER_CANCELLED'      // Order voided; show refund breakdown to customer
 
 export interface CartItem {
   id: string
@@ -63,6 +64,12 @@ export interface CartMessage {
     shortfall?: number
     paymentMethod?: string
     paymentComplete?: boolean
+    // Cancellation fields (ORDER_CANCELLED)
+    orderNumber?: string
+    grossAmount?: number
+    feeDeducted?: number
+    refundAmount?: number
+    isEcocash?: boolean
   }
   timestamp: number
   businessId: string

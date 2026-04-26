@@ -156,6 +156,7 @@ model BusinessCustomers {
   customer_rewards           CustomerRewards[]
   invoices                   Invoices[]
   delivery_customer_account  DeliveryCustomerAccounts?
+  order_cancellations        OrderCancellation[]        @relation("CustomerOrderCancellations")
 
   @@map("business_customers")
 }
@@ -228,6 +229,7 @@ model BusinessOrders {
   coupon_usages            CouponUsages[]
   meal_program_transaction MealProgramTransactions?
   customer_rewards         CustomerRewards[]        @relation("RedeemedReward")
+  order_cancellation       OrderCancellation?
 
   @@index([orderNumber])
   @@index([businessId, createdAt(sort: Desc)])
@@ -564,6 +566,8 @@ model Businesses {
   policies                                                                 Policy[]                      @relation("BusinessPolicies")
   policy_assignments                                                       PolicyAssignment[]             @relation("BusinessPolicyAssignments")
   policy_acknowledgments                                                   PolicyAcknowledgment[]         @relation("BusinessPolicyAcknowledgments")
+  manager_override_logs                                                    ManagerOverrideLog[]           @relation("BusinessOverrideLogs")
+  order_cancellations                                                      OrderCancellation[]            @relation("BusinessOrderCancellations")
 
   @@map("businesses")
 }
@@ -3413,6 +3417,12 @@ model Users {
   policy_assignments_assigned_to                                  PolicyAssignment[]               @relation("PolicyAssignmentUser")
   policy_acknowledgments                                          PolicyAcknowledgment[]           @relation("PolicyAcknowledgmentUser")
   policy_acknowledgments_waived                                   PolicyAcknowledgment[]           @relation("PolicyAcknowledgmentWaiver")
+  manager_override_code                                           ManagerOverrideCodes?
+  manager_override_code_history                                   ManagerOverrideCodeHistory[]
+  manager_override_logs_as_manager                                ManagerOverrideLog[]             @relation("OverrideManager")
+  manager_override_logs_as_requester                              ManagerOverrideLog[]             @relation("OverrideRequester")
+  order_cancellations_requested                                   OrderCancellation[]              @relation("CancellationRequested")
+  order_cancellations_approved                                    OrderCancellation[]              @relation("CancellationApproved")
 
   @@map("users")
 }
@@ -6662,4 +6672,98 @@ model PolicyAcknowledgment {
   @@index([userId, businessId])
   @@index([policyId, policyVersion])
   @@map("policy_acknowledgments")
+}
+
+// ============================================================
+// Manager Override Code System (MBM-192)
+// ============================================================
+
+enum ManagerOverrideAction {
+  ORDER_CANCELLATION
+}
+
+enum OverrideOutcome {
+  APPROVED
+  DENIED
+  ABORTED
+  FAILED_CODE
+}
+
+model ManagerOverrideCodes {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  codeHash  String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("manager_override_codes")
+}
+
+model ManagerOverrideCodeHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  codeHash  String
+  createdAt DateTime
+  retiredAt DateTime @default(now())
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, retiredAt])
+  @@map("manager_override_code_history")
+}
+
+model ManagerOverrideLog {
+  id            String               @id @default(cuid())
+  managerId     String?
+  action        ManagerOverrideAction
+  outcome       OverrideOutcome
+  targetId      String
+  businessId    String?
+  requestedBy   String
+  staffReason   String
+  denialReason  String?
+  createdAt     DateTime             @default(now())
+  metadata      Json?
+
+  manager       Users?               @relation("OverrideManager", fields: [managerId], references: [id])
+  requester     Users                @relation("OverrideRequester", fields: [requestedBy], references: [id])
+  business      Businesses?          @relation("BusinessOverrideLogs", fields: [businessId], references: [id])
+  order_cancellation OrderCancellation?
+
+  @@index([targetId])
+  @@index([businessId, createdAt])
+  @@index([requestedBy])
+  @@map("manager_override_logs")
+}
+
+model OrderCancellation {
+  id             String   @id @default(cuid())
+  orderId        String   @unique
+  businessId     String
+  requestedBy    String
+  approvedBy     String
+  overrideLogId  String   @unique
+  staffReason    String
+  refundAmount   Decimal  @db.Decimal(10, 2)
+  feeDeducted    Decimal  @db.Decimal(10, 2)
+  paymentMethod  String
+  customerId     String?
+  customerName   String?
+  customerPhone  String?
+  customerNumber String?
+  createdAt      DateTime @default(now())
+
+  order           BusinessOrders    @relation(fields: [orderId], references: [id])
+  business        Businesses        @relation("BusinessOrderCancellations", fields: [businessId], references: [id])
+  requestedByUser Users             @relation("CancellationRequested", fields: [requestedBy], references: [id])
+  approvedByUser  Users             @relation("CancellationApproved", fields: [approvedBy], references: [id])
+  override_log    ManagerOverrideLog @relation(fields: [overrideLogId], references: [id])
+  customer        BusinessCustomers? @relation("CustomerOrderCancellations", fields: [customerId], references: [id])
+
+  @@index([businessId, createdAt])
+  @@index([customerId])
+  @@map("order_cancellations")
 }

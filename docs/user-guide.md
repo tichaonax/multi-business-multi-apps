@@ -7274,4 +7274,210 @@ The same inventory restrictions apply to **Delivery Driver** and **Restaurant As
 
 ---
 
+## 36. Manager Override Code
+
+### Overview
+
+The **Manager Override Code** is a personal 6-character security code that identifies a manager and authorises sensitive actions — starting with order cancellations. Every manager must set up their own code before they can approve any override request.
+
+The code is stored as a one-way hash (it is never readable, even by system administrators). Only the manager who set it knows their own code.
+
+### Setting Up Your Override Code
+
+1. Open the **sidebar → Profile**.
+2. Scroll down to the **Manager Override Code** section (visible only to users with manager permissions).
+3. Click **Set Up Override Code** (or **Renew Code** if one already exists).
+4. Enter a code that meets all four requirements:
+   - Exactly **6 characters**
+   - At least **one letter** (A–Z)
+   - At least **one digit** (0–9)
+   - **Not a recently used code** (last 12 months are blocked)
+5. The composition bar turns green when all requirements are met. Click **Save Code**.
+
+A green **Active** badge and the expiry date confirm the code is set.
+
+### Code Expiry
+
+Override codes expire after **30 days**. Five days before expiry, a bell notification appears reminding the manager to renew. After expiry the code is blocked — a new one must be set before overrides can be approved.
+
+To renew: follow the same steps as setup. The old code is retired automatically.
+
+### Permissions
+
+Only users with the **Can Close Books** permission see the Manager Override Code section on their profile page.
+
+---
+
+## 37. Order Cancellation
+
+### Overview
+
+Any completed, paid order can be cancelled on the **same day it was placed**, before End-of-Day (EOD) is closed. Cancellations require a mandatory written reason and a manager's physical authorisation via their override code or employee card scan.
+
+Both the cancellation and any denied/aborted attempts are logged in full — the audit trail cannot be edited or deleted.
+
+### Who Can Initiate a Cancellation
+
+Any logged-in staff member can start a cancellation request. A manager (someone with **Can Close Books** permission) must physically be present to authorise it.
+
+### Staff Flow — Starting a Cancellation Request
+
+Cancellations can be started from two places:
+
+**From the POS receipt modal** (immediately after an order is completed):
+- On the receipt that appears after payment, click **Cancel Order** (shown in red, below the Print button).
+
+**From Order History**:
+- Navigate to the business **Orders** page.
+- Find the order (today's orders only — the Cancel button does not appear for older orders).
+- Click **Cancel Order** on the order card.
+
+**Step 1 — Enter a reason:**
+
+A modal opens showing the order details and refund amount. If the order was paid by **EcoCash**, a fee notice explains the deduction (see EcoCash Refunds below). Enter a mandatory reason (minimum 10 characters) explaining why the order is being cancelled. Click **Request Manager Authorisation** when ready.
+
+### Manager Flow — Authorising the Request
+
+**Step 2 — Enter override code:**
+
+The modal switches to the authorisation screen. The staff reason is shown read-only so the manager can review it. The manager enters their 6-character override code in the password field (or scans their employee card), then presses **Enter** or clicks **OK**.
+
+- If the code is valid, the manager's name appears and they see two buttons: **Approve Cancellation** and **Deny Request**.
+- If the code is invalid, an error appears and the manager can retry. After **3 failed attempts** the input locks.
+
+**Step 3a — Approve:**
+
+The manager clicks **Approve Cancellation**. The order is immediately cancelled and the refund amount is shown on the success screen. The customer-facing display also updates to show the cancellation and refund amount.
+
+**Step 3b — Deny:**
+
+The manager clicks **Deny Request** and must enter a mandatory denial reason. After confirming, the denial is logged and the modal closes. **The first denial is final** — the same order cannot be submitted for cancellation again with a different manager.
+
+### EcoCash Refunds
+
+EcoCash charges a fee on both the original payment and the refund. The net refund to the customer is:
+
+```
+Net refund = Order total − (2 × EcoCash fee)
+
+Example:
+  Order total   $88.51
+  EcoCash fee    $0.51
+  Fee deducted   $1.02  (2 × $0.51)
+  Customer gets $87.49
+```
+
+This breakdown is shown in the modal **before** the manager authorises, so the customer can be informed. The customer-facing display also shows the breakdown after cancellation.
+
+For Cash and Card orders, the full order total is refunded (no deduction).
+
+### What Happens When an Order is Cancelled
+
+- The order status changes to **Cancelled** and the payment status to **Refunded**.
+- Stock levels are restored for the cancelled items (except restaurant orders — food cannot be returned to inventory).
+- Loyalty points earned on the original order are reversed (deducted from the customer's balance).
+- A debit entry is recorded in the business account ledger for the refund amount.
+- The cancelled order is **excluded from EOD calculations** — it does not appear in daily sales totals, cash counts, or EcoCash figures.
+
+### Constraints
+
+| Constraint | Detail |
+|------------|--------|
+| Same-day only | Orders can only be cancelled on the day they were placed, before EOD is closed |
+| Manager required | A manager with Can Close Books permission must be physically present |
+| One cancellation per order | An order can only be cancelled once |
+| Denial is final | Once a manager denies a request, no further attempts are permitted for that order |
+
+### Customer Display
+
+If a customer-facing display screen is connected, it automatically shows a cancellation confirmation when the order is cancelled — including the refund amount and EcoCash fee breakdown where applicable. The display clears after 10 seconds and returns to the normal idle screen.
+
+---
+
+## 38. Cancellation Reports
+
+**Location:** Sidebar → Reports → **Order Cancellations**
+
+**Access:** System Admin, users with Can Close Books, or users with Can Access Financial Data.
+
+### Overview
+
+The Cancellation Reports page provides a full audit of order cancellations and manager override attempts for a selected business and date range.
+
+### Filters
+
+- **Business** — select a specific business or All (umbrella)
+- **Date range** — From and To date pickers; click **Apply** to refresh
+
+### Summary Cards
+
+| Card | Description |
+|------|-------------|
+| Total Cancellations | Number of approved cancellations in the period |
+| Total Net Refund | Sum of all refund amounts paid out (net of EcoCash fees) |
+| EcoCash Fees Lost | Total fees deducted across EcoCash cancellations |
+| Cancellation Rate | Cancellations as a percentage of all orders in the period |
+| Denial Rate | Denied attempts as a percentage of all decided attempts |
+
+### Approved Cancellations Tab
+
+A table of all successfully cancelled orders, showing:
+
+| Column | Description |
+|--------|-------------|
+| Date | When the cancellation was processed |
+| Order # | Original order reference |
+| Payment | Cash or EcoCash |
+| Gross | Original order total |
+| Fee Deducted | EcoCash fee deducted (blank for cash orders) |
+| Net Refund | Amount returned to the customer |
+| Customer | Name and loyalty number (or "Walk-in" if no linked customer) |
+| Phone | Customer phone if captured |
+| Items | Hover the count to see the full item list snapshot |
+| Staff Reason | Mandatory reason entered by the requesting staff member |
+| Requested By | Staff member who initiated the cancellation |
+| Authorised By | Manager who approved it |
+
+Click **Export CSV** to download the full table.
+
+### Override Attempt Log Tab
+
+All override attempts — including approved, denied, aborted, and failed-code outcomes — are listed here. This tab is the complete audit trail.
+
+| Column | Description |
+|--------|-------------|
+| Date | When the attempt occurred |
+| Order # | Target order |
+| Amount | Original gross order amount |
+| Payment | Cash or EcoCash |
+| Customer | Name and number if available |
+| Outcome | APPROVED / DENIED / ABORTED / FAILED_CODE |
+| Manager | Manager who entered the code (blank for FAILED_CODE) |
+| Requested By | Staff who initiated |
+| Staff Reason | Cancellation reason |
+| Denial Reason | Manager's reason (DENIED outcomes only) |
+| Items | Item snapshot (hover the count) |
+
+Click **Export CSV** to download the full log.
+
+### Troubleshooting
+
+**Cancel Order button not visible on an order:**
+- The order must be from today and have status Completed + payment status Paid. Orders from previous days cannot be cancelled.
+- If EOD has already been closed for today, cancellations are also blocked.
+
+**"Manager Override Code not set up" error:**
+- The manager must set up their override code on their Profile page before they can authorise any override.
+
+**"Override code expired" error:**
+- The manager's code has passed its 30-day expiry. They must go to Profile → Manager Override Code → Renew Code before authorising.
+
+**"Invalid code" error:**
+- The code or scanned card does not match any active manager. Check that the correct code was entered. After 3 failed attempts the input locks for this session.
+
+**"Cancellation denied — cannot retry" message:**
+- Once a manager denies a cancellation request, it is final. No further attempts are permitted for that specific order. If the denial was in error, contact a system administrator.
+
+---
+
 *For technical support, contact your system administrator.*

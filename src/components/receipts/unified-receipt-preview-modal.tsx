@@ -57,6 +57,8 @@ interface UnifiedReceiptPreviewModalProps {
   }) => Promise<void>
   /** Extra raw ESC/POS jobs to print sequentially after the main receipt (e.g. delivery copies) */
   extraEscPosJobs?: string[]
+  /** When provided, shows a "Cancel Order" button that triggers the manager override flow */
+  onCancelOrder?: () => void
 }
 
 export function UnifiedReceiptPreviewModal({
@@ -66,6 +68,7 @@ export function UnifiedReceiptPreviewModal({
   businessType,
   extraEscPosJobs,
   onPrintConfirm,
+  onCancelOrder,
 }: UnifiedReceiptPreviewModalProps) {
   const [printers, setPrinters] = useState<NetworkPrinter[]>(() => printerCache?.printers || [])
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | undefined>()
@@ -607,6 +610,15 @@ export function UnifiedReceiptPreviewModal({
 
           {/* Action buttons — always visible, stuck to bottom of right panel */}
           <div className="flex-shrink-0 flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            {onCancelOrder && (
+              <button
+                onClick={onCancelOrder}
+                disabled={loading}
+                className="mr-auto px-3 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50"
+              >
+                Cancel Order
+              </button>
+            )}
             <Button variant="outline" onClick={onClose} disabled={loading}>
               <X className="w-4 h-4 mr-2" />
               Cancel

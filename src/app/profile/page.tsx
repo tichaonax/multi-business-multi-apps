@@ -62,9 +62,16 @@ interface PendingPolicy {
   fileId: string | null
 }
 
+interface OverrideCodeStatus {
+  hasCode: boolean
+  isExpired?: boolean
+  expiresAt?: string
+  daysUntilExpiry?: number
+}
+
 export default function ProfilePage() {
   const { data: session, status, update } = useSession()
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -80,11 +87,28 @@ export default function ProfilePage() {
   const [acknowledgingPolicies, setAcknowledgingPolicies] = useState(false)
   const [policyAgreementsOpen, setPolicyAgreementsOpen] = useState(false)
 
+  // Manager Override Code state
+  const [overrideCodeStatus, setOverrideCodeStatus] = useState<OverrideCodeStatus | null>(null)
+  const [overrideCodeInput, setOverrideCodeInput] = useState('')
+  const [overrideCodeError, setOverrideCodeError] = useState('')
+  const [overrideCodeSuccess, setOverrideCodeSuccess] = useState('')
+  const [savingCode, setSavingCode] = useState(false)
+  const isManager = isSystemAdmin || hasPermission('canCloseBooks')
+
   useEffect(() => {
     if (status === 'loading') return
     if (status === 'unauthenticated') { setLoading(false); return }
     if (session?.user?.id) loadProfile()
   }, [status, session?.user?.id, currentBusinessId])
+
+  useEffect(() => {
+    if (isManager) {
+      fetch('/api/manager-override/code/status')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setOverrideCodeStatus(data) })
+        .catch(() => {})
+    }
+  }, [isManager])
 
   const loadProfile = async () => {
     if (!session?.user?.id) return
@@ -182,6 +206,37 @@ export default function ProfilePage() {
       setError('Error updating profile')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveOverrideCode = async () => {
+    setOverrideCodeError('')
+    setOverrideCodeSuccess('')
+    setSavingCode(true)
+    try {
+      const res = await fetch('/api/manager-override/code/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: overrideCodeInput }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setOverrideCodeError(data.error || 'Failed to save code')
+      } else {
+        setOverrideCodeInput('')
+        setOverrideCodeSuccess('Override code saved successfully')
+        setOverrideCodeStatus({
+          hasCode: true,
+          isExpired: false,
+          expiresAt: data.expiresAt,
+          daysUntilExpiry: 30,
+        })
+        setTimeout(() => setOverrideCodeSuccess(''), 5000)
+      }
+    } catch {
+      setOverrideCodeError('Connection error — please try again')
+    } finally {
+      setSavingCode(false)
     }
   }
 
@@ -538,6 +593,101 @@ export default function ProfilePage() {
                 </button>
                 <button onClick={() => setViewingAck(null)} className="text-sm px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Manager Override Code — only shown to managers */}
+        {isManager && (
+          <div id="override-code" className="card">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                    Manager Override Code
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    Used to authorise sensitive actions such as order cancellations.
+                  </p>
+                </div>
+                {overrideCodeStatus && (
+                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                    !overrideCodeStatus.hasCode
+                      ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                      : overrideCodeStatus.isExpired
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                      : (overrideCodeStatus.daysUntilExpiry ?? 99) <= 5
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                      : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                  }`}>
+                    {!overrideCodeStatus.hasCode
+                      ? 'No code set'
+                      : overrideCodeStatus.isExpired
+                      ? 'Expired'
+                      : `Active · expires in ${overrideCodeStatus.daysUntilExpiry}d`}
+                  </span>
+                )}
+              </div>
+
+              {overrideCodeError && (
+                <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+                  {overrideCodeError}
+                </div>
+              )}
+              {overrideCodeSuccess && (
+                <div className="mb-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400">
+                  {overrideCodeSuccess}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {overrideCodeStatus?.hasCode && !overrideCodeStatus.isExpired ? 'New code (renew)' : 'Set code'}
+                  </label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    maxLength={6}
+                    value={overrideCodeInput}
+                    onChange={(e) => {
+                      setOverrideCodeInput(e.target.value.toUpperCase())
+                      setOverrideCodeError('')
+                    }}
+                    placeholder="6 characters"
+                    className="input-field w-40 tracking-widest font-mono"
+                  />
+                </div>
+
+                {/* Real-time composition indicators */}
+                {overrideCodeInput.length > 0 && (
+                  <ul className="text-xs space-y-0.5">
+                    {[
+                      { ok: overrideCodeInput.length === 6, label: 'Exactly 6 characters' },
+                      { ok: /[A-Z]/.test(overrideCodeInput.toUpperCase()), label: 'At least one letter (A–Z)' },
+                      { ok: /[0-9]/.test(overrideCodeInput), label: 'At least one number (0–9)' },
+                    ].map(({ ok, label }) => (
+                      <li key={label} className={`flex items-center gap-1.5 ${ok ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                        <span>{ok ? '✓' : '○'}</span>
+                        <span>{label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <button
+                  onClick={handleSaveOverrideCode}
+                  disabled={
+                    savingCode ||
+                    overrideCodeInput.length !== 6 ||
+                    !/[A-Z]/.test(overrideCodeInput.toUpperCase()) ||
+                    !/[0-9]/.test(overrideCodeInput)
+                  }
+                  className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {savingCode ? 'Saving…' : overrideCodeStatus?.hasCode && !overrideCodeStatus.isExpired ? 'Renew Code' : 'Set Code'}
                 </button>
               </div>
             </div>

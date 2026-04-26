@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { formatReprintDate } from '@/lib/receipts/watermark'
 import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
+import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 
 interface ReceiptDetailModalProps {
   receiptId: string
@@ -18,6 +19,8 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
   const [reprinting, setReprinting] = useState(false)
   const [reprintSuccess, setReprintSuccess] = useState(false)
   const [reprintReceiptData, setReprintReceiptData] = useState<any>(null)
+  const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
+  const [cancelError, setCancelError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchReceipt()
@@ -75,6 +78,28 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
     } finally {
       setReprinting(false)
     }
+  }
+
+  const handleOpenCancel = () => {
+    if (!order) return
+    const isSameDay = (() => {
+      const d = new Date(order.createdAt)
+      const t = new Date()
+      return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
+    })()
+    if (!isSameDay) { setCancelError('Same-day cancellations only'); return }
+    const isEcocash = (order.paymentMethod || '').toUpperCase() === 'ECOCASH'
+    const ecocashFee = isEcocash ? Number((order.attributes as any)?.ecocashFeeAmount ?? 0) : 0
+    setCancelError(null)
+    setCancelTarget({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      totalAmount: Number(order.totalAmount),
+      paymentMethod: order.paymentMethod || 'CASH',
+      createdAt: order.createdAt,
+      isEcocash,
+      refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee * 2 : Number(order.totalAmount),
+    })
   }
 
   const formatCurrency = (amount: number | string) => {
@@ -314,7 +339,22 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+          <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="flex-1">
+              {order?.status === 'COMPLETED' && order?.paymentStatus === 'PAID' && (
+                <button
+                  onClick={handleOpenCancel}
+                  disabled={reprinting || loading}
+                  className="px-4 py-2 text-red-600 border border-red-300 rounded-md text-sm font-medium hover:bg-red-50 disabled:opacity-50"
+                >
+                  Cancel Order
+                </button>
+              )}
+              {cancelError && (
+                <p className="text-sm text-red-600 mt-1">{cancelError}</p>
+              )}
+            </div>
+            <div className="flex space-x-3">
             <button
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -345,10 +385,33 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                 </>
               )}
             </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+      {/* Manager Override Modal — order cancellation */}
+      {cancelTarget && (
+        <ManagerOverrideModal
+          order={cancelTarget}
+          businessId={(order as any)?.businessId || ''}
+          onApproved={async (managerId, _managerName, finalRefundAmount, staffReason) => {
+            try {
+              const res = await fetch(`/api/orders/${cancelTarget.orderId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ managerId, staffReason, finalRefundAmount, businessId: (order as any)?.businessId }),
+              })
+              const data = await res.json()
+              if (!res.ok) { setCancelError(data.error || 'Could not cancel order'); setCancelTarget(null); return }
+              setCancelTarget(null)
+              fetchReceipt() // Refresh to show CANCELLED status
+            } catch { setCancelError('Connection error — please try again'); setCancelTarget(null) }
+          }}
+          onAborted={() => setCancelTarget(null)}
+        />
+      )}
 
       {/* Receipt Preview Modal for reprinting */}
       {reprintReceiptData && (

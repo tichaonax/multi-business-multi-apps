@@ -23,6 +23,7 @@ import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/
 import type { ReceiptData } from '@/types/printing'
 import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
+import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 
 interface CartItem {
   id: string
@@ -129,6 +130,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [autoAddProcessed, setAutoAddProcessed] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [completedOrderReceipt, setCompletedOrderReceipt] = useState<ReceiptData | null>(null)
+  const [completedOrderId, setCompletedOrderId] = useState<string | null>(null)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
   const [defaultPrinter, setDefaultPrinter] = useState<{ id: string; name: string } | null>(null)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'GIFT_CARD' | 'ECOCASH'>('CASH')
   const [ecocashTxCode, setEcocashTxCode] = useState('')
@@ -1575,6 +1579,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       // Always show unified receipt preview modal (like restaurant)
       // This gives user control over printing business copy, customer copy, and number of copies
       setCompletedOrderReceipt(receiptData)
+      setCompletedOrderId(result.data.id)
       setShowReceiptPreview(true)
 
       onOrderComplete?.(result.data.id)
@@ -2664,6 +2669,40 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       )}
 
       {/* Unified Receipt Preview Modal (same as restaurant) */}
+      {showCancelModal && cancelTarget && (
+        <ManagerOverrideModal
+          order={cancelTarget}
+          businessId={businessId}
+          onApproved={async (managerId, _managerName, finalRefundAmount, staffReason) => {
+            try {
+              const res = await fetch(`/api/orders/${cancelTarget.orderId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ managerId, staffReason, finalRefundAmount, businessId }),
+              })
+              const data = await res.json()
+              if (!res.ok) { toast.error(data.error || 'Could not cancel order'); return }
+              setShowCancelModal(false)
+              setShowReceiptPreview(false)
+              setCompletedOrderReceipt(null)
+              setCompletedOrderId(null)
+              setCancelTarget(null)
+              if (terminalId) {
+                sendToDisplay('ORDER_CANCELLED', {
+                  orderNumber: data.orderNumber,
+                  grossAmount: data.grossAmount,
+                  feeDeducted: data.feeDeducted,
+                  refundAmount: data.refundAmount,
+                  isEcocash: data.isEcocash,
+                  subtotal: 0, tax: 0, total: 0,
+                })
+              }
+            } catch { toast.error('Connection error — please try again') }
+          }}
+          onAborted={() => setShowCancelModal(false)}
+        />
+      )}
+
       <UnifiedReceiptPreviewModal
         isOpen={showReceiptPreview}
         onClose={() => {
@@ -2672,6 +2711,22 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         }}
         receiptData={completedOrderReceipt}
         businessType="clothing"
+        onCancelOrder={completedOrderId ? () => {
+          if (!completedOrderReceipt) return
+          const totalAmount = completedOrderReceipt.total
+          const paymentMethod = completedOrderReceipt.paymentMethod || 'CASH'
+          const isEcocash = paymentMethod.toUpperCase() === 'ECOCASH'
+          setCancelTarget({
+            orderId: completedOrderId,
+            orderNumber: completedOrderReceipt.transactionId || completedOrderReceipt.receiptNumber?.formattedNumber || '',
+            totalAmount,
+            paymentMethod,
+            createdAt: new Date().toISOString(),
+            isEcocash,
+            refundAmount: isEcocash ? totalAmount - (completedOrderReceipt.ecocashFeeAmount ?? 0) * 2 : totalAmount,
+          })
+          setShowCancelModal(true)
+        } : undefined}
         onPrintConfirm={async (options) => {
           if (!completedOrderReceipt) return
 

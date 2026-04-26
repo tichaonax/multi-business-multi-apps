@@ -52,6 +52,7 @@ import { useTimeDisplay } from '@/hooks/use-time-display'
 import { generateDeliveryKitchenReceipt, generateDeliveryCustomerReceipt } from '@/lib/printing/receipt-templates'
 import type { DeliveryReceiptData } from '@/lib/printing/receipt-templates'
 import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
+import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 
 interface MenuItem {
   id: string
@@ -158,6 +159,8 @@ export default function RestaurantPOS() {
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [pendingDeliveryEscPos, setPendingDeliveryEscPos] = useState<string[]>([])
   const [completedOrder, setCompletedOrder] = useState<any>(null)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
   // When non-null: cash amount to collect for a meal program order
   const [mealProgramCashDue, setMealProgramCashDue] = useState<number | null>(null)
   // Pending meal program transaction data (held until payment is confirmed, then submitted to API)
@@ -4597,6 +4600,24 @@ export default function RestaurantPOS() {
                   🖨️ Print Receipt
                 </button>
 
+                {/* Cancel Order Button */}
+                <button
+                  onClick={() => {
+                    if (!completedOrder?.orderId) return
+                    setCancelTarget({
+                      orderId: completedOrder.orderId,
+                      orderNumber: completedOrder.orderNumber,
+                      totalAmount: completedOrder.total,
+                      paymentMethod: completedOrder.paymentMethod,
+                      createdAt: new Date().toISOString(),
+                    })
+                    setShowCancelModal(true)
+                  }}
+                  className="w-full py-2 text-red-600 border border-red-300 font-medium rounded-lg hover:bg-red-50 transition-colors"
+                >
+                  Cancel Order
+                </button>
+
                 {/* Close Button */}
                 <button
                   onClick={() => {
@@ -4613,6 +4634,44 @@ export default function RestaurantPOS() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Manager Override Modal — order cancellation */}
+      {showCancelModal && cancelTarget && (
+        <ManagerOverrideModal
+          order={cancelTarget}
+          businessId={currentBusinessId || ''}
+          onApproved={async (managerId, _managerName, finalRefundAmount, staffReason) => {
+            try {
+              const res = await fetch(`/api/orders/${cancelTarget.orderId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ managerId, staffReason, finalRefundAmount, businessId: currentBusinessId }),
+              })
+              const data = await res.json()
+              if (!res.ok) {
+                toast.error(data.error || 'Could not cancel order')
+                return
+              }
+              setShowCancelModal(false)
+              setShowReceiptModal(false)
+              setCompletedOrder(null)
+              setCancelTarget(null)
+              autoPrintedOrderRef.current = null
+              sendToDisplay('ORDER_CANCELLED', {
+                orderNumber: data.orderNumber,
+                grossAmount: data.grossAmount,
+                feeDeducted: data.feeDeducted,
+                refundAmount: data.refundAmount,
+                isEcocash: data.isEcocash,
+                subtotal: 0, tax: 0, total: 0,
+              })
+            } catch {
+              toast.error('Connection error — please try again')
+            }
+          }}
+          onAborted={() => setShowCancelModal(false)}
+        />
       )}
 
       {/* Unified Receipt Preview Modal */}

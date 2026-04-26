@@ -161,6 +161,15 @@ function CustomerDisplayContent() {
   const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now())
   const INACTIVITY_TIMEOUT_MS = 30000 // 30 seconds
 
+  // Cancellation overlay state
+  const [cancellationState, setCancellationState] = useState<{
+    orderNumber: string
+    grossAmount: number
+    feeDeducted: number
+    refundAmount: number
+    isEcocash: boolean
+  } | null>(null)
+
   // Handle incoming cart messages
   const handleCartMessage = useCallback((message: CartMessage) => {
     console.log('📨 [CustomerDisplay] Received message:', {
@@ -421,6 +430,19 @@ function CustomerDisplayContent() {
           shortfall: 0
         })
         break
+
+      case 'ORDER_CANCELLED':
+        setCancellationState({
+          orderNumber: message.payload.orderNumber || '',
+          grossAmount: message.payload.grossAmount || 0,
+          feeDeducted: message.payload.feeDeducted || 0,
+          refundAmount: message.payload.refundAmount || 0,
+          isEcocash: message.payload.isEcocash || false,
+        })
+        setCart({ items: [], subtotal: 0, tax: 0, total: 0 })
+        setPaymentState({ inProgress: false, amountTendered: 0, changeDue: 0, shortfall: 0 })
+        setTimeout(() => setCancellationState(null), 10000)
+        break
     }
   }, [currentActiveBusinessId])
 
@@ -625,6 +647,42 @@ function CustomerDisplayContent() {
           </p>
           <p className="text-3xl font-medium opacity-90">Your order is being prepared.</p>
           <p className="text-xl mt-4 opacity-70">Please wait for your number to be called.</p>
+        </div>
+      )}
+
+      {/* Order Cancelled Overlay — auto-clears after 10 seconds */}
+      {cancellationState && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 text-white px-8">
+          <p className="text-3xl font-bold tracking-widest uppercase text-red-400 mb-2">Order Cancelled</p>
+          <div className="w-16 border-t border-red-400 mb-6" />
+          {cancellationState.orderNumber && (
+            <p className="text-xl text-gray-300 mb-6">Order #{cancellationState.orderNumber}</p>
+          )}
+
+          {cancellationState.isEcocash ? (
+            <div className="bg-white/10 rounded-2xl p-8 w-full max-w-sm space-y-3 text-lg">
+              <div className="flex justify-between text-gray-300">
+                <span>Original amount</span>
+                <span>${cancellationState.grossAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-red-400">
+                <span>EcoCash fee deducted</span>
+                <span>− ${cancellationState.feeDeducted.toFixed(2)}</span>
+              </div>
+              <p className="text-xs text-gray-400 text-center">(fee charged on payment &amp; refund)</p>
+              <div className="flex justify-between font-bold text-white text-2xl border-t border-white/20 pt-3">
+                <span>Your refund</span>
+                <span>${cancellationState.refundAmount.toFixed(2)}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-5xl font-bold text-white mb-4">
+              ${cancellationState.refundAmount.toFixed(2)}
+            </div>
+          )}
+
+          <p className="text-xl text-gray-300 mt-8">Please collect your refund from the cashier.</p>
+          <p className="text-base text-gray-400 mt-2">We apologise for any inconvenience.</p>
         </div>
       )}
 

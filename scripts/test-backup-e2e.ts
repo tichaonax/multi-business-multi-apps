@@ -55,6 +55,8 @@ const NEW_TABLE_KEYS = [
   'assetCategories', 'businessAssets', 'assetDepreciationEntries', 'assetMaintenanceLogs', 'assetImages',
   // Inventory Expiry Tracking (MBM-186)
   'itemExpiryBatches', 'expiryActions',
+  // Payment Cancellation & Manager Override (MBM-192)
+  'managerOverrideCodes', 'managerOverrideCodeHistory', 'managerOverrideLogs', 'orderCancellations',
 ]
 
 async function main() {

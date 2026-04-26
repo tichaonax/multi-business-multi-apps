@@ -1374,6 +1374,26 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // 56. Payment Cancellation & Manager Override (MBM-192)
+  // ManagerOverrideCodes and ManagerOverrideCodeHistory are user-scoped (userId FK to users)
+  businessData.managerOverrideCodes = await prisma.managerOverrideCodes.findMany({
+    where: { userId: { in: userIds } }
+  })
+
+  businessData.managerOverrideCodeHistory = await prisma.managerOverrideCodeHistory.findMany({
+    where: { userId: { in: userIds } }
+  })
+
+  // ManagerOverrideLogs are business-scoped (also have FK to users)
+  businessData.managerOverrideLogs = await prisma.managerOverrideLog.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // OrderCancellations depend on managerOverrideLogs + businessOrders
+  businessData.orderCancellations = await prisma.orderCancellation.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // 55. Policy Management (MBM-189)
   // policyTemplates are global (no businessId) — back up all
   businessData.policyTemplates = await prisma.policyTemplate.findMany()

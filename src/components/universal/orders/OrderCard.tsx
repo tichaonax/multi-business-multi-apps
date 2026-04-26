@@ -11,12 +11,26 @@ interface OrderCardProps {
   onPrintReceipt: (order: BusinessOrder) => void
   onRefund?: (order: BusinessOrder) => void
   canRefund?: boolean
+  onCancel?: (order: BusinessOrder) => void
   businessType: string
 }
 
-export function OrderCard({ order, onStatusUpdate, onPrintReceipt, onRefund, canRefund, businessType }: OrderCardProps) {
+export function OrderCard({ order, onStatusUpdate, onPrintReceipt, onRefund, canRefund, onCancel, businessType }: OrderCardProps) {
   const config = BUSINESS_ORDER_CONFIGS[businessType]
   const [expanded, setExpanded] = useState(false)
+
+  const isSameDay = (() => {
+    const orderDate = new Date(order.createdAt)
+    const today = new Date()
+    return orderDate.getFullYear() === today.getFullYear() &&
+      orderDate.getMonth() === today.getMonth() &&
+      orderDate.getDate() === today.getDate()
+  })()
+
+  const canCancel = onCancel &&
+    order.status === 'COMPLETED' &&
+    (order as any).paymentStatus === 'PAID' &&
+    isSameDay
 
   const handleStatusChange = (newStatus: string) => {
     onStatusUpdate(order.id, newStatus)
@@ -186,6 +200,15 @@ export function OrderCard({ order, onStatusUpdate, onPrintReceipt, onRefund, can
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
           >
             Refund
+          </button>
+        )}
+
+        {canCancel && (
+          <button
+            onClick={() => onCancel!(order)}
+            className="px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            Cancel Order
           </button>
         )}
 

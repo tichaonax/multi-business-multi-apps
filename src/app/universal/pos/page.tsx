@@ -27,6 +27,7 @@ import { getBusinessTypeConfig, getSupportedBusinessTypes } from './config/busin
 import { toast } from 'sonner'
 import type { ReceiptData } from '@/types/printing'
 import { SalespersonEodModal } from '@/components/eod/salesperson-eod-modal'
+import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 
 /**
  * Universal POS Page
@@ -58,6 +59,9 @@ export default function UniversalPOS() {
   // Receipt preview modal state (modal handles its own printer selection)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
   const printInFlightRef = useRef(false)
 
   // BOGO promotion state
@@ -351,6 +355,7 @@ export default function UniversalPOS() {
 
         // Show receipt preview modal
         setPendingReceiptData(receiptData)
+        setPendingOrderId(orderId)
         setShowReceiptPreview(true)
       },
       onError: (error) => {
@@ -710,6 +715,30 @@ export default function UniversalPOS() {
           </div>
         )}
 
+        {showCancelModal && cancelTarget && (
+          <ManagerOverrideModal
+            order={cancelTarget}
+            businessId={currentBusinessId || ''}
+            onApproved={async (managerId, _managerName, finalRefundAmount, staffReason) => {
+              try {
+                const res = await fetch(`/api/orders/${cancelTarget.orderId}/cancel`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ managerId, staffReason, finalRefundAmount, businessId: currentBusinessId }),
+                })
+                const data = await res.json()
+                if (!res.ok) { toast.error(data.error || 'Could not cancel order'); return }
+                setShowCancelModal(false)
+                setShowReceiptPreview(false)
+                setPendingReceiptData(null)
+                setPendingOrderId(null)
+                setCancelTarget(null)
+              } catch { toast.error('Connection error — please try again') }
+            }}
+            onAborted={() => setShowCancelModal(false)}
+          />
+        )}
+
         <UnifiedReceiptPreviewModal
           isOpen={showReceiptPreview}
           onClose={() => {
@@ -718,6 +747,21 @@ export default function UniversalPOS() {
           }}
           receiptData={pendingReceiptData}
           businessType={businessType as any}
+          onCancelOrder={pendingOrderId ? () => {
+            if (!pendingReceiptData) return
+            const paymentMethod = pendingReceiptData.paymentMethod || 'CASH'
+            const isEcocash = paymentMethod.toUpperCase() === 'ECOCASH'
+            setCancelTarget({
+              orderId: pendingOrderId,
+              orderNumber: pendingReceiptData.receiptNumber?.formattedNumber || pendingReceiptData.transactionId || '',
+              totalAmount: pendingReceiptData.total,
+              paymentMethod,
+              createdAt: new Date().toISOString(),
+              isEcocash,
+              refundAmount: isEcocash ? pendingReceiptData.total - (pendingReceiptData.ecocashFeeAmount ?? 0) * 2 : pendingReceiptData.total,
+            })
+            setShowCancelModal(true)
+          } : undefined}
           onPrintConfirm={async (options) => {
             if (!pendingReceiptData) return
 

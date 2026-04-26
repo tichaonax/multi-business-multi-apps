@@ -10,6 +10,7 @@ import { RefundModal } from './RefundModal'
 import { OrderFilters as OrderFiltersType, BusinessOrder } from './types'
 import { BUSINESS_ORDER_CONFIGS } from './BusinessOrderConfig'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 
 interface UniversalOrdersPageProps {
   businessType: string
@@ -18,6 +19,8 @@ interface UniversalOrdersPageProps {
 export function UniversalOrdersPage({ businessType }: UniversalOrdersPageProps) {
   const { currentBusinessId, currentBusiness, isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
   const [refundingOrder, setRefundingOrder] = useState<BusinessOrder | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
+  const [cancelError, setCancelError] = useState<string | null>(null)
 
   // Only managers+ can refund, and only for clothing
   const canRefund = businessType === 'clothing' && (
@@ -52,6 +55,21 @@ export function UniversalOrdersPage({ businessType }: UniversalOrdersPageProps) 
     } catch (error) {
       console.error('Failed to print receipt:', error)
     }
+  }
+
+  const handleOpenCancel = (order: BusinessOrder) => {
+    const isEcocash = (order.paymentMethod || '').toUpperCase() === 'ECOCASH'
+    const ecocashFee = isEcocash ? Number((order.attributes as any)?.ecocashFeeAmount ?? 0) : 0
+    setCancelError(null)
+    setCancelTarget({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      totalAmount: order.totalAmount,
+      paymentMethod: order.paymentMethod || 'CASH',
+      createdAt: order.createdAt,
+      isEcocash,
+      refundAmount: isEcocash ? order.totalAmount - ecocashFee * 2 : order.totalAmount,
+    })
   }
 
   const handleRefund = async (data: { refundItems: { orderItemId: string; quantity: number }[]; refundReason: string }) => {
@@ -157,6 +175,7 @@ export function UniversalOrdersPage({ businessType }: UniversalOrdersPageProps) 
                 onPrintReceipt={handlePrintReceipt}
                 onRefund={canRefund ? (order) => setRefundingOrder(order) : undefined}
                 canRefund={canRefund}
+                onCancel={handleOpenCancel}
                 businessType={businessType}
               />
             ))}
@@ -190,6 +209,34 @@ export function UniversalOrdersPage({ businessType }: UniversalOrdersPageProps) 
           </>
         )}
       </div>
+
+      {/* Manager Override Modal — order cancellation from history */}
+      {cancelTarget && (
+        <ManagerOverrideModal
+          order={cancelTarget}
+          businessId={currentBusinessId || ''}
+          onApproved={async (managerId, _managerName, finalRefundAmount, staffReason) => {
+            try {
+              const res = await fetch(`/api/orders/${cancelTarget.orderId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ managerId, staffReason, finalRefundAmount, businessId: currentBusinessId }),
+              })
+              const data = await res.json()
+              if (!res.ok) { setCancelError(data.error || 'Could not cancel order'); return }
+              setCancelTarget(null)
+              refreshOrders()
+            } catch { setCancelError('Connection error — please try again') }
+          }}
+          onAborted={() => setCancelTarget(null)}
+        />
+      )}
+      {cancelError && (
+        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50">
+          {cancelError}
+          <button onClick={() => setCancelError(null)} className="ml-3 font-bold">✕</button>
+        </div>
+      )}
 
       {/* Refund Modal */}
       {refundingOrder && (

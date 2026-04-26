@@ -40,6 +40,7 @@ import { ManualOrderSummary } from '@/components/pos/manual-order-summary'
 import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { SalespersonEodModal } from '@/components/eod/salesperson-eod-modal'
+import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 
 interface POSItem {
   id: string
@@ -159,6 +160,8 @@ function GroceryPOSContent() {
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [completedOrder, setCompletedOrder] = useState<any>(null)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
   const [showCashTenderModal, setShowCashTenderModal] = useState(false)
   const [cashTendered, setCashTendered] = useState('')
   const [processingPayment, setProcessingPayment] = useState(false)
@@ -1912,6 +1915,7 @@ function GroceryPOSContent() {
       if (result.success) {
         // Set completed order for display
         const orderSummary = {
+          orderId: result.data.id,
           orderNumber: result.data.orderNumber,
           total: totals.total,
           paymentMethod: paymentMethod.toUpperCase(),
@@ -2383,6 +2387,24 @@ function GroceryPOSContent() {
                   🖨️ Print Receipt
                 </button>
 
+                {/* Cancel Order Button */}
+                <button
+                  onClick={() => {
+                    if (!completedOrder?.orderId) return
+                    setCancelTarget({
+                      orderId: completedOrder.orderId,
+                      orderNumber: completedOrder.orderNumber,
+                      totalAmount: completedOrder.total,
+                      paymentMethod: completedOrder.paymentMethod,
+                      createdAt: new Date().toISOString(),
+                    })
+                    setShowCancelModal(true)
+                  }}
+                  className="w-full py-2 text-red-600 border border-red-300 font-medium rounded-lg hover:bg-red-50 transition-colors"
+                >
+                  Cancel Order
+                </button>
+
                 {/* Close Button */}
                 <button
                   onClick={() => {
@@ -2397,6 +2419,43 @@ function GroceryPOSContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Manager Override Modal — order cancellation */}
+      {showCancelModal && cancelTarget && (
+        <ManagerOverrideModal
+          order={cancelTarget}
+          businessId={currentBusinessId || ''}
+          onApproved={async (managerId, _managerName, finalRefundAmount, staffReason) => {
+            try {
+              const res = await fetch(`/api/orders/${cancelTarget.orderId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ managerId, staffReason, finalRefundAmount, businessId: currentBusinessId }),
+              })
+              const data = await res.json()
+              if (!res.ok) {
+                await customAlert({ title: 'Cancellation failed', description: data.error || 'Could not cancel order' })
+                return
+              }
+              setShowCancelModal(false)
+              setShowReceiptModal(false)
+              setCompletedOrder(null)
+              setCancelTarget(null)
+              sendToDisplay('ORDER_CANCELLED', {
+                orderNumber: data.orderNumber,
+                grossAmount: data.grossAmount,
+                feeDeducted: data.feeDeducted,
+                refundAmount: data.refundAmount,
+                isEcocash: data.isEcocash,
+                subtotal: 0, tax: 0, total: 0,
+              })
+            } catch {
+              await customAlert({ title: 'Cancellation failed', description: 'Connection error — please try again' })
+            }
+          }}
+          onAborted={() => setShowCancelModal(false)}
+        />
       )}
 
       {/* Unified Receipt Preview Modal */}

@@ -19,6 +19,7 @@ import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import type { ReceiptData, NetworkPrinter } from '@/types/printing'
 import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
+import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 
 interface CartItem {
   productId: string
@@ -88,6 +89,9 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [completedOrderReceipt, setCompletedOrderReceipt] = useState<ReceiptData | null>(null)
+  const [completedOrderId, setCompletedOrderId] = useState<string | null>(null)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
 
   // Printing hooks
   const { canPrintReceipts } = usePrinterPermissions()
@@ -686,6 +690,7 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
 
         // Always show receipt preview with print option
         setCompletedOrderReceipt(receiptData)
+        setCompletedOrderId(result.data.id)
         setShowReceiptPreview(true)
       } else {
         throw new Error(result.error || 'Order processing failed')
@@ -1120,11 +1125,62 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
           onClose={() => {
             setShowReceiptPreview(false)
             setCompletedOrderReceipt(null)
+            setCompletedOrderId(null)
             // Show success message when user closes without printing
             customAlert({ title: 'Order completed', description: `Order ${completedOrderReceipt.receiptNumber} completed successfully!` })
           }}
           receiptData={completedOrderReceipt}
           onPrint={handlePrintReceipt}
+          onCancelOrder={completedOrderId ? () => {
+            if (!completedOrderReceipt) return
+            const paymentMethod = completedOrderReceipt.paymentMethod || 'CASH'
+            const isEcocash = paymentMethod.toUpperCase() === 'ECOCASH'
+            setCancelTarget({
+              orderId: completedOrderId,
+              orderNumber: completedOrderReceipt.transactionId || String(completedOrderReceipt.receiptNumber) || '',
+              totalAmount: completedOrderReceipt.total,
+              paymentMethod,
+              createdAt: new Date().toISOString(),
+              isEcocash,
+              refundAmount: isEcocash ? completedOrderReceipt.total - (completedOrderReceipt.ecocashFeeAmount ?? 0) * 2 : completedOrderReceipt.total,
+            })
+            setShowCancelModal(true)
+          } : undefined}
+        />
+      )}
+
+      {/* Manager Override Modal — order cancellation */}
+      {showCancelModal && cancelTarget && (
+        <ManagerOverrideModal
+          order={cancelTarget}
+          businessId={businessId}
+          onApproved={async (managerId, _managerName, finalRefundAmount, staffReason) => {
+            try {
+              const res = await fetch(`/api/orders/${cancelTarget.orderId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ managerId, staffReason, finalRefundAmount, businessId }),
+              })
+              const data = await res.json()
+              if (!res.ok) { setError(data.error || 'Could not cancel order'); return }
+              setShowCancelModal(false)
+              setShowReceiptPreview(false)
+              setCompletedOrderReceipt(null)
+              setCompletedOrderId(null)
+              setCancelTarget(null)
+              if (terminalId) {
+                sendToDisplay('ORDER_CANCELLED', {
+                  orderNumber: data.orderNumber,
+                  grossAmount: data.grossAmount,
+                  feeDeducted: data.feeDeducted,
+                  refundAmount: data.refundAmount,
+                  isEcocash: data.isEcocash,
+                  subtotal: 0, tax: 0, total: 0,
+                })
+              }
+            } catch { setError('Connection error — please try again') }
+          }}
+          onAborted={() => setShowCancelModal(false)}
         />
       )}
 

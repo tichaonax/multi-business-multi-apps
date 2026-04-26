@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause - include manual backdated entries via transactionDate
-    const baseWhere: any = { businessId }
+    const baseWhere: any = { businessId, status: { not: 'CANCELLED' } }
     if (businessType) baseWhere.businessType = businessType
     if (employeeId) baseWhere.employeeId = employeeId
 
@@ -161,9 +161,10 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Filter out EXPENSE_ACCOUNT (meal program subsidy) orders — not real cash income
+    // Filter out EXPENSE_ACCOUNT (meal program subsidy) and CANCELLED orders
     const regularOrders = orders.filter(order =>
-      (order.paymentMethod as string)?.toUpperCase() !== 'EXPENSE_ACCOUNT'
+      (order.paymentMethod as string)?.toUpperCase() !== 'EXPENSE_ACCOUNT' &&
+      order.status !== 'CANCELLED'
     )
 
     // Calculate totals (regular orders only)

@@ -385,6 +385,12 @@ const RESTORE_ORDER = [
   'policyAssignments',           // Depends on policies, businesses, users
   'policyAcknowledgments',       // Depends on policyAssignments, businesses, users
 
+  // Payment Cancellation & Manager Override (MBM-192)
+  'managerOverrideCodes',         // Depends on users (userId @unique FK)
+  'managerOverrideCodeHistory',   // Depends on users (userId FK)
+  'managerOverrideLogs',          // Depends on users (managerId, requestedBy) + businesses
+  'orderCancellations',           // Depends on managerOverrideLogs + businessOrders + users + businessCustomers
+
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs'           // Depends on users
 ]
@@ -445,6 +451,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Loan Withdrawal Requests: unique on requestNumber
   'loanWithdrawalRequests': 'requestNumber',
 
+  // Manager Override Codes: unique on userId (one code per user)
+  'managerOverrideCodes': 'userId',
+
   // Chicken Run Settings: unique on businessId
   'chickenRunSettings': 'businessId',
 
@@ -453,6 +462,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // POS Terminal Config: unique on terminalId
   'posTerminalConfigs': 'terminalId',
+
+  // Order Cancellations: unique on orderId (one cancellation per order)
+  'orderCancellations': 'orderId',
 
   // Prep Inventory Config: unique on (businessProductId, businessId)
   'menuItemInventoryConfigs': { fields: ['businessProductId', 'businessId'] },
@@ -509,6 +521,9 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Expiry Tracking (MBM-186)
   'itemExpiryBatches': 'itemExpiryBatch',
   'expiryActions': 'expiryAction',
+  // Payment Cancellation & Manager Override (MBM-192)
+  'managerOverrideLogs': 'managerOverrideLog',
+  'orderCancellations': 'orderCancellation',
   // Policy Management (MBM-189)
   'policyTemplates': 'policyTemplate',
   'policies': 'policy',

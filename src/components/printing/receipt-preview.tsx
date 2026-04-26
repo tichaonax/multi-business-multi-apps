@@ -19,6 +19,7 @@ interface ReceiptPreviewProps {
   onClose: () => void
   receiptData: ReceiptData
   onPrint?: (printer: NetworkPrinter) => Promise<void>
+  onCancelOrder?: () => void
 }
 
 export function ReceiptPreview({
@@ -26,6 +27,7 @@ export function ReceiptPreview({
   onClose,
   receiptData,
   onPrint,
+  onCancelOrder,
 }: ReceiptPreviewProps) {
   const [showPrinterSelector, setShowPrinterSelector] = useState(false)
   const [printing, setPrinting] = useState(false)
@@ -282,6 +284,15 @@ export function ReceiptPreview({
 
           {/* Action Buttons - Always visible */}
           <div className="flex gap-2 justify-end flex-shrink-0 border-t border-gray-200 dark:border-gray-700 pt-4">
+            {onCancelOrder && (
+              <button
+                onClick={onCancelOrder}
+                disabled={printing}
+                className="mr-auto px-3 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50"
+              >
+                Cancel Order
+              </button>
+            )}
             <Button variant="outline" onClick={onClose} disabled={printing}>
               <X className="w-4 h-4 mr-2" />
               Cancel
