@@ -1122,6 +1122,7 @@ Click any dot on the Daily Sales chart to open the **Daily Detail** report for t
 
 The Daily Detail report includes:
 - **Summary bar** — sales total, expenses total, net profit, and margin for the day
+- **Day navigation** — use the **← Prev** and **Next →** buttons beside the date heading to move to the previous or next day without going back to the chart; the Next button is greyed out when you reach today
 - **Filter tabs** — switch between All, Sales, and Expenses views
 - **Search** — type any keyword (payee name, product, category, amount, or who recorded it) to filter the list; a match count and filtered total appear automatically above the results; click **Reset** to clear the search
 - **Sales orders** — each order shows time, payment method, server name, and order amount; click a row to expand and see the individual items sold with quantities and unit prices
