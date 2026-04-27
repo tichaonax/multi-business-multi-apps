@@ -125,6 +125,10 @@ export default function DailyDetailPage() {
   useEffect(() => {
     if (!businessId || !date) return
     setLoading(true)
+    setError(null)
+    setSearch('')
+    setFilter('all')
+    setExpandedOrders(new Set())
     const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
     fetch(`/api/business/${businessId}/daily-detail?date=${date}&timezone=${tz}`, { credentials: 'include' })
       .then(r => r.json())
@@ -141,6 +145,21 @@ export default function DailyDetailPage() {
     : '/reports'
 
   const displayDate = date ? formatDateByFormat(date, dateFormat.format) : date
+
+  // Day navigation helpers
+  function shiftDate(dateStr: string, days: number): string {
+    const d = new Date(dateStr + 'T00:00:00')
+    d.setDate(d.getDate() + days)
+    return d.toISOString().slice(0, 10)
+  }
+  function buildDayHref(newDate: string) {
+    const p = new URLSearchParams({ businessId, businessType, date: newDate })
+    return `/reports/daily-detail?${p.toString()}`
+  }
+  const prevDate = date ? shiftDate(date, -1) : null
+  const nextDate = date ? shiftDate(date, 1) : null
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const nextDisabled = !nextDate || nextDate > todayStr
 
   const toggleOrder = (id: string) => {
     setExpandedOrders(prev => {
@@ -210,14 +229,36 @@ export default function DailyDetailPage() {
       <div className="shrink-0 bg-gray-50 dark:bg-gray-900 px-4 pt-5 pb-3 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="max-w-4xl mx-auto">
 
-          {/* Back + title */}
+          {/* Back + title + day navigation */}
           <div className="mb-4">
             <Link href={backHref} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-1 inline-block">
               ← Back to Sales Analytics
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Daily Detail — {displayDate}
-            </h1>
+            <div className="flex items-center gap-3 mt-1">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex-1">
+                Daily Detail — {displayDate}
+              </h1>
+              {prevDate && (
+                <Link
+                  href={buildDayHref(prevDate)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+                >
+                  ← Prev
+                </Link>
+              )}
+              {nextDisabled ? (
+                <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-600 cursor-not-allowed shadow-sm">
+                  Next →
+                </span>
+              ) : (
+                <Link
+                  href={buildDayHref(nextDate!)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+                >
+                  Next →
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Summary cards */}
