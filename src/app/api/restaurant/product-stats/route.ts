@@ -5,7 +5,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
-    const timezone = searchParams.get('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone
+    // Use server timezone so reset time matches business day boundaries (same as daily-sales API).
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
     if (!businessId) {
       return NextResponse.json({ success: true, data: [] })

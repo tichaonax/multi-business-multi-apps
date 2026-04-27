@@ -18,7 +18,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
-    const timezone = searchParams.get('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone
+    // Use server timezone so reset time matches business day boundaries (same as daily-sales API).
+    // Client-provided timezone is ignored — avoids UTC machines resetting bars 2 hours late.
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
     if (!businessId) {
       return NextResponse.json({ success: true, data: [] })

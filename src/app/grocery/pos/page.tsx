@@ -1051,6 +1051,13 @@ function GroceryPOSContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deskMode, currentBusinessId])
 
+  // Poll product stats every 30s while in desk mode so sold counts reset at day boundary
+  useEffect(() => {
+    if (!deskMode || !currentBusinessId) return
+    const interval = setInterval(() => { fetchProductStats() }, 30000)
+    return () => clearInterval(interval)
+  }, [deskMode, currentBusinessId, fetchProductStats])
+
   // Manual cart helpers
   const addToManualCart = (item: ManualCartItem) => {
     setManualCart(prev => {
