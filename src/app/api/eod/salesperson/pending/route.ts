@@ -42,8 +42,10 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Use CURRENT_DATE from the database so the date is always in the DB's configured
+    // timezone (America/Chicago). Using new Date() + setHours(0,0,0,0) on a UTC app
+    // server gives midnight UTC, which Postgres CDT stores as the previous calendar day.
+    const [{ today }] = await prisma.$queryRaw<[{ today: Date }]>`SELECT CURRENT_DATE AS today`
 
     // Auto-create today's PENDING record if it doesn't exist
     await prisma.salespersonEodReport.upsert({

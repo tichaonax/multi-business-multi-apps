@@ -218,7 +218,7 @@ export default function EodHistoryPage() {
                           href={`/${currentBusiness?.businessType || 'grocery'}/reports/saved/${r.savedReportId}`}
                           className="px-3 py-1 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors whitespace-nowrap"
                         >
-                          View Manager Report →
+                          {new Date(r.reportDate.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} Manager Report →
                         </Link>
                       )}
                     </div>
@@ -226,6 +226,15 @@ export default function EodHistoryPage() {
 
                   {r.status === 'PENDING' && expandedId === r.id && (
                     <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3 space-y-3">
+                      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2">
+                        <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                          ⚠️ Catch-up submission for{' '}
+                          {new Date(r.reportDate.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                        </p>
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                          Enter the cash you collected on <strong>that date</strong> — not today&apos;s amounts.
+                        </p>
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">💵 Cash (US$)</label>
