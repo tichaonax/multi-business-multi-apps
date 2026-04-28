@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
-    const reportDate = dateParam ? new Date(dateParam) : new Date()
+    const reportDate = dateParam ? new Date(dateParam + 'T00:00:00') : new Date()
     reportDate.setHours(0, 0, 0, 0)
 
     const record = await prisma.salespersonEodReport.findUnique({
@@ -69,13 +69,14 @@ export async function POST(request: NextRequest) {
     const salespersonId = targetSalespersonId && canOverride ? targetSalespersonId : user.id
     const isManagerOverride = !!(targetSalespersonId && targetSalespersonId !== user.id && canOverride)
 
-    // If not an override, the submitter must be a salesperson or have canCloseBooks
+    // If not an override, the submitter must be a salesperson/associate or have canCloseBooks
     if (!isManagerOverride) {
       const membership = await prisma.businessMemberships.findFirst({
         where: { businessId, userId: user.id, isActive: true },
         select: { role: true },
       })
-      const isSalesperson = membership?.role === 'salesperson'
+      const SALESPERSON_ROLES = new Set(['salesperson', 'grocery-associate', 'restaurant-associate', 'clothing-associate'])
+      const isSalesperson = !!(membership?.role && SALESPERSON_ROLES.has(membership.role))
       if (!isSalesperson && !canOverride) {
         return NextResponse.json({ error: 'Only salespersons or managers can submit EOD reports' }, { status: 403 })
       }
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Override reason is required when submitting on behalf of a salesperson' }, { status: 400 })
     }
 
-    const parsedDate = new Date(reportDate)
+    const parsedDate = new Date(reportDate + 'T00:00:00')
     parsedDate.setHours(0, 0, 0, 0)
 
     // Block re-submission unless this is a manager override

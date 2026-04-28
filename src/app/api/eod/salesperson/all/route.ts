@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const reportDate = dateParam ? new Date(dateParam) : new Date()
+    const reportDate = dateParam ? new Date(dateParam + 'T00:00:00') : new Date()
     reportDate.setHours(0, 0, 0, 0)
 
     const records = await prisma.salespersonEodReport.findMany({

@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
     const where: any = { businessId, isManagerOverride: true }
     if (from || to) {
       where.reportDate = {}
-      if (from) where.reportDate.gte = new Date(from)
+      if (from) where.reportDate.gte = new Date(from + 'T00:00:00')
       if (to) {
-        const toDate = new Date(to)
+        const toDate = new Date(to + 'T00:00:00')
         toDate.setHours(23, 59, 59, 999)
         where.reportDate.lte = toDate
       }

@@ -283,8 +283,10 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
                 localStorage.setItem('currentBusinessId', businessId);
               }
 
-              // Navigate to default page if configured (admin path)
-              if (typeof window !== 'undefined' && router && business?.defaultPage) {
+              // Navigate to default page if configured, but not when already on a settings/management page
+              const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+              const isManagePage = currentPath.startsWith('/business/manage') || currentPath.startsWith('/admin')
+              if (typeof window !== 'undefined' && router && business?.defaultPage && !isManagePage) {
                 const businessType = business.type || 'retail'
                 const path = getDefaultPagePath(businessType, business.defaultPage)
                 router.push(path)

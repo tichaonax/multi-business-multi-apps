@@ -85,10 +85,28 @@ export async function GET(
       }
     }
 
-    // 4. Return report with full data
+    // 4. Fetch salesperson EOD records for this business day (non-fatal if absent)
+    let salespersonEodRecords: any[] = []
+    try {
+      salespersonEodRecords = await prisma.salespersonEodReport.findMany({
+        where: { businessId: report.businessId, reportDate: report.reportDate },
+        include: {
+          salesperson: { select: { id: true, name: true } },
+          submittedBy: { select: { id: true, name: true } },
+        },
+        orderBy: { salesperson: { name: 'asc' } },
+      })
+    } catch (_) {
+      // salespersonEodReport table may not exist on older deployments
+    }
+
+    // 5. Return report with full data
     return NextResponse.json({
       success: true,
-      report: report
+      report: {
+        ...report,
+        salespersonEodRecords,
+      },
     })
 
   } catch (error: any) {

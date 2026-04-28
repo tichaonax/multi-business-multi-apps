@@ -17,6 +17,8 @@ interface EodRecord {
 
 interface Props {
   businessId: string
+  reportDate?: string  // YYYY-MM-DD — business day date; defaults to today if omitted
+  onTotalsReady?: (info: { cashTotal: number; ecocashTotal: number; allSubmitted: boolean }) => void
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -27,7 +29,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">Pending</span>
 }
 
-export function SalespersonEodReportSection({ businessId }: Props) {
+export function SalespersonEodReportSection({ businessId, reportDate, onTotalsReady }: Props) {
   const [records, setRecords] = useState<EodRecord[]>([])
   const [totals, setTotals] = useState<{ cashTotal: number; ecocashTotal: number } | null>(null)
   const [counts, setCounts] = useState<{ total: number; pending: number; submitted: number; overridden: number } | null>(null)
@@ -36,9 +38,9 @@ export function SalespersonEodReportSection({ businessId }: Props) {
 
   useEffect(() => {
     if (!businessId) return
-    // Use client's local date so the query matches the user's timezone
     const d = new Date()
-    const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const todayLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const localDate = reportDate ?? todayLocal
     setQueryDate(localDate)
     fetch(`/api/eod/salesperson/all?businessId=${businessId}&date=${localDate}`)
       .then(r => r.json())
@@ -47,11 +49,18 @@ export function SalespersonEodReportSection({ businessId }: Props) {
           setRecords(json.data)
           setTotals(json.totals)
           setCounts(json.counts)
+          if (onTotalsReady && json.counts) {
+            onTotalsReady({
+              cashTotal: json.totals?.cashTotal ?? 0,
+              ecocashTotal: json.totals?.ecocashTotal ?? 0,
+              allSubmitted: json.counts.pending === 0 && json.counts.total > 0,
+            })
+          }
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [businessId])
+  }, [businessId, reportDate])
 
   if (loading || !counts || counts.total === 0) return null
 

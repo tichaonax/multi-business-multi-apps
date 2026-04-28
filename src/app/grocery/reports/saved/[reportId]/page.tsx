@@ -275,36 +275,129 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
         )}
 
         {/* Till Reconciliation */}
-        {report.expectedCash !== null && (
-          <div className="mb-8">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
-              💵 Till Reconciliation
-            </h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
-                <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Expected Cash</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(report.expectedCash)}</p>
-              </div>
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
-                <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Cash Counted</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
-                  {report.cashCounted !== null ? formatCurrency(report.cashCounted) : 'Not counted'}
-                </p>
-              </div>
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
-                <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Variance</p>
-                <p className={`text-xl font-bold ${
-                  report.variance === null ? 'text-gray-500' :
-                  report.variance > 0 ? 'text-green-600 dark:text-green-400' :
-                  report.variance < 0 ? 'text-red-600 dark:text-red-400' :
-                  'text-gray-900 dark:text-gray-100'
-                } print:text-gray-900`}>
-                  {report.variance !== null ? formatCurrency(report.variance) : 'N/A'}
-                </p>
-              </div>
+        <div className="mb-8">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
+            💵 Till Reconciliation
+          </h3>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
+              <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Expected Cash</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
+                {report.expectedCash !== null ? formatCurrency(report.expectedCash) : '—'}
+              </p>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
+              <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Cash Counted</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
+                {report.cashCounted !== null ? formatCurrency(report.cashCounted) : '—'}
+              </p>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
+              <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Variance</p>
+              <p className={`text-xl font-bold ${
+                report.variance === null ? 'text-gray-500' :
+                report.variance > 0 ? 'text-yellow-600 dark:text-yellow-400' :
+                report.variance < 0 ? 'text-red-600 dark:text-red-400' :
+                'text-green-600 dark:text-green-400'
+              } print:text-gray-900`}>
+                {report.variance !== null ? (report.variance > 0 ? '+' : '') + formatCurrency(report.variance) : '—'}
+              </p>
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Salesperson EOD Submissions — shown when records exist */}
+        {report.salespersonEodRecords && report.salespersonEodRecords.length > 0 && (() => {
+          const records: any[] = report.salespersonEodRecords
+          const pendingCount = records.filter((r: any) => r.status === 'PENDING').length
+          const overrideCount = records.filter((r: any) => r.status === 'OVERRIDDEN').length
+          const spCashTotal = report.salespersonCashTotal ?? records.filter((r: any) => r.status !== 'PENDING').reduce((s: number, r: any) => s + Number(r.cashAmount), 0)
+          const spEcoTotal = report.salespersonEcocashTotal ?? records.filter((r: any) => r.status !== 'PENDING').reduce((s: number, r: any) => s + Number(r.ecocashAmount), 0)
+          const cashVariance = report.cashCounted !== null ? (Number(report.cashCounted) - spCashTotal) : null
+          const hasIssues = pendingCount > 0 || overrideCount > 0 || (cashVariance !== null && Math.abs(cashVariance) > 0.01)
+          return (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-300 dark:border-gray-600">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
+                  👥 Salesperson EOD Submissions
+                </h3>
+                {hasIssues
+                  ? <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 print:bg-red-100 print:text-red-700">⚠️ ISSUES FOUND</span>
+                  : <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 print:bg-green-100 print:text-green-700">✅ ALL CLEAR</span>
+                }
+              </div>
+
+              {/* Issue flags */}
+              {pendingCount > 0 && (
+                <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-sm text-red-800 dark:text-red-200 print:bg-red-50 print:text-red-800">
+                  <span className="font-bold">⛔</span>
+                  <span><strong>{pendingCount} salesperson{pendingCount > 1 ? 's' : ''} did not submit</strong> their EOD report before books were closed.</span>
+                </div>
+              )}
+              {overrideCount > 0 && (
+                <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg text-sm text-amber-800 dark:text-amber-200 print:bg-amber-50 print:text-amber-800">
+                  <span className="font-bold">⚠️</span>
+                  <span><strong>{overrideCount} report{overrideCount > 1 ? 's' : ''} were manager-overridden</strong> — submitted on behalf of salesperson.</span>
+                </div>
+              )}
+              {cashVariance !== null && Math.abs(cashVariance) > 0.01 && (
+                <div className={`mb-3 flex items-center gap-2 px-3 py-2 rounded-lg text-sm border print:bg-yellow-50 print:text-yellow-800 ${cashVariance > 0 ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200'}`}>
+                  <span className="font-bold">{cashVariance > 0 ? '💰' : '❌'}</span>
+                  <span>
+                    <strong>Cash discrepancy:</strong> Salespersons reported {formatCurrency(spCashTotal)} cash; manager counted {formatCurrency(Number(report.cashCounted))}.{' '}
+                    {cashVariance > 0 ? `Cash over by ${formatCurrency(cashVariance)}.` : `Cash short by ${formatCurrency(Math.abs(cashVariance))}.`}
+                  </span>
+                </div>
+              )}
+
+              {/* Per-person table */}
+              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
+                    <tr>
+                      <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Salesperson</th>
+                      <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Status</th>
+                      <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Cash</th>
+                      <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">EcoCash</th>
+                      <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Submitted</th>
+                      <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((r: any) => (
+                      <tr key={r.id} className={`border-t border-gray-200 dark:border-gray-700 ${r.status === 'PENDING' ? 'bg-red-50 dark:bg-red-900/10 print:bg-red-50' : ''}`}>
+                        <td className="p-3 font-medium text-gray-900 dark:text-gray-100 print:text-gray-900">{r.salesperson.name}</td>
+                        <td className="p-3 text-center">
+                          {r.status === 'SUBMITTED' && <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 print:bg-green-100 print:text-green-700">Submitted</span>}
+                          {r.status === 'OVERRIDDEN' && <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 print:bg-purple-100 print:text-purple-700">Override</span>}
+                          {r.status === 'PENDING' && <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 print:bg-red-100 print:text-red-700">⛔ Not submitted</span>}
+                        </td>
+                        <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
+                          {r.status === 'PENDING' ? <span className="text-gray-400">—</span> : formatCurrency(Number(r.cashAmount))}
+                        </td>
+                        <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
+                          {r.status === 'PENDING' ? <span className="text-gray-400">—</span> : formatCurrency(Number(r.ecocashAmount))}
+                        </td>
+                        <td className="p-3 text-right text-xs text-gray-500 dark:text-gray-400 print:text-gray-600">
+                          {r.submittedAt ? new Date(r.submittedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                        <td className="p-3 text-xs text-gray-600 dark:text-gray-400 print:text-gray-600">
+                          {r.isManagerOverride && r.submittedBy ? `${r.submittedBy.name} (mgr)` : (r.submittedBy?.name || '—')}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 font-bold print:bg-gray-100">
+                      <td className="p-3 text-gray-900 dark:text-gray-100 print:text-gray-900" colSpan={2}>TOTALS (submitted)</td>
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(spCashTotal)}</td>
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(spEcoTotal)}</td>
+                      <td colSpan={2} />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Signature Section */}
         <div className="mt-8 pt-6 border-t-2 border-gray-300 dark:border-gray-600 print:border-gray-300">

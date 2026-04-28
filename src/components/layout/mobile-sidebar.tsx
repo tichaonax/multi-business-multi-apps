@@ -571,7 +571,10 @@ export function MobileSidebar() {
                     <Link href="/assets" className={sectionLinkClass} onClick={close}>🏷️ Assets</Link>
                   )}
 
-                  {currentBusiness?.requireSalespersonEod && currentBusiness?.role === 'salesperson' && (
+                  {currentBusiness?.requireSalespersonEod && (
+                    currentBusiness?.role === 'salesperson' ||
+                    (currentBusiness?.role === 'grocery-associate' && currentBusiness?.businessType === 'grocery')
+                  ) && (
                     <>
                       <Link href="/eod/submit" className={sectionLinkClass} onClick={close}>📤 Submit EOD Report</Link>
                       <Link href="/eod/history" className={sectionLinkClass} onClick={close}>📋 My EOD History</Link>

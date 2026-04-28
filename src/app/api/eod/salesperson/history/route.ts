@@ -20,13 +20,40 @@ export async function GET(request: NextRequest) {
 
     if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
+    // Fetch deadline so we can hide today's PENDING record before it's due
+    const business = await prisma.businesses.findUnique({
+      where: { id: businessId },
+      select: { eodDeadlineTime: true },
+    })
+
+    // Check if the EOD deadline for today has passed
+    const deadlineTime = business?.eodDeadlineTime ?? null
+    let deadlinePassed = false
+    if (deadlineTime) {
+      const [hours, minutes] = deadlineTime.split(':').map(Number)
+      const now = new Date()
+      deadlinePassed = now.getHours() > hours || (now.getHours() === hours && now.getMinutes() >= minutes)
+    } else {
+      // No deadline set — always show today
+      deadlinePassed = true
+    }
+
+    // Today's local date
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
     const where: any = { businessId, salespersonId: user.id }
+
+    // Hide today's PENDING record until the deadline has passed
+    if (!deadlinePassed) {
+      where.NOT = { reportDate: todayStart, status: 'PENDING' }
+    }
 
     if (from || to) {
       where.reportDate = {}
-      if (from) where.reportDate.gte = new Date(from)
+      if (from) where.reportDate.gte = new Date(from + 'T00:00:00')
       if (to) {
-        const toDate = new Date(to)
+        const toDate = new Date(to + 'T00:00:00')
         toDate.setHours(23, 59, 59, 999)
         where.reportDate.lte = toDate
       }

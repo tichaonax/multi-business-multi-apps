@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
         data: {
           businessId,
           reportType: 'END_OF_DAY',
-          reportDate: new Date(date),
+          reportDate: new Date(date + 'T00:00:00'),
           periodStart: dayStart,
           periodEnd: dayEnd,
           reportData: {

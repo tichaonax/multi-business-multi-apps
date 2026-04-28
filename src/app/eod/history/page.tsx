@@ -43,6 +43,11 @@ export default function EodHistoryPage() {
   const [pagination, setPagination] = useState<{ total: number; totalPages: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [catchupForm, setCatchupForm] = useState({ cashAmount: '', ecocashAmount: '', notes: '' })
+  const [ecocashLoading, setEcocashLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const loadData = useCallback(async (p = 1) => {
     if (!currentBusinessId) return
@@ -67,6 +72,54 @@ export default function EodHistoryPage() {
   }, [currentBusinessId, loadData])
 
   const handleApply = () => loadData(1)
+
+  const handleExpand = async (record: EodRecord) => {
+    const isOpening = expandedId !== record.id
+    setExpandedId(prev => prev === record.id ? null : record.id)
+    setCatchupForm({ cashAmount: '', ecocashAmount: '', notes: '' })
+    setSubmitError(null)
+
+    if (isOpening && currentBusinessId) {
+      setEcocashLoading(true)
+      try {
+        const date = record.reportDate.slice(0, 10)
+        const res = await fetch(`/api/eod/salesperson/ecocash-for-date?businessId=${currentBusinessId}&date=${date}`)
+        const json = await res.json()
+        if (json.success) {
+          setCatchupForm(f => ({ ...f, ecocashAmount: Number(json.ecocashAmount).toFixed(2) }))
+        }
+      } catch { /* silent — leave blank */ } finally {
+        setEcocashLoading(false)
+      }
+    }
+  }
+
+  const handleCatchupSubmit = async (r: EodRecord) => {
+    if (!currentBusinessId) return
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const res = await fetch('/api/eod/salesperson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: currentBusinessId,
+          reportDate: r.reportDate.slice(0, 10),
+          cashAmount: parseFloat(catchupForm.cashAmount) || 0,
+          ecocashAmount: parseFloat(catchupForm.ecocashAmount) || 0,
+          notes: catchupForm.notes || null,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to submit')
+      setExpandedId(null)
+      loadData(page)
+    } catch (e: any) {
+      setSubmitError(e.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4 md:p-6">
@@ -140,7 +193,7 @@ export default function EodHistoryPage() {
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div>
                       <p className="font-semibold text-gray-900 dark:text-gray-100">
-                        {new Date(r.reportDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                        {new Date(r.reportDate.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
                       </p>
                       {r.submittedAt && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -149,8 +202,71 @@ export default function EodHistoryPage() {
                         </p>
                       )}
                     </div>
-                    <StatusBadge status={r.status} />
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={r.status} />
+                      {r.status === 'PENDING' && (
+                        <button
+                          onClick={() => handleExpand(r)}
+                          className="px-3 py-1 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        >
+                          {expandedId === r.id ? 'Cancel' : 'Submit'}
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {r.status === 'PENDING' && expandedId === r.id && (
+                    <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">💵 Cash (US$)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={catchupForm.cashAmount}
+                            onChange={e => setCatchupForm(f => ({ ...f, cashAmount: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg text-sm"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                            📱 EcoCash (US$)
+                            <span className="ml-1 font-normal text-gray-400">(auto-filled)</span>
+                          </label>
+                          <input
+                            type="number"
+                            readOnly
+                            tabIndex={-1}
+                            value={ecocashLoading ? '' : catchupForm.ecocashAmount}
+                            placeholder={ecocashLoading ? 'Loading…' : '0.00'}
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-lg text-sm cursor-default bg-gray-50"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Notes (optional)</label>
+                        <textarea
+                          rows={2}
+                          value={catchupForm.notes}
+                          onChange={e => setCatchupForm(f => ({ ...f, notes: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg text-sm resize-none"
+                          placeholder="Any notes for this day…"
+                        />
+                      </div>
+                      {submitError && (
+                        <p className="text-xs text-red-600 dark:text-red-400">{submitError}</p>
+                      )}
+                      <button
+                        onClick={() => handleCatchupSubmit(r)}
+                        disabled={submitting || ecocashLoading}
+                        className="w-full py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {ecocashLoading ? 'Loading EcoCash…' : submitting ? 'Submitting…' : 'Submit EOD Report'}
+                      </button>
+                    </div>
+                  )}
 
                   {r.status !== 'PENDING' && (
                     <div className="mt-3 grid grid-cols-2 gap-3">
@@ -165,7 +281,7 @@ export default function EodHistoryPage() {
                     </div>
                   )}
 
-                  {r.notes && (
+                  {r.notes && r.status !== 'PENDING' && (
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 italic">"{r.notes}"</p>
                   )}
 

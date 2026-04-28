@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
         businessId_reportType_reportDate: {
           businessId: businessId,
           reportType: reportType,
-          reportDate: new Date(reportDate)
+          reportDate: new Date(reportDate + 'T00:00:00')
         }
       }
     })
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
       data: {
         businessId: businessId,
         reportType: reportType,
-        reportDate: new Date(reportDate),
+        reportDate: new Date(reportDate + 'T00:00:00'),
         periodStart: new Date(periodStart),
         periodEnd: new Date(periodEnd),
         reportData: reportData, // Store complete snapshot as JSON
@@ -188,12 +188,12 @@ export async function POST(req: NextRequest) {
     let eodPaymentBatch: { batchId: string; paymentCount: number } | null = null
     if (reportType === 'END_OF_DAY') {
       try {
-        const batchResult = await createEODPaymentBatches(businessId, new Date(reportDate))
+        const batchResult = await createEODPaymentBatches(businessId, new Date(reportDate + 'T00:00:00'))
         if (batchResult.batchId) {
           eodPaymentBatch = { batchId: batchResult.batchId, paymentCount: batchResult.paymentCount }
         }
         // Consolidate individual MEAL_PROGRAM payments into one MEAL_BATCH request
-        await createEODMealBatch(businessId, new Date(reportDate))
+        await createEODMealBatch(businessId, new Date(reportDate + 'T00:00:00'))
       } catch (batchError) {
         // Non-fatal — log but don't fail the EOD save
         console.error('createEODPaymentBatches error (non-fatal):', batchError)
@@ -277,7 +277,7 @@ export async function GET(req: NextRequest) {
         businessId_reportType_reportDate: {
           businessId: businessId,
           reportType: reportType,
-          reportDate: new Date(reportDate)
+          reportDate: new Date(reportDate + 'T00:00:00')
         }
       },
       select: {

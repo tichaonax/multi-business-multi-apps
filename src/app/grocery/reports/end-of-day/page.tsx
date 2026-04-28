@@ -21,6 +21,8 @@ export default function EndOfDayReport() {
   const [dailySales, setDailySales] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [cashCounted, setCashCounted] = useState('')
+  const [cashCountedAutoFilled, setCashCountedAutoFilled] = useState(false)
+  const [salespersonTotals, setSalespersonTotals] = useState<{ cashTotal: number; ecocashTotal: number } | null>(null)
   const [variance, setVariance] = useState(0)
   const [managerSignature, setManagerSignature] = useState('')
   const [confirmName, setConfirmName] = useState('')
@@ -259,6 +261,8 @@ export default function EndOfDayReport() {
           managerName: confirmName,
           cashCounted: parseFloat(cashCounted || '0'),
           confirmedEcocashAmount: confirmedEcocashTotal > 0 ? confirmedEcocashTotal : null,
+          salespersonCashTotal: salespersonTotals?.cashTotal ?? null,
+          salespersonEcocashTotal: salespersonTotals?.ecocashTotal ?? null,
           reportData: reportData
         })
       })
@@ -863,7 +867,19 @@ export default function EndOfDayReport() {
           )}
 
           {/* Salesperson EOD Reports — only shown when requireSalespersonEod is enabled */}
-          {currentBusinessId && <SalespersonEodReportSection businessId={currentBusinessId} />}
+          {currentBusinessId && (
+            <SalespersonEodReportSection
+              businessId={currentBusinessId}
+              reportDate={dailySales?.businessDay?.date}
+              onTotalsReady={({ cashTotal, ecocashTotal, allSubmitted }) => {
+                setSalespersonTotals({ cashTotal, ecocashTotal })
+                if (allSubmitted && !cashCounted) {
+                  setCashCounted(cashTotal.toFixed(2))
+                  setCashCountedAutoFilled(true)
+                }
+              }}
+            />
+          )}
 
           {/* Till Reconciliation */}
           <div className="mb-8">
@@ -876,22 +892,29 @@ export default function EndOfDayReport() {
                 <span className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(expectedCash)}</span>
               </div>
 
-              <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded print:bg-blue-50">
-                <label className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Cash Counted:</label>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg text-gray-900 dark:text-gray-100 print:text-gray-900">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={cashCounted}
-                    onChange={(e) => setCashCounted(e.target.value)}
-                    placeholder="0.00"
-                    className="w-32 px-3 py-2 border-2 border-blue-300 dark:border-blue-600 dark:bg-gray-700 dark:text-gray-100 rounded text-right font-bold text-lg no-print"
-                  />
-                  <span className="print-only font-bold text-lg text-gray-900">
-                    {cashCounted ? formatCurrency(parseFloat(cashCounted)) : '_____________'}
-                  </span>
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded print:bg-blue-50">
+                <div className="flex justify-between items-center">
+                  <label className="font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Cash Counted:</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg text-gray-900 dark:text-gray-100 print:text-gray-900">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={cashCounted}
+                      onChange={(e) => { setCashCounted(e.target.value); setCashCountedAutoFilled(false) }}
+                      placeholder="0.00"
+                      className="w-32 px-3 py-2 border-2 border-blue-300 dark:border-blue-600 dark:bg-gray-700 dark:text-gray-100 rounded text-right font-bold text-lg no-print"
+                    />
+                    <span className="print-only font-bold text-lg text-gray-900">
+                      {cashCounted ? formatCurrency(parseFloat(cashCounted)) : '_____________'}
+                    </span>
+                  </div>
                 </div>
+                {cashCountedAutoFilled && (
+                  <p className="mt-1.5 text-xs text-blue-600 dark:text-blue-400 no-print">
+                    ✓ Auto-filled from salesperson EOD submissions — edit if different
+                  </p>
+                )}
               </div>
 
               {cashCounted && (

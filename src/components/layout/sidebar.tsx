@@ -1134,7 +1134,10 @@ export function Sidebar() {
             )}
 
             {/* Salesperson EOD — submit + history links */}
-            {currentBusiness?.requireSalespersonEod && currentBusiness?.role === 'salesperson' && (
+            {currentBusiness?.requireSalespersonEod && (
+              currentBusiness?.role === 'salesperson' ||
+              (currentBusiness?.role === 'grocery-associate' && currentBusiness?.businessType === 'grocery')
+            ) && (
               <>
                 <Link href="/eod/submit" className={getLinkClasses('/eod/submit')}>
                   <span className="text-lg">📤</span>
