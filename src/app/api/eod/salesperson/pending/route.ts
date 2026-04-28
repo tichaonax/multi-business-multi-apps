@@ -42,10 +42,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Use CURRENT_DATE from the database so the date is always in the DB's configured
-    // timezone (America/Chicago). Using new Date() + setHours(0,0,0,0) on a UTC app
-    // server gives midnight UTC, which Postgres CDT stores as the previous calendar day.
-    const [{ today }] = await prisma.$queryRaw<[{ today: Date }]>`SELECT CURRENT_DATE AS today`
+    // Two dates needed for Prisma @db.Date on Harare server (UTC+2):
+    // queryDate: local midnight — correct for WHERE comparisons against stored @db.Date values
+    // storeDate: UTC midnight — Prisma extracts UTC date → sends correct date string to DB
+    const todayStr = new Date().toLocaleDateString('en-CA') // server local date (Harare)
+    const queryDate = new Date(todayStr + 'T00:00:00')
+    const storeDate = new Date(todayStr + 'T00:00:00.000Z')
 
     // Auto-create today's PENDING record if it doesn't exist
     await prisma.salespersonEodReport.upsert({
@@ -53,14 +55,14 @@ export async function GET(request: NextRequest) {
         businessId_salespersonId_reportDate: {
           businessId,
           salespersonId: user.id,
-          reportDate: today,
+          reportDate: queryDate,
         },
       },
       update: {}, // already exists — no change needed
       create: {
         businessId,
         salespersonId: user.id,
-        reportDate: today,
+        reportDate: storeDate,
         cashAmount: 0,
         ecocashAmount: 0,
         status: 'PENDING',
@@ -73,7 +75,7 @@ export async function GET(request: NextRequest) {
         businessId,
         salespersonId: user.id,
         status: 'PENDING',
-        reportDate: { lt: today },
+        reportDate: { lt: queryDate },
       },
       orderBy: { reportDate: 'asc' },
       select: { reportDate: true },
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
         businessId_salespersonId_reportDate: {
           businessId,
           salespersonId: user.id,
-          reportDate: today,
+          reportDate: queryDate,
         },
       },
       select: { status: true, submittedAt: true },
@@ -103,7 +105,7 @@ export async function GET(request: NextRequest) {
       orderBy: { submittedAt: 'desc' },
       select: { submittedAt: true },
     })
-    const ecocashFrom = lastSubmission?.submittedAt ?? today
+    const ecocashFrom = lastSubmission?.submittedAt ?? queryDate
 
     const todayEcocashAgg = await prisma.businessOrders.aggregate({
       _sum: { totalAmount: true },
