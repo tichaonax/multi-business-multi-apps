@@ -18,6 +18,7 @@ interface EodRecord {
   isManagerOverride: boolean
   overrideReason: string | null
   submittedBy: { id: string; name: string } | null
+  savedReportId: string | null
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -202,7 +203,7 @@ export default function EodHistoryPage() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <StatusBadge status={r.status} />
                       {r.status === 'PENDING' && (
                         <button
@@ -211,6 +212,14 @@ export default function EodHistoryPage() {
                         >
                           {expandedId === r.id ? 'Cancel' : 'Submit'}
                         </button>
+                      )}
+                      {r.savedReportId && r.status !== 'PENDING' && (
+                        <Link
+                          href={`/${currentBusiness?.businessType || 'grocery'}/reports/saved/${r.savedReportId}`}
+                          className="px-3 py-1 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          View Manager Report →
+                        </Link>
                       )}
                     </div>
                   </div>

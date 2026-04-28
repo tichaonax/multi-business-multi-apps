@@ -72,9 +72,24 @@ export async function GET(request: NextRequest) {
       prisma.salespersonEodReport.count({ where }),
     ])
 
+    // Attach savedReportId where a manager EOD report exists for the same date
+    const recordDates = records.map(r => r.reportDate)
+    const savedReports = recordDates.length > 0
+      ? await prisma.savedReports.findMany({
+          where: { businessId, reportType: 'END_OF_DAY', reportDate: { in: recordDates } },
+          select: { id: true, reportDate: true },
+        })
+      : []
+    const savedReportByDate = new Map(savedReports.map(r => [r.reportDate.toISOString(), r.id]))
+
+    const enriched = records.map(r => ({
+      ...r,
+      savedReportId: savedReportByDate.get(r.reportDate.toISOString()) ?? null,
+    }))
+
     return NextResponse.json({
       success: true,
-      data: records,
+      data: enriched,
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     })
   } catch (error: any) {
