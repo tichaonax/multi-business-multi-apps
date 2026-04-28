@@ -2545,8 +2545,8 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canManagePolicies: false,
   canViewInventoryReports: false,
   canViewServices: false,
-  canViewPOSSoldCount: true,
-  canViewPOSStockCount: true,
+  canViewPOSSoldCount: false,
+  canViewPOSStockCount: false,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
