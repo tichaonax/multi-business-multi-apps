@@ -86,17 +86,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Override reason is required when submitting on behalf of a salesperson' }, { status: 400 })
     }
 
-    // Two dates needed for Prisma @db.Date on Harare server (UTC+2):
-    // queryDate: local midnight — correct for WHERE comparisons against stored @db.Date values
-    // storeDate: UTC midnight — Prisma extracts UTC date → sends correct date string to DB
-    const queryDate = new Date(reportDate + 'T00:00:00')
-    const storeDate = new Date(reportDate + 'T00:00:00.000Z')
+    // Prisma serializes @db.Date using the UTC date of the JS Date object.
+    // T00:00:00.000Z = UTC midnight → UTC date = reportDate string → correct for both WHERE and storage.
+    const parsedDate = new Date(reportDate + 'T00:00:00.000Z')
 
     // Block re-submission unless this is a manager override
     if (!isManagerOverride) {
       const existing = await prisma.salespersonEodReport.findUnique({
         where: {
-          businessId_salespersonId_reportDate: { businessId, salespersonId, reportDate: queryDate },
+          businessId_salespersonId_reportDate: { businessId, salespersonId, reportDate: parsedDate },
         },
         select: { status: true },
       })
@@ -110,7 +108,7 @@ export async function POST(request: NextRequest) {
         businessId_salespersonId_reportDate: {
           businessId,
           salespersonId,
-          reportDate: queryDate,
+          reportDate: parsedDate,
         },
       },
       update: {
@@ -126,7 +124,7 @@ export async function POST(request: NextRequest) {
       create: {
         businessId,
         salespersonId,
-        reportDate: storeDate,
+        reportDate: parsedDate,
         cashAmount: parseFloat(cashAmount) || 0,
         ecocashAmount: parseFloat(ecocashAmount) || 0,
         notes: notes?.trim() || null,
@@ -139,7 +137,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Notify all canCloseBooks members (non-blocking)
-    notifyManagers(businessId, salespersonId, queryDate, isManagerOverride, user.id).catch(() => {})
+    notifyManagers(businessId, salespersonId, parsedDate, isManagerOverride, user.id).catch(() => {})
 
     return NextResponse.json({ success: true, data: record })
   } catch (error: any) {
