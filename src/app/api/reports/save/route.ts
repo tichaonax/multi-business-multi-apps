@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { createEODPaymentBatches, createEODMealBatch } from '@/lib/eod-payment-batch-utils'
+import { processRentTransfer } from '@/lib/eod-utils'
 
 /**
  * POST /api/reports/save
@@ -197,6 +198,16 @@ export async function POST(req: NextRequest) {
       } catch (batchError) {
         // Non-fatal — log but don't fail the EOD save
         console.error('createEODPaymentBatches error (non-fatal):', batchError)
+      }
+
+      // Create the rent transfer deposit so it appears as a line item when the
+      // cashier opens the cash allocation report (non-fatal — no rent config is fine)
+      try {
+        await processRentTransfer(businessId, reportDate, user.id)
+      } catch (rentErr: any) {
+        if (!['NO_RENT_CONFIG', 'RENT_ACCOUNT_INACTIVE'].includes(rentErr.message?.split(':')[0])) {
+          console.error('processRentTransfer error (non-fatal):', rentErr)
+        }
       }
     }
 
