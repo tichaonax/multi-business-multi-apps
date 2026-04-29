@@ -29,8 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Override reason is required' }, { status: 400 })
     }
 
-    const parsedDate = new Date(reportDate + 'T00:00:00')
-    parsedDate.setHours(0, 0, 0, 0)
+    const parsedDate = new Date(reportDate + 'T00:00:00.000Z')
 
     const record = await prisma.salespersonEodReport.upsert({
       where: {

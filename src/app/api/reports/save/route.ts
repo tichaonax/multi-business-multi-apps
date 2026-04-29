@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
         businessId_reportType_reportDate: {
           businessId: businessId,
           reportType: reportType,
-          reportDate: new Date(reportDate + 'T00:00:00')
+          reportDate: new Date(reportDate + 'T00:00:00.000Z')
         }
       }
     })
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
       data: {
         businessId: businessId,
         reportType: reportType,
-        reportDate: new Date(reportDate + 'T00:00:00'),
+        reportDate: new Date(reportDate + 'T00:00:00.000Z'),
         periodStart: new Date(periodStart),
         periodEnd: new Date(periodEnd),
         reportData: reportData, // Store complete snapshot as JSON
@@ -277,7 +277,7 @@ export async function GET(req: NextRequest) {
         businessId_reportType_reportDate: {
           businessId: businessId,
           reportType: reportType,
-          reportDate: new Date(reportDate + 'T00:00:00')
+          reportDate: new Date(reportDate + 'T00:00:00.000Z')
         }
       },
       select: {

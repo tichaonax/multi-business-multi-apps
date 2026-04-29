@@ -85,7 +85,6 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
   // Step 3
   const [managerName, setManagerName] = useState('')
   const [totalCashReceived, setTotalCashReceived] = useState('')
-  const [totalEcocashReceived, setTotalEcocashReceived] = useState('')
   const [notes, setNotes] = useState('')
 
   // Step 4 (submit)
@@ -148,7 +147,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
           managerName: managerName.trim(),
           notes: notes.trim() || undefined,
           totalCashReceived: parseFloat(totalCashReceived) || 0,
-          totalEcocashReceived: parseFloat(totalEcocashReceived) || 0,
+          totalEcocashReceived: expectedEcocashTotal,
           dates: previewData.map(d => ({ date: d.date, totalSales: d.totalSales })),
         }),
       })
@@ -166,7 +165,6 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
   const totalSales = previewData.reduce((s, d) => s + d.totalSales, 0)
   const expectedEcocashTotal = previewData.reduce((s, d) => s + d.ecocashTotal, 0)
   const cashNum = parseFloat(totalCashReceived) || 0
-  const ecocashNum = parseFloat(totalEcocashReceived) || 0
 
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -324,34 +322,35 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
               onClick={() => { setStep(3); setError(null) }}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md"
             >
-              Manager Sign-Off →
+              Enter Cash Totals →
             </button>
           </div>
         </div>
       )}
 
-      {/* ── STEP 3: Manager sign-off ── */}
+      {/* ── STEP 3: Confirm cash totals ── */}
       {step === 3 && (
         <div className="space-y-4">
           <div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
-              Manager Sign-Off
+              Confirm Cash Totals
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Enter the total cash the manager is handing to the cashier, then confirm.
+              Count the cash in the till for the selected period and enter the amount below.
+              EcoCash is filled in automatically from system records.
             </p>
           </div>
 
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Manager Name <span className="text-red-500">*</span>
+                Authorized By <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={managerName}
                 onChange={e => setManagerName(e.target.value)}
-                placeholder="Full name"
+                placeholder="Manager's full name"
                 className="w-full border rounded-md px-3 py-2 text-sm
                   border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700
                   text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -360,7 +359,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Total Cash Received from Manager <span className="text-red-500">*</span>
+                Cash Counted <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-sm">$</span>
@@ -376,43 +375,31 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
                     text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              {cashNum > 0 && (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Total sales across {previewData.length} day{previewData.length !== 1 ? 's' : ''}: ${totalSales.toFixed(2)}
-                  {Math.abs(cashNum - totalSales) > 0.01 && (
-                    <span className="ml-2 text-amber-600 dark:text-amber-400">
-                      ⚠ Variance: {cashNum > totalSales ? '+' : ''}${(cashNum - totalSales).toFixed(2)}
-                    </span>
-                  )}
-                </p>
-              )}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                System recorded ${totalSales.toFixed(2)} in cash sales across {previewData.length} day{previewData.length !== 1 ? 's' : ''}.
+                {cashNum > 0 && Math.abs(cashNum - totalSales) > 0.01 && (
+                  <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">
+                    Variance: {cashNum > totalSales ? '+' : ''}${(cashNum - totalSales).toFixed(2)}
+                  </span>
+                )}
+              </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Total EcoCash Received (period) <span className="text-gray-400 font-normal text-xs">(optional)</span>
+                EcoCash Collected
+                <span className="ml-2 text-xs font-normal text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 px-1.5 py-0.5 rounded">
+                  Auto-filled from system
+                </span>
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-sm">$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={totalEcocashReceived}
-                  onChange={e => setTotalEcocashReceived(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full border rounded-md pl-7 pr-3 py-2 text-sm font-mono
-                    border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700
-                    text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
+              <div className="flex items-center gap-2 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                <span className="text-sm text-gray-400">$</span>
+                <span className="text-sm font-mono font-semibold text-teal-700 dark:text-teal-300">
+                  {expectedEcocashTotal.toFixed(2)}
+                </span>
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Confirmed EcoCash transactions received to the business phone over the catch-up period.
-                {expectedEcocashTotal > 0 && (
-                  <span className="ml-1 text-teal-600 dark:text-teal-400 font-medium">
-                    System expects: ${expectedEcocashTotal.toFixed(2)}
-                  </span>
-                )}
+                Total EcoCash transactions recorded in the system for this period. Cannot be edited.
               </p>
             </div>
 
@@ -424,7 +411,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 rows={2}
-                placeholder="e.g. Catch-up for system downtime period"
+                placeholder="e.g. Cash counted at close of business on 29 Apr"
                 className="w-full border rounded-md px-3 py-2 text-sm
                   border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700
                   text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
@@ -434,7 +421,9 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
 
           {/* Summary before submit */}
           <div className="rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 text-sm space-y-1">
-            <p className="font-medium text-gray-700 dark:text-gray-300">Closing {previewData.length} day{previewData.length !== 1 ? 's' : ''}:</p>
+            <p className="font-medium text-gray-700 dark:text-gray-300">
+              Closing {previewData.length} day{previewData.length !== 1 ? 's' : ''}:
+            </p>
             <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">
               {previewData.map(d => fmtDate(d.date)).join(' · ')}
             </p>
@@ -446,9 +435,9 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
                 Cash to record: <span className="font-semibold font-mono">${cashNum.toFixed(2)}</span>
               </p>
             )}
-            {ecocashNum > 0 && (
+            {expectedEcocashTotal > 0 && (
               <p className="text-teal-700 dark:text-teal-300">
-                EcoCash to record: <span className="font-semibold font-mono">${ecocashNum.toFixed(2)}</span>
+                EcoCash to record: <span className="font-semibold font-mono">${expectedEcocashTotal.toFixed(2)}</span>
               </p>
             )}
           </div>
@@ -463,7 +452,7 @@ export function GroupedEODCatchup({ businessId, cashAllocationPath, onClose }: P
               className="px-5 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed
                 text-white text-sm font-semibold rounded-md"
             >
-              {submitting ? 'Processing…' : `Run EOD Catch-Up for ${previewData.length} Day${previewData.length !== 1 ? 's' : ''}`}
+              {submitting ? 'Processing…' : `Close ${previewData.length} Day${previewData.length !== 1 ? 's' : ''}`}
             </button>
           </div>
         </div>
