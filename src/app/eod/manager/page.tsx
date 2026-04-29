@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
@@ -27,6 +28,7 @@ interface EodRecord {
 
 interface Totals { cashTotal: number; ecocashTotal: number }
 interface Counts { total: number; pending: number; submitted: number; overridden: number }
+interface SavedReportInfo { id: string; managerName: string | null; signedAt: string }
 
 type Tab = 'status' | 'overrides' | 'wifi'
 
@@ -186,9 +188,10 @@ function OverrideModal({ record, businessId, onClose, onSuccess }: OverrideModal
 
 export default function ManagerEodPage() {
   const { currentBusiness, currentBusinessId, hasPermission, isSystemAdmin, loading: bizLoading } = useBusinessPermissionsContext()
+  const searchParams = useSearchParams()
 
   const [tab, setTab] = useState<Tab>('status')
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(() => searchParams.get('date') ?? new Date().toISOString().split('T')[0])
   const [records, setRecords] = useState<EodRecord[]>([])
   const [totals, setTotals] = useState<Totals>({ cashTotal: 0, ecocashTotal: 0 })
   const [counts, setCounts] = useState<Counts>({ total: 0, pending: 0, submitted: 0, overridden: 0 })
@@ -202,6 +205,8 @@ export default function ManagerEodPage() {
   const [overrideToDate, setOverrideToDate] = useState(() => new Date().toISOString().split('T')[0])
 
   const [overrideModal, setOverrideModal] = useState<EodRecord | null>(null)
+
+  const [savedReport, setSavedReport] = useState<SavedReportInfo | null | 'checking'>('checking')
 
   const [wifiSales, setWifiSales] = useState<any>(null)
   const [wifiLoading, setWifiLoading] = useState(false)
@@ -259,6 +264,21 @@ export default function ManagerEodPage() {
   useEffect(() => { if (tab === 'status') fetchRecords() }, [fetchRecords, tab])
   useEffect(() => { if (tab === 'overrides') fetchOverrides() }, [fetchOverrides, tab])
   useEffect(() => { if (tab === 'wifi') fetchWifiSales() }, [fetchWifiSales, tab])
+
+  useEffect(() => {
+    if (!currentBusinessId) return
+    setSavedReport('checking')
+    fetch(`/api/reports/save?businessId=${currentBusinessId}&reportType=END_OF_DAY&reportDate=${selectedDate}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.canSave === false && d.existingReport) {
+          setSavedReport({ id: d.existingReport.id, managerName: d.existingReport.managerName, signedAt: d.existingReport.signedAt })
+        } else {
+          setSavedReport(null)
+        }
+      })
+      .catch(() => setSavedReport(null))
+  }, [currentBusinessId, selectedDate])
 
   if (bizLoading) return (
     <ContentLayout title="Staff EOD Status"><div className="text-sm text-gray-500 py-8 text-center">Loading…</div></ContentLayout>
@@ -390,6 +410,41 @@ export default function ManagerEodPage() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* CTA: view saved report, or close books when all submitted */}
+            {!loading && savedReport !== 'checking' && (
+              savedReport ? (
+                <div className="flex items-center justify-between gap-4 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg">
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">EOD report saved</p>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
+                      Signed off by {savedReport.managerName ?? 'manager'} at {fmtTime(savedReport.signedAt)}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/${currentBusiness?.businessType}/reports/saved/${savedReport.id}`}
+                    className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    View Saved Report →
+                  </Link>
+                </div>
+              ) : counts.pending === 0 && counts.total > 0 ? (
+                <div className="flex items-center justify-between gap-4 px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                  <div>
+                    <p className="text-sm font-semibold text-green-800 dark:text-green-200">All reports submitted — ready to close</p>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                      {counts.submitted + counts.overridden} of {counts.total} salesperson{counts.total !== 1 ? 's' : ''} submitted for {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <Link
+                    href={getEodReportUrl(currentBusiness?.businessType)}
+                    className="shrink-0 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Close Books →
+                  </Link>
+                </div>
+              ) : null
             )}
           </div>
         )}

@@ -191,7 +191,7 @@ async function notifyManagers(
       type: 'SALESPERSON_EOD_SUBMITTED',
       title,
       message,
-      linkUrl: '/eod/manager',
+      linkUrl: `/eod/manager?date=${reportDate.toISOString().split('T')[0]}`,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     })),
     skipDuplicates: true,
