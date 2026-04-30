@@ -82,6 +82,17 @@ export async function POST(request: NextRequest) {
               },
             })
           }
+          // Log stock movement for activity report
+          await prisma.businessStockMovements.create({
+            data: {
+              businessId,
+              barcodeInventoryItemId: existing.id,
+              movementType: 'PURCHASE_RECEIVED',
+              quantity: Number(quantity),
+              unitCost: costPrice !== undefined && costPrice !== '' ? Number(costPrice) : null,
+              businessType: business?.type ?? 'unknown',
+            },
+          }).catch(() => {}) // non-fatal
           updated++
           results.push({ success: true, itemId: updatedRecord.id, action: 'updated' })
         } else {
@@ -121,6 +132,17 @@ export async function POST(request: NextRequest) {
               },
             })
           }
+          // Log stock movement for activity report
+          await prisma.businessStockMovements.create({
+            data: {
+              businessId,
+              barcodeInventoryItemId: record.id,
+              movementType: 'PURCHASE_RECEIVED',
+              quantity: Number(quantity),
+              unitCost: costPrice !== undefined && costPrice !== '' ? Number(costPrice) : null,
+              businessType: business?.type ?? 'unknown',
+            },
+          }).catch(() => {}) // non-fatal
           created++
           results.push({ success: true, itemId: record.id, action: 'created' })
         }

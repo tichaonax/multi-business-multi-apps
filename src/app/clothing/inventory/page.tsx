@@ -26,6 +26,7 @@ import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 import { ZeroOutInventoryModal } from '@/components/inventory/zero-out-inventory-modal'
 import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
+import { InventoryActivityReportModal } from '@/components/inventory/inventory-activity-report-modal'
 
 // ── Transfer History Panel ──────────────────────────────────────────────────
 
@@ -165,6 +166,7 @@ function ClothingInventoryContent() {
   const canViewInventoryReports = isSystemAdmin || hasPermission('canViewInventoryReports')
   const [zeroOutItem, setZeroOutItem] = useState<any>(null)
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
+  const [showActivityReport, setShowActivityReport] = useState(false)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
   const [repairingDomains, setRepairingDomains] = useState(false)
@@ -1845,6 +1847,14 @@ function ClothingInventoryContent() {
 
                     {/* Clothing-specific report types */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <button
+                        onClick={() => setShowActivityReport(true)}
+                        className="card p-4 hover:shadow-lg cursor-pointer transition-shadow text-left"
+                      >
+                        <div className="text-2xl mb-2">📋</div>
+                        <h4 className="font-semibold mb-2 text-primary break-words">Activity Report</h4>
+                        <p className="text-sm text-secondary break-words">Daily stock movements, sales & variance detection</p>
+                      </button>
                       <div className="card p-4 hover:shadow-lg cursor-pointer">
                         <div className="text-2xl mb-2">📐</div>
                         <h4 className="font-semibold mb-2">Size Distribution Report</h4>
@@ -2283,6 +2293,13 @@ function ClothingInventoryContent() {
         onClose={() => { setShowStockTakeReports(false); setRefreshKey(k => k + 1); fetchStats() }}
       />
     )}
+
+    <InventoryActivityReportModal
+      isOpen={showActivityReport}
+      onClose={() => setShowActivityReport(false)}
+      businessId={businessId}
+      businessName={currentBusiness?.businessName}
+    />
 
     {/* Print History Modal */}
     {printHistoryBaleId && (

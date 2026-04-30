@@ -60,6 +60,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    const biz = await prisma.businesses.findFirst({ where: { id: businessId }, select: { type: true } })
+    await prisma.businessStockMovements.create({
+      data: {
+        businessId,
+        barcodeInventoryItemId: item.id,
+        movementType: 'PURCHASE_RECEIVED',
+        quantity: Number(quantity),
+        unitCost: costPrice ? Number(costPrice) : null,
+        businessType: biz?.type ?? 'clothing',
+      },
+    }).catch(() => {}) // non-fatal
+
     return NextResponse.json({ success: true, itemId: item.id, inventoryItemId: item.inventoryItemId, barcodeData: item.barcodeData })
   } catch (error) {
     console.error('[add-stock POST]', error)

@@ -300,23 +300,25 @@ model BusinessProducts {
 }
 
 model BusinessStockMovements {
-  id                String            @id @default(uuid())
-  businessId        String
-  productVariantId  String
-  movementType      StockMovementType
-  quantity          Int
-  unitCost          Decimal?          @db.Decimal(10, 2)
-  reference         String?
-  reason            String?
-  employeeId        String?
-  businessType      String
-  attributes        Json?
-  createdAt         DateTime          @default(now())
-  businessProductId String?
-  businesses        Businesses        @relation(fields: [businessId], references: [id])
-  business_products BusinessProducts? @relation(fields: [businessProductId], references: [id])
-  employees         Employees?        @relation(fields: [employeeId], references: [id])
-  product_variants  ProductVariants   @relation(fields: [productVariantId], references: [id])
+  id                      String                 @id @default(uuid())
+  businessId              String
+  productVariantId        String?
+  barcodeInventoryItemId  String?
+  movementType            StockMovementType
+  quantity                Int
+  unitCost                Decimal?               @db.Decimal(10, 2)
+  reference               String?
+  reason                  String?
+  employeeId              String?
+  businessType            String
+  attributes              Json?
+  createdAt               DateTime               @default(now())
+  businessProductId       String?
+  businesses              Businesses             @relation(fields: [businessId], references: [id])
+  business_products       BusinessProducts?      @relation(fields: [businessProductId], references: [id])
+  employees               Employees?             @relation(fields: [employeeId], references: [id])
+  product_variants        ProductVariants?       @relation(fields: [productVariantId], references: [id])
+  barcode_inventory_items BarcodeInventoryItems? @relation(fields: [barcodeInventoryItemId], references: [id])
 
   @@map("business_stock_movements")
 }
@@ -4438,8 +4440,9 @@ model BarcodeInventoryItems {
   originalItemId        String?
   originalItem          BarcodeInventoryItems?  @relation("ExpiryDiscountSource", fields: [originalItemId], references: [id])
   discountedItems       BarcodeInventoryItems[] @relation("ExpiryDiscountSource")
-  expiryBatches         ItemExpiryBatch[]
-  printJobs             BarcodePrintJobs[]
+  expiryBatches           ItemExpiryBatch[]
+  printJobs               BarcodePrintJobs[]
+  business_stock_movements BusinessStockMovements[]
 
   @@map("barcode_inventory_items")
 }

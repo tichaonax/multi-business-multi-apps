@@ -659,6 +659,16 @@ export async function POST(request: NextRequest) {
             where: { id: invId },
             data: { stockQuantity: { decrement: qty } },
           })
+          await tx.businessStockMovements.create({
+            data: {
+              businessId: orderData.businessId,
+              barcodeInventoryItemId: invId,
+              movementType: 'SALE',
+              quantity: qty,
+              reference: order.orderNumber,
+              businessType: orderData.businessType,
+            },
+          })
         }
       }
 
