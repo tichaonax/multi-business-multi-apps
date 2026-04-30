@@ -341,6 +341,61 @@ export async function debitBusinessAccount(
 }
 
 /**
+ * Credit business account — inverse of debitBusinessAccount.
+ * Used when a payment is adjusted downward to refund the difference back to the source business.
+ */
+export async function creditBusinessAccount(
+  businessId: string,
+  amount: number,
+  description: string,
+  userId: string,
+  referenceId?: string
+) {
+  const businessAccount = await prisma.businessAccounts.findUnique({
+    where: { businessId },
+  })
+
+  if (!businessAccount) {
+    throw new Error('Business account not found')
+  }
+
+  const CREDIT_TYPES = ['deposit', 'transfer', 'loan_received', 'CREDIT']
+  const DEBIT_TYPES = ['withdrawal', 'loan_disbursement', 'loan_payment', 'DEBIT']
+  const [creditsAgg, debitsAgg] = await Promise.all([
+    (prisma.businessTransactions as any).aggregate({
+      where: { businessId, type: { in: CREDIT_TYPES } },
+      _sum: { amount: true },
+    }),
+    (prisma.businessTransactions as any).aggregate({
+      where: { businessId, type: { in: DEBIT_TYPES } },
+      _sum: { amount: true },
+    }),
+  ])
+  const trueBalance = Number(creditsAgg._sum?.amount ?? 0) - Math.abs(Number(debitsAgg._sum?.amount ?? 0))
+  const newBalance = trueBalance + amount
+
+  await prisma.businessAccounts.update({
+    where: { businessId },
+    data: { balance: newBalance },
+  })
+
+  await (prisma.businessTransactions as any).create({
+    data: {
+      businessId,
+      type: 'CREDIT',
+      amount: +amount,
+      description,
+      balanceAfter: newBalance,
+      createdBy: userId,
+      referenceType: 'PAYMENT_ADJUSTMENT',
+      referenceId: referenceId ?? null,
+    },
+  })
+
+  return { newBalance }
+}
+
+/**
  * Generate auto note for deposit
  * @param businessName - The business name
  * @param transactionType - The transaction type

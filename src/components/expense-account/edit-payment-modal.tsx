@@ -216,6 +216,7 @@ interface PaymentDetail {
   amount: number
   paymentDate: string
   notes: string | null
+  status: string
   receiptNumber: string | null
   receiptServiceProvider: string | null
   receiptReason: string | null
@@ -260,6 +261,7 @@ export function EditPaymentModal({
 
   // Basic form fields
   const [amount, setAmount] = useState('')
+  const [adjustmentReason, setAdjustmentReason] = useState('')
   const [paymentDate, setPaymentDate] = useState('')
   const [notes, setNotes] = useState('')
   const [receiptNumber, setReceiptNumber] = useState('')
@@ -465,6 +467,7 @@ export function EditPaymentModal({
         setPayment(p)
         setBusinessId((data.data?.payment?.expenseAccount?.businessId) || '')
         setAmount(String(p.amount))
+        setAdjustmentReason('')
         setPaymentDate(toDateInput(p.paymentDate))
         setNotes(p.notes || '')
         setReceiptNumber(p.receiptNumber || '')
@@ -603,6 +606,11 @@ export function EditPaymentModal({
       toast.error('A reason is required when changing the payee')
       return
     }
+    const isDownwardAdjustment = parsedAmount < payment.amount && payment.status === 'SUBMITTED'
+    if (isDownwardAdjustment && !adjustmentReason.trim()) {
+      toast.error('Please provide an adjustment reason when reducing the amount')
+      return
+    }
 
     setSaving(true)
     try {
@@ -614,6 +622,7 @@ export function EditPaymentModal({
         receiptServiceProvider: receiptServiceProvider || null,
         receiptReason: receiptReason || null,
       }
+      if (isDownwardAdjustment) body.adjustmentReason = adjustmentReason.trim()
 
       if (apiCategoryId) body.categoryId = apiCategoryId
       if (apiSubcategoryId !== undefined) body.subcategoryId = apiSubcategoryId
@@ -658,6 +667,10 @@ export function EditPaymentModal({
 
   const withinWindow = payment ? (isAdmin || isWithin7Days(payment.createdAt)) : true
   const isHydrating = loadingMid || loadingSub
+  const parsedAmountValue = parseFloat(amount)
+  const isDownwardChange = payment !== null && !isNaN(parsedAmountValue) && parsedAmountValue < payment.amount
+  const isBalanceAffecting = payment?.status === 'SUBMITTED'
+  const adjustmentDifference = isDownwardChange && payment ? payment.amount - parsedAmountValue : 0
 
   return (
     <>
@@ -752,6 +765,11 @@ export function EditPaymentModal({
                     className="w-full pl-7 pr-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
+                {isBalanceAffecting && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Amount can only be decreased. To increase, create a new payment.
+                  </p>
+                )}
               </div>
 
               {/* ── Payment Date ─────────────────────────────────────────── */}
@@ -768,6 +786,37 @@ export function EditPaymentModal({
                   className="mt-1"
                 />
               </div>
+
+              {/* ── Adjustment impact + reason — full width, shown when reducing amount ── */}
+              {isDownwardChange && isBalanceAffecting && (
+                <div className="md:col-span-2 space-y-3">
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+                    <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">
+                      Reducing by ${adjustmentDifference.toFixed(2)}
+                    </p>
+                    <ul className="text-blue-700 dark:text-blue-300 space-y-0.5 text-xs list-disc list-inside">
+                      <li>Expense account will be credited ${adjustmentDifference.toFixed(2)}</li>
+                      {businessId && (
+                        <li>Business account will be credited ${adjustmentDifference.toFixed(2)}</li>
+                      )}
+                    </ul>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-secondary">
+                      Adjustment Reason <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={adjustmentReason}
+                      onChange={e => setAdjustmentReason(e.target.value)}
+                      rows={2}
+                      maxLength={500}
+                      placeholder="Why is the amount being reduced? (e.g. Supplier corrected the invoice)"
+                      className="mt-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-400 mt-0.5 text-right">{adjustmentReason.length}/500</p>
+                  </div>
+                </div>
+              )}
 
               {/* ── Category (top level) ─────────────────────────────────── */}
               <div className={!isDomainPath && !loadingMid ? 'md:col-span-2' : ''}>
@@ -966,7 +1015,7 @@ export function EditPaymentModal({
                   disabled={saving || loading || loadingMid || loadingSub}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {saving ? 'Saving...' : loading ? 'Loading...' : 'Save Changes'}
+                  {saving ? 'Saving...' : loading ? 'Loading...' : isDownwardChange && isBalanceAffecting ? 'Save & Adjust Balance' : 'Save Changes'}
                 </button>
               </div>
             </div>

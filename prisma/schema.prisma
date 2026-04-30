@@ -1519,12 +1519,14 @@ model ExpenseAccountDeposits {
   incomeDomainId            String?
   incomeCategoryId          String?
   incomeSubcategoryId       String?
+  sourcePaymentId           String?                 // FK to ExpenseAccountPayments — set when sourceType = PAYMENT_ADJUSTMENT
   creator                   Users                   @relation("ExpenseAccountDepositCreator", fields: [createdBy], references: [id])
   expenseAccount            ExpenseAccounts         @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
   sourceBusiness            Businesses?             @relation("ExpenseAccountDepositSource", fields: [sourceBusinessId], references: [id])
   depositSource             PersonalDepositSources? @relation(fields: [depositSourceId], references: [id])
   fundSource                FundSources?            @relation("PrimaryFundSource", fields: [fundSourceId], references: [id])
   subSource                 FundSources?            @relation("SubFundSource", fields: [subSourceId], references: [id])
+  source_payment            ExpenseAccountPayments? @relation("AdjustmentDeposits", fields: [sourcePaymentId], references: [id])
   cash_allocation_line_item CashAllocationLineItem?
 
   @@index([expenseAccountId, depositDate])
@@ -1609,6 +1611,7 @@ model ExpenseAccountPayments {
   projectId                 String?                          @map("project_id")
   project                   Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
   payment_voucher           ExpensePaymentVouchers?
+  adjustment_deposits       ExpenseAccountDeposits[] @relation("AdjustmentDeposits")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])

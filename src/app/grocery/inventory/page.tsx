@@ -24,6 +24,7 @@ import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
 import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
+import { InventoryActivityReportModal } from '@/components/inventory/inventory-activity-report-modal'
 
 function GroceryTransferHistoryPanel({ businessId }: { businessId: string }) {
   const [transfers, setTransfers] = useState<any[]>([])
@@ -128,6 +129,7 @@ function GroceryInventoryContent() {
   const canViewInventoryReports = isSystemAdmin || hasPermission('canViewInventoryReports')
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [showDepartments, setShowDepartments] = useState(false)
+  const [showActivityReport, setShowActivityReport] = useState(false)
   const [filterCount, setFilterCount] = useState<number | null>(null)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
@@ -660,6 +662,14 @@ function GroceryInventoryContent() {
 
                     {/* Grocery-specific report types */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <button
+                        onClick={() => setShowActivityReport(true)}
+                        className="card p-4 hover:shadow-lg cursor-pointer transition-shadow text-left"
+                      >
+                        <div className="text-2xl mb-2">📋</div>
+                        <h4 className="font-semibold mb-2 text-primary break-words">Activity Report</h4>
+                        <p className="text-sm text-secondary break-words">Daily stock movements, sales & variance detection</p>
+                      </button>
                       <div className="card p-4 hover:shadow-lg cursor-pointer transition-shadow">
                         <div className="text-2xl mb-2">📊</div>
                         <h4 className="font-semibold mb-2 text-primary break-words">Expiration Report</h4>
@@ -1124,6 +1134,13 @@ function GroceryInventoryContent() {
           onClose={() => setShowStockTakeReports(false)}
         />
       )}
+
+      <InventoryActivityReportModal
+        isOpen={showActivityReport}
+        onClose={() => setShowActivityReport(false)}
+        businessId={businessId}
+        businessName={currentBusiness?.businessName}
+      />
       </BusinessTypeRoute>
     </BusinessProvider>
   )

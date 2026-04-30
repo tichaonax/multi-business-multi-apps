@@ -23,6 +23,7 @@ export default function ExpensePaymentDetailPage() {
   const [saving, setSaving] = useState(false)
   const [actionState, setActionState] = useState<'idle' | 'approving' | 'rejecting'>('idle')
   const [cancelling, setCancelling] = useState(false)
+  const [inlineAdjustmentReason, setInlineAdjustmentReason] = useState('')
 
   useEffect(() => {
     if (!accountId || !paymentId) return
@@ -218,6 +219,7 @@ export default function ExpensePaymentDetailPage() {
   const handleCancelEdit = () => {
     setIsEditing(false)
     setEditErrors({})
+    setInlineAdjustmentReason('')
     // Reset form data to original payment values
     if (payment) {
       setEditFormData({
@@ -236,21 +238,30 @@ export default function ExpensePaymentDetailPage() {
 
   const handleSaveEdit = async () => {
     setEditErrors({})
+    const isDownwardEdit = Number(editFormData.amount) < Number(payment.amount) && payment.status === 'SUBMITTED'
 
-    // Notes are mandatory when modifying a submitted (non-DRAFT) payment
-    if (payment.status !== 'DRAFT' && !editFormData.notes?.trim()) {
+    // Notes are mandatory when modifying a submitted payment, unless using adjustmentReason
+    if (payment.status !== 'DRAFT' && !editFormData.notes?.trim() && !(isDownwardEdit && inlineAdjustmentReason.trim())) {
       setEditErrors({ notes: 'Notes are required when modifying a submitted payment — explain the reason for the change.' })
+      return
+    }
+    if (isDownwardEdit && !inlineAdjustmentReason.trim()) {
+      setEditErrors({ adjustmentReason: 'Adjustment reason is required when reducing the amount.' })
       return
     }
 
     setSaving(true)
 
     try {
+      const patchBody: any = { ...editFormData }
+      if (isDownwardEdit && inlineAdjustmentReason.trim()) {
+        patchBody.adjustmentReason = inlineAdjustmentReason.trim()
+      }
       const res = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(editFormData),
+        body: JSON.stringify(patchBody),
       })
 
       if (!res.ok) {
@@ -263,6 +274,7 @@ export default function ExpensePaymentDetailPage() {
       const data = await res.json()
       setPayment(data.data.payment)
       setIsEditing(false)
+      setInlineAdjustmentReason('')
       setSaving(false)
     } catch (err) {
       console.error('Error saving payment', err)
@@ -324,7 +336,14 @@ export default function ExpensePaymentDetailPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-orange-600">{formatCurrency(payment.amount)}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-orange-600">{formatCurrency(payment.amount)}</h2>
+                  {payment.notes?.includes('[Adjusted ') && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-xs font-semibold">
+                      Adjusted
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-secondary">{new Date(payment.paymentDate).toLocaleString()}</div>
               </div>
               <div className="text-right">
@@ -513,8 +532,33 @@ export default function ExpensePaymentDetailPage() {
                   onChange={(e) => setEditFormData({ ...editFormData, amount: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
+                {payment.status === 'SUBMITTED' && (
+                  <p className="text-xs text-gray-400 mt-1">Amount can only be decreased. To increase, create a new payment.</p>
+                )}
                 {editErrors.amount && <div className="text-sm text-red-600 mt-1">{editErrors.amount}</div>}
               </div>
+
+              {/* Adjustment impact + reason — shown when reducing on a SUBMITTED payment */}
+              {Number(editFormData.amount) < Number(payment.amount) && payment.status === 'SUBMITTED' && (
+                <>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-sm text-blue-800 dark:text-blue-200">
+                    Reducing by ${(Number(payment.amount) - Number(editFormData.amount)).toFixed(2)} — a compensating deposit will be created for the difference.
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Adjustment Reason <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={inlineAdjustmentReason}
+                      onChange={(e) => setInlineAdjustmentReason(e.target.value)}
+                      rows={2}
+                      placeholder="Why is the amount being reduced?"
+                      className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${editErrors.adjustmentReason ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                    />
+                    {editErrors.adjustmentReason && <div className="text-sm text-red-600 mt-1">{editErrors.adjustmentReason}</div>}
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-1">Payment Date</label>
