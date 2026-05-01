@@ -382,14 +382,36 @@ export default function ExpensePaymentDetailPage() {
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm text-secondary">Category</div>
-                <div className="font-medium">{getCategoryLabel()}</div>
-              </div>
-              <div>
-                <div className="text-sm text-secondary">Subcategory</div>
-                <div className="font-medium">{payment.subcategory?.name || '—'}</div>
-              </div>
+              {/* ── Category hierarchy — matches modal labels (Business → Domain → Category → Sub-Category) ── */}
+              {payment.category?.domain && (
+                <div>
+                  <div className="text-sm text-secondary">Business</div>
+                  <div className="font-medium">{payment.category.domain.emoji} {payment.category.domain.name}</div>
+                </div>
+              )}
+              {payment.category ? (
+                <div>
+                  <div className="text-sm text-secondary">{payment.category.domain ? 'Domain' : 'Category'}</div>
+                  <div className="font-medium">{payment.category.emoji} {payment.category.name}</div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-sm text-secondary">Category</div>
+                  <div className="font-medium">{getCategoryLabel()}</div>
+                </div>
+              )}
+              {payment.subcategory && (
+                <div>
+                  <div className="text-sm text-secondary">{payment.category?.domain ? 'Category' : 'Subcategory'}</div>
+                  <div className="font-medium">{payment.subcategory.emoji} {payment.subcategory.name}</div>
+                </div>
+              )}
+              {payment.subSubcategory && (
+                <div>
+                  <div className="text-sm text-secondary">Sub-Category</div>
+                  <div className="font-medium">{payment.subSubcategory.emoji} {payment.subSubcategory.name}</div>
+                </div>
+              )}
               <div>
                 <div className="text-sm text-secondary">Receipt Number</div>
                 <div className="font-medium">{payment.receiptNumber || '—'}</div>
@@ -399,6 +421,24 @@ export default function ExpensePaymentDetailPage() {
                 <div className="font-medium">{payment.receiptServiceProvider || '—'}</div>
               </div>
             </div>
+
+            {payment.lineItems && Array.isArray(payment.lineItems) && payment.lineItems.length > 0 && (
+              <div className="mt-4">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Line Items</div>
+                <div className="space-y-1">
+                  {payment.lineItems.map((item: { name: string; emoji: string; amount: number }, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm py-1 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                      <span className="w-6 text-center">{item.emoji}</span>
+                      <span className="flex-1 text-gray-800 dark:text-gray-200">{item.name}</span>
+                      <span className="text-gray-600 dark:text-gray-400 font-medium">${item.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div className="text-xs text-gray-500 dark:text-gray-400 pt-1">
+                    Total: ${payment.lineItems.reduce((s: number, i: { amount: number }) => s + i.amount, 0).toFixed(2)} of ${Number(payment.amount).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {payment.receiptReason && (
               <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">

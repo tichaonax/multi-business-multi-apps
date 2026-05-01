@@ -1154,7 +1154,7 @@ export function PaymentForm({
               {/* Locked Category label */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Category
+                  Business
                 </label>
                 <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium">
                   👤 Personal
@@ -1165,7 +1165,7 @@ export function PaymentForm({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Personal Category <span className="text-red-500">*</span>
+                    Category <span className="text-red-500">*</span>
                   </label>
                   <button
                     type="button"
@@ -1195,7 +1195,7 @@ export function PaymentForm({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Subcategory
+                    Sub-Category
                   </label>
                   <button
                     type="button"
@@ -1236,7 +1236,7 @@ export function PaymentForm({
                     {/* Domain picker */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Domain
+                        Business
                       </label>
                       <select
                         value={selectedIsDomain ? formData.categoryId : ''}
@@ -1246,7 +1246,7 @@ export function PaymentForm({
                         }}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="">— Select domain —</option>
+                        <option value="">— Select business —</option>
                         {domainOptions.map(d => (
                           <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
                         ))}
@@ -1295,7 +1295,7 @@ export function PaymentForm({
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Subcategory
+                            Domain
                           </label>
                           {formData.categoryId && (
                             <button
@@ -1320,7 +1320,7 @@ export function PaymentForm({
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Sub-subcategory
+                            Category
                           </label>
                           {formData.categoryId && (
                             <button

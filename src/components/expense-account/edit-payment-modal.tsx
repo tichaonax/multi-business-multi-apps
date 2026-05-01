@@ -7,6 +7,7 @@ import { PayeeSelector } from './payee-selector'
 import { CreateCategoryModal } from './create-category-modal'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
+import { LineItemsInput, type LineItem } from './line-items-input'
 
 // ── Quick create modal (name + emoji) ─────────────────────────────────────────
 function QuickCreateModal({
@@ -225,6 +226,7 @@ interface PaymentDetail {
   priority: string
   projectId: string | null
   createdAt: string
+  lineItems?: LineItem[] | null
 }
 
 interface EditPaymentModalProps {
@@ -307,6 +309,9 @@ export function EditPaymentModal({
   const [showCreateMidModal, setShowCreateMidModal] = useState(false)
   const [showCreateSubModal, setShowCreateSubModal] = useState(false)
   const [creatingItem, setCreatingItem] = useState(false)
+
+  // Line items
+  const [lineItems, setLineItems] = useState<LineItem[]>([])
 
   // Classification suggestion
   const [suggestQuery, setSuggestQuery] = useState('')
@@ -504,6 +509,7 @@ export function EditPaymentModal({
         setPaymentChannel(p.paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH')
         setPriority(p.priority === 'URGENT' ? 'URGENT' : 'NORMAL')
         setProjectId(p.projectId || '')
+        setLineItems(Array.isArray(p.lineItems) ? p.lineItems : [])
 
         // Set payee
         const payeeName =
@@ -730,6 +736,7 @@ export function EditPaymentModal({
       body.paymentChannel = paymentChannel
       body.priority = priority
       body.projectId = projectId || null
+      body.lineItems = lineItems.length > 0 ? lineItems : null
 
       if (payeeChanged && payee) {
         body.payeeType = payee.type
@@ -1022,6 +1029,16 @@ export function EditPaymentModal({
                   />
                 </div>
               )}
+
+              {/* ── Line Items ──────────────────────────────────────────── */}
+              <div className="md:col-span-2">
+                <LineItemsInput
+                  domainId={isDomainPath ? topId : null}
+                  value={lineItems}
+                  onChange={setLineItems}
+                  totalAmount={parseFloat(amount) || undefined}
+                />
+              </div>
 
               {/* ── Receipt Number ───────────────────────────────────────── */}
               <div>

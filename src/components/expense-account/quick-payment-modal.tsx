@@ -13,6 +13,7 @@ import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { getTodayLocalDateString } from '@/lib/date-utils'
 import type { BusinessMembership } from '@/types/permissions'
+import { LineItemsInput, type LineItem } from './line-items-input'
 
 // Searchable select dropdown (same pattern as payment-form)
 function SearchableSelect({
@@ -190,6 +191,7 @@ interface ExpenseCategory {
   color: string
   requiresSubcategory?: boolean
   isDomainCategory?: boolean
+  domainId?: string | null
   subcategories?: ExpenseSubcategory[]
 }
 
@@ -377,6 +379,7 @@ export function QuickPaymentModal({
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
   const [subcategories, setSubcategories] = useState<ExpenseSubcategory[]>([])
   const [subSubcategories, setSubSubcategories] = useState<ExpenseSubSubcategory[]>([])
+  const [lineItems, setLineItems] = useState<LineItem[]>([])
 
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
 
@@ -841,7 +844,8 @@ export function QuickPaymentModal({
         priority: formData.priority,
         projectId: formData.projectId || undefined,
         isFullPayment: true,
-        status: 'SUBMITTED'
+        status: 'SUBMITTED',
+        lineItems: lineItems.length > 0 ? lineItems : null,
       }
 
       const result = await fetchWithValidation(`/api/expense-account/${activeAccountId}/payments`, {
@@ -916,6 +920,7 @@ export function QuickPaymentModal({
     setSelectedSavedNote(null)
     setRequestCashierApproval(false)
     setIsApplyingSuggestion(false)
+    setLineItems([])
     setSuggestions([])
     setSuggestOpen(false)
   }
@@ -1754,6 +1759,21 @@ export function QuickPaymentModal({
                   <p className="text-xs text-red-500 mt-1">Urgent requests are prioritised by the cashier.</p>
                 )}
               </div>
+
+              {/* Line Items */}
+              {(() => {
+                const selectedCatIsDomain = categories.find(c => c.id === formData.categoryId)?.isDomainCategory ?? false
+                const lineItemsDomainId = activeDomainOverrideId
+                  ?? (selectedCatIsDomain ? formData.categoryId : null)
+                return (
+                  <LineItemsInput
+                    domainId={lineItemsDomainId}
+                    value={lineItems}
+                    onChange={setLineItems}
+                    totalAmount={parseFloat(formData.amount) || undefined}
+                  />
+                )
+              })()}
 
               {/* Date */}
               <div>

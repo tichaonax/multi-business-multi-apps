@@ -1612,6 +1612,7 @@ model ExpenseAccountPayments {
   project                   Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
   payment_voucher           ExpensePaymentVouchers?
   adjustment_deposits       ExpenseAccountDeposits[] @relation("AdjustmentDeposits")
+  lineItems                 Json?                            @map("line_items")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])

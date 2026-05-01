@@ -769,7 +769,10 @@ export async function POST(
             submittedBy: paymentStatus === 'SUBMITTED' ? user.id : null,
             submittedAt: paymentStatus === 'SUBMITTED' ? new Date() : null,
             projectId: payment.projectId || null,
-          },
+            ...(payment.lineItems && Array.isArray(payment.lineItems) && payment.lineItems.length > 0
+              ? { lineItems: payment.lineItems }
+              : {}),
+          } as any,
           include: {
             payeeUser: {
               select: { id: true, name: true, email: true },

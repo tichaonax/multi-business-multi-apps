@@ -34,7 +34,8 @@ interface Transaction {
   payeePerson?: { id: string; fullName: string }
   payeeBusiness?: { id: string; name: string }
   payeeSupplier?: { id: string; name: string } | null
-  category?: { id: string; name: string; emoji: string }
+  category?: { id: string; name: string; emoji: string; domainId?: string | null; domain?: { id: string; name: string; emoji: string } | null }
+  subcategory?: { id: string; name: string; emoji: string } | null
   incomeCategory?: { id: string; name: string; emoji: string } | null
   incomeSubcategory?: { id: string; name: string; emoji?: string } | null
   paymentType?: string
@@ -708,7 +709,17 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                         {transaction.category ? (
-                          <span>{transaction.category.emoji} {transaction.category.name}</span>
+                          <span>
+                            {[
+                              transaction.category.domain
+                                ? `${transaction.category.domain.emoji || ''} ${transaction.category.domain.name}`.trim()
+                                : null,
+                              `${transaction.category.emoji || ''} ${transaction.category.name}`.trim(),
+                              transaction.subcategory
+                                ? `${transaction.subcategory.emoji || ''} ${transaction.subcategory.name}`.trim()
+                                : null,
+                            ].filter(Boolean).join(' › ')}
+                          </span>
                         ) : transaction.incomeCategory ? (
                           <span>
                             {transaction.incomeCategory.emoji} {transaction.incomeCategory.name}

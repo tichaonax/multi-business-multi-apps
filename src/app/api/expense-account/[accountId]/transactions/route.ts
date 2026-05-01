@@ -184,6 +184,12 @@ export async function GET(
                 select: { id: true, name: true },
               },
               category: {
+                select: {
+                  id: true, name: true, emoji: true, domainId: true,
+                  domain: { select: { id: true, name: true, emoji: true } },
+                },
+              },
+              subcategory: {
                 select: { id: true, name: true, emoji: true },
               },
               creator: {
@@ -362,6 +368,7 @@ export async function GET(
         payeeBusiness: payment.payeeBusiness,
         payeeSupplier: (payment as any).payeeSupplier ?? null,
         category: payment.category,
+        subcategory: (payment as any).subcategory ?? null,
         paymentType: (payment as any).paymentType || 'REGULAR',
         isAutoTransfer: isAutoXferOut,
         receiptNumber: payment.receiptNumber,

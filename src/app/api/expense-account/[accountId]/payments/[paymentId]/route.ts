@@ -77,7 +77,10 @@ export async function GET(
           select: { id: true, name: true, phone: true, contactPerson: true, email: true },
         },
         category: {
-          select: { id: true, name: true, emoji: true, color: true, domainId: true },
+          select: {
+            id: true, name: true, emoji: true, color: true, domainId: true,
+            domain: { select: { id: true, name: true, emoji: true } },
+          },
         },
         subcategory: {
           select: { id: true, name: true, emoji: true },
@@ -111,14 +114,15 @@ export async function GET(
         })
       : null
 
-    // Fetch new reversal fields via raw SQL (not in Prisma client yet — MBM-153)
+    // Fetch reversal fields + lineItems via raw SQL (some not in Prisma client yet)
     const reversalRows = await prisma.$queryRaw<Array<{
       reversed_at: Date | null
       reversed_by: string | null
       reversal_note: string | null
       reversal_petty_cash_id: string | null
+      line_items: unknown | null
     }>>`
-      SELECT reversed_at, reversed_by, reversal_note, reversal_petty_cash_id
+      SELECT reversed_at, reversed_by, reversal_note, reversal_petty_cash_id, line_items
       FROM expense_account_payments
       WHERE id = ${paymentId}
     `
@@ -162,6 +166,7 @@ export async function GET(
           reversedBy: reversalData.reversed_by ?? null,
           reversalNote: reversalData.reversal_note ?? null,
           reversalPettyCashId: reversalData.reversal_petty_cash_id ?? null,
+          lineItems: reversalData.line_items ?? null,
         },
       },
     })
@@ -408,6 +413,7 @@ export async function PATCH(
       paymentChannel,
       priority,
       projectId,
+      lineItems,
     } = body
 
     // Pre-compute adjustment metadata used in notes check, amount block, and transaction
@@ -589,6 +595,7 @@ export async function PATCH(
     if (isFullPayment !== undefined) updateData.isFullPayment = isFullPayment
     if (paymentChannel !== undefined) updateData.paymentChannel = paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH'
     if (priority !== undefined) updateData.priority = priority === 'URGENT' ? 'URGENT' : 'NORMAL'
+    if (lineItems !== undefined) updateData.lineItems = Array.isArray(lineItems) && lineItems.length > 0 ? lineItems : null
     if (projectId !== undefined) {
       if (projectId) {
         const project = await prisma.projects.findUnique({ where: { id: projectId }, select: { id: true } })
