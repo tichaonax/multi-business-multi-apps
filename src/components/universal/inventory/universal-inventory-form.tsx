@@ -111,6 +111,7 @@ export function UniversalInventoryForm({
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [availableSubcategories, setAvailableSubcategories] = useState<InventorySubcategory[]>([])
   const [loading, setLoading] = useState(false)
+  const [duplicateMatches, setDuplicateMatches] = useState<Array<{ id: string; name: string; sku: string | null }>>([])
   const [categoriesLoaded, setCategoriesLoaded] = useState(false)
   const [isNavigatingToPOS, setIsNavigatingToPOS] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -394,7 +395,7 @@ export function UniversalInventoryForm({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, force = false) => {
     e.preventDefault()
 
     if (!validateForm()) {
@@ -424,7 +425,7 @@ export function UniversalInventoryForm({
 
     try {
       // Merge barcodes into formData before submission
-      const submissionData = { ...formData, barcodes, skuMode: isManualSku ? 'manual' : 'auto', domainId: selectedDomainId || undefined }
+      const submissionData = { ...formData, barcodes, skuMode: isManualSku ? 'manual' : 'auto', domainId: selectedDomainId || undefined, ...(force ? { force: true } : {}) }
 
       // If onSubmit is provided, let the parent handle the submission
       if (onSubmit) {
@@ -454,6 +455,7 @@ export function UniversalInventoryForm({
 
       if (response.ok) {
         const data = await response.json()
+        setDuplicateMatches([])
         // If printOnSave is checked, show label preview
         if (printOnSave && canPrintInventoryLabels) {
           setSavedItemForLabel(data.item)
@@ -464,7 +466,11 @@ export function UniversalInventoryForm({
         }
       } else {
         const errorData = await response.json()
-        setErrors({ general: errorData.error || 'Failed to save item' })
+        if (response.status === 409 && errorData.code === 'DUPLICATE_NAME') {
+          setDuplicateMatches(errorData.matches ?? [])
+        } else {
+          setErrors({ general: errorData.error || 'Failed to save item' })
+        }
       }
     } catch (error) {
       setErrors({ general: 'Network error occurred' })
@@ -968,6 +974,36 @@ export function UniversalInventoryForm({
         {errors.general && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
             <div className="text-red-600 text-sm">{errors.general}</div>
+          </div>
+        )}
+
+        {/* Duplicate name warning — only on create */}
+        {duplicateMatches.length > 0 && mode === 'create' && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-3 mb-4 space-y-2">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              ⚠️ Similar item{duplicateMatches.length > 1 ? 's' : ''} already exist{duplicateMatches.length === 1 ? 's' : ''}:
+            </p>
+            <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-0.5 pl-2">
+              {duplicateMatches.map(m => (
+                <li key={m.id}>• {m.name}{m.sku ? ` (${m.sku})` : ''}</li>
+              ))}
+            </ul>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={(e) => { setDuplicateMatches([]); handleSubmit(e as any, true) }}
+                className="px-3 py-1 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium"
+              >
+                Create anyway
+              </button>
+              <button
+                type="button"
+                onClick={() => setDuplicateMatches([])}
+                className="px-3 py-1 text-xs border border-amber-400 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 

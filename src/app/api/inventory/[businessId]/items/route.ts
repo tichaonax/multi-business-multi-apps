@@ -416,6 +416,21 @@ export async function POST(
       }
     }
 
+    // Duplicate name check (only on create, skipped when force=true or editing)
+    if (!body.id && !body.force) {
+      const similar = await prisma.businessProducts.findMany({
+        where: { businessId, isActive: true, name: { contains: body.name.trim(), mode: 'insensitive' } },
+        select: { id: true, name: true, sku: true, basePrice: true },
+        take: 10,
+      })
+      if (similar.length > 0) {
+        return NextResponse.json(
+          { success: false, code: 'DUPLICATE_NAME', matches: similar, error: 'A product with a similar name already exists.' },
+          { status: 409 }
+        )
+      }
+    }
+
     // Ensure we have a price (basePrice or sellPrice)
     if (!body.basePrice && !body.sellPrice && body.basePrice !== 0 && body.sellPrice !== 0) {
       return NextResponse.json(

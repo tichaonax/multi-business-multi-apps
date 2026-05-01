@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface DayRow {
   date: string
@@ -90,7 +90,7 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
   const [data, setData] = useState<ApiResponse | null>(null)
   const [page, setPage] = useState(1)
   const [printing, setPrinting] = useState(false)
-  const printRef = useRef<HTMLDivElement>(null)
+  const [hideBlank, setHideBlank] = useState(false)
 
   const getRange = useCallback((): { from: string; to: string } => {
     const t = todayStr()
@@ -127,12 +127,92 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
     if (isOpen) fetchData(1)
   }, [isOpen, preset, customFrom, customTo]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isBlankDay = (day: DayRow) =>
+    day.qtyAdded === 0 && day.qtySold === 0 && day.qtyAdjusted === 0 && day.qtyLost === 0 && (day.variance === null || day.variance === 0)
+
   const handlePrint = async () => {
     setPrinting(true)
-    // Fetch all items first for complete print
-    await fetchData(1, true)
-    setPrinting(false)
-    setTimeout(() => window.print(), 100)
+    try {
+      const { from, to } = getRange()
+      const params = new URLSearchParams({ from, to, page: '1', limit: '1000', all: 'true' })
+      if (itemId) params.set('itemId', itemId)
+      const res = await fetch(`/api/inventory/${businessId}/activity-report?${params}`)
+      const json: ApiResponse = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to load')
+
+      const title = itemName ? `${itemName} — Activity Report` : `Inventory Activity Report`
+      const subtitle = [businessName, from === to ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`].filter(Boolean).join(' · ')
+
+      const rows = json.items.flatMap(item => {
+        const activeDays = item.days.filter(d => !isBlankDay(d))
+        return activeDays.map((day, dayIdx) => {
+          const hasV = day.variance !== null && day.variance !== 0
+          let skipped = 0
+          if (dayIdx > 0) {
+            const prev = new Date(activeDays[dayIdx - 1].date + 'T00:00:00')
+            const curr = new Date(day.date + 'T00:00:00')
+            skipped = Math.round((curr.getTime() - prev.getTime()) / 86400000) - 1
+          }
+          const gapStyle = skipped > 0 ? 'border-top:2px dashed #f59e0b;' : ''
+          const gapBadge = skipped > 0 ? ` <span style="background:#fef3c7;color:#b45309;padding:1px 4px;border-radius:3px;font-size:9px;font-weight:700">+${skipped}d</span>` : ''
+          return `<tr style="${gapStyle}background:${hasV ? '#fff0f0' : ''};color:${hasV ? '#b91c1c' : ''}">
+            <td>${fmtDate(day.date)}${gapBadge}</td>
+            <td>${dayIdx === 0 ? item.itemName : ''}</td>
+            <td>${dayIdx === 0 ? (item.sku || '') : ''}</td>
+            <td class="num">${day.openingStock}</td>
+            <td class="num g">${day.qtyAdded > 0 ? `+${day.qtyAdded}` : ''}</td>
+            <td class="num b">${day.qtySold > 0 ? day.qtySold : ''}</td>
+            <td class="num b">${day.totalSales > 0 ? fmtMoney(day.totalSales) : ''}</td>
+            <td class="num y">${day.qtyAdjusted !== 0 ? (day.qtyAdjusted > 0 ? `+${day.qtyAdjusted}` : day.qtyAdjusted) : ''}</td>
+            <td class="num o">${day.qtyLost > 0 ? day.qtyLost : ''}</td>
+            <td class="num fw">${day.closingStock}</td>
+            <td class="num fw" style="color:${hasV ? '#b91c1c' : '#16a34a'}">
+              ${day.variance !== null ? (day.variance === 0 ? 'OK' : (day.variance > 0 ? '+' : '') + day.variance) : ''}
+            </td>
+          </tr>`
+        })
+      }).join('')
+
+      const html = `<!DOCTYPE html><html><head><title>${title}</title><meta charset="utf-8"/>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;font-size:11px;margin:0;padding:16px;color:#111}
+  .toolbar{display:flex;align-items:center;gap:16px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #e5e7eb}
+  .print-btn{background:#1f2937;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-size:13px;cursor:pointer}
+  .print-btn:hover{background:#374151}
+  h1{font-size:14px;margin:0;font-weight:700}
+  .sub{font-size:11px;color:#555;margin:2px 0 0}
+  table{width:100%;border-collapse:collapse;margin-top:4px}
+  th,td{padding:3px 6px;border:1px solid #d1d5db;font-size:10px}
+  th{background:#f3f4f6;font-weight:600}
+  .num{text-align:right}
+  .g{color:#15803d}.b{color:#1d4ed8}.y{color:#a16207}.o{color:#c2410c}.fw{font-weight:600}
+  @media print{.toolbar{display:none!important}}
+</style></head><body>
+  <div class="toolbar">
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <div><h1>${title}</h1><p class="sub">${subtitle}${json.summary.itemsWithVariance > 0 ? ` · ${json.summary.itemsWithVariance} item(s) with discrepancies` : ''}</p></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Date</th><th>Item</th><th>SKU</th>
+      <th class="num">Opening</th><th class="num g">+Added</th><th class="num b">–Sold</th>
+      <th class="num b">Sales($)</th><th class="num y">±Adj</th><th class="num o">–Lost</th>
+      <th class="num">Closing</th><th class="num" style="color:#b91c1c">Variance</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+</body></html>`
+
+      const w = window.open('', '_blank', 'width=1100,height=700')
+      if (!w) return
+      w.document.write(html)
+      w.document.close()
+    } catch (e: any) {
+      console.error('Print error:', e)
+    } finally {
+      setPrinting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -141,26 +221,6 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
 
   return (
     <>
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          body > *:not(#activity-report-print) { display: none !important; }
-          #activity-report-print {
-            display: block !important;
-            position: fixed; top: 0; left: 0; width: 100%; z-index: 99999;
-            background: white; padding: 12px;
-          }
-          .no-print { display: none !important; }
-          table { font-size: 9px; border-collapse: collapse; width: 100%; }
-          th, td { padding: 2px 4px; border: 1px solid #ccc; }
-          .variance-row td { background: #fff0f0 !important; color: #b91c1c !important; }
-          .section-header td { background: #f3f4f6 !important; font-weight: bold; }
-        }
-        @media screen {
-          #activity-report-print { display: none; }
-        }
-      `}</style>
-
       {/* Screen modal */}
       <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto no-print">
         <div className="relative bg-white dark:bg-gray-900 w-full max-w-7xl mx-2 my-4 rounded-xl shadow-2xl flex flex-col max-h-[95vh]">
@@ -224,7 +284,7 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
 
           {/* Summary strip */}
           {data && (
-            <div className="px-6 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-wrap gap-6 text-sm shrink-0">
+            <div className="px-6 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-wrap items-center gap-6 text-sm shrink-0">
               <span className="text-gray-600 dark:text-gray-400">
                 <span className="font-semibold text-gray-900 dark:text-gray-100">{data.summary.totalItems}</span> items with activity
               </span>
@@ -237,6 +297,12 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
               <span className="text-gray-500 dark:text-gray-500">
                 {from === to ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`}
               </span>
+              <button
+                onClick={() => setHideBlank(h => !h)}
+                className="ml-auto px-3 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium"
+              >
+                {hideBlank ? 'Show blank days' : 'Hide blank days'}
+              </button>
             </div>
           )}
 
@@ -274,27 +340,49 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
                     </tr>
                   </thead>
                   <tbody>
-                    {data.items.map(item =>
-                      item.days.map((day, dayIdx) => {
+                    {data.items.map(item => {
+                      const visibleDays = hideBlank ? item.days.filter(d => !isBlankDay(d)) : item.days
+                      if (visibleDays.length === 0) return null
+                      return visibleDays.map((day, dayIdx) => {
                         const hasVariance = day.variance !== null && day.variance !== 0
+
+                        // Calculate how many days were skipped before this row
+                        let skippedDays = 0
+                        if (hideBlank && dayIdx > 0) {
+                          const prev = new Date(visibleDays[dayIdx - 1].date + 'T00:00:00')
+                          const curr = new Date(day.date + 'T00:00:00')
+                          skippedDays = Math.round((curr.getTime() - prev.getTime()) / 86400000) - 1
+                        }
+
                         return (
                           <tr
                             key={`${item.itemId}-${day.date}`}
                             className={`border-b border-gray-100 dark:border-gray-800 ${
+                              skippedDays > 0 ? 'border-t-2 border-t-amber-400 dark:border-t-amber-500' : ''
+                            } ${
                               hasVariance
                                 ? 'bg-red-50 dark:bg-red-900/10 text-red-800 dark:text-red-300'
                                 : dayIdx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'
                             }`}
                           >
-                            <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 whitespace-nowrap text-gray-600 dark:text-gray-400 text-xs">{fmtDate(day.date)}</td>
+                            <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 whitespace-nowrap text-gray-600 dark:text-gray-400 text-xs">
+                              <div className="flex items-center gap-1.5">
+                                {fmtDate(day.date)}
+                                {skippedDays > 0 && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 leading-none" title={`${skippedDays} day${skippedDays > 1 ? 's' : ''} without activity`}>
+                                    +{skippedDays}d
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             {dayIdx === 0 ? (
-                              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 font-medium text-gray-900 dark:text-gray-100" rowSpan={item.days.length}>
+                              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 font-medium text-gray-900 dark:text-gray-100" rowSpan={visibleDays.length}>
                                 <div className="font-semibold">{item.itemName}</div>
                                 {item.category && <div className="text-xs text-gray-400">{item.category}</div>}
                               </td>
                             ) : null}
                             {dayIdx === 0 ? (
-                              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400" rowSpan={item.days.length}>
+                              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400" rowSpan={visibleDays.length}>
                                 {item.sku || '—'}
                               </td>
                             ) : null}
@@ -325,7 +413,7 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
                           </tr>
                         )
                       })
-                    )}
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -355,66 +443,6 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
         </div>
       </div>
 
-      {/* Print-only version (rendered off-screen, shown on print) */}
-      <div id="activity-report-print" ref={printRef}>
-        {data && (
-          <>
-            <div style={{ marginBottom: 8 }}>
-              <strong style={{ fontSize: 13 }}>Inventory Activity Report</strong>
-              {businessName && <span style={{ fontSize: 11, marginLeft: 8, color: '#555' }}>{businessName}</span>}
-              <span style={{ fontSize: 10, marginLeft: 16, color: '#777' }}>
-                {from === to ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`}
-              </span>
-              {data.summary.itemsWithVariance > 0 && (
-                <span style={{ fontSize: 10, marginLeft: 16, color: '#b91c1c' }}>
-                  {data.summary.itemsWithVariance} item(s) with discrepancies
-                </span>
-              )}
-            </div>
-            <table>
-              <thead>
-                <tr style={{ background: '#f3f4f6' }}>
-                  <th style={{ textAlign: 'left' }}>Date</th>
-                  <th style={{ textAlign: 'left' }}>Item</th>
-                  <th style={{ textAlign: 'left' }}>SKU</th>
-                  <th style={{ textAlign: 'right' }}>Open</th>
-                  <th style={{ textAlign: 'right' }}>+Add</th>
-                  <th style={{ textAlign: 'right' }}>-Sold</th>
-                  <th style={{ textAlign: 'right' }}>Sales$</th>
-                  <th style={{ textAlign: 'right' }}>±Adj</th>
-                  <th style={{ textAlign: 'right' }}>-Lost</th>
-                  <th style={{ textAlign: 'right' }}>Close</th>
-                  <th style={{ textAlign: 'right' }}>Var</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map(item =>
-                  item.days.map((day, dayIdx) => {
-                    const hasVariance = day.variance !== null && day.variance !== 0
-                    return (
-                      <tr key={`p-${item.itemId}-${day.date}`} className={hasVariance ? 'variance-row' : ''}>
-                        <td>{fmtDate(day.date)}</td>
-                        <td>{dayIdx === 0 ? item.itemName : ''}</td>
-                        <td>{dayIdx === 0 ? (item.sku || '') : ''}</td>
-                        <td style={{ textAlign: 'right' }}>{day.openingStock}</td>
-                        <td style={{ textAlign: 'right' }}>{day.qtyAdded > 0 ? `+${day.qtyAdded}` : ''}</td>
-                        <td style={{ textAlign: 'right' }}>{day.qtySold > 0 ? day.qtySold : ''}</td>
-                        <td style={{ textAlign: 'right' }}>{day.totalSales > 0 ? fmtMoney(day.totalSales) : ''}</td>
-                        <td style={{ textAlign: 'right' }}>{day.qtyAdjusted !== 0 ? (day.qtyAdjusted > 0 ? `+${day.qtyAdjusted}` : day.qtyAdjusted) : ''}</td>
-                        <td style={{ textAlign: 'right' }}>{day.qtyLost > 0 ? day.qtyLost : ''}</td>
-                        <td style={{ textAlign: 'right' }}>{day.closingStock}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          {day.variance !== null ? (day.variance === 0 ? 'OK' : (day.variance > 0 ? '+' : '') + day.variance) : ''}
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
     </>
   )
 }

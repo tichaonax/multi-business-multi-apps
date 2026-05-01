@@ -25,6 +25,7 @@ import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-
 import { BulkPrintModal } from '@/components/clothing/bulk-print-modal'
 import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 import { InventoryActivityReportModal } from '@/components/inventory/inventory-activity-report-modal'
+import { MergeInventoryModal } from '@/components/inventory/merge-inventory-modal'
 
 function GroceryTransferHistoryPanel({ businessId }: { businessId: string }) {
   const [transfers, setTransfers] = useState<any[]>([])
@@ -132,6 +133,10 @@ function GroceryInventoryContent() {
   const [showActivityReport, setShowActivityReport] = useState(false)
   const [reportItemId, setReportItemId] = useState<string | null>(null)
   const [reportItemName, setReportItemName] = useState('')
+  const canMerge = isSystemAdmin || canManageInventory
+  const [mergeMode, setMergeMode] = useState(false)
+  const [selectedMergeItems, setSelectedMergeItems] = useState<Map<string, { id: string; name: string; sku: string | null; currentStock: number }>>(new Map())
+  const [showMergeModal, setShowMergeModal] = useState(false)
   const [filterCount, setFilterCount] = useState<number | null>(null)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
@@ -550,11 +555,27 @@ function GroceryInventoryContent() {
                       onItemView={handleItemView}
                       onItemDelete={canManageInventory ? handleItemDelete : undefined}
                       onItemAddToCart={handleItemAddToCart}
-                      onItemReport={(item) => { setReportItemId(item.id); setReportItemName(item.name); setShowActivityReport(true) }}
+                      onItemReport={(item) => { setReportItemId(item.id.startsWith('inv_') ? item.id.replace(/^inv_/, '') : item.id); setReportItemName(item.name); setShowActivityReport(true) }}
                       onTotalChange={selectedDepartment ? setFilterCount : undefined}
                       refreshTrigger={refreshKey}
+                      mergeMode={mergeMode}
+                      selectedMergeIds={new Set(selectedMergeItems.keys())}
+                      onToggleMergeSelect={(item) => setSelectedMergeItems(prev => {
+                        const next = new Map(prev)
+                        if (next.has(item.id)) next.delete(item.id)
+                        else next.set(item.id, { id: item.id, name: item.name, sku: item.sku ?? null, currentStock: item.currentStock })
+                        return next
+                      })}
                       headerActions={(
                         <div className="flex items-center gap-2">
+                          {canMerge && (
+                            <button
+                              onClick={() => { setMergeMode(m => !m); setSelectedMergeItems(new Map()) }}
+                              className={`px-3 py-1 rounded-md text-sm font-medium ${mergeMode ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                            >
+                              🔀 {mergeMode ? 'Exit Merge' : 'Merge Mode'}
+                            </button>
+                          )}
                           {canManageInventory && (
                             <>
                               <button
@@ -1080,7 +1101,7 @@ function GroceryInventoryContent() {
                       <button
                         onClick={() => {
                           setShowViewModal(false)
-                          setReportItemId(selectedItem.id)
+                          setReportItemId(selectedItem.id.startsWith('inv_') ? selectedItem.id.replace(/^inv_/, '') : selectedItem.id)
                           setReportItemName(selectedItem.name)
                           setShowActivityReport(true)
                         }}
@@ -1157,6 +1178,34 @@ function GroceryInventoryContent() {
         itemId={reportItemId ?? undefined}
         itemName={reportItemName || undefined}
       />
+
+      {/* Merge mode floating bar */}
+      {mergeMode && selectedMergeItems.size >= 2 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-indigo-600 text-white px-5 py-3 rounded-full shadow-xl">
+          <span className="text-sm font-medium">{selectedMergeItems.size} items selected</span>
+          <button
+            onClick={() => setShowMergeModal(true)}
+            className="px-4 py-1.5 bg-white text-indigo-700 rounded-full text-sm font-bold hover:bg-indigo-50"
+          >
+            Merge
+          </button>
+          <button onClick={() => setSelectedMergeItems(new Map())} className="text-indigo-200 hover:text-white text-xs">Clear</button>
+        </div>
+      )}
+
+      {showMergeModal && currentBusinessId && (
+        <MergeInventoryModal
+          businessId={currentBusinessId}
+          products={Array.from(selectedMergeItems.values())}
+          onClose={() => setShowMergeModal(false)}
+          onMerged={() => {
+            setShowMergeModal(false)
+            setMergeMode(false)
+            setSelectedMergeItems(new Map())
+            setRefreshKey(prev => prev + 1)
+          }}
+        />
+      )}
       </BusinessTypeRoute>
     </BusinessProvider>
   )

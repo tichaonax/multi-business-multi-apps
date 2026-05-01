@@ -58,6 +58,9 @@ interface UniversalInventoryGridProps {
   onItemAddToCart?: (item: UniversalInventoryItem) => void  // Add to cart callback
   onItemZeroOut?: (item: UniversalInventoryItem) => void   // Special: zero-out / edit price+qty (canZeroOutInventory)
   onItemReport?: (item: UniversalInventoryItem) => void   // Open per-item activity report
+  mergeMode?: boolean                                       // When true, shows checkboxes for merge selection
+  selectedMergeIds?: Set<string>                            // IDs selected for merge (managed by parent)
+  onToggleMergeSelect?: (item: UniversalInventoryItem) => void  // Parent toggles selection
   onResetExternalFilters?: () => void  // Callback to reset parent filters
   onTotalChange?: (count: number) => void  // Fires with total filtered item count after each load
   refreshTrigger?: number  // Change this value to force a refresh
@@ -88,6 +91,9 @@ export function UniversalInventoryGrid({
   onItemAddToCart,
   onItemZeroOut,
   onItemReport,
+  mergeMode = false,
+  selectedMergeIds,
+  onToggleMergeSelect,
   onResetExternalFilters,  // Callback to reset parent filters
   onTotalChange,
   refreshTrigger,  // Force refresh when this value changes
@@ -681,6 +687,9 @@ export function UniversalInventoryGrid({
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
+                  {mergeMode && (
+                    <th className="w-10 p-3" />
+                  )}
                   {canPrintInventoryLabels && (
                     <th className="w-12 p-3">
                       <input
@@ -729,12 +738,24 @@ export function UniversalInventoryGrid({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {sortedItems.map((item) => (
+                {sortedItems.map((item) => {
+                  const isMergeSelected = mergeMode && selectedMergeIds?.has(item.id)
+                  return (
                   <tr
                     key={item.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                    onClick={() => onItemView?.(item)}
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${isMergeSelected ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}
+                    onClick={() => mergeMode ? onToggleMergeSelect?.(item) : onItemView?.(item)}
                   >
+                    {mergeMode && (
+                      <td className="p-3 w-10" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={!!isMergeSelected}
+                          onChange={() => onToggleMergeSelect?.(item)}
+                          className="rounded accent-indigo-600"
+                        />
+                      </td>
+                    )}
                     {canPrintInventoryLabels && (
                       <td className="p-3" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -939,7 +960,7 @@ export function UniversalInventoryGrid({
                       </td>
                     )}
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
