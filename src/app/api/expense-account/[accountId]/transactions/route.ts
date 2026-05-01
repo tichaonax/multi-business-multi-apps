@@ -321,6 +321,7 @@ export async function GET(
         category, // Add category for display
         incomeCategory: (deposit as any).incomeCategoryId ? (incomeCategoryMap.get((deposit as any).incomeCategoryId) ?? null) : null,
         incomeSubcategory: (deposit as any).incomeSubcategoryId ? (incomeSubcategoryMap.get((deposit as any).incomeSubcategoryId) ?? null) : null,
+        sourcePaymentId: (deposit as any).sourcePaymentId ?? null,
         pettyCashRequestId: depositToPettyCashMap.get(deposit.id)?.id ?? null,
         createdBy: deposit.creator,
         createdAt: deposit.createdAt,

@@ -206,7 +206,7 @@ export default function ExpenseDepositDetailPage() {
             )}
 
             <div className="mt-4 flex gap-2">
-              {hasPermission('canEditExpenseTransactions') && deposit.sourceType !== 'ACCOUNT_TRANSFER' && (
+              {hasPermission('canEditExpenseTransactions') && deposit.sourceType !== 'ACCOUNT_TRANSFER' && deposit.sourceType !== 'PAYMENT_ADJUSTMENT' && (
                 <button
                   onClick={handleEdit}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
@@ -217,6 +217,11 @@ export default function ExpenseDepositDetailPage() {
               {deposit.sourceType === 'ACCOUNT_TRANSFER' && (
                 <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded text-sm">
                   🔒 Auto-transfer — not editable
+                </div>
+              )}
+              {deposit.sourceType === 'PAYMENT_ADJUSTMENT' && (
+                <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded text-sm">
+                  🔒 Auto-generated — not editable
                 </div>
               )}
               <button

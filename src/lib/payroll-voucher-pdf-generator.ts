@@ -82,13 +82,14 @@ ${voucherHTMLs
   // Launch puppeteer and generate PDF
   const browser = await puppeteer.launch({
     headless: true,
+    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   })
 
   try {
     const page = await browser.newPage()
     await page.setContent(combinedHTML, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'domcontentloaded',
     })
 
     const pdfBuffer = await page.pdf({

@@ -19,6 +19,7 @@ interface Transaction {
   balanceAfter: number
   // Deposit-specific
   sourceType?: string
+  sourcePaymentId?: string | null
   sourceBusiness?: { id: string; name: string; type: string }
   depositSource?: { id: string; name: string; emoji: string }
   fundSource?: { id: string; name: string; emoji: string }
@@ -806,7 +807,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             Edit
                           </button>
                         )}
-                        {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+                        {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (isAdmin || isWithin7Days(transaction.createdAt)) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setEditDepositId(transaction.id) }}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
@@ -814,6 +815,16 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           >
                             Edit
                           </button>
+                        )}
+                        {isDeposit && transaction.sourceType === 'PAYMENT_ADJUSTMENT' && transaction.sourcePaymentId && (
+                          <a
+                            href={`/expense-accounts/${accountId}/payments/${transaction.sourcePaymentId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-gray-400 dark:text-gray-500 hover:underline px-1 py-0.5"
+                            title="View source payment"
+                          >
+                            View payment
+                          </a>
                         )}
                         {isDeposit && transaction.batchSubmissionId && (
                           <button
