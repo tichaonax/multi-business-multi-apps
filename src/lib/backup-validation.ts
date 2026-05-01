@@ -189,6 +189,9 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'policyVersions': 'policyVersion',
   'policyAssignments': 'policyAssignment',
   'policyAcknowledgments': 'policyAcknowledgment',
+  // Payment Cancellation & Manager Override (MBM-192)
+  'managerOverrideLogs': 'managerOverrideLog',
+  'orderCancellations': 'orderCancellation',
 }
 
 /**
@@ -285,6 +288,9 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'policyTemplates',             // global reference table, no businessId
   'policyVersions',              // linked via policyId
   'policyAcknowledgments',       // linked via policyAssignmentId
+  // Payment Cancellation & Manager Override (MBM-192) — user-scoped, no businessId field
+  'managerOverrideCodes',        // userId FK, no businessId
+  'managerOverrideCodeHistory',  // userId FK, no businessId
 ])
 
 /**

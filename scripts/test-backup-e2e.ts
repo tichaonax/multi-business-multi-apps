@@ -55,6 +55,8 @@ const NEW_TABLE_KEYS = [
   'assetCategories', 'businessAssets', 'assetDepreciationEntries', 'assetMaintenanceLogs', 'assetImages',
   // Inventory Expiry Tracking (MBM-186)
   'itemExpiryBatches', 'expiryActions',
+  // Policy Management (MBM-189)
+  'policyTemplates', 'policies', 'policyVersions', 'policyAssignments', 'policyAcknowledgments',
   // Payment Cancellation & Manager Override (MBM-192)
   'managerOverrideCodes', 'managerOverrideCodeHistory', 'managerOverrideLogs', 'orderCancellations',
 ]
