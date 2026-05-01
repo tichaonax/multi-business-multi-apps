@@ -36,7 +36,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
       setDomainItems([])
       return
     }
-    fetch(`/api/expense-categories/domain-items?domainId=${domainId}`)
+    fetch(`/api/expense-categories/domain-items?domainId=${domainId}`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => setDomainItems(data.items ?? []))
       .catch(() => setDomainItems([]))

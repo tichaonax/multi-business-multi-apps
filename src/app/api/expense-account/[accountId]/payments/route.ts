@@ -769,10 +769,7 @@ export async function POST(
             submittedBy: paymentStatus === 'SUBMITTED' ? user.id : null,
             submittedAt: paymentStatus === 'SUBMITTED' ? new Date() : null,
             projectId: payment.projectId || null,
-            ...(payment.lineItems && Array.isArray(payment.lineItems) && payment.lineItems.length > 0
-              ? { lineItems: payment.lineItems }
-              : {}),
-          } as any,
+          },
           include: {
             payeeUser: {
               select: { id: true, name: true, email: true },
@@ -805,6 +802,11 @@ export async function POST(
             },
           },
         })
+
+        // Store lineItems via raw SQL (Prisma client not yet regenerated for this column)
+        if (payment.lineItems && Array.isArray(payment.lineItems) && payment.lineItems.length > 0) {
+          await tx.$executeRaw`UPDATE expense_account_payments SET line_items = ${JSON.stringify(payment.lineItems)}::jsonb WHERE id = ${newPayment.id}`
+        }
 
         // If LOAN_REPAYMENT, update loan remaining balance.
         // Interest is a charge that increases the balance (not an extra payment).
@@ -1010,13 +1012,10 @@ export async function POST(
     )
   } catch (error) {
     console.error('Error creating expense account payment(s):', error)
+    const msg = error instanceof Error ? error.message : ''
+    const isTechnical = msg.includes('prisma') || msg.includes('Invalid `') || msg.includes('database') || msg.length > 200
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to create expense account payment(s)',
-      },
+      { error: isTechnical ? 'Failed to save payment. Please try again.' : (msg || 'Failed to create payment') },
       { status: 500 }
     )
   }

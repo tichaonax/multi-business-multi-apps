@@ -757,7 +757,8 @@ export function EditPaymentModal({
 
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.error || 'Failed to update payment')
+        const errMsg = data.error || 'Failed to update payment'
+        toast.error(errMsg.length > 120 ? 'Failed to save payment. Please try again.' : errMsg)
         return
       }
 

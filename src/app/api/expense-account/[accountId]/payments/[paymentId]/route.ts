@@ -595,7 +595,10 @@ export async function PATCH(
     if (isFullPayment !== undefined) updateData.isFullPayment = isFullPayment
     if (paymentChannel !== undefined) updateData.paymentChannel = paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH'
     if (priority !== undefined) updateData.priority = priority === 'URGENT' ? 'URGENT' : 'NORMAL'
-    if (lineItems !== undefined) updateData.lineItems = Array.isArray(lineItems) && lineItems.length > 0 ? lineItems : null
+    // lineItems handled via raw SQL after the transaction (Prisma client not yet regenerated)
+    const lineItemsValue = lineItems !== undefined
+      ? (Array.isArray(lineItems) && lineItems.length > 0 ? lineItems : null)
+      : undefined
     if (projectId !== undefined) {
       if (projectId) {
         const project = await prisma.projects.findUnique({ where: { id: projectId }, select: { id: true } })
@@ -701,6 +704,15 @@ export async function PATCH(
       return { updatedPayment, newBalance, adjustmentDepositId, businessCredited }
     })
 
+    // Update line_items via raw SQL (Prisma client not yet regenerated for this column)
+    if (lineItemsValue !== undefined) {
+      if (lineItemsValue === null) {
+        await prisma.$executeRaw`UPDATE expense_account_payments SET line_items = NULL WHERE id = ${paymentId}`
+      } else {
+        await prisma.$executeRaw`UPDATE expense_account_payments SET line_items = ${JSON.stringify(lineItemsValue)}::jsonb WHERE id = ${paymentId}`
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Payment updated successfully',
@@ -737,11 +749,10 @@ export async function PATCH(
     })
   } catch (error) {
     console.error('Error updating payment:', error)
+    const msg = error instanceof Error ? error.message : ''
+    const isTechnical = msg.includes('prisma') || msg.includes('Invalid `') || msg.includes('database') || msg.length > 200
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : 'Failed to update payment',
-      },
+      { error: isTechnical ? 'Failed to save payment. Please try again.' : (msg || 'Failed to update payment') },
       { status: 500 }
     )
   }
