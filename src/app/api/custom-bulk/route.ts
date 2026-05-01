@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       expenseDomainId,
       expenseCategoryId,
       expenseSubcategoryId,
+      force,
     } = data
 
     // Required field validation
@@ -80,6 +81,26 @@ export async function POST(request: NextRequest) {
     })
     if (!business) {
       return NextResponse.json({ success: false, error: 'Business not found' }, { status: 404 })
+    }
+
+    // Duplicate name detection (skip if caller passed force:true)
+    if (!force) {
+      const similar = await prisma.customBulkProducts.findMany({
+        where: {
+          businessId,
+          isActive: true,
+          name: { contains: name.trim(), mode: 'insensitive' },
+        },
+        select: { id: true, name: true, remainingCount: true, sku: true },
+      })
+      if (similar.length > 0) {
+        return NextResponse.json({
+          success: false,
+          code: 'DUPLICATE_NAME',
+          matches: similar,
+          error: 'A product with a similar name already exists.',
+        }, { status: 409 })
+      }
     }
 
     // Auto-generate batch number if not provided: CB-YYMMDD-###

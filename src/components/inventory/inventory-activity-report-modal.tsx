@@ -77,9 +77,11 @@ interface Props {
   onClose: () => void
   businessId: string
   businessName?: string
+  itemId?: string        // when set, report is filtered to this one item
+  itemName?: string      // displayed in header when itemId is set
 }
 
-export function InventoryActivityReportModal({ isOpen, onClose, businessId, businessName }: Props) {
+export function InventoryActivityReportModal({ isOpen, onClose, businessId, businessName, itemId, itemName }: Props) {
   const [preset, setPreset] = useState<Preset>('7days')
   const [customFrom, setCustomFrom] = useState(daysAgoStr(7))
   const [customTo, setCustomTo] = useState(todayStr())
@@ -107,6 +109,7 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
     const { from, to } = getRange()
     const params = new URLSearchParams({ from, to, page: String(p), limit: '50' })
     if (allItems) { params.set('all', 'true') }
+    if (itemId) { params.set('itemId', itemId) }
     try {
       const res = await fetch(`/api/inventory/${businessId}/activity-report?${params}`)
       const json = await res.json()
@@ -118,7 +121,7 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
     } finally {
       setLoading(false)
     }
-  }, [businessId, getRange])
+  }, [businessId, getRange, itemId])
 
   useEffect(() => {
     if (isOpen) fetchData(1)
@@ -165,8 +168,13 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Inventory Activity Report</h2>
-              {businessName && <p className="text-sm text-gray-500 dark:text-gray-400">{businessName}</p>}
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                {itemName ? `📈 ${itemName}` : 'Inventory Activity Report'}
+              </h2>
+              {itemName
+                ? <p className="text-sm text-gray-500 dark:text-gray-400">{businessName} — Activity Report</p>
+                : businessName && <p className="text-sm text-gray-500 dark:text-gray-400">{businessName}</p>
+              }
             </div>
             <div className="flex items-center gap-3">
               <button

@@ -6,6 +6,8 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { BulkPrintModal, ProductData } from '@/components/clothing/bulk-print-modal'
 import { BulkTopUpForm, TopUpPayload } from '@/components/inventory/bulk-top-up-form'
+import { MergeProductsModal } from '@/components/inventory/merge-products-modal'
+import { CustomBulkReportModal } from '@/components/inventory/custom-bulk-report-modal'
 
 interface BulkProduct {
   id: string
@@ -33,10 +35,11 @@ interface EditState {
 const LOW_STOCK_THRESHOLD = 5
 
 export default function CustomBulkInventoryPage() {
-  const { currentBusiness } = useBusinessPermissionsContext()
+  const { currentBusiness, isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
   const confirm = useConfirm()
   const businessId = currentBusiness?.businessId
   const businessName = currentBusiness?.businessName ?? ''
+  const canMerge = isSystemAdmin || isBusinessOwner || currentBusiness?.role === 'business-manager'
 
   const [products, setProducts] = useState<BulkProduct[]>([])
   const [loading, setLoading] = useState(false)
@@ -50,6 +53,15 @@ export default function CustomBulkInventoryPage() {
 
   const [topUpId, setTopUpId] = useState<string | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+
+  // Merge mode
+  const [mergeMode, setMergeMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showMergeModal, setShowMergeModal] = useState(false)
+
+  const [showReport, setShowReport] = useState(false)
+  const [reportItemId, setReportItemId] = useState<string | null>(null)
+  const [reportItemName, setReportItemName] = useState('')
 
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
 
@@ -216,6 +228,18 @@ export default function CustomBulkInventoryPage() {
               />
               Show inactive / sold-out
             </label>
+            <button
+              onClick={() => { setReportItemId(null); setReportItemName(''); setShowReport(true) }}
+              className="px-3 py-1.5 text-xs rounded-lg border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-medium">
+              📈 Activity Report
+            </button>
+            {canMerge && (
+              <button
+                onClick={() => { setMergeMode(m => !m); setSelectedIds(new Set()) }}
+                className={`px-3 py-1.5 text-xs rounded-lg border font-medium transition-colors ${mergeMode ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700' : 'border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}`}>
+                {mergeMode ? 'Exit Merge Mode' : '🔀 Merge Mode'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -294,6 +318,7 @@ export default function CustomBulkInventoryPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs uppercase text-gray-500 dark:text-gray-400">
                   <tr>
+                    {mergeMode && <th className="pl-4 py-3 w-8" />}
                     <th className="px-4 py-3 text-left font-medium">Product</th>
                     <th className="px-4 py-3 text-left font-medium">Batch / Barcode</th>
                     <th className="px-4 py-3 text-left font-medium">Category</th>
@@ -316,9 +341,26 @@ export default function CustomBulkInventoryPage() {
                           className={[
                             !p.isActive ? 'opacity-60' : '',
                             isHighlighted ? 'ring-2 ring-orange-400 ring-inset' : '',
+                            mergeMode && selectedIds.has(p.id) ? 'bg-indigo-50 dark:bg-indigo-900/20' : '',
                             p.remainingCount <= 0 ? 'bg-red-50/40 dark:bg-red-900/10' : p.remainingCount < LOW_STOCK_THRESHOLD ? 'bg-orange-50/40 dark:bg-orange-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30',
                           ].filter(Boolean).join(' ')}
                         >
+                          {mergeMode && (
+                            <td className="pl-4 py-3">
+                              <input
+                                type="checkbox"
+                                disabled={!p.isActive}
+                                checked={selectedIds.has(p.id)}
+                                onChange={e => setSelectedIds(prev => {
+                                  const next = new Set(prev)
+                                  if (e.target.checked) next.add(p.id)
+                                  else next.delete(p.id)
+                                  return next
+                                })}
+                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                            </td>
+                          )}
                           <td className="px-4 py-3">
                             {editingId === p.id ? (
                               <input
@@ -410,6 +452,12 @@ export default function CustomBulkInventoryPage() {
                             ) : (
                               <div className="flex justify-center gap-1 flex-wrap">
                                 <button
+                                  onClick={() => { setReportItemId(p.id); setReportItemName(p.name); setShowReport(true) }}
+                                  className="px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 rounded text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                                  title="Activity report for this product">
+                                  📈
+                                </button>
+                                <button
                                   onClick={() => openTopUp(p)}
                                   className="px-2.5 py-1 text-xs border border-orange-300 dark:border-orange-700 rounded text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-medium">
                                   + Top Up
@@ -441,7 +489,7 @@ export default function CustomBulkInventoryPage() {
                         {/* Inline Top-Up Form Row */}
                         {isTopUp && (
                           <tr className="bg-orange-50/60 dark:bg-orange-900/10 border-l-4 border-orange-400">
-                            <td colSpan={8} className="px-6 py-4">
+                            <td colSpan={mergeMode ? 9 : 8} className="px-6 py-4">
                               <BulkTopUpForm
                                 product={p}
                                 variant="inline"
@@ -476,6 +524,47 @@ export default function CustomBulkInventoryPage() {
         productData={printTarget ?? undefined}
         compact
       />
+
+      {/* Floating merge bar */}
+      {mergeMode && selectedIds.size >= 2 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-5 py-3 bg-indigo-700 text-white rounded-full shadow-xl text-sm font-medium">
+          <span>{selectedIds.size} selected</span>
+          <button
+            onClick={() => setShowMergeModal(true)}
+            className="px-4 py-1.5 bg-white text-indigo-700 rounded-full text-xs font-bold hover:bg-indigo-50 transition-colors">
+            Merge →
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-indigo-200 hover:text-white text-base leading-none"
+            title="Clear selection">&times;</button>
+        </div>
+      )}
+
+      {/* Activity report modal */}
+      <CustomBulkReportModal
+        isOpen={showReport}
+        onClose={() => { setShowReport(false); setReportItemId(null); setReportItemName('') }}
+        businessId={businessId ?? ''}
+        businessName={businessName}
+        itemId={reportItemId ?? undefined}
+        itemName={reportItemName || undefined}
+      />
+
+      {/* Merge confirmation modal */}
+      {showMergeModal && businessId && (
+        <MergeProductsModal
+          businessId={businessId}
+          products={products.filter(p => selectedIds.has(p.id))}
+          onClose={() => setShowMergeModal(false)}
+          onMerged={() => {
+            setShowMergeModal(false)
+            setMergeMode(false)
+            setSelectedIds(new Set())
+            load()
+          }}
+        />
+      )}
     </ContentLayout>
   )
 }

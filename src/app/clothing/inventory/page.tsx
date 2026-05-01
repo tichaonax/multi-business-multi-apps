@@ -167,6 +167,8 @@ function ClothingInventoryContent() {
   const [zeroOutItem, setZeroOutItem] = useState<any>(null)
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [showActivityReport, setShowActivityReport] = useState(false)
+  const [reportItemId, setReportItemId] = useState<string | null>(null)
+  const [reportItemName, setReportItemName] = useState('')
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
   const [repairingDomains, setRepairingDomains] = useState(false)
@@ -1345,6 +1347,7 @@ function ClothingInventoryContent() {
                       onItemView={handleItemView}
                       onItemDelete={canManageInventory ? handleItemDelete : undefined}
                       onItemAddToCart={handleItemAddToCart}
+                      onItemReport={(item) => { setReportItemId(item.id); setReportItemName(item.name); setShowActivityReport(true) }}
                       onResetExternalFilters={handleResetExternalFilters}
                       onTotalChange={selectedDepartment ? setFilterCount : undefined}
                       onItemZeroOut={canZeroOut ? (item) => setZeroOutItem(item) : undefined}
@@ -2158,6 +2161,17 @@ function ClothingInventoryContent() {
                       <button
                         onClick={() => {
                           setShowViewModal(false)
+                          setReportItemId(selectedItem.id)
+                          setReportItemName(selectedItem.name)
+                          setShowActivityReport(true)
+                        }}
+                        className="flex-1 btn-secondary"
+                      >
+                        📊 Activity
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false)
                           setSelectedItem(null)
                         }}
                         className="flex-1 btn-secondary"
@@ -2296,9 +2310,11 @@ function ClothingInventoryContent() {
 
     <InventoryActivityReportModal
       isOpen={showActivityReport}
-      onClose={() => setShowActivityReport(false)}
+      onClose={() => { setShowActivityReport(false); setReportItemId(null); setReportItemName('') }}
       businessId={businessId}
       businessName={currentBusiness?.businessName}
+      itemId={reportItemId ?? undefined}
+      itemName={reportItemName || undefined}
     />
 
     {/* Print History Modal */}

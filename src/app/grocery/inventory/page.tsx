@@ -130,6 +130,8 @@ function GroceryInventoryContent() {
   const [showStockTakeReports, setShowStockTakeReports] = useState(false)
   const [showDepartments, setShowDepartments] = useState(false)
   const [showActivityReport, setShowActivityReport] = useState(false)
+  const [reportItemId, setReportItemId] = useState<string | null>(null)
+  const [reportItemName, setReportItemName] = useState('')
   const [filterCount, setFilterCount] = useState<number | null>(null)
   const [seedingCategories, setSeedingCategories] = useState(false)
   const [categoriesSeeded, setCategoriesSeeded] = useState(false)
@@ -548,6 +550,7 @@ function GroceryInventoryContent() {
                       onItemView={handleItemView}
                       onItemDelete={canManageInventory ? handleItemDelete : undefined}
                       onItemAddToCart={handleItemAddToCart}
+                      onItemReport={(item) => { setReportItemId(item.id); setReportItemName(item.name); setShowActivityReport(true) }}
                       onTotalChange={selectedDepartment ? setFilterCount : undefined}
                       refreshTrigger={refreshKey}
                       headerActions={(
@@ -1077,6 +1080,17 @@ function GroceryInventoryContent() {
                       <button
                         onClick={() => {
                           setShowViewModal(false)
+                          setReportItemId(selectedItem.id)
+                          setReportItemName(selectedItem.name)
+                          setShowActivityReport(true)
+                        }}
+                        className="flex-1 btn-secondary"
+                      >
+                        📊 Activity
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false)
                           setSelectedItem(null)
                         }}
                         className="flex-1 btn-secondary"
@@ -1137,9 +1151,11 @@ function GroceryInventoryContent() {
 
       <InventoryActivityReportModal
         isOpen={showActivityReport}
-        onClose={() => setShowActivityReport(false)}
+        onClose={() => { setShowActivityReport(false); setReportItemId(null); setReportItemName('') }}
         businessId={businessId}
         businessName={currentBusiness?.businessName}
+        itemId={reportItemId ?? undefined}
+        itemName={reportItemName || undefined}
       />
       </BusinessTypeRoute>
     </BusinessProvider>

@@ -57,6 +57,7 @@ interface UniversalInventoryGridProps {
   onItemDelete?: (item: UniversalInventoryItem) => void
   onItemAddToCart?: (item: UniversalInventoryItem) => void  // Add to cart callback
   onItemZeroOut?: (item: UniversalInventoryItem) => void   // Special: zero-out / edit price+qty (canZeroOutInventory)
+  onItemReport?: (item: UniversalInventoryItem) => void   // Open per-item activity report
   onResetExternalFilters?: () => void  // Callback to reset parent filters
   onTotalChange?: (count: number) => void  // Fires with total filtered item count after each load
   refreshTrigger?: number  // Change this value to force a refresh
@@ -86,6 +87,7 @@ export function UniversalInventoryGrid({
   onItemDelete,
   onItemAddToCart,
   onItemZeroOut,
+  onItemReport,
   onResetExternalFilters,  // Callback to reset parent filters
   onTotalChange,
   refreshTrigger,  // Force refresh when this value changes
@@ -131,7 +133,7 @@ export function UniversalInventoryGrid({
       if (searchTerm !== debouncedSearchTerm) {
         setCurrentPage(1)
       }
-    }, 1000) // Wait 1 second after user stops typing
+    }, 400)
 
     return () => clearTimeout(timer)
   }, [searchTerm])
@@ -554,7 +556,10 @@ export function UniversalInventoryGrid({
         <div className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             {allowSearch && (
-              <div className="flex-1 w-full sm:w-auto">
+              <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
+                <span className="text-sm font-semibold text-secondary whitespace-nowrap tabular-nums">
+                  {sortedItems.length}{searchTerm && sortedItems.length !== items.length ? ` / ${items.length}` : ''}
+                </span>
                 <input
                   type="text"
                   placeholder="🔍 Search items by name, SKU, or description..."
@@ -906,6 +911,18 @@ export function UniversalInventoryGrid({
                               🏷️
                             </button>
                           )}
+                          {onItemReport && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onItemReport(item)
+                              }}
+                              className="text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 text-xs w-8 h-8 flex items-center justify-center rounded"
+                              title="Activity report"
+                            >
+                              📈
+                            </button>
+                          )}
                           {onItemDelete && (
                           <button
                             onClick={(e) => {
@@ -1096,6 +1113,17 @@ export function UniversalInventoryGrid({
                             className="px-3 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-md hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
                           >
                             Print
+                          </button>
+                        )}
+                        {onItemReport && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onItemReport(item)
+                            }}
+                            className="px-3 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                          >
+                            📈 Activity
                           </button>
                         )}
                         {onItemDelete && (

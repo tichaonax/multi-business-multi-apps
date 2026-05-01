@@ -40,6 +40,13 @@ interface CustomBulkModalProps {
   onSaved?: () => void
 }
 
+interface DuplicateMatch {
+  id: string
+  name: string
+  remainingCount: number
+  sku: string
+}
+
 interface ExistingBulkProduct {
   id: string
   name: string
@@ -122,6 +129,9 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
   // Inline new supplier
   const [showNewSupplier, setShowNewSupplier] = useState(false)
   const [creatingSupplier, setCreatingSupplier] = useState(false)
+
+  // Duplicate detection
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([])
 
   const loadSuppliers = (bizId: string) => {
     fetch(`/api/business/${bizId}/suppliers?isActive=true&limit=100`)
@@ -300,8 +310,9 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (force = false) => {
     setError('')
+    setDuplicateMatches([])
 
     if (!form.name.trim()) { setError('Product name is required'); return }
     if (!form.itemCount || Number(form.itemCount) <= 0) { setError('Item count must be greater than 0'); return }
@@ -325,9 +336,14 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
           expenseDomainId: form.expenseDomainId || undefined,
           expenseCategoryId: form.expenseCategoryId || undefined,
           expenseSubcategoryId: form.expenseSubcategoryId || undefined,
+          ...(force ? { force: true } : {}),
         }),
       })
       const data = await res.json()
+      if (res.status === 409 && data.code === 'DUPLICATE_NAME') {
+        setDuplicateMatches(data.matches ?? [])
+        return
+      }
       if (!res.ok || !data.success) {
         setError(data.error ?? 'Failed to register bulk product')
         return
@@ -360,6 +376,7 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
     setPrintTarget(null)
     setShowPrintModal(false)
     setError('')
+    setDuplicateMatches([])
     setTimeout(() => nameRef.current?.focus(), 50)
   }
 
@@ -914,6 +931,41 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
             />
           </div>
+
+          {duplicateMatches.length > 0 && (
+            <div className="border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-3 space-y-2">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">A product with a similar name already exists:</p>
+              <div className="space-y-1">
+                {duplicateMatches.map(m => (
+                  <div key={m.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-amber-900 dark:text-amber-200 font-medium">{m.name}</span>
+                    <span className="text-amber-700 dark:text-amber-400 text-xs">{m.remainingCount} remaining</span>
+                    <button
+                      type="button"
+                      onClick={() => { setManageSearch(m.name); setTab('manage'); setDuplicateMatches([]) }}
+                      className="shrink-0 px-2 py-0.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">
+                      Add stock to existing
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleSave(true)}
+                  disabled={loading}
+                  className="px-3 py-1.5 text-xs border border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-300 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-40">
+                  Create anyway (different product)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateMatches([])}
+                  className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
