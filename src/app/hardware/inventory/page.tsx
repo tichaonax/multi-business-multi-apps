@@ -34,7 +34,7 @@ function HardwareInventoryContent() {
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
-  const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
+  const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string; productId?: string } | null>(null)
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [filterCount, setFilterCount] = useState<number | null>(null)
   const [stats, setStats] = useState<any>(null)
@@ -253,7 +253,11 @@ function HardwareInventoryContent() {
 
   const handleItemView = (item: any) => {
     setSelectedItem(item)
-    setInsightsTarget({ type: 'inventory', id: item.id })
+    if (item.id.startsWith('inv_')) {
+      setInsightsTarget({ type: 'inventory', id: item.id })
+    } else {
+      setInsightsTarget({ type: 'inventory', id: '', productId: item.id })
+    }
   }
 
   const handleItemDelete = async (item: any) => {
@@ -667,6 +671,7 @@ function HardwareInventoryContent() {
             <ItemInsightsPanel
               type={insightsTarget.type}
               itemId={insightsTarget.id}
+              productId={insightsTarget.productId}
               businessId={businessId}
               onClose={() => setInsightsTarget(null)}
             />

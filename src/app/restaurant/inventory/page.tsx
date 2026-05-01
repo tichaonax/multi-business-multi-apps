@@ -41,7 +41,7 @@ function RestaurantInventoryContent() {
   const [posTrackedFilter, setPosTrackedFilter] = useState(false)
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
-  const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
+  const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string; productId?: string } | null>(null)
   const [isInventoryTracked, setIsInventoryTracked] = useState(false)
   const [reorderLevel, setReorderLevel] = useState(0)
   const searchParams = useSearchParams()
@@ -645,7 +645,13 @@ function RestaurantInventoryContent() {
                       setSelectedItem(item)
                       setShowAddForm(true)
                     } : undefined}
-                    onItemView={(item) => setInsightsTarget({ type: 'inventory', id: item.id })}
+                    onItemView={(item) => {
+                      if (item.id.startsWith('inv_')) {
+                        setInsightsTarget({ type: 'inventory', id: item.id })
+                      } else {
+                        setInsightsTarget({ type: 'inventory', id: '', productId: item.id })
+                      }
+                    }}
                     onItemAddToCart={async (item) => {
                       try {
                         const res = await fetch(`/api/universal/products?businessId=${businessId}&productId=${item.id}&includeVariants=true`)
@@ -813,6 +819,7 @@ function RestaurantInventoryContent() {
             <ItemInsightsPanel
               type={insightsTarget.type}
               itemId={insightsTarget.id}
+              productId={insightsTarget.productId}
               businessId={businessId}
               onClose={() => setInsightsTarget(null)}
             />
