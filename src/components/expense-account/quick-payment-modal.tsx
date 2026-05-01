@@ -833,6 +833,7 @@ export function QuickPaymentModal({
         categoryId: resolvedCategoryId,
         categoryName: selectedCat?.name || undefined,
         subcategoryId: resolvedSubcategoryId,
+        subSubcategoryId: activeDomainOverride ? (formData.subSubcategoryId || null) : null,
         amount: parseFloat(formData.amount),
         paymentDate: formData.paymentDate,
         notes: formData.notes || null,

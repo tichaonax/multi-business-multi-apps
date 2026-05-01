@@ -213,6 +213,7 @@ interface PaymentDetail {
   payeeSupplier?: { id: string; name: string } | null
   category?: { id: string; name: string; emoji: string; domainId: string | null } | null
   subcategory?: { id: string; name: string; emoji: string } | null
+  subSubcategory?: { id: string; name: string; emoji: string } | null
   amount: number
   paymentDate: string
   notes: string | null
@@ -295,8 +296,11 @@ export function EditPaymentModal({
   const [topOptions, setTopOptions] = useState<{ id: string; label: string }[]>([])
   const [midOptions, setMidOptions] = useState<{ id: string; label: string }[]>([])
   const [subOptions, setSubOptions] = useState<{ id: string; label: string }[]>([])
+  const [subSubId, setSubSubId] = useState('')
+  const [subSubOptions, setSubSubOptions] = useState<{ id: string; label: string }[]>([])
   const [loadingMid, setLoadingMid] = useState(false)
   const [loadingSub, setLoadingSub] = useState(false)
+  const [loadingSubSub, setLoadingSubSub] = useState(false)
 
   // Create modals
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false)
@@ -304,9 +308,22 @@ export function EditPaymentModal({
   const [showCreateSubModal, setShowCreateSubModal] = useState(false)
   const [creatingItem, setCreatingItem] = useState(false)
 
+  // Classification suggestion
+  const [suggestQuery, setSuggestQuery] = useState('')
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<{
+    domainId: string; domainName: string; domainEmoji: string | null
+    categoryId: string; categoryName: string; categoryEmoji: string | null
+    subcategoryId: string; subcategoryName: string; subcategoryEmoji: string | null
+    subSubcategoryId: string | null; subSubcategoryName: string | null; subSubcategoryEmoji: string | null
+    score: number
+  }[]>([])
+
   // Refs for pre-fill values across async boundaries
   const prefillMidId = useRef('')
   const prefillSubId = useRef('')
+  const prefillSubSubId = useRef('')
 
   // ── Reload helpers ────────────────────────────────────────────────────────────
   const reloadTopOptions = async () => {
@@ -317,7 +334,12 @@ export function EditPaymentModal({
       const flat: { id: string; label: string }[] = []
       for (const domain of data.domains ?? []) {
         for (const cat of domain.expense_categories ?? []) {
-          flat.push({ id: cat.id, label: `${cat.emoji || '📂'} ${cat.name}` })
+          const label = cat.isDomainCategory
+            ? (cat.name === 'Personal Expenses'
+                ? `🏠 Personal Expenses`
+                : `${cat.emoji || ''} ${cat.name} Business Domains`.trim())
+            : `${cat.emoji || '📂'} ${cat.name}`
+          flat.push({ id: cat.id, label })
         }
       }
       setTopOptions(flat)
@@ -456,8 +478,14 @@ export function EditPaymentModal({
     setSubId('')
     setMidOptions([])
     setSubOptions([])
+    setSubSubId('')
+    setSubSubOptions([])
     prefillMidId.current = ''
     prefillSubId.current = ''
+    prefillSubSubId.current = ''
+    setSuggestions([])
+    setSuggestOpen(false)
+    setSuggestQuery('')
 
     fetch(`/api/expense-account/${accountId}/payments/${paymentId}`, { credentials: 'include' })
       .then(r => r.json())
@@ -490,11 +518,12 @@ export function EditPaymentModal({
 
         // Set category pre-fill
         if (p.category?.domainId) {
-          // Domain path: top=domain, mid=ExpenseCategory, sub=ExpenseSubcategory
+          // Domain path: top=domain, mid=ExpenseCategory, sub=ExpenseSubcategory, subSub=ExpenseSubSubcategory
           prefillMidId.current = p.category.id
           prefillSubId.current = p.subcategory?.id || ''
+          prefillSubSubId.current = p.subSubcategory?.id || ''
           setTopId(p.category.domainId)
-        } else if (p.category) {
+        } else if (p.category?.id) {
           // Global path: top=ExpenseCategory, no mid/sub
           setTopId(p.category.id)
         }
@@ -547,6 +576,8 @@ export function EditPaymentModal({
     if (!midId) {
       setSubOptions([])
       setSubId('')
+      setSubSubOptions([])
+      setSubSubId('')
       return
     }
     setLoadingSub(true)
@@ -567,19 +598,88 @@ export function EditPaymentModal({
       .finally(() => setLoadingSub(false))
   }, [midId])
 
+  // ── Load sub-sub options when subId changes ───────────────────────────────────
+  useEffect(() => {
+    if (!subId) {
+      setSubSubOptions([])
+      setSubSubId('')
+      return
+    }
+    setLoadingSubSub(true)
+    fetch(`/api/expense-categories/subcategories/${subId}/sub-subcategories`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        const opts = (data.subSubcategories ?? []).map((s: any) => ({
+          id: s.id,
+          label: `${s.emoji || '📂'} ${s.name}`,
+        }))
+        setSubSubOptions(opts)
+        if (prefillSubSubId.current) {
+          setSubSubId(prefillSubSubId.current)
+          prefillSubSubId.current = ''
+        }
+      })
+      .catch(() => { setSubSubOptions([]); setSubSubId('') })
+      .finally(() => setLoadingSubSub(false))
+  }, [subId])
+
   // ── Category change handlers ──────────────────────────────────────────────────
   const handleTopChange = (id: string) => {
+    setSuggestOpen(false)
     setTopId(id)
     setMidId('')
     setSubId('')
+    setSubSubId('')
     setMidOptions([])
     setSubOptions([])
+    setSubSubOptions([])
   }
 
   const handleMidChange = (id: string) => {
     setMidId(id)
     setSubId('')
+    setSubSubId('')
     setSubOptions([])
+    setSubSubOptions([])
+  }
+
+  const handleSubChange = (id: string) => {
+    setSubId(id)
+    setSubSubId('')
+    setSubSubOptions([])
+  }
+
+  // ── Suggest classification ────────────────────────────────────────────────────
+  const handleSuggest = async () => {
+    const q = suggestQuery.trim()
+    if (q.length < 2) return
+    setSuggestLoading(true)
+    setSuggestions([])
+    setSuggestOpen(true)
+    try {
+      // If the user already has a domain selected, scope suggestions to that domain only
+      const domainParam = isDomainPath && topId ? `&domainId=${encodeURIComponent(topId)}` : ''
+      const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}${domainParam}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setSuggestions(data.suggestions ?? [])
+      }
+    } catch {}
+    finally { setSuggestLoading(false) }
+  }
+
+  const applySuggestion = (s: typeof suggestions[0]) => {
+    setSuggestOpen(false)
+    prefillSubSubId.current = s.subSubcategoryId ?? ''
+    prefillSubId.current = s.subcategoryId
+    if (topId === s.domainId && isDomainPath) {
+      // Domain already selected — setTopId would be a no-op and the useEffect wouldn't re-fire.
+      // Cascade from midId which triggers the sub options load, then subSub loads from subId.
+      handleMidChange(s.categoryId)
+    } else {
+      prefillMidId.current = s.categoryId
+      handleTopChange(s.domainId)
+    }
   }
 
   // ── Derived values ────────────────────────────────────────────────────────────
@@ -626,6 +726,7 @@ export function EditPaymentModal({
 
       if (apiCategoryId) body.categoryId = apiCategoryId
       if (apiSubcategoryId !== undefined) body.subcategoryId = apiSubcategoryId
+      if (isDomainPath) body.subSubcategoryId = subSubId || null
       body.paymentChannel = paymentChannel
       body.priority = priority
       body.projectId = projectId || null
@@ -666,7 +767,7 @@ export function EditPaymentModal({
   if (!isOpen) return null
 
   const withinWindow = payment ? (isAdmin || isWithin7Days(payment.createdAt)) : true
-  const isHydrating = loadingMid || loadingSub
+  const isHydrating = loadingMid || loadingSub || loadingSubSub
   const parsedAmountValue = parseFloat(amount)
   const isDownwardChange = payment !== null && !isNaN(parsedAmountValue) && parsedAmountValue < payment.amount
   const isBalanceAffecting = payment?.status === 'SUBMITTED'
@@ -818,10 +919,10 @@ export function EditPaymentModal({
                 </div>
               )}
 
-              {/* ── Category (top level) ─────────────────────────────────── */}
+              {/* ── Business selector (top level) ──────────────────────────── */}
               <div className={!isDomainPath && !loadingMid ? 'md:col-span-2' : ''}>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-secondary">Category</label>
+                  <label className="text-sm font-medium text-secondary">Business</label>
                   <button
                     type="button"
                     onClick={() => setShowCreateCategoryModal(true)}
@@ -837,13 +938,31 @@ export function EditPaymentModal({
                   placeholder="Select category..."
                   disabled={isHydrating}
                 />
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="text"
+                    value={suggestQuery}
+                    onChange={e => setSuggestQuery(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && suggestQuery.trim().length >= 2) handleSuggest() }}
+                    placeholder="Describe expense to suggest category…"
+                    className="flex-1 px-3 py-1.5 text-xs border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-amber-400 placeholder:text-gray-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSuggest}
+                    disabled={suggestLoading || suggestQuery.trim().length < 2}
+                    className="px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {suggestLoading ? '⏳' : '💡 Suggest'}
+                  </button>
+                </div>
               </div>
 
-              {/* ── Subcategory — right column when domain path ───────────── */}
+              {/* ── Domain — right column when domain path ───────────────── */}
               {(isDomainPath || loadingMid) && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-medium text-secondary">Subcategory</label>
+                    <label className="text-sm font-medium text-secondary">Domain</label>
                     {topId && isDomainPath && (
                       <button
                         type="button"
@@ -865,11 +984,11 @@ export function EditPaymentModal({
                 </div>
               )}
 
-              {/* ── Sub-subcategory — full width when domain path + midId ─── */}
+              {/* ── Category (level 3) — full width when domain path + midId ── */}
               {isDomainPath && midId && (
                 <div className="md:col-span-2">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-medium text-secondary">Sub-category</label>
+                    <label className="text-sm font-medium text-secondary">Category</label>
                     <button
                       type="button"
                       onClick={() => setShowCreateSubModal(true)}
@@ -881,10 +1000,25 @@ export function EditPaymentModal({
                   <SearchableSelect
                     value={subId}
                     options={subOptions}
-                    onChange={setSubId}
+                    onChange={handleSubChange}
                     placeholder="Select sub-category..."
                     loading={loadingSub}
                     disabled={!midId}
+                  />
+                </div>
+              )}
+
+              {/* ── Sub-Category (level 4) — full width when domain path + subId ── */}
+              {isDomainPath && subId && (
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-secondary">Sub-Category</label>
+                  <SearchableSelect
+                    value={subSubId}
+                    options={subSubOptions}
+                    onChange={setSubSubId}
+                    placeholder="Select item..."
+                    loading={loadingSubSub}
+                    disabled={!subId || loadingSubSub}
                   />
                 </div>
               )}
@@ -1064,6 +1198,61 @@ export function EditPaymentModal({
         }}
         initialName={payeeSearchQuery}
       />
+
+      {/* ── Classification suggestion overlay ────────────────────────────────── */}
+      {suggestOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-base font-semibold text-primary">💡 Suggested Classifications</h3>
+              <button
+                type="button"
+                onClick={() => setSuggestOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-4">
+              <p className="text-xs text-secondary mb-3">
+                Based on: <span className="font-medium text-primary">"{suggestQuery.trim()}"</span>
+              </p>
+              {suggestLoading && (
+                <p className="text-sm text-secondary py-4 text-center">Searching taxonomy…</p>
+              )}
+              {!suggestLoading && suggestions.length === 0 && (
+                <p className="text-sm text-secondary py-4 text-center">No matches found — please select manually.</p>
+              )}
+              {!suggestLoading && suggestions.length > 0 && (
+                <ul className="space-y-2">
+                  {suggestions.map((s, i) => (
+                    <li key={`${s.subcategoryId}-${i}`}>
+                      <button
+                        type="button"
+                        onClick={() => applySuggestion(s)}
+                        className="w-full text-left px-3 py-2.5 rounded-md border border-border hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                      >
+                        <div className="text-xs text-secondary mb-0.5">
+                          {s.subSubcategoryId
+                            ? <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName} › {s.subcategoryEmoji} {s.subcategoryName}</>
+                            : <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}</>
+                          }
+                        </div>
+                        <div className="text-sm font-medium text-primary">
+                          {s.subSubcategoryId
+                            ? <>{s.subSubcategoryEmoji} {s.subSubcategoryName}</>
+                            : <>{s.subcategoryEmoji} {s.subcategoryName}</>
+                          }
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Create supplier ───────────────────────────────────────────────────── */}
       {showCreateSupplierModal && businessId && (

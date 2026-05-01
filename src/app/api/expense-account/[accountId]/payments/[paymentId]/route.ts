@@ -103,6 +103,14 @@ export async function GET(
       )
     }
 
+    // Fetch sub-subcategory separately (no Prisma relation defined on payments model)
+    const subSubcategory = payment.subSubcategoryId
+      ? await prisma.expenseSubSubcategories.findUnique({
+          where: { id: payment.subSubcategoryId },
+          select: { id: true, name: true, emoji: true },
+        })
+      : null
+
     // Fetch new reversal fields via raw SQL (not in Prisma client yet — MBM-153)
     const reversalRows = await prisma.$queryRaw<Array<{
       reversed_at: Date | null
@@ -130,6 +138,7 @@ export async function GET(
           payeeSupplier: payment.payeeSupplier,
           category: payment.category,
           subcategory: payment.subcategory,
+          subSubcategory,
           amount: Number(payment.amount),
           paymentType: payment.paymentType,
           paymentDate: payment.paymentDate.toISOString(),
@@ -382,6 +391,7 @@ export async function PATCH(
       adjustmentReason,
       categoryId,
       subcategoryId,
+      subSubcategoryId,
       paymentDate,
       receiptNumber,
       receiptServiceProvider,
@@ -513,6 +523,22 @@ export async function PATCH(
         }
       }
       updateData.subcategoryId = subcategoryId || null
+    }
+
+    // Validate and update sub-subcategory if provided
+    if (subSubcategoryId !== undefined) {
+      if (subSubcategoryId) {
+        const subSubcategory = await prisma.expenseSubSubcategories.findUnique({
+          where: { id: subSubcategoryId },
+        })
+        if (!subSubcategory) {
+          return NextResponse.json(
+            { error: 'Expense sub-subcategory not found' },
+            { status: 404 }
+          )
+        }
+      }
+      updateData.subSubcategoryId = subSubcategoryId || null
     }
 
     // Validate and update payment date if provided
@@ -682,6 +708,7 @@ export async function PATCH(
           payeeBusiness: result.updatedPayment.payeeBusiness,
           category: result.updatedPayment.category,
           subcategory: result.updatedPayment.subcategory,
+          subSubcategoryId: result.updatedPayment.subSubcategoryId,
           amount: Number(result.updatedPayment.amount),
           paymentDate: result.updatedPayment.paymentDate.toISOString(),
           notes: result.updatedPayment.notes,

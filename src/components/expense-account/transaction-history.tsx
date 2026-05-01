@@ -142,6 +142,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const limit = pageLimit
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
   const [editDepositId, setEditDepositId] = useState<string | null>(null)
+  const [editVersion, setEditVersion] = useState(0)
   const [search, setSearch] = useState('')
 
   async function openVoucherModal(transaction: Transaction) {
@@ -285,7 +286,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
   useEffect(() => {
     loadTransactions()
-  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, debouncedMinAmount, debouncedMaxAmount])
+  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, editVersion, debouncedMinAmount, debouncedMaxAmount])
   // also refetch when sortOrder changes
   useEffect(() => {
     setPage(0)
@@ -928,7 +929,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           accountId={accountId}
           paymentId={editPaymentId}
           isAdmin={isAdmin}
-          onSuccess={() => { setEditPaymentId(null); loadTransactions(); onDataChanged?.() }}
+          onSuccess={() => { setEditPaymentId(null); setEditVersion(v => v + 1); onDataChanged?.() }}
         />
       )}
 
@@ -940,7 +941,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           accountId={accountId}
           depositId={editDepositId}
           isAdmin={isAdmin}
-          onSuccess={() => { setEditDepositId(null); loadTransactions(); onDataChanged?.() }}
+          onSuccess={() => { setEditDepositId(null); setEditVersion(v => v + 1); onDataChanged?.() }}
         />
       )}
 
