@@ -13,6 +13,7 @@ interface AccountBalanceCardProps {
 export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseReports = false, canEditThreshold = false }: AccountBalanceCardProps) {
   const customAlert = useAlert()
   const [balanceSummary, setBalanceSummary] = useState<any>(null)
+  const [balanceForbidden, setBalanceForbidden] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editingThreshold, setEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState('')
@@ -33,7 +34,9 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
         credentials: 'include',
       })
 
-      if (response.ok) {
+      if (response.status === 403) {
+        setBalanceForbidden(true)
+      } else if (response.ok) {
         const data = await response.json()
         setBalanceSummary(data.data)
       }
@@ -102,6 +105,18 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
     : accountData.isSibling
     ? 'from-purple-600 to-purple-700'
     : 'from-green-600 to-green-700'
+
+  if (balanceForbidden) {
+    return (
+      <div className="bg-gradient-to-r from-gray-500 to-gray-600 rounded-lg shadow text-white px-4 py-3 flex items-center gap-3">
+        <span className="text-xl">🔒</span>
+        <div>
+          <p className="text-sm font-semibold">Balance not visible</p>
+          <p className="text-xs opacity-70">You have restricted access to this account</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`bg-gradient-to-r ${cardGradient} rounded-lg shadow text-white`}>

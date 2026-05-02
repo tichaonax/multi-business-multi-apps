@@ -26,6 +26,11 @@ export type NotificationType =
   | 'PAYMENTS_REVERSED_TO_PETTY_CASH'
   | 'INVENTORY_ZERO_OUT'
   | 'LOW_STOCK'
+  | 'COMBO_REQUEST_SUBMITTED'
+  | 'COMBO_REQUEST_APPROVED'
+  | 'COMBO_REQUEST_PARTIALLY_APPROVED'
+  | 'COMBO_REQUEST_CANCELLED'
+  | 'COMBO_REQUEST_PAID'
 
 export interface NotificationPayload {
   userIds: string[]

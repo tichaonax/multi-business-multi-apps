@@ -76,9 +76,17 @@ export async function GET(
     const offset = parseInt(searchParams.get('offset') || '0')
     const sortBy = searchParams.get('sortBy') === 'createdAt' ? 'createdAt' : 'paymentDate'
 
+    // Restricted access: users with canViewOwnOnly = true only see their own payments
+    const accessRecord = await prisma.expenseAccountUserAccess.findUnique({
+      where: { accountId_userId: { accountId, userId: user.id } },
+      select: { canViewOwnOnly: true, isActive: true },
+    })
+    const isRestricted = !!(accessRecord?.isActive && accessRecord?.canViewOwnOnly)
+
     // Build where clause
     const where: any = {
       expenseAccountId: accountId,
+      ...(isRestricted ? { createdBy: user.id } : {}),
     }
 
     if (payeeType) {

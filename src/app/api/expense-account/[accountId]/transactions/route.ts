@@ -195,6 +195,13 @@ export async function GET(
               creator: {
                 select: { id: true, name: true, email: true },
               },
+              destinationDeposit: {
+                select: {
+                  id: true,
+                  expenseAccountId: true,
+                  expenseAccount: { select: { id: true, accountName: true } },
+                },
+              },
             },
             orderBy: [{ paidAt: sortOrder as 'asc' | 'desc' }, { paymentDate: sortOrder as 'asc' | 'desc' }],
           })
@@ -372,6 +379,9 @@ export async function GET(
         subcategory: (payment as any).subcategory ?? null,
         paymentType: (payment as any).paymentType || 'REGULAR',
         isAutoTransfer: isAutoXferOut,
+        destinationDepositId: (payment as any).destinationDeposit?.id ?? null,
+        destinationAccountId: (payment as any).destinationDeposit?.expenseAccountId ?? null,
+        destinationAccountName: (payment as any).destinationDeposit?.expenseAccount?.accountName ?? null,
         receiptNumber: payment.receiptNumber,
         status: payment.status,
         pettyCashRequestId: paymentToPettyCashMap.get(payment.id)?.id ?? null,

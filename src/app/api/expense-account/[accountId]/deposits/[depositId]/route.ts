@@ -51,6 +51,9 @@ export async function GET(
         creator: {
           select: { id: true, name: true, email: true },
         },
+        source_transfer_payment: {
+          select: { id: true, expenseAccountId: true },
+        },
       },
     })
 
@@ -161,6 +164,9 @@ export async function GET(
           transactionType: deposit.transactionType,
           createdBy: deposit.creator,
           createdAt: deposit.createdAt.toISOString(),
+          // For ACCOUNT_TRANSFER: link back to the source payment (MBM-198)
+          sourceTransferPaymentId: (deposit as any).source_transfer_payment?.id ?? null,
+          sourceTransferAccountId: (deposit as any).source_transfer_payment?.expenseAccountId ?? null,
         },
         pettyCashRequest,
       },

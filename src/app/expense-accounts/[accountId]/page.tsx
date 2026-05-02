@@ -26,6 +26,8 @@ import VehicleExpenseModal from '@/components/expense-account/vehicle-expense-mo
 import { AutoDepositAdminPanel } from '@/components/expense-account/auto-deposit-admin-panel'
 import { PaymentBatchModal } from '@/components/expense-account/payment-batch-modal'
 import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
+import { ComboRequestsTab } from '@/components/expense-account/combo-requests-tab'
+import { ExpenseAccountAccessPanel } from '@/components/expense-account/expense-account-access-panel'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -1061,6 +1063,7 @@ export default function ExpenseAccountDetailPage() {
   const [rentPaidThisMonth, setRentPaidThisMonth] = useState(false)
   const [canRequestPettyCash, setCanRequestPettyCash] = useState(false)
   const [pendingPettyCashCount, setPendingPettyCashCount] = useState(0)
+  const [isRestrictedUser, setIsRestrictedUser] = useState(false)
 
   // Permissions from business context (properly fetched from API)
   const { hasPermission, loading: permissionsLoading, isSystemAdmin, isBusinessOwner, currentBusiness, businesses } = useBusinessPermissionsContext()
@@ -1094,6 +1097,10 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
     if (session?.user?.id && accountId) {
       loadAccount()
       fetchCounts()
+      // Check if current user has restricted access (403 on balance = restricted)
+      fetch(`/api/expense-account/${accountId}/balance`, { credentials: 'include' })
+        .then(r => { if (r.status === 403) setIsRestrictedUser(true) })
+        .catch(() => {})
       // Fetch all accessible accounts for the switcher
       fetch('/api/expense-account', { credentials: 'include' })
         .then(r => r.json())
@@ -1666,7 +1673,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 </button>
               )}
 
-              {isSystemAdmin && (
+              {(isSystemAdmin || canMakeExpensePayments) && (
                 <button
                   onClick={() => setActiveTab('permissions')}
                   className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -1691,6 +1698,17 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   ⚙ Auto-Deposit Settings
                 </button>
               )}
+
+              <button
+                onClick={() => setActiveTab('combo-requests')}
+                className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === 'combo-requests'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                }`}
+              >
+                Combo Requests
+              </button>
             </nav>
           </div>
 
@@ -1878,6 +1896,12 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
             {/* Transactions Tab */}
             {activeTab === 'transactions' && (
               <div>
+                {isRestrictedUser && (
+                  <div className="mb-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <span>🔒</span>
+                    <span>Restricted access — showing your transactions only.</span>
+                  </div>
+                )}
                 <TransactionHistory
                   accountId={accountId}
                   canEditPayments={canEditPayments}
@@ -1934,10 +1958,13 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
               </div>
             )}
 
-            {/* Permissions Tab (admin only) */}
-            {activeTab === 'permissions' && isSystemAdmin && (
-              <div>
-                <AccountPermissionsTab accountId={accountId} />
+            {/* Permissions Tab (admin and cashiers) */}
+            {activeTab === 'permissions' && (isSystemAdmin || canMakeExpensePayments) && (
+              <div className="space-y-6">
+                {isSystemAdmin && <AccountPermissionsTab accountId={accountId} />}
+                <div className={isSystemAdmin ? 'border-t border-gray-200 pt-6' : ''}>
+                  <ExpenseAccountAccessPanel accountId={accountId} />
+                </div>
               </div>
             )}
 
@@ -1945,6 +1972,13 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
             {activeTab === 'auto-deposit-settings' && isSystemAdmin && (
               <div className="max-w-2xl">
                 <AutoDepositAdminPanel accountId={accountId} />
+              </div>
+            )}
+
+            {/* Combo Requests Tab */}
+            {activeTab === 'combo-requests' && (
+              <div>
+                <ComboRequestsTab accountId={accountId} />
               </div>
             )}
           </div>

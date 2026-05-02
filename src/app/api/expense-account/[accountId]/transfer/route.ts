@@ -124,6 +124,12 @@ export async function POST(
         },
       })
 
+      // Link source payment to destination deposit (bidirectional navigation)
+      await tx.expenseAccountPayments.update({
+        where: { id: sourcePayment.id },
+        data: { destinationDepositId: destDeposit.id },
+      })
+
       // Update both account balances
       await updateExpenseAccountBalanceTx(tx, sourceAccountId)
       await updateExpenseAccountBalanceTx(tx, destinationAccountId)

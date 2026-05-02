@@ -324,7 +324,7 @@ model BusinessStockMovements {
 }
 
 model BusinessSuppliers {
-  id                        String                    @id @default(uuid())
+  id                        String                        @id @default(uuid())
   businessId                String?
   supplierNumber            String
   name                      String
@@ -333,35 +333,37 @@ model BusinessSuppliers {
   phone                     String?
   address                   String?
   paymentTerms              String?
-  creditLimit               Decimal?                  @db.Decimal(12, 2)
-  isActive                  Boolean                   @default(true)
+  creditLimit               Decimal?                      @db.Decimal(12, 2)
+  isActive                  Boolean                       @default(true)
   businessType              String
   attributes                Json?
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime                  @updatedAt
-  accountBalance            Decimal?                  @default(0) @db.Decimal(12, 2)
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
+  accountBalance            Decimal?                      @default(0) @db.Decimal(12, 2)
   emoji                     String?
   notes                     String?
   taxId                     String?
   productsSupplied          String?
-  hasSpecialInstructions    Boolean                   @default(false)
+  hasSpecialInstructions    Boolean                       @default(false)
   specialInstructions       String?
-  posBlocked                Boolean                   @default(false)
-  discontinued              Boolean                   @default(false)
+  posBlocked                Boolean                       @default(false)
+  discontinued              Boolean                       @default(false)
   supplierType              String?
-  business_products         BusinessProducts[]        @relation("ProductSupplier")
-  barcode_inventory_items   BarcodeInventoryItems[]   @relation("InventoryItemSupplier")
-  businesses                Businesses?               @relation(fields: [businessId], references: [id])
+  business_products         BusinessProducts[]            @relation("ProductSupplier")
+  barcode_inventory_items   BarcodeInventoryItems[]       @relation("InventoryItemSupplier")
+  businesses                Businesses?                   @relation(fields: [businessId], references: [id])
   supplier_products         SupplierProducts[]
-  expense_account_payments  ExpenseAccountPayments[]  @relation("ExpensePaymentPayeeSupplier")
-  expense_payment_receipts  ExpensePaymentReceipts[]  @relation("ReceiptPayeeSupplier")
+  expense_account_payments  ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeSupplier")
+  expense_payment_receipts  ExpensePaymentReceipts[]      @relation("ReceiptPayeeSupplier")
   supplier_payment_requests SupplierPaymentRequests[]
   supplier_ratings          SupplierRatings[]
-  rent_configs              BusinessRentConfig[]      @relation("RentLandlord")
-  chicken_batches           ChickenBatch[]            @relation("ChickenBatchSupplier")
-  chicken_feed_logs         ChickenFeedLog[]          @relation("ChickenFeedSupplier")
-  chicken_inventory         ChickenInventory[]        @relation("ChickenInventorySupplier")
-  customBulkProducts        CustomBulkProducts[]      @relation("CustomBulkSupplier")
+  rent_configs              BusinessRentConfig[]          @relation("RentLandlord")
+  chicken_batches           ChickenBatch[]                @relation("ChickenBatchSupplier")
+  chicken_feed_logs         ChickenFeedLog[]              @relation("ChickenFeedSupplier")
+  chicken_inventory         ChickenInventory[]            @relation("ChickenInventorySupplier")
+  customBulkProducts        CustomBulkProducts[]          @relation("CustomBulkSupplier")
+  combo_section_payee       ComboPaymentRequestSections[] @relation("ComboSectionPayeeSupplier")
+  combo_item_payee          ComboPaymentRequestItems[]    @relation("ComboItemPayeeSupplier")
 
   @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
@@ -570,6 +572,8 @@ model Businesses {
   policy_acknowledgments                                                   PolicyAcknowledgment[]        @relation("BusinessPolicyAcknowledgments")
   manager_override_logs                                                    ManagerOverrideLog[]          @relation("BusinessOverrideLogs")
   order_cancellations                                                      OrderCancellation[]           @relation("BusinessOrderCancellations")
+  combo_section_payee                                                      ComboPaymentRequestSections[] @relation("ComboSectionPayeeBusiness")
+  combo_item_payee                                                         ComboPaymentRequestItems[]    @relation("ComboItemPayeeBusiness")
 
   @@map("businesses")
 }
@@ -1332,6 +1336,8 @@ model Employees {
   per_diem_entries                                                          PerDiemEntries[]              @relation("PerDiemEmployee")
   stock_take_report_employees                                               StockTakeReportEmployees[]    @relation("StockTakeReportEmployee")
   delivery_runs                                                             DeliveryRuns[]
+  combo_section_payee                                                       ComboPaymentRequestSections[] @relation("ComboSectionPayeeEmployee")
+  combo_item_payee                                                          ComboPaymentRequestItems[]    @relation("ComboItemPayeeEmployee")
 
   @@map("employees")
 }
@@ -1368,6 +1374,7 @@ model ExpenseCategories {
   personal_expenses        PersonalExpenses[]
   supplier_payment_items   SupplierPaymentRequestItems[] @relation("SupplierPaymentItemCategory")
   petty_cash_transactions  PettyCashTransaction[]        @relation("PettyCashTransactionCategory")
+  combo_payment_items      ComboPaymentRequestItems[]    @relation("ComboItemCategory")
 
   @@unique([domainId, name])
   @@index([updatedAt(sort: Desc)], map: "idx_expense_categories_updated_at")
@@ -1390,6 +1397,7 @@ model ExpenseSubcategories {
   personal_expenses         PersonalExpenses[]
   supplier_payment_items    SupplierPaymentRequestItems[] @relation("SupplierPaymentItemSubcategory")
   expense_sub_subcategories ExpenseSubSubcategories[]
+  combo_payment_items       ComboPaymentRequestItems[]    @relation("ComboItemSubcategory")
 
   @@unique([categoryId, name])
   @@map("expense_subcategories")
@@ -1457,6 +1465,8 @@ model ExpenseAccounts {
   petty_cash_requests        PettyCashRequests[]         @relation("PettyCashExpenseAccount")
   petty_cash_transactions    PettyCashTransaction[]      @relation("PettyCashTransactionExpense")
   businessLoan               BusinessLoan?               @relation("LoanExpenseAccount")
+  combo_requests             ComboPaymentRequests[]      @relation("ExpenseAccountComboRequests")
+  user_accesses              ExpenseAccountUserAccess[]  @relation("ExpenseAccountUserAccesses")
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1527,6 +1537,7 @@ model ExpenseAccountDeposits {
   fundSource                FundSources?            @relation("PrimaryFundSource", fields: [fundSourceId], references: [id])
   subSource                 FundSources?            @relation("SubFundSource", fields: [subSourceId], references: [id])
   source_payment            ExpenseAccountPayments? @relation("AdjustmentDeposits", fields: [sourcePaymentId], references: [id])
+  source_transfer_payment   ExpenseAccountPayments? @relation("TransferDestination")
   cash_allocation_line_item CashAllocationLineItem?
 
   @@index([expenseAccountId, depositDate])
@@ -1616,7 +1627,10 @@ model ExpenseAccountPayments {
   payment_voucher           ExpensePaymentVouchers?
   adjustment_deposits       ExpenseAccountDeposits[]         @relation("AdjustmentDeposits")
   lineItems                 Json?                            @map("line_items")
+  destinationDepositId      String?                          @unique @map("destination_deposit_id")
+  destinationDeposit        ExpenseAccountDeposits?          @relation("TransferDestination", fields: [destinationDepositId], references: [id])
   expense_payment_receipts  ExpensePaymentReceipts[]
+  combo_request             ComboPaymentRequests?            @relation("ComboLinkedPayment")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -2800,33 +2814,35 @@ model PersonalExpenses {
 }
 
 model Persons {
-  id                                String                   @id @default(uuid())
-  email                             String?                  @unique
+  id                                String                        @id @default(uuid())
+  email                             String?                       @unique
   phone                             String?
   address                           String?
   notes                             String?
-  createdAt                         DateTime                 @default(now())
+  createdAt                         DateTime                      @default(now())
   createdBy                         String?
   fullName                          String
   idFormatTemplateId                String?
-  isActive                          Boolean                  @default(true)
-  nationalId                        String?                  @unique
-  updatedAt                         DateTime                 @default(now())
+  isActive                          Boolean                       @default(true)
+  nationalId                        String?                       @unique
+  updatedAt                         DateTime                      @default(now())
   driverLicenseNumber               String?
   driverLicenseTemplateId           String?
   taxId                             String?
-  expense_account_payments_as_payee ExpenseAccountPayments[] @relation("ExpensePaymentPayeePerson")
-  expense_payment_receipts          ExpensePaymentReceipts[] @relation("ReceiptPayeePerson")
-  loans_as_borrower                 InterBusinessLoans[]     @relation("loans_as_borrower")
-  loans_as_lender                   InterBusinessLoans[]     @relation("loans_as_lender")
-  users                             Users?                   @relation(fields: [createdBy], references: [id])
-  driver_license_templates          DriverLicenseTemplates?  @relation(fields: [driverLicenseTemplateId], references: [id])
-  id_format_templates               IdFormatTemplates?       @relation(fields: [idFormatTemplateId], references: [id])
+  expense_account_payments_as_payee ExpenseAccountPayments[]      @relation("ExpensePaymentPayeePerson")
+  expense_payment_receipts          ExpensePaymentReceipts[]      @relation("ReceiptPayeePerson")
+  loans_as_borrower                 InterBusinessLoans[]          @relation("loans_as_borrower")
+  loans_as_lender                   InterBusinessLoans[]          @relation("loans_as_lender")
+  users                             Users?                        @relation(fields: [createdBy], references: [id])
+  driver_license_templates          DriverLicenseTemplates?       @relation(fields: [driverLicenseTemplateId], references: [id])
+  id_format_templates               IdFormatTemplates?            @relation(fields: [idFormatTemplateId], references: [id])
   project_contractors               ProjectContractors[]
   project_transactions              ProjectTransactions[]
   meal_program_participant          MealProgramParticipants?
-  outgoing_loans_as_recipient       AccountOutgoingLoans[]   @relation("OutgoingLoanPerson")
+  outgoing_loans_as_recipient       AccountOutgoingLoans[]        @relation("OutgoingLoanPerson")
   external_clock_ins                ExternalClockIn[]
+  combo_section_payee               ComboPaymentRequestSections[] @relation("ComboSectionPayeePerson")
+  combo_item_payee                  ComboPaymentRequestItems[]    @relation("ComboItemPayeePerson")
 
   @@map("persons")
 }
@@ -3431,6 +3447,12 @@ model Users {
   manager_override_logs_as_requester                              ManagerOverrideLog[]             @relation("OverrideRequester")
   order_cancellations_requested                                   OrderCancellation[]              @relation("CancellationRequested")
   order_cancellations_approved                                    OrderCancellation[]              @relation("CancellationApproved")
+  combo_requests_created                                          ComboPaymentRequests[]           @relation("ComboRequestCreator")
+  combo_requests_approved                                         ComboPaymentRequests[]           @relation("ComboRequestApprover")
+  combo_section_payee                                             ComboPaymentRequestSections[]    @relation("ComboSectionPayeeUser")
+  combo_item_payee                                                ComboPaymentRequestItems[]       @relation("ComboItemPayeeUser")
+  expense_account_accesses                                        ExpenseAccountUserAccess[]       @relation("UserExpenseAccountAccesses")
+  expense_account_accesses_granted                                ExpenseAccountUserAccess[]       @relation("ExpenseAccountAccessGrantor")
 
   @@map("users")
 }
@@ -6775,4 +6797,152 @@ model OrderCancellation {
   @@index([businessId, createdAt])
   @@index([customerId])
   @@map("order_cancellations")
+}
+
+// ============================================================
+// Combo Payment Requests (MBM-197)
+// ============================================================
+
+enum ComboPaymentRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PARTIALLY_APPROVED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum ComboPaymentRequestSectionType {
+  GROCERY
+  MONTHLY_CONTRIBUTION
+  SCHOOL_FEES
+  CUSTOM
+}
+
+model ComboPaymentRequests {
+  id              String                    @id @default(uuid())
+  accountId       String
+  title           String
+  status          ComboPaymentRequestStatus @default(DRAFT)
+  requestedAmount Decimal                   @default(0) @db.Decimal(12, 2)
+  overrideAmount  Decimal?                  @db.Decimal(12, 2)
+  approvedAmount  Decimal?                  @db.Decimal(12, 2)
+  approvalNote    String?
+  notes           String?
+  createdBy       String
+  submittedAt     DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
+  linkedPaymentId String?                   @unique @map("linked_payment_id")
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @default(now()) @updatedAt
+
+  expenseAccount ExpenseAccounts               @relation("ExpenseAccountComboRequests", fields: [accountId], references: [id], onDelete: Cascade)
+  creator        Users                         @relation("ComboRequestCreator", fields: [createdBy], references: [id])
+  approver       Users?                        @relation("ComboRequestApprover", fields: [approvedBy], references: [id])
+  linkedPayment  ExpenseAccountPayments?       @relation("ComboLinkedPayment", fields: [linkedPaymentId], references: [id])
+  sections       ComboPaymentRequestSections[]
+  items          ComboPaymentRequestItems[]
+
+  @@index([accountId, status])
+  @@index([createdBy])
+  @@index([createdAt(sort: Desc)])
+  @@map("combo_payment_requests")
+}
+
+model ComboPaymentRequestSections {
+  id              String                         @id @default(uuid())
+  requestId       String
+  sectionType     ComboPaymentRequestSectionType
+  sectionName     String?
+  payeeType       String?
+  payeePersonId   String?
+  payeeUserId     String?
+  payeeEmployeeId String?
+  payeeBusinessId String?
+  payeeSupplierId String?
+  notes           String?
+  sortOrder       Int                            @default(0)
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @default(now()) @updatedAt
+
+  request       ComboPaymentRequests       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  payeePerson   Persons?                   @relation("ComboSectionPayeePerson", fields: [payeePersonId], references: [id])
+  payeeUser     Users?                     @relation("ComboSectionPayeeUser", fields: [payeeUserId], references: [id])
+  payeeEmployee Employees?                 @relation("ComboSectionPayeeEmployee", fields: [payeeEmployeeId], references: [id])
+  payeeBusiness Businesses?                @relation("ComboSectionPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier BusinessSuppliers?         @relation("ComboSectionPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  items         ComboPaymentRequestItems[]
+
+  @@index([requestId])
+  @@map("combo_payment_request_sections")
+}
+
+model ComboPaymentRequestItems {
+  id              String    @id @default(uuid())
+  requestId       String
+  sectionId       String?
+  description     String
+  quantity        Decimal?  @db.Decimal(10, 3)
+  unit            String?
+  estimatedAmount Decimal?  @db.Decimal(12, 2)
+  approvedAmount  Decimal?  @db.Decimal(12, 2)
+  categoryId      String?
+  subcategoryId   String?
+  payeeType       String?
+  payeePersonId   String?
+  payeeUserId     String?
+  payeeEmployeeId String?
+  payeeBusinessId String?
+  payeeSupplierId String?
+  isPaid          Boolean   @default(false)
+  paidAt          DateTime?
+  paidAmount      Decimal?  @db.Decimal(12, 2)
+  receiptNumber   String?
+  notes           String?
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  request       ComboPaymentRequests         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  section       ComboPaymentRequestSections? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  category      ExpenseCategories?           @relation("ComboItemCategory", fields: [categoryId], references: [id])
+  subcategory   ExpenseSubcategories?        @relation("ComboItemSubcategory", fields: [subcategoryId], references: [id])
+  payeePerson   Persons?                     @relation("ComboItemPayeePerson", fields: [payeePersonId], references: [id])
+  payeeUser     Users?                       @relation("ComboItemPayeeUser", fields: [payeeUserId], references: [id])
+  payeeEmployee Employees?                   @relation("ComboItemPayeeEmployee", fields: [payeeEmployeeId], references: [id])
+  payeeBusiness Businesses?                  @relation("ComboItemPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier BusinessSuppliers?           @relation("ComboItemPayeeSupplier", fields: [payeeSupplierId], references: [id])
+
+  @@index([requestId])
+  @@index([sectionId])
+  @@map("combo_payment_request_items")
+}
+
+model ExpenseAccountUserAccess {
+  id                String    @id @default(uuid())
+  accountId         String
+  userId            String
+  canCreateRequests Boolean   @default(true)
+  canViewOwnOnly    Boolean   @default(true)
+  canViewBalance    Boolean   @default(false)
+  grantedBy         String
+  grantedAt         DateTime  @default(now())
+  revokedAt         DateTime?
+  isActive          Boolean   @default(true)
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+
+  expenseAccount ExpenseAccounts @relation("ExpenseAccountUserAccesses", fields: [accountId], references: [id], onDelete: Cascade)
+  user           Users           @relation("UserExpenseAccountAccesses", fields: [userId], references: [id])
+  grantor        Users           @relation("ExpenseAccountAccessGrantor", fields: [grantedBy], references: [id])
+
+  @@unique([accountId, userId])
+  @@index([userId])
+  @@index([accountId, isActive])
+  @@map("expense_account_user_access")
 }

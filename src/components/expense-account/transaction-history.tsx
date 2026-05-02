@@ -5,6 +5,8 @@ import { useSession } from 'next-auth/react'
 import { DateInput } from '@/components/ui/date-input'
 import { EditPaymentModal } from './edit-payment-modal'
 import { EditDepositModal } from './edit-deposit-modal'
+import { PaymentDetailModal } from './payment-detail-modal'
+import { DepositDetailModal } from './deposit-detail-modal'
 import { ExpensePaymentVoucherModal, PaymentSummary } from './expense-payment-voucher-modal'
 import { generatePaymentVoucherPdf } from './payment-voucher-pdf'
 import { AddReceiptModal } from './add-receipt-modal'
@@ -42,6 +44,10 @@ interface Transaction {
   paymentType?: string
   isAutoTransfer?: boolean
   autoTransferSource?: string
+  // Transfer destination link (MBM-198)
+  destinationDepositId?: string | null
+  destinationAccountId?: string | null
+  destinationAccountName?: string | null
   receiptNumber?: string
   status?: string
   pettyCashRequestId?: string | null
@@ -144,6 +150,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const limit = pageLimit
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
   const [editDepositId, setEditDepositId] = useState<string | null>(null)
+  const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null)
+  const [detailDepositId, setDetailDepositId] = useState<string | null>(null)
   const [editVersion, setEditVersion] = useState(0)
   const [search, setSearch] = useState('')
 
@@ -639,7 +647,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                     Category
                   </th>
                   <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Source
+                    Source / Dest
                   </th>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Amount
@@ -658,10 +666,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       key={transaction.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                       onClick={() => {
-                        const detailPath = isDeposit
-                          ? `/expense-accounts/${accountId}/deposits/${transaction.id}`
-                          : `/expense-accounts/${accountId}/payments/${transaction.id}`
-                        window.location.href = detailPath
+                        if (isDeposit) {
+                          setDetailDepositId(transaction.id)
+                        } else {
+                          setDetailPaymentId(transaction.id)
+                        }
                       }}
                     >
                       <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
@@ -746,12 +755,18 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           <span className="text-green-700 dark:text-green-400">🤝 Loan Received</span>
                         ) : transaction.sourceType === 'PAYROLL_FUNDING' ? (
                           <span className="text-emerald-600 dark:text-emerald-400">💵 Payroll Funding</span>
+                        ) : transaction.sourceType === 'ACCOUNT_TRANSFER' ? (
+                          <span className="text-sky-600 dark:text-sky-400">↩ Transfer In</span>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500">—</span>
                         )}
                       </td>
                       <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                        {transaction.isAutoTransfer && transaction.autoTransferSource ? (
+                        {transaction.paymentType === 'TRANSFER_OUT' && transaction.destinationAccountName ? (
+                          <span className="font-medium text-sky-700 dark:text-sky-400">→ {transaction.destinationAccountName}</span>
+                        ) : transaction.paymentType === 'TRANSFER_OUT' ? (
+                          <span className="text-xs text-sky-600 dark:text-sky-500 italic">→ Transferred out</span>
+                        ) : transaction.isAutoTransfer && transaction.autoTransferSource ? (
                           <span className="font-medium text-sky-700 dark:text-sky-400">↩ {transaction.autoTransferSource}</span>
                         ) : transaction.sourceBusiness ? (
                           <span className="font-medium">{transaction.sourceBusiness.name}</span>
@@ -1057,6 +1072,26 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             setVoucherMap(prev => ({ ...prev, [voucherModal.payment.id]: saved }))
             setVoucherModal(null)
           }}
+        />
+      )}
+
+      {/* Payment Detail Modal (MBM-198) */}
+      {detailPaymentId && (
+        <PaymentDetailModal
+          isOpen={true}
+          onClose={() => setDetailPaymentId(null)}
+          accountId={accountId}
+          paymentId={detailPaymentId}
+        />
+      )}
+
+      {/* Deposit Detail Modal (MBM-198) */}
+      {detailDepositId && (
+        <DepositDetailModal
+          isOpen={true}
+          onClose={() => setDetailDepositId(null)}
+          accountId={accountId}
+          depositId={detailDepositId}
         />
       )}
     </>

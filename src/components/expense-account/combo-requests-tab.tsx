@@ -1,0 +1,137 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+
+interface ComboRequest {
+  id: string
+  title: string
+  status: string
+  requestedAmount: number
+  approvedAmount: number | null
+  createdBy: string
+  submittedAt: string | null
+  creator: { id: string; name: string }
+}
+
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  DRAFT: { label: 'Draft', className: 'bg-gray-100 text-gray-700' },
+  SUBMITTED: { label: 'Submitted', className: 'bg-yellow-100 text-yellow-800' },
+  APPROVED: { label: 'Approved', className: 'bg-green-100 text-green-800' },
+  PARTIALLY_APPROVED: { label: 'Partial', className: 'bg-orange-100 text-orange-800' },
+  PARTIALLY_PAID: { label: 'Partially Paid', className: 'bg-blue-100 text-blue-800' },
+  PAID: { label: 'Paid', className: 'bg-emerald-100 text-emerald-800' },
+  CANCELLED: { label: 'Cancelled', className: 'bg-red-100 text-red-700' },
+}
+
+function fmt(n: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+}
+
+function fmtDate(d: string | null) {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+interface ComboRequestsTabProps {
+  accountId: string
+}
+
+export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
+  const router = useRouter()
+  const [requests, setRequests] = useState<ComboRequest[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/expense-account/${accountId}/combo-requests`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.data) {
+          setRequests(
+            data.data.map((r: any) => ({
+              ...r,
+              requestedAmount: Number(r.requestedAmount),
+              approvedAmount: r.approvedAmount !== null ? Number(r.approvedAmount) : null,
+            }))
+          )
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [accountId])
+
+  const pendingCount = requests.filter(r => r.status === 'SUBMITTED').length
+
+  return (
+    <div className="space-y-3">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-gray-700">Combo Requests</h2>
+          {pendingCount > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold bg-yellow-400 text-white">
+              {pendingCount}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => router.push(`/expense-accounts/${accountId}/combo-requests/new`)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+        >
+          + New Combo Request
+        </button>
+      </div>
+
+      {loading && (
+        <div className="text-sm text-gray-400 py-4 text-center">Loading...</div>
+      )}
+
+      {!loading && requests.length === 0 && (
+        <div className="text-sm text-gray-500 py-8 text-center border border-dashed border-gray-200 rounded-lg">
+          No combo requests yet.{' '}
+          <button
+            onClick={() => router.push(`/expense-accounts/${accountId}/combo-requests/new`)}
+            className="text-blue-600 hover:underline"
+          >
+            Create one
+          </button>
+        </div>
+      )}
+
+      {!loading && requests.length > 0 && (
+        <div className="border border-gray-200 rounded-lg overflow-hidden divide-y divide-gray-100">
+          {requests.map(req => {
+            const badge = STATUS_BADGE[req.status] ?? { label: req.status, className: 'bg-gray-100 text-gray-700' }
+            return (
+              <button
+                key={req.id}
+                onClick={() => router.push(`/expense-accounts/${accountId}/combo-requests/${req.id}`)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{req.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {req.creator.name}
+                    {req.submittedAt && ` · ${fmtDate(req.submittedAt)}`}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-sm font-semibold text-gray-900">{fmt(req.requestedAmount)}</div>
+                  {req.approvedAmount !== null && req.approvedAmount !== req.requestedAmount && (
+                    <div className="text-xs text-green-600">Approved: {fmt(req.approvedAmount)}</div>
+                  )}
+                </div>
+                <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${badge.className}`}>
+                  {badge.label}
+                </span>
+                <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}

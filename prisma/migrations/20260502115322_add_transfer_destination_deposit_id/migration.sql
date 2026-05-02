@@ -1,0 +1,3 @@
+-- This migration was erroneously marked as applied via migrate resolve --applied before SQL ran.
+-- Superseded by 20260502120000_add_transfer_destination_deposit_id_apply
+-- No-op placeholder.

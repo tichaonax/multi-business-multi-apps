@@ -91,6 +91,13 @@ export async function GET(
         submitter: {
           select: { id: true, name: true, email: true },
         },
+        destinationDeposit: {
+          select: {
+            id: true,
+            expenseAccountId: true,
+            expenseAccount: { select: { id: true, accountName: true } },
+          },
+        },
       },
     })
 
@@ -167,6 +174,10 @@ export async function GET(
           reversalNote: reversalData.reversal_note ?? null,
           reversalPettyCashId: reversalData.reversal_petty_cash_id ?? null,
           lineItems: reversalData.line_items ?? null,
+          // Transfer destination link (MBM-198)
+          destinationDepositId: (payment as any).destinationDepositId ?? null,
+          destinationAccountId: (payment as any).destinationDeposit?.expenseAccountId ?? null,
+          destinationAccountName: (payment as any).destinationDeposit?.expenseAccount?.accountName ?? null,
         },
       },
     })

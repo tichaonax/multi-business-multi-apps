@@ -30,6 +30,18 @@ export async function GET(
 
     const { accountId } = await params
 
+    // Restricted access: users with canViewBalance = false cannot see the balance
+    const accessRecord = await prisma.expenseAccountUserAccess.findUnique({
+      where: { accountId_userId: { accountId, userId: user.id } },
+      select: { canViewBalance: true, isActive: true },
+    })
+    if (accessRecord?.isActive && !accessRecord.canViewBalance) {
+      return NextResponse.json(
+        { error: 'You do not have permission to view the balance of this account' },
+        { status: 403 }
+      )
+    }
+
     // Check if account exists
     const account = await prisma.expenseAccounts.findUnique({
       where: { id: accountId },
