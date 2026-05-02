@@ -1336,6 +1336,15 @@ function GroceryPOSContent() {
       return
     }
 
+    // Block out-of-stock inventory-tracked items
+    if (!isAnyToken && product.stockQuantity !== undefined && product.stockQuantity <= 0) {
+      void customAlert({
+        title: 'Out of Stock',
+        description: `"${product.name}" is out of stock and cannot be sold until inventory is replenished.`
+      })
+      return
+    }
+
     // Check portal health and availability before adding WiFi tokens (ESP32)
     if (isWiFiToken) {
       // Check available quantity
@@ -1457,11 +1466,20 @@ function GroceryPOSContent() {
   useEffect(() => {
     const handler = (e: Event) => {
       const item = (e as CustomEvent).detail
-      if (item?.inventoryItemId) addInventoryItemToCart(item)
+      if (!item?.inventoryItemId) return
+      // Block zero-stock inventory items from being added via scan
+      if (item.stockQuantity !== undefined && item.stockQuantity <= 0) {
+        void customAlert({
+          title: 'Out of Stock',
+          description: `"${item.productName ?? item.name ?? 'This item'}" is out of stock and cannot be added to cart.`
+        })
+        return
+      }
+      addInventoryItemToCart(item)
     }
     window.addEventListener('pos:add-inventory-item-to-cart', handler)
     return () => window.removeEventListener('pos:add-inventory-item-to-cart', handler)
-  }, [addInventoryItemToCart])
+  }, [addInventoryItemToCart, customAlert])
 
   // Listen for custom bulk products dispatched by global barcode modal
   useEffect(() => {
@@ -3267,14 +3285,19 @@ function GroceryPOSContent() {
 
                   return displayProducts.map((product) => {
                     const cartQty = cart.filter(c => c.id === product.id).reduce((s, c) => s + c.quantity, 0)
+                    const isOutOfStock = product.stockQuantity !== undefined && product.stockQuantity <= 0
                     return (
                   <div
                     key={product.id}
-                    onClick={() => product.weightRequired ?
+                    onClick={isOutOfStock ? undefined : () => product.weightRequired ?
                       (currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })) :
                       addToCart(product)
                     }
-                    className={`relative bg-gray-100 dark:bg-gray-800 border rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-sm text-primary min-w-0 cursor-pointer select-none ${
+                    className={`relative bg-gray-100 dark:bg-gray-800 border rounded-lg text-sm text-primary min-w-0 select-none ${
+                      isOutOfStock
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer'
+                    } ${
                       deskMode
                         ? `p-4 border-2 ${cartQty > 0 ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'}`
                         : 'p-3 border-gray-200 dark:border-gray-600'
@@ -3372,16 +3395,20 @@ function GroceryPOSContent() {
                             {canSeeSoldCount && showBar && soldYesterday > 0 ? (
                               <span>yesterday: {soldYesterday}{soldDayBefore > 0 ? ` · 2d: ${soldDayBefore}` : ''}</span>
                             ) : <span />}
-                            {canSeeStockCount && product.stockQuantity !== undefined && (
-                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                                product.stockQuantity === 0
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-white'
-                                  : product.stockQuantity < 5
-                                  ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-white'
-                                  : 'bg-slate-200 text-slate-700 dark:bg-slate-700/60 dark:text-slate-100'
-                              }`}>
-                                {product.stockQuantity === 0 ? 'Out of stock' : `${product.stockQuantity} left`}
-                              </span>
+                            {product.stockQuantity !== undefined && (
+                              product.stockQuantity === 0 ? (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-white">
+                                  Out of stock
+                                </span>
+                              ) : canSeeStockCount ? (
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                  product.stockQuantity < 5
+                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-white'
+                                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700/60 dark:text-slate-100'
+                                }`}>
+                                  {product.stockQuantity} left
+                                </span>
+                              ) : null
                             )}
                           </div>
                         </div>

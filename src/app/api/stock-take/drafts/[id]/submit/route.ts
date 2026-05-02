@@ -158,6 +158,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
             },
           })
 
+          // Record stock addition as a movement so activity report shows it in +Added column
+          if (newQty > 0) {
+            await prisma.businessStockMovements.create({
+              data: {
+                businessId: draft.businessId,
+                barcodeInventoryItemId: existing.id,
+                movementType: 'PURCHASE_RECEIVED',
+                quantity: newQty,
+                reference: draft.title || 'Stock Take',
+                businessType: stockBusiness?.type ?? 'unknown',
+              },
+            }).catch(() => {}) // non-fatal — do not block submission
+          }
+
           // Fix category's domainId if it's null and we now know the correct domain
           if (item.domainId && validCategoryId) {
             await prisma.businessCategories.updateMany({

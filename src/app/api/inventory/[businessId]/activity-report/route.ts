@@ -193,14 +193,15 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         closingByDate[dateStr] = running
         const b = dayMap[dateStr]
         if (b) {
-          const qtySold = b.qtySoldFromMovements || b.qtySoldFromOrders
+          // Use Math.max: movements may be a partial subset of order items on the same day
+          const qtySold = Math.max(b.qtySoldFromMovements, b.qtySoldFromOrders)
           running = running - b.qtyAdded + qtySold - b.qtyAdjustedNet + b.qtyLost
         }
       }
 
       const days = allDates.map((dateStr, idx) => {
         const b = dayMap[dateStr]
-        const qtySold = b ? (b.qtySoldFromMovements || b.qtySoldFromOrders) : 0
+        const qtySold = b ? Math.max(b.qtySoldFromMovements, b.qtySoldFromOrders) : 0
         const closingStock = closingByDate[dateStr] ?? item.stockQuantity
         const netMovement = (b?.qtyAdded ?? 0) - qtySold + (b?.qtyAdjustedNet ?? 0) - (b?.qtyLost ?? 0)
         const openingStock = closingStock - netMovement
