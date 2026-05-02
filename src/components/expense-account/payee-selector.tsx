@@ -152,7 +152,7 @@ export function PayeeSelector({
     onChange(null)
   }
 
-  const allPayeesCount = Object.values(payees).reduce((sum, list) => sum + (list?.length || 0), 0)
+  const allPayeesCount = (payees.PERSON?.length || 0) + (payees.SUPPLIER?.length || 0) + (payees.CONTRACTOR?.length || 0)
 
   if (loading) {
     return (
@@ -255,60 +255,6 @@ export function PayeeSelector({
               </div>
             ) : (
               <>
-                {/* Users — hidden when filtering by type */}
-                {activeFilter === 'ALL' && filterPayees(payees.USER).length > 0 && (
-                  <div>
-                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
-                      Users
-                    </div>
-                    {filterPayees(payees.USER).map(payee => (
-                      <button
-                        key={payee.id}
-                        type="button"
-                        onClick={() => handleSelect('USER', payee)}
-                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{payee.name}</div>
-                          {payee.email && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{payee.email}</div>
-                          )}
-                        </div>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('USER').className}`}>
-                          {getTypeBadge('USER').label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Employees — hidden when filtering by type */}
-                {activeFilter === 'ALL' && filterPayees(payees.EMPLOYEE).length > 0 && (
-                  <div>
-                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
-                      Employees
-                    </div>
-                    {filterPayees(payees.EMPLOYEE).map(payee => (
-                      <button
-                        key={payee.id}
-                        type="button"
-                        onClick={() => handleSelect('EMPLOYEE', payee)}
-                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{payee.name}</div>
-                          {payee.identifier && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Employee #: {payee.identifier}</div>
-                          )}
-                        </div>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('EMPLOYEE').className}`}>
-                          {getTypeBadge('EMPLOYEE').label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
                 {/* Individuals/Persons */}
                 {(activeFilter === 'ALL' || activeFilter === 'INDIVIDUAL') && filterPayees(payees.PERSON).length > 0 && (
                   <div>
@@ -330,33 +276,6 @@ export function PayeeSelector({
                         </div>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('PERSON').className}`}>
                           {getTypeBadge('PERSON').label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Businesses — hidden when filtering by type */}
-                {activeFilter === 'ALL' && filterPayees(payees.BUSINESS).length > 0 && (
-                  <div>
-                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
-                      Businesses
-                    </div>
-                    {filterPayees(payees.BUSINESS).map(payee => (
-                      <button
-                        key={payee.id}
-                        type="button"
-                        onClick={() => handleSelect('BUSINESS', payee)}
-                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{payee.name}</div>
-                          {payee.identifier && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{payee.identifier}</div>
-                          )}
-                        </div>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('BUSINESS').className}`}>
-                          {getTypeBadge('BUSINESS').label}
                         </span>
                       </button>
                     ))}
