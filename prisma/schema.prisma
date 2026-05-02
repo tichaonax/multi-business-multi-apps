@@ -130,33 +130,33 @@ model BusinessCategories {
 }
 
 model BusinessCustomers {
-  id               String            @id @default(uuid())
-  businessId       String
-  customerNumber   String
-  name             String
-  email            String?
-  phone            String?
-  dateOfBirth      DateTime?
-  address          String?
-  city             String?
-  country          String?
-  customerType     CustomerType      @default(INDIVIDUAL)
-  segment          String?
-  loyaltyPoints    Int               @default(0)
-  totalSpent       Decimal           @default(0) @db.Decimal(12, 2)
-  isActive         Boolean           @default(true)
-  businessType     String
-  attributes       Json?
-  photoUrl         String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime
-  businesses                 Businesses                 @relation(fields: [businessId], references: [id])
-  business_orders            BusinessOrders[]
-  customer_laybys            CustomerLayby[]
-  customer_rewards           CustomerRewards[]
-  invoices                   Invoices[]
-  delivery_customer_account  DeliveryCustomerAccounts?
-  order_cancellations        OrderCancellation[]        @relation("CustomerOrderCancellations")
+  id                        String                    @id @default(uuid())
+  businessId                String
+  customerNumber            String
+  name                      String
+  email                     String?
+  phone                     String?
+  dateOfBirth               DateTime?
+  address                   String?
+  city                      String?
+  country                   String?
+  customerType              CustomerType              @default(INDIVIDUAL)
+  segment                   String?
+  loyaltyPoints             Int                       @default(0)
+  totalSpent                Decimal                   @default(0) @db.Decimal(12, 2)
+  isActive                  Boolean                   @default(true)
+  businessType              String
+  attributes                Json?
+  photoUrl                  String?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime
+  businesses                Businesses                @relation(fields: [businessId], references: [id])
+  business_orders           BusinessOrders[]
+  customer_laybys           CustomerLayby[]
+  customer_rewards          CustomerRewards[]
+  invoices                  Invoices[]
+  delivery_customer_account DeliveryCustomerAccounts?
+  order_cancellations       OrderCancellation[]       @relation("CustomerOrderCancellations")
 
   @@map("business_customers")
 }
@@ -291,9 +291,9 @@ model BusinessProducts {
   product_price_changes       product_price_changes[]
   product_variants            ProductVariants[]
   supplier_products           SupplierProducts[]
-  meal_program_eligible_items  MealProgramEligibleItems[]
-  menu_item_inventory_configs  MenuItemInventoryConfig[]
-  menu_item_inventory_batches  MenuItemInventoryBatch[]
+  meal_program_eligible_items MealProgramEligibleItems[]
+  menu_item_inventory_configs MenuItemInventoryConfig[]
+  menu_item_inventory_batches MenuItemInventoryBatch[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -566,10 +566,10 @@ model Businesses {
   delivery_runs                                                            DeliveryRuns[]
   salesperson_eod_reports                                                  SalespersonEodReport[]        @relation("BusinessSalespersonEodReports")
   policies                                                                 Policy[]                      @relation("BusinessPolicies")
-  policy_assignments                                                       PolicyAssignment[]             @relation("BusinessPolicyAssignments")
-  policy_acknowledgments                                                   PolicyAcknowledgment[]         @relation("BusinessPolicyAcknowledgments")
-  manager_override_logs                                                    ManagerOverrideLog[]           @relation("BusinessOverrideLogs")
-  order_cancellations                                                      OrderCancellation[]            @relation("BusinessOrderCancellations")
+  policy_assignments                                                       PolicyAssignment[]            @relation("BusinessPolicyAssignments")
+  policy_acknowledgments                                                   PolicyAcknowledgment[]        @relation("BusinessPolicyAcknowledgments")
+  manager_override_logs                                                    ManagerOverrideLog[]          @relation("BusinessOverrideLogs")
+  order_cancellations                                                      OrderCancellation[]           @relation("BusinessOrderCancellations")
 
   @@map("businesses")
 }
@@ -602,12 +602,12 @@ model SavedReports {
   signedAt      DateTime
 
   // Till reconciliation (for day reports)
-  expectedCash              Decimal? @db.Decimal(10, 2)
-  cashCounted               Decimal? @db.Decimal(10, 2)
-  variance                  Decimal? @db.Decimal(10, 2)
-  confirmedEcocashAmount    Decimal? @map("confirmed_ecocash_amount") @db.Decimal(10, 2)
-  salespersonCashTotal      Decimal? @db.Decimal(10, 2)
-  salespersonEcocashTotal   Decimal? @db.Decimal(10, 2)
+  expectedCash            Decimal? @db.Decimal(10, 2)
+  cashCounted             Decimal? @db.Decimal(10, 2)
+  variance                Decimal? @db.Decimal(10, 2)
+  confirmedEcocashAmount  Decimal? @map("confirmed_ecocash_amount") @db.Decimal(10, 2)
+  salespersonCashTotal    Decimal? @db.Decimal(10, 2)
+  salespersonEcocashTotal Decimal? @db.Decimal(10, 2)
 
   // Summary metrics (for quick queries)
   totalSales     Decimal @db.Decimal(10, 2)
@@ -1519,7 +1519,7 @@ model ExpenseAccountDeposits {
   incomeDomainId            String?
   incomeCategoryId          String?
   incomeSubcategoryId       String?
-  sourcePaymentId           String?                 // FK to ExpenseAccountPayments — set when sourceType = PAYMENT_ADJUSTMENT
+  sourcePaymentId           String? // FK to ExpenseAccountPayments — set when sourceType = PAYMENT_ADJUSTMENT
   creator                   Users                   @relation("ExpenseAccountDepositCreator", fields: [createdBy], references: [id])
   expenseAccount            ExpenseAccounts         @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
   sourceBusiness            Businesses?             @relation("ExpenseAccountDepositSource", fields: [sourceBusinessId], references: [id])
@@ -1608,11 +1608,15 @@ model ExpenseAccountPayments {
   // Rejection audit trail (MBM-171)
   rejectedBy                String?                          @map("rejected_by")
   rejectedAt                DateTime?                        @map("rejected_at")
+  // Amount override audit trail — set when approver approves a different amount than requested
+  approvedAmount            Decimal?                         @map("approved_amount") @db.Decimal(12, 2)
+  amountChangeNote          String?                          @map("amount_change_note")
   projectId                 String?                          @map("project_id")
   project                   Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
   payment_voucher           ExpensePaymentVouchers?
-  adjustment_deposits       ExpenseAccountDeposits[] @relation("AdjustmentDeposits")
+  adjustment_deposits       ExpenseAccountDeposits[]         @relation("AdjustmentDeposits")
   lineItems                 Json?                            @map("line_items")
+  expense_payment_receipts  ExpensePaymentReceipts[]
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -1624,33 +1628,31 @@ model ExpenseAccountPayments {
   @@index([createdAt(sort: Desc)], map: "idx_expense_payments_created_at")
   @@index([paymentDate(sort: Desc)], map: "idx_expense_payments_payment_date")
   @@index([projectId], map: "idx_expense_payments_project_id")
-  expense_payment_receipts  ExpensePaymentReceipts[]
-
   @@map("expense_account_payments")
 }
 
 // ─── Expense Payment Receipts (MBM-173) ──────────────────────────────────────
 
 model ExpensePaymentReceipts {
-  id                String   @id @default(uuid())
-  expensePaymentId  String   @map("expense_payment_id")
-  receiptDate       DateTime @map("receipt_date")
-  amount            Decimal  @db.Decimal(12, 2)
-  description       String?
-  payeeType         String?  @map("payee_type")
-  payeePersonId     String?  @map("payee_person_id")
-  payeeBusinessId   String?  @map("payee_business_id")
-  payeeSupplierId   String?  @map("payee_supplier_id")
-  notes             String?
-  createdBy         String   @map("created_by")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  expensePaymentId String   @map("expense_payment_id")
+  receiptDate      DateTime @map("receipt_date")
+  amount           Decimal  @db.Decimal(12, 2)
+  description      String?
+  payeeType        String?  @map("payee_type")
+  payeePersonId    String?  @map("payee_person_id")
+  payeeBusinessId  String?  @map("payee_business_id")
+  payeeSupplierId  String?  @map("payee_supplier_id")
+  notes            String?
+  createdBy        String   @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
 
-  expensePayment    ExpenseAccountPayments  @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
-  payeePerson       Persons?                @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
-  payeeBusiness     Businesses?             @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
-  payeeSupplier     BusinessSuppliers?      @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
-  creator           Users                   @relation("ReceiptCreator", fields: [createdBy], references: [id])
+  expensePayment ExpenseAccountPayments @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
+  payeePerson    Persons?               @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
+  payeeBusiness  Businesses?            @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier  BusinessSuppliers?     @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  creator        Users                  @relation("ReceiptCreator", fields: [createdBy], references: [id])
 
   @@index([expensePaymentId], map: "idx_expense_payment_receipts_payment_id")
   @@index([payeePersonId], map: "idx_expense_payment_receipts_person_id")
@@ -3303,7 +3305,7 @@ model Users {
   expense_account_payments_created                                ExpenseAccountPayments[]         @relation("ExpensePaymentCreator")
   expense_account_payments_as_payee                               ExpenseAccountPayments[]         @relation("ExpensePaymentPayeeUser")
   expense_account_payments_submitted                              ExpenseAccountPayments[]         @relation("ExpensePaymentSubmitter")
-  expense_payment_receipts_created                               ExpensePaymentReceipts[]         @relation("ReceiptCreator")
+  expense_payment_receipts_created                                ExpensePaymentReceipts[]         @relation("ReceiptCreator")
   expense_accounts_created                                        ExpenseAccounts[]                @relation("ExpenseAccountCreator")
   expense_account_grants_received                                 ExpenseAccountGrants[]           @relation("ExpenseAccountGrantUser")
   expense_account_grants_given                                    ExpenseAccountGrants[]           @relation("ExpenseAccountGrantGrantor")
@@ -3458,23 +3460,23 @@ model AppNotification {
 // ============================================================
 
 model SalespersonEodReport {
-  id               String    @id @default(cuid())
-  businessId       String
-  salespersonId    String
-  reportDate       DateTime  @db.Date
-  cashAmount       Decimal   @default(0) @db.Decimal(12, 2)
-  ecocashAmount    Decimal   @default(0) @db.Decimal(12, 2)
-  notes            String?
-  status           String    @default("PENDING")
+  id                String    @id @default(cuid())
+  businessId        String
+  salespersonId     String
+  reportDate        DateTime  @db.Date
+  cashAmount        Decimal   @default(0) @db.Decimal(12, 2)
+  ecocashAmount     Decimal   @default(0) @db.Decimal(12, 2)
+  notes             String?
+  status            String    @default("PENDING")
   // PENDING = not yet submitted
   // SUBMITTED = salesperson submitted themselves
   // OVERRIDDEN = manager submitted on their behalf
-  submittedAt      DateTime?
-  submittedById    String?
-  isManagerOverride Boolean  @default(false)
-  overrideReason   String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  submittedAt       DateTime?
+  submittedById     String?
+  isManagerOverride Boolean   @default(false)
+  overrideReason    String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   business    Businesses @relation("BusinessSalespersonEodReports", fields: [businessId], references: [id], onDelete: Cascade)
   salesperson Users      @relation("SalespersonEodReports", fields: [salespersonId], references: [id], onDelete: Cascade)
@@ -4404,48 +4406,48 @@ model BarcodePrintJobs {
 }
 
 model BarcodeInventoryItems {
-  id                    String                  @id @default(cuid())
-  name                  String
-  sku                   String?
-  category              String?
-  barcodeTemplateId     String?
-  location              String?
-  stockQuantity         Int                     @default(0)
-  reorderLevel          Int                     @default(0)
-  lastOrderQty          Int                     @default(0)
-  maxOrderQty           Int                     @default(0)
-  lastOrderedAt         DateTime?
-  businessId            String
-  inventoryItemId       String
-  barcodeData           String?
-  customLabel           String?
-  batchNumber           String?
-  expiryDate            DateTime?
-  quantity              Int                     @default(1)
-  costPrice             Decimal?                @db.Decimal(10, 2)
-  sellingPrice          Decimal?                @db.Decimal(10, 2)
-  isActive              Boolean                 @default(true)
-  createdById           String
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  categoryId            String?
-  supplierId            String?
-  domainId              String?                 @map("domain_id")
-  subcategoryId         String?
-  locationId            String?
-  barcodeTemplate       BarcodeTemplates?       @relation(fields: [barcodeTemplateId], references: [id])
-  business              Businesses              @relation(fields: [businessId], references: [id])
-  createdBy             Users                   @relation(fields: [createdById], references: [id])
-  business_category     BusinessCategories?     @relation(fields: [categoryId], references: [id])
-  business_supplier     BusinessSuppliers?      @relation("InventoryItemSupplier", fields: [supplierId], references: [id])
-  inventory_subcategory InventorySubcategories? @relation(fields: [subcategoryId], references: [id])
-  business_location     BusinessLocations?      @relation(fields: [locationId], references: [id])
-  isExpiryDiscount      Boolean                 @default(false)
-  originalItemId        String?
-  originalItem          BarcodeInventoryItems?  @relation("ExpiryDiscountSource", fields: [originalItemId], references: [id])
-  discountedItems       BarcodeInventoryItems[] @relation("ExpiryDiscountSource")
-  expiryBatches           ItemExpiryBatch[]
-  printJobs               BarcodePrintJobs[]
+  id                       String                   @id @default(cuid())
+  name                     String
+  sku                      String?
+  category                 String?
+  barcodeTemplateId        String?
+  location                 String?
+  stockQuantity            Int                      @default(0)
+  reorderLevel             Int                      @default(0)
+  lastOrderQty             Int                      @default(0)
+  maxOrderQty              Int                      @default(0)
+  lastOrderedAt            DateTime?
+  businessId               String
+  inventoryItemId          String
+  barcodeData              String?
+  customLabel              String?
+  batchNumber              String?
+  expiryDate               DateTime?
+  quantity                 Int                      @default(1)
+  costPrice                Decimal?                 @db.Decimal(10, 2)
+  sellingPrice             Decimal?                 @db.Decimal(10, 2)
+  isActive                 Boolean                  @default(true)
+  createdById              String
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  categoryId               String?
+  supplierId               String?
+  domainId                 String?                  @map("domain_id")
+  subcategoryId            String?
+  locationId               String?
+  barcodeTemplate          BarcodeTemplates?        @relation(fields: [barcodeTemplateId], references: [id])
+  business                 Businesses               @relation(fields: [businessId], references: [id])
+  createdBy                Users                    @relation(fields: [createdById], references: [id])
+  business_category        BusinessCategories?      @relation(fields: [categoryId], references: [id])
+  business_supplier        BusinessSuppliers?       @relation("InventoryItemSupplier", fields: [supplierId], references: [id])
+  inventory_subcategory    InventorySubcategories?  @relation(fields: [subcategoryId], references: [id])
+  business_location        BusinessLocations?       @relation(fields: [locationId], references: [id])
+  isExpiryDiscount         Boolean                  @default(false)
+  originalItemId           String?
+  originalItem             BarcodeInventoryItems?   @relation("ExpiryDiscountSource", fields: [originalItemId], references: [id])
+  discountedItems          BarcodeInventoryItems[]  @relation("ExpiryDiscountSource")
+  expiryBatches            ItemExpiryBatch[]
+  printJobs                BarcodePrintJobs[]
   business_stock_movements BusinessStockMovements[]
 
   @@map("barcode_inventory_items")
@@ -6247,32 +6249,32 @@ enum InvoiceStatus {
 }
 
 model Invoices {
-  id              String            @id @default(uuid())
-  businessId      String
-  type            InvoiceType
-  number          String
-  status          InvoiceStatus     @default(DRAFT)
-  customerId      String?
-  customerName    String
-  customerEmail   String?
-  customerPhone   String?
-  customerAddress String?
-  preparedById    String
-  preparedByName  String
-  issueDate       DateTime          @default(now())
-  validUntilDate  DateTime
-  notes           String?
-  subtotal        Decimal           @default(0) @db.Decimal(12, 2)
-  discountAmount  Decimal           @default(0) @db.Decimal(12, 2)
-  taxAmount       Decimal           @default(0) @db.Decimal(12, 2)
-  total           Decimal           @default(0) @db.Decimal(12, 2)
-  currency        String            @default("USD")
-  currencySymbol  String            @default("$")
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  businesses      Businesses        @relation(fields: [businessId], references: [id])
+  id                 String             @id @default(uuid())
+  businessId         String
+  type               InvoiceType
+  number             String
+  status             InvoiceStatus      @default(DRAFT)
+  customerId         String?
+  customerName       String
+  customerEmail      String?
+  customerPhone      String?
+  customerAddress    String?
+  preparedById       String
+  preparedByName     String
+  issueDate          DateTime           @default(now())
+  validUntilDate     DateTime
+  notes              String?
+  subtotal           Decimal            @default(0) @db.Decimal(12, 2)
+  discountAmount     Decimal            @default(0) @db.Decimal(12, 2)
+  taxAmount          Decimal            @default(0) @db.Decimal(12, 2)
+  total              Decimal            @default(0) @db.Decimal(12, 2)
+  currency           String             @default("USD")
+  currencySymbol     String             @default("$")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  businesses         Businesses         @relation(fields: [businessId], references: [id])
   business_customers BusinessCustomers? @relation(fields: [customerId], references: [id])
-  invoice_items   InvoiceItems[]
+  invoice_items      InvoiceItems[]
 
   @@unique([businessId, number])
   @@index([businessId, type])
@@ -6370,20 +6372,20 @@ model DeliveryAccountTransactions {
 }
 
 model DeliveryOrderMeta {
-  id            String   @id @default(uuid())
-  orderId       String   @unique
-  deliveryNote  String?
-  creditUsed    Decimal  @default(0) @db.Decimal(10, 2)
-  creditBalance Decimal  @default(0) @db.Decimal(10, 2)
-  paymentMode          String   @default("ON_DELIVERY")
-  status               String   @default("PENDING")
-  paymentCollected     Decimal? @db.Decimal(10, 2)
-  paymentCollectedAt   DateTime?
-  paymentCollectedBy   String?
-  returnReason         String?
-  runId                String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                 String    @id @default(uuid())
+  orderId            String    @unique
+  deliveryNote       String?
+  creditUsed         Decimal   @default(0) @db.Decimal(10, 2)
+  creditBalance      Decimal   @default(0) @db.Decimal(10, 2)
+  paymentMode        String    @default("ON_DELIVERY")
+  status             String    @default("PENDING")
+  paymentCollected   Decimal?  @db.Decimal(10, 2)
+  paymentCollectedAt DateTime?
+  paymentCollectedBy String?
+  returnReason       String?
+  runId              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   run DeliveryRuns? @relation(fields: [runId], references: [id])
 
@@ -6571,13 +6573,13 @@ enum PolicyAssignmentScope {
 }
 
 model PolicyTemplate {
-  id          String          @id @default(cuid())
+  id          String         @id @default(cuid())
   title       String
   category    PolicyCategory
   description String?
-  content     String          @db.Text
-  isActive    Boolean         @default(true)
-  createdAt   DateTime        @default(now())
+  content     String         @db.Text
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
 
   @@map("policy_templates")
 }
@@ -6597,8 +6599,8 @@ model Policy {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  business    Businesses      @relation("BusinessPolicies", fields: [businessId], references: [id], onDelete: Cascade)
-  createdBy   Users           @relation("PolicyCreator", fields: [createdById], references: [id])
+  business    Businesses         @relation("BusinessPolicies", fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy   Users              @relation("PolicyCreator", fields: [createdById], references: [id])
   versions    PolicyVersion[]
   assignments PolicyAssignment[]
 
@@ -6608,21 +6610,21 @@ model Policy {
 }
 
 model PolicyVersion {
-  id          String              @id @default(cuid())
-  policyId    String
-  version     Int
-  status      PolicyVersionStatus @default(DRAFT)
-  content     String?             @db.Text
-  fileId      String?
-  changeNote  String?
-  createdById String
+  id            String              @id @default(cuid())
+  policyId      String
+  version       Int
+  status        PolicyVersionStatus @default(DRAFT)
+  content       String?             @db.Text
+  fileId        String?
+  changeNote    String?
+  createdById   String
   publishedById String?
-  publishedAt DateTime?
-  createdAt   DateTime            @default(now())
+  publishedAt   DateTime?
+  createdAt     DateTime            @default(now())
 
-  policy      Policy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  createdBy   Users   @relation("PolicyVersionCreator", fields: [createdById], references: [id])
-  publishedBy Users?  @relation("PolicyVersionPublisher", fields: [publishedById], references: [id])
+  policy      Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  createdBy   Users  @relation("PolicyVersionCreator", fields: [createdById], references: [id])
+  publishedBy Users? @relation("PolicyVersionPublisher", fields: [publishedById], references: [id])
 
   @@unique([policyId, version])
   @@index([policyId, status])
@@ -6643,10 +6645,10 @@ model PolicyAssignment {
   assignedAt    DateTime              @default(now())
   isActive      Boolean               @default(true)
 
-  policy        Policy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  business      Businesses @relation("BusinessPolicyAssignments", fields: [businessId], references: [id], onDelete: Cascade)
-  assignedTo    Users?    @relation("PolicyAssignmentUser", fields: [userId], references: [id])
-  assignedBy    Users     @relation("PolicyAssignmentCreator", fields: [assignedById], references: [id])
+  policy          Policy                 @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  business        Businesses             @relation("BusinessPolicyAssignments", fields: [businessId], references: [id], onDelete: Cascade)
+  assignedTo      Users?                 @relation("PolicyAssignmentUser", fields: [userId], references: [id])
+  assignedBy      Users                  @relation("PolicyAssignmentCreator", fields: [assignedById], references: [id])
   acknowledgments PolicyAcknowledgment[]
 
   @@index([policyId, businessId])
@@ -6656,24 +6658,24 @@ model PolicyAssignment {
 }
 
 model PolicyAcknowledgment {
-  id                   String   @id @default(cuid())
-  policyAssignmentId   String
-  policyId             String
-  policyVersion        Int
-  userId               String
-  businessId           String
-  disclaimerText       String   @db.Text
-  scrolledToEnd        Boolean  @default(false)
-  ipAddress            String?
-  userAgent            String?
-  waivedById           String?
-  waivedReason         String?
-  acknowledgedAt       DateTime @default(now())
+  id                 String   @id @default(cuid())
+  policyAssignmentId String
+  policyId           String
+  policyVersion      Int
+  userId             String
+  businessId         String
+  disclaimerText     String   @db.Text
+  scrolledToEnd      Boolean  @default(false)
+  ipAddress          String?
+  userAgent          String?
+  waivedById         String?
+  waivedReason       String?
+  acknowledgedAt     DateTime @default(now())
 
-  assignment  PolicyAssignment @relation(fields: [policyAssignmentId], references: [id], onDelete: Cascade)
-  business    Businesses       @relation("BusinessPolicyAcknowledgments", fields: [businessId], references: [id], onDelete: Cascade)
-  user        Users            @relation("PolicyAcknowledgmentUser", fields: [userId], references: [id])
-  waivedBy    Users?           @relation("PolicyAcknowledgmentWaiver", fields: [waivedById], references: [id])
+  assignment PolicyAssignment @relation(fields: [policyAssignmentId], references: [id], onDelete: Cascade)
+  business   Businesses       @relation("BusinessPolicyAcknowledgments", fields: [businessId], references: [id], onDelete: Cascade)
+  user       Users            @relation("PolicyAcknowledgmentUser", fields: [userId], references: [id])
+  waivedBy   Users?           @relation("PolicyAcknowledgmentWaiver", fields: [waivedById], references: [id])
 
   @@unique([policyAssignmentId, userId])
   @@index([userId, businessId])
@@ -6723,21 +6725,21 @@ model ManagerOverrideCodeHistory {
 }
 
 model ManagerOverrideLog {
-  id            String               @id @default(cuid())
-  managerId     String?
-  action        ManagerOverrideAction
-  outcome       OverrideOutcome
-  targetId      String
-  businessId    String?
-  requestedBy   String
-  staffReason   String
-  denialReason  String?
-  createdAt     DateTime             @default(now())
-  metadata      Json?
+  id           String                @id @default(cuid())
+  managerId    String?
+  action       ManagerOverrideAction
+  outcome      OverrideOutcome
+  targetId     String
+  businessId   String?
+  requestedBy  String
+  staffReason  String
+  denialReason String?
+  createdAt    DateTime              @default(now())
+  metadata     Json?
 
-  manager       Users?               @relation("OverrideManager", fields: [managerId], references: [id])
-  requester     Users                @relation("OverrideRequester", fields: [requestedBy], references: [id])
-  business      Businesses?          @relation("BusinessOverrideLogs", fields: [businessId], references: [id])
+  manager            Users?             @relation("OverrideManager", fields: [managerId], references: [id])
+  requester          Users              @relation("OverrideRequester", fields: [requestedBy], references: [id])
+  business           Businesses?        @relation("BusinessOverrideLogs", fields: [businessId], references: [id])
   order_cancellation OrderCancellation?
 
   @@index([targetId])
@@ -6763,10 +6765,10 @@ model OrderCancellation {
   customerNumber String?
   createdAt      DateTime @default(now())
 
-  order           BusinessOrders    @relation(fields: [orderId], references: [id])
-  business        Businesses        @relation("BusinessOrderCancellations", fields: [businessId], references: [id])
-  requestedByUser Users             @relation("CancellationRequested", fields: [requestedBy], references: [id])
-  approvedByUser  Users             @relation("CancellationApproved", fields: [approvedBy], references: [id])
+  order           BusinessOrders     @relation(fields: [orderId], references: [id])
+  business        Businesses         @relation("BusinessOrderCancellations", fields: [businessId], references: [id])
+  requestedByUser Users              @relation("CancellationRequested", fields: [requestedBy], references: [id])
+  approvedByUser  Users              @relation("CancellationApproved", fields: [approvedBy], references: [id])
   override_log    ManagerOverrideLog @relation(fields: [overrideLogId], references: [id])
   customer        BusinessCustomers? @relation("CustomerOrderCancellations", fields: [customerId], references: [id])
 

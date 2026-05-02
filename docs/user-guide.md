@@ -29,6 +29,8 @@
     - [Custom Bulk Products](#custom-bulk-products--complete-guide)
     - [Bulk Stocking Panel & Stock Take](#bulk-stocking-panel--receiving-and-counting-stock)
     - [Used Clothing Bales](#used-clothing-bales--complete-guide)
+    - [Merging Duplicate Inventory Items](#merging-duplicate-inventory-items)
+    - [Inventory Activity Report](#inventory-activity-report--per-item-stock-history)
     - [Barcode Templates](#barcode-templates--creating-and-using-label-designs)
     - [Adding Inventory Items Directly to Cart](#adding-inventory-items-directly-to-cart)
     - [Admin — Blocking Stock Take Drafts](#admin--blocking-stock-take-drafts)
@@ -43,6 +45,7 @@
 20. [Team Chat](#20-team-chat)
 21. [Grocery POS — Desk Mode](#21-grocery-pos--desk-mode)
 22. [Expense Account — Quick Payment & My Payment Queue](#22-expense-account--quick-payment--my-payment-queue)
+    - [Recent Payments to Payee](#recent-payments-to-payee)
     - [Cashier-Assisted Payment Requests (Personal Accounts)](#cashier-assisted-payment-requests-personal-accounts)
 23. [Quick Deposit — Income Categorisation](#23-quick-deposit--income-categorisation)
 24. [Payment Vouchers — Creating, Viewing & Locking](#24-payment-vouchers--creating-viewing--locking)
@@ -3372,6 +3375,17 @@ Once a barcode is assigned, print a label to stick on the product:
 
 > Labels print with: business name, product name, description, size, barcode, SKU, and price. Two fold lines are printed on the label for folding-tag style clothing labels.
 
+#### Duplicate Product Name Detection
+
+When you click **Save** on a new product, the system checks whether any active item in this business already has a similar name. If a match is found:
+
+- An **amber warning banner** appears below the form, listing the matching items (name and SKU).
+- You have two options:
+  - **Create anyway** — saves the new item even though a similar name exists. Use this only if the two products are genuinely different things.
+  - **Cancel** — dismisses the warning so you can rename the item or locate the existing one instead.
+
+> This check only runs when **creating** a new item. Editing an existing item does not trigger it.
+
 ---
 
 ### Workflow 2 — Receiving Stock for an Existing Product
@@ -4188,6 +4202,78 @@ Each report shows:
 **Voiding a report:** Managers can click **Void** on any report with **Pending Sign-off** status. This marks it as voided — stock quantities that were already applied are **not** reversed. Use this if the count was done incorrectly and needs to be restarted.
 
 > **Admin note:** If a stock take draft with Stock Take Mode enabled is blocking sales for a business (e.g. the count was abandoned and the cashier cannot process transactions), a system administrator can force-delete it from **Admin → Blocking Stock Take Drafts**. See [Admin — Blocking Stock Take Drafts](#admin--blocking-stock-take-drafts).
+
+---
+
+### Merging Duplicate Inventory Items
+
+If the same product was accidentally created twice (e.g. "Miller Genuine Draft Beer" appearing twice with separate stock quantities), managers can merge them into a single record without losing any stock data.
+
+> **Who can merge:** Managers and business owners only.
+
+#### Starting a Merge
+
+1. On any inventory page (Grocery, Clothing, Hardware, or Restaurant), click **🔀 Merge Mode** in the toolbar.
+2. Checkboxes appear on every row — the grid switches to selection mode.
+3. Tick **two or more** items you want to merge.
+4. A **Merge** button appears in the toolbar showing the count (e.g. *Merge 2 items*).
+5. Click **Merge** to open the confirmation modal.
+
+#### The Merge Modal
+
+| Field | Description |
+|-------|-------------|
+| **Winner** | The item that survives — auto-selected as the one with the highest current stock. |
+| **Being merged** | All other selected items — they are deactivated after the merge. |
+| **Combined stock** | Total units that will be on the winner after the merge. |
+| **Final name** | Editable — defaults to the winner's name. Change it if neither original name is ideal. |
+
+The modal uses a **two-step confirm** for safety: first click turns the button amber with a warning; second click (red) executes the merge. This action is permanent.
+
+#### What Happens After a Merge
+
+- The winner's stock quantity is increased by the sum of all merged items' stock.
+- An **ADJUSTMENT** stock movement is recorded on the winner, labelled *"Merged from [item names]"* — visible in the stock movements log as the audit trail.
+- All merged items are marked **inactive** and no longer appear in the inventory list.
+
+#### Exiting Merge Mode
+
+Click **Exit Merge** (or **🔀 Merge Mode** again) to return to the normal inventory view. Any unconfirmed selections are discarded.
+
+---
+
+### Inventory Activity Report — Per-Item Stock History
+
+The **Activity Report** shows a day-by-day breakdown of stock movements for a single inventory item: units received, sold, adjusted, lost, and any unexplained variance.
+
+#### Opening the Report
+
+- From the inventory grid, click the **📊** button in the item's Actions column.
+- Or open an item's detail view and click **📊 Activity**.
+
+#### Reading the Report
+
+Each row represents one calendar day:
+
+| Column | What it shows |
+|--------|--------------|
+| **Date** | The calendar day |
+| **Added** | Units received into stock (restocked) |
+| **Sold** | Units sold at the POS |
+| **Adjusted** | Manual stock corrections |
+| **Lost** | Units marked as lost or damaged |
+| **Variance** | Unexplained difference between expected and actual closing stock |
+
+#### Showing and Hiding Blank Days
+
+Days with no activity are included by default.
+
+- Click **Hide blank days** to collapse them and show only days with actual movement. The button switches to **Show blank days** to restore the full view.
+- When blank days are hidden, a **dashed amber line** and a **`+Nd` badge** appear between any two non-consecutive dates, indicating how many days were skipped. For example, `+4d` between two rows means four consecutive days had no activity.
+
+#### Printing / Saving as PDF
+
+Click **Print / Save PDF** — a new browser window opens with a clean, print-ready version of the report. Blank days are always removed from the printed version automatically to save paper. Use your browser's **Print → Save as PDF** option to create a PDF copy.
 
 ---
 
@@ -5352,6 +5438,48 @@ Click **Submit Payment** to record the payment.
 - **Personal accounts:** The balance is debited immediately and the payment appears in the transaction history.
 - **Business accounts (non-admin):** The payment is placed **IN QUEUE** (amber badge) and appears in your **My Payment Queue** panel. It will be included in the next batch submitted by a cashier or manager. Your balance is debited when the batch is submitted.
 - **Business accounts (admin / owner):** The payment is submitted directly without queuing.
+
+---
+
+### Recent Payments to Payee
+
+When you select a **Payee** in either the **Quick Payment** modal or the **Edit Payment** modal, the system automatically looks up the two most recent payments previously made to that payee from this account and displays them directly below the payee field.
+
+```
+Recent payments to Ngonidzashe Mapfumo
+  $45.00   🏠 Home › Vehicle and Transport   SUBMITTED   View →
+  $12.50   🛒 Grocery › Staff Welfare         SUBMITTED   View →
+```
+
+This helps you:
+- Spot duplicate payments before submitting (e.g. the same supplier was just paid yesterday).
+- Check how much was paid last time and for what category.
+- Quickly confirm the correct payee is selected before entering an amount.
+
+The panel appears automatically as soon as a payee is chosen and disappears if you clear the payee field. If the payee has no previous payments in this account the panel is not shown.
+
+#### Viewing Full Payment Details
+
+Each row in the recent payments list has a **View →** link on the right side. Clicking it opens a **Payment Detail** overlay — a compact popup that shows all information about that payment without leaving the current modal.
+
+The Payment Detail overlay shows:
+
+| Field | Notes |
+|-------|-------|
+| **Payee** | Full name of the person, employee, or supplier |
+| **ID** | National ID of the payee (employees and individuals only, if recorded) |
+| **Phone** | Formatted phone number (employees, individuals, and suppliers) |
+| **Amount** | Payment amount |
+| **Date** | Payment date |
+| **Category** | Domain category (with emoji) |
+| **Subcategory** | If set |
+| **Channel** | 📱 EcoCash or 💵 Cash |
+| **Status** | Colour-coded status badge |
+| **Receipt #** | If recorded |
+| **Notes** | Payment notes |
+| **Created by** | Staff member who created the payment |
+
+Close the overlay by clicking **Close** or clicking anywhere outside the popup. The Quick Payment or Edit Payment modal remains open underneath.
 
 ---
 

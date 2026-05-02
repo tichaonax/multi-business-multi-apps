@@ -14,6 +14,7 @@ import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { getTodayLocalDateString } from '@/lib/date-utils'
 import type { BusinessMembership } from '@/types/permissions'
 import { LineItemsInput, type LineItem } from './line-items-input'
+import { PaymentDetailModal } from './payment-detail-modal'
 
 // Searchable select dropdown (same pattern as payment-form)
 function SearchableSelect({
@@ -383,6 +384,14 @@ export function QuickPaymentModal({
 
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
 
+  // Recent payments to selected payee
+  const [recentPayeePayments, setRecentPayeePayments] = useState<Array<{
+    id: string; amount: number; paymentDate: string
+    category: { name: string; emoji: string } | null; status: string
+  }>>([])
+  const [loadingRecentPayments, setLoadingRecentPayments] = useState(false)
+  const [viewPaymentId, setViewPaymentId] = useState<string | null>(null)
+
   const [formData, setFormData] = useState({
     payee: presetPayee ?? null as { type: string; id: string; name: string } | null,
     categoryId: '',
@@ -575,6 +584,18 @@ export function QuickPaymentModal({
       }
     }
   }, [categories, activeBusinessType, activeDomainOverride])
+
+  // Fetch 2 most recent payments to the selected payee
+  useEffect(() => {
+    const p = formData.payee
+    if (!p?.type || !p?.id || !activeAccountId) { setRecentPayeePayments([]); return }
+    setLoadingRecentPayments(true)
+    fetch(`/api/expense-account/${activeAccountId}/payments?payeeType=${p.type}&payeeId=${p.id}&limit=2`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setRecentPayeePayments(d?.data?.payments?.slice(0, 2) || []))
+      .catch(() => {})
+      .finally(() => setLoadingRecentPayments(false))
+  }, [formData.payee?.type, formData.payee?.id, activeAccountId])
 
   // Load subcategories when category changes (skip for RENT and domain-override mode — those handle loading directly)
   useEffect(() => {
@@ -1251,6 +1272,7 @@ export function QuickPaymentModal({
   if (!isOpen) return null
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md sm:max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
         {/* Header */}
@@ -1418,6 +1440,37 @@ export function QuickPaymentModal({
               </div>
             )}
           </div>
+
+          {/* ── Recent payments to this payee ────────────────────────── */}
+          {(loadingRecentPayments || recentPayeePayments.length > 0) && (
+            <div className="mb-4">
+              {loadingRecentPayments ? (
+                <p className="text-xs text-gray-400 py-1">Loading recent payments…</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-gray-400 font-medium">
+                    Last {recentPayeePayments.length} payment{recentPayeePayments.length !== 1 ? 's' : ''} to {formData.payee?.name}
+                  </p>
+                  {recentPayeePayments.map(p => (
+                    <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-border rounded text-xs">
+                      <span className="text-gray-400 shrink-0 tabular-nums">{p.paymentDate.slice(0, 10)}</span>
+                      <span className="text-gray-600 dark:text-gray-300 flex-1 min-w-0 truncate">
+                        {p.category?.emoji} {p.category?.name || '—'}
+                      </span>
+                      <span className="font-semibold text-primary shrink-0">${p.amount.toFixed(2)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setViewPaymentId(p.id)}
+                        className="text-blue-500 hover:text-blue-700 dark:text-blue-400 shrink-0 hover:underline text-xs"
+                      >
+                        View →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Two-column grid on desktop ───────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -2050,5 +2103,15 @@ export function QuickPaymentModal({
         </div>
       )}
     </div>
+
+    {viewPaymentId && (
+      <PaymentDetailModal
+        isOpen={true}
+        onClose={() => setViewPaymentId(null)}
+        accountId={activeAccountId}
+        paymentId={viewPaymentId}
+      />
+    )}
+    </>
   )
 }
