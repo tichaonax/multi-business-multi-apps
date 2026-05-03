@@ -32,6 +32,8 @@ export type NotificationType =
   | 'COMBO_REQUEST_CANCELLED'
   | 'COMBO_REQUEST_PAID'
   | 'COMBO_REQUEST_RETURNED'
+  | 'COMBO_REQUEST_SETTLE_REQUESTED'
+  | 'COMBO_REQUEST_SETTLED'
 
 export interface NotificationPayload {
   userIds: string[]

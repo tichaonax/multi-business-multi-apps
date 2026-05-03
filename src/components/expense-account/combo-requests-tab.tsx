@@ -23,6 +23,8 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   PARTIALLY_APPROVED: { label: 'Partial',        className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
   PARTIALLY_PAID:     { label: 'Partially Paid', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
   PAID:               { label: 'Paid',           className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  SETTLE_REQUESTED:   { label: 'Awaiting Settlement', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
+  SETTLED:            { label: 'Settled',         className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
   CANCELLED:          { label: 'Cancelled',      className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 }
 
@@ -64,6 +66,7 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
 
   const pendingCount = requests.filter(r => r.status === 'SUBMITTED').length
   const returnedCount = requests.filter(r => r.status === 'DRAFT' && r.returnNote).length
+  const settleRequestedCount = requests.filter(r => r.status === 'SETTLE_REQUESTED').length
 
   return (
     <div className="space-y-3">
@@ -79,6 +82,11 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
           {returnedCount > 0 && (
             <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
               ↩ {returnedCount} needs revision
+            </span>
+          )}
+          {settleRequestedCount > 0 && (
+            <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-[10px] font-bold bg-purple-500 text-white">
+              💰 {settleRequestedCount} awaiting settlement
             </span>
           )}
         </div>

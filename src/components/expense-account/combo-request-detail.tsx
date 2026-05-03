@@ -59,6 +59,14 @@ interface ComboRequest {
   // Server-computed action permissions
   canApprove: boolean
   canReturn: boolean
+  canRequestSettle: boolean
+  canConfirmSettle: boolean
+  remainingBalance: number
+  // Settle fields
+  settleRequestedAt: string | null
+  settleConfirmedAt: string | null
+  settler: { id: string; name: string } | null
+  settleNote: string | null
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -69,6 +77,8 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   PARTIALLY_PAID:     { label: 'Partially Paid',    className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
   PAID:               { label: 'Paid',              className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
   CANCELLED:          { label: 'Cancelled',         className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  SETTLE_REQUESTED:   { label: 'Awaiting Settlement', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
+  SETTLED:            { label: 'Settled',           className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
 }
 
 const SECTION_ICONS: Record<string, string> = {
@@ -120,6 +130,10 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const [showReturnPanel, setShowReturnPanel] = useState(false)
   const [returnNoteInput, setReturnNoteInput] = useState('')
   const [returning, setReturning] = useState(false)
+  const [showSettlePanel, setShowSettlePanel] = useState(false)
+  const [settleConfirmPanel, setSettleConfirmPanel] = useState(false)
+  const [settleConfirmNote, setSettleConfirmNote] = useState('')
+  const [settleSubmitting, setSettleSubmitting] = useState(false)
 
   const loadRequest = useCallback(async () => {
     try {
@@ -138,6 +152,13 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           returnNote: req.returnNote ?? null,
           returnedAt: req.returnedAt ?? null,
           returnedByUser: req.returnedByUser ?? null,
+          settleRequestedAt: req.settleRequestedAt ?? null,
+          settleConfirmedAt: req.settleConfirmedAt ?? null,
+          settler: req.settler ?? null,
+          settleNote: req.settleNote ?? null,
+          canRequestSettle: req.canRequestSettle ?? false,
+          canConfirmSettle: req.canConfirmSettle ?? false,
+          remainingBalance: Number(req.remainingBalance ?? 0),
           sections: req.sections.map((s: any) => ({
             ...s,
             items: s.items.map((i: any) => ({
@@ -253,12 +274,45 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <div className="text-gray-400 text-sm">Loading...</div>
-      </div>
-    )
+  async function handleSettleRequest() {
+    setSettleSubmitting(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/combo-requests/${requestId}/settle-request`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error || 'Failed to send settle request'); return }
+      toast.push('Settlement request sent to cashier')
+      setShowSettlePanel(false)
+      loadRequest()
+    } catch {
+      toast.error('Failed to send settle request')
+    } finally {
+      setSettleSubmitting(false)
+    }
+  }
+
+  async function handleSettleConfirm() {
+    setSettleSubmitting(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/combo-requests/${requestId}/settle-confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ note: settleConfirmNote.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error || 'Failed to confirm settlement'); return }
+      toast.push('Settlement confirmed')
+      setSettleConfirmPanel(false)
+      setSettleConfirmNote('')
+      loadRequest()
+    } catch {
+      toast.error('Failed to confirm settlement')
+    } finally {
+      setSettleSubmitting(false)
+    }
   }
 
   if (!request) {
@@ -280,6 +334,8 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const canCancel = isCreator && ['DRAFT', 'SUBMITTED'].includes(request.status)
   const canMarkPaid = isCreator && ['APPROVED', 'PARTIALLY_APPROVED', 'PARTIALLY_PAID'].includes(request.status)
   const canReturn = request.canReturn
+  const canRequestSettle = request.canRequestSettle
+  const canConfirmSettle = request.canConfirmSettle
   const overrideAmountValid = !isNaN(parseFloat(overrideAmountStr)) && parseFloat(overrideAmountStr) > 0
   const returnNoteValid = returnNoteInput.trim().length >= 10
 
@@ -311,6 +367,30 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               ↩ Returned for edits{request.returnedByUser ? ` by ${request.returnedByUser.name}` : ''}
             </p>
             <p className="mt-1 text-yellow-700 dark:text-yellow-400 italic">&ldquo;{request.returnNote}&rdquo;</p>
+          </div>
+        )}
+
+        {/* Settle requested banner */}
+        {request.status === 'SETTLE_REQUESTED' && (
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg px-4 py-3 text-sm">
+            <p className="font-medium text-purple-800 dark:text-purple-300">
+              💰 Awaiting settlement — <span className="font-bold">${request.remainingBalance.toFixed(2)}</span> to be returned to the cashier
+            </p>
+            <p className="mt-1 text-purple-700 dark:text-purple-400 text-xs">
+              The requester has notified the cashier that they are returning the remaining change.
+            </p>
+          </div>
+        )}
+
+        {/* Settled banner */}
+        {request.status === 'SETTLED' && (
+          <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg px-4 py-3 text-sm">
+            <p className="font-medium text-teal-800 dark:text-teal-300">
+              ✓ Settled{request.settler ? ` by ${request.settler.name}` : ''}{request.settleConfirmedAt ? ` on ${fmtDate(request.settleConfirmedAt)}` : ''}
+            </p>
+            {request.settleNote && (
+              <p className="mt-1 text-teal-700 dark:text-teal-400 italic">&ldquo;{request.settleNote}&rdquo;</p>
+            )}
           </div>
         )}
 
@@ -401,6 +481,22 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               ↩ Return for Edits
             </button>
           )}
+          {canRequestSettle && (
+            <button
+              onClick={() => setShowSettlePanel(v => !v)}
+              className="px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+            >
+              💰 Request Settlement
+            </button>
+          )}
+          {canConfirmSettle && (
+            <button
+              onClick={() => setSettleConfirmPanel(v => !v)}
+              className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
+            >
+              ✓ Confirm Change Received
+            </button>
+          )}
           {canCancel && (
             <button
               onClick={handleCancel}
@@ -449,6 +545,66 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               </button>
               <button
                 onClick={() => { setShowReturnPanel(false); setReturnNoteInput('') }}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Settle request panel — shown to requester */}
+        {showSettlePanel && canRequestSettle && (
+          <div className="mt-2 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-3">
+            <p className="text-sm text-purple-800 dark:text-purple-300 font-medium">💰 Request Settlement</p>
+            <p className="text-xs text-purple-700 dark:text-purple-400">
+              You spent less than the approved amount. Notify the cashier that you are returning the remaining change of{' '}
+              <span className="font-semibold">${request.remainingBalance.toFixed(2)}</span>.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSettleRequest}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Notify Cashier
+              </button>
+              <button
+                onClick={() => setShowSettlePanel(false)}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Settle confirm panel — shown to cashier */}
+        {settleConfirmPanel && canConfirmSettle && (
+          <div className="mt-2 p-4 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg space-y-3">
+            <p className="text-sm text-teal-800 dark:text-teal-300 font-medium">✓ Confirm Change Received</p>
+            <p className="text-xs text-teal-700 dark:text-teal-400">
+              Confirm that you have received the remaining change of{' '}
+              <span className="font-semibold">${request.remainingBalance.toFixed(2)}</span> from the requester.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-teal-700 dark:text-teal-400 mb-1">Note (optional)</label>
+              <textarea
+                rows={2}
+                value={settleConfirmNote}
+                onChange={e => setSettleConfirmNote(e.target.value)}
+                placeholder="e.g. Received in cash."
+                className="w-full border border-teal-300 dark:border-teal-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSettleConfirm}
+                className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
+              >
+                Confirm Receipt
+              </button>
+              <button
+                onClick={() => { setSettleConfirmPanel(false); setSettleConfirmNote('') }}
                 className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancel
@@ -637,6 +793,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           itemId={markPaidItem.id}
           itemDescription={markPaidItem.description}
           approvedAmount={markPaidItem.approvedAmount}
+          estimatedAmount={markPaidItem.estimatedAmount}
         />
       )}
 

@@ -3450,6 +3450,7 @@ model Users {
   combo_requests_created                                          ComboPaymentRequests[]           @relation("ComboRequestCreator")
   combo_requests_approved                                         ComboPaymentRequests[]           @relation("ComboRequestApprover")
   combo_requests_returned                                         ComboPaymentRequests[]           @relation("ComboRequestReturnedBy")
+  combo_requests_settled                                          ComboPaymentRequests[]           @relation("ComboRequestSettler")
   combo_section_payee                                             ComboPaymentRequestSections[]    @relation("ComboSectionPayeeUser")
   combo_item_payee                                                ComboPaymentRequestItems[]       @relation("ComboItemPayeeUser")
   expense_account_accesses                                        ExpenseAccountUserAccess[]       @relation("UserExpenseAccountAccesses")
@@ -6812,6 +6813,8 @@ enum ComboPaymentRequestStatus {
   PARTIALLY_PAID
   PAID
   CANCELLED
+  SETTLE_REQUESTED
+  SETTLED
 }
 
 enum ComboPaymentRequestSectionType {
@@ -6822,32 +6825,37 @@ enum ComboPaymentRequestSectionType {
 }
 
 model ComboPaymentRequests {
-  id              String                    @id @default(uuid())
-  accountId       String
-  title           String
-  status          ComboPaymentRequestStatus @default(DRAFT)
-  requestedAmount Decimal                   @default(0) @db.Decimal(12, 2)
-  overrideAmount  Decimal?                  @db.Decimal(12, 2)
-  approvedAmount  Decimal?                  @db.Decimal(12, 2)
-  approvalNote    String?
-  notes           String?
-  createdBy       String
-  submittedAt     DateTime?
-  approvedBy      String?
-  approvedAt      DateTime?
-  paidAt          DateTime?
-  cancelledAt     DateTime?
-  linkedPaymentId String?                   @unique @map("linked_payment_id")
-  returnNote      String?
-  returnedAt      DateTime?
-  returnedBy      String?
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @default(now()) @updatedAt
+  id                String                    @id @default(uuid())
+  accountId         String
+  title             String
+  status            ComboPaymentRequestStatus @default(DRAFT)
+  requestedAmount   Decimal                   @default(0) @db.Decimal(12, 2)
+  overrideAmount    Decimal?                  @db.Decimal(12, 2)
+  approvedAmount    Decimal?                  @db.Decimal(12, 2)
+  approvalNote      String?
+  notes             String?
+  createdBy         String
+  submittedAt       DateTime?
+  approvedBy        String?
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  cancelledAt       DateTime?
+  linkedPaymentId   String?                   @unique @map("linked_payment_id")
+  returnNote        String?
+  returnedAt        DateTime?
+  returnedBy        String?
+  settleRequestedAt DateTime?                 @map("settle_requested_at")
+  settleConfirmedAt DateTime?                 @map("settle_confirmed_at")
+  settledBy         String?                   @map("settled_by")
+  settleNote        String?                   @map("settle_note")
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @default(now()) @updatedAt
 
   expenseAccount ExpenseAccounts               @relation("ExpenseAccountComboRequests", fields: [accountId], references: [id], onDelete: Cascade)
   creator        Users                         @relation("ComboRequestCreator", fields: [createdBy], references: [id])
   approver       Users?                        @relation("ComboRequestApprover", fields: [approvedBy], references: [id])
   returnedByUser Users?                        @relation("ComboRequestReturnedBy", fields: [returnedBy], references: [id])
+  settler        Users?                        @relation("ComboRequestSettler", fields: [settledBy], references: [id])
   linkedPayment  ExpenseAccountPayments?       @relation("ComboLinkedPayment", fields: [linkedPaymentId], references: [id])
   sections       ComboPaymentRequestSections[]
   items          ComboPaymentRequestItems[]

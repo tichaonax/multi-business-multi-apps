@@ -12,6 +12,7 @@ interface ComboMarkPaidModalProps {
   itemId: string
   itemDescription: string
   approvedAmount: number | null
+  estimatedAmount: number | null
 }
 
 export function ComboMarkPaidModal({
@@ -23,12 +24,17 @@ export function ComboMarkPaidModal({
   itemId,
   itemDescription,
   approvedAmount,
+  estimatedAmount,
 }: ComboMarkPaidModalProps) {
   const toast = useToastContext()
   const [paidAmount, setPaidAmount] = useState('')
   const [receiptNumber, setReceiptNumber] = useState('')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [quickSubmitting, setQuickSubmitting] = useState(false)
+
+  // The canonical amount: approved if set (and non-zero), else estimated
+  const originalAmount = (approvedAmount !== null && approvedAmount > 0 ? approvedAmount : estimatedAmount) ?? null
 
   useEffect(() => {
     if (isOpen) {
@@ -40,8 +46,9 @@ export function ComboMarkPaidModal({
 
   if (!isOpen) return null
 
-  async function handleSubmit() {
-    setSubmitting(true)
+  async function submitWith(amount: number | undefined, quiet = false) {
+    const setter = quiet ? setQuickSubmitting : setSubmitting
+    setter(true)
     try {
       const res = await fetch(
         `/api/expense-account/${accountId}/combo-requests/${requestId}/items/${itemId}`,
@@ -50,7 +57,7 @@ export function ComboMarkPaidModal({
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            paidAmount: paidAmount ? Number(paidAmount) : undefined,
+            paidAmount: amount,
             receiptNumber: receiptNumber.trim() || undefined,
             notes: notes.trim() || undefined,
           }),
@@ -63,8 +70,17 @@ export function ComboMarkPaidModal({
     } catch {
       toast.error('Failed to mark item as paid')
     } finally {
-      setSubmitting(false)
+      setter(false)
     }
+  }
+
+  async function handleSubmit() {
+    await submitWith(paidAmount ? Number(paidAmount) : undefined)
+  }
+
+  async function handleQuickPay() {
+    if (originalAmount === null) return
+    await submitWith(originalAmount, true)
   }
 
   return (
@@ -131,9 +147,19 @@ export function ComboMarkPaidModal({
           >
             Cancel
           </button>
+          {originalAmount !== null && (
+            <button
+              onClick={handleQuickPay}
+              disabled={submitting || quickSubmitting}
+              className="px-4 py-2 text-sm font-medium text-green-700 border border-green-400 bg-green-50 rounded-lg hover:bg-green-100 disabled:opacity-50 transition-colors whitespace-nowrap"
+              title={`Mark as paid at $${originalAmount.toFixed(2)} in one click`}
+            >
+              {quickSubmitting ? 'Saving...' : `✓ Paid $${originalAmount.toFixed(2)}`}
+            </button>
+          )}
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || quickSubmitting}
             className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {submitting ? 'Saving...' : 'Mark as Paid'}

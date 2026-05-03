@@ -11,6 +11,7 @@ async function getComboRequest(requestId: string, accountId: string) {
       creator:        { select: { id: true, name: true } },
       approver:       { select: { id: true, name: true } },
       returnedByUser: { select: { id: true, name: true } },
+      settler:        { select: { id: true, name: true } },
       linkedPayment:  { select: { id: true, status: true, amount: true } },
       sections: {
         orderBy: { sortOrder: 'asc' },
@@ -71,7 +72,17 @@ export async function GET(
     const canApprove = isCashier && comboRequest.status === 'SUBMITTED'
     const canReturn = isCashier && comboRequest.status === 'SUBMITTED' && comboRequest.createdBy !== user.id
 
-    return NextResponse.json({ success: true, data: { ...comboRequest, canApprove, canReturn } })
+    // Settle workflow permissions
+    const allItems = comboRequest.sections.flatMap(s => s.items)
+    const totalPaid = allItems.reduce((sum, i) => sum + Number(i.paidAmount ?? 0), 0)
+    const approvedAmt = Number(comboRequest.approvedAmount ?? 0)
+    const remainingBalance = approvedAmt - totalPaid
+    const canRequestSettle = comboRequest.createdBy === user.id
+      && comboRequest.status === 'PAID'
+      && remainingBalance > 0
+    const canConfirmSettle = isCashier && comboRequest.status === 'SETTLE_REQUESTED'
+
+    return NextResponse.json({ success: true, data: { ...comboRequest, canApprove, canReturn, canRequestSettle, canConfirmSettle, remainingBalance } })
   } catch (error) {
     console.error('Error fetching combo request:', error)
     return NextResponse.json({ error: 'Failed to fetch combo request' }, { status: 500 })

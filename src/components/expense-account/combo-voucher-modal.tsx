@@ -81,6 +81,12 @@ export function ComboVoucherModal({
   const totalItems = allItems.length
   const paidItems = allItems.filter(i => i.isPaid).length
   const notFundedItems = allItems.filter(i => i.approvedAmount !== null && i.approvedAmount === 0).length
+  const fundedItems = totalItems - notFundedItems
+  const allFundedPaid = paidItems === fundedItems && fundedItems > 0
+  const totalPaid = allItems.reduce((sum, i) => sum + (i.paidAmount ?? 0), 0)
+  const changeToReturn = allFundedPaid && request.approvedAmount !== null && request.approvedAmount > totalPaid
+    ? request.approvedAmount - totalPaid
+    : null
 
   function handleDownload() {
     setGenerating(true)
@@ -162,6 +168,12 @@ export function ComboVoucherModal({
               <div className="flex justify-between">
                 <span className="text-gray-500">Approved</span>
                 <span className="font-medium text-green-700">{fmt(request.approvedAmount)}</span>
+              </div>
+            )}
+            {changeToReturn !== null && (
+              <div className="flex justify-between bg-amber-50 border border-amber-200 rounded px-2 py-1.5 -mx-1">
+                <span className="text-amber-700 font-medium">⚠ Change to Return</span>
+                <span className="font-bold text-amber-800">{fmt(changeToReturn)}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-gray-200 pt-2 mt-2">

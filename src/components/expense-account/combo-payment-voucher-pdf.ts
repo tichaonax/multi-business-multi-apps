@@ -320,6 +320,13 @@ export function generateComboVoucherPdf(data: ComboVoucherData): void {
   // ── 6. Totals ────────────────────────────────────────────────────────────
   const allItems = data.sections.flatMap(s => s.items)
   const totalPaid = allItems.reduce((sum, i) => sum + (i.paidAmount ?? 0), 0)
+  const notFundedCount = allItems.filter(i => i.approvedAmount !== null && i.approvedAmount === 0).length
+  const fundedCount = allItems.length - notFundedCount
+  const paidCount = allItems.filter(i => i.isPaid).length
+  const allFundedPaid = fundedCount > 0 && paidCount === fundedCount
+  const changeToReturn = allFundedPaid && data.approvedAmount !== null && data.approvedAmount > totalPaid
+    ? data.approvedAmount - totalPaid
+    : null
 
   const totalsRows: { label: string; value: string }[] = [
     { label: 'Requested Total', value: fmtAmt(effectiveRequested) },
@@ -331,6 +338,22 @@ export function generateComboVoucherPdf(data: ComboVoucherData): void {
     totalsRows.push({ label: 'Total Paid Out', value: fmtAmt(totalPaid) })
   }
   infoSection('Totals', totalsRows)
+
+  // Standalone change-to-return box (B&W printer friendly — border only, no fill)
+  if (changeToReturn !== null) {
+    guardPage(16)
+    const boxH = 13
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(...BLACK)
+    doc.setLineWidth(1.2)
+    doc.rect(margin, y, contentW, boxH, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(...BLACK)
+    doc.text('** CHANGE TO RETURN TO CASHIER **', margin + 4, y + 8.5)
+    doc.text(fmtAmt(changeToReturn), pageW - margin - 4, y + 8.5, { align: 'right' })
+    y += boxH + 4
+  }
 
   // ── 7. Signature lines ────────────────────────────────────────────────────
   guardPage(40)
