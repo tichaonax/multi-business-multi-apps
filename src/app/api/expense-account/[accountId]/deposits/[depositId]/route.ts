@@ -162,16 +162,6 @@ export async function GET(
       }
     }
 
-    // For COMBO_SETTLE deposits: look up the originating combo request
-    let comboRequestId: string | null = null
-    if (deposit.sourceType === 'COMBO_SETTLE') {
-      const comboLink = await prisma.comboPaymentRequests.findFirst({
-        where: { accountId, settleDeposits: { some: { id: depositId } } },
-        select: { id: true },
-      })
-      comboRequestId = comboLink?.id ?? null
-    }
-
     return NextResponse.json({
       success: true,
       data: {
@@ -193,8 +183,6 @@ export async function GET(
           // For ACCOUNT_TRANSFER: link back to the source payment (MBM-198)
           sourceTransferPaymentId: (deposit as any).source_transfer_payment?.id ?? null,
           sourceTransferAccountId: (deposit as any).source_transfer_payment?.expenseAccountId ?? null,
-          // For COMBO_SETTLE: link to the originating combo request
-          comboRequestId,
           // For COMBO_SETTLE: link to the originating combo request
           comboRequestId,
         },
