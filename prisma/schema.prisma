@@ -3449,6 +3449,7 @@ model Users {
   order_cancellations_approved                                    OrderCancellation[]              @relation("CancellationApproved")
   combo_requests_created                                          ComboPaymentRequests[]           @relation("ComboRequestCreator")
   combo_requests_approved                                         ComboPaymentRequests[]           @relation("ComboRequestApprover")
+  combo_requests_returned                                         ComboPaymentRequests[]           @relation("ComboRequestReturnedBy")
   combo_section_payee                                             ComboPaymentRequestSections[]    @relation("ComboSectionPayeeUser")
   combo_item_payee                                                ComboPaymentRequestItems[]       @relation("ComboItemPayeeUser")
   expense_account_accesses                                        ExpenseAccountUserAccess[]       @relation("UserExpenseAccountAccesses")
@@ -6837,12 +6838,16 @@ model ComboPaymentRequests {
   paidAt          DateTime?
   cancelledAt     DateTime?
   linkedPaymentId String?                   @unique @map("linked_payment_id")
+  returnNote      String?
+  returnedAt      DateTime?
+  returnedBy      String?
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @default(now()) @updatedAt
 
   expenseAccount ExpenseAccounts               @relation("ExpenseAccountComboRequests", fields: [accountId], references: [id], onDelete: Cascade)
   creator        Users                         @relation("ComboRequestCreator", fields: [createdBy], references: [id])
   approver       Users?                        @relation("ComboRequestApprover", fields: [approvedBy], references: [id])
+  returnedByUser Users?                        @relation("ComboRequestReturnedBy", fields: [returnedBy], references: [id])
   linkedPayment  ExpenseAccountPayments?       @relation("ComboLinkedPayment", fields: [linkedPaymentId], references: [id])
   sections       ComboPaymentRequestSections[]
   items          ComboPaymentRequestItems[]

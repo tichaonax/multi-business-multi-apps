@@ -45,6 +45,7 @@ function newItem(): ComboItem {
     unit: '',
     unitPrice: '',
     estimatedAmount: '',
+    domainId: '',
     categoryId: '',
     subcategoryId: '',
     payee: null,

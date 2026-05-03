@@ -4,7 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ accountId: string; requestId: string }> }
 ) {
   try {
@@ -25,10 +25,20 @@ export async function POST(
       return NextResponse.json({ error: 'Only the creator can submit this request' }, { status: 403 })
     }
 
+    const body = await request.json().catch(() => ({}))
+    const overrideAmountRaw = body?.overrideAmount
+    const overrideAmount = overrideAmountRaw !== undefined && overrideAmountRaw !== null && String(overrideAmountRaw).trim() !== ''
+      ? Number(overrideAmountRaw)
+      : undefined
+
     const now = new Date()
     const updated = await prisma.comboPaymentRequests.update({
       where: { id: requestId },
-      data: { status: 'SUBMITTED', submittedAt: now },
+      data: {
+        status: 'SUBMITTED',
+        submittedAt: now,
+        ...(overrideAmount !== undefined ? { overrideAmount } : {}),
+      },
     })
 
     // Notify cashiers/managers (non-blocking)
@@ -43,7 +53,7 @@ export async function POST(
           userIds: cashierIds,
           type: 'COMBO_REQUEST_SUBMITTED',
           title: 'New Combo Request',
-          message: `${user.name} submitted "${comboRequest.title}" — $${Number(comboRequest.requestedAmount).toFixed(2)}`,
+          message: `${user.name} submitted "${comboRequest.title}" — $${(overrideAmount ?? Number(comboRequest.requestedAmount)).toFixed(2)}`,
           linkUrl: `/expense-accounts/${accountId}/combo-requests/${requestId}`,
         })
       }

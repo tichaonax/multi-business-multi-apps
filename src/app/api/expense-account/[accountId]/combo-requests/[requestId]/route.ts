@@ -8,12 +8,30 @@ async function getComboRequest(requestId: string, accountId: string) {
   return prisma.comboPaymentRequests.findFirst({
     where: { id: requestId, accountId },
     include: {
-      creator: { select: { id: true, name: true } },
-      approver: { select: { id: true, name: true } },
-      linkedPayment: { select: { id: true, status: true, amount: true } },
+      creator:        { select: { id: true, name: true } },
+      approver:       { select: { id: true, name: true } },
+      returnedByUser: { select: { id: true, name: true } },
+      linkedPayment:  { select: { id: true, status: true, amount: true } },
       sections: {
         orderBy: { sortOrder: 'asc' },
-        include: { items: { orderBy: { sortOrder: 'asc' } } },
+        include: {
+          payeePerson:   { select: { id: true, fullName: true } },
+          payeeUser:     { select: { id: true, name: true } },
+          payeeEmployee: { select: { id: true, fullName: true } },
+          payeeBusiness: { select: { id: true, name: true } },
+          payeeSupplier: { select: { id: true, name: true } },
+          items: {
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              payeePerson:   { select: { id: true, fullName: true } },
+              payeeUser:     { select: { id: true, name: true } },
+              payeeEmployee: { select: { id: true, fullName: true } },
+              payeeBusiness: { select: { id: true, name: true } },
+              payeeSupplier: { select: { id: true, name: true } },
+              category:      { select: { id: true, domainId: true } },
+            },
+          },
+        },
       },
     },
   })

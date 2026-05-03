@@ -15,6 +15,7 @@ export interface ComboItem {
   unit: string
   unitPrice: string
   estimatedAmount: string
+  domainId: string
   categoryId: string
   subcategoryId: string
   payee: { type: string; id: string; name: string } | null
@@ -111,18 +112,20 @@ function SearchSelect({
 // Domain → Category → Sub-Category cascade + on-demand suggest
 function ItemCategorySelector({
   domains,
+  defaultDomainId,
   categoryId,
   subcategoryId,
   description,
   onChange,
 }: {
   domains: Domain[]
+  defaultDomainId?: string
   categoryId: string
   subcategoryId: string
   description: string
   onChange: (categoryId: string, subcategoryId: string) => void
 }) {
-  const [domainId, setDomainId] = useState('')
+  const [domainId, setDomainId] = useState(defaultDomainId ?? '')
   const [categories, setCategories] = useState<{ id: string; label: string }[]>([])
   const [loadingCats, setLoadingCats] = useState(false)
   const [subcategories, setSubcategories] = useState<{ id: string; label: string }[]>([])
@@ -280,7 +283,7 @@ export function ComboRequestItemRow({
   onRemove,
   onAddBelow,
 }: ComboRequestItemRowProps) {
-  const [showExtra, setShowExtra] = useState(false)
+  const [showExtra, setShowExtra] = useState(!!item.payee)
   const descRef = useRef<HTMLInputElement>(null)
 
   // Auto-calculate total when qty × unit price are both filled
@@ -375,6 +378,7 @@ export function ComboRequestItemRow({
         <div className="flex-1 min-w-0">
           <ItemCategorySelector
             domains={domains}
+            defaultDomainId={item.domainId}
             categoryId={item.categoryId}
             subcategoryId={item.subcategoryId}
             description={item.description}
