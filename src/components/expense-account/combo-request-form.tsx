@@ -132,6 +132,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
   }, [])
 
   useEffect(() => {
+    fetch('/api/expense-categories/hierarchical', { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
         // API returns one wrapper: { domains: [{ expense_categories: [...] }] }
