@@ -1412,6 +1412,19 @@ export async function createCleanBackup(
     where: { policyAssignmentId: { in: policyAssignmentIds } }
   })
 
+  // 57. Expense Account User Access & Combo Payment Requests (MBM-197)
+  businessData.expenseAccountUserAccess = await prisma.expenseAccountUserAccess.findMany()
+
+  businessData.comboPaymentRequests = await prisma.comboPaymentRequests.findMany()
+
+  const comboRequestIds = businessData.comboPaymentRequests.map((r: any) => r.id)
+  businessData.comboPaymentRequestSections = comboRequestIds.length > 0
+    ? await prisma.comboPaymentRequestSections.findMany({ where: { requestId: { in: comboRequestIds } } })
+    : []
+  businessData.comboPaymentRequestItems = comboRequestIds.length > 0
+    ? await prisma.comboPaymentRequestItems.findMany({ where: { requestId: { in: comboRequestIds } } })
+    : []
+
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined
 

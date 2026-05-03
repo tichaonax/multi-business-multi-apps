@@ -59,6 +59,8 @@ const NEW_TABLE_KEYS = [
   'policyTemplates', 'policies', 'policyVersions', 'policyAssignments', 'policyAcknowledgments',
   // Payment Cancellation & Manager Override (MBM-192)
   'managerOverrideCodes', 'managerOverrideCodeHistory', 'managerOverrideLogs', 'orderCancellations',
+  // Expense Account Access & Combo Requests (MBM-201)
+  'expenseAccountUserAccess', 'comboPaymentRequests', 'comboPaymentRequestSections', 'comboPaymentRequestItems',
 ]
 
 async function main() {

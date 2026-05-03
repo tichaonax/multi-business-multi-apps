@@ -191,6 +191,13 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
     }
   }, [accountId])
 
+  // Poll every 10s when awaiting settlement so requester sees cashier confirmation automatically
+  useEffect(() => {
+    if (!request || request.status !== 'SETTLE_REQUESTED') return
+    const interval = setInterval(() => { loadRequest() }, 10000)
+    return () => clearInterval(interval)
+  }, [request?.status, loadRequest])
+
   useEffect(() => {
     loadRequest()
     loadBalance()
@@ -348,15 +355,28 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   return (
     <div className="space-y-6">
       {/* Back link */}
-      <button
-        onClick={() => router.push(`/expense-accounts/${accountId}`)}
-        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Back to Account
-      </button>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <button
+          onClick={() => router.push(`/expense-accounts/${accountId}`)}
+          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Account
+        </button>
+        {['APPROVED', 'PARTIALLY_APPROVED', 'PARTIALLY_PAID', 'PAID', 'SETTLE_REQUESTED', 'SETTLED'].includes(request.status) && accountInfo && (
+          <a
+            href={`/expense-accounts/${accountId}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            {accountInfo.accountName} · {accountInfo.accountNumber}
+          </a>
+        )}
+      </div>
 
       {/* Header card */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-4">
@@ -489,7 +509,15 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               💰 Request Settlement
             </button>
           )}
-          {canConfirmSettle && (
+          {/* Requester status indicator when awaiting cashier confirmation */}
+          {isCreator && request.status === 'SETTLE_REQUESTED' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
+              <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+              Awaiting cashier confirmation
+            </span>
+          )}
+          {/* Cashier-only confirm button — never shown to the request creator */}
+          {canConfirmSettle && !isCreator && (
             <button
               onClick={() => setSettleConfirmPanel(v => !v)}
               className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
@@ -564,9 +592,10 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
             <div className="flex gap-2">
               <button
                 onClick={handleSettleRequest}
-                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+                disabled={settleSubmitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Notify Cashier
+                {settleSubmitting ? 'Sending…' : 'Notify Cashier'}
               </button>
               <button
                 onClick={() => setShowSettlePanel(false)}
@@ -578,13 +607,18 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           </div>
         )}
 
-        {/* Settle confirm panel — shown to cashier */}
-        {settleConfirmPanel && canConfirmSettle && (
+        {/* Settle confirm panel — shown to cashier only, never the creator */}
+        {settleConfirmPanel && canConfirmSettle && !isCreator && (
           <div className="mt-2 p-4 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg space-y-3">
             <p className="text-sm text-teal-800 dark:text-teal-300 font-medium">✓ Confirm Change Received</p>
+            <div className="flex items-center justify-between bg-teal-100 dark:bg-teal-900/40 border border-teal-300 dark:border-teal-700 rounded-lg px-4 py-3">
+              <span className="text-xs text-teal-700 dark:text-teal-400 font-medium">Change to collect from requester</span>
+              <span className="text-2xl font-bold text-teal-700 dark:text-teal-300 tracking-tight">
+                ${request.remainingBalance.toFixed(2)}
+              </span>
+            </div>
             <p className="text-xs text-teal-700 dark:text-teal-400">
-              Confirm that you have received the remaining change of{' '}
-              <span className="font-semibold">${request.remainingBalance.toFixed(2)}</span> from the requester.
+              Confirm that you have received the remaining change from the requester.
             </p>
             <div>
               <label className="block text-xs font-medium text-teal-700 dark:text-teal-400 mb-1">Note (optional)</label>
@@ -599,9 +633,10 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
             <div className="flex gap-2">
               <button
                 onClick={handleSettleConfirm}
-                className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
+                disabled={settleSubmitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Confirm Receipt
+                {settleSubmitting ? 'Confirming…' : 'Confirm Receipt'}
               </button>
               <button
                 onClick={() => { setSettleConfirmPanel(false); setSettleConfirmNote('') }}

@@ -291,6 +291,11 @@ const SKIP_BUSINESS_SCOPING = new Set([
   // Payment Cancellation & Manager Override (MBM-192) — user-scoped, no businessId field
   'managerOverrideCodes',        // userId FK, no businessId
   'managerOverrideCodeHistory',  // userId FK, no businessId
+  // Combo Payment Requests & User Access (MBM-197) — keyed by accountId, not businessId
+  'expenseAccountUserAccess',    // accountId + userId, no businessId
+  'comboPaymentRequests',        // accountId FK, no businessId
+  'comboPaymentRequestSections', // requestId child, no businessId
+  'comboPaymentRequestItems',    // requestId child, no businessId
 ])
 
 /**

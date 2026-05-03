@@ -207,6 +207,10 @@ const RESTORE_ORDER = [
   'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger + paymentBatchSubmissions + eodPaymentBatches
   'expensePaymentVouchers',     // depends on expenseAccountPayments + businesses + employees
   'expensePaymentReceipts',     // depends on expenseAccountPayments
+  'expenseAccountUserAccess',   // depends on expenseAccounts + users (MBM-197)
+  'comboPaymentRequests',       // depends on expenseAccounts + users + expenseAccountPayments (MBM-197)
+  'comboPaymentRequestSections', // depends on comboPaymentRequests + persons + users + employees + businesses + businessSuppliers
+  'comboPaymentRequestItems',   // depends on comboPaymentRequests + comboPaymentRequestSections + expenseCategories + expenseSubcategories
   'supplierPaymentRequests',    // Depends on businesses, businessSuppliers, expenseAccounts, users
   'supplierPaymentRequestItems', // Depends on supplierPaymentRequests, expenseCategories, expenseSubcategories
   'supplierPaymentRequestPartials', // Depends on supplierPaymentRequests, expenseAccountPayments, users
@@ -450,6 +454,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Loan Withdrawal Requests: unique on requestNumber
   'loanWithdrawalRequests': 'requestNumber',
+
+  // Expense Account User Access: unique on (accountId, userId)
+  'expenseAccountUserAccess': { fields: ['accountId', 'userId'] },
 
   // Manager Override Codes: unique on userId (one code per user)
   'managerOverrideCodes': 'userId',

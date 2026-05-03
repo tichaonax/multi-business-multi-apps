@@ -65,6 +65,21 @@
     - [Re-ordering from Recent Orders (POS)](#re-ordering-from-recent-orders)
     - [Receipt Watermarks — Reprints & Cancelled Orders](#receipt-watermarks--reprints--cancelled-orders)
 38. [Cancellation Reports](#38-cancellation-reports)
+39. [Combo Payment Requests](#39-combo-payment-requests)
+    - [Requester — Creating a Request](#requester--creating-a-request)
+    - [Requester — Submitting a Request](#requester--submitting-a-request)
+    - [Cashier — Approving a Request](#cashier--approving-a-request)
+    - [Cashier — Returning a Request for Edits](#cashier--returning-a-request-for-edits)
+    - [Requester — Editing a Returned Request](#requester--editing-a-returned-request)
+    - [Requester — Marking Items as Paid](#requester--marking-items-as-paid)
+    - [Requester — Requesting Settlement (Returning Change)](#requester--requesting-settlement-returning-change)
+    - [Cashier — Confirming Settlement](#cashier--confirming-settlement)
+    - [Cancelling a Request](#cancelling-a-request)
+    - [Status Reference](#status-reference)
+40. [Expense Account — Restricted User Access](#40-expense-account--restricted-user-access)
+    - [Granting Access](#granting-access)
+    - [Managing Existing Access](#managing-existing-access)
+    - [Revoking Access](#revoking-access)
 
 ---
 
@@ -7742,6 +7757,320 @@ Click **Export CSV** to download the full log.
 
 **"Cancellation denied — cannot retry" message:**
 - Once a manager denies a cancellation request, it is final. No further attempts are permitted for that specific order. If the denial was in error, contact a system administrator.
+
+---
+
+## 39. Combo Payment Requests
+
+> **Who reads this:** Staff who need to request multiple payments in a single bundled request (requesters), and cashiers or managers who approve and process those requests.
+
+A **Combo Payment Request** lets you bundle several payment needs — grocery shopping, school fees, supplier payments, and more — into one structured request. A cashier reviews and approves the request, you spend the money, and then you mark each item paid as you go. Any remaining change is returned through a formal settlement step.
+
+---
+
+### Overview — How It Works
+
+```
+You create a request (DRAFT)
+    ↓  Submit
+Cashier reviews it (SUBMITTED)
+    ↓  Approve                        ↓  Return for Edits
+Request is funded (APPROVED)          You correct and re-submit (DRAFT)
+    ↓  You spend and mark items paid
+All items paid (PAID)
+    ↓  You notify cashier of remaining change
+Cashier confirms change received (SETTLED)
+```
+
+If only some items are funded, the status will be **PARTIALLY APPROVED** and you can still mark approved items as paid.
+
+---
+
+### Requester — Creating a Request
+
+1. Go to **Expense Accounts** and open the account you want to draw from.
+2. Click **New Combo Request**.
+3. Enter a **Title** (required) — e.g. "July School Fees + Grocery Run".
+4. Optionally add **Notes** for the cashier — e.g. "Fees must be paid by Friday".
+5. Click **+ Add Section** to add a spending category:
+
+| Section type | Use it for |
+|---|---|
+| **Grocery** | Supermarket or fresh produce shopping |
+| **Monthly Contribution** | Recurring payments — clubs, SACCO, insurance |
+| **School Fees** | Tuition, exam fees, school supplies |
+| **Custom** | Anything else — give it a name |
+
+6. Within each section, click **+ Add Item** and fill in:
+   - **Description** (required) — what is being bought or paid
+   - **Quantity** and **Unit** (optional) — e.g. "3 × bags"
+   - **Estimated Amount** — how much you expect to spend
+   - **Category / Sub-category** — expense classification
+   - **Payee** — who is being paid (person, employee, supplier, business, or leave blank)
+   - **Item Notes** — any extra details
+
+7. Repeat for all sections and items. The **Grand Total** at the bottom updates automatically.
+8. Click **Save Draft** at any time to save your work without submitting.
+
+> **Tip:** You can re-open a saved draft any time from the Combo Requests list and continue editing before submitting.
+
+---
+
+### Requester — Submitting a Request
+
+When your request is complete:
+
+1. Click **Submit Request**.
+2. The system saves the latest draft and opens a **Confirm Submission** panel at the bottom of the screen.
+3. The panel shows the **Estimated Total** calculated from all your items.
+4. If the actual amount you need differs from the sum (e.g. you know an item will cost slightly more), you can type a different value in the **Amount to Request** field.
+5. Click **Confirm & Submit**.
+
+The request is sent to the cashier queue. You will receive a notification when it has been approved or returned.
+
+> **Note:** Once submitted you cannot edit the request. If changes are needed, the cashier must return it to you first.
+
+---
+
+### Cashier — Approving a Request
+
+When a user submits a combo request, you receive a notification and it appears on the **Submitted** tab of the Combo Requests list.
+
+1. Open the request to review all sections and items.
+2. Check the account balance shown at the top — it must cover the requested amount.
+3. Click **Approve Request**.
+4. An approval panel opens showing each item with its estimated amount. You can:
+   - Leave an item's amount unchanged to approve it in full.
+   - Reduce an item's amount if the account cannot cover it or you want to limit it.
+   - Set an item's amount to **$0** to mark it as **Not Funded** — the requester will not be able to mark that item as paid.
+5. Optionally add an **Approval Note** (e.g. "Approved $45 for school fees only — grocery budget not available this week").
+6. Click **Confirm Approval**.
+
+The request status changes to **APPROVED** (all items funded) or **PARTIALLY APPROVED** (some items set to $0 or reduced). The requester is notified.
+
+---
+
+### Cashier — Returning a Request for Edits
+
+If the request needs clarification or corrections before you can approve it:
+
+1. Open the submitted request.
+2. Click **↩ Return for Edits**.
+3. An inline panel opens. Type your feedback in the **Return Note** field (minimum 10 characters — be specific so the requester knows what to fix).
+4. Click **Confirm Return**.
+
+The request goes back to **DRAFT** status. The requester receives a notification and sees a yellow banner at the top of the request showing your feedback.
+
+---
+
+### Requester — Editing a Returned Request
+
+When a cashier returns your request:
+
+1. Open the request — you will see a yellow banner: **"↩ Returned for edits by [Cashier Name]"** with the cashier's note.
+2. Make the requested changes — you can edit the title, notes, sections, and items freely while the request is in DRAFT.
+3. When ready, click **Submit Request** again (same confirmation panel as the first submission).
+
+---
+
+### Requester — Marking Items as Paid
+
+Once your request is approved:
+
+1. Open the approved request.
+2. For each item you have spent money on, click **Mark Paid** next to that item.
+3. A panel opens showing:
+   - The item description
+   - The approved amount
+   - A **Paid Amount** field (defaults to the approved amount — change it if you spent a different amount)
+   - A **Receipt Number** field (optional — enter the supplier's receipt or invoice number)
+4. Click **Confirm**.
+
+The item is marked as **Paid** and the total paid amount updates. Once all funded items are marked paid, the request moves to **PAID** status.
+
+> **Not Funded items** (approved for $0) cannot be marked as paid.
+
+---
+
+### Requester — Requesting Settlement (Returning Change)
+
+If you were approved for more than you actually spent, you must notify the cashier so they can collect the remaining change.
+
+1. Open your **PAID** request. A **Remaining Balance** figure is shown (approved amount minus total paid).
+2. Click **Request Settlement**.
+3. An inline panel opens showing the exact amount to return, e.g. **$45.50 to return to cashier**.
+4. Click **Notify Cashier**.
+
+The status changes to **SETTLE REQUESTED**. The page automatically refreshes every 10 seconds while you wait. You will see a pulsing indicator: *"Awaiting cashier confirmation…"*
+
+---
+
+### Cashier — Confirming Settlement
+
+When a requester notifies you of remaining change:
+
+1. You receive a notification or can find the request on the **Settle Requested** tab of the Combo Requests list.
+2. Open the request and review the **Remaining Balance** shown at the top.
+3. Click **Confirm Change Received**.
+4. A panel opens showing the amount to collect.
+5. Optionally add a **Note** (e.g. "Received $45.50 in cash from John").
+6. Click **Confirm Receipt**.
+
+The request is marked **SETTLED**. The audit trail records who confirmed and when.
+
+> **Note:** The Confirm Change Received button is never shown to the person who created the request — only to cashiers and admins.
+
+---
+
+### Cancelling a Request
+
+Either the requester or a cashier can cancel a request that has not yet been fully paid or settled.
+
+1. Open the request.
+2. Click **Cancel Request**.
+3. Confirm the cancellation in the dialog that appears.
+
+The request is marked **CANCELLED**. All cashiers and admins are notified, and if someone other than the creator cancels it, the creator is also notified.
+
+> Requests that are already **PAID** or **SETTLED** cannot be cancelled.
+
+---
+
+### Status Reference
+
+| Status | What it means |
+|---|---|
+| **DRAFT** | Being built by the requester. Can be edited and re-submitted. |
+| **SUBMITTED** | Waiting for cashier review. Cannot be edited by requester. |
+| **APPROVED** | All items funded. Requester can start spending. |
+| **PARTIALLY APPROVED** | Some items funded; others marked Not Funded. |
+| **PARTIALLY PAID** | Some items marked paid; others still outstanding. |
+| **PAID** | All funded items marked as paid. Settlement may be needed if change remains. |
+| **SETTLE REQUESTED** | Requester has notified cashier of remaining change. Awaiting confirmation. |
+| **SETTLED** | Change collected and confirmed. Request fully closed. |
+| **CANCELLED** | Request voided before completion. |
+
+---
+
+### Permissions
+
+| Action | Who can do it |
+|---|---|
+| Create & edit requests | Request creator (DRAFT status only); Admin |
+| Submit | Request creator; Admin |
+| Approve / Return for Edits | Cashiers with expense payment permissions; Admin |
+| Mark items as paid | Request creator; Admin |
+| Request settlement | Request creator (PAID status, remaining balance > $0); Admin |
+| Confirm settlement | Cashiers with expense payment permissions; Admin (not the creator) |
+| Cancel | Request creator; Cashiers; Admin |
+| View all requests | Cashiers; Admin; Users granted full view access |
+| View own requests only | Users granted restricted access (see Section 40) |
+
+---
+
+### Troubleshooting
+
+**Submit button is greyed out:**
+- The title field must not be empty.
+- At least one item with a description is required.
+- Save a draft first if you need to come back to it.
+
+**"Only DRAFT requests can be edited" error:**
+- The request has already been submitted. Ask the cashier to return it if changes are needed.
+
+**Mark Paid button not visible on an item:**
+- The item was approved for $0 (Not Funded) and cannot be marked as paid.
+- The request is not in APPROVED, PARTIALLY APPROVED, or PARTIALLY PAID status.
+
+**"Return note must be at least 10 characters" error:**
+- Cashiers must enter a meaningful explanation when returning a request so the requester knows what to fix.
+
+**Confirm Change Received button not visible:**
+- You created this request. The settlement confirmation must be done by a different cashier or admin.
+
+---
+
+## 40. Expense Account — Restricted User Access
+
+> **Who reads this:** Managers and admins who need to give staff members the ability to submit combo requests from a specific expense account, without giving them full cashier access to the whole system.
+
+By default, only cashiers and admins can interact with expense accounts. The **Restricted Access** panel lets you grant named users a limited, account-specific permission set — for example, allowing a department head to submit their own combo requests without seeing anyone else's payments.
+
+---
+
+### Granting Access
+
+1. Go to **Expense Accounts** and open the account you want to share.
+2. Scroll to the **Restricted Access** section near the bottom of the account detail page.
+3. Click **+ Grant Access**.
+4. A form opens:
+
+   **User** — search by name or email to find the person you want to grant access to.
+
+   Then configure their permissions using the three toggles:
+
+   | Toggle | Default | What it controls |
+   |---|---|---|
+   | **Can submit combo requests** | ON | The user can create and submit new combo payment requests from this account |
+   | **Can only view own requests** | ON | The user sees only the requests they created — not other users' requests or the general payment history |
+   | **Can view account balance** | OFF | The user can see the current account balance on the account page |
+
+5. Click **Grant Access**.
+
+The user appears in the active access list immediately. They receive a notification that access has been granted and the account will appear in their navigation.
+
+> **Tip:** Leave "Can only view own requests" ON unless you specifically need the user to see the full payment history of the account.
+
+---
+
+### Managing Existing Access
+
+The active access list shows each user's current permissions. You can adjust individual toggles at any time:
+
+- Toggle **Can submit requests** to enable or disable their ability to create new requests without revoking all access.
+- Toggle **Can only view own requests** to expand or restrict what they can see.
+- Toggle **Can view balance** to show or hide the account balance for that user.
+
+Changes take effect immediately.
+
+---
+
+### Revoking Access
+
+To remove a user's access entirely:
+
+1. Find the user in the active access list.
+2. Click **Revoke Access** next to their name.
+3. Their entry moves to the **Revoked Access** section (collapsed by default — click to expand and see the full history).
+
+A revoked user immediately loses access to the account. Their past requests remain visible to cashiers and admins for audit purposes.
+
+**Re-granting access:** If you revoke a user and later want to restore their access, click **+ Grant Access** and search for the same person. The system reactivates their record rather than creating a duplicate entry.
+
+---
+
+### Permissions
+
+| Action | Who can do it |
+|---|---|
+| Grant / revoke access | Cashiers with expense payment permissions; Admin |
+| Toggle individual permissions | Cashiers with expense payment permissions; Admin |
+| View access list | Cashiers with expense payment permissions; Admin |
+| Submit combo requests | Users granted "Can submit combo requests" permission |
+
+---
+
+### Troubleshooting
+
+**User cannot see the expense account in their navigation:**
+- Check that their access record is **Active** (not revoked) in the Restricted Access panel.
+- Confirm the **Can submit combo requests** toggle is ON.
+
+**User can see other users' requests when they should only see their own:**
+- Ensure the **Can only view own requests** toggle is ON for that user.
+
+**User reports they cannot see the account balance:**
+- The **Can view balance** toggle is OFF by default. Enable it for that user in the access list.
 
 ---
 

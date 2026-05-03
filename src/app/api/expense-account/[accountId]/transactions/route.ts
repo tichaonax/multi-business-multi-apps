@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { formatPayeeDisplayName } from '@/types/payee'
 import { getServerUser } from '@/lib/get-server-user'
+import { getUserGrantLevel } from '@/lib/expense-account-access'
 
 /**
  * GET /api/expense-account/[accountId]/transactions
@@ -36,6 +37,28 @@ export async function GET(
     }
 
     const { accountId } = await params
+
+    // Determine if this user has PERSONAL-only access (own transactions, no balance)
+    const isAdmin = user.role === 'admin'
+    const grantLevel = isAdmin ? null : await getUserGrantLevel(user.id, accountId)
+    const isPersonalOnly = grantLevel === 'PERSONAL'
+
+    // For PERSONAL users: include deposits they created OR combo-settle deposits for their requests,
+    // and payments they created OR payments linked to their combo requests.
+    let depositPersonalFilter: any = {}
+    let paymentPersonalFilter: any = {}
+    if (isPersonalOnly) {
+      // Payments linked to this user's combo requests (e.g. cashier-created approval payments)
+      const linkedPaymentIds = await prisma.comboPaymentRequests.findMany({
+        where: { accountId, createdBy: user.id, linkedPaymentId: { not: null } },
+        select: { linkedPaymentId: true },
+      }).then(rows => rows.map(r => r.linkedPaymentId!))
+
+      depositPersonalFilter = { createdBy: user.id }
+      paymentPersonalFilter = linkedPaymentIds.length > 0
+        ? { OR: [{ createdBy: user.id }, { id: { in: linkedPaymentIds } }] }
+        : { createdBy: user.id }
+    }
 
     // Check if expense account exists
     const account = await prisma.expenseAccounts.findUnique({
@@ -118,6 +141,7 @@ export async function GET(
         ? prisma.expenseAccountDeposits.findMany({
             where: {
               expenseAccountId: accountId,
+              ...depositPersonalFilter,
               ...(sourceType && { sourceType }),
               ...(Object.keys(dateFilter).length > 0 && { depositDate: dateFilter }),
               ...(Object.keys(amountFilter).length > 0 && { amount: amountFilter }),
@@ -147,15 +171,17 @@ export async function GET(
         ? prisma.expenseAccountPayments.findMany({
             where: {
               expenseAccountId: accountId,
-              status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] }, // All committed states appear in the ledger
-              // Date filter: use paidAt for PAID payments, paymentDate for SUBMITTED payments.
-              // paymentDate is the user-entered date and matches what is displayed in the UI (date: paidAt || paymentDate).
-              ...(Object.keys(dateFilter).length > 0 && {
-                OR: [
-                  { paidAt: dateFilter },
-                  { paidAt: null, paymentDate: dateFilter },
-                ],
-              }),
+              status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] },
+              // Combine personal filter OR + date filter OR inside AND to avoid OR key collision
+              AND: [
+                ...(Object.keys(paymentPersonalFilter).length > 0 ? [paymentPersonalFilter] : []),
+                ...(Object.keys(dateFilter).length > 0 ? [{
+                  OR: [
+                    { paidAt: dateFilter },
+                    { paidAt: null, paymentDate: dateFilter },
+                  ],
+                }] : []),
+              ],
               ...(Object.keys(amountFilter).length > 0 && { amount: amountFilter }),
               ...paymentSearchFilter,
             },
@@ -243,6 +269,47 @@ export async function GET(
         select: { paymentId: true, requestId: true, request: { select: { purpose: true } } },
       })
       pcTxns.forEach((t) => { if (t.paymentId) paymentToPettyCashMap.set(t.paymentId, { id: t.requestId, purpose: t.request.purpose }) })
+    }
+
+    // Look up combo request IDs for COMBO-type payments (paymentId → comboRequestId)
+    const comboRequestMap = new Map<string, string>()
+    if (paymentIds.length > 0) {
+      const comboLinks = await prisma.comboPaymentRequests.findMany({
+        where: { linkedPaymentId: { in: paymentIds }, accountId },
+        select: { id: true, linkedPaymentId: true },
+      })
+      comboLinks.forEach((r) => { if (r.linkedPaymentId) comboRequestMap.set(r.linkedPaymentId, r.id) })
+    }
+
+    // Fetch section-level payees for each combo request (for display in transaction list)
+    const comboPayeesMap = new Map<string, { name: string; phone?: string | null }[]>()
+    const comboRequestIds = [...comboRequestMap.values()]
+    if (comboRequestIds.length > 0) {
+      const comboSections = await prisma.comboPaymentRequestSections.findMany({
+        where: { requestId: { in: comboRequestIds } },
+        select: {
+          requestId: true,
+          payeeUser:     { select: { name: true } },
+          payeeEmployee: { select: { fullName: true, phone: true } },
+          payeePerson:   { select: { fullName: true, phone: true } },
+          payeeBusiness: { select: { name: true } },
+          payeeSupplier: { select: { name: true, phone: true } },
+        },
+        orderBy: { sortOrder: 'asc' },
+      })
+      for (const sec of comboSections) {
+        let payee: { name: string; phone?: string | null } | null = null
+        if (sec.payeeUser)     payee = { name: sec.payeeUser.name }
+        else if (sec.payeeEmployee) payee = { name: sec.payeeEmployee.fullName, phone: sec.payeeEmployee.phone }
+        else if (sec.payeePerson)   payee = { name: sec.payeePerson.fullName,   phone: sec.payeePerson.phone }
+        else if (sec.payeeBusiness) payee = { name: sec.payeeBusiness.name }
+        else if (sec.payeeSupplier) payee = { name: sec.payeeSupplier.name,     phone: sec.payeeSupplier.phone }
+        if (payee) {
+          const list = comboPayeesMap.get(sec.requestId) ?? []
+          if (!list.some(p => p.name === payee!.name)) list.push(payee)
+          comboPayeesMap.set(sec.requestId, list)
+        }
+      }
     }
 
     // Batch-lookup income category and subcategory names for deposits
@@ -386,6 +453,8 @@ export async function GET(
         status: payment.status,
         pettyCashRequestId: paymentToPettyCashMap.get(payment.id)?.id ?? null,
         pettyCashPurpose: paymentToPettyCashMap.get(payment.id)?.purpose ?? null,
+        comboRequestId: comboRequestMap.get(payment.id) ?? null,
+        comboPayees: (() => { const rid = comboRequestMap.get(payment.id); return rid ? (comboPayeesMap.get(rid) ?? []) : [] })(),
         createdBy: payment.creator,
         createdAt: payment.createdAt,
       })
@@ -451,6 +520,8 @@ export async function GET(
           ...t,
           date: t.date.toISOString(),
           createdAt: t.createdAt.toISOString(),
+          // Strip running balance for PERSONAL grant users
+          balanceAfter: isPersonalOnly ? null : t.balanceAfter,
         })),
         pagination: {
           total: totalCount,
@@ -458,7 +529,7 @@ export async function GET(
           offset,
           hasMore: offset + limit < totalCount,
         },
-        currentBalance: Number(account.balance),
+        currentBalance: isPersonalOnly ? null : Number(account.balance),
         accountName: account.accountName,
       },
     })

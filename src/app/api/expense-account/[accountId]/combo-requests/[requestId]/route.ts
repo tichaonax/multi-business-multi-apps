@@ -16,19 +16,19 @@ async function getComboRequest(requestId: string, accountId: string) {
       sections: {
         orderBy: { sortOrder: 'asc' },
         include: {
-          payeePerson:   { select: { id: true, fullName: true } },
+          payeePerson:   { select: { id: true, fullName: true, phone: true } },
           payeeUser:     { select: { id: true, name: true } },
-          payeeEmployee: { select: { id: true, fullName: true } },
+          payeeEmployee: { select: { id: true, fullName: true, phone: true } },
           payeeBusiness: { select: { id: true, name: true } },
-          payeeSupplier: { select: { id: true, name: true } },
+          payeeSupplier: { select: { id: true, name: true, phone: true, contactPerson: true } },
           items: {
             orderBy: { sortOrder: 'asc' },
             include: {
-              payeePerson:   { select: { id: true, fullName: true } },
+              payeePerson:   { select: { id: true, fullName: true, phone: true } },
               payeeUser:     { select: { id: true, name: true } },
-              payeeEmployee: { select: { id: true, fullName: true } },
+              payeeEmployee: { select: { id: true, fullName: true, phone: true } },
               payeeBusiness: { select: { id: true, name: true } },
-              payeeSupplier: { select: { id: true, name: true } },
+              payeeSupplier: { select: { id: true, name: true, phone: true, contactPerson: true } },
               category:      { select: { id: true, domainId: true } },
             },
           },

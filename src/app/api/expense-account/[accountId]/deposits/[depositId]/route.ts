@@ -76,6 +76,22 @@ export async function GET(
 
     // Check if a petty cash request is linked to this deposit
     let pettyCashRequest: any = null
+
+    // For COMBO_SETTLE deposits: look up the originating combo request
+    // (settleConfirmedAt and depositDate are both set to the same `now` in the settle-confirm transaction)
+    let comboRequestId: string | null = null
+    if (deposit.sourceType === 'COMBO_SETTLE') {
+      const comboLink = await prisma.comboPaymentRequests.findFirst({
+        where: {
+          accountId,
+          createdBy: deposit.createdBy ?? undefined,
+          settleConfirmedAt: deposit.depositDate,
+        },
+        select: { id: true },
+      })
+      comboRequestId = comboLink?.id ?? null
+    }
+
     if (deposit.sourceType === 'PETTY_CASH') {
       const pc = await prisma.pettyCashRequests.findFirst({
         where: { depositId: depositId },
@@ -146,6 +162,16 @@ export async function GET(
       }
     }
 
+    // For COMBO_SETTLE deposits: look up the originating combo request
+    let comboRequestId: string | null = null
+    if (deposit.sourceType === 'COMBO_SETTLE') {
+      const comboLink = await prisma.comboPaymentRequests.findFirst({
+        where: { accountId, settleDeposits: { some: { id: depositId } } },
+        select: { id: true },
+      })
+      comboRequestId = comboLink?.id ?? null
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -167,6 +193,10 @@ export async function GET(
           // For ACCOUNT_TRANSFER: link back to the source payment (MBM-198)
           sourceTransferPaymentId: (deposit as any).source_transfer_payment?.id ?? null,
           sourceTransferAccountId: (deposit as any).source_transfer_payment?.expenseAccountId ?? null,
+          // For COMBO_SETTLE: link to the originating combo request
+          comboRequestId,
+          // For COMBO_SETTLE: link to the originating combo request
+          comboRequestId,
         },
         pettyCashRequest,
       },
@@ -237,6 +267,14 @@ export async function PATCH(
     if (existingDeposit.sourceType === 'ACCOUNT_TRANSFER') {
       return NextResponse.json(
         { error: 'Auto-transfer deposits cannot be edited. They are system-generated records.' },
+        { status: 403 }
+      )
+    }
+
+    // COMBO_SETTLE deposits are system-generated and can only be edited by admins
+    if (existingDeposit.sourceType === 'COMBO_SETTLE' && !isAdmin) {
+      return NextResponse.json(
+        { error: 'Combo settlement deposits can only be edited by admins.' },
         { status: 403 }
       )
     }

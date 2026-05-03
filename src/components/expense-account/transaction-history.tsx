@@ -7,6 +7,7 @@ import { EditPaymentModal } from './edit-payment-modal'
 import { EditDepositModal } from './edit-deposit-modal'
 import { PaymentDetailModal } from './payment-detail-modal'
 import { DepositDetailModal } from './deposit-detail-modal'
+import { ComboRequestDetailModal } from './combo-request-detail-modal'
 import { ExpensePaymentVoucherModal, PaymentSummary } from './expense-payment-voucher-modal'
 import { generatePaymentVoucherPdf } from './payment-voucher-pdf'
 import { AddReceiptModal } from './add-receipt-modal'
@@ -52,6 +53,8 @@ interface Transaction {
   status?: string
   pettyCashRequestId?: string | null
   pettyCashPurpose?: string | null
+  comboRequestId?: string | null
+  comboPayees?: { name: string; phone?: string | null }[]
   notes?: string | null
   createdBy?: { id: string; name: string }
   createdAt: string
@@ -152,6 +155,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [editDepositId, setEditDepositId] = useState<string | null>(null)
   const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null)
   const [detailDepositId, setDetailDepositId] = useState<string | null>(null)
+  const [detailComboRequestId, setDetailComboRequestId] = useState<string | null>(null)
   const [editVersion, setEditVersion] = useState(0)
   const [search, setSearch] = useState('')
 
@@ -666,6 +670,10 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       key={transaction.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                       onClick={() => {
+                        if (!isDeposit && transaction.payeeType === 'COMBO' && transaction.comboRequestId) {
+                          setDetailComboRequestId(transaction.comboRequestId)
+                          return
+                        }
                         if (isDeposit) {
                           setDetailDepositId(transaction.id)
                         } else {
@@ -708,6 +716,30 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-mono font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300" title={transaction.pettyCashPurpose ?? 'Petty Cash'}>
                               🪙 PC-{transaction.pettyCashRequestId.slice(-6).toUpperCase()}
                             </span>
+                          </div>
+                        )}
+                        {!isDeposit && transaction.payeeType === 'COMBO' && (
+                          <div className="mt-0.5 space-y-0.5">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
+                              🧾 Combo Request
+                            </span>
+                            {transaction.comboPayees && transaction.comboPayees.length > 0 && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {transaction.comboPayees.length === 1 ? (
+                                  <span>
+                                    👤 {transaction.comboPayees[0].name}
+                                    {transaction.comboPayees[0].phone && (
+                                      <span className="ml-1 text-gray-400 dark:text-gray-500">• {transaction.comboPayees[0].phone}</span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span>
+                                    👤 {transaction.comboPayees[0].name}{' '}
+                                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 text-xs font-bold leading-none">+</span>
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                         {transaction.createdBy?.name && (
@@ -813,7 +845,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
                       {/* Action column: Edit (payments) or PDF voucher (batch deposits) */}
                       <td className="px-2 py-2 sm:py-3 text-right whitespace-nowrap">
-                        {canEditPayments && !isDeposit && !transaction.isAutoTransfer && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+                        {canEditPayments && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt)) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setEditPaymentId(transaction.id) }}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
@@ -822,7 +854,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             Edit
                           </button>
                         )}
-                        {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+                        {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt)) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setEditDepositId(transaction.id) }}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
@@ -1092,6 +1124,16 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           onClose={() => setDetailDepositId(null)}
           accountId={accountId}
           depositId={detailDepositId}
+        />
+      )}
+
+      {/* Combo Request Detail Modal */}
+      {detailComboRequestId && (
+        <ComboRequestDetailModal
+          isOpen={true}
+          onClose={() => setDetailComboRequestId(null)}
+          accountId={accountId}
+          comboRequestId={detailComboRequestId}
         />
       )}
     </>
