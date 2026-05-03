@@ -12,6 +12,7 @@ import { ExpensePaymentVoucherModal, PaymentSummary } from './expense-payment-vo
 import { generatePaymentVoucherPdf } from './payment-voucher-pdf'
 import { AddReceiptModal } from './add-receipt-modal'
 import { ViewReceiptsModal } from './view-receipts-modal'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 interface Transaction {
   id: string
@@ -55,6 +56,7 @@ interface Transaction {
   pettyCashPurpose?: string | null
   comboRequestId?: string | null
   comboPayees?: { name: string; phone?: string | null }[]
+  comboRequester?: { id: string; name: string } | null
   notes?: string | null
   createdBy?: { id: string; name: string }
   createdAt: string
@@ -97,6 +99,7 @@ function shortDescription(transaction: Transaction): string {
   if (transaction.sourceType === 'ACCOUNT_TRANSFER') return 'AUTO XFER IN'
 
   if (transaction.type === 'PAYMENT') {
+    if (transaction.payeeType === 'COMBO') return 'COMBO PAY'
     if (desc.startsWith('Payment to ')) return 'PAY ' + desc.slice(11)
     if (desc === 'General Payment') return 'GEN PAY'
     return desc
@@ -724,20 +727,15 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                               🧾 Combo Request
                             </span>
                             {transaction.comboPayees && transaction.comboPayees.length > 0 && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {transaction.comboPayees.length === 1 ? (
-                                  <span>
-                                    👤 {transaction.comboPayees[0].name}
-                                    {transaction.comboPayees[0].phone && (
-                                      <span className="ml-1 text-gray-400 dark:text-gray-500">• {transaction.comboPayees[0].phone}</span>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+                                {transaction.comboPayees.map((p, i) => (
+                                  <div key={i}>
+                                    👤 {p.name}
+                                    {p.phone && (
+                                      <span className="ml-1 text-gray-400 dark:text-gray-500">• {formatPhoneNumberForDisplay(p.phone)}</span>
                                     )}
-                                  </span>
-                                ) : (
-                                  <span>
-                                    👤 {transaction.comboPayees[0].name}{' '}
-                                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 text-xs font-bold leading-none">+</span>
-                                  </span>
-                                )}
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -800,6 +798,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           <span className="text-xs text-sky-600 dark:text-sky-500 italic">→ Transferred out</span>
                         ) : transaction.isAutoTransfer && transaction.autoTransferSource ? (
                           <span className="font-medium text-sky-700 dark:text-sky-400">↩ {transaction.autoTransferSource}</span>
+                        ) : transaction.payeeType === 'COMBO' && transaction.comboRequester ? (
+                          <span className="font-medium text-purple-700 dark:text-purple-400">📎 {transaction.comboRequester.name}</span>
                         ) : transaction.sourceBusiness ? (
                           <span className="font-medium">{transaction.sourceBusiness.name}</span>
                         ) : (transaction.fundSource || transaction.fundSourceNote) ? (

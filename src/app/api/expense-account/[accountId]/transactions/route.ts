@@ -273,12 +273,18 @@ export async function GET(
 
     // Look up combo request IDs for COMBO-type payments (paymentId → comboRequestId)
     const comboRequestMap = new Map<string, string>()
+    const comboRequesterMap = new Map<string, { id: string; name: string }>() // paymentId → requester
     if (paymentIds.length > 0) {
       const comboLinks = await prisma.comboPaymentRequests.findMany({
         where: { linkedPaymentId: { in: paymentIds }, accountId },
-        select: { id: true, linkedPaymentId: true },
+        select: { id: true, linkedPaymentId: true, creator: { select: { id: true, name: true } } },
       })
-      comboLinks.forEach((r) => { if (r.linkedPaymentId) comboRequestMap.set(r.linkedPaymentId, r.id) })
+      comboLinks.forEach((r) => {
+        if (r.linkedPaymentId) {
+          comboRequestMap.set(r.linkedPaymentId, r.id)
+          if (r.creator) comboRequesterMap.set(r.linkedPaymentId, r.creator)
+        }
+      })
     }
 
     // Fetch section-level payees for each combo request (for display in transaction list)
@@ -455,6 +461,7 @@ export async function GET(
         pettyCashPurpose: paymentToPettyCashMap.get(payment.id)?.purpose ?? null,
         comboRequestId: comboRequestMap.get(payment.id) ?? null,
         comboPayees: (() => { const rid = comboRequestMap.get(payment.id); return rid ? (comboPayeesMap.get(rid) ?? []) : [] })(),
+        comboRequester: comboRequesterMap.get(payment.id) ?? null,
         createdBy: payment.creator,
         createdAt: payment.createdAt,
       })
