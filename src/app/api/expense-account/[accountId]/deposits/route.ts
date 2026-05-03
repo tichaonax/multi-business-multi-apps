@@ -10,7 +10,7 @@ import {
 } from '@/lib/expense-account-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { hasExpenseAccountPermission } from '@/lib/expense-account-utils'
-import { canUserViewAccount, canUserWriteAccount } from '@/lib/expense-account-access'
+import { canUserViewAccount, canUserWriteAccount, getUserGrantLevel } from '@/lib/expense-account-access'
 import { getServerUser } from '@/lib/get-server-user'
 
 /**
@@ -45,6 +45,12 @@ export async function GET(
           { status: 403 }
         )
       }
+    }
+
+    // PERSONAL grant users cannot view deposits (account-level data, not personal)
+    const grantLevel = await getUserGrantLevel(user.id, accountId)
+    if (grantLevel === 'PERSONAL') {
+      return NextResponse.json({ error: 'You do not have permission to view deposits' }, { status: 403 })
     }
 
     // Check if expense account exists

@@ -63,8 +63,8 @@ export async function POST(
     const { userId, permissionLevel = 'FULL' } = body
 
     if (!userId) return NextResponse.json({ error: 'userId is required' }, { status: 400 })
-    if (!['VIEW', 'FULL'].includes(permissionLevel)) {
-      return NextResponse.json({ error: 'permissionLevel must be VIEW or FULL' }, { status: 400 })
+    if (!['VIEW', 'FULL', 'PERSONAL'].includes(permissionLevel)) {
+      return NextResponse.json({ error: 'permissionLevel must be VIEW, FULL, or PERSONAL' }, { status: 400 })
     }
 
     // Check account exists

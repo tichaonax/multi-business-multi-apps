@@ -1482,7 +1482,7 @@ model ExpenseAccountGrants {
   expenseAccountId String
   userId           String
   grantedBy        String
-  permissionLevel  String          @default("FULL") // "VIEW" = view + reports only, "FULL" = view + payments + deposits
+  permissionLevel  String          @default("FULL") // "FULL" = view + payments + deposits, "VIEW" = view + reports only, "PERSONAL" = own requests/transactions only, no balance
   grantedAt        DateTime        @default(now())
   expenseAccount   ExpenseAccounts @relation("ExpenseAccountGrants", fields: [expenseAccountId], references: [id], onDelete: Cascade)
   user             Users           @relation("ExpenseAccountGrantUser", fields: [userId], references: [id], onDelete: Cascade)

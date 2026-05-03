@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { hasExpenseAccountPermission } from '@/lib/expense-account-utils'
 import { getServerUser } from '@/lib/get-server-user'
-import { canUserAccessAccount } from '@/lib/expense-account-access'
+import { canUserAccessAccount, getUserGrantLevel } from '@/lib/expense-account-access'
 
 /**
  * GET /api/expense-account/[accountId]
@@ -22,12 +22,51 @@ export async function GET(
     const { accountId } = await params
 
     // Check access: admin, own-business member, or explicit grant
-    const hasAccess = await canUserAccessAccount(user, accountId)
+    const [hasAccess, grantLevel] = await Promise.all([
+      canUserAccessAccount(user, accountId),
+      getUserGrantLevel(user.id, accountId),
+    ])
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'You do not have permission to access this expense account' },
         { status: 403 }
       )
+    }
+
+    // PERSONAL grant users get only a stripped response — no balance, stats, or sensitive fields
+    if (grantLevel === 'PERSONAL') {
+      const stripped = await prisma.expenseAccounts.findUnique({
+        where: { id: accountId },
+        select: {
+          id: true,
+          accountNumber: true,
+          accountName: true,
+          accountType: true,
+          description: true,
+          isActive: true,
+          businessId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
+      if (!stripped) return NextResponse.json({ error: 'Expense account not found' }, { status: 404 })
+      return NextResponse.json({
+        success: true,
+        data: {
+          account: {
+            id: stripped.id,
+            accountNumber: stripped.accountNumber,
+            accountName: stripped.accountName,
+            accountType: stripped.accountType,
+            description: stripped.description,
+            isActive: stripped.isActive,
+            businessId: stripped.businessId,
+            createdAt: stripped.createdAt.toISOString(),
+            updatedAt: stripped.updatedAt.toISOString(),
+            // Explicitly omit: balance, lowBalanceThreshold, creator, stats
+          },
+        },
+      })
     }
 
     // Get expense account

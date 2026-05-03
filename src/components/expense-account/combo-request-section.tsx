@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { PayeeSelector } from './payee-selector'
-import { ComboRequestItemRow, ComboItem } from './combo-request-item-row'
+import { ComboRequestItemRow, ComboItem, Domain } from './combo-request-item-row'
 
 export type SectionType = 'GROCERY' | 'MONTHLY_CONTRIBUTION' | 'SCHOOL_FEES' | 'CUSTOM'
 
@@ -15,17 +15,10 @@ export interface ComboSection {
   items: ComboItem[]
 }
 
-interface Category {
-  id: string
-  name: string
-  emoji: string
-  color: string
-}
-
 interface ComboRequestSectionProps {
   section: ComboSection
   sectionIndex: number
-  categories: Category[]
+  domains: Domain[]
   onChange: (updated: ComboSection) => void
   onRemove: () => void
 }
@@ -50,6 +43,7 @@ function newItem(): ComboItem {
     description: '',
     quantity: '',
     unit: '',
+    unitPrice: '',
     estimatedAmount: '',
     categoryId: '',
     subcategoryId: '',
@@ -61,7 +55,7 @@ function newItem(): ComboItem {
 export function ComboRequestSection({
   section,
   sectionIndex,
-  categories,
+  domains,
   onChange,
   onRemove,
 }: ComboRequestSectionProps) {
@@ -96,13 +90,13 @@ export function ComboRequestSection({
   const payeeLabel = section.payee?.name
 
   return (
-    <div className="border border-gray-300 rounded-xl bg-gray-50 overflow-hidden">
+    <div className="border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-800/50 overflow-hidden">
       {/* Section header */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
+      <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <button
           type="button"
           onClick={() => setCollapsed(v => !v)}
-          className="text-gray-500 hover:text-gray-700 transition-colors"
+          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
         >
           <svg
             className={`w-4 h-4 transition-transform ${collapsed ? '-rotate-90' : ''}`}
@@ -121,14 +115,14 @@ export function ComboRequestSection({
             <select
               value={section.sectionType}
               onChange={e => onChange({ ...section, sectionType: e.target.value as SectionType })}
-              className="text-sm font-medium border-0 bg-transparent focus:outline-none focus:ring-0 cursor-pointer text-gray-800"
+              className="text-sm font-medium border-0 bg-white dark:bg-gray-800 focus:outline-none focus:ring-0 cursor-pointer text-gray-800 dark:text-gray-200"
             >
               {(Object.keys(SECTION_TYPE_LABELS) as SectionType[]).map(t => (
                 <option key={t} value={t}>{SECTION_TYPE_LABELS[t]}</option>
               ))}
             </select>
             {payeeLabel && (
-              <span className="text-xs text-gray-500 truncate">— {payeeLabel}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 truncate">— {payeeLabel}</span>
             )}
           </div>
           {section.sectionType === 'CUSTOM' && (
@@ -137,12 +131,12 @@ export function ComboRequestSection({
               value={section.sectionName}
               onChange={e => onChange({ ...section, sectionName: e.target.value })}
               placeholder="Section name"
-              className="text-xs text-gray-600 border-0 bg-transparent focus:outline-none w-full mt-0.5"
+              className="text-xs text-gray-600 dark:text-gray-400 border-0 bg-transparent focus:outline-none w-full mt-0.5"
             />
           )}
         </div>
 
-        <div className="shrink-0 text-sm font-semibold text-gray-700">
+          <div className="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">
           ${sectionTotal.toFixed(2)}
         </div>
 
@@ -164,7 +158,7 @@ export function ComboRequestSection({
           {/* Section-level payee */}
           <div className="flex items-center gap-3">
             <div className="flex-1">
-              <label className="block text-xs text-gray-500 mb-1">Default payee for this section (optional)</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Default payee for this section (optional)</label>
               <PayeeSelector
                 value={section.payee ? { type: section.payee.type, id: section.payee.id } : null}
                 onChange={payee => onChange({ ...section, payee: payee ? { type: payee.type, id: payee.id, name: payee.name } : null })}
@@ -179,7 +173,7 @@ export function ComboRequestSection({
                 key={item._id}
                 item={item}
                 index={idx}
-                categories={categories}
+                domains={domains}
                 onChange={updated => updateItem(idx, updated)}
                 onRemove={() => removeItem(idx)}
                 onAddBelow={() => addItemAt(idx)}
@@ -190,7 +184,7 @@ export function ComboRequestSection({
           <button
             type="button"
             onClick={addItem}
-            className="w-full py-2 text-sm text-blue-600 hover:text-blue-800 border border-dashed border-blue-300 hover:border-blue-500 rounded-lg transition-colors"
+            className="w-full py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-dashed border-blue-300 dark:border-blue-700 hover:border-blue-500 dark:hover:border-blue-500 rounded-lg transition-colors"
           >
             + Add Item
           </button>
@@ -202,7 +196,7 @@ export function ComboRequestSection({
               value={section.notes}
               onChange={e => onChange({ ...section, notes: e.target.value })}
               placeholder="Section notes (optional)"
-              className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>

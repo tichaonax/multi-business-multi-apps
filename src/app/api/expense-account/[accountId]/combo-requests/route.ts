@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
-import { canUserViewAccount, canUserWriteAccount } from '@/lib/expense-account-access'
+import { canUserViewAccount, canUserWriteAccount, getUserGrantLevel } from '@/lib/expense-account-access'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 export async function GET(
@@ -22,12 +22,15 @@ export async function GET(
       }
     }
 
-    // Check restricted access
-    const accessRecord = await prisma.expenseAccountUserAccess.findUnique({
-      where: { accountId_userId: { accountId, userId: user.id } },
-      select: { canViewOwnOnly: true, isActive: true },
-    })
-    const isRestricted = !!(accessRecord?.isActive && accessRecord?.canViewOwnOnly)
+    // UserAccess canViewOwnOnly=true OR PERSONAL grant → own requests only
+    const [accessRecord, grantLevel] = await Promise.all([
+      prisma.expenseAccountUserAccess.findUnique({
+        where: { accountId_userId: { accountId, userId: user.id } },
+        select: { canViewOwnOnly: true, isActive: true },
+      }),
+      getUserGrantLevel(user.id, accountId),
+    ])
+    const isRestricted = !!(accessRecord?.isActive && accessRecord?.canViewOwnOnly) || grantLevel === 'PERSONAL'
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
@@ -68,12 +71,15 @@ export async function POST(
     const permissions = getEffectivePermissions(user)
 
     if (!permissions.canMakeExpensePayments && user.role !== 'admin') {
-      // Also allow users with restricted access who canCreateRequests
-      const accessRecord = await prisma.expenseAccountUserAccess.findUnique({
-        where: { accountId_userId: { accountId, userId: user.id } },
-        select: { canCreateRequests: true, isActive: true },
-      })
-      const hasRestrictedAccess = accessRecord?.isActive && accessRecord?.canCreateRequests
+      // Allow: UserAccess.canCreateRequests, PERSONAL grant, or FULL grant
+      const [accessRecord, postGrantLevel] = await Promise.all([
+        prisma.expenseAccountUserAccess.findUnique({
+          where: { accountId_userId: { accountId, userId: user.id } },
+          select: { canCreateRequests: true, isActive: true },
+        }),
+        getUserGrantLevel(user.id, accountId),
+      ])
+      const hasRestrictedAccess = (accessRecord?.isActive && accessRecord?.canCreateRequests) || postGrantLevel === 'PERSONAL'
       if (!hasRestrictedAccess && !(await canUserWriteAccount(user.id, accountId))) {
         return NextResponse.json({ error: 'You do not have permission to create requests on this account' }, { status: 403 })
       }

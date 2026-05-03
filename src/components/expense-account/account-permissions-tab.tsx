@@ -7,7 +7,7 @@ interface Grant {
   userId: string
   userName: string
   userEmail: string
-  permissionLevel: 'VIEW' | 'FULL'
+  permissionLevel: 'VIEW' | 'FULL' | 'PERSONAL'
   grantedAt: string
   grantedByName: string
 }
@@ -33,7 +33,7 @@ export function AccountPermissionsTab({ accountId }: AccountPermissionsTabProps)
   const [allUsers, setAllUsers] = useState<UserOption[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedUser, setSelectedUser] = useState<UserOption | null>(null)
-  const [permissionLevel, setPermissionLevel] = useState<'VIEW' | 'FULL'>('FULL')
+  const [permissionLevel, setPermissionLevel] = useState<'VIEW' | 'FULL' | 'PERSONAL'>('FULL')
   const [showUserDropdown, setShowUserDropdown] = useState(false)
 
   useEffect(() => {
@@ -121,7 +121,7 @@ export function AccountPermissionsTab({ accountId }: AccountPermissionsTabProps)
     }
   }
 
-  const handleUpdateLevel = async (userId: string, newLevel: 'VIEW' | 'FULL') => {
+  const handleUpdateLevel = async (userId: string, newLevel: 'VIEW' | 'FULL' | 'PERSONAL') => {
     try {
       await fetch(`/api/expense-account/${accountId}/grants`, {
         method: 'POST',
@@ -204,11 +204,12 @@ export function AccountPermissionsTab({ accountId }: AccountPermissionsTabProps)
           {/* Permission level */}
           <select
             value={permissionLevel}
-            onChange={(e) => setPermissionLevel(e.target.value as 'VIEW' | 'FULL')}
+            onChange={(e) => setPermissionLevel(e.target.value as 'VIEW' | 'FULL' | 'PERSONAL')}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
           >
             <option value="FULL">Full Access (view + payments + deposits)</option>
             <option value="VIEW">View Only (view + reports)</option>
+            <option value="PERSONAL">Personal View (own requests only)</option>
           </select>
 
           <button
@@ -253,11 +254,12 @@ export function AccountPermissionsTab({ accountId }: AccountPermissionsTabProps)
                   {/* Permission level badge / toggle */}
                   <select
                     value={grant.permissionLevel}
-                    onChange={(e) => handleUpdateLevel(grant.userId, e.target.value as 'VIEW' | 'FULL')}
+                    onChange={(e) => handleUpdateLevel(grant.userId, e.target.value as 'VIEW' | 'FULL' | 'PERSONAL')}
                     className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                   >
                     <option value="FULL">Full Access</option>
                     <option value="VIEW">View Only</option>
+                    <option value="PERSONAL">Personal View</option>
                   </select>
 
                   <button

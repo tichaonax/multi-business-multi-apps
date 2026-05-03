@@ -8,7 +8,7 @@ import {
 import { validatePayee } from '@/lib/payee-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { hasExpenseAccountPermission } from '@/lib/expense-account-utils'
-import { canUserViewAccount, canUserWriteAccount } from '@/lib/expense-account-access'
+import { canUserViewAccount, canUserWriteAccount, getUserGrantLevel } from '@/lib/expense-account-access'
 import { v4 as uuidv4 } from 'uuid'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
@@ -76,12 +76,15 @@ export async function GET(
     const offset = parseInt(searchParams.get('offset') || '0')
     const sortBy = searchParams.get('sortBy') === 'createdAt' ? 'createdAt' : 'paymentDate'
 
-    // Restricted access: users with canViewOwnOnly = true only see their own payments
-    const accessRecord = await prisma.expenseAccountUserAccess.findUnique({
-      where: { accountId_userId: { accountId, userId: user.id } },
-      select: { canViewOwnOnly: true, isActive: true },
-    })
-    const isRestricted = !!(accessRecord?.isActive && accessRecord?.canViewOwnOnly)
+    // Restricted access: UserAccess canViewOwnOnly=true OR PERSONAL grant → own payments only
+    const [accessRecord, grantLevel] = await Promise.all([
+      prisma.expenseAccountUserAccess.findUnique({
+        where: { accountId_userId: { accountId, userId: user.id } },
+        select: { canViewOwnOnly: true, isActive: true },
+      }),
+      getUserGrantLevel(user.id, accountId),
+    ])
+    const isRestricted = !!(accessRecord?.isActive && accessRecord?.canViewOwnOnly) || grantLevel === 'PERSONAL'
 
     // Build where clause
     const where: any = {

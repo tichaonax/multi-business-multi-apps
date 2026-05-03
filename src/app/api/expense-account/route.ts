@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const simple = searchParams.get('simple') === 'true' // lightweight mode: id, name, number, type, balance only
 
     let whereClause: any = {}
+    let grantLevelMap: Map<string, string> | null = null
     if (isAdmin && filterBusinessId) {
       // Admins scoped to a specific business via query param
       whereClause = { businessId: filterBusinessId }
@@ -33,12 +34,13 @@ export async function GET(request: NextRequest) {
       // Users with auto-deposit setup permission can see all accounts system-wide
       whereClause = {}
     } else if (!isAdmin) {
-      // Fetch explicit grants for this user
+      // Fetch explicit grants for this user (including permission level for per-card redaction)
       const grants = await prisma.expenseAccountGrants.findMany({
         where: { userId: user.id },
-        select: { expenseAccountId: true },
+        select: { expenseAccountId: true, permissionLevel: true },
       })
       const grantedAccountIds = grants.map(g => g.expenseAccountId)
+      grantLevelMap = new Map(grants.map(g => [g.expenseAccountId, g.permissionLevel]))
 
       // Require either business permission or at least one grant
       if (!permissions.canAccessExpenseAccount && grantedAccountIds.length === 0) {
@@ -318,39 +320,47 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        accounts: sortedAccounts.map((account) => ({
-          id: account.id,
-          accountNumber: account.accountNumber,
-          accountName: account.accountName,
-          balance: (depositMap.get(account.id) ?? 0) - (submittedPaymentMap.get(account.id) ?? 0),
-          description: account.description,
-          isActive: account.isActive,
-          businessId: account.businessId ?? null,
-          businessName: account.business?.name ?? null,
-          lowBalanceThreshold: Number(account.lowBalanceThreshold),
-          // Sibling-related fields
-          parentAccountId: account.parentAccountId,
-          siblingNumber: account.siblingNumber,
-          isSibling: account.isSibling,
-          canMerge: account.canMerge,
-          accountType: account.accountType,
-          createdBy: account.createdBy,
-          createdAt: account.createdAt.toISOString(),
-          updatedAt: account.updatedAt.toISOString(),
-          creator: account.creator,
-          // Landlord data for RENT-type accounts
-          landlordSupplierId: rentLandlordMap.get(account.id)?.landlordSupplierId ?? null,
-          landlordSupplierName: rentLandlordMap.get(account.id)?.landlordSupplierName ?? null,
-          depositsTotal: depositMap.get(account.id) ?? 0,
-          paymentsTotal: paymentMap.get(account.id) ?? 0,
-          depositCount: depositCountMap.get(account.id) ?? 0,
-          paymentCount: paymentCountMap.get(account.id) ?? 0,
-          largestPayment: largestPaymentMap.get(account.id)?.amount ?? 0,
-          largestPaymentPayee: largestPaymentMap.get(account.id)?.payeeName ?? null,
-          largestPaymentId: largestPaymentMap.get(account.id)?.id ?? null,
-          recentDeposits: recentDepositsMap.get(account.id) ?? [],
-          recentPayments: recentPaymentsMap.get(account.id) ?? [],
-        })),
+        accounts: sortedAccounts.map((account) => {
+          const userGrantLevel = grantLevelMap?.get(account.id) ?? null
+          const isPersonal = userGrantLevel === 'PERSONAL'
+          return {
+            id: account.id,
+            accountNumber: account.accountNumber,
+            accountName: account.accountName,
+            // PERSONAL grant users cannot see balance or financial stats
+            balance: isPersonal ? null : (depositMap.get(account.id) ?? 0) - (submittedPaymentMap.get(account.id) ?? 0),
+            description: account.description,
+            isActive: account.isActive,
+            businessId: account.businessId ?? null,
+            businessName: account.business?.name ?? null,
+            lowBalanceThreshold: isPersonal ? null : Number(account.lowBalanceThreshold),
+            // Sibling-related fields
+            parentAccountId: account.parentAccountId,
+            siblingNumber: account.siblingNumber,
+            isSibling: account.isSibling,
+            canMerge: account.canMerge,
+            accountType: account.accountType,
+            createdBy: account.createdBy,
+            createdAt: account.createdAt.toISOString(),
+            updatedAt: account.updatedAt.toISOString(),
+            creator: isPersonal ? null : account.creator,
+            // Landlord data for RENT-type accounts
+            landlordSupplierId: rentLandlordMap.get(account.id)?.landlordSupplierId ?? null,
+            landlordSupplierName: rentLandlordMap.get(account.id)?.landlordSupplierName ?? null,
+            // Financial stats — stripped for PERSONAL grant users
+            depositsTotal: isPersonal ? null : (depositMap.get(account.id) ?? 0),
+            paymentsTotal: isPersonal ? null : (paymentMap.get(account.id) ?? 0),
+            depositCount: isPersonal ? null : (depositCountMap.get(account.id) ?? 0),
+            paymentCount: isPersonal ? null : (paymentCountMap.get(account.id) ?? 0),
+            largestPayment: isPersonal ? null : (largestPaymentMap.get(account.id)?.amount ?? 0),
+            largestPaymentPayee: isPersonal ? null : (largestPaymentMap.get(account.id)?.payeeName ?? null),
+            largestPaymentId: isPersonal ? null : (largestPaymentMap.get(account.id)?.id ?? null),
+            recentDeposits: isPersonal ? [] : (recentDepositsMap.get(account.id) ?? []),
+            recentPayments: isPersonal ? [] : (recentPaymentsMap.get(account.id) ?? []),
+            // Grant level so the UI can render the appropriate card view
+            userGrantLevel,
+          }
+        }),
       },
     })
   } catch (error) {

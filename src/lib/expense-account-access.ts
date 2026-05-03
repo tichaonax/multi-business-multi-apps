@@ -1,13 +1,14 @@
 import { prisma } from '@/lib/prisma'
 
-export type GrantPermissionLevel = 'VIEW' | 'FULL'
+export type GrantPermissionLevel = 'VIEW' | 'FULL' | 'PERSONAL'
 
 /**
  * Returns the explicit grant level for a user on a specific account, or null if no grant exists.
  * Does NOT factor in business membership — use this to check cross-business grants only.
  *
- * 'VIEW' = view + reports only
- * 'FULL' = view + payments + deposits
+ * 'FULL'     = view + payments + deposits
+ * 'VIEW'     = view + reports only
+ * 'PERSONAL' = own requests/transactions only, no balance visibility
  */
 export async function getUserGrantLevel(
   userId: string,

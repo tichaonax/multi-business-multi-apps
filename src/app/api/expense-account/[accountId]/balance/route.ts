@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getExpenseAccountBalanceSummary } from '@/lib/expense-account-utils'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { getUserGrantLevel } from '@/lib/expense-account-access'
 
 /**
  * GET /api/expense-account/[accountId]/balance
@@ -30,12 +31,15 @@ export async function GET(
 
     const { accountId } = await params
 
-    // Restricted access: users with canViewBalance = false cannot see the balance
-    const accessRecord = await prisma.expenseAccountUserAccess.findUnique({
-      where: { accountId_userId: { accountId, userId: user.id } },
-      select: { canViewBalance: true, isActive: true },
-    })
-    if (accessRecord?.isActive && !accessRecord.canViewBalance) {
+    // Block users with canViewBalance = false (UserAccess) or PERSONAL grant from seeing the balance
+    const [accessRecord, grantLevel] = await Promise.all([
+      prisma.expenseAccountUserAccess.findUnique({
+        where: { accountId_userId: { accountId, userId: user.id } },
+        select: { canViewBalance: true, isActive: true },
+      }),
+      getUserGrantLevel(user.id, accountId),
+    ])
+    if ((accessRecord?.isActive && !accessRecord.canViewBalance) || grantLevel === 'PERSONAL') {
       return NextResponse.json(
         { error: 'You do not have permission to view the balance of this account' },
         { status: 403 }

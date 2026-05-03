@@ -1097,9 +1097,15 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
     if (session?.user?.id && accountId) {
       loadAccount()
       fetchCounts()
-      // Check if current user has restricted access (403 on balance = restricted)
+      // Check if current user has restricted access (403 on balance = PERSONAL grant)
       fetch(`/api/expense-account/${accountId}/balance`, { credentials: 'include' })
-        .then(r => { if (r.status === 403) setIsRestrictedUser(true) })
+        .then(r => {
+          if (r.status === 403) {
+            setIsRestrictedUser(true)
+            // Land restricted users on the Combo Requests tab by default
+            setActiveTab(t => (t === 'overview' || t === '') ? 'combo-requests' : t)
+          }
+        })
         .catch(() => {})
       // Fetch all accessible accounts for the switcher
       fetch('/api/expense-account', { credentials: 'include' })
@@ -1336,7 +1342,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
     <ContentLayout
       title={account.accountName}
       description={`Account #${account.accountNumber}`}
-      headerActions={(
+      headerActions={!isRestrictedUser ? (
         <div className="flex items-center gap-3 sm:gap-6 text-xs sm:text-sm">
           <div className="flex items-center gap-1 sm:gap-2">
             <span className="text-secondary">Deposits</span>
@@ -1362,7 +1368,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
             <span title={countsError ? `Counts not available (${countsError})` : ''} className="text-orange-600 font-semibold">{paymentsCount ?? '—'}</span>
           </div>
         </div>
-      )}
+      ) : undefined}
     >
       <div className="space-y-2">
         {/* Compact header: back link · badge · description · actions */}
@@ -1460,7 +1466,8 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
 
           {/* Action buttons — compact */}
           {/* RENT accounts only show Deposit, Payment and Reports — Daily/Vehicle are not applicable */}
-          <div className="flex flex-wrap gap-1.5 items-center">
+          {/* Restricted (PERSONAL grant) users have no action buttons here */}
+          {!isRestrictedUser && <div className="flex flex-wrap gap-1.5 items-center">
             {!account?.businessId && account?.accountType !== 'RENT' && (
               <button
                 onClick={() => setShowTransferModal(true)}
@@ -1553,7 +1560,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 Reports
               </Link>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Balance Card */}
@@ -1594,7 +1601,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 Overview
               </button>
 
-              {canMakeExpenseDeposits && (
+              {canMakeExpenseDeposits && !isRestrictedUser && (
                 <button
                   onClick={() => setActiveTab('deposits')}
                   className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -1607,7 +1614,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 </button>
               )}
 
-              {canMakeExpensePayments && (
+              {canMakeExpensePayments && !isRestrictedUser && (
                 <button
                   onClick={() => setActiveTab('payments')}
                   className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
@@ -1636,7 +1643,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 Transactions
               </button>
 
-              {!account?.businessId && account?.accountType !== 'RENT' && (
+              {!account?.businessId && account?.accountType !== 'RENT' && !isRestrictedUser && (
                 <button
                   onClick={() => setActiveTab('transfers')}
                   className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -1649,6 +1656,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 </button>
               )}
 
+              {!isRestrictedUser && (
               <button
                 onClick={() => setActiveTab('loans')}
                 className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -1659,8 +1667,9 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
               >
                 Loans
               </button>
+              )}
 
-              {canManageLending && (
+              {canManageLending && !isRestrictedUser && (
                 <button
                   onClick={() => setActiveTab('lent-out')}
                   className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -1673,7 +1682,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 </button>
               )}
 
-              {(isSystemAdmin || canMakeExpensePayments) && (
+              {(isSystemAdmin || canMakeExpensePayments) && !isRestrictedUser && (
                 <button
                   onClick={() => setActiveTab('permissions')}
                   className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -1686,7 +1695,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 </button>
               )}
 
-              {isSystemAdmin && (
+              {isSystemAdmin && !isRestrictedUser && (
                 <button
                   onClick={() => setActiveTab('auto-deposit-settings')}
                   className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -1714,7 +1723,23 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
 
           <div className="p-2 sm:p-3">
             {/* Overview Tab */}
-            {activeTab === 'overview' && (
+            {activeTab === 'overview' && isRestrictedUser && (
+              <div className="py-10 flex flex-col items-center gap-3 text-center">
+                <span className="text-3xl">🔒</span>
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Personal View Access</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-xs">
+                  You have restricted access to this account. You can view and submit your own combo requests below.
+                </p>
+                <button
+                  onClick={() => setActiveTab('combo-requests')}
+                  className="mt-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  View My Requests
+                </button>
+              </div>
+            )}
+
+            {activeTab === 'overview' && !isRestrictedUser && (
               <div className="space-y-3">
                 {/* Compact info bar + quick actions on one row */}
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
@@ -1962,9 +1987,16 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
             {activeTab === 'permissions' && (isSystemAdmin || canMakeExpensePayments) && (
               <div className="space-y-6">
                 {isSystemAdmin && <AccountPermissionsTab accountId={accountId} />}
-                <div className={isSystemAdmin ? 'border-t border-gray-200 pt-6' : ''}>
-                  <ExpenseAccountAccessPanel accountId={accountId} />
-                </div>
+                {isSystemAdmin && (
+                  <details className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <summary className="cursor-pointer text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 select-none">
+                      Advanced: Fine-grained access flags (legacy)
+                    </summary>
+                    <div className="mt-4">
+                      <ExpenseAccountAccessPanel accountId={accountId} />
+                    </div>
+                  </details>
+                )}
               </div>
             )}
 

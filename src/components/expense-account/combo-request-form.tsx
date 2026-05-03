@@ -4,14 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
 import { ComboRequestSection, ComboSection, SectionType } from './combo-request-section'
-import { ComboItem } from './combo-request-item-row'
-
-interface Category {
-  id: string
-  name: string
-  emoji: string
-  color: string
-}
+import { ComboItem, Domain } from './combo-request-item-row'
 
 interface ComboRequestFormProps {
   accountId: string
@@ -23,6 +16,7 @@ function newItem(): ComboItem {
     description: '',
     quantity: '',
     unit: '',
+    unitPrice: '',
     estimatedAmount: '',
     categoryId: '',
     subcategoryId: '',
@@ -82,45 +76,30 @@ export function ComboRequestForm({ accountId }: ComboRequestFormProps) {
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [sections, setSections] = useState<ComboSection[]>([newSection()])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loadingCategories, setLoadingCategories] = useState(true)
+  const [domains, setDomains] = useState<Domain[]>([])
+  const [loadingDomains, setLoadingDomains] = useState(true)
   const [saving, setSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [draftId, setDraftId] = useState<string | null>(null)
 
   useEffect(() => {
-    loadCategories()
+    fetch('/api/expense-categories/hierarchical', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        // API returns one wrapper: { domains: [{ expense_categories: [...] }] }
+        // Domain-level entries are flagged with isDomainCategory: true
+        const flat: any[] = data.domains?.[0]?.expense_categories ?? []
+        const parsed: Domain[] = flat
+          .filter((c: any) => c.isDomainCategory)
+          .map((c: any) => ({
+            id: c.id,
+            label: `${c.emoji || ''} ${c.name}`.trim(),
+          }))
+        setDomains(parsed)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingDomains(false))
   }, [])
-
-  async function loadCategories() {
-    try {
-      const res = await fetch('/api/expense-categories/hierarchical', { credentials: 'include' })
-      if (!res.ok) return
-      const data = await res.json()
-      const flat: Category[] = []
-      if (data.domains && Array.isArray(data.domains)) {
-        data.domains.forEach((domain: any) => {
-          if (domain.expense_categories && Array.isArray(domain.expense_categories)) {
-            domain.expense_categories.forEach((cat: any) => {
-              flat.push({ id: cat.id, name: cat.name, emoji: cat.emoji || '', color: cat.color || '#000' })
-            })
-          }
-        })
-      }
-      const seen = new Set<string>()
-      setCategories(
-        flat.sort((a, b) => a.name.localeCompare(b.name)).filter(c => {
-          if (seen.has(c.name)) return false
-          seen.add(c.name)
-          return true
-        })
-      )
-    } catch {
-      // non-critical
-    } finally {
-      setLoadingCategories(false)
-    }
-  }
 
   const grandTotal = sections.reduce((sum, s) => {
     return sum + s.items.reduce((sSum, item) => {
@@ -255,27 +234,27 @@ export function ComboRequestForm({ accountId }: ComboRequestFormProps) {
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">New Combo Payment Request</h1>
-        <p className="text-sm text-gray-500 mt-1">Bundle multiple expense items into a single payment request.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">New Combo Payment Request</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Bundle multiple expense items into a single payment request.</p>
       </div>
 
       {/* Title */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Request Title *</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Request Title *</label>
         <input
           type="text"
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="e.g. Monthly household expenses — May 2026"
-          className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
       {/* Sections */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Sections</h2>
-          {loadingCategories && (
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Sections</h2>
+          {loadingDomains && (
             <span className="text-xs text-gray-400">Loading categories...</span>
           )}
         </div>
@@ -285,7 +264,7 @@ export function ComboRequestForm({ accountId }: ComboRequestFormProps) {
             key={section._id}
             section={section}
             sectionIndex={idx}
-            categories={categories}
+            domains={domains}
             onChange={updated => updateSection(idx, updated)}
             onRemove={() => removeSection(idx)}
           />
@@ -294,7 +273,7 @@ export function ComboRequestForm({ accountId }: ComboRequestFormProps) {
         <button
           type="button"
           onClick={addSection}
-          className="w-full py-3 text-sm text-blue-600 hover:text-blue-800 border-2 border-dashed border-blue-200 hover:border-blue-400 rounded-xl transition-colors"
+          className="w-full py-3 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border-2 border-dashed border-blue-200 dark:border-blue-800 hover:border-blue-400 dark:hover:border-blue-600 rounded-xl transition-colors"
         >
           + Add Section
         </button>
@@ -302,29 +281,29 @@ export function ComboRequestForm({ accountId }: ComboRequestFormProps) {
 
       {/* Notes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Request Notes (optional)</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Request Notes (optional)</label>
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Any additional context for the cashier..."
           rows={3}
-          className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
         />
       </div>
 
       {/* Total + Actions */}
-      <div className="sticky bottom-0 bg-white border-t border-gray-200 -mx-4 px-4 py-4 shadow-lg">
+      <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 -mx-4 px-4 py-4 shadow-lg">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-xs text-gray-500">Estimated Total</div>
-            <div className="text-2xl font-bold text-gray-900">${grandTotal.toFixed(2)}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Estimated Total</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">${grandTotal.toFixed(2)}</div>
           </div>
 
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => router.push(`/expense-accounts/${accountId}`)}
-              className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               Cancel
             </button>
@@ -332,7 +311,7 @@ export function ComboRequestForm({ accountId }: ComboRequestFormProps) {
               type="button"
               onClick={handleSaveDraft}
               disabled={saving || submitting}
-              className="px-4 py-2 text-sm text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : draftId ? 'Update Draft' : 'Save Draft'}
             </button>

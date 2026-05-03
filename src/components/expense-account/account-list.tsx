@@ -35,6 +35,8 @@ interface ExpenseAccount {
   paymentCount?: number
   largestPayment?: number
   largestPaymentPayee?: string | null
+  largestPaymentId?: string | null
+  userGrantLevel?: string | null
   isActive: boolean
   createdAt: string
   parentAccountId?: string | null
@@ -362,6 +364,7 @@ export function AccountList({
       ) : (
         <div className="grid gap-4">
           {filteredAccounts.map((account) => {
+            const isPersonal = account.userGrantLevel === 'PERSONAL'
             const balanceStatus = getBalanceStatus(
               Number(account.balance),
               Number(account.lowBalanceThreshold)
@@ -420,39 +423,47 @@ export function AccountList({
                       </div>
                     )}
 
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm">
-                      <div className="flex items-center gap-1">
-                        <span className="text-secondary">Balance:</span>
-                        <span>{balanceIndicator}</span>
-                        <span className={`font-bold ${balanceColor}`}>
-                          {formatCurrency(Number(account.balance))}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-secondary">Threshold:</span>
-                        <span className="ml-1 font-medium text-primary">
-                          {formatCurrency(Number(account.lowBalanceThreshold))}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-secondary">Status:</span>
-                        <span className="ml-1 font-medium text-primary">
-                          {balanceStatus === 'critical'
-                            ? 'Critical'
-                            : balanceStatus === 'low'
-                            ? 'Low Balance'
-                            : 'Healthy'}
-                        </span>
-                      </div>
-                    </div>
+                    {!isPersonal ? (
+                      <>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm">
+                          <div className="flex items-center gap-1">
+                            <span className="text-secondary">Balance:</span>
+                            <span>{balanceIndicator}</span>
+                            <span className={`font-bold ${balanceColor}`}>
+                              {formatCurrency(Number(account.balance))}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-secondary">Threshold:</span>
+                            <span className="ml-1 font-medium text-primary">
+                              {formatCurrency(Number(account.lowBalanceThreshold))}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-secondary">Status:</span>
+                            <span className="ml-1 font-medium text-primary">
+                              {balanceStatus === 'critical'
+                                ? 'Critical'
+                                : balanceStatus === 'low'
+                                ? 'Low Balance'
+                                : 'Healthy'}
+                            </span>
+                          </div>
+                        </div>
 
-                    <div className="mt-1 text-xs text-secondary">
-                      Created by {account.creator?.name || 'Unknown'} on{' '}
-                      {new Date(account.createdAt).toLocaleDateString()}
-                    </div>
+                        <div className="mt-1 text-xs text-secondary">
+                          Created by {account.creator?.name || 'Unknown'} on{' '}
+                          {new Date(account.createdAt).toLocaleDateString()}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="mt-2 px-3 py-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 text-xs text-blue-700 dark:text-blue-300">
+                        Personal access — open to view your requests
+                      </div>
+                    )}
 
                     {/* Action Buttons */}
-                    <div className="mt-2 flex gap-2 flex-wrap">
+                    {!isPersonal && <div className="mt-2 flex gap-2 flex-wrap">
                       {account.isActive && canMakeExpenseDeposits && (
                         <button
                           onClick={(e) => {
@@ -515,11 +526,11 @@ export function AccountList({
                           Merge
                         </button>
                       )}
-                    </div>
+                    </div>}
                   </div>
 
                   {/* Right: Stats panel */}
-                  <div className="grid grid-cols-3 md:flex md:flex-col md:items-end gap-2 md:min-w-[160px] p-2 sm:p-3 rounded-md bg-white/5 dark:bg-gray-900/30 border border-gray-200/5">
+                  {!isPersonal && <div className="grid grid-cols-3 md:flex md:flex-col md:items-end gap-2 md:min-w-[160px] p-2 sm:p-3 rounded-md bg-white/5 dark:bg-gray-900/30 border border-gray-200/5">
                     <div>
                       <div className="text-xs text-secondary">Deposits</div>
                       <div className="font-semibold text-sm text-green-600 dark:text-green-400">{formatCurrency(Number(account.depositsTotal ?? 0))}</div>
@@ -573,11 +584,11 @@ export function AccountList({
                         <div className="text-xs text-secondary truncate max-w-[120px]">to {account.largestPaymentPayee}</div>
                       )}
                     </div>
-                  </div>
+                  </div>}
                 </div>
 
                 {/* Recent Activity mini list */}
-                {(() => {
+                {!isPersonal && (() => {
                   const combined: RecentTx[] = [
                     ...(account.recentDeposits ?? []),
                     ...(account.recentPayments ?? []),
