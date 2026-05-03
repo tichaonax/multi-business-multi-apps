@@ -44,6 +44,7 @@ export async function GET(
       include: {
         creator: { select: { id: true, name: true } },
         approver: { select: { id: true, name: true } },
+        returnedByUser: { select: { id: true, name: true } },
         sections: {
           orderBy: { sortOrder: 'asc' },
           include: { items: { orderBy: { sortOrder: 'asc' } } },

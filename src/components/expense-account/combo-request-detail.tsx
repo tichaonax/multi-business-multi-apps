@@ -56,6 +56,9 @@ interface ComboRequest {
   returnNote: string | null
   returnedAt: string | null
   sections: ComboSection[]
+  // Server-computed action permissions
+  canApprove: boolean
+  canReturn: boolean
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -268,17 +271,15 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
 
   const userId = session?.user?.id
   const isCreator = request.createdBy === userId
-  const userRole = (session?.user as any)?.role
-  const isCashier = userRole === 'admin' || (session?.user as any)?.permissions?.canMakeExpensePayments
 
   const dataReady = !loading && !loadingBalance && !loadingAccountInfo
   const effectiveRequested = request.overrideAmount ?? request.requestedAmount
   const canEdit = isCreator && request.status === 'DRAFT'
   const canSubmit = isCreator && request.status === 'DRAFT'
-  const canApprove = isCashier && request.status === 'SUBMITTED'
+  const canApprove = request.canApprove
   const canCancel = isCreator && ['DRAFT', 'SUBMITTED'].includes(request.status)
   const canMarkPaid = isCreator && ['APPROVED', 'PARTIALLY_APPROVED', 'PARTIALLY_PAID'].includes(request.status)
-  const canReturn = isCashier && request.status === 'SUBMITTED' && request.createdBy !== userId
+  const canReturn = request.canReturn
   const overrideAmountValid = !isNaN(parseFloat(overrideAmountStr)) && parseFloat(overrideAmountStr) > 0
   const returnNoteValid = returnNoteInput.trim().length >= 10
 

@@ -11,6 +11,8 @@ interface ComboRequest {
   approvedAmount: number | null
   createdBy: string
   submittedAt: string | null
+  returnNote: string | null
+  returnedByUser: { id: string; name: string } | null
   creator: { id: string; name: string }
 }
 
@@ -61,6 +63,7 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
   }, [accountId])
 
   const pendingCount = requests.filter(r => r.status === 'SUBMITTED').length
+  const returnedCount = requests.filter(r => r.status === 'DRAFT' && r.returnNote).length
 
   return (
     <div className="space-y-3">
@@ -71,6 +74,11 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
           {pendingCount > 0 && (
             <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold bg-yellow-400 text-white">
               {pendingCount}
+            </span>
+          )}
+          {returnedCount > 0 && (
+            <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+              ↩ {returnedCount} needs revision
             </span>
           )}
         </div>
@@ -101,12 +109,19 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
       {!loading && requests.length > 0 && (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
           {requests.map(req => {
-            const badge = STATUS_BADGE[req.status] ?? { label: req.status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' }
+            const isReturned = req.status === 'DRAFT' && !!req.returnNote
+            const badge = isReturned
+              ? { label: '↩ Needs Revision', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
+              : STATUS_BADGE[req.status] ?? { label: req.status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' }
             return (
               <button
                 key={req.id}
                 onClick={() => router.push(`/expense-accounts/${accountId}/combo-requests/${req.id}`)}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                className={`w-full flex items-start gap-3 px-4 py-3 transition-colors text-left ${
+                  isReturned
+                    ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20 border-l-4 border-amber-400 dark:border-amber-600'
+                    : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                }`}
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{req.title}</p>
@@ -114,6 +129,14 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
                     {req.creator.name}
                     {req.submittedAt && ` · ${fmtDate(req.submittedAt)}`}
                   </p>
+                  {isReturned && req.returnNote && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 italic line-clamp-2">
+                      &ldquo;{req.returnNote}&rdquo;
+                      {req.returnedByUser && (
+                        <span className="not-italic text-amber-600 dark:text-amber-500"> — {req.returnedByUser.name}</span>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmt(req.requestedAmount)}</div>
@@ -124,7 +147,7 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
                 <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${badge.className}`}>
                   {badge.label}
                 </span>
-                <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>

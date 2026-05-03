@@ -66,7 +66,12 @@ export async function GET(
       return NextResponse.json({ error: 'You do not have permission to view this request' }, { status: 403 })
     }
 
-    return NextResponse.json({ success: true, data: comboRequest })
+    // Compute action permissions server-side (client session doesn't carry full permissions)
+    const isCashier = permissions.canMakeExpensePayments || user.role === 'admin'
+    const canApprove = isCashier && comboRequest.status === 'SUBMITTED'
+    const canReturn = isCashier && comboRequest.status === 'SUBMITTED' && comboRequest.createdBy !== user.id
+
+    return NextResponse.json({ success: true, data: { ...comboRequest, canApprove, canReturn } })
   } catch (error) {
     console.error('Error fetching combo request:', error)
     return NextResponse.json({ error: 'Failed to fetch combo request' }, { status: 500 })
