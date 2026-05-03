@@ -1,3 +1,4 @@
+import { ContentLayout } from '@/components/layout/content-layout'
 import { ComboRequestForm } from '@/components/expense-account/combo-request-form'
 
 export default async function NewComboRequestPage({
@@ -8,10 +9,10 @@ export default async function NewComboRequestPage({
   const { accountId } = await params
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <ContentLayout title="New Combo Payment Request">
       <div className="max-w-3xl mx-auto px-4 py-8">
         <ComboRequestForm accountId={accountId} />
       </div>
-    </div>
+    </ContentLayout>
   )
 }
