@@ -116,6 +116,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
   const [sections, setSections] = useState<ComboSection[]>([newSection()])
   const [domains, setDomains] = useState<Domain[]>([])
   const [loadingDomains, setLoadingDomains] = useState(true)
+  const [loadingPayees, setLoadingPayees] = useState(true)
   const [loadingDraft, setLoadingDraft] = useState(!!requestId)
   const [saving, setSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -125,7 +126,12 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
   const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
-    fetch('/api/expense-categories/hierarchical', { credentials: 'include' })
+    fetch('/api/expense-account/payees', { credentials: 'include' })
+      .catch(() => {})
+      .finally(() => setLoadingPayees(false))
+  }, [])
+
+  useEffect(() => {
       .then(r => r.json())
       .then(data => {
         // API returns one wrapper: { domains: [{ expense_categories: [...] }] }
@@ -430,7 +436,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
             <button
               type="button"
               onClick={handleSaveDraft}
-              disabled={saving || submitting}
+              disabled={saving || submitting || loadingDomains || loadingPayees}
               className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : draftId ? 'Update Draft' : 'Save Draft'}
@@ -438,10 +444,11 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
             <button
               type="button"
               onClick={handleSaveAndShowConfirm}
-              disabled={saving || submitting || confirming}
-              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              disabled={saving || submitting || confirming || loadingDomains || loadingPayees}
+              title={(loadingDomains || loadingPayees) ? 'Waiting for data to load...' : undefined}
+              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? 'Saving...' : 'Submit Request'}
+              {submitting ? 'Saving...' : (loadingDomains || loadingPayees) ? 'Loading...' : 'Submit Request'}
             </button>
           </div>
         </div>
