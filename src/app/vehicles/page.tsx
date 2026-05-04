@@ -10,7 +10,8 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { VehicleForm } from '@/components/vehicles/vehicle-form'
 import { VehicleList } from '@/components/vehicles/vehicle-list'
 import { VehicleDetailModal } from '@/components/vehicles/vehicle-detail-modal'
@@ -30,14 +31,15 @@ export default function VehiclesPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const currentUser = session?.user as SessionUser
+  const { hasPermission, isSystemAdmin: contextIsAdmin, loading: permissionsLoading } = useBusinessPermissionsContext()
 
   // Check if user is a driver and redirect to driver portal
   useEffect(() => {
-    if (currentUser) {
-      const isDriver = currentUser &&
-        hasUserPermission(currentUser, 'canLogDriverTrips') &&
-        hasUserPermission(currentUser, 'canLogDriverMaintenance') &&
-        !hasUserPermission(currentUser, 'canAccessPersonalFinance') &&
+    if (!permissionsLoading && currentUser) {
+      const isDriver =
+        hasPermission('canLogDriverTrips') &&
+        hasPermission('canLogDriverMaintenance') &&
+        !hasPermission('canAccessPersonalFinance') &&
         !isSystemAdmin(currentUser)
 
       if (isDriver) {
@@ -45,7 +47,7 @@ export default function VehiclesPage() {
         return
       }
     }
-  }, [currentUser, router])
+  }, [permissionsLoading, currentUser, router])
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vehicles' | 'drivers' | 'trips' | 'maintenance' | 'reports'>('overview')
   const [showVehicleForm, setShowVehicleForm] = useState(false)
@@ -66,17 +68,17 @@ export default function VehiclesPage() {
 
   // Filter tabs based on user permissions
   const allTabs = [
-    { id: 'overview', label: 'Overview', icon: '🚗', description: 'Fleet summary', permission: 'canAccessVehicles' },
-    { id: 'vehicles', label: 'Vehicles', icon: '🚙', description: 'Manage fleet', permission: 'canManageVehicles' },
-    { id: 'drivers', label: 'Drivers', icon: '👤', description: 'Driver management', permission: 'canManageDrivers' },
-    { id: 'trips', label: 'Trips', icon: '🛣️', description: 'Trip logging', permission: 'canManageTrips' },
-    { id: 'maintenance', label: 'Maintenance', icon: '🔧', description: 'Service records', permission: 'canManageVehicleMaintenance' },
-    { id: 'reports', label: 'Reports', icon: '📊', description: 'Analytics reports', permission: 'canViewVehicleReports' }
+    { id: 'overview', label: 'Overview', icon: '🚗', description: 'Fleet summary', permission: 'canAccessVehicles' as const },
+    { id: 'vehicles', label: 'Vehicles', icon: '🚙', description: 'Manage fleet', permission: 'canManageVehicles' as const },
+    { id: 'drivers', label: 'Drivers', icon: '👤', description: 'Driver management', permission: 'canManageDrivers' as const },
+    { id: 'trips', label: 'Trips', icon: '🛣️', description: 'Trip logging', permission: 'canManageTrips' as const },
+    { id: 'maintenance', label: 'Maintenance', icon: '🔧', description: 'Service records', permission: 'canManageVehicleMaintenance' as const },
+    { id: 'reports', label: 'Reports', icon: '📊', description: 'Analytics reports', permission: 'canViewVehicleReports' as const }
   ]
 
   const tabs = allTabs.filter(tab => {
-    if (isSystemAdmin(currentUser)) return true
-    return hasUserPermission(currentUser, tab.permission)
+    if (contextIsAdmin || isSystemAdmin(currentUser)) return true
+    return hasPermission(tab.permission)
   })
 
   // Ensure the active tab is valid for current user permissions
@@ -85,6 +87,19 @@ export default function VehiclesPage() {
       setActiveTab(tabs[0].id as any)
     }
   }, [tabs, activeTab])
+
+  // Wait for permissions to load before rendering access denied (avoids false flash)
+  if (permissionsLoading) {
+    return (
+      <ProtectedRoute>
+        <ContentLayout title="Fleet Management">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-secondary">Loading...</div>
+          </div>
+        </ContentLayout>
+      </ProtectedRoute>
+    )
+  }
 
   // If no tabs available, show access denied
   if (tabs.length === 0) {
@@ -507,7 +522,7 @@ export default function VehiclesPage() {
                           >
                             Refresh
                           </button>
-                          {(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageVehicles')) && (
+                          {(contextIsAdmin || isSystemAdmin(currentUser) || hasPermission('canManageVehicles')) && (
                             <button
                               onClick={() => setShowVehicleForm(true)}
                               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -515,7 +530,7 @@ export default function VehiclesPage() {
                               Add Vehicle
                             </button>
                           )}
-                          {(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageDrivers')) && (
+                          {(contextIsAdmin || isSystemAdmin(currentUser) || hasPermission('canManageDrivers')) && (
                             <button
                               onClick={() => setShowDriverForm(true)}
                               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
@@ -675,7 +690,7 @@ export default function VehiclesPage() {
                   ) : (
                     <VehicleList
                       onVehicleSelect={(vehicle) => setSelectedVehicle(vehicle)}
-                      onAddVehicle={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageVehicles')) ? () => setShowVehicleForm(true) : undefined}
+                      onAddVehicle={(contextIsAdmin || isSystemAdmin(currentUser) || hasPermission('canManageVehicles')) ? () => setShowVehicleForm(true) : undefined}
                       refreshSignal={refreshCounter}
                       updatedVehicleId={lastUpdatedVehicleId}
                       updateSeq={lastUpdateSeq}
@@ -699,7 +714,7 @@ export default function VehiclesPage() {
                   ) : (
                     <DriverList
                       onDriverSelect={(driver) => setSelectedDriver(driver)}
-                      onAddDriver={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageDrivers')) ? () => setShowDriverForm(true) : undefined}
+                      onAddDriver={(contextIsAdmin || isSystemAdmin(currentUser) || hasPermission('canManageDrivers')) ? () => setShowDriverForm(true) : undefined}
                       refreshSignal={refreshCounter}
                     />
                   )}
@@ -759,7 +774,7 @@ export default function VehiclesPage() {
                   ) : (
                     <TripList
                       onTripSelect={(trip) => setSelectedTrip(trip)}
-                      onAddTrip={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageTrips')) ? () => setShowTripForm(true) : undefined}
+                      onAddTrip={(contextIsAdmin || isSystemAdmin(currentUser) || hasPermission('canManageTrips')) ? () => setShowTripForm(true) : undefined}
                     />
                   )}
                 </div>
@@ -803,7 +818,7 @@ export default function VehiclesPage() {
                   ) : (
                     <MaintenanceList
                       onMaintenanceSelect={(maintenance) => setSelectedMaintenance(maintenance)}
-                      onAddMaintenance={(isSystemAdmin(currentUser) || hasUserPermission(currentUser, 'canManageVehicleMaintenance')) ? () => setShowMaintenanceForm(true) : undefined}
+                      onAddMaintenance={(contextIsAdmin || isSystemAdmin(currentUser) || hasPermission('canManageVehicleMaintenance')) ? () => setShowMaintenanceForm(true) : undefined}
                       refreshSignal={refreshCounter}
                     />
                   )}

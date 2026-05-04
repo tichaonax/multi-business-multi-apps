@@ -206,12 +206,21 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
 
   const hasPermission = (permission: keyof BusinessPermissions): boolean => {
     if (session?.user?.role === "admin") return true;
+    if (!currentBusiness) {
+      // No direct membership at the active business — fall back to checking if any
+      // active membership grants this permission (covers business-agnostic user-level
+      // permissions that were elevated into existing memberships by the API).
+      return businesses.some(b => b.isActive && (b.permissions as any)?.[permission] === true);
+    }
     return hasBusinessPermission(currentBusiness, permission);
   };
 
   const hasPermissionInBusiness = (permission: keyof BusinessPermissions, businessId: string): boolean => {
     if (session?.user?.role === "admin") return true;
     const membership = businesses.find((b) => b.businessId === businessId && b.isActive);
+    if (!membership) {
+      return businesses.some(b => b.isActive && (b.permissions as any)?.[permission] === true);
+    }
     return hasBusinessPermission(membership, permission);
   };
 
