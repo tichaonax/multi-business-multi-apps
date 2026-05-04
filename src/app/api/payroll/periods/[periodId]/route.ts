@@ -179,6 +179,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                 nationalId: true,
                 dateOfBirth: true,
                 hireDate: true,
+                terminationDate: true,
                 email: true,
                 job_titles: { select: { title: true } },
                 primaryBusinessId: true
@@ -291,7 +292,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         employeeLastName: (entry as any).employees?.lastName || null,
         employeeFullName: (entry as any).employees?.fullName || (entry as any).employeeName || null,
         employeeDateOfBirth: (entry as any).employees?.dateOfBirth || (entry as any).dateOfBirth || null,
-        employeeHireDate: (entry as any).employees?.hireDate || (entry as any).hireDate || null
+        employeeHireDate: (entry as any).employees?.hireDate || (entry as any).hireDate || null,
+        employeeTerminationDate: (entry as any).employees?.terminationDate || (entry as any).terminationDate || null
       }))
 
       // Merge contract-level benefits with payroll-entry-level benefits for every entry.

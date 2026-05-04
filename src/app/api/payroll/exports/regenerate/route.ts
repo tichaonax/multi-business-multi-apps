@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         payroll_entries: {
           include: {
             payroll_entry_benefits: { include: { benefit_types: { select: { id: true, name: true } } } },
-            employees: { select: { id: true, employeeNumber: true, firstName: true, lastName: true, fullName: true, job_titles: { select: { title: true } }, primaryBusinessId: true } }
+            employees: { select: { id: true, employeeNumber: true, firstName: true, lastName: true, fullName: true, nationalId: true, dateOfBirth: true, hireDate: true, terminationDate: true, job_titles: { select: { title: true } }, primaryBusinessId: true } }
           }
         }
       }
@@ -94,6 +94,11 @@ export async function POST(req: NextRequest) {
     for (const entry of period.payroll_entries) {
       // attach the employee's latest contract if available
       const contract = entry.employeeId ? latestContractByEmployee[entry.employeeId] : null
+      // Resolve date fields: prefer stored value on entry, fall back to live employee record
+      const employeeTermDate = (entry as any).employees?.terminationDate ?? null
+      const resolvedTermDate = (entry as any).terminationDate ?? employeeTermDate ?? null
+      const resolvedHireDate = (entry as any).hireDate ?? (entry as any).employees?.hireDate ?? null
+      const resolvedDob = (entry as any).dateOfBirth ?? (entry as any).employees?.dateOfBirth ?? null
       let totals: any = { combined: [], benefitsTotal: 0, grossPay: entry.grossPay || 0, netPay: entry.netPay || 0 }
       try {
         const { computeTotalsForEntry } = await import('@/lib/payroll/helpers')
@@ -149,6 +154,13 @@ export async function POST(req: NextRequest) {
         contract: contract || null,
         employee: entry.employee || null,
         perDiem: perDiemForEntry,
+        // Date fields with live employee fallback
+        terminationDate: resolvedTermDate,
+        hireDate: resolvedHireDate,
+        dateOfBirth: resolvedDob,
+        employeeTerminationDate: resolvedTermDate,
+        employeeHireDate: resolvedHireDate,
+        employeeDateOfBirth: resolvedDob,
         // Statutory deductions — same calculation as original export
         contractualBasicSalary,
         standardOvertimePay: Number(totals.standardOvertimePay || 0),
@@ -215,10 +227,10 @@ export async function POST(req: NextRequest) {
     let excelRows = enrichedEntries.map(entry => ({
       employeeNumber: entry.employeeNumber,
       employeeName: (entry as any).employeeFullName || entry.employeeName,
-      employeeFirstName: (entry as any).employee?.firstName ?? null,
-      employeeLastName: (entry as any).employee?.lastName ?? null,
-      employeeDateOfBirth: (entry as any).employee?.dateOfBirth ?? entry.dateOfBirth ?? null,
-      employeeHireDate: (entry as any).employee?.hireDate ?? entry.hireDate ?? null,
+      employeeFirstName: (entry as any).employee?.firstName ?? (entry as any).employees?.firstName ?? null,
+      employeeLastName: (entry as any).employee?.lastName ?? (entry as any).employees?.lastName ?? null,
+      employeeDateOfBirth: (entry as any).employeeDateOfBirth ?? (entry as any).employee?.dateOfBirth ?? entry.dateOfBirth ?? null,
+      employeeHireDate: (entry as any).employeeHireDate ?? (entry as any).employee?.hireDate ?? entry.hireDate ?? null,
       jobTitle: (entry as any).jobTitle || '',
       // include primaryBusiness info per entry so generator can pick correct shortName
       primaryBusiness: (entry.primaryBusiness && { name: entry.primaryBusiness.name, shortName: entry.primaryBusiness.shortName }) || (entry.contract && entry.contract.pdfGenerationData && entry.contract.pdfGenerationData.businessName ? { name: entry.contract.pdfGenerationData.businessName, shortName: undefined } : undefined) || (entry.employee && entry.employee.primaryBusinessId ? { name: undefined, shortName: undefined } : undefined),
@@ -231,10 +243,10 @@ export async function POST(req: NextRequest) {
       adjustmentsAsDeductions: Number(entry.adjustmentsAsDeductions || 0),
       absenceDeduction: Number(entry.absenceDeduction ?? (entry as any).absenceAmount ?? 0),
       absenceFraction: (entry as any).absenceFraction ?? (entry as any).absenceFractionDays ?? null,
-      nationalId: entry.nationalId,
-      dateOfBirth: entry.dateOfBirth,
-      hireDate: entry.hireDate,
-      terminationDate: entry.terminationDate,
+      nationalId: entry.nationalId ?? (entry as any).employees?.nationalId ?? null,
+      dateOfBirth: (entry as any).employeeDateOfBirth ?? entry.dateOfBirth ?? null,
+      hireDate: (entry as any).employeeHireDate ?? entry.hireDate ?? null,
+      terminationDate: (entry as any).employeeTerminationDate ?? entry.terminationDate ?? null,
       workDays: entry.workDays,
       baseSalary: Number(entry.baseSalary || 0),
       commission: Number(entry.commission || 0),
