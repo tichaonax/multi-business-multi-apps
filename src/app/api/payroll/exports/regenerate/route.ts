@@ -4,6 +4,7 @@ import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 import { generatePayrollExcel } from '@/lib/payroll/excel-generator'
 import { getWorkingDaysInMonth } from '@/lib/payroll/helpers'
+import { loadBrackets, loadTaxConstants, calculatePaye, calculateAidsLevy, calculateNssa } from '@/lib/payroll/paye-calc'
 import { writeFile, mkdir, unlink } from 'fs/promises'
 import path from 'path'
 import { getServerUser } from '@/lib/get-server-user'
@@ -68,6 +69,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Pre-load tax brackets and constants once (same as original export route)
+    const [monthlyBrackets, taxConstants] = await Promise.all([
+      loadBrackets(period.year, 'MONTHLY'),
+      loadTaxConstants(period.year),
+    ])
+
     // Fetch per diem for this period, grouped by employee
     const perDiemRows = await prisma.perDiemEntries.groupBy({
       by: ['employeeId'],
@@ -114,23 +121,43 @@ export async function POST(req: NextRequest) {
   const grossRaw = grossFromTotals
   const netComputed = grossRaw
 
+      // Calculate statutory deductions the same way as the original export route
+      const contractualBasicSalary = Number(
+        contract?.pdfGenerationData?.basicSalary ?? contract?.baseSalary ?? Number(entry.baseSalary || 0)
+      )
+      const perDiemForEntry = entry.employeeId ? (perDiemByEmployee[entry.employeeId] || 0) : 0
+      // PAYE is on taxable gross only (per diem is non-taxable)
+      const payeAmt = calculatePaye(grossFromTotals, monthlyBrackets)
+      const aidsLevyAmt = calculateAidsLevy(payeAmt, taxConstants.aidsLevyRate)
+      const nssaEmployeeAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployeeRate)
+      const nssaEmployerAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployerRate)
+
       enrichedEntries.push({
         ...entry,
         payrollEntryBenefits: entry.payroll_entry_benefits || [],
         mergedBenefits: totals.combined || [],
-    totalBenefitsAmount: Number(totals.benefitsTotal || 0),
-  grossPay: grossRaw,
+        totalBenefitsAmount: Number(totals.benefitsTotal || 0),
+        grossPay: grossRaw + perDiemForEntry,
         // expose adjustments and derived deduction fields so excelRows picks them up
         adjustmentsTotal: additionsTotal,
         adjustmentsAsDeductions: adjustmentsAsDeductions,
         totalDeductions: totalDeductions,
-  absenceDeduction: absenceDeduction,
+        absenceDeduction: absenceDeduction,
         // Ensure netPay matches gross for exported file (third-party will apply deductions)
-  netPay: Number(totals.netPay ?? netComputed),
+        netPay: Number(totals.netPay ?? netComputed),
         // attach resolved contract and employee objects for generator to use
         contract: contract || null,
         employee: entry.employee || null,
-        perDiem: entry.employeeId ? (perDiemByEmployee[entry.employeeId] || 0) : 0
+        perDiem: perDiemForEntry,
+        // Statutory deductions — same calculation as original export
+        contractualBasicSalary,
+        standardOvertimePay: Number(totals.standardOvertimePay || 0),
+        doubleOvertimePay: Number(totals.doubleOvertimePay || 0),
+        payeAmount: payeAmt,
+        aidsLevy: aidsLevyAmt,
+        nssaEmployee: nssaEmployeeAmt,
+        nssaEmployer: nssaEmployerAmt,
+        cashInLieu: Number((entry as any).cashInLieu || 0),
       })
     }
 
@@ -187,10 +214,14 @@ export async function POST(req: NextRequest) {
 
     let excelRows = enrichedEntries.map(entry => ({
       employeeNumber: entry.employeeNumber,
-      employeeName: entry.employeeName,
-      jobTitle: entry.jobTitle || '',
+      employeeName: (entry as any).employeeFullName || entry.employeeName,
+      employeeFirstName: (entry as any).employee?.firstName ?? null,
+      employeeLastName: (entry as any).employee?.lastName ?? null,
+      employeeDateOfBirth: (entry as any).employee?.dateOfBirth ?? entry.dateOfBirth ?? null,
+      employeeHireDate: (entry as any).employee?.hireDate ?? entry.hireDate ?? null,
+      jobTitle: (entry as any).jobTitle || '',
       // include primaryBusiness info per entry so generator can pick correct shortName
-  primaryBusiness: (entry.primaryBusiness && { name: entry.primaryBusiness.name, shortName: entry.primaryBusiness.shortName }) || (entry.contract && entry.contract.pdfGenerationData && entry.contract.pdfGenerationData.businessName ? { name: entry.contract.pdfGenerationData.businessName, shortName: undefined } : undefined) || (entry.employee && entry.employee.primaryBusinessId ? { name: undefined, shortName: undefined } : undefined),
+      primaryBusiness: (entry.primaryBusiness && { name: entry.primaryBusiness.name, shortName: entry.primaryBusiness.shortName }) || (entry.contract && entry.contract.pdfGenerationData && entry.contract.pdfGenerationData.businessName ? { name: entry.contract.pdfGenerationData.businessName, shortName: undefined } : undefined) || (entry.employee && entry.employee.primaryBusinessId ? { name: undefined, shortName: undefined } : undefined),
       employee: entry.employee || null,
       contract: entry.contract || null,
       cumulativeSickDays: entry.cumulativeSickDays ?? entry.sickDays ?? 0,
@@ -198,9 +229,8 @@ export async function POST(req: NextRequest) {
       cumulativeAbsenceDays: entry.cumulativeAbsenceDays ?? entry.absenceDays ?? 0,
       adjustmentsTotal: Number(entry.adjustmentsTotal || 0),
       adjustmentsAsDeductions: Number(entry.adjustmentsAsDeductions || 0),
-  // Include explicit absence deduction so export generator and diagnostics can use it
-  absenceDeduction: Number(entry.absenceDeduction ?? entry.absenceAmount ?? 0),
-      absenceFraction: entry.absenceFraction ?? entry.absenceFractionDays ?? null,
+      absenceDeduction: Number(entry.absenceDeduction ?? (entry as any).absenceAmount ?? 0),
+      absenceFraction: (entry as any).absenceFraction ?? (entry as any).absenceFractionDays ?? null,
       nationalId: entry.nationalId,
       dateOfBirth: entry.dateOfBirth,
       hireDate: entry.hireDate,
@@ -209,7 +239,7 @@ export async function POST(req: NextRequest) {
       baseSalary: Number(entry.baseSalary || 0),
       commission: Number(entry.commission || 0),
       overtimePay: Number(entry.overtimePay || 0),
-      perDiem: Number(entry.perDiem || 0),
+      perDiem: Number((entry as any).perDiem || 0),
       advanceDeductions: Number(entry.advanceDeductions || 0),
       loanDeductions: Number(entry.loanDeductions || 0),
       miscDeductions: Number(entry.miscDeductions || 0),
@@ -218,7 +248,16 @@ export async function POST(req: NextRequest) {
       netPay: Number(entry.netPay || 0),
       mergedBenefits: entry.mergedBenefits || [],
       totalBenefitsAmount: Number(entry.totalBenefitsAmount || 0),
-      payrollEntryBenefits: (entry.payroll_entry_benefits || []).map((b: any) => ({ id: b.id, benefitTypeId: b.benefitTypeId, benefitName: b.benefitName, amount: Number(b.amount || 0), isActive: b.isActive }))
+      payrollEntryBenefits: (entry.payroll_entry_benefits || []).map((b: any) => ({ id: b.id, benefitTypeId: b.benefitTypeId, benefitName: b.benefitName, amount: Number(b.amount || 0), isActive: b.isActive })),
+      // Statutory deductions — calculated identically to the original export
+      contractualBasicSalary: Number((entry as any).contractualBasicSalary || 0),
+      standardOvertimePay: Number((entry as any).standardOvertimePay || 0),
+      doubleOvertimePay: Number((entry as any).doubleOvertimePay || 0),
+      payeAmount: Number((entry as any).payeAmount || 0),
+      aidsLevy: Number((entry as any).aidsLevy || 0),
+      nssaEmployee: Number((entry as any).nssaEmployee || 0),
+      nssaEmployer: Number((entry as any).nssaEmployer || 0),
+      cashInLieu: Number((entry as any).cashInLieu || 0),
     }))
 
     // Group rows by primary company (prefer shortName, then name) and sort each group by employee last name

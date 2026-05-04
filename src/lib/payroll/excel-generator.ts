@@ -619,10 +619,6 @@ export async function generatePayrollExcel(
     totalRowData.push('')
   }
 
-  // Add formulas for Basic Salary, Commission, Overtime
-  const baseSalaryCol = getColumnLetter(baseSalaryIndex)
-  const commissionCol = getColumnLetter(commissionIndex)
-  const overtimeCol = getColumnLetter(overtimeIndex)
   // Helper to create SUM formula. If subtotal rows exist, sum only subtotal cells to avoid double-counting.
   const makeSumFormula = (colLetter: string) => {
     if (subtotalRowNumbers.length > 0) {
@@ -631,26 +627,11 @@ export async function generatePayrollExcel(
     return `SUM(${colLetter}${dataStartRow}:${colLetter}${dataEndRow})`
   }
 
-  totalRowData.push(
-    { formula: makeSumFormula(baseSalaryCol) },
-    { formula: makeSumFormula(commissionCol) },
-    { formula: makeSumFormula(overtimeCol) }
-  )
-
-  // Add formulas for each benefit column
-  // After pushing Basic Salary, Commission, Overtime, we're now at the benefit columns
-  let excelCol = overtimeIndex + 1
-  uniqueBenefits.forEach(() => {
-    const colLetter = getColumnLetter(excelCol)
-    totalRowData.push({ formula: makeSumFormula(colLetter) })
-    excelCol++
-  })
-
-  // Add formulas for end columns (Absence, Deductions, Benefits Total, Gross Pay, NSSA Employee, NSSA Employer, PAYE Tax, Aids Levy, Net Take-Home)
-  // excelCol now points to the first end column
-  for (let i = 0; i < endHeaders.length; i++) {
-    const colLetter = getColumnLetter(excelCol + i)
-    totalRowData.push({ formula: makeSumFormula(colLetter) })
+  // Add SUM formulas for every numeric column in order — one formula per column, no gaps.
+  // Previously only 3 columns were pushed (Basic Salary Contractual, Commission, Overtime 1.5x)
+  // which skipped Basic Salary Prorated and left all subsequent totals one column to the left.
+  for (let col = baseSalaryIndex; col <= totalColumns; col++) {
+    totalRowData.push({ formula: makeSumFormula(getColumnLetter(col)) })
   }
 
   const totalRow = worksheet.addRow(totalRowData)
