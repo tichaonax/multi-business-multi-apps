@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { formatCurrency } from '@/lib/format-currency'
@@ -11,6 +12,8 @@ export default function ExpensePaymentDetailPage() {
   const router = useRouter()
   const { accountId, paymentId } = params
   const { hasPermission } = useBusinessPermissionsContext()
+  const { data: session } = useSession()
+  const currentUserId = (session?.user as any)?.id as string | undefined
 
   const [payment, setPayment] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
@@ -100,6 +103,11 @@ export default function ExpensePaymentDetailPage() {
     payment.payeeBusiness?.name ||
     payment.payeeSupplier?.name ||
     'Unknown'
+
+  // Own-request edit: creator can edit REQUEST/REJECTED payments on personal accounts
+  const isPersonalAccount = !payment.expenseAccount?.businessId || payment.expenseAccount?.accountType === 'PERSONAL'
+  const isOwnRequest = !!currentUserId && payment.creator?.id === currentUserId && isPersonalAccount
+  const canEditOwnRequest = isOwnRequest && ['REQUEST', 'REJECTED'].includes(payment.status)
 
   const payeePhone =
     payment.payeeEmployee?.phone ||
@@ -239,9 +247,10 @@ export default function ExpensePaymentDetailPage() {
   const handleSaveEdit = async () => {
     setEditErrors({})
     const isDownwardEdit = Number(editFormData.amount) < Number(payment.amount) && payment.status === 'SUBMITTED'
+    const editingOwnRequest = !!currentUserId && payment.creator?.id === currentUserId && ['REQUEST', 'REJECTED'].includes(payment.status)
 
-    // Notes are mandatory when modifying a submitted payment, unless using adjustmentReason
-    if (payment.status !== 'DRAFT' && !editFormData.notes?.trim() && !(isDownwardEdit && inlineAdjustmentReason.trim())) {
+    // Notes are mandatory when modifying a submitted payment (not own REQUEST/REJECTED edits)
+    if (!editingOwnRequest && payment.status !== 'DRAFT' && !editFormData.notes?.trim() && !(isDownwardEdit && inlineAdjustmentReason.trim())) {
       setEditErrors({ notes: 'Notes are required when modifying a submitted payment — explain the reason for the change.' })
       return
     }
@@ -526,7 +535,17 @@ export default function ExpensePaymentDetailPage() {
             )}
 
             <div className="mt-4 flex gap-2">
-              {hasPermission('canEditExpenseTransactions') && payment.paymentType !== 'TRANSFER_OUT' && !['APPROVED', 'PAID', 'REVERSED'].includes(payment.status) && !(['QUEUED', 'REQUEST', 'SUBMITTED'].includes(payment.status) && hasPermission('canSubmitPaymentBatch')) && (
+              {/* Own-request edit: creator can edit REQUEST/REJECTED payments */}
+              {canEditOwnRequest && !isEditing && (
+                <button
+                  onClick={handleEdit}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  {payment.status === 'REJECTED' ? 'Edit & Re-submit' : 'Edit Request'}
+                </button>
+              )}
+              {/* Privileged edit for cashiers / admins */}
+              {hasPermission('canEditExpenseTransactions') && !canEditOwnRequest && payment.paymentType !== 'TRANSFER_OUT' && !['APPROVED', 'PAID', 'REVERSED'].includes(payment.status) && !(['QUEUED', 'REQUEST', 'SUBMITTED'].includes(payment.status) && hasPermission('canSubmitPaymentBatch')) && (
                 <button
                   onClick={handleEdit}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
@@ -554,7 +573,15 @@ export default function ExpensePaymentDetailPage() {
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <h3 className="text-lg font-semibold mb-4">Edit Payment</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              {canEditOwnRequest && payment.status === 'REJECTED' ? 'Edit & Re-submit Request' : 'Edit Payment'}
+            </h3>
+
+            {canEditOwnRequest && payment.status === 'REJECTED' && (
+              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 rounded text-sm">
+                ⚠️ This request was rejected. Update the details below and save — it will be re-submitted to the cashier for review.
+              </div>
+            )}
 
             {editErrors.general && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded">
@@ -643,9 +670,9 @@ export default function ExpensePaymentDetailPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  Notes {payment.status !== 'DRAFT' && <span className="text-red-500">*</span>}
+                  Notes {payment.status !== 'DRAFT' && !canEditOwnRequest && <span className="text-red-500">*</span>}
                 </label>
-                {payment.status !== 'DRAFT' && (
+                {payment.status !== 'DRAFT' && !canEditOwnRequest && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">Required — explain the reason for any changes to this request (e.g. "Reduced amount — supplier quoted lower price").</p>
                 )}
                 <textarea
@@ -653,7 +680,7 @@ export default function ExpensePaymentDetailPage() {
                   onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
                   rows={3}
                   className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${editErrors.notes ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
-                  placeholder={payment.status !== 'DRAFT' ? 'Reason for change (required)…' : 'Add any additional notes…'}
+                  placeholder={payment.status !== 'DRAFT' && !canEditOwnRequest ? 'Reason for change (required)…' : 'Add any additional notes…'}
                 />
                 {editErrors.notes && <div className="text-sm text-red-600 mt-1">{editErrors.notes}</div>}
               </div>
@@ -675,7 +702,7 @@ export default function ExpensePaymentDetailPage() {
                   disabled={saving}
                   className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
-                  {saving ? 'Saving...' : 'Save Changes'}
+                  {saving ? 'Saving...' : canEditOwnRequest && payment.status === 'REJECTED' ? 'Save & Re-submit' : 'Save Changes'}
                 </button>
                 <button
                   onClick={handleCancelEdit}

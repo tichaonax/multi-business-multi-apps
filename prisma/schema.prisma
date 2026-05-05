@@ -1268,6 +1268,8 @@ model Employees {
   nationalId                                                                String                        @unique
   primaryBusinessId                                                         String
   profilePhotoUrl                                                           String?
+  nationalIdDocUrl                                                          String?
+  nationalIdDocName                                                         String?
   startDate                                                                 DateTime?
   supervisorId                                                              String?
   terminationDate                                                           DateTime?
@@ -3530,6 +3532,8 @@ model VehicleDrivers {
   updatedAt                DateTime
   licenseCountryOfIssuance String
   driverLicenseTemplateId  String?
+  licenseDocUrl            String?
+  licenseDocName           String?
   driver_authorizations    DriverAuthorizations[]
   driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
   users                    Users?                  @relation(fields: [userId], references: [id])
@@ -3727,6 +3731,8 @@ model Vehicles {
   updatedAt                   DateTime
   hasInitialMileage           Boolean                     @default(false)
   mileageUnit                 String                      @default("km")
+  titleBookUrl                String?
+  titleBookName               String?
   driver_authorizations       DriverAuthorizations[]
   vehicle_expenses            VehicleExpenses[]
   vehicle_licenses            VehicleLicenses[]

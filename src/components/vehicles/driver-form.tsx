@@ -10,6 +10,7 @@ import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { parseDateFromFormat } from '@/lib/country-codes'
 import { CreateDriverData } from '@/types/vehicle'
+import { DocumentUpload } from '@/components/ui/document-upload'
 
 interface DriverFormProps {
   onSuccess?: () => void
@@ -35,6 +36,7 @@ export function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
   const { defaultCountry, format: globalDateFormat } = useDateFormat()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [pendingDocFile, setPendingDocFile] = useState<File | null>(null)
   const [selectedPerson, setSelectedPerson] = useState<SearchResult | null>(null)
   const [upgradeToUser, setUpgradeToUser] = useState(false)
 
@@ -148,6 +150,17 @@ export function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
+
+      // Upload license doc if pending
+      if (pendingDocFile && result?.data?.id) {
+        try {
+          const fd = new FormData()
+          fd.append('file', pendingDocFile)
+          await fetch(`/api/vehicles/drivers/${result.data.id}/documents`, { method: 'POST', body: fd })
+        } catch (uploadErr) {
+          console.error('License doc upload failed:', uploadErr)
+        }
+      }
 
       if (onSuccess) onSuccess()
       toast.push('Driver registered successfully')
@@ -413,6 +426,21 @@ export function DriverForm({ onSuccess, onCancel }: DriverFormProps) {
             placeholder="Full address..."
           />
         </div>
+
+        {/* License Document Upload */}
+        <DocumentUpload
+          label="Driver License Document (PDF, JPG, JPEG)"
+          currentUrl={null}
+          onUpload={async (file) => {
+            setPendingDocFile(file)
+          }}
+          onRemove={async () => {
+            setPendingDocFile(null)
+          }}
+        />
+        {pendingDocFile && (
+          <p className="text-xs text-green-600">📎 {pendingDocFile.name} — will be uploaded on save</p>
+        )}
 
         {/* Submit Buttons */}
         <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">

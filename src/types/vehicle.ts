@@ -20,6 +20,8 @@ export interface Vehicle {
   purchaseDate?: string
   purchasePrice?: number
   notes?: string
+  titleBookUrl?: string
+  titleBookName?: string
   createdAt: string
   updatedAt: string
 
@@ -56,6 +58,8 @@ export interface VehicleDriver {
   isActive: boolean
   dateOfBirth?: string
   address?: string
+  licenseDocUrl?: string
+  licenseDocName?: string
   createdAt: string
   updatedAt: string
 

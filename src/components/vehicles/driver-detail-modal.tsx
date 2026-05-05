@@ -11,6 +11,7 @@ import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { Car, Calendar, Shield } from 'lucide-react'
+import { DocumentUpload } from '@/components/ui/document-upload'
 
  interface DriverDetailModalProps {
    driver: VehicleDriver | null
@@ -37,6 +38,7 @@ import { Car, Calendar, Shield } from 'lucide-react'
   // Vehicle assignments state
   const [vehicleAssignments, setVehicleAssignments] = useState<any[]>([])
   const [loadingAssignments, setLoadingAssignments] = useState(false)
+  const [driverData, setDriverData] = useState(driver)
 
   const [formData, setFormData] = useState<Record<string, string>>({
      fullName: driver.fullName || '',
@@ -274,6 +276,29 @@ import { Car, Calendar, Shield } from 'lucide-react'
              </div>
            </div>
          )}
+
+         {/* License Document */}
+         <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+           <DocumentUpload
+             label="Driver License Document (PDF, JPG, JPEG)"
+             currentUrl={driverData.licenseDocUrl}
+             currentName={driverData.licenseDocName}
+             disabled={!canEdit}
+             onUpload={async (file) => {
+               const fd = new FormData()
+               fd.append('file', file)
+               const res = await fetch(`/api/vehicles/drivers/${driver.id}/documents`, { method: 'POST', body: fd })
+               const data = await res.json()
+               if (!res.ok) throw new Error(data.error || 'Upload failed')
+               setDriverData(prev => ({ ...prev, licenseDocUrl: data.licenseDocUrl, licenseDocName: data.licenseDocName }))
+             }}
+             onRemove={async () => {
+               const res = await fetch(`/api/vehicles/drivers/${driver.id}/documents`, { method: 'DELETE' })
+               if (!res.ok) throw new Error('Remove failed')
+               setDriverData(prev => ({ ...prev, licenseDocUrl: undefined, licenseDocName: undefined }))
+             }}
+           />
+         </div>
 
          {/* Vehicle Assignments Section */}
          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">

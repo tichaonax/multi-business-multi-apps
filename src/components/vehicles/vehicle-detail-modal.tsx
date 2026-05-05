@@ -17,6 +17,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { LicenseStatusIndicator } from './license-status-indicator'
 import { LicenseFormModal } from './license-form-modal'
 import { LicenseDetailModal } from './license-detail-modal'
+import { DocumentUpload } from '@/components/ui/document-upload'
 import {
   X,
   Car,
@@ -50,6 +51,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const [showLicenseModal, setShowLicenseModal] = useState(false)
   const [editingLicense, setEditingLicense] = useState<VehicleLicense | undefined>()
   const [vehicleData, setVehicleData] = useState(vehicle)
+  const [titleBookUploading, setTitleBookUploading] = useState(false)
   const [selectedLicenseIds, setSelectedLicenseIds] = useState<string[]>([])
   const [showAllLicenses, setShowAllLicenses] = useState(false)
   const [viewingLicense, setViewingLicense] = useState<VehicleLicense | null>(null)
@@ -772,6 +774,27 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                 </p>
               )}
             </div>
+
+            {/* Title Book Document */}
+            <DocumentUpload
+              label="Title Book / Ownership Document"
+              currentUrl={vehicleData.titleBookUrl}
+              currentName={vehicleData.titleBookName}
+              disabled={!canEdit}
+              onUpload={async (file) => {
+                const fd = new FormData()
+                fd.append('file', file)
+                const res = await fetch(`/api/vehicles/${vehicle.id}/documents`, { method: 'POST', body: fd })
+                const data = await res.json()
+                if (!res.ok) throw new Error(data.error || 'Upload failed')
+                setVehicleData(prev => ({ ...prev, titleBookUrl: data.titleBookUrl, titleBookName: data.titleBookName }))
+              }}
+              onRemove={async () => {
+                const res = await fetch(`/api/vehicles/${vehicle.id}/documents`, { method: 'DELETE' })
+                if (!res.ok) throw new Error('Remove failed')
+                setVehicleData(prev => ({ ...prev, titleBookUrl: undefined, titleBookName: undefined }))
+              }}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-secondary">
               <div>

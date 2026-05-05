@@ -22,6 +22,7 @@ import { PayeeExpenseSummary } from '@/components/expense-account/payee-expense-
 import { PayeePaymentsTable } from '@/components/expense-account/payee-payments-table'
 import { PayeeExpenseReport } from '@/components/expense-account/payee-expense-report'
 import { EmployeeIdCard, PrintIdCardButton } from '@/components/clock-in/employee-id-card'
+import { DocumentUpload } from '@/components/ui/document-upload'
 
 const EMPLOYMENT_STATUS_COLORS = {
   active: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
@@ -666,6 +667,25 @@ export default function EmployeeDetailPage() {
                       <p className="mt-1 text-sm text-primary">{employee.nationalId}</p>
                     </div>
                   )}
+                  <DocumentUpload
+                    label="National ID Document"
+                    currentUrl={employee.nationalIdDocUrl}
+                    currentName={employee.nationalIdDocName}
+                    disabled={!canEditEmployees && !canManageEmployees}
+                    onUpload={async (file) => {
+                      const fd = new FormData()
+                      fd.append('file', file)
+                      const res = await fetch(`/api/employees/${employee.id}/documents`, { method: 'POST', body: fd })
+                      const data = await res.json()
+                      if (!res.ok) throw new Error(data.error || 'Upload failed')
+                      setEmployee(prev => prev ? { ...prev, nationalIdDocUrl: data.nationalIdDocUrl, nationalIdDocName: data.nationalIdDocName } : prev)
+                    }}
+                    onRemove={async () => {
+                      const res = await fetch(`/api/employees/${employee.id}/documents`, { method: 'DELETE' })
+                      if (!res.ok) throw new Error('Remove failed')
+                      setEmployee(prev => prev ? { ...prev, nationalIdDocUrl: null, nationalIdDocName: null } : prev)
+                    }}
+                  />
                   {employee.driverLicense && (
                     <div>
                       <label className="block text-sm font-medium text-secondary">Driver's License</label>

@@ -101,6 +101,8 @@ export type Employee = {
   address: string | null
   dateOfBirth: string | null
   nationalId: string | null
+  nationalIdDocUrl: string | null
+  nationalIdDocName: string | null
   driverLicense: string | null
   passportNumber: string | null
   emergencyContactName: string | null

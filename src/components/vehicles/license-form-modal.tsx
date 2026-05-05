@@ -6,6 +6,7 @@ import { DateInput } from '@/components/ui/date-input'
 import { X } from 'lucide-react'
 import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
+import { DocumentUpload } from '@/components/ui/document-upload'
 
 interface LicenseFormModalProps {
   vehicleId: string
@@ -35,7 +36,9 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
     // VehicleLicense type doesn't declare `notes` but the form supports it; use a
     // safe cast to avoid TypeScript errors while preserving runtime behavior.
     notes: (license as any)?.notes || '',
-    isActive: license?.isActive ?? true
+    isActive: license?.isActive ?? true,
+    documentUrl: license?.documentUrl || '',
+    documentName: (license as any)?.documentName || ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -74,7 +77,9 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
       renewalCost: license?.renewalCost?.toString() || '0',
       lateFee: license?.lateFee?.toString() || '0',
       notes: (license as any)?.notes || '',
-      isActive: license?.isActive ?? true
+      isActive: license?.isActive ?? true,
+      documentUrl: license?.documentUrl || '',
+      documentName: (license as any)?.documentName || ''
     })
     setShowNewAuthorityInput(false)
     setNewAuthorityName('')
@@ -421,6 +426,23 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
               rows={3}
             />
           </div>
+
+          <DocumentUpload
+            label="License Document (PDF, JPG, JPEG)"
+            currentUrl={formData.documentUrl || null}
+            currentName={formData.documentName || null}
+            onUpload={async (file) => {
+              const fd = new FormData()
+              fd.append('file', file)
+              const res = await fetch('/api/vehicles/licenses/documents', { method: 'POST', body: fd })
+              const data = await res.json()
+              if (!res.ok) throw new Error(data.error || 'Upload failed')
+              setFormData(prev => ({ ...prev, documentUrl: data.documentUrl, documentName: data.documentName }))
+            }}
+            onRemove={async () => {
+              setFormData(prev => ({ ...prev, documentUrl: '', documentName: '' }))
+            }}
+          />
 
           <div className="flex items-center">
             <input

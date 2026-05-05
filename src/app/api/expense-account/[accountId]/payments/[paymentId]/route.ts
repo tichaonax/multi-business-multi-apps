@@ -216,21 +216,14 @@ export async function PATCH(
     const permissions = getEffectivePermissions(user)
     const isAdmin = isSystemAdmin(user)
 
-    if (!permissions.canEditExpenseTransactions) {
-      return NextResponse.json(
-        { error: 'You do not have permission to edit expense transactions' },
-        { status: 403 }
-      )
-    }
-
     const { accountId, paymentId } = await params
 
-    // Get existing payment
+    // Get existing payment — fetched early so we can check ownership before enforcing edit permissions
     const existingPayment = await prisma.expenseAccountPayments.findUnique({
       where: { id: paymentId },
       include: {
         expenseAccount: {
-          select: { balance: true, businessId: true },
+          select: { balance: true, businessId: true, accountType: true },
         },
       },
     })
@@ -239,11 +232,26 @@ export async function PATCH(
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
     }
 
-    // Verify payment belongs to the specified account
     if (existingPayment.expenseAccountId !== accountId) {
       return NextResponse.json(
         { error: 'Payment does not belong to this expense account' },
         { status: 400 }
+      )
+    }
+
+    // Own-request edit: creator can edit their own REQUEST/REJECTED payments on non-business accounts
+    // without needing the canEditExpenseTransactions privilege.
+    const isPersonalAccount = !(existingPayment.expenseAccount as any)?.businessId ||
+      (existingPayment.expenseAccount as any)?.accountType === 'PERSONAL'
+    const isOwnRequestEdit =
+      existingPayment.createdBy === user.id &&
+      ['REQUEST', 'REJECTED'].includes(existingPayment.status) &&
+      isPersonalAccount
+
+    if (!permissions.canEditExpenseTransactions && !isOwnRequestEdit) {
+      return NextResponse.json(
+        { error: 'You do not have permission to edit expense transactions' },
+        { status: 403 }
       )
     }
 
@@ -388,9 +396,9 @@ export async function PATCH(
       )
     }
 
-    // Check if within edit window (5 days for non-admins)
+    // Check if within edit window (5 days for non-admins) — own-request edits bypass this
     const editWindowCheck = isWithinEditWindow(existingPayment.createdAt, isAdmin)
-    if (!editWindowCheck.allowed) {
+    if (!editWindowCheck.allowed && !isOwnRequestEdit) {
       return NextResponse.json(
         { error: editWindowCheck.error },
         { status: 403 }
@@ -434,16 +442,16 @@ export async function PATCH(
     const differenceAmount = isAdjustmentOp ? originalAmountNum - newAmountNum : 0
     const accountBusinessId = existingPayment.expenseAccount?.businessId as string | null
 
-    // Payee changes are admin-only and require a reason
+    // Payee changes are admin-only and require a reason (own-request edits may change payee freely)
     const isChangingPayee = payeeType !== undefined
     if (isChangingPayee) {
-      if (!isAdmin) {
+      if (!isAdmin && !isOwnRequestEdit) {
         return NextResponse.json(
           { error: 'Only system administrators can change the payee on a submitted payment' },
           { status: 403 }
         )
       }
-      if (!payeeChangeReason?.trim()) {
+      if (!isOwnRequestEdit && !payeeChangeReason?.trim()) {
         return NextResponse.json(
           { error: 'A reason is required when changing the payee' },
           { status: 400 }
@@ -454,7 +462,8 @@ export async function PATCH(
     // Notes are mandatory when modifying a submitted (non-DRAFT) payment.
     // Payee-change edits use payeeChangeReason instead.
     // Downward amount adjustments use adjustmentReason instead.
-    if (existingPayment.status !== 'DRAFT' && !isChangingPayee && !notes?.trim() && !(isAdjustmentOp && adjustmentReason?.trim())) {
+    // Own-request edits (creator editing their REQUEST/REJECTED) never require notes.
+    if (!isOwnRequestEdit && existingPayment.status !== 'DRAFT' && !isChangingPayee && !notes?.trim() && !(isAdjustmentOp && adjustmentReason?.trim())) {
       return NextResponse.json(
         { error: 'Notes are required when modifying a submitted payment — explain the reason for the change.' },
         { status: 400 }
@@ -606,6 +615,11 @@ export async function PATCH(
     if (isFullPayment !== undefined) updateData.isFullPayment = isFullPayment
     if (paymentChannel !== undefined) updateData.paymentChannel = paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH'
     if (priority !== undefined) updateData.priority = priority === 'URGENT' ? 'URGENT' : 'NORMAL'
+
+    // Own-request edit of a REJECTED payment: reset to REQUEST so cashier sees it again
+    if (isOwnRequestEdit && existingPayment.status === 'REJECTED') {
+      updateData.status = 'REQUEST'
+    }
     // lineItems handled via raw SQL after the transaction (Prisma client not yet regenerated)
     const lineItemsValue = lineItems !== undefined
       ? (Array.isArray(lineItems) && lineItems.length > 0 ? lineItems : null)
